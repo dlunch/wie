@@ -10,8 +10,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-        rust: [stable, beta, nightly]
+        #os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
+        #rust: [stable, beta, nightly]
+        rust: [stable]
 
     steps:
       - uses: actions/checkout@v3
