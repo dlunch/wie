@@ -1,4 +1,4 @@
-use std::{env, fs, io};
+use std::{env, fs};
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
@@ -10,34 +10,55 @@ use unicorn_engine::{
     RegisterARM,
 };
 
-fn main() -> io::Result<()> {
-    let filename = env::args().nth(1).unwrap();
+const IMAGE_BASE: u64 = 0x100000;
+const STACK_BASE: u64 = 0x70000000;
+const STACK_SIZE: usize = 0x10000;
 
-    let bss_start = filename.find("client.bin").unwrap() + 10;
-    let bss_size = filename[bss_start..].parse::<u64>().unwrap();
-
-    let file = fs::read(filename)?;
+fn main() {
+    let path = env::args().nth(1).unwrap();
 
     let mut uc = unicorn_engine::Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN | Mode::THUMB).unwrap();
     uc.add_block_hook(block_hook).unwrap();
     uc.add_mem_hook(HookType::MEM_FETCH_UNMAPPED, 0, 0xffff_ffff_ffff_ffff, mem_hook).unwrap();
 
-    uc.mem_map(0x100000, 0x50000, Permission::ALL).unwrap();
-    uc.mem_write(0x100000, &file).unwrap(); // write code
-
-    uc.mem_map(0x70000000, 0x10000, Permission::READ | Permission::WRITE).unwrap(); // init stack
-
-    uc.reg_write(RegisterARM::CPSR, 0x40000010).unwrap(); // set mode to usr32
-    uc.reg_write(RegisterARM::SP, 0x70010000).unwrap(); // stack pointer
-    uc.reg_write(RegisterARM::LR, 0x1000).unwrap(); // return address
-
-    uc.reg_write(RegisterARM::R0, bss_size).unwrap(); // bss size?, from filename
-
-    uc.emu_start(0x100001, 0x1000, 0, 0).unwrap(); // odd address for thumb
+    setup(&mut uc, &path);
 
     dump_regs(&uc);
+}
 
-    Ok(())
+fn setup(uc: &mut Unicorn<'_, ()>, path: &str) -> u32 {
+    let bss_start = path.find("client.bin").unwrap() + 10;
+    let bss_size = path[bss_start..].parse::<u64>().unwrap();
+    let file = fs::read(path).unwrap();
+
+    uc.mem_map(IMAGE_BASE, round_up(file.len() + bss_size as usize, 0x1000), Permission::ALL)
+        .unwrap();
+    uc.mem_write(IMAGE_BASE, &file).unwrap();
+
+    uc.mem_map(STACK_BASE, STACK_SIZE, Permission::READ | Permission::WRITE).unwrap();
+
+    uc.reg_write(RegisterARM::CPSR, 0x40000010).unwrap(); // usr32
+    uc.reg_write(RegisterARM::SP, STACK_BASE + STACK_SIZE as u64).unwrap();
+
+    uc.reg_write(RegisterARM::R0, bss_size).unwrap();
+
+    // relocation
+    uc.emu_start(0x100001, 0, 0, 0).unwrap();
+
+    uc.reg_read(RegisterARM::R0).unwrap() as u32
+}
+
+fn round_up(num_to_round: usize, multiple: usize) -> usize {
+    if multiple == 0 {
+        return num_to_round;
+    }
+
+    let remainder = num_to_round % multiple;
+    if remainder == 0 {
+        num_to_round
+    } else {
+        num_to_round + multiple - remainder
+    }
 }
 
 fn dump_regs(uc: &Unicorn<'_, ()>) {
