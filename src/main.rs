@@ -27,6 +27,7 @@ fn main() {
 }
 
 fn setup(uc: &mut Unicorn<'_, ()>, path: &str) -> u32 {
+    // from jar, extracted from ktf phone
     let bss_start = path.find("client.bin").unwrap() + 10;
     let bss_size = path[bss_start..].parse::<u64>().unwrap();
     let file = fs::read(path).unwrap();
