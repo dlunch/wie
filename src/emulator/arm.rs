@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
     unicorn_const::{Arch, HookType, MemType, Mode, Permission},
@@ -9,6 +11,8 @@ use crate::util::round_up;
 const IMAGE_BASE: u64 = 0x100000;
 const STACK_BASE: u64 = 0x70000000;
 const STACK_SIZE: usize = 0x10000;
+const FUNCTIONS_BASE: u64 = 0x80000000;
+static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
 pub struct ArmEmulator {
     uc: Unicorn<'static, ()>,
@@ -16,17 +20,22 @@ pub struct ArmEmulator {
 
 impl ArmEmulator {
     pub fn new() -> Self {
-        let mut uc = unicorn_engine::Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).unwrap();
+        let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).unwrap();
 
         uc.add_block_hook(Self::block_hook).unwrap();
         uc.add_mem_hook(HookType::MEM_FETCH_UNMAPPED, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .unwrap();
 
         uc.mem_map(STACK_BASE, STACK_SIZE, Permission::READ | Permission::WRITE).unwrap();
+        uc.mem_map(FUNCTIONS_BASE, 0x1000, Permission::READ | Permission::EXEC).unwrap();
 
         uc.reg_write(RegisterARM::CPSR, 0x40000010).unwrap(); // usr32
         uc.reg_write(RegisterARM::SP, STACK_BASE + STACK_SIZE as u64).unwrap();
 
+        Self { uc }
+    }
+
+    fn from_uc(uc: Unicorn<'static, ()>) -> Self {
         Self { uc }
     }
 
@@ -58,7 +67,33 @@ impl ArmEmulator {
         self.uc.reg_read(RegisterARM::R0).unwrap() as u32
     }
 
-    fn dump_regs(uc: &Unicorn<'_, ()>) {
+    pub fn register_function<F>(&mut self, function: F) -> u32
+    where
+        F: Fn(&mut Self) -> u32 + 'static,
+    {
+        let bytes = [0x70, 0x47]; // BX LR
+        let address = FUNCTIONS_BASE + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
+
+        self.uc.mem_write(address, &bytes).unwrap();
+
+        self.uc
+            .add_code_hook(address, address + 2, move |uc, _, _| {
+                let mut new_self = Self::from_uc(Unicorn::try_from(uc.get_handle()).unwrap());
+
+                let ret = function(&mut new_self);
+
+                uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
+            })
+            .unwrap();
+
+        address as u32 + 1
+    }
+
+    pub fn dump_regs(&self) {
+        Self::dump_regs_inner(&self.uc)
+    }
+
+    fn dump_regs_inner(uc: &Unicorn<'_, ()>) {
         println!(
             "R0: {:x} R1: {:x} R2: {:x} R3: {:x} R4: {:x} R5: {:x} R6: {:x} R7: {:x} R8: {:x}",
             uc.reg_read(RegisterARM::R0).unwrap(),
@@ -101,7 +136,7 @@ impl ArmEmulator {
         }
         println!("-- reg");
 
-        Self::dump_regs(uc);
+        Self::dump_regs_inner(uc);
 
         println!("--");
     }

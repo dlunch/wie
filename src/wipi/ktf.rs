@@ -12,6 +12,7 @@ impl KtfWipiModule {
         let mut emulator = ArmEmulator::new();
 
         let (base_address, bss_size) = Self::load(&mut emulator, data, filename);
+        Self::register_functions(&mut emulator);
 
         Self {
             emulator,
@@ -34,4 +35,12 @@ impl KtfWipiModule {
 
         (base_address, bss_size)
     }
+
+    fn register_functions(emulator: &mut ArmEmulator) {
+        emulator.register_function(test);
+    }
+}
+
+fn test(_: &mut ArmEmulator) -> u32 {
+    0
 }
