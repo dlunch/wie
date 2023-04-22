@@ -10,11 +10,11 @@ const IMAGE_BASE: u64 = 0x100000;
 const STACK_BASE: u64 = 0x70000000;
 const STACK_SIZE: usize = 0x10000;
 
-pub struct ArmEmulator<'a> {
-    uc: Unicorn<'a, ()>,
+pub struct ArmEmulator {
+    uc: Unicorn<'static, ()>,
 }
 
-impl ArmEmulator<'_> {
+impl ArmEmulator {
     pub fn new() -> Self {
         let mut uc = unicorn_engine::Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).unwrap();
 

@@ -1,13 +1,13 @@
 use crate::emulator::arm::ArmEmulator;
 
 // client.bin from jar, extracted from ktf phone
-pub struct KtfWipiModule<'a> {
-    emulator: ArmEmulator<'a>,
+pub struct KtfWipiModule {
+    emulator: ArmEmulator,
     base_address: u32,
     bss_size: u32,
 }
 
-impl KtfWipiModule<'_> {
+impl KtfWipiModule {
     pub fn new(data: &[u8], filename: &str) -> Self {
         let mut emulator = ArmEmulator::new();
 
