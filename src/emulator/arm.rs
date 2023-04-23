@@ -31,8 +31,7 @@ impl ArmEmulator {
         let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).unwrap();
 
         uc.add_block_hook(Self::block_hook).unwrap();
-        uc.add_mem_hook(HookType::MEM_FETCH_UNMAPPED, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
-            .unwrap();
+        uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook).unwrap();
 
         uc.mem_map(STACK_BASE, STACK_SIZE, Permission::READ | Permission::WRITE).unwrap();
         uc.mem_map(FUNCTIONS_BASE, 0x1000, Permission::READ | Permission::EXEC).unwrap();
@@ -180,7 +179,7 @@ impl ArmEmulator {
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> String {
         [
             format!(
-                "R0: {:x} R1: {:x} R2: {:x} R3: {:x} R4: {:x} R5: {:x} R6: {:x} R7: {:x} R8: {:x}",
+                "R0: {:#x} R1: {:#x} R2: {:#x} R3: {:#x} R4: {:#x} R5: {:#x} R6: {:#x} R7: {:#x} R8: {:#x}",
                 uc.reg_read(RegisterARM::R0).unwrap(),
                 uc.reg_read(RegisterARM::R1).unwrap(),
                 uc.reg_read(RegisterARM::R2).unwrap(),
@@ -192,7 +191,7 @@ impl ArmEmulator {
                 uc.reg_read(RegisterARM::R8).unwrap()
             ),
             format!(
-                "SB: {:x} SL: {:x} FP: {:x} IP: {:x} SP: {:x} LR: {:x} PC: {:x}",
+                "SB: {:#x} SL: {:#x} FP: {:#x} IP: {:#x} SP: {:#x} LR: {:#x} PC: {:#x}",
                 uc.reg_read(RegisterARM::SB).unwrap(),
                 uc.reg_read(RegisterARM::SL).unwrap(),
                 uc.reg_read(RegisterARM::FP).unwrap(),
@@ -207,7 +206,7 @@ impl ArmEmulator {
     }
 
     fn block_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
-        log::trace!("-- address: {:x}, size: {:x}", address, size);
+        log::trace!("-- address: {:#x}, size: {:#x}", address, size);
         let insn = uc.mem_read_as_vec(address, size as usize).unwrap();
 
         let cs = Capstone::new()
@@ -230,14 +229,16 @@ impl ArmEmulator {
 
     fn mem_hook(uc: &mut Unicorn<'_, ()>, mem_type: MemType, address: u64, size: usize, value: i64) -> bool {
         let pc = uc.reg_read(RegisterARM::PC).unwrap();
+        let lr = uc.reg_read(RegisterARM::LR).unwrap();
 
         if mem_type == MemType::READ {
             let value = uc.mem_read_as_vec(address, size).unwrap();
             if size == 4 {
                 let value = u32::from_le_bytes(value.try_into().unwrap());
                 log::trace!(
-                    "pc: {:x} mem_type: {:?} address: {:x} size: {:x} value: {:x}",
+                    "pc: {:#x} lr: {:#x} mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}",
                     pc,
+                    lr,
                     mem_type,
                     address,
                     size,
@@ -245,8 +246,9 @@ impl ArmEmulator {
                 );
             } else {
                 log::trace!(
-                    "pc: {:x} mem_type: {:?} address: {:x} size: {:x} value: {:?}",
+                    "pc: {:#x} lr: {:#x} mem_type: {:?} address: {:#x} size: {:#x} value: {:?}",
                     pc,
+                    lr,
                     mem_type,
                     address,
                     size,
@@ -254,14 +256,9 @@ impl ArmEmulator {
                 );
             }
         } else {
-            log::trace!(
-                "pc: {:x} mem_type: {:?} address: {:x} size: {:x} value: {:x}",
-                pc,
-                mem_type,
-                address,
-                size,
-                value
-            );
+            log::error!("Invalid Memory Access");
+            log::error!("mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}", mem_type, address, size, value);
+            log::error!("Register dump\n{}", Self::dump_regs_inner(uc))
         }
 
         true
