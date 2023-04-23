@@ -32,8 +32,8 @@ impl KtfWipiModule {
         log::debug!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
-            get_system_function: self.emulator.register_function(get_system_function),
-            get_java_function: 0,
+            get_system_function_fn: self.emulator.register_function(get_system_function),
+            get_java_function_fn: 0,
         };
 
         self.emulator.alloc(0x40000000, 0x10000);
@@ -43,9 +43,9 @@ impl KtfWipiModule {
         let exe_interface = self.emulator.read::<ExeInterface>(wipi_exe.exe_interface_ptr);
         let exe_interface_functions = self.emulator.read::<ExeInterfaceFunctions>(exe_interface.functions_ptr);
 
-        log::debug!("Call init at {:#x}", exe_interface_functions.init);
+        log::debug!("Call init at {:#x}", exe_interface_functions.init_fn);
 
-        self.emulator.run_function(exe_interface_functions.init, &[0, 0, 0, 0, 0x40000000]);
+        self.emulator.run_function(exe_interface_functions.init_fn, &[0, 0, 0, 0, 0x40000000]);
 
         self.emulator.free(0x40000000, 0x10000);
     }
