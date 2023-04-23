@@ -1,5 +1,7 @@
-use core::slice;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{
+    slice,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
