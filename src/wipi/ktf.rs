@@ -53,7 +53,9 @@ impl KtfWipiModule {
         (base_address, bss_size)
     }
 
-    fn get_system_function(emulator: &mut ArmEmulator) -> u32 {
+    fn get_system_function(emulator: &mut ArmEmulator, function: String) -> u32 {
+        log::debug!("{}", function);
+
         log::debug!("\n{}", emulator.dump_regs());
 
         0
