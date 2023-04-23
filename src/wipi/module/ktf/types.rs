@@ -1,7 +1,7 @@
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InitParam4 {
-    pub get_system_function_fn: u32,
+    pub get_system_struct_fn: u32,
     pub get_java_function_fn: u32,
 }
 
@@ -43,4 +43,11 @@ pub struct ExeInterfaceFunctions {
     unk1_fn: u32,
     unk2_fn: u32,
     unk3_fn: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WIPICKnlInterface {
+    pub unk: [u32; 33],
+    pub get_interfaces_fn: u32,
 }
