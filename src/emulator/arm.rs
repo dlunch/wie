@@ -1,3 +1,5 @@
+mod function;
+
 use std::{
     slice,
     sync::atomic::{AtomicU32, Ordering},
@@ -10,6 +12,8 @@ use unicorn_engine::{
 };
 
 use crate::util::round_up;
+
+use function::EmulatedFunction;
 
 const IMAGE_BASE: u64 = 0x100000;
 const STACK_BASE: u64 = 0x70000000;
@@ -86,9 +90,9 @@ impl ArmEmulator {
         self.uc.reg_read(RegisterARM::R0).unwrap() as u32
     }
 
-    pub fn register_function<F>(&mut self, function: F) -> u32
+    pub fn register_function<F, P>(&mut self, function: F) -> u32
     where
-        F: Fn(&mut Self) -> u32 + 'static,
+        F: EmulatedFunction<P> + 'static,
     {
         let bytes = [0x70, 0x47]; // BX LR
         let address = FUNCTIONS_BASE + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
@@ -105,7 +109,7 @@ impl ArmEmulator {
 
                 let mut new_self = Self::from_uc(Unicorn::try_from(uc.get_handle()).unwrap());
 
-                let ret = function(&mut new_self);
+                let ret = function.call(&mut new_self);
 
                 uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
             })
@@ -135,7 +139,6 @@ impl ArmEmulator {
         unsafe { *(data.as_ptr() as *const T) }
     }
 
-    #[allow(dead_code)]
     pub fn read_null_terminated_string(&self, address: u32) -> String {
         // TODO we can read by 4bytes at once
 
