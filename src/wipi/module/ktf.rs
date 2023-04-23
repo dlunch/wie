@@ -29,7 +29,7 @@ impl KtfWipiModule {
     pub fn start(&mut self) {
         let wipi_exe = self.emulator.run_function(self.base_address + 1, &[self.bss_size]);
 
-        log::debug!("Got wipi_exe {:#x}", wipi_exe);
+        log::info!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
             get_system_function_fn: self.emulator.register_function(get_system_function),
@@ -43,7 +43,7 @@ impl KtfWipiModule {
         let exe_interface = self.emulator.read::<ExeInterface>(wipi_exe.exe_interface_ptr);
         let exe_interface_functions = self.emulator.read::<ExeInterfaceFunctions>(exe_interface.functions_ptr);
 
-        log::debug!("Call init at {:#x}", exe_interface_functions.init_fn);
+        log::info!("Call init at {:#x}", exe_interface_functions.init_fn);
 
         self.emulator.run_function(exe_interface_functions.init_fn, &[0, 0, 0, 0, 0x40000000]);
 
@@ -55,6 +55,8 @@ impl KtfWipiModule {
         let bss_size = filename[bss_start..].parse::<u32>().unwrap();
 
         let base_address = emulator.load(data, data.len() + bss_size as usize);
+
+        log::info!("Loaded at {:#x}, size {:#x}, bss {:#x}", base_address, data.len(), bss_size);
 
         (base_address, bss_size)
     }
