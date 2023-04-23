@@ -8,3 +8,5 @@ license = "MIT"
 [dependencies]
 unicorn-engine = { version = "^2.0" }
 capstone = { version = "^0.11" }
+log = { version = "^0.4" }
+pretty_env_logger = { version = "^0.4" }

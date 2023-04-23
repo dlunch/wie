@@ -23,7 +23,8 @@ impl KtfWipiModule {
     pub fn start(&mut self) {
         let wipi_exe = self.emulator.run_function(self.base_address + 1, &[self.bss_size]);
 
-        println!("{}", wipi_exe);
+        log::debug!("Got wipi_exe {:#x}", wipi_exe);
+
         let param_4 = InitParam4 {
             get_system_function: self.emulator.register_function(Self::get_system_function),
             get_java_function: 0,
@@ -35,6 +36,8 @@ impl KtfWipiModule {
         let wipi_exe = self.emulator.read::<WipiExe>(wipi_exe);
         let exe_interface = self.emulator.read::<ExeInterface>(wipi_exe.exe_interface_ptr);
         let exe_interface_functions = self.emulator.read::<ExeInterfaceFunctions>(exe_interface.functions_ptr);
+
+        log::debug!("Call init at {:#x}", exe_interface_functions.init);
 
         self.emulator.run_function(exe_interface_functions.init, &[0, 0, 0, 0, 0x40000000]);
 
@@ -51,7 +54,7 @@ impl KtfWipiModule {
     }
 
     fn get_system_function(emulator: &mut ArmEmulator) -> u32 {
-        emulator.dump_regs();
+        log::debug!("\n{}", emulator.dump_regs());
 
         0
     }
