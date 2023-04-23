@@ -122,7 +122,7 @@ impl ArmEmulator {
             .unwrap();
     }
 
-    pub fn read<T>(&mut self, address: u32) -> T
+    pub fn read<T>(&self, address: u32) -> T
     where
         T: Copy,
     {
@@ -131,6 +131,27 @@ impl ArmEmulator {
         log::debug!("Read address: {:#x}, data: {:02x?}", address, data);
 
         unsafe { *(data.as_ptr() as *const T) }
+    }
+
+    #[allow(dead_code)]
+    pub fn read_null_terminated_string(&self, address: u32) -> String {
+        // TODO we can read by 4bytes at once
+
+        let mut result = Vec::new();
+        let mut cursor = address;
+        loop {
+            let mut item = [0];
+            self.uc.mem_read(cursor as u64, &mut item).unwrap();
+            cursor += 1;
+
+            if item[0] == 0 {
+                break;
+            }
+
+            result.push(item[0]);
+        }
+
+        String::from_utf8(result).unwrap()
     }
 
     pub fn write<T>(&mut self, address: u32, data: T) {
