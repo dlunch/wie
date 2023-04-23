@@ -3,7 +3,7 @@ mod types;
 
 use crate::emulator::arm::ArmEmulator;
 
-use r#impl::get_system_function;
+use r#impl::get_system_struct;
 use types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe};
 
 // client.bin from jar, extracted from ktf phone
@@ -32,7 +32,7 @@ impl KtfWipiModule {
         log::info!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
-            get_system_function_fn: self.emulator.register_function(get_system_function),
+            get_system_struct_fn: self.emulator.register_function(get_system_struct),
             get_java_function_fn: 0,
         };
 
