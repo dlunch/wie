@@ -1,4 +1,3 @@
-pub mod allocator;
 mod function;
 
 use std::{
