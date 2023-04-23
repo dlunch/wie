@@ -51,7 +51,7 @@ impl ArmEmulator {
         self.uc.mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL).unwrap();
         self.uc.mem_write(IMAGE_BASE as u64, data).unwrap();
 
-        IMAGE_BASE as u32
+        IMAGE_BASE
     }
 
     pub fn run_function(&mut self, address: u32, params: &[u32]) -> u32 {
