@@ -11,7 +11,8 @@ use crate::util::round_up;
 const IMAGE_BASE: u64 = 0x100000;
 const STACK_BASE: u64 = 0x70000000;
 const STACK_SIZE: usize = 0x10000;
-const FUNCTIONS_BASE: u64 = 0x80000000;
+const FUNCTIONS_BASE: u64 = 0x71000000;
+const RUN_FUNCTION_LR: u64 = 0x7f000000;
 static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
 pub struct ArmEmulator {
@@ -72,7 +73,8 @@ impl ArmEmulator {
             }
         }
 
-        self.uc.emu_start(address as u64, 0, 0, 0).unwrap();
+        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR).unwrap();
+        self.uc.emu_start(address as u64, RUN_FUNCTION_LR, 0, 0).unwrap();
 
         self.uc.reg_read(RegisterARM::R0).unwrap() as u32
     }
