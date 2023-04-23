@@ -1,3 +1,4 @@
+use core::slice;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use capstone::{arch::BuildsCapstone, Capstone};
@@ -99,6 +100,31 @@ impl ArmEmulator {
             .unwrap();
 
         address as u32 + 1
+    }
+
+    pub fn alloc(&mut self, address: u32, size: u32) {
+        self.uc
+            .mem_map(address as u64, size as usize, Permission::READ | Permission::WRITE)
+            .unwrap();
+    }
+
+    pub fn read<T>(&mut self, address: u32) -> T
+    where
+        T: Copy,
+    {
+        let data = self.uc.mem_read_as_vec(address as u64, std::mem::size_of::<T>()).unwrap();
+
+        unsafe { *(data.as_ptr() as *const T) }
+    }
+
+    pub fn write<T>(&mut self, address: u32, data: T) {
+        let data_slice = unsafe { slice::from_raw_parts(&data as *const T as *const u8, std::mem::size_of::<T>()) };
+
+        self.uc.mem_write(address as u64, data_slice).unwrap();
+    }
+
+    pub fn free(&mut self, address: u32, size: u32) {
+        self.uc.mem_unmap(address as u64, size as usize).unwrap()
     }
 
     pub fn dump_regs(&self) {
