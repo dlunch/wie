@@ -1,3 +1,4 @@
+pub mod allocator;
 mod function;
 
 use std::{
@@ -15,11 +16,11 @@ use crate::util::round_up;
 
 use function::EmulatedFunction;
 
-const IMAGE_BASE: u64 = 0x100000;
-const STACK_BASE: u64 = 0x70000000;
-const STACK_SIZE: usize = 0x10000;
-const FUNCTIONS_BASE: u64 = 0x71000000;
-const RUN_FUNCTION_LR: u64 = 0x7f000000;
+const IMAGE_BASE: u32 = 0x100000;
+const STACK_BASE: u32 = 0x70000000;
+const STACK_SIZE: u32 = 0x10000;
+const FUNCTIONS_BASE: u32 = 0x71000000;
+const RUN_FUNCTION_LR: u32 = 0x7f000000;
 static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
 pub struct ArmEmulator {
@@ -33,11 +34,12 @@ impl ArmEmulator {
         uc.add_block_hook(Self::block_hook).unwrap();
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook).unwrap();
 
-        uc.mem_map(STACK_BASE, STACK_SIZE, Permission::READ | Permission::WRITE).unwrap();
-        uc.mem_map(FUNCTIONS_BASE, 0x1000, Permission::READ | Permission::EXEC).unwrap();
+        uc.mem_map(STACK_BASE as u64, STACK_SIZE as usize, Permission::READ | Permission::WRITE)
+            .unwrap();
+        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ | Permission::EXEC).unwrap();
 
         uc.reg_write(RegisterARM::CPSR, 0x40000010).unwrap(); // usr32
-        uc.reg_write(RegisterARM::SP, STACK_BASE + STACK_SIZE as u64).unwrap();
+        uc.reg_write(RegisterARM::SP, STACK_BASE as u64 + STACK_SIZE as u64).unwrap();
 
         Self { uc }
     }
@@ -47,8 +49,8 @@ impl ArmEmulator {
     }
 
     pub fn load(&mut self, data: &[u8], map_size: usize) -> u32 {
-        self.uc.mem_map(IMAGE_BASE, round_up(map_size, 0x1000), Permission::ALL).unwrap();
-        self.uc.mem_write(IMAGE_BASE, data).unwrap();
+        self.uc.mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL).unwrap();
+        self.uc.mem_write(IMAGE_BASE as u64, data).unwrap();
 
         IMAGE_BASE as u32
     }
@@ -81,8 +83,8 @@ impl ArmEmulator {
 
         log::debug!("Run function start {:#x}, params {:?}", address, params);
 
-        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR).unwrap();
-        self.uc.emu_start(address as u64, RUN_FUNCTION_LR, 0, 0).unwrap();
+        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).unwrap();
+        self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).unwrap();
 
         log::debug!("Run function end");
 
@@ -94,7 +96,7 @@ impl ArmEmulator {
         F: EmulatedFunction<P> + 'static,
     {
         let bytes = [0x70, 0x47]; // BX LR
-        let address = FUNCTIONS_BASE + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
+        let address = FUNCTIONS_BASE as u64 + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
 
         self.uc.mem_write(address, &bytes).unwrap();
 
