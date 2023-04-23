@@ -99,7 +99,7 @@ impl ArmEmulator {
         self.uc.mem_write(address, &bytes).unwrap();
 
         self.uc
-            .add_code_hook(address, address + 2, move |uc, _, _| {
+            .add_code_hook(address, address, move |uc, _, _| {
                 log::debug!(
                     "Registered function called at {:#x}, LR: {:#x}",
                     address,
