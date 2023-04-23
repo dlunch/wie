@@ -98,7 +98,7 @@ impl ArmEmulator {
         self.uc
             .add_code_hook(address, address + 2, move |uc, _, _| {
                 log::debug!(
-                    "Registerd function called at {:#x}, LR: {:#x}",
+                    "Registered function called at {:#x}, LR: {:#x}",
                     address,
                     uc.reg_read(RegisterARM::LR).unwrap()
                 );
