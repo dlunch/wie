@@ -61,6 +61,16 @@ impl ArmEmulator {
         if params.len() > 3 {
             self.uc.reg_write(RegisterARM::R3, params[3] as u64).unwrap();
         }
+        if params.len() > 4 {
+            for param in params[4..].iter() {
+                self.uc
+                    .reg_write(RegisterARM::SP, self.uc.reg_read(RegisterARM::SP).unwrap() - 4)
+                    .unwrap();
+                self.uc
+                    .mem_write(self.uc.reg_read(RegisterARM::SP).unwrap(), &param.to_le_bytes())
+                    .unwrap();
+            }
+        }
 
         self.uc.emu_start(address as u64, 0, 0, 0).unwrap();
 
