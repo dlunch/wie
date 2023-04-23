@@ -1,4 +1,10 @@
+mod r#impl;
+mod types;
+
 use crate::emulator::arm::ArmEmulator;
+
+use r#impl::get_system_function;
+use types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -26,7 +32,7 @@ impl KtfWipiModule {
         log::debug!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
-            get_system_function: self.emulator.register_function(Self::get_system_function),
+            get_system_function: self.emulator.register_function(get_system_function),
             get_java_function: 0,
         };
 
@@ -52,59 +58,4 @@ impl KtfWipiModule {
 
         (base_address, bss_size)
     }
-
-    fn get_system_function(emulator: &mut ArmEmulator, function: String) -> u32 {
-        log::debug!("{}", function);
-
-        log::debug!("\n{}", emulator.dump_regs());
-
-        0
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct InitParam4 {
-    get_system_function: u32,
-    get_java_function: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct WipiExe {
-    exe_interface_ptr: u32,
-    name_ptr: u32,
-    unk1: u32,
-    unk2: u32,
-    unk_func_ptr1: u32,
-    unk_func_ptr2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk_func_ptr3: u32,
-    unk5: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct ExeInterface {
-    functions_ptr: u32,
-    name_ptr: u32,
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    unk6: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct ExeInterfaceFunctions {
-    unk1: u32,
-    unk2: u32,
-    init: u32,
-    get_default_dll: u32,
-    unk_func_ptr1: u32,
-    unk_func_ptr2: u32,
-    unk_func_ptr3: u32,
 }
