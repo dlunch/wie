@@ -22,11 +22,11 @@ const FUNCTIONS_BASE: u32 = 0x71000000;
 const RUN_FUNCTION_LR: u32 = 0x7f000000;
 static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
-pub struct ArmEmulator {
+pub struct ArmCore {
     uc: Unicorn<'static, ()>,
 }
 
-impl ArmEmulator {
+impl ArmCore {
     pub fn new() -> Self {
         let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).unwrap();
 

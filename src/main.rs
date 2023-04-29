@@ -1,4 +1,4 @@
-mod emulator;
+mod core;
 mod util;
 mod wipi;
 
