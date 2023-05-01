@@ -1,3 +1,4 @@
+pub mod allocator;
 mod function;
 
 use std::{
@@ -13,13 +14,14 @@ use unicorn_engine::{
 
 use crate::util::round_up;
 
-use function::EmulatedFunction;
+use self::function::EmulatedFunction;
 
 const IMAGE_BASE: u32 = 0x100000;
 const STACK_BASE: u32 = 0x70000000;
 const STACK_SIZE: u32 = 0x10000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const RUN_FUNCTION_LR: u32 = 0x7f000000;
+const HEAP_BASE: u32 = 0x40000000;
 static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
 pub struct ArmCore {
