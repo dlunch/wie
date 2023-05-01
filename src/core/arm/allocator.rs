@@ -13,7 +13,7 @@ pub struct Allocator {
 
 impl Allocator {
     pub fn new(core: &mut ArmCore) -> anyhow::Result<Self> {
-        let size = 0x10000;
+        let size = 0x100000;
 
         core.alloc(HEAP_BASE, size)?;
 
