@@ -49,6 +49,6 @@ impl EmulatedFunctionParam<String> for String {
     fn get(core: &mut ArmCore, pos: usize) -> String {
         let ptr = Self::read(core, pos);
 
-        core.read_null_terminated_string(ptr)
+        core.read_null_terminated_string(ptr).unwrap()
     }
 }
