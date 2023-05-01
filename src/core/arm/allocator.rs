@@ -4,6 +4,8 @@ use crate::util;
 
 use super::{ArmCore, HEAP_BASE};
 
+const ALIGN: u32 = 4;
+
 pub struct Allocator {
     base: u32,
     map: BTreeMap<u32, u32>,
@@ -21,6 +23,7 @@ impl Allocator {
     }
 
     pub fn alloc(&mut self, size: u32) -> Option<u32> {
+        let size = if size == 0 { ALIGN } else { size };
         let address = self.find_address(size)?;
 
         self.map.insert(address, size);
@@ -39,7 +42,7 @@ impl Allocator {
             if address - cursor >= request_size {
                 return Some(cursor);
             } else {
-                cursor = util::round_up((address + size) as usize, 4) as u32;
+                cursor = util::round_up((address + size) as usize, ALIGN as usize) as u32;
             }
         }
 
