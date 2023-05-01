@@ -188,6 +188,7 @@ impl ArmCore {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn free(&mut self, address: u32, size: u32) -> anyhow::Result<()> {
         log::debug!("Free address: {:#x}, size: {:#x}", address, size);
 

@@ -57,8 +57,6 @@ impl KtfWipiModule {
 
         self.core.run_function(exe_interface_functions.init_fn, &[0, 0, 0, 0, 0x40000000])?;
 
-        self.core.free(0x40000000, 0x10000).unwrap();
-
         Ok(())
     }
 
