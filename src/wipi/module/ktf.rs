@@ -1,16 +1,21 @@
+mod context;
 mod r#impl;
 mod types;
 
+use std::rc::Rc;
+
 use crate::core::arm::ArmCore;
 
-use r#impl::get_system_struct;
-use types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe};
+use self::context::Context;
+use self::r#impl::get_system_struct;
+use self::types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
     base_address: u32,
     bss_size: u32,
+    context: Rc<Context>,
 }
 
 impl KtfWipiModule {
@@ -23,6 +28,7 @@ impl KtfWipiModule {
             core,
             base_address,
             bss_size,
+            context: Rc::new(Context {}),
         }
     }
 
@@ -32,7 +38,7 @@ impl KtfWipiModule {
         log::info!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
-            get_system_struct_fn: self.core.register_function(get_system_struct),
+            get_system_struct_fn: self.core.register_function(get_system_struct, &self.context),
             get_java_function_fn: 0,
         };
 

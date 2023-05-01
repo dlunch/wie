@@ -2,28 +2,28 @@ use unicorn_engine::RegisterARM;
 
 use super::ArmCore;
 
-pub trait EmulatedFunction<T> {
-    fn call(&self, core: &mut ArmCore) -> u32;
+pub trait EmulatedFunction<T, C> {
+    fn call(&self, core: &mut ArmCore, context: C) -> u32;
 }
 
-impl<Func> EmulatedFunction<()> for Func
+impl<Func, C> EmulatedFunction<(), C> for Func
 where
-    Func: Fn(&mut ArmCore) -> u32,
+    Func: Fn(&mut ArmCore, C) -> u32,
 {
-    fn call(&self, core: &mut ArmCore) -> u32 {
-        self(core)
+    fn call(&self, core: &mut ArmCore, context: C) -> u32 {
+        self(core, context)
     }
 }
 
-impl<Func, Param1> EmulatedFunction<(Param1,)> for Func
+impl<Func, C, Param1> EmulatedFunction<(Param1,), C> for Func
 where
-    Func: Fn(&mut ArmCore, Param1) -> u32,
+    Func: Fn(&mut ArmCore, C, Param1) -> u32,
     Param1: EmulatedFunctionParam<Param1>,
 {
-    fn call(&self, core: &mut ArmCore) -> u32 {
+    fn call(&self, core: &mut ArmCore, context: C) -> u32 {
         let param1 = Param1::get(core, 0);
 
-        self(core, param1)
+        self(core, context, param1)
     }
 }
 
