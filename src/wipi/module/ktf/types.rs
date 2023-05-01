@@ -1,37 +1,37 @@
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InitParam4 {
-    pub get_system_struct_fn: u32,
-    pub get_java_function_fn: u32,
+    pub fn_get_system_struct: u32,
+    pub fn_get_java_function: u32,
     pub unk1: u32,
     pub unk2: u32,
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
-    pub instantiate_java_fn: u32,
+    pub fn_instantiate_java: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct WipiExe {
-    pub exe_interface_ptr: u32,
-    name_ptr: u32,
+    pub ptr_exe_interface: u32,
+    ptr_name: u32,
     unk1: u32,
     unk2: u32,
-    unk1_fn: u32,
-    pub init_fn: u32,
+    fn_unk1: u32,
+    pub fn_init: u32,
     unk3: u32,
     unk4: u32,
-    unk3_fn: u32,
+    fn_unk3: u32,
     unk5: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExeInterface {
-    pub functions_ptr: u32,
-    name_ptr: u32,
+    pub ptr_functions: u32,
+    ptr_name: u32,
     unk1: u32,
     unk2: u32,
     unk3: u32,
@@ -45,18 +45,18 @@ pub struct ExeInterface {
 pub struct ExeInterfaceFunctions {
     unk1: u32,
     unk2: u32,
-    pub init_fn: u32,
-    get_default_dll_fn: u32,
-    unk1_fn: u32,
-    unk2_fn: u32,
-    unk3_fn: u32,
+    pub fn_init: u32,
+    fn_get_default_dll: u32,
+    fn_unk1: u32,
+    fn_unk2: u32,
+    fn_unk3: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct WIPICKnlInterface {
     pub unk: [u32; 33],
-    pub get_interfaces_fn: u32,
+    pub fn_get_interfaces: u32,
 }
 
 #[repr(C)]

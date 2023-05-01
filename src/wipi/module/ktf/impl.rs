@@ -32,7 +32,7 @@ pub fn instantiate_java(core: &mut ArmCore, _: &Context, target: u32, classname:
 fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
     let knl_interface = WIPICKnlInterface {
         unk: [0; 33],
-        get_interfaces_fn: core.register_function(get_wipic_interfaces, context).unwrap(),
+        fn_get_interfaces: core.register_function(get_wipic_interfaces, context).unwrap(),
     };
 
     let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
