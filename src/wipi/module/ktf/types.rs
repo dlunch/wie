@@ -3,6 +3,13 @@
 pub struct InitParam4 {
     pub get_system_struct_fn: u32,
     pub get_java_function_fn: u32,
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub instantiate_java_fn: u32,
 }
 
 #[repr(C)]
@@ -13,7 +20,7 @@ pub struct WipiExe {
     unk1: u32,
     unk2: u32,
     unk1_fn: u32,
-    unk2_fn: u32,
+    pub init_fn: u32,
     unk3: u32,
     unk4: u32,
     unk3_fn: u32,

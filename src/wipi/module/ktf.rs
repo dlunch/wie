@@ -6,9 +6,11 @@ use std::{cell::RefCell, mem::size_of, rc::Rc};
 
 use crate::core::arm::{allocator::Allocator, ArmCore};
 
-use self::context::{Context, ContextStorage};
-use self::r#impl::get_system_struct;
-use self::types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe};
+use self::{
+    context::{Context, ContextStorage},
+    r#impl::{get_system_struct, instantiate_java},
+    types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe},
+};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -43,7 +45,14 @@ impl KtfWipiModule {
 
         let param_4 = InitParam4 {
             get_system_struct_fn: self.core.register_function(get_system_struct, &self.context)?,
-            get_java_function_fn: 0,
+            get_java_function_fn: 0x12341234,
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+            unk4: 0,
+            unk5: 0,
+            unk6: 0,
+            instantiate_java_fn: self.core.register_function(instantiate_java, &self.context)?,
         };
 
         let address = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
@@ -54,8 +63,10 @@ impl KtfWipiModule {
         let exe_interface_functions = self.core.read::<ExeInterfaceFunctions>(exe_interface.functions_ptr)?;
 
         log::info!("Call init at {:#x}", exe_interface_functions.init_fn);
-
         self.core.run_function(exe_interface_functions.init_fn, &[0, 0, 0, 0, 0x40000000])?;
+
+        log::info!("Call wipi init at {:#x}", wipi_exe.init_fn);
+        self.core.run_function(wipi_exe.init_fn, &[])?;
 
         Ok(())
     }

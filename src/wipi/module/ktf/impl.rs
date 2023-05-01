@@ -8,7 +8,7 @@ use super::{
 };
 
 pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
-    log::debug!("get_system_struct {}", r#struct);
+    log::debug!("get_system_struct({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, context),
@@ -19,6 +19,14 @@ pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String
             0
         }
     }
+}
+
+pub fn instantiate_java(core: &mut ArmCore, _: &Context, target: u32, classname: String) -> u32 {
+    log::debug!("instantiate_java({}, {})", target, classname);
+
+    log::debug!("\n{}", core.dump_regs().unwrap());
+
+    u32::MAX
 }
 
 fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
