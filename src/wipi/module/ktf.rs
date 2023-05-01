@@ -58,15 +58,15 @@ impl KtfWipiModule {
             fn_unk2: self.core.register_function(init_unk2, &self.context)?,
         };
 
-        let address = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
-        self.core.write(address, param_4)?;
+        let param4_addr = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
+        self.core.write(param4_addr, param_4)?;
 
         let wipi_exe = self.core.read::<WipiExe>(wipi_exe)?;
         let exe_interface = self.core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
         let exe_interface_functions = self.core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
 
         log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
-        let result = self.core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, 0x40000000])?;
+        let result = self.core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, param4_addr])?;
         log::info!("result: {:#x}", result);
 
         log::info!("Call wipi init at {:#x}", wipi_exe.fn_init);
