@@ -2,11 +2,11 @@ mod context;
 mod r#impl;
 mod types;
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use crate::core::arm::ArmCore;
+use crate::core::arm::{allocator::Allocator, ArmCore};
 
-use self::context::Context;
+use self::context::{Context, ContextStorage};
 use self::r#impl::get_system_struct;
 use self::types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe};
 
@@ -15,7 +15,7 @@ pub struct KtfWipiModule {
     core: ArmCore,
     base_address: u32,
     bss_size: u32,
-    context: Rc<Context>,
+    context: Context,
 }
 
 impl KtfWipiModule {
@@ -24,11 +24,15 @@ impl KtfWipiModule {
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename);
 
+        let context = Rc::new(RefCell::new(ContextStorage {
+            allocator: Allocator::new(&mut core),
+        }));
+
         Self {
             core,
             base_address,
             bss_size,
-            context: Rc::new(Context {}),
+            context,
         }
     }
 

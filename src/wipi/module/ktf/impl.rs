@@ -1,10 +1,10 @@
-use std::rc::Rc;
+use std::mem::size_of;
 
 use crate::core::arm::ArmCore;
 
 use super::{context::Context, types::WIPICKnlInterface};
 
-pub fn get_system_struct(core: &mut ArmCore, context: &Rc<Context>, r#struct: String) -> u32 {
+pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
     log::debug!("get_system_struct {}", r#struct);
 
     match r#struct.as_str() {
@@ -18,18 +18,20 @@ pub fn get_system_struct(core: &mut ArmCore, context: &Rc<Context>, r#struct: St
     }
 }
 
-fn get_wipic_knl_interface(core: &mut ArmCore, context: &Rc<Context>) -> u32 {
+fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
     let interface = WIPICKnlInterface {
         unk: [0; 33],
         get_interfaces_fn: core.register_function(get_wipic_interfaces, context),
     };
 
-    core.write(0x40000100, interface);
+    let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32);
 
-    0x40000100
+    core.write(address, interface);
+
+    address
 }
 
-fn get_wipic_interfaces(core: &mut ArmCore, _context: &Rc<Context>) -> u32 {
+fn get_wipic_interfaces(core: &mut ArmCore, _context: &Context) -> u32 {
     log::debug!("get_wipic_interfaces");
 
     log::debug!("Register dump\n{}", core.dump_regs());
