@@ -21,12 +21,26 @@ pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String
     }
 }
 
-pub fn instantiate_java(core: &mut ArmCore, _: &Context, target: u32, classname: String) -> u32 {
-    log::debug!("instantiate_java({}, {})", target, classname);
+pub fn init_unk1(core: &mut ArmCore, context: &Context, a0: u32, a1: String) -> u32 {
+    // java instantiate?
+    log::debug!("init_unk1({}, {})", a0, a1);
 
     log::debug!("\n{}", core.dump_regs().unwrap());
 
-    u32::MAX
+    let address = (*context).borrow_mut().allocator.alloc(0x20).unwrap();
+    core.write(address, [0, 0, 1234, 0, 0, 0, 0, 0, 0]).unwrap();
+    core.write(a0, address).unwrap();
+
+    0
+}
+
+pub fn init_unk2(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> u32 {
+    // calloc??
+    log::debug!("init_unk2({}, {})", a0, a1);
+
+    log::debug!("\n{}", core.dump_regs().unwrap());
+
+    (*context).borrow_mut().allocator.alloc(a0 * a1).unwrap()
 }
 
 fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {

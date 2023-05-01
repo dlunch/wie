@@ -9,7 +9,10 @@ pub struct InitParam4 {
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
-    pub fn_instantiate_java: u32,
+    pub fn_unk1: u32,
+    pub unk7: u32,
+    pub unk8: u32,
+    pub fn_unk2: u32,
 }
 
 #[repr(C)]
