@@ -27,6 +27,20 @@ where
     }
 }
 
+impl<Func, C, Param1, Param2> EmulatedFunction<(Param1, Param2), C> for Func
+where
+    Func: Fn(&mut ArmCore, C, Param1, Param2) -> u32,
+    Param1: EmulatedFunctionParam<Param1>,
+    Param2: EmulatedFunctionParam<Param2>,
+{
+    fn call(&self, core: &mut ArmCore, context: C) -> u32 {
+        let param1 = Param1::get(core, 0);
+        let param2 = Param2::get(core, 1);
+
+        self(core, context, param1, param2)
+    }
+}
+
 pub trait EmulatedFunctionParam<T> {
     fn get(core: &mut ArmCore, pos: usize) -> T;
 
@@ -50,5 +64,11 @@ impl EmulatedFunctionParam<String> for String {
         let ptr = Self::read(core, pos);
 
         core.read_null_terminated_string(ptr).unwrap()
+    }
+}
+
+impl EmulatedFunctionParam<u32> for u32 {
+    fn get(core: &mut ArmCore, pos: usize) -> u32 {
+        Self::read(core, pos)
     }
 }
