@@ -8,7 +8,6 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
     unicorn_const::{uc_error, Arch, HookType, MemType, Mode, Permission},
     RegisterARM, Unicorn,
@@ -44,7 +43,6 @@ impl ArmCore {
     pub fn new() -> anyhow::Result<Self> {
         let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).map_err(UnicornError)?;
 
-        uc.add_block_hook(Self::block_hook).map_err(UnicornError)?;
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .map_err(UnicornError)?;
 
@@ -229,28 +227,6 @@ impl ArmCore {
             format!("APSR: {:032b}\n", uc.reg_read(RegisterARM::APSR).map_err(UnicornError)?),
         ]
         .join("\n"))
-    }
-
-    fn block_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
-        log::trace!("-- address: {:#x}, size: {:#x}", address, size);
-        let insn = uc.mem_read_as_vec(address, size as usize).unwrap();
-
-        let cs = Capstone::new()
-            .arm()
-            .mode(capstone::arch::arm::ArchMode::Thumb)
-            .detail(true)
-            .build()
-            .unwrap();
-
-        let insns = cs.disasm_all(&insn, address).unwrap();
-        for insn in insns.iter() {
-            log::trace!("{} {}", insn.mnemonic().unwrap(), insn.op_str().unwrap());
-        }
-        log::trace!("-- reg");
-
-        log::trace!("\n{}", Self::dump_regs_inner(uc).unwrap());
-
-        log::trace!("--");
     }
 
     fn mem_hook(uc: &mut Unicorn<'_, ()>, mem_type: MemType, address: u64, size: usize, value: i64) -> bool {
