@@ -8,22 +8,22 @@ pub struct Allocator {
 }
 
 impl Allocator {
-    pub fn new(core: &mut ArmCore) -> Self {
+    pub fn new(core: &mut ArmCore) -> anyhow::Result<Self> {
         let size = 0x10000;
 
-        core.alloc(HEAP_BASE, size);
+        core.alloc(HEAP_BASE, size)?;
 
         let map = BTreeMap::from_iter(vec![(size, 0)]);
 
-        Self { base: HEAP_BASE, map }
+        Ok(Self { base: HEAP_BASE, map })
     }
 
-    pub fn alloc(&mut self, size: u32) -> u32 {
-        let address = self.find_address(size).unwrap();
+    pub fn alloc(&mut self, size: u32) -> Option<u32> {
+        let address = self.find_address(size)?;
 
         self.map.insert(address, size);
 
-        self.base + address
+        Some(self.base + address)
     }
 
     #[allow(dead_code)]

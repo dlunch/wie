@@ -2,13 +2,15 @@ pub mod allocator;
 mod function;
 
 use std::{
+    error::Error,
+    fmt::{self, Display, Formatter},
     slice,
     sync::atomic::{AtomicU32, Ordering},
 };
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
-    unicorn_const::{Arch, HookType, MemType, Mode, Permission},
+    unicorn_const::{uc_error, Arch, HookType, MemType, Mode, Permission},
     RegisterARM, Unicorn,
 };
 
@@ -24,75 +26,88 @@ const RUN_FUNCTION_LR: u32 = 0x7f000000;
 const HEAP_BASE: u32 = 0x40000000;
 static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
+#[derive(Debug)]
+pub struct UnicornError(uc_error);
+
+impl Error for UnicornError {}
+impl Display for UnicornError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+
 pub struct ArmCore {
     uc: Unicorn<'static, ()>,
 }
 
 impl ArmCore {
-    pub fn new() -> Self {
-        let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).unwrap();
+    pub fn new() -> anyhow::Result<Self> {
+        let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).map_err(UnicornError)?;
 
-        uc.add_block_hook(Self::block_hook).unwrap();
-        uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook).unwrap();
+        uc.add_block_hook(Self::block_hook).map_err(UnicornError)?;
+        uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
+            .map_err(UnicornError)?;
 
         uc.mem_map(STACK_BASE as u64, STACK_SIZE as usize, Permission::READ | Permission::WRITE)
-            .unwrap();
-        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ | Permission::EXEC).unwrap();
+            .map_err(UnicornError)?;
+        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ | Permission::EXEC)
+            .map_err(UnicornError)?;
 
-        uc.reg_write(RegisterARM::CPSR, 0x40000010).unwrap(); // usr32
-        uc.reg_write(RegisterARM::SP, STACK_BASE as u64 + STACK_SIZE as u64).unwrap();
+        uc.reg_write(RegisterARM::CPSR, 0x40000010).map_err(UnicornError)?; // usr32
+        uc.reg_write(RegisterARM::SP, STACK_BASE as u64 + STACK_SIZE as u64)
+            .map_err(UnicornError)?;
 
-        Self { uc }
+        Ok(Self { uc })
     }
 
     fn from_uc(uc: Unicorn<'static, ()>) -> Self {
         Self { uc }
     }
 
-    pub fn load(&mut self, data: &[u8], map_size: usize) -> u32 {
-        self.uc.mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL).unwrap();
-        self.uc.mem_write(IMAGE_BASE as u64, data).unwrap();
+    pub fn load(&mut self, data: &[u8], map_size: usize) -> anyhow::Result<u32> {
+        self.uc
+            .mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL)
+            .map_err(UnicornError)?;
+        self.uc.mem_write(IMAGE_BASE as u64, data).map_err(UnicornError)?;
 
-        IMAGE_BASE
+        Ok(IMAGE_BASE)
     }
 
-    pub fn run_function(&mut self, address: u32, params: &[u32]) -> u32 {
+    pub fn run_function(&mut self, address: u32, params: &[u32]) -> anyhow::Result<u32> {
         // is there cleaner way to do this?
         #[allow(clippy::len_zero)]
         if params.len() > 0 {
-            self.uc.reg_write(RegisterARM::R0, params[0] as u64).unwrap();
+            self.uc.reg_write(RegisterARM::R0, params[0] as u64).map_err(UnicornError)?;
         }
         if params.len() > 1 {
-            self.uc.reg_write(RegisterARM::R1, params[1] as u64).unwrap();
+            self.uc.reg_write(RegisterARM::R1, params[1] as u64).map_err(UnicornError)?;
         }
         if params.len() > 2 {
-            self.uc.reg_write(RegisterARM::R2, params[2] as u64).unwrap();
+            self.uc.reg_write(RegisterARM::R2, params[2] as u64).map_err(UnicornError)?;
         }
         if params.len() > 3 {
-            self.uc.reg_write(RegisterARM::R3, params[3] as u64).unwrap();
+            self.uc.reg_write(RegisterARM::R3, params[3] as u64).map_err(UnicornError)?;
         }
         if params.len() > 4 {
             for param in params[4..].iter() {
-                self.uc
-                    .reg_write(RegisterARM::SP, self.uc.reg_read(RegisterARM::SP).unwrap() - 4)
-                    .unwrap();
-                self.uc
-                    .mem_write(self.uc.reg_read(RegisterARM::SP).unwrap(), &param.to_le_bytes())
-                    .unwrap();
+                let sp = self.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
+
+                self.uc.reg_write(RegisterARM::SP, sp - 4).map_err(UnicornError)?;
+                self.uc.mem_write(sp - 4, &param.to_le_bytes()).map_err(UnicornError)?;
             }
         }
 
         log::debug!("Run function start {:#x}, params {:?}", address, params);
 
-        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).unwrap();
-        self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).unwrap();
+        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
+        self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
 
         log::debug!("Run function end");
 
-        self.uc.reg_read(RegisterARM::R0).unwrap() as u32
+        Ok(self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32)
     }
 
-    pub fn register_function<F, P, C>(&mut self, function: F, context: &C) -> u32
+    pub fn register_function<F, P, C>(&mut self, function: F, context: &C) -> anyhow::Result<u32>
     where
         F: for<'a> EmulatedFunction<P, &'a C> + 'static,
         C: Clone + 'static,
@@ -100,7 +115,7 @@ impl ArmCore {
         let bytes = [0x70, 0x47]; // BX LR
         let address = FUNCTIONS_BASE as u64 + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
 
-        self.uc.mem_write(address, &bytes).unwrap();
+        self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
         let new_context = context.clone();
         self.uc
@@ -117,40 +132,42 @@ impl ArmCore {
 
                 uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
             })
-            .unwrap();
+            .map_err(UnicornError)?;
 
         log::debug!("Register function at {:#x}", address);
 
-        address as u32 + 1
+        Ok(address as u32 + 1)
     }
 
-    pub fn alloc(&mut self, address: u32, size: u32) {
+    pub fn alloc(&mut self, address: u32, size: u32) -> anyhow::Result<()> {
         log::debug!("Alloc address: {:#x}, size: {:#x}", address, size);
 
         self.uc
             .mem_map(address as u64, size as usize, Permission::READ | Permission::WRITE)
-            .unwrap();
+            .map_err(UnicornError)?;
+
+        Ok(())
     }
 
-    pub fn read<T>(&self, address: u32) -> T
+    pub fn read<T>(&self, address: u32) -> anyhow::Result<T>
     where
         T: Copy,
     {
-        let data = self.uc.mem_read_as_vec(address as u64, std::mem::size_of::<T>()).unwrap();
+        let data = self.uc.mem_read_as_vec(address as u64, std::mem::size_of::<T>()).map_err(UnicornError)?;
 
         log::debug!("Read address: {:#x}, data: {:02x?}", address, data);
 
-        unsafe { *(data.as_ptr() as *const T) }
+        Ok(unsafe { *(data.as_ptr() as *const T) })
     }
 
-    pub fn read_null_terminated_string(&self, address: u32) -> String {
+    pub fn read_null_terminated_string(&self, address: u32) -> anyhow::Result<String> {
         // TODO we can read by 4bytes at once
 
         let mut result = Vec::new();
         let mut cursor = address;
         loop {
             let mut item = [0];
-            self.uc.mem_read(cursor as u64, &mut item).unwrap();
+            self.uc.mem_read(cursor as u64, &mut item).map_err(UnicornError)?;
             cursor += 1;
 
             if item[0] == 0 {
@@ -160,54 +177,58 @@ impl ArmCore {
             result.push(item[0]);
         }
 
-        String::from_utf8(result).unwrap()
+        Ok(String::from_utf8(result)?)
     }
 
-    pub fn write<T>(&mut self, address: u32, data: T) {
+    pub fn write<T>(&mut self, address: u32, data: T) -> anyhow::Result<()> {
         let data_slice = unsafe { slice::from_raw_parts(&data as *const T as *const u8, std::mem::size_of::<T>()) };
 
         log::debug!("Write address: {:#x}, data: {:02x?}", address, data_slice);
 
-        self.uc.mem_write(address as u64, data_slice).unwrap();
+        self.uc.mem_write(address as u64, data_slice).map_err(UnicornError)?;
+
+        Ok(())
     }
 
-    pub fn free(&mut self, address: u32, size: u32) {
+    pub fn free(&mut self, address: u32, size: u32) -> anyhow::Result<()> {
         log::debug!("Free address: {:#x}, size: {:#x}", address, size);
 
-        self.uc.mem_unmap(address as u64, size as usize).unwrap()
+        self.uc.mem_unmap(address as u64, size as usize).map_err(UnicornError)?;
+
+        Ok(())
     }
 
-    pub fn dump_regs(&self) -> String {
+    pub fn dump_regs(&self) -> anyhow::Result<String> {
         Self::dump_regs_inner(&self.uc)
     }
 
-    fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> String {
-        [
+    fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> anyhow::Result<String> {
+        Ok([
             format!(
                 "R0: {:#x} R1: {:#x} R2: {:#x} R3: {:#x} R4: {:#x} R5: {:#x} R6: {:#x} R7: {:#x} R8: {:#x}",
-                uc.reg_read(RegisterARM::R0).unwrap(),
-                uc.reg_read(RegisterARM::R1).unwrap(),
-                uc.reg_read(RegisterARM::R2).unwrap(),
-                uc.reg_read(RegisterARM::R3).unwrap(),
-                uc.reg_read(RegisterARM::R4).unwrap(),
-                uc.reg_read(RegisterARM::R5).unwrap(),
-                uc.reg_read(RegisterARM::R6).unwrap(),
-                uc.reg_read(RegisterARM::R7).unwrap(),
-                uc.reg_read(RegisterARM::R8).unwrap()
+                uc.reg_read(RegisterARM::R0).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R1).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R2).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R3).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R4).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R5).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R6).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R7).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::R8).map_err(UnicornError)?,
             ),
             format!(
                 "SB: {:#x} SL: {:#x} FP: {:#x} IP: {:#x} SP: {:#x} LR: {:#x} PC: {:#x}",
-                uc.reg_read(RegisterARM::SB).unwrap(),
-                uc.reg_read(RegisterARM::SL).unwrap(),
-                uc.reg_read(RegisterARM::FP).unwrap(),
-                uc.reg_read(RegisterARM::IP).unwrap(),
-                uc.reg_read(RegisterARM::SP).unwrap(),
-                uc.reg_read(RegisterARM::LR).unwrap(),
-                uc.reg_read(RegisterARM::PC).unwrap()
+                uc.reg_read(RegisterARM::SB).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::SL).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::FP).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::IP).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::SP).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::LR).map_err(UnicornError)?,
+                uc.reg_read(RegisterARM::PC).map_err(UnicornError)?,
             ),
-            format!("APSR: {:032b}\n", uc.reg_read(RegisterARM::APSR).unwrap()),
+            format!("APSR: {:032b}\n", uc.reg_read(RegisterARM::APSR).map_err(UnicornError)?),
         ]
-        .join("\n")
+        .join("\n"))
     }
 
     fn block_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
@@ -227,7 +248,7 @@ impl ArmCore {
         }
         log::trace!("-- reg");
 
-        log::trace!("\n{}", Self::dump_regs_inner(uc));
+        log::trace!("\n{}", Self::dump_regs_inner(uc).unwrap());
 
         log::trace!("--");
     }
@@ -263,7 +284,7 @@ impl ArmCore {
         } else {
             log::error!("Invalid Memory Access");
             log::error!("mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}", mem_type, address, size, value);
-            log::error!("Register dump\n{}", Self::dump_regs_inner(uc))
+            log::error!("Register dump\n{}", Self::dump_regs_inner(uc).unwrap())
         }
 
         true
