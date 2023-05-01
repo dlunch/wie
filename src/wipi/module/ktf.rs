@@ -44,29 +44,29 @@ impl KtfWipiModule {
         log::info!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
-            get_system_struct_fn: self.core.register_function(get_system_struct, &self.context)?,
-            get_java_function_fn: 0x12341234,
+            fn_get_system_struct: self.core.register_function(get_system_struct, &self.context)?,
+            fn_get_java_function: 0x12341234,
             unk1: 0,
             unk2: 0,
             unk3: 0,
             unk4: 0,
             unk5: 0,
             unk6: 0,
-            instantiate_java_fn: self.core.register_function(instantiate_java, &self.context)?,
+            fn_instantiate_java: self.core.register_function(instantiate_java, &self.context)?,
         };
 
         let address = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
         self.core.write(address, param_4)?;
 
         let wipi_exe = self.core.read::<WipiExe>(wipi_exe)?;
-        let exe_interface = self.core.read::<ExeInterface>(wipi_exe.exe_interface_ptr)?;
-        let exe_interface_functions = self.core.read::<ExeInterfaceFunctions>(exe_interface.functions_ptr)?;
+        let exe_interface = self.core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
+        let exe_interface_functions = self.core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
 
-        log::info!("Call init at {:#x}", exe_interface_functions.init_fn);
-        self.core.run_function(exe_interface_functions.init_fn, &[0, 0, 0, 0, 0x40000000])?;
+        log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
+        self.core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, 0x40000000])?;
 
-        log::info!("Call wipi init at {:#x}", wipi_exe.init_fn);
-        self.core.run_function(wipi_exe.init_fn, &[])?;
+        log::info!("Call wipi init at {:#x}", wipi_exe.fn_init);
+        self.core.run_function(wipi_exe.fn_init, &[])?;
 
         Ok(())
     }
