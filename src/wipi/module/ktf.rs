@@ -2,7 +2,7 @@ mod context;
 mod r#impl;
 mod types;
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, mem::size_of, rc::Rc};
 
 use crate::core::arm::{allocator::Allocator, ArmCore};
 
@@ -46,8 +46,8 @@ impl KtfWipiModule {
             get_java_function_fn: 0,
         };
 
-        self.core.alloc(0x40000000, 0x10000)?;
-        self.core.write(0x40000000, param_4)?;
+        let address = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
+        self.core.write(address, param_4)?;
 
         let wipi_exe = self.core.read::<WipiExe>(wipi_exe)?;
         let exe_interface = self.core.read::<ExeInterface>(wipi_exe.exe_interface_ptr)?;
