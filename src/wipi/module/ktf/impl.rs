@@ -4,7 +4,7 @@ use crate::core::arm::ArmCore;
 
 use super::{
     context::Context,
-    types::{WIPICInterface, WIPICKnlInterface},
+    types::{WIPICInterface, WIPICKnlInterface, WIPIJBInterface},
 };
 
 pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
@@ -12,6 +12,7 @@ pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, context),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core, context),
         _ => {
             log::warn!("Unknown {}", r#struct);
             log::warn!("Register dump\n{}", core.dump_regs().unwrap());
@@ -51,10 +52,28 @@ fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
     };
 
     let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
-
     core.write(address, knl_interface).unwrap();
 
     address
+}
+
+fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
+    let interface = WIPIJBInterface {
+        unk: [0; 11],
+        fn_unk1: core.register_function(jb_unk1, context).unwrap(),
+    };
+
+    let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
+    core.write(address, interface).unwrap();
+
+    address
+}
+
+fn jb_unk1(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
+    // register string?
+    log::debug!("jb_unk1({}, {})", string, a1);
+
+    string
 }
 
 fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> u32 {
