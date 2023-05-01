@@ -28,7 +28,8 @@ pub fn init_unk1(core: &mut ArmCore, context: &Context, a0: u32, a1: String) -> 
     log::debug!("\n{}", core.dump_regs().unwrap());
 
     let address = (*context).borrow_mut().allocator.alloc(0x20).unwrap();
-    core.write(address, [0, 0, 1234, 0, 0, 0, 0, 0, 0]).unwrap();
+    let address1 = (*context).borrow_mut().allocator.alloc(0x20).unwrap();
+    core.write(address, [0, 0, address1, 0, 0, 0, 0, 0, 0]).unwrap();
     core.write(a0, address).unwrap();
 
     0
