@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::util;
+
 use super::{ArmCore, HEAP_BASE};
 
 pub struct Allocator {
@@ -37,7 +39,7 @@ impl Allocator {
             if address - cursor >= request_size {
                 return Some(cursor);
             } else {
-                cursor = address + size;
+                cursor = util::round_up((address + size) as usize, 4) as u32;
             }
         }
 
