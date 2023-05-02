@@ -82,7 +82,7 @@ impl KtfWipiModule {
         let address = (*self.context).borrow_mut().allocator.alloc(20).unwrap(); // TODO size fix
         self.core.write_raw(address, self.main_class.as_bytes())?;
 
-        let result = self.core.run_function(exe_interface_functions.fn_set_main_class, &[address])?;
+        let result = self.core.run_function(exe_interface_functions.fn_get_class, &[address])?;
         if result == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }

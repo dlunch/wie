@@ -50,7 +50,7 @@ pub struct ExeInterfaceFunctions {
     unk2: u32,
     pub fn_init: u32,
     fn_get_default_dll: u32,
-    pub fn_set_main_class: u32,
+    pub fn_get_class: u32,
     fn_unk2: u32,
     fn_unk3: u32,
 }
