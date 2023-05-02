@@ -196,15 +196,6 @@ impl ArmCore {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn free(&mut self, address: u32, size: u32) -> anyhow::Result<()> {
-        log::debug!("Free address: {:#x}, size: {:#x}", address, size);
-
-        self.uc.mem_unmap(address as u64, size as usize).map_err(UnicornError)?;
-
-        Ok(())
-    }
-
     pub fn dump_regs(&self) -> anyhow::Result<String> {
         Self::dump_regs_inner(&self.uc)
     }
