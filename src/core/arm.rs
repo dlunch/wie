@@ -102,9 +102,11 @@ impl ArmCore {
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
         self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
 
-        log::debug!("Run function end");
+        let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
 
-        Ok(self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32)
+        log::debug!("Run function end, result: {:#x}", result);
+
+        Ok(result)
     }
 
     pub fn register_function<F, P, C>(&mut self, function: F, context: &C) -> anyhow::Result<u32>
@@ -120,7 +122,7 @@ impl ArmCore {
         let new_context = context.clone();
         self.uc
             .add_code_hook(address, address, move |uc, _, _| {
-                log::debug!(
+                log::trace!(
                     "Registered function called at {:#x}, LR: {:#x}",
                     address,
                     uc.reg_read(RegisterARM::LR).unwrap()
