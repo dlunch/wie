@@ -32,6 +32,8 @@ impl Allocator {
     }
 
     pub fn free(&mut self, address: u32) {
+        let address = address - self.base;
+
         self.map.remove(&address).unwrap();
     }
 
