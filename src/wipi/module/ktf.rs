@@ -9,13 +9,12 @@ use crate::core::arm::{allocator::Allocator, ArmCore};
 use self::{
     context::Context,
     r#impl::{get_system_struct, init_unk2, init_unk3},
-    types::{ExeInterface, ExeInterfaceFunctions, InitParam4, JavaClassInstance, WipiExe},
+    types::{ExeInterface, ExeInterfaceFunctions, InitParam4, JavaClass, JavaClassDescriptor, JavaClassInstance, JavaMethod, WipiExe},
 };
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
-    context: Context,
     main_class_instance: u32,
 }
 
@@ -28,19 +27,14 @@ impl KtfWipiModule {
 
         let main_class_instance = Self::init(&mut core, &context, base_address, bss_size, main_class)?;
 
-        Ok(Self {
-            core,
-            context,
-            main_class_instance,
-        })
+        Ok(Self { core, main_class_instance })
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        let instance = self.core.read::<JavaClassInstance>(self.main_class_instance)?;
+        let method = Self::get_java_method(&mut self.core, self.main_class_instance, "([Ljava/lang/String;)V+startApp")?;
+        log::info!("Call startApp at {}", method.fn_body);
 
-        log::info!("instance.ptr_class: {:#x}", instance.ptr_class);
-
-        self.context.borrow_mut().allocator.free(self.main_class_instance);
+        self.core.run_function(method.fn_body, &[0, self.main_class_instance])?;
 
         Ok(())
     }
@@ -132,5 +126,28 @@ impl KtfWipiModule {
         core.write(instance, JavaClassInstance { ptr_class: class })?;
 
         Ok(instance)
+    }
+
+    fn get_java_method(core: &mut ArmCore, instance: u32, name: &str) -> anyhow::Result<JavaMethod> {
+        let instance = core.read::<JavaClassInstance>(instance)?;
+        let class = core.read::<JavaClass>(instance.ptr_class)?;
+        let descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+
+        let mut cursor = descriptor.ptr_methods;
+        loop {
+            let ptr = core.read::<u32>(cursor)?;
+            if ptr == 0 {
+                return Err(anyhow::anyhow!("Method not found"));
+            }
+
+            let method = core.read::<JavaMethod>(ptr)?;
+            let method_name = core.read_null_terminated_string(method.ptr_name + 1)?; // unknown first byte
+
+            if method_name == name {
+                return Ok(method);
+            }
+
+            cursor += 4;
+        }
     }
 }
