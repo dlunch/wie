@@ -8,7 +8,7 @@ use crate::core::arm::{allocator::Allocator, ArmCore};
 
 use self::{
     context::{Context, ContextStorage},
-    r#impl::{get_system_struct, init_unk1, init_unk2},
+    r#impl::{get_system_struct, init_unk2, init_unk3},
     types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe},
 };
 
@@ -47,17 +47,17 @@ impl KtfWipiModule {
 
         let param_4 = InitParam4 {
             fn_get_system_struct: self.core.register_function(get_system_struct, &self.context)?,
-            fn_get_java_function: 0x12341234,
+            fn_unk1: 0,
             unk1: 0,
             unk2: 0,
             unk3: 0,
             unk4: 0,
             unk5: 0,
             unk6: 0,
-            fn_unk1: self.core.register_function(init_unk1, &self.context)?,
+            fn_unk2: self.core.register_function(init_unk2, &self.context)?,
             unk7: 0,
             unk8: 0,
-            fn_unk2: self.core.register_function(init_unk2, &self.context)?,
+            fn_unk3: self.core.register_function(init_unk3, &self.context)?,
         };
 
         let param4_addr = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();

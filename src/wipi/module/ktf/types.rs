@@ -2,17 +2,17 @@
 #[derive(Clone, Copy)]
 pub struct InitParam4 {
     pub fn_get_system_struct: u32,
-    pub fn_get_java_function: u32,
+    pub fn_unk1: u32,
     pub unk1: u32,
     pub unk2: u32,
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
-    pub fn_unk1: u32,
+    pub fn_unk2: u32,
     pub unk7: u32,
     pub unk8: u32,
-    pub fn_unk2: u32,
+    pub fn_unk3: u32,
 }
 
 #[repr(C)]

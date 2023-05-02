@@ -22,9 +22,9 @@ pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String
     }
 }
 
-pub fn init_unk1(core: &mut ArmCore, context: &Context, a0: u32, a1: String) -> u32 {
+pub fn init_unk2(core: &mut ArmCore, context: &Context, a0: u32, a1: String) -> u32 {
     // java instantiate?
-    log::debug!("init_unk1({}, {})", a0, a1);
+    log::debug!("init_unk2({}, {})", a0, a1);
 
     log::debug!("\n{}", core.dump_regs().unwrap());
 
@@ -36,9 +36,9 @@ pub fn init_unk1(core: &mut ArmCore, context: &Context, a0: u32, a1: String) -> 
     0
 }
 
-pub fn init_unk2(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> u32 {
+pub fn init_unk3(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> u32 {
     // calloc??
-    log::debug!("init_unk2({}, {})", a0, a1);
+    log::debug!("init_unk3({}, {})", a0, a1);
 
     log::debug!("\n{}", core.dump_regs().unwrap());
 
