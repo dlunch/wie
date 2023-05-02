@@ -95,6 +95,7 @@ impl KtfWipiModule {
             .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?; // TODO size fix
         core.write_raw(main_class_name, main_class.as_bytes())?;
 
+        log::info!("Call class getter at {:#x}", exe_interface_functions.fn_get_class);
         let main_class = core.run_function(exe_interface_functions.fn_get_class, &[main_class_name])?;
         if main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
