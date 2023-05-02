@@ -31,7 +31,6 @@ impl Allocator {
         Some(self.base + address)
     }
 
-    #[allow(dead_code)]
     pub fn free(&mut self, address: u32) {
         self.map.remove(&address).unwrap();
     }

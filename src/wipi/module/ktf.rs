@@ -86,6 +86,7 @@ impl KtfWipiModule {
         if result == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
+        (*self.context).borrow_mut().allocator.free(address);
 
         log::info!("Got main class: {:#x}", result);
 
