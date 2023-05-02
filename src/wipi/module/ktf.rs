@@ -79,7 +79,7 @@ impl KtfWipiModule {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let address = (*self.context).borrow_mut().allocator.alloc(20).unwrap();
+        let address = (*self.context).borrow_mut().allocator.alloc(20).unwrap(); // TODO size fix
         self.core.write_raw(address, self.main_class.as_bytes())?;
 
         let result = self.core.run_function(exe_interface_functions.fn_set_main_class, &[address])?;
