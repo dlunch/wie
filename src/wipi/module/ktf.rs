@@ -69,17 +69,25 @@ impl KtfWipiModule {
 
         log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
         let result = self.core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, param4_addr])?;
-        log::info!("result: {:#x}", result);
+        if result != 0 {
+            return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
+        }
 
         log::info!("Call wipi init at {:#x}", wipi_exe.fn_init);
         let result = self.core.run_function(wipi_exe.fn_init, &[])?;
-        log::info!("result: {:#x}", result);
+        if result != 0 {
+            return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
+        }
 
         let address = (*self.context).borrow_mut().allocator.alloc(20).unwrap();
         self.core.write_raw(address, self.main_class.as_bytes())?;
 
         let result = self.core.run_function(exe_interface_functions.fn_set_main_class, &[address])?;
-        log::info!("result: {:#x}", result);
+        if result == 0 {
+            return Err(anyhow::anyhow!("Failed to get main class"));
+        }
+
+        log::info!("Got main class: {:#x}", result);
 
         Ok(())
     }
