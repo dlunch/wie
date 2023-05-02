@@ -95,12 +95,11 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let java_class_instance = context.borrow_mut().allocator.alloc(size_of::<JavaClassInstance>() as u32).unwrap();
-        core.write(java_class_instance, JavaClassInstance { ptr_class: main_class })?;
+        let instance = Self::instantiate_java_class(core, context, main_class);
 
-        log::info!("Main class instance: {:#x}", java_class_instance);
+        log::info!("Main class instance: {:#x}", instance);
 
-        Ok(java_class_instance)
+        Ok(instance)
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {
@@ -112,5 +111,13 @@ impl KtfWipiModule {
         log::info!("Loaded at {:#x}, size {:#x}, bss {:#x}", base_address, data.len(), bss_size);
 
         Ok((base_address, bss_size))
+    }
+
+    fn instantiate_java_class(core: &mut ArmCore, context: &Context, class: u32) -> u32 {
+        let instance = context.borrow_mut().allocator.alloc(size_of::<JavaClassInstance>() as u32).unwrap();
+
+        core.write(instance, JavaClassInstance { ptr_class: class }).unwrap();
+
+        instance
     }
 }
