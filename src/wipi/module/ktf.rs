@@ -9,42 +9,49 @@ use crate::core::arm::{allocator::Allocator, ArmCore};
 use self::{
     context::Context,
     r#impl::{get_system_struct, init_unk2, init_unk3},
-    types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe},
+    types::{ExeInterface, ExeInterfaceFunctions, InitParam4, JavaClassInstance, WipiExe},
 };
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
-    base_address: u32,
-    bss_size: u32,
     context: Context,
-    main_class: String,
+    main_class_instance: u32,
 }
 
 impl KtfWipiModule {
     pub fn new(data: &[u8], filename: &str, main_class: &str) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
+        let context = Context::new(Allocator::new(&mut core)?);
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let context = Context::new(Allocator::new(&mut core)?);
+        let main_class_instance = Self::init(&mut core, &context, base_address, bss_size, main_class)?;
 
         Ok(Self {
             core,
-            base_address,
-            bss_size,
             context,
-            main_class: main_class.into(),
+            main_class_instance,
         })
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        let wipi_exe = self.core.run_function(self.base_address + 1, &[self.bss_size])?;
+        let instance = self.core.read::<JavaClassInstance>(self.main_class_instance)?;
+
+        log::info!("instance.ptr_class: {:#x}", instance.ptr_class);
+
+        self.context.borrow_mut().allocator.free(self.main_class_instance);
+
+        Ok(())
+    }
+
+    fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
+        let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
         log::info!("Got wipi_exe {:#x}", wipi_exe);
 
         let param_4 = InitParam4 {
-            fn_get_system_struct: self.core.register_function(get_system_struct, &self.context)?,
+            fn_get_system_struct: core.register_function(get_system_struct, context)?,
             fn_unk1: 0,
             unk1: 0,
             unk2: 0,
@@ -52,43 +59,48 @@ impl KtfWipiModule {
             unk4: 0,
             unk5: 0,
             unk6: 0,
-            fn_unk2: self.core.register_function(init_unk2, &self.context)?,
+            fn_unk2: core.register_function(init_unk2, context)?,
             unk7: 0,
             unk8: 0,
-            fn_unk3: self.core.register_function(init_unk3, &self.context)?,
+            fn_unk3: core.register_function(init_unk3, context)?,
         };
 
-        let param4_addr = self.context.borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
-        self.core.write(param4_addr, param_4)?;
+        let param4_addr = context.borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
+        core.write(param4_addr, param_4)?;
 
-        let wipi_exe = self.core.read::<WipiExe>(wipi_exe)?;
-        let exe_interface = self.core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
-        let exe_interface_functions = self.core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
+        let wipi_exe = core.read::<WipiExe>(wipi_exe)?;
+        let exe_interface = core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
+        let exe_interface_functions = core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
 
         log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
-        let result = self.core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, param4_addr])?;
+        let result = core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, param4_addr])?;
         if result != 0 {
             return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
         }
 
         log::info!("Call wipi init at {:#x}", wipi_exe.fn_init);
-        let result = self.core.run_function(wipi_exe.fn_init, &[])?;
+        let result = core.run_function(wipi_exe.fn_init, &[])?;
         if result != 0 {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let address = self.context.borrow_mut().allocator.alloc(20).unwrap(); // TODO size fix
-        self.core.write_raw(address, self.main_class.as_bytes())?;
+        let main_class_name = context.borrow_mut().allocator.alloc(20).unwrap(); // TODO size fix
+        core.write_raw(main_class_name, main_class.as_bytes())?;
 
-        let result = self.core.run_function(exe_interface_functions.fn_get_class, &[address])?;
-        if result == 0 {
+        let main_class = core.run_function(exe_interface_functions.fn_get_class, &[main_class_name])?;
+        if main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
-        self.context.borrow_mut().allocator.free(address);
+        context.borrow_mut().allocator.free(main_class_name);
 
-        log::info!("Got main class: {:#x}", result);
+        log::info!("Got main class: {:#x}", main_class);
 
-        Ok(())
+        let java_class_instance = context.borrow_mut().allocator.alloc(size_of::<JavaClassInstance>() as u32).unwrap();
+        core.write(java_class_instance, JavaClassInstance { ptr_class: main_class })?;
+
+        log::info!("Main class instance: {:#x}", java_class_instance);
+
+        Ok(java_class_instance)
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {
