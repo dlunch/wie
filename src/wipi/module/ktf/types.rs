@@ -90,6 +90,16 @@ pub struct WIPIJBInterface {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+pub struct JavaClass {
+    pub ptr_next: u32,
+    pub unk1: u32,
+    pub ptr_descriptor: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub struct JavaClassDescriptor {
     pub ptr_name: u32,
     pub unk1: u32,
