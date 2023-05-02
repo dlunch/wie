@@ -183,9 +183,13 @@ impl ArmCore {
     pub fn write<T>(&mut self, address: u32, data: T) -> anyhow::Result<()> {
         let data_slice = unsafe { slice::from_raw_parts(&data as *const T as *const u8, std::mem::size_of::<T>()) };
 
-        log::debug!("Write address: {:#x}, data: {:02x?}", address, data_slice);
+        self.write_raw(address, data_slice)
+    }
 
-        self.uc.mem_write(address as u64, data_slice).map_err(UnicornError)?;
+    pub fn write_raw(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+        log::debug!("Write address: {:#x}, data: {:02x?}", address, data);
+
+        self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
 
         Ok(())
     }
