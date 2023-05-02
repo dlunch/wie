@@ -111,3 +111,9 @@ pub struct JavaClassDescriptor {
     pub unk4: u32,
     pub unk5: u32,
 }
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct JavaClassInstance {
+    pub ptr_class: u32,
+}
