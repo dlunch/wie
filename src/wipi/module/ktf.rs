@@ -2,12 +2,12 @@ mod context;
 mod r#impl;
 mod types;
 
-use std::{cell::RefCell, mem::size_of, rc::Rc};
+use std::mem::size_of;
 
 use crate::core::arm::{allocator::Allocator, ArmCore};
 
 use self::{
-    context::{Context, ContextStorage},
+    context::Context,
     r#impl::{get_system_struct, init_unk2, init_unk3},
     types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe},
 };
@@ -27,9 +27,7 @@ impl KtfWipiModule {
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let context = Rc::new(RefCell::new(ContextStorage {
-            allocator: Allocator::new(&mut core)?,
-        }));
+        let context = Context::new(Allocator::new(&mut core)?);
 
         Ok(Self {
             core,
@@ -60,7 +58,7 @@ impl KtfWipiModule {
             fn_unk3: self.core.register_function(init_unk3, &self.context)?,
         };
 
-        let param4_addr = (*self.context).borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
+        let param4_addr = self.context.borrow_mut().allocator.alloc(size_of::<InitParam4>() as u32).unwrap();
         self.core.write(param4_addr, param_4)?;
 
         let wipi_exe = self.core.read::<WipiExe>(wipi_exe)?;
@@ -79,14 +77,14 @@ impl KtfWipiModule {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let address = (*self.context).borrow_mut().allocator.alloc(20).unwrap(); // TODO size fix
+        let address = self.context.borrow_mut().allocator.alloc(20).unwrap(); // TODO size fix
         self.core.write_raw(address, self.main_class.as_bytes())?;
 
         let result = self.core.run_function(exe_interface_functions.fn_get_class, &[address])?;
         if result == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
-        (*self.context).borrow_mut().allocator.free(address);
+        self.context.borrow_mut().allocator.free(address);
 
         log::info!("Got main class: {:#x}", result);
 

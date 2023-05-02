@@ -28,8 +28,8 @@ pub fn init_unk2(core: &mut ArmCore, context: &Context, a0: u32, a1: String) -> 
 
     log::debug!("\n{}", core.dump_regs().unwrap());
 
-    let address = (*context).borrow_mut().allocator.alloc(0x20).unwrap();
-    let address1 = (*context).borrow_mut().allocator.alloc(0x20).unwrap();
+    let address = context.borrow_mut().allocator.alloc(0x20).unwrap();
+    let address1 = context.borrow_mut().allocator.alloc(0x20).unwrap();
     core.write(address, [0, 0, address1, 0, 0, 0, 0, 0, 0]).unwrap();
     core.write(a0, address).unwrap();
 
@@ -42,7 +42,7 @@ pub fn init_unk3(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> u32
 
     log::debug!("\n{}", core.dump_regs().unwrap());
 
-    (*context).borrow_mut().allocator.alloc(a0 * a1).unwrap()
+    context.borrow_mut().allocator.alloc(a0 * a1).unwrap()
 }
 
 fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
@@ -51,7 +51,7 @@ fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
         fn_get_interfaces: core.register_function(get_wipic_interfaces, context).unwrap(),
     };
 
-    let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
+    let address = context.borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
     core.write(address, knl_interface).unwrap();
 
     address
@@ -63,7 +63,7 @@ fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
         fn_unk1: core.register_function(jb_unk1, context).unwrap(),
     };
 
-    let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
+    let address = context.borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
     core.write(address, interface).unwrap();
 
     address
@@ -95,7 +95,7 @@ fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> u32 {
         interface_12: 0,
     };
 
-    let address = (*context).borrow_mut().allocator.alloc(size_of::<WIPICInterface>() as u32).unwrap();
+    let address = context.borrow_mut().allocator.alloc(size_of::<WIPICInterface>() as u32).unwrap();
 
     core.write(address, interface).unwrap();
 
