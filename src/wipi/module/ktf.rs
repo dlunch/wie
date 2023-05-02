@@ -18,10 +18,11 @@ pub struct KtfWipiModule {
     base_address: u32,
     bss_size: u32,
     context: Context,
+    main_class: String,
 }
 
 impl KtfWipiModule {
-    pub fn new(data: &[u8], filename: &str) -> anyhow::Result<Self> {
+    pub fn new(data: &[u8], filename: &str, main_class: &str) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
@@ -35,6 +36,7 @@ impl KtfWipiModule {
             base_address,
             bss_size,
             context,
+            main_class: main_class.into(),
         })
     }
 
@@ -70,7 +72,13 @@ impl KtfWipiModule {
         log::info!("result: {:#x}", result);
 
         log::info!("Call wipi init at {:#x}", wipi_exe.fn_init);
-        self.core.run_function(wipi_exe.fn_init, &[])?;
+        let result = self.core.run_function(wipi_exe.fn_init, &[])?;
+        log::info!("result: {:#x}", result);
+
+        let address = (*self.context).borrow_mut().allocator.alloc(20).unwrap();
+        self.core.write_raw(address, self.main_class.as_bytes())?;
+
+        let result = self.core.run_function(exe_interface_functions.fn_set_main_class, &[address])?;
         log::info!("result: {:#x}", result);
 
         Ok(())
