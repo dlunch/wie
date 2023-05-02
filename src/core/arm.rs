@@ -75,8 +75,7 @@ impl ArmCore {
 
     pub fn run_function(&mut self, address: u32, params: &[u32]) -> anyhow::Result<u32> {
         // is there cleaner way to do this?
-        #[allow(clippy::len_zero)]
-        if params.len() > 0 {
+        if !params.is_empty() {
             self.uc.reg_write(RegisterARM::R0, params[0] as u64).map_err(UnicornError)?;
         }
         if params.len() > 1 {
