@@ -261,10 +261,10 @@ fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, qualifier: J
             return Err(anyhow::anyhow!("Can't find function {}", qualifier));
         }
 
-        let method = core.read::<JavaMethod>(ptr)?;
-        let method_signature = JavaMethodQualifier::from_ptr(core, method.ptr_name)?;
+        let current_method = core.read::<JavaMethod>(ptr)?;
+        let current_qualifier = JavaMethodQualifier::from_ptr(core, current_method.ptr_name)?;
 
-        if method_signature == qualifier {
+        if current_qualifier == qualifier {
             log::debug!("get_java_method result {:#x}", ptr);
 
             return Ok(ptr);
