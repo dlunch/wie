@@ -31,8 +31,8 @@ impl KtfWipiModule {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        let method = Self::get_java_method(&mut self.core, self.main_class_instance, "([Ljava/lang/String;)V+startApp")?;
-        log::info!("Call startApp at {}", method.fn_body);
+        let method = Self::get_java_method(&mut self.core, self.main_class_instance, "()V+<init>")?;
+        log::info!("Call ctor at {:#x}", method.fn_body);
 
         self.core.run_function(method.fn_body, &[0, self.main_class_instance])?;
 
