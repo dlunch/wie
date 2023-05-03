@@ -5,10 +5,48 @@ use crate::{
     wipi::java::{get_java_impl, JavaMethodBody},
 };
 
-use super::{
-    types::{JavaClass, JavaClassDescriptor, JavaMethod},
-    Context,
-};
+use super::Context;
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct JavaClass {
+    pub ptr_next: u32,
+    pub unk1: u32,
+    pub ptr_descriptor: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct JavaClassDescriptor {
+    pub ptr_name: u32,
+    pub unk1: u32,
+    pub parent_class: u32,
+    pub ptr_methods: u32,
+    pub ptr_interfaces: u32,
+    pub ptr_properties: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct JavaMethod {
+    pub fn_body: u32,
+    pub ptr_class: u32,
+    pub unk1: u32,
+    pub ptr_name: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct JavaClassInstance {
+    pub ptr_class: u32,
+}
 
 // java bridge interface?
 #[repr(C)]
@@ -116,7 +154,46 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
     0
 }
 
-pub fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, name: String) -> u32 {
+pub fn instantiate_java_class(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyhow::Result<u32> {
+    let class = core.read::<JavaClass>(ptr_class)?;
+    let class_descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+    let class_name = core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+    log::info!("Instantiate {}", class_name);
+
+    let ptr_instance = context
+        .borrow_mut()
+        .allocator
+        .alloc(size_of::<JavaClassInstance>() as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+
+    core.write(ptr_instance, JavaClassInstance { ptr_class })?;
+
+    call_java_method(core, context, ptr_instance, "H()V+<init>")?;
+
+    Ok(ptr_instance)
+}
+
+pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32, name: &str) -> anyhow::Result<u32> {
+    let instance = core.read::<JavaClassInstance>(ptr_instance)?;
+    let class = core.read::<JavaClass>(instance.ptr_class)?;
+    let class_descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+    let class_name = core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+    log::info!("Call {}::{}", class_name, name);
+
+    let ptr_method = get_java_method(core, context, instance.ptr_class, name.to_owned());
+
+    let method = core.read::<JavaMethod>(ptr_method)?;
+
+    core.run_function(method.fn_body, &[0, ptr_instance])
+}
+
+fn register_java_proxy(_: &mut ArmCore, _: JavaMethodBody) -> u32 {
+    0
+}
+
+fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, name: String) -> u32 {
     log::debug!("get_java_method({:#x}, {})", ptr_class, name);
 
     let class = core.read::<JavaClass>(ptr_class).unwrap();
@@ -154,8 +231,4 @@ fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
     log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
 
     string
-}
-
-fn register_java_proxy(_: &mut ArmCore, _: JavaMethodBody) -> u32 {
-    0
 }
