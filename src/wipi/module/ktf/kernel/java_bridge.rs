@@ -257,6 +257,12 @@ pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32
     core.run_function(method.fn_body, &[0, ptr_instance])
 }
 
+pub fn java_throw(_: &mut ArmCore, _: &Context, error: String, a1: u32) -> anyhow::Result<u32> {
+    log::info!("java_throw({}, {})", error, a1);
+
+    Ok(0)
+}
+
 fn register_java_proxy(core: &mut ArmCore, context: &Context, body: JavaMethodBody) -> anyhow::Result<u32> {
     let closure = move |_: &mut ArmCore, _: &Context| {
         body(vec![]);
