@@ -1,24 +1,24 @@
 use std::any::Any;
 
-use crate::wipi::java::{JavaClassImpl, JavaMethodImpl};
+use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl};
 
-// class org.kwis.msp.lcdui.Jlet
-pub struct Jlet {}
+// class org.kwis.msp.lcdui.Image
+pub struct Image {}
 
-impl Jlet {
+impl Image {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/lcdui/Jlet".to_owned(),
+            name: "org/kwis/msp/lcdui/Image".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
-                signature: "()V".into(),
+                signature: "(I)V".into(),
                 body: Box::new(Self::init),
             }],
         }
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Jlet::init");
+        log::debug!("Image::init");
 
         Box::new(())
     }

@@ -1,24 +1,24 @@
 use std::any::Any;
 
-use crate::wipi::java::{JavaClassImpl, JavaMethodImpl};
+use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl};
 
-// class org.kwis.msp.lcdui.Card
-pub struct Card {}
+// class java.lang.Object
+pub struct Object {}
 
-impl Card {
+impl Object {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/lcdui/Card".into(),
+            name: "java/lang/Object".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
-                signature: "(I)V".into(),
+                signature: "()V".into(),
                 body: Box::new(Self::init),
             }],
         }
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Card::init");
+        log::debug!("Object::init");
 
         Box::new(())
     }
