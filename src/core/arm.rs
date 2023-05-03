@@ -209,32 +209,39 @@ impl ArmCore {
     }
 
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> anyhow::Result<String> {
-        Ok([
-            format!(
-                "R0: {:#x} R1: {:#x} R2: {:#x} R3: {:#x} R4: {:#x} R5: {:#x} R6: {:#x} R7: {:#x} R8: {:#x}",
-                uc.reg_read(RegisterARM::R0).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R1).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R2).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R3).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R4).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R5).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R6).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R7).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::R8).map_err(UnicornError)?,
-            ),
-            format!(
-                "SB: {:#x} SL: {:#x} FP: {:#x} IP: {:#x} SP: {:#x} LR: {:#x} PC: {:#x}",
-                uc.reg_read(RegisterARM::SB).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::SL).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::FP).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::IP).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::SP).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::LR).map_err(UnicornError)?,
-                uc.reg_read(RegisterARM::PC).map_err(UnicornError)?,
-            ),
-            format!("APSR: {:032b}\n", uc.reg_read(RegisterARM::APSR).map_err(UnicornError)?),
-        ]
-        .join("\n"))
+        let value = (|| {
+            Ok::<_, uc_error>(
+                [
+                    format!(
+                        "R0: {:#x} R1: {:#x} R2: {:#x} R3: {:#x} R4: {:#x} R5: {:#x} R6: {:#x} R7: {:#x} R8: {:#x}",
+                        uc.reg_read(RegisterARM::R0)?,
+                        uc.reg_read(RegisterARM::R1)?,
+                        uc.reg_read(RegisterARM::R2)?,
+                        uc.reg_read(RegisterARM::R3)?,
+                        uc.reg_read(RegisterARM::R4)?,
+                        uc.reg_read(RegisterARM::R5)?,
+                        uc.reg_read(RegisterARM::R6)?,
+                        uc.reg_read(RegisterARM::R7)?,
+                        uc.reg_read(RegisterARM::R8)?,
+                    ),
+                    format!(
+                        "SB: {:#x} SL: {:#x} FP: {:#x} IP: {:#x} SP: {:#x} LR: {:#x} PC: {:#x}",
+                        uc.reg_read(RegisterARM::SB)?,
+                        uc.reg_read(RegisterARM::SL)?,
+                        uc.reg_read(RegisterARM::FP)?,
+                        uc.reg_read(RegisterARM::IP)?,
+                        uc.reg_read(RegisterARM::SP)?,
+                        uc.reg_read(RegisterARM::LR)?,
+                        uc.reg_read(RegisterARM::PC)?,
+                    ),
+                    format!("APSR: {:032b}\n", uc.reg_read(RegisterARM::APSR)?),
+                ]
+                .join("\n"),
+            )
+        })()
+        .map_err(UnicornError)?;
+
+        Ok(value)
     }
 
     fn block_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
