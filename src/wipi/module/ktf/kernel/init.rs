@@ -7,59 +7,59 @@ use super::{interface::get_interface, java::load_java_class, misc::init_unk3, Co
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam0 {
-    pub ptr_unk_struct: u32,
+    ptr_unk_struct: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam0Unk {
-    pub unk: u32,
+    unk: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam4 {
-    pub fn_get_interface: u32,
-    pub fn_unk1: u32,
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
-    pub fn_load_java_class: u32,
-    pub unk7: u32,
-    pub unk8: u32,
-    pub fn_unk3: u32,
+    fn_get_interface: u32,
+    fn_unk1: u32,
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+    fn_load_java_class: u32,
+    unk7: u32,
+    unk8: u32,
+    fn_unk3: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam1 {
-    pub ptr_unk_struct: u32,
+    ptr_unk_struct: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam1Unk {
-    pub ptr_unk_struct: u32,
+    ptr_unk_struct: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam1UnkUnk {
-    pub unk: [u32; 8],
+    unk: [u32; 8],
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct WipiExe {
-    pub ptr_exe_interface: u32,
+    ptr_exe_interface: u32,
     ptr_name: u32,
     unk1: u32,
     unk2: u32,
     fn_unk1: u32,
-    pub fn_init: u32,
+    fn_init: u32,
     unk3: u32,
     unk4: u32,
     fn_unk3: u32,
@@ -69,7 +69,7 @@ struct WipiExe {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct ExeInterface {
-    pub ptr_functions: u32,
+    ptr_functions: u32,
     ptr_name: u32,
     unk1: u32,
     unk2: u32,
@@ -84,9 +84,9 @@ struct ExeInterface {
 struct ExeInterfaceFunctions {
     unk1: u32,
     unk2: u32,
-    pub fn_init: u32,
+    fn_init: u32,
     fn_get_default_dll: u32,
-    pub fn_get_class: u32,
+    fn_get_class: u32,
     fn_unk2: u32,
     fn_unk3: u32,
 }

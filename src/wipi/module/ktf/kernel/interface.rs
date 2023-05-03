@@ -7,26 +7,26 @@ use super::{java::get_wipi_jb_interface, Context};
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct WIPICKnlInterface {
-    pub unk: [u32; 33],
-    pub fn_get_wipic_interfaces: u32,
+    unk: [u32; 33],
+    fn_get_wipic_interfaces: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct WIPICInterface {
-    pub interface_0: u32,
-    pub interface_1: u32,
-    pub interface_2: u32,
-    pub interface_3: u32,
-    pub interface_4: u32,
-    pub interface_5: u32,
-    pub interface_6: u32,
-    pub interface_7: u32,
-    pub interface_8: u32,
-    pub interface_9: u32,
-    pub interface_10: u32,
-    pub interface_11: u32,
-    pub interface_12: u32,
+    interface_0: u32,
+    interface_1: u32,
+    interface_2: u32,
+    interface_3: u32,
+    interface_4: u32,
+    interface_5: u32,
+    interface_6: u32,
+    interface_7: u32,
+    interface_8: u32,
+    interface_9: u32,
+    interface_10: u32,
+    interface_11: u32,
+    interface_12: u32,
 }
 
 pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
