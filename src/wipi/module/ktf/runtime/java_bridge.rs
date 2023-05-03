@@ -237,17 +237,6 @@ pub fn instantiate_java_class(core: &mut ArmCore, context: &Context, ptr_class: 
 
     core.write(ptr_instance, JavaClassInstance { ptr_class })?;
 
-    call_java_method(
-        core,
-        context,
-        ptr_instance,
-        &JavaMethodFullname {
-            tag: 72,
-            name: "<init>".into(),
-            signature: "()V".into(),
-        },
-    )?;
-
     Ok(ptr_instance)
 }
 
