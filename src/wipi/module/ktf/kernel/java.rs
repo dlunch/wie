@@ -9,56 +9,56 @@ use super::Context;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JavaClass {
-    pub ptr_next: u32,
-    pub unk1: u32,
-    pub ptr_descriptor: u32,
-    pub unk2: u32,
-    pub unk3: u32,
+    ptr_next: u32,
+    unk1: u32,
+    ptr_descriptor: u32,
+    unk2: u32,
+    unk3: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JavaClassDescriptor {
-    pub ptr_name: u32,
-    pub unk1: u32,
-    pub parent_class: u32,
-    pub ptr_methods: u32,
-    pub ptr_interfaces: u32,
-    pub ptr_properties: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
+    ptr_name: u32,
+    unk1: u32,
+    parent_class: u32,
+    ptr_methods: u32,
+    ptr_interfaces: u32,
+    ptr_properties: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JavaMethod {
-    pub fn_body: u32,
-    pub ptr_class: u32,
-    pub unk1: u32,
-    pub ptr_name: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
+    fn_body: u32,
+    ptr_class: u32,
+    unk1: u32,
+    ptr_name: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JavaClassInstance {
-    pub ptr_class: u32,
+    ptr_class: u32,
 }
 
 // java bridge interface?
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct WIPIJBInterface {
-    pub unk1: u32,
-    pub fn_unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub get_java_method: u32,
-    pub unk: [u32; 6],
-    pub fn_unk3: u32,
+    unk1: u32,
+    fn_unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    get_java_method: u32,
+    unk: [u32; 6],
+    fn_unk3: u32,
 }
 
 pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
