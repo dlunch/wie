@@ -3,7 +3,7 @@ mod runtime;
 
 use crate::core::arm::{allocator::Allocator, ArmCore};
 
-use self::{context::Context, runtime::JavaMethodQualifier};
+use self::{context::Context, runtime::JavaMethodFullname};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -33,7 +33,7 @@ impl KtfWipiModule {
             &mut self.core,
             &self.context,
             self.main_class_instance,
-            &JavaMethodQualifier {
+            &JavaMethodFullname {
                 tag: 64,
                 name: "startApp".into(),
                 signature: "([Ljava/lang/String;)V".into(),
