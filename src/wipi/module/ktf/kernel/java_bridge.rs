@@ -61,29 +61,37 @@ pub struct WIPIJBInterface {
     fn_unk3: u32,
 }
 
-pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
+pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_unk1: core.register_function(jb_unk1, context).unwrap(),
+        fn_unk1: core.register_function(jb_unk1, context)?,
         unk2: 0,
         unk3: 0,
-        get_java_method: core.register_function(get_java_method, context).unwrap(),
+        get_java_method: core.register_function(get_java_method, context)?,
         unk: [0; 6],
-        fn_unk3: core.register_function(jb_unk3, context).unwrap(),
+        fn_unk3: core.register_function(jb_unk3, context)?,
     };
 
-    let address = context.borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
-    core.write(address, interface).unwrap();
+    let address = context
+        .borrow_mut()
+        .allocator
+        .alloc(size_of::<WIPIJBInterface>() as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    core.write(address, interface)?;
 
-    address
+    Ok(address)
 }
 
-pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> u32 {
+pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
     let r#impl = get_java_impl(&name);
 
-    let ptr_class = context.borrow_mut().allocator.alloc(size_of::<JavaClass>() as u32).unwrap();
+    let ptr_class = context
+        .borrow_mut()
+        .allocator
+        .alloc(size_of::<JavaClass>() as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
     core.write(
         ptr_class,
         JavaClass {
@@ -93,22 +101,29 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
             unk2: 0,
             unk3: 0,
         },
-    )
-    .unwrap();
+    )?;
 
     let ptr_methods = context
         .borrow_mut()
         .allocator
         .alloc(((r#impl.methods.len() + 1) * size_of::<u32>()) as u32)
-        .unwrap();
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
 
     let mut cursor = ptr_methods;
     for method in r#impl.methods {
-        let ptr_name = context.borrow_mut().allocator.alloc((method.name.len() + 1) as u32).unwrap();
-        core.write_raw(ptr_name, method.name.as_bytes()).unwrap();
+        let ptr_name = context
+            .borrow_mut()
+            .allocator
+            .alloc((method.name.len() + 1) as u32)
+            .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+        core.write_raw(ptr_name, method.name.as_bytes())?;
 
-        let ptr_method = context.borrow_mut().allocator.alloc(size_of::<JavaMethod>() as u32).unwrap();
-        let fn_body = register_java_proxy(core, context, method.body);
+        let ptr_method = context
+            .borrow_mut()
+            .allocator
+            .alloc(size_of::<JavaMethod>() as u32)
+            .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+        let fn_body = register_java_proxy(core, context, method.body)?;
         core.write(
             ptr_method,
             JavaMethod {
@@ -120,17 +135,24 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
                 unk3: 0,
                 unk4: 0,
             },
-        )
-        .unwrap();
+        )?;
 
-        core.write(cursor, ptr_method).unwrap();
+        core.write(cursor, ptr_method)?;
         cursor += 4;
     }
 
-    let ptr_name = context.borrow_mut().allocator.alloc((r#impl.name.len() + 1) as u32).unwrap();
-    core.write_raw(ptr_name, r#impl.name.as_bytes()).unwrap();
+    let ptr_name = context
+        .borrow_mut()
+        .allocator
+        .alloc((r#impl.name.len() + 1) as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    core.write_raw(ptr_name, r#impl.name.as_bytes())?;
 
-    let ptr_descriptor = context.borrow_mut().allocator.alloc(size_of::<JavaClassDescriptor>() as u32).unwrap();
+    let ptr_descriptor = context
+        .borrow_mut()
+        .allocator
+        .alloc(size_of::<JavaClassDescriptor>() as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
     core.write(
         ptr_descriptor,
         JavaClassDescriptor {
@@ -144,14 +166,13 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
             unk4: 0,
             unk5: 0,
         },
-    )
-    .unwrap();
+    )?;
 
-    core.write(ptr_class + 8, ptr_descriptor).unwrap();
+    core.write(ptr_class + 8, ptr_descriptor)?;
 
-    core.write(ptr_target, ptr_class).unwrap(); // we should cache ptr_class
+    core.write(ptr_target, ptr_class)?; // we should cache ptr_class
 
-    0
+    Ok(0)
 }
 
 pub fn instantiate_java_class(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyhow::Result<u32> {
@@ -182,59 +203,59 @@ pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32
 
     log::info!("Call {}::{}", class_name, name);
 
-    let ptr_method = get_java_method(core, context, instance.ptr_class, name.to_owned());
+    let ptr_method = get_java_method(core, context, instance.ptr_class, name.to_owned())?;
 
     let method = core.read::<JavaMethod>(ptr_method)?;
 
     core.run_function(method.fn_body, &[0, ptr_instance])
 }
 
-fn register_java_proxy(core: &mut ArmCore, context: &Context, body: JavaMethodBody) -> u32 {
+fn register_java_proxy(core: &mut ArmCore, context: &Context, body: JavaMethodBody) -> anyhow::Result<u32> {
     let closure = move |_: &mut ArmCore, _: &Context| {
         body(vec![]);
 
-        0u32
+        Ok::<u32, anyhow::Error>(0u32)
     };
 
-    core.register_function(closure, context).unwrap()
+    core.register_function(closure, context)
 }
 
-fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, name: String) -> u32 {
+fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("get_java_method({:#x}, {})", ptr_class, name);
 
-    let class = core.read::<JavaClass>(ptr_class).unwrap();
-    let descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor).unwrap();
+    let class = core.read::<JavaClass>(ptr_class)?;
+    let descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
 
     let mut cursor = descriptor.ptr_methods;
     loop {
-        let ptr = core.read::<u32>(cursor).unwrap();
+        let ptr = core.read::<u32>(cursor)?;
         if ptr == 0 {
-            return 0;
+            return Err(anyhow::anyhow!("Can't find function {}", name));
         }
 
-        let method = core.read::<JavaMethod>(ptr).unwrap();
-        let method_name = core.read_null_terminated_string(method.ptr_name).unwrap();
+        let method = core.read::<JavaMethod>(ptr)?;
+        let method_name = core.read_null_terminated_string(method.ptr_name)?;
 
         if method_name == name {
             log::debug!("get_java_method result {:#x}", ptr);
 
-            return ptr;
+            return Ok(ptr);
         }
 
         cursor += 4;
     }
 }
 
-fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> u32 {
+fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk1({:#x}, {:#x})", a0, address);
 
-    core.run_function(address, &[a0]).unwrap()
+    core.run_function(address, &[a0])
 }
 
-fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
+fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> anyhow::Result<u32> {
     // register string?
     log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
 
-    string
+    Ok(string)
 }
