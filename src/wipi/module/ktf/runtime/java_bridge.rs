@@ -267,8 +267,9 @@ pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32
     core.run_function(method.fn_body, &[0, ptr_instance])
 }
 
-pub fn java_throw(_: &mut ArmCore, _: &Context, error: String, a1: u32) -> anyhow::Result<u32> {
+pub fn java_throw(core: &mut ArmCore, _: &Context, error: String, a1: u32) -> anyhow::Result<u32> {
     log::error!("java_throw({}, {})", error, a1);
+    log::error!("\n{}", core.dump_regs()?);
 
     Ok(0)
 }
