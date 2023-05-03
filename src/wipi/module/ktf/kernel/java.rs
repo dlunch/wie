@@ -56,7 +56,7 @@ pub struct WIPIJBInterface {
     pub fn_unk1: u32,
     pub unk2: u32,
     pub unk3: u32,
-    pub fn_unk2: u32,
+    pub get_java_method: u32,
     pub unk: [u32; 6],
     pub fn_unk3: u32,
 }
@@ -67,7 +67,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
         fn_unk1: core.register_function(jb_unk1, context).unwrap(),
         unk2: 0,
         unk3: 0,
-        fn_unk2: core.register_function(get_java_method, context).unwrap(),
+        get_java_method: core.register_function(get_java_method, context).unwrap(),
         unk: [0; 6],
         fn_unk3: core.register_function(jb_unk3, context).unwrap(),
     };
