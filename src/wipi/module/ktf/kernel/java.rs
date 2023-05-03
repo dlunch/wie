@@ -108,7 +108,7 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
         core.write_raw(ptr_name, method.name.as_bytes()).unwrap();
 
         let ptr_method = context.borrow_mut().allocator.alloc(size_of::<JavaMethod>() as u32).unwrap();
-        let fn_body = register_java_proxy(core, method.body);
+        let fn_body = register_java_proxy(core, context, method.body);
         core.write(
             ptr_method,
             JavaMethod {
@@ -189,8 +189,14 @@ pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32
     core.run_function(method.fn_body, &[0, ptr_instance])
 }
 
-fn register_java_proxy(_: &mut ArmCore, _: JavaMethodBody) -> u32 {
-    0
+fn register_java_proxy(core: &mut ArmCore, context: &Context, body: JavaMethodBody) -> u32 {
+    let closure = move |_: &mut ArmCore, _: &Context| {
+        body(vec![]);
+
+        0u32
+    };
+
+    core.register_function(closure, context).unwrap()
 }
 
 fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, name: String) -> u32 {
