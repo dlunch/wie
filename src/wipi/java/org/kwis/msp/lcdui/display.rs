@@ -10,7 +10,8 @@ impl Display {
         JavaClassImpl {
             name: "org/kwis/msp/lcdui/Display".to_owned(),
             methods: vec![JavaMethodImpl {
-                name: "H()V+<init>".to_owned(),
+                name: "<init>".into(),
+                signature: "()V".into(),
                 body: Box::new(Self::init),
             }],
         }

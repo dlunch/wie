@@ -6,4 +6,4 @@ mod misc;
 use super::context::Context;
 
 pub use init::init;
-pub use java_bridge::{call_java_method, instantiate_java_class, JavaMethodSignature};
+pub use java_bridge::{call_java_method, instantiate_java_class, JavaMethodQualifier};
