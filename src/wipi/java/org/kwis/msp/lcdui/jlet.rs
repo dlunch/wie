@@ -17,6 +17,8 @@ impl Jlet {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+        log::debug!("Jlet::init");
+
         Box::new(())
     }
 }

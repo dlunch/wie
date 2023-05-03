@@ -17,6 +17,8 @@ impl Card {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+        log::debug!("Card::init");
+
         Box::new(())
     }
 }
