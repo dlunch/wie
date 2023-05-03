@@ -20,6 +20,16 @@ impl Display {
                     signature: "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;".into(),
                     body: Box::new(Self::get_display),
                 },
+                JavaMethodImpl {
+                    name: "getDefaultDisplay".into(),
+                    signature: "()Lorg/kwis/msp/lcdui/Display;".into(),
+                    body: Box::new(Self::get_default_display),
+                },
+                JavaMethodImpl {
+                    name: "getDockedCard".into(),
+                    signature: "()Lorg/kwis/msp/lcdui/Card;".into(),
+                    body: Box::new(Self::get_docked_card),
+                },
             ],
         }
     }
@@ -32,6 +42,18 @@ impl Display {
 
     fn get_display(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::getDisplay");
+
+        Box::new(())
+    }
+
+    fn get_default_display(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+        log::debug!("Display::getDefaultDisplay");
+
+        Box::new(())
+    }
+
+    fn get_docked_card(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+        log::debug!("Display::getDockedCard");
 
         Box::new(())
     }
