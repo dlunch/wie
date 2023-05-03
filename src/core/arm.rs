@@ -245,7 +245,6 @@ impl ArmCore {
     }
 
     fn block_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
-        log::trace!("-- address: {:#x}, size: {:#x}", address, size);
         let insn = uc.mem_read_as_vec(address, size as usize).unwrap();
 
         let cs = Capstone::new()
@@ -256,14 +255,24 @@ impl ArmCore {
             .unwrap();
 
         let insns = cs.disasm_all(&insn, address).unwrap();
-        for insn in insns.iter() {
-            log::trace!("{} {}", insn.mnemonic().unwrap(), insn.op_str().unwrap());
-        }
-        log::trace!("-- reg");
 
-        log::trace!("\n{}", Self::dump_regs_inner(uc).unwrap());
+        let insn_str = insns
+            .iter()
+            .map(|x| format!("{} {}", x.mnemonic().unwrap(), x.op_str().unwrap()))
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        log::trace!("--");
+        log::trace!(
+            "\n\
+            -- address: {:#x}, size: {:#x}\n\
+            {}\n\
+            -- reg\n\
+            {}\n",
+            address,
+            size,
+            insn_str,
+            Self::dump_regs_inner(uc).unwrap()
+        );
     }
 
     fn mem_hook(uc: &mut Unicorn<'_, ()>, mem_type: MemType, address: u64, size: usize, value: i64) -> bool {
