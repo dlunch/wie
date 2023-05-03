@@ -54,12 +54,12 @@ struct JavaClassInstance {
 struct WIPIJBInterface {
     unk1: u32,
     fn_unk1: u32,
-    unk2: u32,
+    fn_java_throw: u32,
     unk3: u32,
     get_java_method: u32,
     unk4: u32,
-    unk5: u32,
-    unk6: u32,
+    fn_unk4: u32,
+    fn_unk5: u32,
     unk7: u32,
     unk8: u32,
     fn_unk2: u32,
@@ -129,12 +129,12 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
     let interface = WIPIJBInterface {
         unk1: 0,
         fn_unk1: core.register_function(jb_unk1, context)?,
-        unk2: 0,
+        fn_java_throw: core.register_function(java_throw, context)?,
         unk3: 0,
         get_java_method: core.register_function(get_java_method, context)?,
         unk4: 0,
-        unk5: 0,
-        unk6: 0,
+        fn_unk4: core.register_function(jb_unk4, context)?,
+        fn_unk5: core.register_function(jb_unk5, context)?,
         unk7: 0,
         unk8: 0,
         fn_unk2: core.register_function(jb_unk2, context)?,
@@ -329,4 +329,23 @@ fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> anyhow::Result
     log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
 
     Ok(string)
+}
+
+fn jb_unk4(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    log::debug!("jb_unk4({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
+}
+
+fn jb_unk5(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    log::debug!("jb_unk5({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
+}
+
+pub fn init_unk1(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    // javaNew?
+    log::debug!("init_unk1({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
 }

@@ -11,7 +11,7 @@ impl Card {
             name: "org/kwis/msp/lcdui/Card".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
-                signature: "()V".into(),
+                signature: "(I)V".into(),
                 body: Box::new(Self::init),
             }],
         }
