@@ -96,14 +96,14 @@ impl ArmCore {
             }
         }
 
-        log::debug!("Run function start {:#x}, params {:?}", address, params);
+        log::trace!("Run function start {:#x}, params {:?}", address, params);
 
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
         self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
 
         let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
 
-        log::debug!("Run function end, result: {:#x}", result);
+        log::trace!("Run function end, result: {:#x}", result);
 
         Ok(result)
     }
@@ -135,13 +135,13 @@ impl ArmCore {
             })
             .map_err(UnicornError)?;
 
-        log::debug!("Register function at {:#x}", address);
+        log::trace!("Register function at {:#x}", address);
 
         Ok(address as u32 + 1)
     }
 
     pub fn alloc(&mut self, address: u32, size: u32) -> anyhow::Result<()> {
-        log::debug!("Alloc address: {:#x}, size: {:#x}", address, size);
+        log::trace!("Alloc address: {:#x}, size: {:#x}", address, size);
 
         self.uc
             .mem_map(address as u64, size as usize, Permission::READ | Permission::WRITE)
@@ -156,7 +156,7 @@ impl ArmCore {
     {
         let data = self.uc.mem_read_as_vec(address as u64, std::mem::size_of::<T>()).map_err(UnicornError)?;
 
-        log::debug!("Read address: {:#x}, data: {:02x?}", address, data);
+        log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
 
         Ok(unsafe { *(data.as_ptr() as *const T) })
     }
@@ -188,7 +188,7 @@ impl ArmCore {
     }
 
     pub fn write_raw(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
-        log::debug!("Write address: {:#x}, data: {:02x?}", address, data);
+        log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
 
         self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
 
