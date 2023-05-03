@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use crate::core::arm::ArmCore;
 
-use super::{interface::get_interface, java::load_java_class, misc::init_unk3, Context};
+use super::{interface::get_interface, java_bridge::load_java_class, misc::init_unk3, Context};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

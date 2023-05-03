@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use crate::core::arm::ArmCore;
 
-use super::{java::get_wipi_jb_interface, Context};
+use super::{java_bridge::get_wipi_jb_interface, Context};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
