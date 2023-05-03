@@ -276,13 +276,14 @@ fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, qualifier: J
     log::debug!("get_java_method({:#x}, {})", ptr_class, qualifier);
 
     let class = core.read::<JavaClass>(ptr_class)?;
-    let descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+    let class_descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+    let class_name = core.read_null_terminated_string(class_descriptor.ptr_name)?;
 
-    let mut cursor = descriptor.ptr_methods;
+    let mut cursor = class_descriptor.ptr_methods;
     loop {
         let ptr = core.read::<u32>(cursor)?;
         if ptr == 0 {
-            log::error!("Can't find function {}", qualifier);
+            log::error!("Can't find function {} from {}", qualifier, class_name);
 
             return Ok(0);
         }
