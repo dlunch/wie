@@ -1,7 +1,10 @@
 mod context;
 mod runtime;
 
-use crate::core::arm::{allocator::Allocator, ArmCore};
+use crate::{
+    core::arm::{allocator::Allocator, ArmCore},
+    wipi::module::ktf::runtime::call_java_method,
+};
 
 use self::{context::Context, runtime::JavaMethodFullname};
 
@@ -65,6 +68,17 @@ impl KtfWipiModule {
         log::info!("Got main class: {:#x}", main_class);
 
         let instance = runtime::instantiate_java_class(core, context, main_class)?;
+
+        call_java_method(
+            core,
+            context,
+            instance,
+            &JavaMethodFullname {
+                tag: 72,
+                name: "<init>".into(),
+                signature: "()V".into(),
+            },
+        )?;
 
         log::info!("Main class instance: {:#x}", instance);
 
