@@ -61,8 +61,11 @@ fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
     let interface = WIPIJBInterface {
         unk1: 0,
         fn_unk1: core.register_function(jb_unk1, context).unwrap(),
-        unk: [0; 9],
+        unk2: 0,
+        unk3: 0,
         fn_unk2: core.register_function(jb_unk2, context).unwrap(),
+        unk: [0; 6],
+        fn_unk3: core.register_function(jb_unk3, context).unwrap(),
     };
 
     let address = context.borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
@@ -71,16 +74,23 @@ fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
     address
 }
 
-fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> u32 {
-    log::debug!("jb_unk1({:#x}, {:#x})", a0, a1);
-    log::debug!("{}", core.dump_regs().unwrap());
+fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> u32 {
+    // jump?
+    log::debug!("jb_unk1({:#x}, {:#x})", a0, address);
+
+    core.run_function(address, &[a0]).unwrap()
+}
+
+fn jb_unk2(_: &mut ArmCore, _: &Context, class: u32, method: String) -> u32 {
+    // get method?
+    log::debug!("jb_unk2({:#x}, {})", class, method);
 
     0
 }
 
-fn jb_unk2(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
+fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
     // register string?
-    log::debug!("jb_unk2({:#x}, {:#x})", string, a1);
+    log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
 
     string
 }
