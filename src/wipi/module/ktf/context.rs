@@ -23,6 +23,13 @@ impl Context {
     pub fn borrow_mut(&self) -> RefMut<ContextStorage> {
         self.storage.borrow_mut()
     }
+
+    pub fn alloc(&self, size: u32) -> anyhow::Result<u32> {
+        self.borrow_mut()
+            .allocator
+            .alloc(size)
+            .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))
+    }
 }
 
 impl Clone for Context {

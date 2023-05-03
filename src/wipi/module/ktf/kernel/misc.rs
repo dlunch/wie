@@ -8,9 +8,5 @@ pub fn init_unk3(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> any
 
     log::debug!("\n{}", core.dump_regs()?);
 
-    context
-        .borrow_mut()
-        .allocator
-        .alloc(a0 * a1)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))
+    context.alloc(a0 * a1)
 }
