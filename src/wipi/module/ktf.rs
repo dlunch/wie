@@ -1,9 +1,9 @@
 mod context;
-mod kernel;
+mod runtime;
 
 use crate::core::arm::{allocator::Allocator, ArmCore};
 
-use self::{context::Context, kernel::JavaMethodQualifier};
+use self::{context::Context, runtime::JavaMethodQualifier};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -29,7 +29,7 @@ impl KtfWipiModule {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        kernel::call_java_method(
+        runtime::call_java_method(
             &mut self.core,
             &self.context,
             self.main_class_instance,
@@ -44,7 +44,7 @@ impl KtfWipiModule {
     }
 
     fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
-        let program = kernel::init(core, context, base_address, bss_size)?;
+        let program = runtime::init(core, context, base_address, bss_size)?;
 
         log::info!("Call wipi init at {:#x}", program.fn_init);
         let result = core.run_function(program.fn_init, &[])?;
@@ -64,7 +64,7 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let instance = kernel::instantiate_java_class(core, context, main_class)?;
+        let instance = runtime::instantiate_java_class(core, context, main_class)?;
 
         log::info!("Main class instance: {:#x}", instance);
 
