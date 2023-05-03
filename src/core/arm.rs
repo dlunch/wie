@@ -128,7 +128,7 @@ impl ArmCore {
         let new_context = context.clone();
         self.uc
             .add_code_hook(address, address, move |uc, _, _| {
-                log::trace!(
+                log::debug!(
                     "Registered function called at {:#x}, LR: {:#x}",
                     address,
                     uc.reg_read(RegisterARM::LR).unwrap()
