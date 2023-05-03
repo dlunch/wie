@@ -15,12 +15,16 @@ pub struct JavaMethodImpl {
 
 pub type JavaMethodBody = Box<dyn Fn(Vec<Box<dyn Any>>) -> Box<dyn Any>>;
 
-pub fn get_java_impl(name: &str) -> JavaClassImpl {
-    match name {
+pub fn get_java_impl(name: &str) -> Option<JavaClassImpl> {
+    Some(match name {
         "org/kwis/msp/lcdui/Jlet" => org::kwis::msp::lcdui::Jlet::as_java_impl(),
         "org/kwis/msp/lcdui/Card" => org::kwis::msp::lcdui::Card::as_java_impl(),
         "org/kwis/msp/lcdui/JletEventListener" => org::kwis::msp::lcdui::JletEventListener::as_java_impl(),
         "org/kwis/msp/lcdui/Display" => org::kwis::msp::lcdui::Display::as_java_impl(),
-        _ => panic!("Unknown java class: {}", name),
-    }
+        _ => {
+            log::error!("Unknown java class: {}", name);
+
+            return None;
+        }
+    })
 }
