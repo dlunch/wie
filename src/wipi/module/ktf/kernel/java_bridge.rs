@@ -149,7 +149,7 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
 
     core.write(ptr_class + 8, ptr_descriptor).unwrap();
 
-    core.write(ptr_target, ptr_class).unwrap();
+    core.write(ptr_target, ptr_class).unwrap(); // we should cache ptr_class
 
     0
 }
