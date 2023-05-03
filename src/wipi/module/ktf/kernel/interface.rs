@@ -1,10 +1,10 @@
 use std::mem::size_of;
 
-use crate::{core::arm::ArmCore, wipi::module::ktf::kernel::types::WIPICInterface};
+use crate::core::arm::ArmCore;
 
 use super::{
-    java::{get_java_method, jb_unk1, jb_unk3},
-    types::{WIPICKnlInterface, WIPIJBInterface},
+    java::get_wipi_jb_interface,
+    types::{WIPICInterface, WIPICKnlInterface},
     Context,
 };
 
@@ -31,23 +31,6 @@ fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
 
     let address = context.borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
     core.write(address, knl_interface).unwrap();
-
-    address
-}
-
-fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
-    let interface = WIPIJBInterface {
-        unk1: 0,
-        fn_unk1: core.register_function(jb_unk1, context).unwrap(),
-        unk2: 0,
-        unk3: 0,
-        fn_unk2: core.register_function(get_java_method, context).unwrap(),
-        unk: [0; 6],
-        fn_unk3: core.register_function(jb_unk3, context).unwrap(),
-    };
-
-    let address = context.borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
-    core.write(address, interface).unwrap();
 
     address
 }

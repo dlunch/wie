@@ -10,6 +10,36 @@ use super::{
     Context,
 };
 
+// java bridge interface?
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WIPIJBInterface {
+    pub unk1: u32,
+    pub fn_unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub fn_unk2: u32,
+    pub unk: [u32; 6],
+    pub fn_unk3: u32,
+}
+
+pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
+    let interface = WIPIJBInterface {
+        unk1: 0,
+        fn_unk1: core.register_function(jb_unk1, context).unwrap(),
+        unk2: 0,
+        unk3: 0,
+        fn_unk2: core.register_function(get_java_method, context).unwrap(),
+        unk: [0; 6],
+        fn_unk3: core.register_function(jb_unk3, context).unwrap(),
+    };
+
+    let address = context.borrow_mut().allocator.alloc(size_of::<WIPIJBInterface>() as u32).unwrap();
+    core.write(address, interface).unwrap();
+
+    address
+}
+
 pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> u32 {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
@@ -112,14 +142,14 @@ pub fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, name: St
     }
 }
 
-pub fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> u32 {
+fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> u32 {
     // jump?
     log::debug!("jb_unk1({:#x}, {:#x})", a0, address);
 
     core.run_function(address, &[a0]).unwrap()
 }
 
-pub fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
+fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
     // register string?
     log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
 
