@@ -1,21 +1,9 @@
 mod context;
-mod r#impl;
-mod java;
-mod types;
+mod kernel;
 
-use std::mem::size_of;
+use crate::core::arm::{allocator::Allocator, ArmCore};
 
-use crate::{
-    core::arm::{allocator::Allocator, ArmCore},
-    wipi::module::ktf::java::instantiate_java_class,
-};
-
-use self::{
-    context::Context,
-    java::{call_java_method, load_java_class},
-    r#impl::{get_system_struct, init_unk3},
-    types::{ExeInterface, ExeInterfaceFunctions, InitParam4, WipiExe},
-};
+use self::context::Context;
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -41,7 +29,7 @@ impl KtfWipiModule {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        call_java_method(
+        kernel::call_java_method(
             &mut self.core,
             &self.context,
             self.main_class_instance,
@@ -52,44 +40,10 @@ impl KtfWipiModule {
     }
 
     fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
-        let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
+        let program = kernel::init(core, context, base_address, bss_size)?;
 
-        log::info!("Got wipi_exe {:#x}", wipi_exe);
-
-        let param_4 = InitParam4 {
-            fn_get_system_struct: core.register_function(get_system_struct, context)?,
-            fn_unk1: 0,
-            unk1: 0,
-            unk2: 0,
-            unk3: 0,
-            unk4: 0,
-            unk5: 0,
-            unk6: 0,
-            fn_load_java_class: core.register_function(load_java_class, context)?,
-            unk7: 0,
-            unk8: 0,
-            fn_unk3: core.register_function(init_unk3, context)?,
-        };
-
-        let param4_addr = context
-            .borrow_mut()
-            .allocator
-            .alloc(size_of::<InitParam4>() as u32)
-            .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
-        core.write(param4_addr, param_4)?;
-
-        let wipi_exe = core.read::<WipiExe>(wipi_exe)?;
-        let exe_interface = core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
-        let exe_interface_functions = core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
-
-        log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
-        let result = core.run_function(exe_interface_functions.fn_init, &[0, 0, 0, 0, param4_addr])?;
-        if result != 0 {
-            return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
-        }
-
-        log::info!("Call wipi init at {:#x}", wipi_exe.fn_init);
-        let result = core.run_function(wipi_exe.fn_init, &[])?;
+        log::info!("Call wipi init at {:#x}", program.fn_init);
+        let result = core.run_function(program.fn_init, &[])?;
         if result != 0 {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
@@ -101,8 +55,8 @@ impl KtfWipiModule {
             .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?; // TODO size fix
         core.write_raw(main_class_name, main_class.as_bytes())?;
 
-        log::info!("Call class getter at {:#x}", exe_interface_functions.fn_get_class);
-        let main_class = core.run_function(exe_interface_functions.fn_get_class, &[main_class_name])?;
+        log::info!("Call class getter at {:#x}", program.fn_get_class);
+        let main_class = core.run_function(program.fn_get_class, &[main_class_name])?;
         if main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
@@ -110,7 +64,7 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let instance = instantiate_java_class(core, context, main_class)?;
+        let instance = kernel::instantiate_java_class(core, context, main_class)?;
 
         log::info!("Main class instance: {:#x}", instance);
 

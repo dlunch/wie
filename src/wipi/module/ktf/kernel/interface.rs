@@ -1,15 +1,15 @@
 use std::mem::size_of;
 
-use crate::core::arm::ArmCore;
+use crate::{core::arm::ArmCore, wipi::module::ktf::kernel::types::WIPICInterface};
 
 use super::{
-    context::Context,
-    java::get_java_method,
-    types::{WIPICInterface, WIPICKnlInterface, WIPIJBInterface},
+    java::{get_java_method, jb_unk1, jb_unk3},
+    types::{WIPICKnlInterface, WIPIJBInterface},
+    Context,
 };
 
-pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
-    log::debug!("get_system_struct({})", r#struct);
+pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
+    log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, context),
@@ -23,19 +23,10 @@ pub fn get_system_struct(core: &mut ArmCore, context: &Context, r#struct: String
     }
 }
 
-pub fn init_unk3(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> u32 {
-    // calloc??
-    log::debug!("init_unk3({}, {})", a0, a1);
-
-    log::debug!("\n{}", core.dump_regs().unwrap());
-
-    context.borrow_mut().allocator.alloc(a0 * a1).unwrap()
-}
-
 fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
     let knl_interface = WIPICKnlInterface {
         unk: [0; 33],
-        fn_get_interfaces: core.register_function(get_wipic_interfaces, context).unwrap(),
+        fn_get_wipic_interfaces: core.register_function(get_wipic_interfaces, context).unwrap(),
     };
 
     let address = context.borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
@@ -59,20 +50,6 @@ fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> u32 {
     core.write(address, interface).unwrap();
 
     address
-}
-
-fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> u32 {
-    // jump?
-    log::debug!("jb_unk1({:#x}, {:#x})", a0, address);
-
-    core.run_function(address, &[a0]).unwrap()
-}
-
-fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> u32 {
-    // register string?
-    log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
-
-    string
 }
 
 fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> u32 {
