@@ -6,6 +6,7 @@ use crate::{
 };
 
 use super::Context;
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JavaClass {
@@ -48,7 +49,6 @@ pub struct JavaClassInstance {
     ptr_class: u32,
 }
 
-// java bridge interface?
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct WIPIJBInterface {
