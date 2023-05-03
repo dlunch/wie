@@ -268,7 +268,7 @@ pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32
 }
 
 pub fn java_throw(_: &mut ArmCore, _: &Context, error: String, a1: u32) -> anyhow::Result<u32> {
-    log::info!("java_throw({}, {})", error, a1);
+    log::error!("java_throw({}, {})", error, a1);
 
     Ok(0)
 }
