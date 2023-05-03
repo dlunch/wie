@@ -80,18 +80,6 @@ pub struct WIPICInterface {
     pub interface_12: u32,
 }
 
-// java bridge interface?
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct WIPIJBInterface {
-    pub unk1: u32,
-    pub fn_unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub fn_unk2: u32,
-    pub unk: [u32; 6],
-    pub fn_unk3: u32,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
