@@ -84,8 +84,10 @@ pub struct WIPICInterface {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct WIPIJBInterface {
-    pub unk: [u32; 11],
+    pub unk1: u32,
     pub fn_unk1: u32,
+    pub unk: [u32; 9],
+    pub fn_unk2: u32,
 }
 
 #[repr(C)]
