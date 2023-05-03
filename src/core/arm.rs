@@ -293,6 +293,6 @@ impl ArmCore {
             log::error!("Register dump\n{}", Self::dump_regs_inner(uc).unwrap())
         }
 
-        true
+        false
     }
 }
