@@ -141,6 +141,10 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
     let r#impl = get_java_impl(&name);
+    if r#impl.is_none() {
+        return Ok(1);
+    }
+    let r#impl = r#impl.unwrap();
 
     let ptr_class = context.alloc(size_of::<JavaClass>() as u32)?;
     core.write(
@@ -273,7 +277,9 @@ fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, qualifier: J
     loop {
         let ptr = core.read::<u32>(cursor)?;
         if ptr == 0 {
-            return Err(anyhow::anyhow!("Can't find function {}", qualifier));
+            log::error!("Can't find function {}", qualifier);
+
+            return Ok(0);
         }
 
         let current_method = core.read::<JavaMethod>(ptr)?;
