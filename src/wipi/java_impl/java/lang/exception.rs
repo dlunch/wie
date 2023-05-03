@@ -18,7 +18,7 @@ impl Exception {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Exception::init");
+        log::debug!("Exception::<init>");
 
         Box::new(())
     }
