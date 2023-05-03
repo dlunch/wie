@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::wipi::java::{JavaClassImpl, JavaMethodImpl};
+use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}

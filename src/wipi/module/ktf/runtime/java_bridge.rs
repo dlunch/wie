@@ -2,7 +2,7 @@ use std::{fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::{ArmCore, EmulatedFunctionParam},
-    wipi::java::{get_java_impl, JavaMethodBody},
+    wipi::java_impl::{get_java_impl, JavaMethodBody},
 };
 
 use super::Context;
