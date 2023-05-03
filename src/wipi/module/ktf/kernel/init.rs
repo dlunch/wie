@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::core::arm::ArmCore;
+use crate::{core::arm::ArmCore, wipi::module::ktf::kernel::java_bridge::java_throw};
 
 use super::{interface::get_interface, java_bridge::load_java_class, misc::init_unk3, Context};
 
@@ -20,7 +20,7 @@ struct InitParam0Unk {
 #[derive(Clone, Copy)]
 struct InitParam4 {
     fn_get_interface: u32,
-    fn_unk1: u32,
+    fn_java_throw: u32,
     unk1: u32,
     unk2: u32,
     unk3: u32,
@@ -118,7 +118,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
 
     let param_4 = InitParam4 {
         fn_get_interface: core.register_function(get_interface, context)?,
-        fn_unk1: 0,
+        fn_java_throw: core.register_function(java_throw, context)?,
         unk1: 0,
         unk2: 0,
         unk3: 0,
