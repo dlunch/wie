@@ -110,9 +110,8 @@ impl EmulatedFunctionParam<JavaMethodQualifier> for JavaMethodQualifier {
 
 impl Display for JavaMethodQualifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.signature.fmt(f)?;
-        write!(f, "+")?;
         self.name.fmt(f)?;
+        self.signature.fmt(f)?;
         write!(f, "@{}", self.tag)?;
 
         Ok(())
