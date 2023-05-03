@@ -98,12 +98,16 @@ impl ArmCore {
 
         log::trace!("Run function start {:#x}, params {:?}", address, params);
 
+        let previous_lr = self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?; // TODO do we have to save more callee-saved registers?
+
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
         self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
 
         let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
 
         log::trace!("Run function end, result: {:#x}", result);
+
+        self.uc.reg_write(RegisterARM::LR, previous_lr).map_err(UnicornError)?;
 
         Ok(result)
     }
