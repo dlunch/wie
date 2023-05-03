@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::{core::arm::ArmCore, wipi::module::ktf::kernel::java_bridge::java_throw};
+use crate::{core::arm::ArmCore, wipi::module::ktf::runtime::java_bridge::java_throw};
 
 use super::{
     interface::get_interface,
