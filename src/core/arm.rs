@@ -18,6 +18,8 @@ use crate::util::round_up;
 
 use self::function::EmulatedFunction;
 
+pub use function::EmulatedFunctionParam;
+
 const IMAGE_BASE: u32 = 0x100000;
 const STACK_BASE: u32 = 0x70000000;
 const STACK_SIZE: u32 = 0x10000;

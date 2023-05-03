@@ -3,7 +3,7 @@ mod kernel;
 
 use crate::core::arm::{allocator::Allocator, ArmCore};
 
-use self::context::Context;
+use self::{context::Context, kernel::JavaMethodSignature};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -33,7 +33,10 @@ impl KtfWipiModule {
             &mut self.core,
             &self.context,
             self.main_class_instance,
-            "@([Ljava/lang/String;)V+startApp",
+            &JavaMethodSignature {
+                tag: 64,
+                value: "([Ljava/lang/String;)V+startApp".into(),
+            },
         )?;
 
         Ok(())
