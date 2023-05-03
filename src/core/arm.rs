@@ -258,21 +258,11 @@ impl ArmCore {
 
         let insn_str = insns
             .iter()
-            .map(|x| format!("{} {}", x.mnemonic().unwrap(), x.op_str().unwrap()))
+            .map(|x| format!("{:#x}: {} {}", x.address(), x.mnemonic().unwrap(), x.op_str().unwrap()))
             .collect::<Vec<_>>()
             .join("\n");
 
-        log::trace!(
-            "\n\
-            -- address: {:#x}, size: {:#x}\n\
-            {}\n\
-            -- reg\n\
-            {}\n",
-            address,
-            size,
-            insn_str,
-            Self::dump_regs_inner(uc).unwrap()
-        );
+        log::trace!("Execution block\n{}\n{}", insn_str, Self::dump_regs_inner(uc).unwrap());
     }
 
     fn mem_hook(uc: &mut Unicorn<'_, ()>, mem_type: MemType, address: u64, size: usize, value: i64) -> bool {
@@ -304,9 +294,15 @@ impl ArmCore {
 
             true
         } else {
-            log::error!("Invalid Memory Access");
-            log::error!("mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}", mem_type, address, size, value);
-            log::error!("Register dump\n{}", Self::dump_regs_inner(uc).unwrap());
+            log::error!(
+                "Invalid Memory Access\n\
+                mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}\n{}",
+                mem_type,
+                address,
+                size,
+                value,
+                Self::dump_regs_inner(uc).unwrap()
+            );
 
             false
         }
