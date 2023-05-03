@@ -9,7 +9,7 @@ use super::Context;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct JavaClass {
+struct JavaClass {
     ptr_next: u32,
     unk1: u32,
     ptr_descriptor: u32,
@@ -19,7 +19,7 @@ pub struct JavaClass {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct JavaClassDescriptor {
+struct JavaClassDescriptor {
     ptr_name: u32,
     unk1: u32,
     parent_class: u32,
@@ -33,7 +33,7 @@ pub struct JavaClassDescriptor {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct JavaMethod {
+struct JavaMethod {
     fn_body: u32,
     ptr_class: u32,
     unk1: u32,
@@ -45,13 +45,13 @@ pub struct JavaMethod {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct JavaClassInstance {
+struct JavaClassInstance {
     ptr_class: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct WIPIJBInterface {
+struct WIPIJBInterface {
     unk1: u32,
     fn_unk1: u32,
     unk2: u32,
