@@ -61,36 +61,50 @@ struct WIPIJBInterface {
     fn_unk3: u32,
 }
 
-#[derive(Clone, Eq, PartialEq)]
-pub struct JavaMethodSignature {
+#[derive(Clone)]
+pub struct JavaMethodQualifier {
     pub tag: u8,
-    pub value: String,
+    pub name: String,
+    pub signature: String,
 }
 
-impl JavaMethodSignature {
+impl JavaMethodQualifier {
     pub fn from_ptr(core: &ArmCore, ptr: u32) -> anyhow::Result<Self> {
         let tag = core.read(ptr)?;
 
         let value = core.read_null_terminated_string(ptr + 1)?;
+        let value = value.split('+').collect::<Vec<_>>();
 
-        Ok(JavaMethodSignature { tag, value })
+        Ok(JavaMethodQualifier {
+            tag,
+            name: value[1].into(),
+            signature: value[0].into(),
+        })
     }
 }
 
-impl EmulatedFunctionParam<JavaMethodSignature> for JavaMethodSignature {
-    fn get(core: &mut ArmCore, pos: usize) -> JavaMethodSignature {
+impl EmulatedFunctionParam<JavaMethodQualifier> for JavaMethodQualifier {
+    fn get(core: &mut ArmCore, pos: usize) -> JavaMethodQualifier {
         let ptr = Self::read(core, pos);
 
         Self::from_ptr(core, ptr).unwrap()
     }
 }
 
-impl Display for JavaMethodSignature {
+impl Display for JavaMethodQualifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.value.fmt(f)?;
+        self.signature.fmt(f)?;
+        write!(f, "+")?;
+        self.name.fmt(f)?;
         write!(f, "@{}", self.tag)?;
 
         Ok(())
+    }
+}
+
+impl PartialEq for JavaMethodQualifier {
+    fn eq(&self, other: &Self) -> bool {
+        self.signature == other.signature && self.name == other.name
     }
 }
 
@@ -132,8 +146,12 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
 
     let mut cursor = ptr_methods;
     for method in r#impl.methods {
-        let ptr_name = context.alloc((method.name.len() + 1) as u32)?;
-        core.write_raw(ptr_name, method.name.as_bytes())?;
+        let mut method_name = vec![0]; // skip first unk byte
+        method_name.extend(format!("{}+{}", method.signature, method.name).as_bytes());
+        method_name.push(0);
+
+        let ptr_name = context.alloc(method_name.len() as u32)?;
+        core.write_raw(ptr_name, &method_name)?;
 
         let ptr_method = context.alloc(size_of::<JavaMethod>() as u32)?;
         let fn_body = register_java_proxy(core, context, method.body)?;
@@ -195,24 +213,25 @@ pub fn instantiate_java_class(core: &mut ArmCore, context: &Context, ptr_class: 
         core,
         context,
         ptr_instance,
-        &JavaMethodSignature {
+        &JavaMethodQualifier {
             tag: 72,
-            value: "()V+<init>".into(),
+            name: "<init>".into(),
+            signature: "()V".into(),
         },
     )?;
 
     Ok(ptr_instance)
 }
 
-pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32, signature: &JavaMethodSignature) -> anyhow::Result<u32> {
+pub fn call_java_method(core: &mut ArmCore, context: &Context, ptr_instance: u32, qualifier: &JavaMethodQualifier) -> anyhow::Result<u32> {
     let instance = core.read::<JavaClassInstance>(ptr_instance)?;
     let class = core.read::<JavaClass>(instance.ptr_class)?;
     let class_descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
     let class_name = core.read_null_terminated_string(class_descriptor.ptr_name)?;
 
-    log::info!("Call {}::{}", class_name, signature);
+    log::info!("Call {}::{}", class_name, qualifier);
 
-    let ptr_method = get_java_method(core, context, instance.ptr_class, signature.to_owned())?;
+    let ptr_method = get_java_method(core, context, instance.ptr_class, qualifier.to_owned())?;
 
     let method = core.read::<JavaMethod>(ptr_method)?;
 
@@ -229,8 +248,8 @@ fn register_java_proxy(core: &mut ArmCore, context: &Context, body: JavaMethodBo
     core.register_function(closure, context)
 }
 
-fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, signature: JavaMethodSignature) -> anyhow::Result<u32> {
-    log::debug!("get_java_method({:#x}, {})", ptr_class, signature);
+fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, qualifier: JavaMethodQualifier) -> anyhow::Result<u32> {
+    log::debug!("get_java_method({:#x}, {})", ptr_class, qualifier);
 
     let class = core.read::<JavaClass>(ptr_class)?;
     let descriptor = core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
@@ -239,13 +258,13 @@ fn get_java_method(core: &mut ArmCore, _: &Context, ptr_class: u32, signature: J
     loop {
         let ptr = core.read::<u32>(cursor)?;
         if ptr == 0 {
-            return Err(anyhow::anyhow!("Can't find function {}", signature));
+            return Err(anyhow::anyhow!("Can't find function {}", qualifier));
         }
 
         let method = core.read::<JavaMethod>(ptr)?;
-        let method_signature = JavaMethodSignature::from_ptr(core, method.ptr_name)?;
+        let method_signature = JavaMethodQualifier::from_ptr(core, method.ptr_name)?;
 
-        if method_signature == signature {
+        if method_signature == qualifier {
             log::debug!("get_java_method result {:#x}", ptr);
 
             return Ok(ptr);

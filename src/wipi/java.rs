@@ -9,6 +9,7 @@ pub struct JavaClassImpl {
 
 pub struct JavaMethodImpl {
     pub name: String,
+    pub signature: String,
     pub body: JavaMethodBody,
 }
 
