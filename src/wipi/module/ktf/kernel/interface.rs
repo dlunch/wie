@@ -50,11 +50,7 @@ fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Res
         fn_get_wipic_interfaces: core.register_function(get_wipic_interfaces, context)?,
     };
 
-    let address = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<WIPICKnlInterface>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let address = context.alloc(size_of::<WIPICKnlInterface>() as u32)?;
     core.write(address, knl_interface)?;
 
     Ok(address)
@@ -79,11 +75,7 @@ fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result
         interface_12: 0,
     };
 
-    let address = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<WIPICInterface>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let address = context.alloc(size_of::<WIPICInterface>() as u32)?;
 
     core.write(address, interface)?;
 

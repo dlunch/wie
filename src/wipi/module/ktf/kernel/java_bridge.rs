@@ -105,11 +105,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
         fn_unk3: core.register_function(jb_unk3, context)?,
     };
 
-    let address = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<WIPIJBInterface>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let address = context.alloc(size_of::<WIPIJBInterface>() as u32)?;
     core.write(address, interface)?;
 
     Ok(address)
@@ -120,11 +116,7 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
 
     let r#impl = get_java_impl(&name);
 
-    let ptr_class = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<JavaClass>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let ptr_class = context.alloc(size_of::<JavaClass>() as u32)?;
     core.write(
         ptr_class,
         JavaClass {
@@ -136,26 +128,14 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
         },
     )?;
 
-    let ptr_methods = context
-        .borrow_mut()
-        .allocator
-        .alloc(((r#impl.methods.len() + 1) * size_of::<u32>()) as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let ptr_methods = context.alloc(((r#impl.methods.len() + 1) * size_of::<u32>()) as u32)?;
 
     let mut cursor = ptr_methods;
     for method in r#impl.methods {
-        let ptr_name = context
-            .borrow_mut()
-            .allocator
-            .alloc((method.name.len() + 1) as u32)
-            .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+        let ptr_name = context.alloc((method.name.len() + 1) as u32)?;
         core.write_raw(ptr_name, method.name.as_bytes())?;
 
-        let ptr_method = context
-            .borrow_mut()
-            .allocator
-            .alloc(size_of::<JavaMethod>() as u32)
-            .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+        let ptr_method = context.alloc(size_of::<JavaMethod>() as u32)?;
         let fn_body = register_java_proxy(core, context, method.body)?;
         core.write(
             ptr_method,
@@ -174,18 +154,10 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
         cursor += 4;
     }
 
-    let ptr_name = context
-        .borrow_mut()
-        .allocator
-        .alloc((r#impl.name.len() + 1) as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let ptr_name = context.alloc((r#impl.name.len() + 1) as u32)?;
     core.write_raw(ptr_name, r#impl.name.as_bytes())?;
 
-    let ptr_descriptor = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<JavaClassDescriptor>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    let ptr_descriptor = context.alloc(size_of::<JavaClassDescriptor>() as u32)?;
     core.write(
         ptr_descriptor,
         JavaClassDescriptor {
@@ -215,11 +187,7 @@ pub fn instantiate_java_class(core: &mut ArmCore, context: &Context, ptr_class: 
 
     log::info!("Instantiate {}", class_name);
 
-    let ptr_instance = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<JavaClassInstance>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_instance = context.alloc(size_of::<JavaClassInstance>() as u32)?;
 
     core.write(ptr_instance, JavaClassInstance { ptr_class })?;
 

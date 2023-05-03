@@ -101,39 +101,19 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
-    let ptr_unk_struct = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<InitParam0Unk>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_unk_struct = context.alloc(size_of::<InitParam0Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;
 
-    let ptr_param_0 = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<InitParam0>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_param_0 = context.alloc(size_of::<InitParam0>() as u32)?;
     core.write(ptr_param_0, InitParam0 { ptr_unk_struct })?;
 
-    let ptr_unk_struct = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<InitParam1UnkUnk>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_unk_struct = context.alloc(size_of::<InitParam1UnkUnk>() as u32)?;
     core.write(ptr_unk_struct, InitParam1UnkUnk { unk: [0; 8] })?;
 
-    let ptr_unk_struct = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<InitParam1Unk>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_unk_struct = context.alloc(size_of::<InitParam1Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam1Unk { ptr_unk_struct })?;
 
-    let ptr_param_1 = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<InitParam1>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_param_1 = context.alloc(size_of::<InitParam1>() as u32)?;
     core.write(ptr_param_1, InitParam1 { ptr_unk_struct })?;
 
     let param_4 = InitParam4 {
@@ -151,11 +131,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         fn_unk3: core.register_function(init_unk3, context)?,
     };
 
-    let ptr_param_4 = context
-        .borrow_mut()
-        .allocator
-        .alloc(size_of::<InitParam4>() as u32)
-        .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+    let ptr_param_4 = context.alloc(size_of::<InitParam4>() as u32)?;
     core.write(ptr_param_4, param_4)?;
 
     let wipi_exe = core.read::<WipiExe>(wipi_exe)?;

@@ -51,11 +51,7 @@ impl KtfWipiModule {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let main_class_name = context
-            .borrow_mut()
-            .allocator
-            .alloc(20)
-            .ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?; // TODO size fix
+        let main_class_name = context.alloc(20)?; // TODO size fix
         core.write_raw(main_class_name, main_class.as_bytes())?;
 
         log::info!("Call class getter at {:#x}", program.fn_get_class);
