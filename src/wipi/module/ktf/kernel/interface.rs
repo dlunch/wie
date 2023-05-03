@@ -29,7 +29,7 @@ struct WIPICInterface {
     interface_12: u32,
 }
 
-pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> u32 {
+pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> anyhow::Result<u32> {
     log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
@@ -37,26 +37,30 @@ pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) ->
         "WIPI_JBInterface" => get_wipi_jb_interface(core, context),
         _ => {
             log::warn!("Unknown {}", r#struct);
-            log::warn!("Register dump\n{}", core.dump_regs().unwrap());
+            log::warn!("Register dump\n{}", core.dump_regs()?);
 
-            0
+            Ok(0)
         }
     }
 }
 
-fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> u32 {
+fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     let knl_interface = WIPICKnlInterface {
         unk: [0; 33],
-        fn_get_wipic_interfaces: core.register_function(get_wipic_interfaces, context).unwrap(),
+        fn_get_wipic_interfaces: core.register_function(get_wipic_interfaces, context)?,
     };
 
-    let address = context.borrow_mut().allocator.alloc(size_of::<WIPICKnlInterface>() as u32).unwrap();
-    core.write(address, knl_interface).unwrap();
+    let address = context
+        .borrow_mut()
+        .allocator
+        .alloc(size_of::<WIPICKnlInterface>() as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
+    core.write(address, knl_interface)?;
 
-    address
+    Ok(address)
 }
 
-fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> u32 {
+fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let interface = WIPICInterface {
@@ -75,9 +79,13 @@ fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> u32 {
         interface_12: 0,
     };
 
-    let address = context.borrow_mut().allocator.alloc(size_of::<WIPICInterface>() as u32).unwrap();
+    let address = context
+        .borrow_mut()
+        .allocator
+        .alloc(size_of::<WIPICInterface>() as u32)
+        .ok_or_else(|| anyhow::anyhow!("Failed to allocate memory"))?;
 
-    core.write(address, interface).unwrap();
+    core.write(address, interface)?;
 
-    address
+    Ok(address)
 }
