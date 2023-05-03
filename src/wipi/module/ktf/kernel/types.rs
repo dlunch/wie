@@ -1,7 +1,7 @@
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InitParam4 {
-    pub fn_get_system_struct: u32,
+    pub fn_get_interface: u32,
     pub fn_unk1: u32,
     pub unk1: u32,
     pub unk2: u32,
@@ -59,7 +59,7 @@ pub struct ExeInterfaceFunctions {
 #[derive(Clone, Copy)]
 pub struct WIPICKnlInterface {
     pub unk: [u32; 33],
-    pub fn_get_interfaces: u32,
+    pub fn_get_wipic_interfaces: u32,
 }
 
 #[repr(C)]
