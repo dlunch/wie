@@ -57,7 +57,12 @@ struct WIPIJBInterface {
     unk2: u32,
     unk3: u32,
     get_java_method: u32,
-    unk: [u32; 6],
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+    unk7: u32,
+    unk8: u32,
+    fn_unk2: u32,
     fn_unk3: u32,
 }
 
@@ -127,7 +132,12 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
         unk2: 0,
         unk3: 0,
         get_java_method: core.register_function(get_java_method, context)?,
-        unk: [0; 6],
+        unk4: 0,
+        unk5: 0,
+        unk6: 0,
+        unk7: 0,
+        unk8: 0,
+        fn_unk2: core.register_function(jb_unk2, context)?,
         fn_unk3: core.register_function(jb_unk3, context)?,
     };
 
@@ -306,6 +316,12 @@ fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> anyhow::Re
     log::debug!("jb_unk1({:#x}, {:#x})", a0, address);
 
     core.run_function(address, &[a0])
+}
+
+fn jb_unk2(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    log::debug!("jb_unk2({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
 }
 
 fn jb_unk3(_: &mut ArmCore, _: &Context, string: u32, a1: u32) -> anyhow::Result<u32> {
