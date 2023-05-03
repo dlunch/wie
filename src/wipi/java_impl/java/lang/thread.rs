@@ -18,7 +18,7 @@ impl Thread {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Thread::init");
+        log::debug!("Thread::<init>");
 
         Box::new(())
     }

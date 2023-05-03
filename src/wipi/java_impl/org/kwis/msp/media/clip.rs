@@ -18,7 +18,7 @@ impl Clip {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Clip::init");
+        log::debug!("Clip::<init>");
 
         Box::new(())
     }

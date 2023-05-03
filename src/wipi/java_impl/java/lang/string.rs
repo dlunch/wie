@@ -18,7 +18,7 @@ impl String {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("String::init");
+        log::debug!("String::<init>");
 
         Box::new(())
     }

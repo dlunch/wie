@@ -18,7 +18,7 @@ impl Image {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Image::init");
+        log::debug!("Image::<init>");
 
         Box::new(())
     }

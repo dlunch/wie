@@ -18,7 +18,7 @@ impl InterruptedException {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("InterruptedException::init");
+        log::debug!("InterruptedException::<init>");
 
         Box::new(())
     }

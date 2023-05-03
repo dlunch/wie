@@ -35,7 +35,7 @@ impl Display {
     }
 
     fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
-        log::debug!("Display::init");
+        log::debug!("Display::<init>");
 
         Box::new(())
     }
