@@ -185,6 +185,8 @@ impl ArmCore {
             result.push(item[0]);
         }
 
+        log::trace!("Read address: {:#x}, data: {:02x?}", address, result);
+
         Ok(String::from_utf8(result)?)
     }
 
