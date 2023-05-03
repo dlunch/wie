@@ -81,6 +81,18 @@ impl JavaMethodQualifier {
             signature: value[0].into(),
         })
     }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.push(self.tag);
+        bytes.extend_from_slice(self.signature.as_bytes());
+        bytes.push(b'+');
+        bytes.extend_from_slice(self.name.as_bytes());
+        bytes.push(0);
+
+        bytes
+    }
 }
 
 impl EmulatedFunctionParam<JavaMethodQualifier> for JavaMethodQualifier {
@@ -146,12 +158,15 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
 
     let mut cursor = ptr_methods;
     for method in r#impl.methods {
-        let mut method_name = vec![0]; // skip first unk byte
-        method_name.extend(format!("{}+{}", method.signature, method.name).as_bytes());
-        method_name.push(0);
+        let qualifier = (JavaMethodQualifier {
+            tag: 0,
+            name: method.name,
+            signature: method.signature,
+        })
+        .as_bytes();
 
-        let ptr_name = context.alloc(method_name.len() as u32)?;
-        core.write_raw(ptr_name, &method_name)?;
+        let ptr_name = context.alloc(qualifier.len() as u32)?;
+        core.write_raw(ptr_name, &qualifier)?;
 
         let ptr_method = context.alloc(size_of::<JavaMethod>() as u32)?;
         let fn_body = register_java_proxy(core, context, method.body)?;
