@@ -263,36 +263,36 @@ impl ArmCore {
         let pc = uc.reg_read(RegisterARM::PC).unwrap();
         let lr = uc.reg_read(RegisterARM::LR).unwrap();
 
-        if mem_type == MemType::READ {
-            let value = uc.mem_read_as_vec(address, size).unwrap();
-            if size == 4 {
-                let value = u32::from_le_bytes(value.try_into().unwrap());
-                log::trace!(
-                    "pc: {:#x} lr: {:#x} mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}",
-                    pc,
-                    lr,
-                    mem_type,
-                    address,
-                    size,
-                    value
-                );
+        if mem_type == MemType::READ || mem_type == MemType::FETCH || mem_type == MemType::WRITE {
+            let value_str = if mem_type == MemType::WRITE {
+                format!("{:#x}", value)
             } else {
-                log::trace!(
-                    "pc: {:#x} lr: {:#x} mem_type: {:?} address: {:#x} size: {:#x} value: {:?}",
-                    pc,
-                    lr,
-                    mem_type,
-                    address,
-                    size,
-                    value
-                );
-            }
+                let value = uc.mem_read_as_vec(address, size).unwrap();
+
+                if size == 4 {
+                    format!("{:#x}", u32::from_le_bytes(value.try_into().unwrap()))
+                } else {
+                    format!("{:?}", value)
+                }
+            };
+
+            log::trace!(
+                "pc: {:#x} lr: {:#x} mem_type: {:?} address: {:#x} size: {:#x} value: {}",
+                pc,
+                lr,
+                mem_type,
+                address,
+                size,
+                value_str
+            );
+
+            true
         } else {
             log::error!("Invalid Memory Access");
             log::error!("mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}", mem_type, address, size, value);
-            log::error!("Register dump\n{}", Self::dump_regs_inner(uc).unwrap())
-        }
+            log::error!("Register dump\n{}", Self::dump_regs_inner(uc).unwrap());
 
-        false
+            false
+        }
     }
 }
