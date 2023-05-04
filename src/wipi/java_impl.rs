@@ -4,7 +4,6 @@ mod java;
 mod org;
 
 pub struct JavaClassImpl {
-    pub name: String,
     pub methods: Vec<JavaMethodImpl>,
 }
 

@@ -191,8 +191,8 @@ impl<'a> KtfJvm<'a> {
             cursor += 4;
         }
 
-        let ptr_name = self.context.alloc((r#impl.name.len() + 1) as u32)?;
-        self.core.write_raw(ptr_name, r#impl.name.as_bytes())?;
+        let ptr_name = self.context.alloc((name.len() + 1) as u32)?;
+        self.core.write_raw(ptr_name, name.as_bytes())?;
 
         let ptr_descriptor = self.context.alloc(size_of::<JavaClassDescriptor>() as u32)?;
         self.core.write(

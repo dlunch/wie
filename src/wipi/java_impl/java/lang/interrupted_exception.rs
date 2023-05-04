@@ -8,7 +8,6 @@ pub struct InterruptedException {}
 impl InterruptedException {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "java/lang/InterruptedException".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "()V".into(),

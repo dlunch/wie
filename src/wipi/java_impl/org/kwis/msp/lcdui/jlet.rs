@@ -8,7 +8,6 @@ pub struct Jlet {}
 impl Jlet {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/lcdui/Jlet".to_owned(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "()V".into(),

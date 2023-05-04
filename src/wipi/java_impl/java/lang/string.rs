@@ -8,7 +8,6 @@ pub struct String {}
 impl String {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "java/lang/String".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "()V".into(),

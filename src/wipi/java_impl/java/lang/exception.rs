@@ -8,7 +8,6 @@ pub struct Exception {}
 impl Exception {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "java/lang/Exception".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "()V".into(),

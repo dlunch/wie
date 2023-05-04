@@ -5,9 +5,6 @@ pub struct Runnable {}
 
 impl Runnable {
     pub fn as_java_impl() -> JavaClassImpl {
-        JavaClassImpl {
-            name: "java/lang/Runnable".into(),
-            methods: vec![],
-        }
+        JavaClassImpl { methods: vec![] }
     }
 }

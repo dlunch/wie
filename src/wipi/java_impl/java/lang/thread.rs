@@ -8,7 +8,6 @@ pub struct Thread {}
 impl Thread {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "java/lang/Thread".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "()V".into(),
