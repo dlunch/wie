@@ -96,12 +96,12 @@ struct ExeInterfaceFunctions {
     fn_unk3: u32,
 }
 
-pub struct ProgramInfo {
+pub struct ModuleInfo {
     pub fn_init: u32,
     pub fn_get_class: u32,
 }
 
-pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32) -> anyhow::Result<ProgramInfo> {
+pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
@@ -149,7 +149,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
     }
 
-    Ok(ProgramInfo {
+    Ok(ModuleInfo {
         fn_init: wipi_exe.fn_init,
         fn_get_class: exe_interface_functions.fn_get_class,
     })
