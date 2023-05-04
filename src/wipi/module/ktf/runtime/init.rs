@@ -1,10 +1,10 @@
 use std::mem::size_of;
 
-use crate::{core::arm::ArmCore, wipi::module::ktf::runtime::java_bridge::java_throw};
+use crate::core::arm::ArmCore;
 
 use super::{
     interface::get_interface,
-    java_bridge::{init_unk1, load_java_class},
+    java_bridge::{init_unk1, java_throw, load_java_class},
     misc::init_unk3,
     Context,
 };
