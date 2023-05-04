@@ -16,6 +16,13 @@ pub struct JavaMethodImpl {
 
 pub type JavaMethodBody = Box<dyn Fn(Vec<Box<dyn Any>>) -> Box<dyn Any>>;
 
+pub trait Jvm {
+    fn instantiate(&mut self, class_name: &str) -> anyhow::Result<u32>;
+    fn call_method(&mut self, ptr_instance: u32, name: &str, signature: &str, args: &[u32]) -> anyhow::Result<u32>;
+    fn get_field(&mut self, ptr_instance: u32, field_offset: u32) -> anyhow::Result<u32>;
+    fn put_field(&mut self, ptr_instance: u32, field_offset: u32, value: u32);
+}
+
 pub fn get_java_impl(name: &str) -> Option<JavaClassImpl> {
     Some(match name {
         "java/lang/Exception" => java::lang::Exception::as_java_impl(),

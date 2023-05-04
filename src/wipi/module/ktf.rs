@@ -3,10 +3,10 @@ mod runtime;
 
 use crate::{
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::module::ktf::runtime::call_java_method,
+    wipi::java_impl::Jvm,
 };
 
-use self::{context::Context, runtime::JavaMethodFullname};
+use self::{context::Context, runtime::KtfJvm};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -32,16 +32,9 @@ impl KtfWipiModule {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        runtime::call_java_method(
-            &mut self.core,
-            &self.context,
-            self.main_class_instance,
-            &JavaMethodFullname {
-                tag: 64,
-                name: "startApp".into(),
-                signature: "([Ljava/lang/String;)V".into(),
-            },
-        )?;
+        let mut jvm = KtfJvm::new(&mut self.core, &self.context);
+
+        jvm.call_method(self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[])?;
 
         Ok(())
     }
@@ -67,22 +60,14 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let instance = runtime::instantiate_java_class(core, context, main_class)?;
+        let mut jvm = KtfJvm::new(core, context);
 
-        call_java_method(
-            core,
-            context,
-            instance,
-            &JavaMethodFullname {
-                tag: 72,
-                name: "<init>".into(),
-                signature: "()V".into(),
-            },
-        )?;
+        let ptr_instance = jvm.instantiate_from_ptr_class(main_class)?;
+        jvm.call_method(ptr_instance, "<init>", "()V", &[])?;
 
-        log::info!("Main class instance: {:#x}", instance);
+        log::info!("Main class instance: {:#x}", ptr_instance);
 
-        Ok(instance)
+        Ok(ptr_instance)
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {
