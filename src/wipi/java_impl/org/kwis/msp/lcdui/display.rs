@@ -30,6 +30,11 @@ impl Display {
                     signature: "()Lorg/kwis/msp/lcdui/Card;".into(),
                     body: Box::new(Self::get_docked_card),
                 },
+                JavaMethodImpl {
+                    name: "pushCard".into(),
+                    signature: "(Lorg/kwis/msp/lcdui/Card;)V".into(),
+                    body: Box::new(Self::push_card),
+                },
             ],
         }
     }
@@ -54,6 +59,12 @@ impl Display {
 
     fn get_docked_card(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::getDockedCard");
+
+        Box::new(())
+    }
+
+    fn push_card(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+        log::debug!("Display::pushCard");
 
         Box::new(())
     }
