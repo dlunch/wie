@@ -333,9 +333,11 @@ fn jb_unk5(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32
     Ok(0)
 }
 
-pub fn init_unk1(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+pub fn init_unk1(core: &mut ArmCore, context: &Context, class: u32) -> anyhow::Result<u32> {
     // javaNew?
-    log::debug!("init_unk1({:#x}, {:#x})", a0, a1);
+    log::debug!("init_unk1({:#x})", class);
 
-    Ok(0)
+    let instance = instantiate_java_class(core, context, class)?;
+
+    Ok(instance)
 }
