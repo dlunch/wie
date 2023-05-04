@@ -26,9 +26,12 @@ struct JavaClassDescriptor {
     ptr_methods: u32,
     ptr_interfaces: u32,
     ptr_properties: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+    method_count: u16,
+    fields_size: u16,
+    access_flag: u16,
+    unk6: u16,
+    unk7: u16,
+    unk8: u16,
 }
 
 #[repr(C)]
@@ -46,6 +49,7 @@ struct JavaMethod {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct JavaClassInstance {
+    ptr_fields: u32,
     ptr_class: u32,
 }
 
@@ -167,7 +171,8 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
         },
     )?;
 
-    let ptr_methods = context.alloc(((r#impl.methods.len() + 1) * size_of::<u32>()) as u32)?;
+    let method_count = r#impl.methods.len();
+    let ptr_methods = context.alloc(((method_count + 1) * size_of::<u32>()) as u32)?;
 
     let mut cursor = ptr_methods;
     for method in r#impl.methods {
@@ -213,9 +218,12 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
             ptr_methods,
             ptr_interfaces: 0,
             ptr_properties: 0,
-            unk3: 0,
-            unk4: 0,
-            unk5: 0,
+            method_count: method_count as u16,
+            fields_size: 0,
+            access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
+            unk6: 0,
+            unk7: 0,
+            unk8: 0,
         },
     )?;
 
@@ -234,8 +242,9 @@ pub fn instantiate_java_class(core: &mut ArmCore, context: &Context, ptr_class: 
     log::info!("Instantiate {}", class_name);
 
     let ptr_instance = context.alloc(size_of::<JavaClassInstance>() as u32)?;
+    let ptr_fields = context.alloc(class_descriptor.fields_size as u32 + 4)?;
 
-    core.write(ptr_instance, JavaClassInstance { ptr_class })?;
+    core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
 
     Ok(ptr_instance)
 }
