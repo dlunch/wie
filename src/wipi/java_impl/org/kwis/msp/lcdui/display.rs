@@ -8,7 +8,6 @@ pub struct Display {}
 impl Display {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/lcdui/Display".to_owned(),
             methods: vec![
                 JavaMethodImpl {
                     name: "<init>".into(),

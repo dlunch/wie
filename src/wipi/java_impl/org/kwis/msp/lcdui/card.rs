@@ -8,7 +8,6 @@ pub struct Card {}
 impl Card {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/lcdui/Card".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "(I)V".into(),

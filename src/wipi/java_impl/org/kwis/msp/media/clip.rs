@@ -8,7 +8,6 @@ pub struct Clip {}
 impl Clip {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/media/Clip".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "(I)V".into(),

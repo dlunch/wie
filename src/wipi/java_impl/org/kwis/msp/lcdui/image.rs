@@ -8,7 +8,6 @@ pub struct Image {}
 impl Image {
     pub fn as_java_impl() -> JavaClassImpl {
         JavaClassImpl {
-            name: "org/kwis/msp/lcdui/Image".into(),
             methods: vec![JavaMethodImpl {
                 name: "<init>".into(),
                 signature: "(I)V".into(),
