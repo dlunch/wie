@@ -1,6 +1,9 @@
 use std::mem::size_of;
 
-use crate::{core::arm::ArmCore, wipi::module::ktf::runtime::KtfJvm};
+use crate::{
+    core::arm::ArmCore,
+    wipi::module::ktf::runtime::{java_bridge::init_unk2, KtfJvm},
+};
 
 use super::{
     interface::get_interface,
@@ -30,7 +33,7 @@ struct InitParam4 {
     unk2: u32,
     unk3: u32,
     fn_unk1: u32,
-    unk5: u32,
+    fn_unk2: u32,
     unk6: u32,
     fn_load_java_class: u32,
     unk7: u32,
@@ -63,6 +66,24 @@ struct InitParam2 {
     unk2: u32,
     unk3: u32,
     ptr_vtables: [u32; 1], // dynamic size
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct InitParam3 {
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    // java array allocation pool for primitive type?
+    unk5: u32,  // boolean
+    unk6: u32,  // char
+    unk7: u32,  // float
+    unk8: u32,  // double
+    unk9: u32,  // byte
+    unk10: u32, // short
+    unk11: u32, // int
+    unk12: u32, // long
 }
 
 #[repr(C)]
@@ -151,6 +172,24 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         cursor += 4;
     }
 
+    let param_3 = InitParam3 {
+        unk1: 0,
+        unk2: 0,
+        unk3: 0,
+        unk4: 0,
+        unk5: 1,
+        unk6: 2,
+        unk7: 3,
+        unk8: 4,
+        unk9: 5,
+        unk10: 6,
+        unk11: 7,
+        unk12: 8,
+    };
+
+    let ptr_param_3 = context.alloc(size_of::<InitParam3>() as u32)?;
+    core.write(ptr_param_3, param_3)?;
+
     let param_4 = InitParam4 {
         fn_get_interface: core.register_function(get_interface, context)?,
         fn_java_throw: core.register_function(java_throw, context)?,
@@ -158,7 +197,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         unk2: 0,
         unk3: 0,
         fn_unk1: core.register_function(init_unk1, context)?,
-        unk5: 0,
+        fn_unk2: core.register_function(init_unk2, context)?,
         unk6: 0,
         fn_load_java_class: core.register_function(load_java_class, context)?,
         unk7: 0,
@@ -174,7 +213,10 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     let exe_interface_functions = core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
 
     log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
-    let result = core.run_function(exe_interface_functions.fn_init, &[ptr_param_0, ptr_param_1, ptr_param_2, 0, ptr_param_4])?;
+    let result = core.run_function(
+        exe_interface_functions.fn_init,
+        &[ptr_param_0, ptr_param_1, ptr_param_2, ptr_param_3, ptr_param_4],
+    )?;
     if result != 0 {
         return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
     }

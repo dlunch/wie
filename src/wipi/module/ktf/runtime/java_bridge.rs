@@ -151,3 +151,10 @@ pub fn init_unk1(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyho
 
     Ok(instance.ptr_instance)
 }
+
+pub fn init_unk2(_: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    // java array alloc?
+    log::debug!("init_unk2({:#x}, {:#x})", a0, a1);
+
+    context.alloc(a1 * 4)
+}
