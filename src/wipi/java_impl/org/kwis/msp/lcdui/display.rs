@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl, Jvm};
 
 // class org.kwis.msp.lcdui.Display
@@ -38,33 +36,33 @@ impl Display {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
         log::debug!("Display::<init>");
 
-        Box::new(())
+        0
     }
 
-    fn get_display(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn get_display(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
         log::debug!("Display::getDisplay");
 
-        Box::new(())
+        0
     }
 
-    fn get_default_display(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn get_default_display(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
         log::debug!("Display::getDefaultDisplay");
 
-        Box::new(())
+        0
     }
 
-    fn get_docked_card(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn get_docked_card(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
         log::debug!("Display::getDockedCard");
 
-        Box::new(())
+        0
     }
 
-    fn push_card(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn push_card(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
         log::debug!("Display::pushCard");
 
-        Box::new(())
+        0
     }
 }
