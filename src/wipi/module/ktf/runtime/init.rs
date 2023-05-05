@@ -3,9 +3,9 @@ use std::mem::size_of;
 use crate::core::arm::ArmCore;
 
 use super::{
-    c_interface::get_wipic_knl_interface,
-    java_bridge::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
-    jvm::KtfJvm,
+    c::interface::get_wipic_knl_interface,
+    java::interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
+    java::jvm::KtfJvm,
     misc::init_unk3,
     Context,
 };

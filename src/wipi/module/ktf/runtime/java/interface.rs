@@ -3,8 +3,8 @@ use std::mem::size_of;
 use crate::core::arm::{ArmCore, EmulatedFunctionParam};
 
 use super::{
+    super::Context,
     jvm::{JavaMethodFullname, KtfJvm},
-    Context,
 };
 
 #[repr(C)]
