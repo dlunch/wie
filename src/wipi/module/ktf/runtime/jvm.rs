@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java::{get_java_impl, JavaMethodImpl, Jvm},
+    wipi::java::{get_java_impl, JavaMethodBody, Jvm},
 };
 
 use super::Context;
@@ -267,7 +267,7 @@ impl<'a> KtfJvm<'a> {
         Ok(ptr_class)
     }
 
-    fn register_java_method(&mut self, body: Box<dyn JavaMethodImpl>) -> anyhow::Result<u32> {
+    fn register_java_method(&mut self, body: Box<dyn JavaMethodBody>) -> anyhow::Result<u32> {
         let closure = move |core: &mut ArmCore, context: &Context| {
             let mut jvm = KtfJvm::new(core, context);
             body.call(&mut jvm, vec![]);
