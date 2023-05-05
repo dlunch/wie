@@ -34,7 +34,10 @@ impl KtfWipiModule {
     pub fn start(&mut self) -> anyhow::Result<()> {
         let mut jvm = KtfJvm::new(&mut self.core, &self.context);
 
-        jvm.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[])?;
+        let arg = jvm.instantiate("java/lang/String")?;
+        jvm.call_method(&arg, "<init>", "()V", &[])?;
+
+        jvm.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
 
         Ok(())
     }
