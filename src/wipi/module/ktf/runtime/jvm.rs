@@ -268,9 +268,9 @@ impl<'a> KtfJvm<'a> {
     }
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
-        let closure = move |core: &mut ArmCore, context: &Context| {
+        let closure = move |core: &mut ArmCore, context: &Context, a0: u32, a1: u32, a2: u32| {
             let mut jvm = KtfJvm::new(core, context);
-            body.call(&mut jvm, vec![])?;
+            body.call(&mut jvm, vec![a0, a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<u32, JavaError>(0u32)
         };
