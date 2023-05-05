@@ -280,8 +280,10 @@ impl<'a> KtfJvm<'a> {
 }
 
 impl Jvm for KtfJvm<'_> {
-    fn instantiate(&mut self, _class_name: &str) -> anyhow::Result<u32> {
-        todo!()
+    fn instantiate(&mut self, class_name: &str) -> anyhow::Result<u32> {
+        let ptr_class = self.get_ptr_class(class_name)?;
+
+        self.instantiate_from_ptr_class(ptr_class)
     }
 
     fn call_method(&mut self, ptr_instance: u32, name: &str, signature: &str, _args: &[u32]) -> anyhow::Result<u32> {
