@@ -51,8 +51,15 @@ struct JavaMethod {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct JavaClassInstance {
-    ptr_fields: u32, // vtable index << 5 is first field
+    ptr_fields: u32,
     ptr_class: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct JavaClassInstanceFields {
+    vtable_index: u32, // left shifted by 5
+    fields: [u32; 1],
 }
 
 #[derive(Clone)]
