@@ -1,13 +1,17 @@
 use std::mem::size_of;
 
-use crate::core::arm::ArmCore;
+use crate::{core::arm::ArmCore, wipi::c::get_graphics_method_table};
 
 use super::{java_bridge::get_wipi_jb_interface, Context};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct WIPICKnlInterface {
-    unk: [u32; 33],
+    unk1: [u32; 20],
+    fn_unk2: u32,
+    unk2: [u32; 7],
+    fn_unk1: u32,
+    unk3: [u32; 4],
     fn_get_wipic_interfaces: u32,
 }
 
@@ -46,7 +50,11 @@ pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) ->
 
 fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     let knl_interface = WIPICKnlInterface {
-        unk: [0; 33],
+        unk1: [0; 20],
+        fn_unk2: core.register_function(knl_unk2, context)?,
+        unk2: [0; 7],
+        fn_unk1: core.register_function(knl_unk1, context)?,
+        unk3: [0; 4],
         fn_get_wipic_interfaces: core.register_function(get_wipic_interfaces, context)?,
     };
 
@@ -59,10 +67,27 @@ fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Res
 fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
+    let graphics_methods = get_graphics_method_table();
+    let interface_2 = context.alloc((graphics_methods.len() * 4) as u32)?;
+
+    let mut cursor = interface_2;
+    for method in graphics_methods {
+        let address = core.register_function(
+            move |_: &mut ArmCore, _: &Context| {
+                let result = method();
+
+                Ok::<_, anyhow::Error>(result)
+            },
+            context,
+        )?;
+        core.write(cursor, address)?;
+        cursor += 4;
+    }
+
     let interface = WIPICInterface {
         interface_0: 0,
         interface_1: 0,
-        interface_2: 0,
+        interface_2,
         interface_3: 0,
         interface_4: 0,
         interface_5: 0,
@@ -80,4 +105,16 @@ fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result
     core.write(address, interface)?;
 
     Ok(address)
+}
+
+fn knl_unk1(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    log::debug!("knl_unk1({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
+}
+
+fn knl_unk2(_: &mut ArmCore, _: &Context, a0: u32) -> anyhow::Result<u32> {
+    log::debug!("knl_unk2({:#x})", a0);
+
+    Ok(0)
 }
