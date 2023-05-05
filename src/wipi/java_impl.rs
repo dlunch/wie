@@ -1,5 +1,3 @@
-use std::any::Any;
-
 mod java;
 mod org;
 
@@ -13,7 +11,7 @@ pub struct JavaMethodImpl {
     pub body: JavaMethodBody,
 }
 
-pub type JavaMethodBody = Box<dyn Fn(&mut dyn Jvm, Vec<Box<dyn Any>>) -> Box<dyn Any>>;
+pub type JavaMethodBody = Box<dyn Fn(&mut dyn Jvm, Vec<u32>) -> u32>;
 
 pub trait Jvm {
     fn instantiate(&mut self, class_name: &str) -> anyhow::Result<u32>;

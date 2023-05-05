@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl, Jvm};
 
 // class java.lang.InterruptedException
@@ -16,9 +14,9 @@ impl InterruptedException {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
         log::debug!("InterruptedException::<init>");
 
-        Box::new(())
+        0
     }
 }
