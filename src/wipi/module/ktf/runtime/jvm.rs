@@ -172,13 +172,13 @@ impl<'a> KtfJvm<'a> {
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
 
-        log::info!("Instantiate {}", class_name);
-
         let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = self.context.alloc(class_descriptor.fields_size as u32 + 4)?;
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         self.core.write(ptr_fields, ((class_descriptor.index * 4) as u32) << 5)?;
+
+        log::info!("Instantiated {} at {:#x}", class_name, ptr_instance);
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
