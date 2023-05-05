@@ -1,2 +1,2 @@
 pub mod interface;
-pub mod jvm;
+pub mod bridge;

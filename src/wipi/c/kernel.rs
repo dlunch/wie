@@ -1,10 +1,10 @@
 use super::{
     into_body,
     method::{CMethodBody, CMethodImpl},
-    Bridge, CError, CResult,
+    CBridge, CError, CResult,
 };
 
-fn dummy(_: &mut dyn Bridge) -> CResult<u32> {
+fn dummy(_: &mut dyn CBridge) -> CResult<u32> {
     log::debug!("kernel dummy called");
 
     Ok(0)

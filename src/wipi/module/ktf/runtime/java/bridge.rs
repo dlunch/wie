@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java::{get_all_java_classes, get_array_proto, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
+    wipi::java::{get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
 };
 
 use super::super::Context;
@@ -112,11 +112,11 @@ impl PartialEq for JavaMethodFullname {
     }
 }
 
-pub struct KtfJvmContext {
+pub struct JavaBridgeContext {
     loaded_classes: HashMap<String, u32>,
 }
 
-impl KtfJvmContext {
+impl JavaBridgeContext {
     pub fn new() -> Self {
         Self {
             loaded_classes: HashMap::new(),
@@ -124,12 +124,12 @@ impl KtfJvmContext {
     }
 }
 
-pub struct KtfJvm<'a> {
+pub struct KtfJavaBridge<'a> {
     core: &'a mut ArmCore,
     context: &'a Context,
 }
 
-impl<'a> KtfJvm<'a> {
+impl<'a> KtfJavaBridge<'a> {
     pub fn new(core: &'a mut ArmCore, context: &'a Context) -> Self {
         Self { core, context }
     }
@@ -186,7 +186,7 @@ impl<'a> KtfJvm<'a> {
 
         self.context
             .borrow_mut()
-            .jvm_context
+            .java_bridge_context
             .loaded_classes
             .extend(loaded_classes.iter().cloned());
 
@@ -224,7 +224,7 @@ impl<'a> KtfJvm<'a> {
     }
 
     fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let loaded_class = self.context.borrow_mut().jvm_context.loaded_classes.get(name).cloned();
+        let loaded_class = self.context.borrow_mut().java_bridge_context.loaded_classes.get(name).cloned();
 
         if let Some(loaded_class) = loaded_class {
             Ok(loaded_class)
@@ -233,7 +233,11 @@ impl<'a> KtfJvm<'a> {
             if name.as_bytes()[0] == b'[' && name.as_bytes()[1] == b'L' {
                 let ptr_class = self.load_class_into_vm(0, name, get_array_proto())?;
 
-                self.context.borrow_mut().jvm_context.loaded_classes.insert(name.into(), ptr_class);
+                self.context
+                    .borrow_mut()
+                    .java_bridge_context
+                    .loaded_classes
+                    .insert(name.into(), ptr_class);
 
                 Ok(ptr_class)
             } else {
@@ -320,8 +324,8 @@ impl<'a> KtfJvm<'a> {
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
         let closure = move |core: &mut ArmCore, context: &Context, a0: u32, a1: u32, a2: u32| {
-            let mut jvm = KtfJvm::new(core, context);
-            let result = body.call(&mut jvm, vec![a0, a1, a2])?; // TODO do we need arg proxy?
+            let mut java_bridge = KtfJavaBridge::new(core, context);
+            let result = body.call(&mut java_bridge, vec![a0, a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };
@@ -330,7 +334,7 @@ impl<'a> KtfJvm<'a> {
     }
 }
 
-impl Jvm for KtfJvm<'_> {
+impl JavaBridge for KtfJavaBridge<'_> {
     fn instantiate(&mut self, class_name: &str) -> JavaResult<JavaObjectProxy> {
         if class_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));

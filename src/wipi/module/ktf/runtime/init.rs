@@ -4,8 +4,8 @@ use crate::core::arm::ArmCore;
 
 use super::{
     c::interface::get_wipic_knl_interface,
+    java::bridge::KtfJavaBridge,
     java::interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
-    java::jvm::KtfJvm,
     misc::init_unk3,
     Context,
 };
@@ -134,9 +134,12 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
-    let mut jvm = KtfJvm::new(core, context);
-    let ptr_classes = jvm.load_all_classes()?;
-    let vtables = ptr_classes.iter().map(|&x| jvm.get_ptr_methods(x)).collect::<Result<Vec<_>, _>>()?;
+    let mut java_bridge = KtfJavaBridge::new(core, context);
+    let ptr_classes = java_bridge.load_all_classes()?;
+    let vtables = ptr_classes
+        .iter()
+        .map(|&x| java_bridge.get_ptr_methods(x))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let ptr_unk_struct = context.alloc(size_of::<InitParam0Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;

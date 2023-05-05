@@ -1,6 +1,6 @@
-use super::{into_body, method::CMethodBody, Bridge, CError, CResult};
+use super::{into_body, method::CMethodBody, CBridge, CError, CResult};
 
-fn dummy(_: &mut dyn Bridge) -> CResult<u32> {
+fn dummy(_: &mut dyn CBridge) -> CResult<u32> {
     log::debug!("graphics dummy called");
 
     Ok(0)
