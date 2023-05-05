@@ -6,7 +6,6 @@ use super::{
     c::interface::get_wipic_knl_interface,
     java::bridge::KtfJavaBridge,
     java::interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
-    misc::init_unk3,
     Context,
 };
 
@@ -241,4 +240,13 @@ pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) ->
             Ok(0)
         }
     }
+}
+
+pub fn init_unk3(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    // calloc??
+    log::debug!("init_unk3({}, {})", a0, a1);
+
+    log::debug!("\n{}", core.dump_regs()?);
+
+    context.alloc(a0 * a1)
 }
