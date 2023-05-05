@@ -1,8 +1,8 @@
 mod r#impl;
 mod method;
 
-use method::JavaMethodHolder;
-pub use method::JavaMethodImpl;
+pub use method::JavaMethodBody;
+use method::JavaMethodImpl;
 
 pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
@@ -11,18 +11,18 @@ pub struct JavaClassProto {
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
-    pub body: Box<dyn JavaMethodImpl>,
+    pub body: Box<dyn JavaMethodBody>,
 }
 
 impl JavaMethodProto {
-    pub fn new<F>(name: &str, signature: &str, body: F) -> Self
+    pub fn new<M, F>(name: &str, signature: &str, method: M) -> Self
     where
-        F: Fn(&mut dyn Jvm, Vec<u32>) -> u32 + 'static,
+        M: JavaMethodImpl<F>,
     {
         Self {
             name: name.into(),
             signature: signature.into(),
-            body: Box::new(JavaMethodHolder(body)),
+            body: method.into_body(),
         }
     }
 }
