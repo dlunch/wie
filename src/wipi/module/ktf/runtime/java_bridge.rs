@@ -22,6 +22,7 @@ struct WIPIJBInterface {
     unk8: u32,
     fn_unk2: u32,
     fn_unk3: u32,
+    fn_unk6: u32,
 }
 
 impl EmulatedFunctionParam<JavaMethodFullname> for JavaMethodFullname {
@@ -46,6 +47,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
         unk8: 0,
         fn_unk2: core.register_function(jb_unk2, context)?,
         fn_unk3: core.register_function(jb_unk3, context)?,
+        fn_unk6: core.register_function(jb_unk6, context)?,
     };
 
     let address = context.alloc(size_of::<WIPIJBInterface>() as u32)?;
@@ -111,6 +113,15 @@ fn jb_unk4(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32
 
 fn jb_unk5(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
     log::debug!("jb_unk5({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
+}
+
+fn jb_unk6(core: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
+    // call native function?
+    log::debug!("jb_unk6({:#x}, {:#x}, {:#x})", a0, a1, a2);
+
+    core.run_function(a0, &[a1])?;
 
     Ok(0)
 }
