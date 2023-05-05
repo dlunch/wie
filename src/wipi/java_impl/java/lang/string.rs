@@ -1,16 +1,12 @@
-use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl, Jvm};
+use crate::wipi::java_impl::{JavaClassProto, JavaMethodProto, Jvm};
 
 // class java.lang.String
 pub struct String {}
 
 impl String {
-    pub fn as_java_impl() -> JavaClassImpl {
-        JavaClassImpl {
-            methods: vec![JavaMethodImpl {
-                name: "<init>".into(),
-                signature: "()V".into(),
-                body: Box::new(Self::init),
-            }],
+    pub fn as_proto() -> JavaClassProto {
+        JavaClassProto {
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init)],
         }
     }
 
