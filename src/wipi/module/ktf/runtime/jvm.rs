@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java::{get_java_impl, JavaMethodBody, Jvm},
+    wipi::java::{get_java_impl, JavaMethodBody, JavaObjectProxy, Jvm},
 };
 
 use super::Context;
@@ -158,7 +158,7 @@ impl<'a> KtfJvm<'a> {
         Ok(())
     }
 
-    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
+    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> anyhow::Result<JavaObjectProxy> {
         let class = self.core.read::<JavaClass>(ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
@@ -170,7 +170,7 @@ impl<'a> KtfJvm<'a> {
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
 
-        Ok(ptr_instance)
+        Ok(JavaObjectProxy::new(ptr_instance))
     }
 
     fn get_ptr_class(&mut self, name: &str) -> anyhow::Result<u32> {
@@ -280,14 +280,14 @@ impl<'a> KtfJvm<'a> {
 }
 
 impl Jvm for KtfJvm<'_> {
-    fn instantiate(&mut self, class_name: &str) -> anyhow::Result<u32> {
+    fn instantiate(&mut self, class_name: &str) -> anyhow::Result<JavaObjectProxy> {
         let ptr_class = self.get_ptr_class(class_name)?;
 
         self.instantiate_from_ptr_class(ptr_class)
     }
 
-    fn call_method(&mut self, ptr_instance: u32, name: &str, signature: &str, _args: &[u32]) -> anyhow::Result<u32> {
-        let instance = self.core.read::<JavaClassInstance>(ptr_instance)?;
+    fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, _args: &[u32]) -> anyhow::Result<u32> {
+        let instance = self.core.read::<JavaClassInstance>(instance_proxy.ptr_instance)?;
         let class = self.core.read::<JavaClass>(instance.ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
@@ -304,14 +304,14 @@ impl Jvm for KtfJvm<'_> {
 
         let method = self.core.read::<JavaMethod>(ptr_method)?;
 
-        self.core.run_function(method.fn_body, &[0, ptr_instance])
+        self.core.run_function(method.fn_body, &[0, instance_proxy.ptr_instance])
     }
 
-    fn get_field(&mut self, _ptr_instance: u32, _field_offset: u32) -> anyhow::Result<u32> {
+    fn get_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32) -> anyhow::Result<u32> {
         todo!()
     }
 
-    fn put_field(&mut self, _ptr_instance: u32, _field_offset: u32, _value: u32) {
+    fn put_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32, _value: u32) {
         todo!()
     }
 }

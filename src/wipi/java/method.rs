@@ -64,7 +64,7 @@ where
     }
 }
 
-trait JavaTypeConverter<T> {
+pub trait JavaTypeConverter<T> {
     fn to_rust(jvm: &mut dyn Jvm, raw: u32) -> T;
     fn from_rust(jvm: &mut dyn Jvm, rust: T) -> u32;
 }

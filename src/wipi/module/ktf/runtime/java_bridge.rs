@@ -121,5 +121,5 @@ pub fn init_unk1(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyho
 
     let instance = KtfJvm::new(core, context).instantiate_from_ptr_class(ptr_class)?;
 
-    Ok(instance)
+    Ok(instance.ptr_instance)
 }

@@ -3,7 +3,7 @@ mod runtime;
 
 use crate::{
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::java::Jvm,
+    wipi::java::{JavaObjectProxy, Jvm},
 };
 
 use self::{context::Context, runtime::KtfJvm};
@@ -12,7 +12,7 @@ use self::{context::Context, runtime::KtfJvm};
 pub struct KtfWipiModule {
     core: ArmCore,
     context: Context,
-    main_class_instance: u32,
+    main_class_instance: JavaObjectProxy,
 }
 
 impl KtfWipiModule {
@@ -34,12 +34,12 @@ impl KtfWipiModule {
     pub fn start(&mut self) -> anyhow::Result<()> {
         let mut jvm = KtfJvm::new(&mut self.core, &self.context);
 
-        jvm.call_method(self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[])?;
+        jvm.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[])?;
 
         Ok(())
     }
 
-    fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
+    fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<JavaObjectProxy> {
         let module = runtime::init(core, context, base_address, bss_size)?;
 
         log::info!("Call wipi init at {:#x}", module.fn_init);
@@ -62,12 +62,12 @@ impl KtfWipiModule {
 
         let mut jvm = KtfJvm::new(core, context);
 
-        let ptr_instance = jvm.instantiate_from_ptr_class(main_class)?;
-        jvm.call_method(ptr_instance, "<init>", "()V", &[])?;
+        let instance = jvm.instantiate_from_ptr_class(main_class)?;
+        jvm.call_method(&instance, "<init>", "()V", &[])?;
 
-        log::info!("Main class instance: {:#x}", ptr_instance);
+        log::info!("Main class instance: {:#x}", instance.ptr_instance);
 
-        Ok(ptr_instance)
+        Ok(instance)
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {
