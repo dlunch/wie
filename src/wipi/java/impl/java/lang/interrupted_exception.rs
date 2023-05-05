@@ -10,9 +10,7 @@ impl InterruptedException {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn init(_: &mut dyn Jvm) {
         log::debug!("InterruptedException::<init>");
-
-        0
     }
 }

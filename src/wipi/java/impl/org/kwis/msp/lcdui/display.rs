@@ -16,33 +16,29 @@ impl Display {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn init(_: &mut dyn Jvm) {
         log::debug!("Display::<init>");
-
-        0
     }
 
-    fn get_display(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn get_display(_: &mut dyn Jvm, _: u32) -> u32 {
         log::debug!("Display::getDisplay");
 
         0
     }
 
-    fn get_default_display(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn get_default_display(_: &mut dyn Jvm) -> u32 {
         log::debug!("Display::getDefaultDisplay");
 
         0
     }
 
-    fn get_docked_card(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn get_docked_card(_: &mut dyn Jvm) -> u32 {
         log::debug!("Display::getDockedCard");
 
         0
     }
 
-    fn push_card(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn push_card(_: &mut dyn Jvm, _: u32) {
         log::debug!("Display::pushCard");
-
-        0
     }
 }

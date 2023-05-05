@@ -10,9 +10,7 @@ impl Card {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
+    fn init(_: &mut dyn Jvm, _: u32) {
         log::debug!("Card::<init>");
-
-        0
     }
 }

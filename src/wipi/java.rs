@@ -15,9 +15,9 @@ pub struct JavaMethodProto {
 }
 
 impl JavaMethodProto {
-    pub fn new<M, F>(name: &str, signature: &str, method: M) -> Self
+    pub fn new<M, F, R, P>(name: &str, signature: &str, method: M) -> Self
     where
-        M: JavaMethodImpl<F>,
+        M: JavaMethodImpl<F, R, P>,
     {
         Self {
             name: name.into(),
