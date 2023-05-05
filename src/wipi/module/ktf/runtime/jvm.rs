@@ -313,7 +313,7 @@ impl Jvm for KtfJvm<'_> {
         self.instantiate_from_ptr_class(ptr_class)
     }
 
-    fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, _args: &[u32]) -> JavaResult<u32> {
+    fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         let instance = self.core.read::<JavaClassInstance>(instance_proxy.ptr_instance)?;
         let class = self.core.read::<JavaClass>(instance.ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
@@ -331,7 +331,15 @@ impl Jvm for KtfJvm<'_> {
 
         let method = self.core.read::<JavaMethod>(ptr_method)?;
 
-        self.core.run_function(method.fn_body, &[0, instance_proxy.ptr_instance])
+        let mut params = vec![0, instance_proxy.ptr_instance];
+        if !args.is_empty() {
+            params.push(args[0]);
+        }
+        if args.len() > 1 {
+            params.push(args[1]);
+        }
+
+        self.core.run_function(method.fn_body, &params)
     }
 
     fn get_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32) -> JavaResult<u32> {
