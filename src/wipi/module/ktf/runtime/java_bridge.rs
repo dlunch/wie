@@ -64,6 +64,8 @@ pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, n
     if result.is_ok() {
         Ok(0)
     } else {
+        log::error!("load_java_class failed: {}", result.err().unwrap());
+
         Ok(1)
     }
 }
