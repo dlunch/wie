@@ -1,5 +1,4 @@
-mod java;
-mod org;
+mod r#impl;
 
 pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
@@ -52,18 +51,18 @@ pub trait Jvm {
 
 pub fn get_java_impl(name: &str) -> Option<JavaClassProto> {
     Some(match name {
-        "java/lang/Exception" => java::lang::Exception::as_proto(),
-        "java/lang/InterruptedException" => java::lang::InterruptedException::as_proto(),
-        "java/lang/Object" => java::lang::Object::as_proto(),
-        "java/lang/Runnable" => java::lang::Runnable::as_proto(),
-        "java/lang/String" => java::lang::String::as_proto(),
-        "java/lang/Thread" => java::lang::Thread::as_proto(),
-        "org/kwis/msp/lcdui/Card" => org::kwis::msp::lcdui::Card::as_proto(),
-        "org/kwis/msp/lcdui/Display" => org::kwis::msp::lcdui::Display::as_proto(),
-        "org/kwis/msp/lcdui/Image" => org::kwis::msp::lcdui::Image::as_proto(),
-        "org/kwis/msp/lcdui/Jlet" => org::kwis::msp::lcdui::Jlet::as_proto(),
-        "org/kwis/msp/lcdui/JletEventListener" => org::kwis::msp::lcdui::JletEventListener::as_proto(),
-        "org/kwis/msp/media/Clip" => org::kwis::msp::media::Clip::as_proto(),
+        "java/lang/Exception" => r#impl::java::lang::Exception::as_proto(),
+        "java/lang/InterruptedException" => r#impl::java::lang::InterruptedException::as_proto(),
+        "java/lang/Object" => r#impl::java::lang::Object::as_proto(),
+        "java/lang/Runnable" => r#impl::java::lang::Runnable::as_proto(),
+        "java/lang/String" => r#impl::java::lang::String::as_proto(),
+        "java/lang/Thread" => r#impl::java::lang::Thread::as_proto(),
+        "org/kwis/msp/lcdui/Card" => r#impl::org::kwis::msp::lcdui::Card::as_proto(),
+        "org/kwis/msp/lcdui/Display" => r#impl::org::kwis::msp::lcdui::Display::as_proto(),
+        "org/kwis/msp/lcdui/Image" => r#impl::org::kwis::msp::lcdui::Image::as_proto(),
+        "org/kwis/msp/lcdui/Jlet" => r#impl::org::kwis::msp::lcdui::Jlet::as_proto(),
+        "org/kwis/msp/lcdui/JletEventListener" => r#impl::org::kwis::msp::lcdui::JletEventListener::as_proto(),
+        "org/kwis/msp/media/Clip" => r#impl::org::kwis::msp::media::Clip::as_proto(),
         _ => {
             log::error!("Unknown java class: {}", name);
 
