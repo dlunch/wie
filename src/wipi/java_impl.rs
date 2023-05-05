@@ -13,7 +13,7 @@ pub struct JavaMethodImpl {
     pub body: JavaMethodBody,
 }
 
-pub type JavaMethodBody = Box<dyn Fn(Vec<Box<dyn Any>>) -> Box<dyn Any>>;
+pub type JavaMethodBody = Box<dyn Fn(&mut dyn Jvm, Vec<Box<dyn Any>>) -> Box<dyn Any>>;
 
 pub trait Jvm {
     fn instantiate(&mut self, class_name: &str) -> anyhow::Result<u32>;

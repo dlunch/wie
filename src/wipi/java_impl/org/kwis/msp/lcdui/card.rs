@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl};
+use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl, Jvm};
 
 // class org.kwis.msp.lcdui.Card
 pub struct Card {}
@@ -16,7 +16,7 @@ impl Card {
         }
     }
 
-    fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn init(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Card::<init>");
 
         Box::new(())

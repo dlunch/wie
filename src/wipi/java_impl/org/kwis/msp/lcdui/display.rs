@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl};
+use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl, Jvm};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}
@@ -38,31 +38,31 @@ impl Display {
         }
     }
 
-    fn init(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn init(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::<init>");
 
         Box::new(())
     }
 
-    fn get_display(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn get_display(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::getDisplay");
 
         Box::new(())
     }
 
-    fn get_default_display(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn get_default_display(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::getDefaultDisplay");
 
         Box::new(())
     }
 
-    fn get_docked_card(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn get_docked_card(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::getDockedCard");
 
         Box::new(())
     }
 
-    fn push_card(_: Vec<Box<dyn Any>>) -> Box<dyn Any> {
+    fn push_card(_: &mut dyn Jvm, _: Vec<Box<dyn Any>>) -> Box<dyn Any> {
         log::debug!("Display::pushCard");
 
         Box::new(())
