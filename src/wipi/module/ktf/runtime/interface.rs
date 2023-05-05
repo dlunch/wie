@@ -2,21 +2,10 @@ use std::mem::size_of;
 
 use crate::{
     core::arm::ArmCore,
-    wipi::c::{get_graphics_method_table, Bridge},
+    wipi::c::{get_graphics_method_table, get_kernel_method_table, Bridge, CError, CMethodBody, CResult},
 };
 
 use super::{java_bridge::get_wipi_jb_interface, Context};
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct WIPICKnlInterface {
-    unk1: [u32; 20],
-    fn_unk2: u32,
-    unk2: [u32; 7],
-    fn_unk1: u32,
-    unk3: [u32; 4],
-    fn_get_wipic_interfaces: u32,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -51,45 +40,71 @@ pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) ->
     }
 }
 
-fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
-    let knl_interface = WIPICKnlInterface {
-        unk1: [0; 20],
-        fn_unk2: core.register_function(knl_unk2, context)?,
-        unk2: [0; 7],
-        fn_unk1: core.register_function(knl_unk1, context)?,
-        unk3: [0; 4],
-        fn_get_wipic_interfaces: core.register_function(get_wipic_interfaces, context)?,
-    };
+pub struct CBridge<'a> {
+    core: &'a mut ArmCore,
+    context: &'a Context,
+}
 
-    let address = context.alloc(size_of::<WIPICKnlInterface>() as u32)?;
-    core.write(address, knl_interface)?;
+impl<'a> CBridge<'a> {
+    pub fn new(core: &'a mut ArmCore, context: &'a Context) -> Self {
+        Self { core, context }
+    }
+}
+
+impl Bridge for CBridge<'_> {
+    fn alloc(&mut self, size: u32) -> CResult<u32> {
+        self.context.alloc(size)
+    }
+
+    fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()> {
+        self.core.write_raw(address, data)
+    }
+
+    fn register_function(&mut self, method: Box<dyn Fn(&mut dyn Bridge) -> CResult<u32>>) -> CResult<u32> {
+        self.core.register_function(
+            move |core: &mut ArmCore, context: &Context| {
+                let mut bridge = CBridge::new(core, context);
+                let result = method(&mut bridge)?;
+
+                Ok::<_, anyhow::Error>(result)
+            },
+            self.context,
+        )
+    }
+}
+
+fn write_methods(bridge: &mut dyn Bridge, methods: Vec<Box<dyn CMethodBody<CError>>>) -> anyhow::Result<u32> {
+    let address = bridge.alloc((methods.len() * 4) as u32)?;
+
+    let mut cursor = address;
+    for method in methods {
+        let address = bridge.register_function(Box::new(move |bridge: &mut dyn Bridge| {
+            let result = method.call(bridge, vec![])?;
+
+            Ok::<_, anyhow::Error>(result)
+        }))?;
+
+        bridge.write_raw(cursor, &address.to_le_bytes())?;
+        cursor += 4;
+    }
 
     Ok(address)
 }
 
-struct CBridge {}
-impl Bridge for CBridge {}
+fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
+    let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
+    let mut bridge = CBridge::new(core, context);
+    let address = write_methods(&mut bridge, kernel_methods)?;
+
+    Ok(address)
+}
+
+fn get_wipic_interfaces(bridge: &mut dyn Bridge) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();
-    let interface_2 = context.alloc((graphics_methods.len() * 4) as u32)?;
-
-    let mut cursor = interface_2;
-    for method in graphics_methods {
-        let address = core.register_function(
-            move |_: &mut ArmCore, _: &Context| {
-                let mut bridge = CBridge {};
-                let result = method.call(&mut bridge, vec![])?;
-
-                Ok::<_, anyhow::Error>(result)
-            },
-            context,
-        )?;
-        core.write(cursor, address)?;
-        cursor += 4;
-    }
+    let interface_2 = write_methods(bridge, graphics_methods)?;
 
     let interface = WIPICInterface {
         interface_0: 0,
@@ -107,21 +122,10 @@ fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result
         interface_12: 0,
     };
 
-    let address = context.alloc(size_of::<WIPICInterface>() as u32)?;
+    let address = bridge.alloc(size_of::<WIPICInterface>() as u32)?;
 
-    core.write(address, interface)?;
+    let data = unsafe { std::slice::from_raw_parts(&interface as *const _ as *const u8, std::mem::size_of::<WIPICInterface>()) };
+    bridge.write_raw(address, data)?;
 
     Ok(address)
-}
-
-fn knl_unk1(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    log::debug!("knl_unk1({:#x}, {:#x})", a0, a1);
-
-    Ok(0)
-}
-
-fn knl_unk2(_: &mut ArmCore, _: &Context, a0: u32) -> anyhow::Result<u32> {
-    log::debug!("knl_unk2({:#x})", a0);
-
-    Ok(0)
 }
