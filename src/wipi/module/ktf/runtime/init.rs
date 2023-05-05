@@ -67,12 +67,6 @@ struct InitParam2 {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct InitParam2Vtable {
-    ptr_functions: [u32; 1], // dynamic size
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
 struct WipiExe {
     ptr_exe_interface: u32,
     ptr_name: u32,
@@ -121,7 +115,9 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
-    KtfJvm::new(core, context).load_all_classes()?;
+    let mut jvm = KtfJvm::new(core, context);
+    let ptr_classes = jvm.load_all_classes()?;
+    let vtables = ptr_classes.iter().map(|&x| jvm.get_ptr_methods(x)).collect::<Result<Vec<_>, _>>()?;
 
     let ptr_unk_struct = context.alloc(size_of::<InitParam0Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;
@@ -138,19 +134,22 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     let ptr_param_1 = context.alloc(size_of::<InitParam1>() as u32)?;
     core.write(ptr_param_1, InitParam1 { ptr_unk_struct })?;
 
-    let ptr_vtable0 = context.alloc(size_of::<InitParam2Vtable>() as u32)?;
-    core.write(ptr_vtable0, InitParam2Vtable { ptr_functions: [0; 1] })?;
-
-    let ptr_param_2 = context.alloc(size_of::<InitParam2>() as u32)?;
+    let ptr_param_2 = context.alloc((size_of::<InitParam2>() + (ptr_classes.len() - 1) * 4) as u32)?;
     core.write(
         ptr_param_2,
         InitParam2 {
             unk1: 0,
             unk2: 0,
             unk3: 0,
-            ptr_vtables: [ptr_vtable0; 1],
+            ptr_vtables: [0; 1],
         },
     )?;
+    let mut cursor = 12;
+    for vtable in vtables {
+        core.write(ptr_param_2 + cursor, vtable)?;
+
+        cursor += 4;
+    }
 
     let param_4 = InitParam4 {
         fn_get_interface: core.register_function(get_interface, context)?,
