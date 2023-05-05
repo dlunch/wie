@@ -1,4 +1,4 @@
-use crate::wipi::java_impl::{JavaClassProto, JavaMethodProto, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, Jvm};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}

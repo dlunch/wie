@@ -1,2 +1,2 @@
-mod java_impl;
+mod java;
 pub mod module;
