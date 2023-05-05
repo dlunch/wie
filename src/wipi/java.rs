@@ -1,4 +1,8 @@
 mod r#impl;
+mod method;
+
+use method::JavaMethodHolder;
+pub use method::JavaMethodImpl;
 
 pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
@@ -20,25 +24,6 @@ impl JavaMethodProto {
             signature: signature.into(),
             body: Box::new(JavaMethodHolder(body)),
         }
-    }
-}
-
-pub trait JavaMethodImpl {
-    fn call(&self, jvm: &mut dyn Jvm, args: Vec<u32>) -> u32;
-}
-
-struct JavaMethodHolder<F>(F);
-
-pub trait JavaMethodCaller<T> {
-    fn call(&self, jvm: &mut dyn Jvm, args: Vec<u32>) -> u32;
-}
-
-impl<F> JavaMethodImpl for JavaMethodHolder<F>
-where
-    F: Fn(&mut dyn Jvm, Vec<u32>) -> u32,
-{
-    fn call(&self, jvm: &mut dyn Jvm, args: Vec<u32>) -> u32 {
-        self.0(jvm, args)
     }
 }
 
