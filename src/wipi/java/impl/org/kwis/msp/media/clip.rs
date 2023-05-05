@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult, Jvm};
 
 // class org.kwis.msp.media.Clip
 pub struct Clip {}
@@ -10,7 +10,9 @@ impl Clip {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: u32) {
+    fn init(_: &mut dyn Jvm, _: u32) -> JavaResult<()> {
         log::debug!("Clip::<init>");
+
+        Ok(())
     }
 }
