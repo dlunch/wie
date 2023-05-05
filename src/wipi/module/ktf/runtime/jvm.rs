@@ -236,8 +236,9 @@ impl<'a> KtfJvm<'a> {
     }
 
     fn register_java_proxy(&mut self, body: JavaMethodBody) -> anyhow::Result<u32> {
-        let closure = move |_: &mut ArmCore, _: &Context| {
-            body(vec![]);
+        let closure = move |core: &mut ArmCore, context: &Context| {
+            let mut jvm = KtfJvm::new(core, context);
+            body(&mut jvm, vec![]);
 
             Ok::<u32, anyhow::Error>(0u32)
         };
