@@ -1,9 +1,9 @@
-use crate::wipi::java_impl::{JavaClassProto, JavaMethodProto, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, Jvm};
 
-// class java.lang.Thread
-pub struct Thread {}
+// class java.lang.Object
+pub struct Object {}
 
-impl Thread {
+impl Object {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![JavaMethodProto::new("<init>", "()V", Self::init)],
@@ -11,7 +11,7 @@ impl Thread {
     }
 
     fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
-        log::debug!("Thread::<init>");
+        log::debug!("Object::<init>");
 
         0
     }

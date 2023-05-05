@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java_impl::{get_java_impl, JavaMethodImpl, Jvm},
+    wipi::java::{get_java_impl, JavaMethodImpl, Jvm},
 };
 
 use super::Context;

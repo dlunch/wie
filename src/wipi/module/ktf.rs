@@ -3,7 +3,7 @@ mod runtime;
 
 use crate::{
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::java_impl::Jvm,
+    wipi::java::Jvm,
 };
 
 use self::{context::Context, runtime::KtfJvm};

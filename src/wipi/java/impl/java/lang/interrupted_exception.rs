@@ -1,9 +1,9 @@
-use crate::wipi::java_impl::{JavaClassProto, JavaMethodProto, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, Jvm};
 
-// class java.lang.Exception
-pub struct Exception {}
+// class java.lang.InterruptedException
+pub struct InterruptedException {}
 
-impl Exception {
+impl InterruptedException {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![JavaMethodProto::new("<init>", "()V", Self::init)],
@@ -11,7 +11,7 @@ impl Exception {
     }
 
     fn init(_: &mut dyn Jvm, _: Vec<u32>) -> u32 {
-        log::debug!("Exception::<init>");
+        log::debug!("InterruptedException::<init>");
 
         0
     }

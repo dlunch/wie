@@ -1,4 +1,4 @@
-use crate::wipi::java_impl::JavaClassProto;
+use crate::wipi::java::JavaClassProto;
 
 // interface org.kwis.msp.lcdui.JletEventListener
 pub struct JletEventListener {}
