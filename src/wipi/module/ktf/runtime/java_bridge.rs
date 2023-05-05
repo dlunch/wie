@@ -12,7 +12,7 @@ use super::{
 struct WIPIJBInterface {
     unk1: u32,
     fn_unk1: u32,
-    fn_java_throw: u32,
+    fn_unk7: u32,
     unk3: u32,
     get_java_method: u32,
     unk4: u32,
@@ -37,7 +37,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
     let interface = WIPIJBInterface {
         unk1: 0,
         fn_unk1: core.register_function(jb_unk1, context)?,
-        fn_java_throw: core.register_function(java_throw, context)?,
+        fn_unk7: core.register_function(jb_unk7, context)?,
         unk3: 0,
         get_java_method: core.register_function(get_java_method, context)?,
         unk4: 0,
@@ -124,6 +124,12 @@ fn jb_unk6(core: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow
     log::debug!("jb_unk6({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     core.run_function(a0, &[a1])?;
+
+    Ok(0)
+}
+
+fn jb_unk7(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    log::debug!("jb_unk7({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
