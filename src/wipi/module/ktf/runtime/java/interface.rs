@@ -4,7 +4,7 @@ use crate::core::arm::{ArmCore, EmulatedFunctionParam};
 
 use super::{
     super::Context,
-    jvm::{JavaMethodFullname, KtfJvm},
+    bridge::{JavaMethodFullname, KtfJavaBridge},
 };
 
 #[repr(C)]
@@ -59,7 +59,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
 pub fn java_class_load(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJvm::new(core, context).load_class(ptr_target, &name);
+    let result = KtfJavaBridge::new(core, context).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)
@@ -80,7 +80,7 @@ pub fn java_throw(core: &mut ArmCore, _: &Context, error: String, a1: u32) -> an
 fn get_java_method(core: &mut ArmCore, context: &Context, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
     log::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJvm::new(core, context).get_method(ptr_class, fullname)?;
+    let ptr_method = KtfJavaBridge::new(core, context).get_method(ptr_class, fullname)?;
 
     log::debug!("get_java_method result {:#x}", ptr_method);
 
@@ -142,7 +142,7 @@ fn jb_unk8(_: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow::R
 pub fn java_new(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyhow::Result<u32> {
     log::debug!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJvm::new(core, context).instantiate_from_ptr_class(ptr_class)?;
+    let instance = KtfJavaBridge::new(core, context).instantiate_from_ptr_class(ptr_class)?;
 
     Ok(instance.ptr_instance)
 }

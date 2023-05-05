@@ -2,10 +2,10 @@ use std::mem::size_of;
 
 use crate::{
     core::arm::ArmCore,
-    wipi::c::{get_graphics_method_table, get_kernel_method_table, Bridge, CError, CMethodBody},
+    wipi::c::{get_graphics_method_table, get_kernel_method_table, CBridge, CError, CMethodBody},
 };
 
-use super::{super::Context, bridge::CBridge};
+use super::{super::Context, bridge::KtfCBridge};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -25,12 +25,12 @@ struct WIPICInterface {
     interface_12: u32,
 }
 
-fn write_methods(bridge: &mut dyn Bridge, methods: Vec<Box<dyn CMethodBody<CError>>>) -> anyhow::Result<u32> {
+fn write_methods(bridge: &mut dyn CBridge, methods: Vec<Box<dyn CMethodBody<CError>>>) -> anyhow::Result<u32> {
     let address = bridge.alloc((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
     for method in methods {
-        let address = bridge.register_function(Box::new(move |bridge: &mut dyn Bridge| {
+        let address = bridge.register_function(Box::new(move |bridge: &mut dyn CBridge| {
             let result = method.call(bridge, vec![])?;
 
             Ok::<_, anyhow::Error>(result)
@@ -46,13 +46,13 @@ fn write_methods(bridge: &mut dyn Bridge, methods: Vec<Box<dyn CMethodBody<CErro
 pub fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut bridge = CBridge::new(core, context);
+    let mut bridge = KtfCBridge::new(core, context);
     let address = write_methods(&mut bridge, kernel_methods)?;
 
     Ok(address)
 }
 
-fn get_wipic_interfaces(bridge: &mut dyn Bridge) -> anyhow::Result<u32> {
+fn get_wipic_interfaces(bridge: &mut dyn CBridge) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();

@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult, Jvm};
+use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
 
 // class org.kwis.msp.lcdui.Card
 pub struct Card {}
@@ -13,13 +13,13 @@ impl Card {
         }
     }
 
-    fn init(_: &mut dyn Jvm) -> JavaResult<()> {
+    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
         log::debug!("Card::<init>");
 
         Ok(())
     }
 
-    fn init_1(_: &mut dyn Jvm, _: u32) -> JavaResult<()> {
+    fn init_1(_: &mut dyn JavaBridge, _: u32) -> JavaResult<()> {
         log::debug!("Card::<init>");
 
         Ok(())

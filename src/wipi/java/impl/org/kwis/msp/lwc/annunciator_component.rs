@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult, Jvm};
+use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
 
 // class org.kwis.msp.lwc.AnnunciatorComponent
 pub struct AnnunciatorComponent {}
@@ -13,13 +13,13 @@ impl AnnunciatorComponent {
         }
     }
 
-    fn init(_: &mut dyn Jvm, _: u32) -> JavaResult<()> {
+    fn init(_: &mut dyn JavaBridge, _: u32) -> JavaResult<()> {
         log::debug!("AnnunciatorComponent::<init>");
 
         Ok(())
     }
 
-    fn show(_: &mut dyn Jvm) -> JavaResult<()> {
+    fn show(_: &mut dyn JavaBridge) -> JavaResult<()> {
         log::debug!("AnnunciatorComponent::show");
 
         Ok(())

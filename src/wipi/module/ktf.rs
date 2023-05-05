@@ -3,10 +3,10 @@ mod runtime;
 
 use crate::{
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::java::{JavaObjectProxy, Jvm},
+    wipi::java::{JavaBridge, JavaObjectProxy},
 };
 
-use self::{context::Context, runtime::KtfJvm};
+use self::{context::Context, runtime::KtfJavaBridge};
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -32,11 +32,11 @@ impl KtfWipiModule {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        let mut jvm = KtfJvm::new(&mut self.core, &self.context);
+        let mut java_bridge = KtfJavaBridge::new(&mut self.core, &self.context);
 
-        let arg = jvm.instantiate_array("java/lang/String", 0)?;
+        let arg = java_bridge.instantiate_array("java/lang/String", 0)?;
 
-        jvm.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
+        java_bridge.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
 
         Ok(())
     }
@@ -62,10 +62,10 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let mut jvm = KtfJvm::new(core, context);
+        let mut java_bridge = KtfJavaBridge::new(core, context);
 
-        let instance = jvm.instantiate_from_ptr_class(main_class)?;
-        jvm.call_method(&instance, "<init>", "()V", &[])?;
+        let instance = java_bridge.instantiate_from_ptr_class(main_class)?;
+        java_bridge.call_method(&instance, "<init>", "()V", &[])?;
 
         log::info!("Main class instance: {:#x}", instance.ptr_instance);
 

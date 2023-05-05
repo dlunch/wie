@@ -5,11 +5,11 @@ use std::{
 
 use crate::core::arm::allocator::Allocator;
 
-use super::runtime::KtfJvmContext;
+use super::runtime::JavaBridgeContext;
 
 pub struct ContextStorage {
     pub allocator: Allocator,
-    pub jvm_context: KtfJvmContext,
+    pub java_bridge_context: JavaBridgeContext,
 }
 
 pub struct Context {
@@ -21,7 +21,7 @@ impl Context {
         Self {
             storage: Rc::new(RefCell::new(ContextStorage {
                 allocator,
-                jvm_context: KtfJvmContext::new(),
+                java_bridge_context: JavaBridgeContext::new(),
             })),
         }
     }

@@ -1,22 +1,22 @@
 use crate::{
     core::arm::ArmCore,
-    wipi::c::{Bridge, BridgeMethod, CResult},
+    wipi::c::{CBridge, CBridgeMethod, CResult},
 };
 
 use super::super::Context;
 
-pub struct CBridge<'a> {
+pub struct KtfCBridge<'a> {
     core: &'a mut ArmCore,
     context: &'a Context,
 }
 
-impl<'a> CBridge<'a> {
+impl<'a> KtfCBridge<'a> {
     pub fn new(core: &'a mut ArmCore, context: &'a Context) -> Self {
         Self { core, context }
     }
 }
 
-impl Bridge for CBridge<'_> {
+impl CBridge for KtfCBridge<'_> {
     fn alloc(&mut self, size: u32) -> CResult<u32> {
         self.context.alloc(size)
     }
@@ -25,10 +25,10 @@ impl Bridge for CBridge<'_> {
         self.core.write_raw(address, data)
     }
 
-    fn register_function(&mut self, method: BridgeMethod) -> CResult<u32> {
+    fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32> {
         self.core.register_function(
             move |core: &mut ArmCore, context: &Context| {
-                let mut bridge = CBridge::new(core, context);
+                let mut bridge = KtfCBridge::new(core, context);
                 let result = method(&mut bridge)?;
 
                 Ok::<_, anyhow::Error>(result)

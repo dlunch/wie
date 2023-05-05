@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult, Jvm};
+use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
 
 // class java.lang.InterruptedException
 pub struct InterruptedException {}
@@ -10,7 +10,7 @@ impl InterruptedException {
         }
     }
 
-    fn init(_: &mut dyn Jvm) -> JavaResult<()> {
+    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
         log::debug!("InterruptedException::<init>");
 
         Ok(())
