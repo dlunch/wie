@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java::{get_all_java_classes, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
+    wipi::java::{get_all_java_classes, get_array_proto, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
 };
 
 use super::Context;
@@ -168,19 +168,7 @@ impl<'a> KtfJvm<'a> {
     }
 
     pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
-
-        let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
-        let ptr_fields = self.context.alloc(class_descriptor.fields_size as u32 + 4)?;
-
-        self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
-        self.core.write(ptr_fields, ((class_descriptor.index * 4) as u32) << 5)?;
-
-        log::info!("Instantiated {} at {:#x}", class_name, ptr_instance);
-
-        Ok(JavaObjectProxy::new(ptr_instance))
+        self.instantiate_inner(ptr_class, None)
     }
 
     pub fn load_all_classes(&mut self) -> JavaResult<Vec<u32>> {
@@ -212,10 +200,46 @@ impl<'a> KtfJvm<'a> {
         Ok(class_descriptor.ptr_methods)
     }
 
+    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: Option<u32>) -> JavaResult<JavaObjectProxy> {
+        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+        let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
+
+        let fields_size = if let Some(fields_size) = fields_size {
+            fields_size
+        } else {
+            class_descriptor.fields_size as u32
+        };
+
+        let ptr_fields = self.context.alloc(fields_size + 4)?;
+
+        self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
+        self.core.write(ptr_fields, ((class_descriptor.index * 4) as u32) << 5)?;
+
+        log::info!("Instantiated {} at {:#x}", class_name, ptr_instance);
+
+        Ok(JavaObjectProxy::new(ptr_instance))
+    }
+
     fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let loaded_class = self.context.borrow_mut().jvm_context.loaded_classes.get(name).cloned();
 
-        loaded_class.ok_or_else(|| anyhow::anyhow!("No such class {}", name))
+        if let Some(loaded_class) = loaded_class {
+            Ok(loaded_class)
+        } else {
+            // array class is created dynamically
+            if name.as_bytes()[0] == b'[' && name.as_bytes()[1] == b'L' {
+                let ptr_class = self.load_class_into_vm(0, name, get_array_proto())?;
+
+                self.context.borrow_mut().jvm_context.loaded_classes.insert(name.into(), ptr_class);
+
+                Ok(ptr_class)
+            } else {
+                Err(anyhow::anyhow!("No such class {}", name))
+            }
+        }
     }
 
     fn load_class_into_vm(&mut self, index: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
@@ -308,9 +332,20 @@ impl<'a> KtfJvm<'a> {
 
 impl Jvm for KtfJvm<'_> {
     fn instantiate(&mut self, class_name: &str) -> JavaResult<JavaObjectProxy> {
+        if class_name.as_bytes()[0] == b'[' {
+            return Err(anyhow::anyhow!("Array class should not be instantiated here"));
+        }
         let ptr_class = self.get_ptr_class(class_name)?;
 
-        self.instantiate_from_ptr_class(ptr_class)
+        self.instantiate_inner(ptr_class, None)
+    }
+
+    fn instantiate_array(&mut self, element_class_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
+        let array_type = format!("[L{};", element_class_name);
+
+        let ptr_class = self.get_ptr_class(&array_type)?;
+
+        self.instantiate_inner(ptr_class, Some(count * 4 + 4))
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
