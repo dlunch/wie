@@ -1,6 +1,9 @@
 use std::mem::size_of;
 
-use crate::{core::arm::ArmCore, wipi::c::get_graphics_method_table};
+use crate::{
+    core::arm::ArmCore,
+    wipi::c::{get_graphics_method_table, Bridge},
+};
 
 use super::{java_bridge::get_wipi_jb_interface, Context};
 
@@ -64,6 +67,9 @@ fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Res
     Ok(address)
 }
 
+struct CBridge {}
+impl Bridge for CBridge {}
+
 fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
@@ -74,7 +80,8 @@ fn get_wipic_interfaces(core: &mut ArmCore, context: &Context) -> anyhow::Result
     for method in graphics_methods {
         let address = core.register_function(
             move |_: &mut ArmCore, _: &Context| {
-                let result = method();
+                let mut bridge = CBridge {};
+                let result = method.call(&mut bridge, vec![])?;
 
                 Ok::<_, anyhow::Error>(result)
             },
