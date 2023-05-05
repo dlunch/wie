@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::core::arm::ArmCore;
+use crate::{core::arm::ArmCore, wipi::module::ktf::runtime::KtfJvm};
 
 use super::{
     interface::get_interface,
@@ -120,6 +120,8 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
+
+    KtfJvm::new(core, context).load_all_classes()?;
 
     let ptr_unk_struct = context.alloc(size_of::<InitParam0Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;
