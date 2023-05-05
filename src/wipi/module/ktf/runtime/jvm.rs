@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java::{get_java_impl, JavaMethodBody, JavaObjectProxy, Jvm},
+    wipi::java::{get_java_impl, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
 };
 
 use super::Context;
@@ -61,7 +61,7 @@ pub struct JavaMethodFullname {
 }
 
 impl JavaMethodFullname {
-    pub fn from_ptr(core: &ArmCore, ptr: u32) -> anyhow::Result<Self> {
+    pub fn from_ptr(core: &ArmCore, ptr: u32) -> JavaResult<Self> {
         let tag = core.read(ptr)?;
 
         let value = core.read_null_terminated_string(ptr + 1)?;
@@ -125,7 +125,7 @@ impl<'a> KtfJvm<'a> {
         Self { core, context }
     }
 
-    pub fn get_method(&mut self, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
+    pub fn get_method(&mut self, ptr_class: u32, fullname: JavaMethodFullname) -> JavaResult<u32> {
         let class = self.core.read::<JavaClass>(ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
@@ -150,7 +150,7 @@ impl<'a> KtfJvm<'a> {
         }
     }
 
-    pub fn load_class(&mut self, ptr_target: u32, name: &str) -> anyhow::Result<()> {
+    pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
         let ptr_class = self.get_ptr_class(name)?;
 
         self.core.write(ptr_target, ptr_class)?;
@@ -158,7 +158,7 @@ impl<'a> KtfJvm<'a> {
         Ok(())
     }
 
-    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> anyhow::Result<JavaObjectProxy> {
+    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy> {
         let class = self.core.read::<JavaClass>(ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
@@ -173,7 +173,7 @@ impl<'a> KtfJvm<'a> {
         Ok(JavaObjectProxy::new(ptr_instance))
     }
 
-    fn get_ptr_class(&mut self, name: &str) -> anyhow::Result<u32> {
+    fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let loaded_class = self.context.borrow_mut().jvm_context.loaded_classes.get(name).cloned();
 
         Ok(if let Some(loaded_class) = loaded_class {
@@ -187,7 +187,7 @@ impl<'a> KtfJvm<'a> {
         })
     }
 
-    fn load_class_into_vm(&mut self, name: &str) -> anyhow::Result<u32> {
+    fn load_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
         let r#impl = get_java_impl(name);
         if r#impl.is_none() {
             return Err(anyhow::anyhow!("No such class"));
@@ -267,12 +267,12 @@ impl<'a> KtfJvm<'a> {
         Ok(ptr_class)
     }
 
-    fn register_java_method(&mut self, body: Box<dyn JavaMethodBody>) -> anyhow::Result<u32> {
+    fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
         let closure = move |core: &mut ArmCore, context: &Context| {
             let mut jvm = KtfJvm::new(core, context);
-            body.call(&mut jvm, vec![]);
+            body.call(&mut jvm, vec![])?;
 
-            Ok::<u32, anyhow::Error>(0u32)
+            Ok::<u32, JavaError>(0u32)
         };
 
         self.core.register_function(closure, self.context)
@@ -280,13 +280,13 @@ impl<'a> KtfJvm<'a> {
 }
 
 impl Jvm for KtfJvm<'_> {
-    fn instantiate(&mut self, class_name: &str) -> anyhow::Result<JavaObjectProxy> {
+    fn instantiate(&mut self, class_name: &str) -> JavaResult<JavaObjectProxy> {
         let ptr_class = self.get_ptr_class(class_name)?;
 
         self.instantiate_from_ptr_class(ptr_class)
     }
 
-    fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, _args: &[u32]) -> anyhow::Result<u32> {
+    fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, _args: &[u32]) -> JavaResult<u32> {
         let instance = self.core.read::<JavaClassInstance>(instance_proxy.ptr_instance)?;
         let class = self.core.read::<JavaClass>(instance.ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
@@ -307,7 +307,7 @@ impl Jvm for KtfJvm<'_> {
         self.core.run_function(method.fn_body, &[0, instance_proxy.ptr_instance])
     }
 
-    fn get_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32) -> anyhow::Result<u32> {
+    fn get_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32) -> JavaResult<u32> {
         todo!()
     }
 

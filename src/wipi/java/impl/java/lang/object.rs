@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult, Jvm};
 
 // class java.lang.Object
 pub struct Object {}
@@ -10,7 +10,9 @@ impl Object {
         }
     }
 
-    fn init(_: &mut dyn Jvm) {
+    fn init(_: &mut dyn Jvm) -> JavaResult<()> {
         log::debug!("Object::<init>");
+
+        Ok(())
     }
 }

@@ -9,16 +9,19 @@ pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
 }
 
+pub type JavaError = anyhow::Error;
+pub type JavaResult<T> = anyhow::Result<T>;
+
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
-    pub body: Box<dyn JavaMethodBody>,
+    pub body: Box<dyn JavaMethodBody<JavaError>>,
 }
 
 impl JavaMethodProto {
     pub fn new<M, F, R, P>(name: &str, signature: &str, method: M) -> Self
     where
-        M: JavaMethodImpl<F, R, P>,
+        M: JavaMethodImpl<F, JavaError, R, P>,
     {
         Self {
             name: name.into(),
@@ -29,9 +32,9 @@ impl JavaMethodProto {
 }
 
 pub trait Jvm {
-    fn instantiate(&mut self, class_name: &str) -> anyhow::Result<JavaObjectProxy>;
-    fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> anyhow::Result<u32>;
-    fn get_field(&mut self, instance: &JavaObjectProxy, field_offset: u32) -> anyhow::Result<u32>;
+    fn instantiate(&mut self, class_name: &str) -> JavaResult<JavaObjectProxy>;
+    fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
+    fn get_field(&mut self, instance: &JavaObjectProxy, field_offset: u32) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_offset: u32, value: u32);
 }
 

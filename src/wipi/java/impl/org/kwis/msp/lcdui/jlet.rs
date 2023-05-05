@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult, Jvm};
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet {}
@@ -10,7 +10,9 @@ impl Jlet {
         }
     }
 
-    fn init(_: &mut dyn Jvm) {
+    fn init(_: &mut dyn Jvm) -> JavaResult<()> {
         log::debug!("Jlet::<init>");
+
+        Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaObjectProxy, Jvm};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaObjectProxy, JavaResult, Jvm};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}
@@ -16,29 +16,33 @@ impl Display {
         }
     }
 
-    fn init(_: &mut dyn Jvm) {
+    fn init(_: &mut dyn Jvm) -> JavaResult<()> {
         log::debug!("Display::<init>");
+
+        Ok(())
     }
 
-    fn get_display(_: &mut dyn Jvm, _: JavaObjectProxy) -> JavaObjectProxy {
+    fn get_display(_: &mut dyn Jvm, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDisplay");
 
-        JavaObjectProxy::new(0)
+        Ok(JavaObjectProxy::new(0))
     }
 
-    fn get_default_display(_: &mut dyn Jvm) -> JavaObjectProxy {
+    fn get_default_display(_: &mut dyn Jvm) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDefaultDisplay");
 
-        JavaObjectProxy::new(0)
+        Ok(JavaObjectProxy::new(0))
     }
 
-    fn get_docked_card(_: &mut dyn Jvm) -> JavaObjectProxy {
+    fn get_docked_card(_: &mut dyn Jvm) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDockedCard");
 
-        JavaObjectProxy::new(0)
+        Ok(JavaObjectProxy::new(0))
     }
 
-    fn push_card(_: &mut dyn Jvm, _: JavaObjectProxy) {
+    fn push_card(_: &mut dyn Jvm, _: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Display::pushCard");
+
+        Ok(())
     }
 }
