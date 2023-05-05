@@ -41,15 +41,17 @@ struct JavaMethod {
     ptr_class: u32,
     unk1: u32,
     ptr_name: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
+    unk2: u16,
+    unk3: u16,
+    vtable_index: u16,
+    access_flag: u16,
+    unk6: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct JavaClassInstance {
-    ptr_fields: u32,
+    ptr_fields: u32, // vtable index << 5 is first field
     ptr_class: u32,
 }
 
@@ -232,7 +234,9 @@ impl<'a> KtfJvm<'a> {
                     ptr_name,
                     unk2: 0,
                     unk3: 0,
-                    unk4: 0,
+                    vtable_index: 0,
+                    access_flag: 1, //  ACC_PUBLIC
+                    unk6: 0,
                 },
             )?;
 

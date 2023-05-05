@@ -58,6 +58,21 @@ struct InitParam1UnkUnk {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+struct InitParam2 {
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    ptr_vtables: [u32; 1], // dynamic size
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct InitParam2Vtable {
+    ptr_functions: [u32; 1], // dynamic size
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 struct WipiExe {
     ptr_exe_interface: u32,
     ptr_name: u32,
@@ -121,6 +136,20 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     let ptr_param_1 = context.alloc(size_of::<InitParam1>() as u32)?;
     core.write(ptr_param_1, InitParam1 { ptr_unk_struct })?;
 
+    let ptr_vtable0 = context.alloc(size_of::<InitParam2Vtable>() as u32)?;
+    core.write(ptr_vtable0, InitParam2Vtable { ptr_functions: [0; 1] })?;
+
+    let ptr_param_2 = context.alloc(size_of::<InitParam2>() as u32)?;
+    core.write(
+        ptr_param_2,
+        InitParam2 {
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+            ptr_vtables: [ptr_vtable0; 1],
+        },
+    )?;
+
     let param_4 = InitParam4 {
         fn_get_interface: core.register_function(get_interface, context)?,
         fn_java_throw: core.register_function(java_throw, context)?,
@@ -144,7 +173,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     let exe_interface_functions = core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
 
     log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
-    let result = core.run_function(exe_interface_functions.fn_init, &[ptr_param_0, ptr_param_1, 0, 0, ptr_param_4])?;
+    let result = core.run_function(exe_interface_functions.fn_init, &[ptr_param_0, ptr_param_1, ptr_param_2, 0, ptr_param_4])?;
     if result != 0 {
         return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
     }
