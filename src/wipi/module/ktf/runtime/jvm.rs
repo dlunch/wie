@@ -182,27 +182,35 @@ impl<'a> KtfJvm<'a> {
         Ok(JavaObjectProxy::new(ptr_instance))
     }
 
+    pub fn load_all_classes(&mut self) -> JavaResult<Vec<u32>> {
+        let all_classes = get_all_java_classes();
+
+        let loaded_classes = all_classes
+            .into_iter()
+            .enumerate()
+            .map(|(index, (name, proto))| {
+                let ptr_class = self.load_class_into_vm(index, name, proto)?;
+
+                Ok((name.into(), ptr_class))
+            })
+            .collect::<JavaResult<Vec<_>>>()?;
+
+        self.context
+            .borrow_mut()
+            .jvm_context
+            .loaded_classes
+            .extend(loaded_classes.iter().cloned());
+
+        Ok(loaded_classes.into_iter().map(|x| x.1).collect())
+    }
+
     fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let loaded_class = self.context.borrow_mut().jvm_context.loaded_classes.get(name).cloned();
 
-        Ok(if let Some(loaded_class) = loaded_class {
-            loaded_class
-        } else {
-            let ptr_class = self.load_class_into_vm(name)?;
-
-            self.context.borrow_mut().jvm_context.loaded_classes.insert(name.into(), ptr_class);
-
-            ptr_class
-        })
+        loaded_class.ok_or_else(|| anyhow::anyhow!("No such class {}", name))
     }
 
-    fn load_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
-        let proto = Self::get_java_proto(name);
-        if proto.is_none() {
-            return Err(anyhow::anyhow!("No such class"));
-        }
-        let (_, proto) = proto.unwrap();
-
+    fn load_class_into_vm(&mut self, _: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
         let ptr_class = self.context.alloc(size_of::<JavaClass>() as u32)?;
         self.core.write(
             ptr_class,
@@ -276,16 +284,6 @@ impl<'a> KtfJvm<'a> {
         self.core.write(ptr_class + 8, ptr_descriptor)?;
 
         Ok(ptr_class)
-    }
-
-    fn get_java_proto(name: &str) -> Option<(usize, JavaClassProto)> {
-        let all_classes = get_all_java_classes();
-
-        all_classes
-            .into_iter()
-            .enumerate()
-            .find(|&(_, (current_name, _))| name == current_name)
-            .map(|(index, (_, proto))| (index, proto))
     }
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
