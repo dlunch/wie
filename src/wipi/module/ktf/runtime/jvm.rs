@@ -173,7 +173,7 @@ impl<'a> KtfJvm<'a> {
             self.core.write_raw(ptr_name, &fullname)?;
 
             let ptr_method = self.context.alloc(size_of::<JavaMethod>() as u32)?;
-            let fn_body = self.register_java_proxy(method.body)?;
+            let fn_body = self.register_java_method(method.body)?;
             self.core.write(
                 ptr_method,
                 JavaMethod {
@@ -235,7 +235,7 @@ impl<'a> KtfJvm<'a> {
         Ok(ptr_instance)
     }
 
-    fn register_java_proxy(&mut self, body: JavaMethodBody) -> anyhow::Result<u32> {
+    fn register_java_method(&mut self, body: JavaMethodBody) -> anyhow::Result<u32> {
         let closure = move |core: &mut ArmCore, context: &Context| {
             let mut jvm = KtfJvm::new(core, context);
             body(&mut jvm, vec![]);
