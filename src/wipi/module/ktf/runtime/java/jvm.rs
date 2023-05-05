@@ -5,7 +5,7 @@ use crate::{
     wipi::java::{get_all_java_classes, get_array_proto, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
 };
 
-use super::Context;
+use super::super::Context;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
