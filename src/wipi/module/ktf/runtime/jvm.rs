@@ -31,7 +31,7 @@ struct JavaClassDescriptor {
     access_flag: u16,
     unk6: u16,
     unk7: u16,
-    unk8: u16,
+    index: u16,
 }
 
 #[repr(C)]
@@ -178,6 +178,7 @@ impl<'a> KtfJvm<'a> {
         let ptr_fields = self.context.alloc(class_descriptor.fields_size as u32 + 4)?;
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
+        self.core.write(ptr_fields, ((class_descriptor.index * 4) as u32) << 5)?;
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
@@ -204,13 +205,20 @@ impl<'a> KtfJvm<'a> {
         Ok(loaded_classes.into_iter().map(|x| x.1).collect())
     }
 
+    pub fn get_ptr_methods(&self, ptr_class: u32) -> anyhow::Result<u32> {
+        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+
+        Ok(class_descriptor.ptr_methods)
+    }
+
     fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let loaded_class = self.context.borrow_mut().jvm_context.loaded_classes.get(name).cloned();
 
         loaded_class.ok_or_else(|| anyhow::anyhow!("No such class {}", name))
     }
 
-    fn load_class_into_vm(&mut self, _: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
+    fn load_class_into_vm(&mut self, index: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
         let ptr_class = self.context.alloc(size_of::<JavaClass>() as u32)?;
         self.core.write(
             ptr_class,
@@ -227,7 +235,7 @@ impl<'a> KtfJvm<'a> {
         let ptr_methods = self.context.alloc(((method_count + 1) * size_of::<u32>()) as u32)?;
 
         let mut cursor = ptr_methods;
-        for method in proto.methods {
+        for (index, method) in proto.methods.into_iter().enumerate() {
             let fullname = (JavaMethodFullname {
                 tag: 0,
                 name: method.name,
@@ -249,7 +257,7 @@ impl<'a> KtfJvm<'a> {
                     ptr_name,
                     unk2: 0,
                     unk3: 0,
-                    vtable_index: 0,
+                    vtable_index: index as u16,
                     access_flag: 1, //  ACC_PUBLIC
                     unk6: 0,
                 },
@@ -277,7 +285,7 @@ impl<'a> KtfJvm<'a> {
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
                 unk6: 0,
                 unk7: 0,
-                unk8: 0,
+                index: index as u16,
             },
         )?;
 
