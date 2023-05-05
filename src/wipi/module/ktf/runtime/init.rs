@@ -1,13 +1,11 @@
 use std::mem::size_of;
 
-use crate::{
-    core::arm::ArmCore,
-    wipi::module::ktf::runtime::{java_bridge::java_array_new, KtfJvm},
-};
+use crate::core::arm::ArmCore;
 
 use super::{
-    interface::get_interface,
-    java_bridge::{java_class_load, java_new, java_throw},
+    c_interface::get_wipic_knl_interface,
+    java_bridge::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
+    jvm::KtfJvm,
     misc::init_unk3,
     Context,
 };
@@ -225,4 +223,19 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         fn_init: wipi_exe.fn_init,
         fn_get_class: exe_interface_functions.fn_get_class,
     })
+}
+
+pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> anyhow::Result<u32> {
+    log::debug!("get_interface({})", r#struct);
+
+    match r#struct.as_str() {
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core, context),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core, context),
+        _ => {
+            log::warn!("Unknown {}", r#struct);
+            log::warn!("Register dump\n{}", core.dump_regs()?);
+
+            Ok(0)
+        }
+    }
 }
