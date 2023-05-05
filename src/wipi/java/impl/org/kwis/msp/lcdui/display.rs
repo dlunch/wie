@@ -12,6 +12,11 @@ impl Display {
                 JavaMethodProto::new("getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", Self::get_default_display),
                 JavaMethodProto::new("getDockedCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_docked_card),
                 JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card),
+                JavaMethodProto::new(
+                    "addJletEventListener",
+                    "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
+                    Self::add_jlet_event_listener,
+                ),
             ],
         }
     }
@@ -48,6 +53,12 @@ impl Display {
 
     fn push_card(_: &mut dyn Jvm, _: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Display::pushCard");
+
+        Ok(())
+    }
+
+    fn add_jlet_event_listener(_: &mut dyn Jvm, _: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Display::addJletEventListener");
 
         Ok(())
     }
