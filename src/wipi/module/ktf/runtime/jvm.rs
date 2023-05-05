@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
-    wipi::java::{get_java_impl, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
+    wipi::java::{get_all_java_classes, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, Jvm},
 };
 
 use super::Context;
@@ -197,11 +197,11 @@ impl<'a> KtfJvm<'a> {
     }
 
     fn load_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
-        let r#impl = get_java_impl(name);
-        if r#impl.is_none() {
+        let proto = Self::get_java_proto(name);
+        if proto.is_none() {
             return Err(anyhow::anyhow!("No such class"));
         }
-        let r#impl = r#impl.unwrap();
+        let (_, proto) = proto.unwrap();
 
         let ptr_class = self.context.alloc(size_of::<JavaClass>() as u32)?;
         self.core.write(
@@ -215,11 +215,11 @@ impl<'a> KtfJvm<'a> {
             },
         )?;
 
-        let method_count = r#impl.methods.len();
+        let method_count = proto.methods.len();
         let ptr_methods = self.context.alloc(((method_count + 1) * size_of::<u32>()) as u32)?;
 
         let mut cursor = ptr_methods;
-        for method in r#impl.methods {
+        for method in proto.methods {
             let fullname = (JavaMethodFullname {
                 tag: 0,
                 name: method.name,
@@ -276,6 +276,16 @@ impl<'a> KtfJvm<'a> {
         self.core.write(ptr_class + 8, ptr_descriptor)?;
 
         Ok(ptr_class)
+    }
+
+    fn get_java_proto(name: &str) -> Option<(usize, JavaClassProto)> {
+        let all_classes = get_all_java_classes();
+
+        all_classes
+            .into_iter()
+            .enumerate()
+            .find(|&(_, (current_name, _))| name == current_name)
+            .map(|(index, (_, proto))| (index, proto))
     }
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
