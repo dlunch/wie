@@ -2,12 +2,12 @@ use std::mem::size_of;
 
 use crate::{
     core::arm::ArmCore,
-    wipi::module::ktf::runtime::{java_bridge::init_unk2, KtfJvm},
+    wipi::module::ktf::runtime::{java_bridge::java_array_new, KtfJvm},
 };
 
 use super::{
     interface::get_interface,
-    java_bridge::{init_unk1, java_throw, load_java_class},
+    java_bridge::{java_class_load, java_new, java_throw},
     misc::init_unk3,
     Context,
 };
@@ -32,10 +32,10 @@ struct InitParam4 {
     unk1: u32,
     unk2: u32,
     unk3: u32,
-    fn_unk1: u32,
-    fn_unk2: u32,
+    fn_java_new: u32,
+    fn_java_array_new: u32,
     unk6: u32,
-    fn_load_java_class: u32,
+    fn_java_class_load: u32,
     unk7: u32,
     unk8: u32,
     fn_unk3: u32,
@@ -196,10 +196,10 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         unk1: 0,
         unk2: 0,
         unk3: 0,
-        fn_unk1: core.register_function(init_unk1, context)?,
-        fn_unk2: core.register_function(init_unk2, context)?,
+        fn_java_new: core.register_function(java_new, context)?,
+        fn_java_array_new: core.register_function(java_array_new, context)?,
         unk6: 0,
-        fn_load_java_class: core.register_function(load_java_class, context)?,
+        fn_java_class_load: core.register_function(java_class_load, context)?,
         unk7: 0,
         unk8: 0,
         fn_unk3: core.register_function(init_unk3, context)?,

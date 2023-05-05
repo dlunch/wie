@@ -56,7 +56,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
     Ok(address)
 }
 
-pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> anyhow::Result<u32> {
+pub fn java_class_load(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
     let result = KtfJvm::new(core, context).load_class(ptr_target, &name);
@@ -139,18 +139,16 @@ fn jb_unk8(_: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow::R
     Ok(0)
 }
 
-pub fn init_unk1(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyhow::Result<u32> {
-    // javaNew?
-    log::debug!("init_unk1({:#x})", ptr_class);
+pub fn java_new(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyhow::Result<u32> {
+    log::debug!("java_new({:#x})", ptr_class);
 
     let instance = KtfJvm::new(core, context).instantiate_from_ptr_class(ptr_class)?;
 
     Ok(instance.ptr_instance)
 }
 
-pub fn init_unk2(_: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    // java array alloc?
-    log::debug!("init_unk2({:#x}, {:#x})", a0, a1);
+pub fn java_array_new(_: &mut ArmCore, context: &Context, element_type: u32, size: u32) -> anyhow::Result<u32> {
+    log::debug!("java_array_new({:#x}, {:#x})", element_type, size);
 
-    context.alloc(a1 * 4)
+    context.alloc(size * 4)
 }
