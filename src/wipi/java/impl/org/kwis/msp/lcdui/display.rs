@@ -22,16 +22,22 @@ impl Display {
         Ok(())
     }
 
-    fn get_display(_: &mut dyn Jvm, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+    fn get_display(jvm: &mut dyn Jvm, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDisplay");
 
-        Ok(JavaObjectProxy::new(0))
+        let instance = jvm.instantiate("org/kwis/msp/lcdui/Display")?;
+        jvm.call_method(&instance, "<init>", "()V", &[])?;
+
+        Ok(instance)
     }
 
-    fn get_default_display(_: &mut dyn Jvm) -> JavaResult<JavaObjectProxy> {
+    fn get_default_display(jvm: &mut dyn Jvm) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDefaultDisplay");
 
-        Ok(JavaObjectProxy::new(0))
+        let instance = jvm.instantiate("org/kwis/msp/lcdui/Display")?;
+        jvm.call_method(&instance, "<init>", "()V", &[])?;
+
+        Ok(instance)
     }
 
     fn get_docked_card(_: &mut dyn Jvm) -> JavaResult<JavaObjectProxy> {
