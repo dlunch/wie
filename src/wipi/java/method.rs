@@ -8,10 +8,6 @@ pub trait JavaMethodBody<E> {
 
 struct JavaMethodHolder<F, R, P>(pub F, std::marker::PhantomData<(R, P)>);
 
-trait JavaMethodCaller<T, E> {
-    fn call(&self, jvm: &mut dyn Jvm, args: Vec<u32>) -> Result<u32, E>;
-}
-
 impl<F, R, E> JavaMethodBody<E> for JavaMethodHolder<F, R, ()>
 where
     F: Fn(&mut dyn Jvm) -> Result<R, E>,
