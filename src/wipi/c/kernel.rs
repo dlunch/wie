@@ -1,12 +1,19 @@
-use super::{into_body, method::CMethodBody, Bridge, CError, CResult};
+use super::{
+    into_body,
+    method::{CMethodBody, CMethodImpl},
+    Bridge, CError, CResult,
+};
 
 fn dummy(_: &mut dyn Bridge) -> CResult<u32> {
-    log::debug!("graphics dummy called");
+    log::debug!("kernel dummy called");
 
     Ok(0)
 }
 
-pub fn get_graphics_method_table() -> Vec<Box<dyn CMethodBody<CError>>> {
+pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<Box<dyn CMethodBody<CError>>>
+where
+    M: CMethodImpl<F, CError, R, P>,
+{
     vec![
         into_body(dummy),
         into_body(dummy),
@@ -19,6 +26,29 @@ pub fn get_graphics_method_table() -> Vec<Box<dyn CMethodBody<CError>>> {
         into_body(dummy),
         into_body(dummy),
         into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(dummy),
+        into_body(reserved1),
         into_body(dummy),
         into_body(dummy),
         into_body(dummy),
