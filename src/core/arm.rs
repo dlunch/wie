@@ -38,12 +38,14 @@ impl Display for UnicornError {
     }
 }
 
+pub type ArmCoreResult<T> = anyhow::Result<T>;
+
 pub struct ArmCore {
     uc: Unicorn<'static, ()>,
 }
 
 impl ArmCore {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> ArmCoreResult<Self> {
         let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).map_err(UnicornError)?;
 
         uc.add_block_hook(Self::block_hook).map_err(UnicornError)?;
@@ -66,7 +68,7 @@ impl ArmCore {
         Self { uc }
     }
 
-    pub fn load(&mut self, data: &[u8], map_size: usize) -> anyhow::Result<u32> {
+    pub fn load(&mut self, data: &[u8], map_size: usize) -> ArmCoreResult<u32> {
         self.uc
             .mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL)
             .map_err(UnicornError)?;
@@ -75,7 +77,7 @@ impl ArmCore {
         Ok(IMAGE_BASE)
     }
 
-    pub fn run_function(&mut self, address: u32, params: &[u32]) -> anyhow::Result<u32> {
+    pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
         // is there cleaner way to do this?
         if !params.is_empty() {
             self.uc.reg_write(RegisterARM::R0, params[0] as u64).map_err(UnicornError)?;
@@ -114,7 +116,7 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_function<F, P, C, E>(&mut self, function: F, context: &C) -> anyhow::Result<u32>
+    pub fn register_function<F, P, C, E>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
         F: for<'a> EmulatedFunction<P, &'a C, E> + 'static,
         E: std::fmt::Debug,
@@ -147,7 +149,7 @@ impl ArmCore {
         Ok(address as u32 + 1)
     }
 
-    pub fn alloc(&mut self, address: u32, size: u32) -> anyhow::Result<()> {
+    pub fn alloc(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
         log::trace!("Alloc address: {:#x}, size: {:#x}", address, size);
 
         self.uc
@@ -157,7 +159,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn read<T>(&self, address: u32) -> anyhow::Result<T>
+    pub fn read<T>(&self, address: u32) -> ArmCoreResult<T>
     where
         T: Copy,
     {
@@ -168,7 +170,7 @@ impl ArmCore {
         Ok(unsafe { *(data.as_ptr() as *const T) })
     }
 
-    pub fn read_null_terminated_string(&self, address: u32) -> anyhow::Result<String> {
+    pub fn read_null_terminated_string(&self, address: u32) -> ArmCoreResult<String> {
         // TODO we can read by 4bytes at once
 
         let mut result = Vec::new();
@@ -190,13 +192,13 @@ impl ArmCore {
         Ok(String::from_utf8(result)?)
     }
 
-    pub fn write<T>(&mut self, address: u32, data: T) -> anyhow::Result<()> {
+    pub fn write<T>(&mut self, address: u32, data: T) -> ArmCoreResult<()> {
         let data_slice = unsafe { slice::from_raw_parts(&data as *const T as *const u8, std::mem::size_of::<T>()) };
 
         self.write_raw(address, data_slice)
     }
 
-    pub fn write_raw(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+    pub fn write_raw(&mut self, address: u32, data: &[u8]) -> ArmCoreResult<()> {
         log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
 
         self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
@@ -204,11 +206,11 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn dump_regs(&self) -> anyhow::Result<String> {
+    pub fn dump_regs(&self) -> ArmCoreResult<String> {
         Self::dump_regs_inner(&self.uc)
     }
 
-    fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> anyhow::Result<String> {
+    fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> ArmCoreResult<String> {
         let value = (|| {
             Ok::<_, uc_error>(
                 [
