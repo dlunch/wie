@@ -54,6 +54,10 @@ pub fn get_all_java_classes() -> Vec<(&'static str, JavaClassProto)> {
             "org/kwis/msp/lcdui/JletEventListener",
             r#impl::org::kwis::msp::lcdui::JletEventListener::as_proto(),
         ),
+        (
+            "org/kwis/msp/lwc/AnnunciatorComponent",
+            r#impl::org::kwis::msp::lwc::AnnunciatorComponent::as_proto(),
+        ),
         ("org/kwis/msp/media/Clip", r#impl::org::kwis::msp::media::Clip::as_proto()),
     ]
 }
