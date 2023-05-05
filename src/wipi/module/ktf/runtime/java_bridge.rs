@@ -13,7 +13,7 @@ struct WIPIJBInterface {
     unk1: u32,
     fn_unk1: u32,
     fn_unk7: u32,
-    unk3: u32,
+    fn_unk8: u32,
     get_java_method: u32,
     unk4: u32,
     fn_unk4: u32,
@@ -38,7 +38,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
         unk1: 0,
         fn_unk1: core.register_function(jb_unk1, context)?,
         fn_unk7: core.register_function(jb_unk7, context)?,
-        unk3: 0,
+        fn_unk8: core.register_function(jb_unk8, context)?,
         get_java_method: core.register_function(get_java_method, context)?,
         unk4: 0,
         fn_unk4: core.register_function(jb_unk4, context)?,
@@ -87,11 +87,11 @@ fn get_java_method(core: &mut ArmCore, context: &Context, ptr_class: u32, fullna
     Ok(ptr_method)
 }
 
-fn jb_unk1(core: &mut ArmCore, _: &Context, a0: u32, address: u32) -> anyhow::Result<u32> {
+fn jb_unk1(core: &mut ArmCore, _: &Context, arg1: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
-    log::debug!("jb_unk1({:#x}, {:#x})", a0, address);
+    log::debug!("jb_unk1({:#x}, {:#x})", arg1, address);
 
-    core.run_function(address, &[a0])
+    core.run_function(address, &[arg1])
 }
 
 fn jb_unk2(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
@@ -119,17 +119,26 @@ fn jb_unk5(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32
     Ok(0)
 }
 
-fn jb_unk6(core: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
+fn jb_unk6(core: &mut ArmCore, _: &Context, address: u32, arg1: u32, arg2: u32) -> anyhow::Result<u32> {
     // call native function?
-    log::debug!("jb_unk6({:#x}, {:#x}, {:#x})", a0, a1, a2);
+    log::debug!("jb_unk6({:#x}, {:#x}, {:#x})", address, arg1, arg2);
 
-    core.run_function(a0, &[a1])?;
+    core.run_function(address, &[arg1, arg2])?;
 
     Ok(0)
 }
 
-fn jb_unk7(_: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    log::debug!("jb_unk7({:#x}, {:#x})", a0, a1);
+fn jb_unk7(core: &mut ArmCore, _: &Context, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
+    // jump?
+    log::debug!("jb_unk7({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+
+    core.run_function(address, &[arg1, arg2])?;
+
+    Ok(0)
+}
+
+fn jb_unk8(_: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
+    log::debug!("jb_unk8({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     Ok(0)
 }
