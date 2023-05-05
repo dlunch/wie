@@ -123,18 +123,14 @@ fn jb_unk6(core: &mut ArmCore, _: &Context, address: u32, arg1: u32, arg2: u32) 
     // call native function?
     log::debug!("jb_unk6({:#x}, {:#x}, {:#x})", address, arg1, arg2);
 
-    core.run_function(address, &[arg1, arg2])?;
-
-    Ok(0)
+    core.run_function(address, &[arg1, arg2])
 }
 
 fn jb_unk7(core: &mut ArmCore, _: &Context, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk7({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
-    core.run_function(address, &[arg1, arg2])?;
-
-    Ok(0)
+    core.run_function(address, &[arg1, arg2])
 }
 
 fn jb_unk8(_: &mut ArmCore, _: &Context, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
