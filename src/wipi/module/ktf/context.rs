@@ -5,8 +5,11 @@ use std::{
 
 use crate::core::arm::allocator::Allocator;
 
+use super::runtime::KtfJvmContext;
+
 pub struct ContextStorage {
     pub allocator: Allocator,
+    pub jvm_context: KtfJvmContext,
 }
 
 pub struct Context {
@@ -16,7 +19,10 @@ pub struct Context {
 impl Context {
     pub fn new(allocator: Allocator) -> Self {
         Self {
-            storage: Rc::new(RefCell::new(ContextStorage { allocator })),
+            storage: Rc::new(RefCell::new(ContextStorage {
+                allocator,
+                jvm_context: KtfJvmContext::new(),
+            })),
         }
     }
 

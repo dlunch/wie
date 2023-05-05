@@ -57,7 +57,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, context: &Context) -> anyhow::R
 pub fn load_java_class(core: &mut ArmCore, context: &Context, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJvm::new(core, context).load_class(ptr_target, name);
+    let result = KtfJvm::new(core, context).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)

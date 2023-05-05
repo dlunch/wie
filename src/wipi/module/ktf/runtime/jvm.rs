@@ -1,4 +1,4 @@
-use std::{fmt::Display, mem::size_of};
+use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
     core::arm::ArmCore,
@@ -103,6 +103,18 @@ impl PartialEq for JavaMethodFullname {
     }
 }
 
+pub struct KtfJvmContext {
+    loaded_classes: HashMap<String, u32>,
+}
+
+impl KtfJvmContext {
+    pub fn new() -> Self {
+        Self {
+            loaded_classes: HashMap::new(),
+        }
+    }
+}
+
 pub struct KtfJvm<'a> {
     core: &'a mut ArmCore,
     context: &'a Context,
@@ -138,8 +150,45 @@ impl<'a> KtfJvm<'a> {
         }
     }
 
-    pub fn load_class(&mut self, ptr_target: u32, name: String) -> anyhow::Result<()> {
-        let r#impl = get_java_impl(&name);
+    pub fn load_class(&mut self, ptr_target: u32, name: &str) -> anyhow::Result<()> {
+        let ptr_class = self.get_ptr_class(name)?;
+
+        self.core.write(ptr_target, ptr_class)?;
+
+        Ok(())
+    }
+
+    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
+        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+        log::info!("Instantiate {}", class_name);
+
+        let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
+        let ptr_fields = self.context.alloc(class_descriptor.fields_size as u32 + 4)?;
+
+        self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
+
+        Ok(ptr_instance)
+    }
+
+    fn get_ptr_class(&mut self, name: &str) -> anyhow::Result<u32> {
+        let loaded_class = self.context.borrow_mut().jvm_context.loaded_classes.get(name).cloned();
+
+        Ok(if let Some(loaded_class) = loaded_class {
+            loaded_class
+        } else {
+            let ptr_class = self.load_class_into_vm(name)?;
+
+            self.context.borrow_mut().jvm_context.loaded_classes.insert(name.into(), ptr_class);
+
+            ptr_class
+        })
+    }
+
+    fn load_class_into_vm(&mut self, name: &str) -> anyhow::Result<u32> {
+        let r#impl = get_java_impl(name);
         if r#impl.is_none() {
             return Err(anyhow::anyhow!("No such class"));
         }
@@ -215,24 +264,7 @@ impl<'a> KtfJvm<'a> {
 
         self.core.write(ptr_class + 8, ptr_descriptor)?;
 
-        self.core.write(ptr_target, ptr_class)?; // we should cache ptr_class
-
-        Ok(())
-    }
-
-    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
-
-        log::info!("Instantiate {}", class_name);
-
-        let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
-        let ptr_fields = self.context.alloc(class_descriptor.fields_size as u32 + 4)?;
-
-        self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
-
-        Ok(ptr_instance)
+        Ok(ptr_class)
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> anyhow::Result<u32> {

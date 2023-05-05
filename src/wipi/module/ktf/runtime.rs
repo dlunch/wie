@@ -7,4 +7,4 @@ mod misc;
 use super::context::Context;
 
 pub use init::init;
-pub use jvm::KtfJvm;
+pub use jvm::{KtfJvm, KtfJvmContext};
