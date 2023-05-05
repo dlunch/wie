@@ -2,10 +2,10 @@ use std::mem::size_of;
 
 use crate::{
     core::arm::ArmCore,
-    wipi::c::{get_graphics_method_table, get_kernel_method_table, Bridge, CError, CMethodBody, CResult},
+    wipi::c::{get_graphics_method_table, get_kernel_method_table, Bridge, BridgeMethod, CError, CMethodBody, CResult},
 };
 
-use super::{java_bridge::get_wipi_jb_interface, Context};
+use super::Context;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -23,21 +23,6 @@ struct WIPICInterface {
     interface_10: u32,
     interface_11: u32,
     interface_12: u32,
-}
-
-pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> anyhow::Result<u32> {
-    log::debug!("get_interface({})", r#struct);
-
-    match r#struct.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core, context),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core, context),
-        _ => {
-            log::warn!("Unknown {}", r#struct);
-            log::warn!("Register dump\n{}", core.dump_regs()?);
-
-            Ok(0)
-        }
-    }
 }
 
 pub struct CBridge<'a> {
@@ -60,7 +45,7 @@ impl Bridge for CBridge<'_> {
         self.core.write_raw(address, data)
     }
 
-    fn register_function(&mut self, method: Box<dyn Fn(&mut dyn Bridge) -> CResult<u32>>) -> CResult<u32> {
+    fn register_function(&mut self, method: BridgeMethod) -> CResult<u32> {
         self.core.register_function(
             move |core: &mut ArmCore, context: &Context| {
                 let mut bridge = CBridge::new(core, context);
@@ -91,7 +76,7 @@ fn write_methods(bridge: &mut dyn Bridge, methods: Vec<Box<dyn CMethodBody<CErro
     Ok(address)
 }
 
-fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
     let mut bridge = CBridge::new(core, context);

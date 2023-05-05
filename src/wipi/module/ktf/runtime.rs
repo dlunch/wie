@@ -1,5 +1,5 @@
 mod init;
-mod interface;
+mod c_interface;
 mod java_bridge;
 mod jvm;
 mod misc;
