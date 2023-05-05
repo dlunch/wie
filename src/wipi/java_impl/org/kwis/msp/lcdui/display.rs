@@ -1,37 +1,17 @@
-use crate::wipi::java_impl::{JavaClassImpl, JavaMethodImpl, Jvm};
+use crate::wipi::java_impl::{JavaClassProto, JavaMethodProto, Jvm};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}
 
 impl Display {
-    pub fn as_java_impl() -> JavaClassImpl {
-        JavaClassImpl {
+    pub fn as_proto() -> JavaClassProto {
+        JavaClassProto {
             methods: vec![
-                JavaMethodImpl {
-                    name: "<init>".into(),
-                    signature: "()V".into(),
-                    body: Box::new(Self::init),
-                },
-                JavaMethodImpl {
-                    name: "getDisplay".into(),
-                    signature: "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;".into(),
-                    body: Box::new(Self::get_display),
-                },
-                JavaMethodImpl {
-                    name: "getDefaultDisplay".into(),
-                    signature: "()Lorg/kwis/msp/lcdui/Display;".into(),
-                    body: Box::new(Self::get_default_display),
-                },
-                JavaMethodImpl {
-                    name: "getDockedCard".into(),
-                    signature: "()Lorg/kwis/msp/lcdui/Card;".into(),
-                    body: Box::new(Self::get_docked_card),
-                },
-                JavaMethodImpl {
-                    name: "pushCard".into(),
-                    signature: "(Lorg/kwis/msp/lcdui/Card;)V".into(),
-                    body: Box::new(Self::push_card),
-                },
+                JavaMethodProto::new("<init>", "()V", Self::init),
+                JavaMethodProto::new("getDisplay", "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;", Self::get_display),
+                JavaMethodProto::new("getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", Self::get_default_display),
+                JavaMethodProto::new("getDockedCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_docked_card),
+                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card),
             ],
         }
     }
