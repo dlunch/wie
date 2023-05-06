@@ -14,8 +14,9 @@ struct JavaClass {
     ptr_next: u32,
     unk1: u32,
     ptr_descriptor: u32,
-    unk2: u32,
-    unk3: u32,
+    ptr_vtable: u32,
+    vtable_count: u16,
+    unk2: u16,
 }
 
 #[repr(C)]
@@ -186,13 +187,15 @@ impl KtfJavaBridge {
     }
 
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
-        let vtable_index = self.write_vtable(ptr_class)?;
-
         let ptr_instance = Allocator::alloc(&mut self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(&mut self.core, fields_size + 4)?;
 
+        let vtable_index = self.get_vtable_index(ptr_class)?;
+
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         self.core.write(ptr_fields, (vtable_index * 4) << 5)?;
+
+        log::debug!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
@@ -207,39 +210,81 @@ impl KtfJavaBridge {
     }
 
     fn write_vtable(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
+        let vtable = self.build_vtable(ptr_class)?;
+
+        let ptr_vtable = Allocator::alloc(&mut self.core, (vtable.len() + 1) as u32 * 4)?;
+        let mut cursor = ptr_vtable;
+        for item in vtable {
+            self.core.write(cursor, item)?;
+            cursor += 4;
+        }
+
+        Ok(ptr_vtable)
+    }
+
+    fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-
-        let vtable = if class_descriptor.ptr_parent_class == 0 {
-            class_descriptor.ptr_methods
-        } else {
-            let parent_class = self.core.read::<JavaClass>(class_descriptor.ptr_parent_class)?;
-            let parent_class_descriptor = self.core.read::<JavaClassDescriptor>(parent_class.ptr_descriptor)?;
-            let parent_class_name = self.core.read_null_terminated_string(parent_class_descriptor.ptr_name)?;
-
-            if parent_class_name == "java/lang/Object" {
-                class_descriptor.ptr_methods
-            } else {
-                parent_class_descriptor.ptr_methods
-            }
-        }; // TODO: we have to properly create vtable
 
         let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
         let mut cursor = peb.vtables_base;
         loop {
             let current_vtable = self.core.read::<u32>(cursor)?;
             if current_vtable == 0 {
-                self.core.write(cursor, vtable)?;
-                break;
-            } else if current_vtable == vtable {
+                self.core.write(cursor, class.ptr_vtable)?;
                 break;
             }
+            if current_vtable == class.ptr_vtable {
+                break;
+            }
+
             cursor += 4;
         }
         let index = (cursor - peb.vtables_base) / 4;
-        log::debug!("write_vtable({:#x}, {:#x}, {})", ptr_class, vtable, index);
 
         Ok(index)
+    }
+
+    fn build_vtable(&mut self, ptr_class: u32) -> anyhow::Result<Vec<u32>> {
+        let mut class_hierarchy = self.read_class_hierarchy(ptr_class)?;
+        class_hierarchy.reverse();
+
+        let mut vtable = Vec::new();
+
+        for ptr_class in class_hierarchy {
+            let class = self.core.read::<JavaClass>(ptr_class)?;
+            let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+
+            let mut cursor = class_descriptor.ptr_methods;
+            loop {
+                let ptr_method = self.core.read::<u32>(cursor)?;
+                if ptr_method == 0 {
+                    break;
+                }
+                vtable.push(ptr_method);
+                cursor += 4;
+            }
+        }
+
+        Ok(vtable)
+    }
+
+    fn read_class_hierarchy(&mut self, ptr_class: u32) -> anyhow::Result<Vec<u32>> {
+        let mut result = vec![ptr_class];
+
+        let mut current_class = ptr_class;
+        loop {
+            let class = self.core.read::<JavaClass>(current_class)?;
+            let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+            if class_descriptor.ptr_parent_class != 0 {
+                result.push(class_descriptor.ptr_parent_class);
+
+                current_class = class_descriptor.ptr_parent_class;
+            } else {
+                break;
+            }
+        }
+
+        Ok(result)
     }
 
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
@@ -275,6 +320,8 @@ impl KtfJavaBridge {
     }
 
     fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
+        let method_count = proto.methods.len();
+
         let ptr_class = Allocator::alloc(&mut self.core, size_of::<JavaClass>() as u32)?;
         self.core.write(
             ptr_class,
@@ -282,12 +329,12 @@ impl KtfJavaBridge {
                 ptr_next: ptr_class + 4,
                 unk1: 0,
                 ptr_descriptor: 0,
+                ptr_vtable: 0,
+                vtable_count: method_count as u16,
                 unk2: 0,
-                unk3: 0,
             },
         )?;
 
-        let method_count = proto.methods.len();
         let ptr_methods = Allocator::alloc(&mut self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
 
         let mut cursor = ptr_methods;
@@ -347,6 +394,9 @@ impl KtfJavaBridge {
 
         self.core.write(ptr_class + 8, ptr_descriptor)?;
 
+        let ptr_vtable = self.write_vtable(ptr_class)?;
+        self.core.write(ptr_class + 12, ptr_vtable)?;
+
         let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
         let mut cursor = peb.java_classes_base;
         loop {
@@ -382,14 +432,21 @@ impl JavaBridge for KtfJavaBridge {
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = self.find_ptr_class(class_name)?;
 
-        self.instantiate_from_ptr_class(ptr_class)
+        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+
+        self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)
     }
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
         let array_type = format!("[{}", element_type_name);
         let ptr_class_array = self.find_ptr_class(&array_type)?;
 
-        self.instantiate_array_from_ptr_class(ptr_class_array, count)
+        let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
+
+        log::info!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
+
+        Ok(proxy)
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {

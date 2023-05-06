@@ -249,13 +249,11 @@ fn get_interface(core: ArmCore, r#struct: String) -> anyhow::Result<u32> {
     }
 }
 
-fn init_unk3(mut core: ArmCore, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    // calloc??
-    log::debug!("init_unk3({}, {})", a0, a1);
+fn init_unk3(mut core: ArmCore, a0: u32) -> anyhow::Result<u32> {
+    // alloc??
+    log::debug!("init_unk3({})", a0);
 
-    log::debug!("\n{}", core.dump_regs()?);
-
-    Allocator::alloc(&mut core, a0 * a1)
+    Allocator::alloc(&mut core, a0)
 }
 
 fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {
