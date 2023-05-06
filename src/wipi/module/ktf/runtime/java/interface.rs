@@ -1,6 +1,9 @@
 use std::mem::size_of;
 
-use crate::core::arm::{ArmCore, EmulatedFunctionParam};
+use crate::{
+    core::arm::{ArmCore, EmulatedFunctionParam},
+    wipi::java::JavaBridge,
+};
 
 use super::{
     super::Context,
@@ -147,8 +150,13 @@ pub fn java_new(core: &mut ArmCore, context: &Context, ptr_class: u32) -> anyhow
     Ok(instance.ptr_instance)
 }
 
-pub fn java_array_new(_: &mut ArmCore, context: &Context, element_type: u32, size: u32) -> anyhow::Result<u32> {
-    log::debug!("java_array_new({:#x}, {:#x})", element_type, size);
+pub fn java_array_new(core: &mut ArmCore, context: &Context, element_type: u32, count: u32) -> anyhow::Result<u32> {
+    log::debug!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    context.alloc(size * 4)
+    let element_type_name = (element_type as u8 as char).to_string();
+
+    let mut java_bridge = KtfJavaBridge::new(core, context);
+    let instance = java_bridge.instantiate_array(&element_type_name, count)?;
+
+    Ok(instance.ptr_instance)
 }

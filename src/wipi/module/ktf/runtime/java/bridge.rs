@@ -230,7 +230,7 @@ impl<'a> KtfJavaBridge<'a> {
             Ok(loaded_class)
         } else {
             // array class is created dynamically
-            if name.as_bytes()[0] == b'[' && name.as_bytes()[1] == b'L' {
+            if name.as_bytes()[0] == b'[' {
                 let ptr_class = self.load_class_into_vm(0, name, get_array_proto())?;
 
                 self.context
