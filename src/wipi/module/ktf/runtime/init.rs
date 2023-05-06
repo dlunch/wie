@@ -72,15 +72,15 @@ struct InitParam3 {
     unk2: u32,
     unk3: u32,
     unk4: u32,
-    // java array allocation pool for primitive type?
-    unk5: u32,  // boolean
-    unk6: u32,  // char
-    unk7: u32,  // float
-    unk8: u32,  // double
-    unk9: u32,  // byte
-    unk10: u32, // short
-    unk11: u32, // int
-    unk12: u32, // long
+    // java array allocation pool for primitive type
+    boolean: u32,
+    char: u32,
+    float: u32,
+    double: u32,
+    byte: u32,
+    short: u32,
+    int: u32,
+    long: u32,
 }
 
 #[repr(C)]
@@ -177,14 +177,14 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         unk2: 0,
         unk3: 0,
         unk4: 0,
-        unk5: 1,
-        unk6: 2,
-        unk7: 3,
-        unk8: 4,
-        unk9: 5,
-        unk10: 6,
-        unk11: 7,
-        unk12: 8,
+        boolean: b'Z' as u32,
+        char: b'C' as u32,
+        float: b'F' as u32,
+        double: b'D' as u32,
+        byte: b'B' as u32,
+        short: b'S' as u32,
+        int: b'I' as u32,
+        long: b'J' as u32,
     };
 
     let ptr_param_3 = context.alloc(size_of::<InitParam3>() as u32)?;
