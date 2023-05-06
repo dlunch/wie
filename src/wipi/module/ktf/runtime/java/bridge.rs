@@ -168,7 +168,15 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy> {
-        self.instantiate_inner(ptr_class, None)
+        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+        let instance = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32, ((class_descriptor.index * 4) as u32) << 5)?;
+
+        log::info!("Instantiated {} at {:#x}", class_name, instance.ptr_instance);
+
+        Ok(instance)
     }
 
     pub fn load_all_classes(&mut self) -> JavaResult<Vec<u32>> {
@@ -200,25 +208,12 @@ impl<'a> KtfJavaBridge<'a> {
         Ok(class_descriptor.ptr_methods)
     }
 
-    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: Option<u32>) -> JavaResult<JavaObjectProxy> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
-
+    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32, index: u32) -> JavaResult<JavaObjectProxy> {
         let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
-
-        let fields_size = if let Some(fields_size) = fields_size {
-            fields_size
-        } else {
-            class_descriptor.fields_size as u32
-        };
-
         let ptr_fields = self.context.alloc(fields_size + 4)?;
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
-        self.core.write(ptr_fields, ((class_descriptor.index * 4) as u32) << 5)?;
-
-        log::info!("Instantiated {} at {:#x}", class_name, ptr_instance);
+        self.core.write(ptr_fields, index)?;
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
@@ -342,15 +337,18 @@ impl JavaBridge for KtfJavaBridge<'_> {
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = self.get_ptr_class(class_name)?;
 
-        self.instantiate_inner(ptr_class, None)
+        self.instantiate_from_ptr_class(ptr_class)
     }
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
         let array_type = format!("[{}", element_type_name);
-
         let ptr_class = self.get_ptr_class(&array_type)?;
 
-        self.instantiate_inner(ptr_class, Some(count * 4 + 4))
+        let instance = self.instantiate_inner(ptr_class, count * 4 + 4, 0)?;
+
+        log::info!("Instantiated {} at {:#x}", array_type, instance.ptr_instance);
+
+        Ok(instance)
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
