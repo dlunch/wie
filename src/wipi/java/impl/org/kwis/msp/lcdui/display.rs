@@ -27,8 +27,8 @@ impl Display {
         Ok(())
     }
 
-    fn get_display(context: &mut JavaContext, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::debug!("Display::getDisplay");
+    fn get_display(context: &mut JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+        log::debug!("Display::getDisplay({:#x}", a0.ptr_instance);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         context.call_method(&instance, "<init>", "()V", &[])?;
@@ -51,14 +51,14 @@ impl Display {
         Ok(JavaObjectProxy::new(0))
     }
 
-    fn push_card(_: &mut JavaContext, _: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::pushCard");
+    fn push_card(_: &mut JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Display::pushCard({:#x})", a0.ptr_instance);
 
         Ok(())
     }
 
-    fn add_jlet_event_listener(_: &mut JavaContext, _: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::addJletEventListener");
+    fn add_jlet_event_listener(_: &mut JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Display::addJletEventListener({:#x}", a0.ptr_instance);
 
         Ok(())
     }

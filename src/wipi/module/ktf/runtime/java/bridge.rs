@@ -435,7 +435,7 @@ impl JavaBridge for KtfJavaBridge {
         let class = self.core.read::<JavaClass>(ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
 
-        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32);
+        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
         log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
