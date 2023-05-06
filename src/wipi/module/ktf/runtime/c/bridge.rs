@@ -1,5 +1,5 @@
 use crate::{
-    core::arm::ArmCore,
+    core::arm::{allocator::Allocator, ArmCore},
     wipi::c::{CBridge, CBridgeMethod, CResult},
 };
 
@@ -18,7 +18,7 @@ impl<'a> KtfCBridge<'a> {
 
 impl CBridge for KtfCBridge<'_> {
     fn alloc(&mut self, size: u32) -> CResult<u32> {
-        self.context.alloc(size)
+        Allocator::alloc(self.core, size)
     }
 
     fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()> {

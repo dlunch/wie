@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::core::arm::ArmCore;
+use crate::core::arm::{allocator::Allocator, ArmCore};
 
 use super::{
     c::interface::get_wipic_knl_interface,
@@ -129,6 +129,8 @@ pub struct ModuleInfo {
 }
 
 pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
+    Allocator::init(core)?;
+
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
@@ -140,22 +142,22 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         .map(|&x| java_bridge.get_ptr_methods(x))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let ptr_unk_struct = context.alloc(size_of::<InitParam0Unk>() as u32)?;
+    let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam0Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;
 
-    let ptr_param_0 = context.alloc(size_of::<InitParam0>() as u32)?;
+    let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     core.write(ptr_param_0, InitParam0 { ptr_unk_struct })?;
 
-    let ptr_unk_struct = context.alloc(size_of::<InitParam1UnkUnk>() as u32)?;
+    let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1UnkUnk>() as u32)?;
     core.write(ptr_unk_struct, InitParam1UnkUnk { unk: [0; 8] })?;
 
-    let ptr_unk_struct = context.alloc(size_of::<InitParam1Unk>() as u32)?;
+    let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam1Unk { ptr_unk_struct })?;
 
-    let ptr_param_1 = context.alloc(size_of::<InitParam1>() as u32)?;
+    let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     core.write(ptr_param_1, InitParam1 { ptr_unk_struct })?;
 
-    let ptr_param_2 = context.alloc((size_of::<InitParam2>() + (ptr_classes.len() - 1) * 4) as u32)?;
+    let ptr_param_2 = Allocator::alloc(core, (size_of::<InitParam2>() + (ptr_classes.len() - 1) * 4) as u32)?;
     core.write(
         ptr_param_2,
         InitParam2 {
@@ -187,7 +189,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         long: b'J' as u32,
     };
 
-    let ptr_param_3 = context.alloc(size_of::<InitParam3>() as u32)?;
+    let ptr_param_3 = Allocator::alloc(core, size_of::<InitParam3>() as u32)?;
     core.write(ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
@@ -205,7 +207,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
         fn_unk3: core.register_function(init_unk3, context)?,
     };
 
-    let ptr_param_4 = context.alloc(size_of::<InitParam4>() as u32)?;
+    let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
     core.write(ptr_param_4, param_4)?;
 
     let wipi_exe = core.read::<WipiExe>(wipi_exe)?;
@@ -242,11 +244,11 @@ pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) ->
     }
 }
 
-pub fn init_unk3(core: &mut ArmCore, context: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+pub fn init_unk3(core: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
     // calloc??
     log::debug!("init_unk3({}, {})", a0, a1);
 
     log::debug!("\n{}", core.dump_regs()?);
 
-    context.alloc(a0 * a1)
+    Allocator::alloc(core, a0 * a1)
 }
