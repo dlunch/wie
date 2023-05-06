@@ -23,12 +23,18 @@ impl Image {
     fn create_image(context: &mut JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy> {
         log::debug!("Image::createImage({}, {})", a0, a1);
 
-        context.instantiate("Lorg/kwis/msp/lcdui/Image;")
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
+        context.call_method(&instance, "<init>", "()V", &[])?;
+
+        Ok(instance)
     }
 
     fn get_graphics(context: &mut JavaContext) -> JavaResult<JavaObjectProxy> {
         log::debug!("Image::get_graphics");
 
-        context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
+        context.call_method(&instance, "<init>", "()V", &[])?;
+
+        Ok(instance)
     }
 }
