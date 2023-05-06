@@ -435,7 +435,11 @@ impl JavaBridge for KtfJavaBridge {
         let class = self.core.read::<JavaClass>(ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
 
-        self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)
+        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32);
+
+        log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+
+        Ok(proxy)
     }
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
