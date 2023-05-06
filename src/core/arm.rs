@@ -125,7 +125,7 @@ impl ArmCore {
 
         self.uc
             .add_code_hook(address, address, move |uc, _, _| {
-                log::debug!(
+                log::trace!(
                     "Registered function called at {:#x}, LR: {:#x}",
                     address,
                     uc.reg_read(RegisterARM::LR).unwrap()
