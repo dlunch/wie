@@ -10,7 +10,7 @@ impl Jlet {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Jlet::<init>");
 
         Ok(())

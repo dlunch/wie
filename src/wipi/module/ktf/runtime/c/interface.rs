@@ -54,11 +54,11 @@ pub fn get_wipic_knl_interface(core: ArmCore) -> anyhow::Result<u32> {
     Ok(address)
 }
 
-fn get_wipic_interfaces(mut context: CContext) -> anyhow::Result<u32> {
+fn get_wipic_interfaces(context: &mut CContext) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();
-    let interface_2 = write_methods(&mut context, graphics_methods)?;
+    let interface_2 = write_methods(context, graphics_methods)?;
 
     let interface = WIPICInterface {
         interface_0: 0,

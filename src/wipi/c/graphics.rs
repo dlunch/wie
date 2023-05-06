@@ -1,6 +1,6 @@
 use super::{into_body, CContext, CMethodBody, CResult};
 
-fn dummy(_: CContext) -> CResult<u32> {
+fn dummy(_: &mut CContext) -> CResult<u32> {
     log::debug!("graphics dummy called");
 
     Ok(0)

@@ -10,7 +10,7 @@ impl Thread {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Thread::<init>");
 
         Ok(())

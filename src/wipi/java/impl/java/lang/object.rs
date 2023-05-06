@@ -10,7 +10,7 @@ impl Object {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Object::<init>");
 
         Ok(())

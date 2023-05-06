@@ -11,7 +11,7 @@ impl Array {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Array::<init>");
 
         Ok(())

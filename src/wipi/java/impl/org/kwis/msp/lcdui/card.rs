@@ -15,25 +15,25 @@ impl Card {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Card::<init>");
 
         Ok(())
     }
 
-    fn init_1(_: JavaContext, _: u32) -> JavaResult<()> {
+    fn init_1(_: &mut JavaContext, _: u32) -> JavaResult<()> {
         log::debug!("Card::<init>");
 
         Ok(())
     }
 
-    fn get_width(_: JavaContext) -> JavaResult<u32> {
+    fn get_width(_: &mut JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_width");
 
         Ok(320) // TODO: hardcoded
     }
 
-    fn get_height(_: JavaContext) -> JavaResult<u32> {
+    fn get_height(_: &mut JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded

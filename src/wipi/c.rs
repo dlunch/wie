@@ -4,6 +4,7 @@ mod kernel;
 pub use graphics::get_graphics_method_table;
 pub use kernel::get_kernel_method_table;
 
+use super::method::TypeConverter;
 pub use super::method::{MethodBody, MethodImpl};
 
 pub type CError = anyhow::Error;
@@ -27,4 +28,22 @@ where
     M: MethodImpl<F, R, CError, CContext, P>,
 {
     method.into_body()
+}
+
+impl TypeConverter<u32, CContext> for u32 {
+    fn to_rust(_: &mut CContext, raw: u32) -> u32 {
+        raw
+    }
+
+    fn from_rust(_: &mut CContext, rust: u32) -> u32 {
+        rust
+    }
+}
+
+impl TypeConverter<(), CContext> for () {
+    fn to_rust(_: &mut CContext, _: u32) {}
+
+    fn from_rust(_: &mut CContext, _: ()) -> u32 {
+        0
+    }
 }

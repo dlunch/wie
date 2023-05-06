@@ -10,7 +10,7 @@ impl Clip {
         }
     }
 
-    fn init(_: JavaContext, _: u32) -> JavaResult<()> {
+    fn init(_: &mut JavaContext, _: u32) -> JavaResult<()> {
         log::debug!("Clip::<init>");
 
         Ok(())
