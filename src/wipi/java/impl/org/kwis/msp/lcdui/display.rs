@@ -58,7 +58,7 @@ impl Display {
     }
 
     fn add_jlet_event_listener(_: &mut JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::addJletEventListener({:#x}", a0.ptr_instance);
+        log::debug!("Display::addJletEventListener({:#x})", a0.ptr_instance);
 
         Ok(())
     }
