@@ -15,14 +15,14 @@ struct AllocationHeader {
 pub struct Allocator {}
 
 impl Allocator {
-    pub fn init(core: &mut ArmCore) -> anyhow::Result<()> {
+    pub fn init(core: &mut ArmCore) -> anyhow::Result<(u32, u32)> {
         core.alloc(HEAP_BASE, HEAP_SIZE)?;
 
         let header = AllocationHeader { size: HEAP_SIZE, in_use: 0 };
 
         core.write(HEAP_BASE, header)?;
 
-        Ok(())
+        Ok((HEAP_BASE, HEAP_SIZE))
     }
 
     pub fn alloc(core: &mut ArmCore, size: u32) -> anyhow::Result<u32> {

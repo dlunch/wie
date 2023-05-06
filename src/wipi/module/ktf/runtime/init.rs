@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::core::arm::{allocator::Allocator, ArmCore};
+use crate::core::arm::{allocator::Allocator, ArmCore, PEB_BASE};
 
 use super::{
     c::interface::get_wipic_knl_interface,
@@ -123,13 +123,29 @@ struct ExeInterfaceFunctions {
     fn_unk3: u32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct KtfPeb {
+    pub heap_base: u32,
+    pub heap_size: u32,
+    pub java_classes_base: u32,
+}
+
 pub struct ModuleInfo {
     pub fn_init: u32,
     pub fn_get_class: u32,
 }
 
 pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
-    Allocator::init(core)?;
+    let (heap_base, heap_size) = Allocator::init(core)?;
+    let java_classes_base = KtfJavaBridge::init(core)?;
+
+    let peb = KtfPeb {
+        heap_base,
+        heap_size,
+        java_classes_base,
+    };
+    init_peb(core, peb)?;
 
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
@@ -251,4 +267,11 @@ fn init_unk3(core: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Resul
     log::debug!("\n{}", core.dump_regs()?);
 
     Allocator::alloc(core, a0 * a1)
+}
+
+fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {
+    core.alloc(PEB_BASE, 0x1000)?;
+    core.write(PEB_BASE, peb)?;
+
+    Ok(())
 }
