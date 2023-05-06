@@ -21,8 +21,8 @@ impl Display {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Display::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Display::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

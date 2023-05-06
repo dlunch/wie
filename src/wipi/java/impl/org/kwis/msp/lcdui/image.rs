@@ -14,8 +14,8 @@ impl Image {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Image::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Image::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

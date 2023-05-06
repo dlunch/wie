@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class org.kwis.msp.lcdui.Card
 pub struct Card {}
@@ -15,14 +15,14 @@ impl Card {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Card::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
-    fn init_1(_: &mut JavaContext, _: u32) -> JavaResult<()> {
-        log::debug!("Card::<init>");
+    fn init_1(_: &mut JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
+        log::debug!("Card::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }

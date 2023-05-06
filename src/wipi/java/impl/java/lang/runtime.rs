@@ -14,8 +14,8 @@ impl Runtime {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Runtime::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Runtime::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

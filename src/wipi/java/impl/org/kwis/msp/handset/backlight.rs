@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class org.kwis.msp.handset.Backlight
 pub struct BackLight {}
@@ -13,8 +13,8 @@ impl BackLight {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Backlight::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Backlight::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
