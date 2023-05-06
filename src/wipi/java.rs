@@ -52,6 +52,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/Runtime" => r#impl::java::lang::Runtime::as_proto(),
         "java/lang/String" => r#impl::java::lang::String::as_proto(),
         "java/lang/Thread" => r#impl::java::lang::Thread::as_proto(),
+        "org/kwis/msp/handset/BackLight" => r#impl::org::kwis::msp::handset::BackLight::as_proto(),
         "org/kwis/msp/lcdui/Card" => r#impl::org::kwis::msp::lcdui::Card::as_proto(),
         "org/kwis/msp/lcdui/Display" => r#impl::org::kwis::msp::lcdui::Display::as_proto(),
         "org/kwis/msp/lcdui/Graphics" => r#impl::org::kwis::msp::lcdui::Graphics::as_proto(),
