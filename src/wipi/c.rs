@@ -10,7 +10,7 @@ pub use super::method::{MethodBody, MethodImpl};
 pub type CError = anyhow::Error;
 pub type CResult<T> = anyhow::Result<T>;
 
-pub type CBridgeMethod = Box<dyn Fn(&mut CContext) -> CResult<u32>>;
+pub type CBridgeMethod = Box<dyn Fn(&mut CContext, Vec<u32>) -> CResult<u32>>;
 pub type CMethodBody = Box<dyn MethodBody<CError, CContext>>;
 
 pub type CContext = dyn CBridge;

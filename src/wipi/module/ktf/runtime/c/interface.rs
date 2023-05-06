@@ -30,8 +30,8 @@ fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::R
 
     let mut cursor = address;
     for method in methods {
-        let address = context.register_function(Box::new(move |context| {
-            let result = method.call(context, vec![])?;
+        let address = context.register_function(Box::new(move |context, args| {
+            let result = method.call(context, args)?;
 
             Ok::<_, anyhow::Error>(result)
         }))?;
