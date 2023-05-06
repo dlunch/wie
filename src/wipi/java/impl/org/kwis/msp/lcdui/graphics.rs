@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class org.kwis.msp.lcdui.Graphics
 pub struct Graphics {}
@@ -10,8 +10,8 @@ impl Graphics {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Graphics::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Graphics::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

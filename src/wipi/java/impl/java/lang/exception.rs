@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class java.lang.Exception
 pub struct Exception {}
@@ -10,8 +10,8 @@ impl Exception {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("Exception::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Exception::<init>{:#x}", instance.ptr_instance);
 
         Ok(())
     }

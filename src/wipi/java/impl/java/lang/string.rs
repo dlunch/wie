@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class java.lang.String
 pub struct String {}
@@ -10,8 +10,8 @@ impl String {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("String::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("String::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

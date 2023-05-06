@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class java.lang.InterruptedException
 pub struct InterruptedException {}
@@ -10,8 +10,8 @@ impl InterruptedException {
         }
     }
 
-    fn init(_: &mut JavaContext) -> JavaResult<()> {
-        log::debug!("InterruptedException::<init>");
+    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("InterruptedException::<init>{:#x}", instance.ptr_instance);
 
         Ok(())
     }
