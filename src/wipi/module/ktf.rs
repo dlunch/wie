@@ -25,7 +25,7 @@ impl KtfWipiModule {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        let mut java_bridge = KtfJavaBridge::new(&mut self.core);
+        let mut java_bridge = KtfJavaBridge::new(self.core.clone());
 
         let arg = java_bridge.instantiate_array("Ljava/lang/String;", 0)?;
 
@@ -55,7 +55,7 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let mut java_bridge = KtfJavaBridge::new(core);
+        let mut java_bridge = KtfJavaBridge::new(core.clone());
 
         let instance = java_bridge.instantiate_from_ptr_class(main_class)?;
         java_bridge.call_method(&instance, "<init>", "()V", &[])?;

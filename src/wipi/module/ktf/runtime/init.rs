@@ -150,7 +150,7 @@ pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Res
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
-    let mut java_bridge = KtfJavaBridge::new(core);
+    let mut java_bridge = KtfJavaBridge::new(core.clone());
     let ptr_classes = java_bridge.load_all_classes()?;
     let vtables = ptr_classes
         .iter()

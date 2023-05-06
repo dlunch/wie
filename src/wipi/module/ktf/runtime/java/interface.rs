@@ -56,10 +56,10 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
     Ok(address)
 }
 
-pub fn java_class_load(mut core: ArmCore, ptr_target: u32, name: String) -> anyhow::Result<u32> {
+pub fn java_class_load(core: ArmCore, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJavaBridge::new(&mut core).load_class(ptr_target, &name);
+    let result = KtfJavaBridge::new(core).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)
@@ -77,10 +77,10 @@ pub fn java_throw(core: ArmCore, error: String, a1: u32) -> anyhow::Result<u32> 
     Ok(0)
 }
 
-fn get_java_method(mut core: ArmCore, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
+fn get_java_method(core: ArmCore, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
     log::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJavaBridge::new(&mut core).get_method(ptr_class, fullname)?;
+    let ptr_method = KtfJavaBridge::new(core).get_method(ptr_class, fullname)?;
 
     log::debug!("get_java_method result {:#x}", ptr_method);
 
@@ -139,20 +139,20 @@ fn jb_unk8(_: ArmCore, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
     Ok(0)
 }
 
-pub fn java_new(mut core: ArmCore, ptr_class: u32) -> anyhow::Result<u32> {
+pub fn java_new(core: ArmCore, ptr_class: u32) -> anyhow::Result<u32> {
     log::debug!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJavaBridge::new(&mut core).instantiate_from_ptr_class(ptr_class)?;
+    let instance = KtfJavaBridge::new(core).instantiate_from_ptr_class(ptr_class)?;
 
     Ok(instance.ptr_instance)
 }
 
-pub fn java_array_new(mut core: ArmCore, element_type: u32, count: u32) -> anyhow::Result<u32> {
+pub fn java_array_new(core: ArmCore, element_type: u32, count: u32) -> anyhow::Result<u32> {
     log::debug!("java_array_new({:#x}, {:#x})", element_type, count);
 
     let element_type_name = (element_type as u8 as char).to_string();
 
-    let mut java_bridge = KtfJavaBridge::new(&mut core);
+    let mut java_bridge = KtfJavaBridge::new(core);
     let instance = java_bridge.instantiate_array(&element_type_name, count)?;
 
     Ok(instance.ptr_instance)
