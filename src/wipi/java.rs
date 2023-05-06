@@ -54,6 +54,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/Thread" => r#impl::java::lang::Thread::as_proto(),
         "org/kwis/msp/lcdui/Card" => r#impl::org::kwis::msp::lcdui::Card::as_proto(),
         "org/kwis/msp/lcdui/Display" => r#impl::org::kwis::msp::lcdui::Display::as_proto(),
+        "org/kwis/msp/lcdui/Graphics" => r#impl::org::kwis::msp::lcdui::Graphics::as_proto(),
         "org/kwis/msp/lcdui/Image" => r#impl::org::kwis::msp::lcdui::Image::as_proto(),
         "org/kwis/msp/lcdui/Jlet" => r#impl::org::kwis::msp::lcdui::Jlet::as_proto(),
         "org/kwis/msp/lcdui/JletEventListener" => r#impl::org::kwis::msp::lcdui::JletEventListener::as_proto(),
