@@ -1,10 +1,9 @@
 mod array;
 mod r#impl;
-mod method;
 mod proxy;
 
-use method::JavaMethodImpl;
-pub use {method::JavaMethodBody, proxy::JavaObjectProxy};
+use super::method::{MethodBody, MethodImpl};
+pub use proxy::JavaObjectProxy;
 
 pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
@@ -13,16 +12,22 @@ pub struct JavaClassProto {
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
 
+pub struct JavaContext {
+    pub bridge: Box<dyn JavaBridge>,
+}
+
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
-    pub body: Box<dyn JavaMethodBody<JavaError>>,
+    pub body: JavaMethodBody,
 }
+
+pub type JavaMethodBody = Box<dyn MethodBody<JavaError, JavaContext>>;
 
 impl JavaMethodProto {
     pub fn new<M, F, R, P>(name: &str, signature: &str, method: M) -> Self
     where
-        M: JavaMethodImpl<F, JavaError, R, P>,
+        M: MethodImpl<F, R, JavaError, JavaContext, P>,
     {
         Self {
             name: name.into(),

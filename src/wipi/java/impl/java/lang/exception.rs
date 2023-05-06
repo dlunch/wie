@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
 
 // class java.lang.Exception
 pub struct Exception {}
@@ -10,7 +10,7 @@ impl Exception {
         }
     }
 
-    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
+    fn init(_: JavaContext) -> JavaResult<()> {
         log::debug!("Exception::<init>");
 
         Ok(())

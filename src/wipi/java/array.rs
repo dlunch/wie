@@ -1,4 +1,6 @@
-use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaMethodProto, JavaResult};
+
+use super::JavaContext;
 
 pub struct Array {}
 
@@ -9,7 +11,7 @@ impl Array {
         }
     }
 
-    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
+    fn init(_: JavaContext) -> JavaResult<()> {
         log::debug!("Array::<init>");
 
         Ok(())

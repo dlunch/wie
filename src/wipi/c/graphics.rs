@@ -1,12 +1,12 @@
-use super::{into_body, method::CMethodBody, CBridge, CError, CResult};
+use super::{into_body, CContext, CMethodBody, CResult};
 
-fn dummy(_: &mut dyn CBridge) -> CResult<u32> {
+fn dummy(_: CContext) -> CResult<u32> {
     log::debug!("graphics dummy called");
 
     Ok(0)
 }
 
-pub fn get_graphics_method_table() -> Vec<Box<dyn CMethodBody<CError>>> {
+pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
         into_body(dummy),
         into_body(dummy),

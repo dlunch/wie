@@ -1,4 +1,4 @@
-use super::{method::JavaTypeConverter, JavaBridge};
+use crate::wipi::method::TypeConverter;
 
 pub struct JavaObjectProxy {
     pub ptr_instance: u32,
@@ -10,12 +10,12 @@ impl JavaObjectProxy {
     }
 }
 
-impl JavaTypeConverter<JavaObjectProxy> for JavaObjectProxy {
-    fn to_rust(_: &mut dyn JavaBridge, raw: u32) -> JavaObjectProxy {
+impl TypeConverter<JavaObjectProxy> for JavaObjectProxy {
+    fn to_rust(raw: u32) -> JavaObjectProxy {
         JavaObjectProxy::new(raw)
     }
 
-    fn from_rust(_: &mut dyn JavaBridge, rust: JavaObjectProxy) -> u32 {
+    fn from_rust(rust: JavaObjectProxy) -> u32 {
         rust.ptr_instance
     }
 }

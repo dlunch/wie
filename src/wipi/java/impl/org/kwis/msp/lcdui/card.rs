@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
 
 // class org.kwis.msp.lcdui.Card
 pub struct Card {}
@@ -15,25 +15,25 @@ impl Card {
         }
     }
 
-    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
+    fn init(_: JavaContext) -> JavaResult<()> {
         log::debug!("Card::<init>");
 
         Ok(())
     }
 
-    fn init_1(_: &mut dyn JavaBridge, _: u32) -> JavaResult<()> {
+    fn init_1(_: JavaContext, _: u32) -> JavaResult<()> {
         log::debug!("Card::<init>");
 
         Ok(())
     }
 
-    fn get_width(_: &mut dyn JavaBridge) -> JavaResult<u32> {
+    fn get_width(_: JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_width");
 
         Ok(320) // TODO: hardcoded
     }
 
-    fn get_height(_: &mut dyn JavaBridge) -> JavaResult<u32> {
+    fn get_height(_: JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded

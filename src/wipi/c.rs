@@ -1,25 +1,30 @@
 mod graphics;
 mod kernel;
-mod method;
 
 pub use graphics::get_graphics_method_table;
 pub use kernel::get_kernel_method_table;
 
-pub use self::method::{CMethodBody, CMethodImpl};
+pub use super::method::{MethodBody, MethodImpl};
 
 pub type CError = anyhow::Error;
 pub type CResult<T> = anyhow::Result<T>;
 
-pub type CBridgeMethod = Box<dyn Fn(&mut dyn CBridge) -> CResult<u32>>;
+pub type CBridgeMethod = Box<dyn Fn(Box<dyn CBridge>) -> CResult<u32>>;
+pub type CMethodBody = Box<dyn MethodBody<CError, CContext>>;
+
+pub struct CContext {
+    pub bridge: Box<dyn CBridge>,
+}
+
 pub trait CBridge {
     fn alloc(&mut self, size: u32) -> CResult<u32>;
     fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()>;
     fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32>;
 }
 
-fn into_body<M, F, R, P>(method: M) -> Box<dyn CMethodBody<CError>>
+fn into_body<M, F, R, P>(method: M) -> CMethodBody
 where
-    M: CMethodImpl<F, CError, R, P>,
+    M: MethodImpl<F, R, CError, CContext, P>,
 {
     method.into_body()
 }

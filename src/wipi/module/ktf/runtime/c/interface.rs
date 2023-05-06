@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use crate::{
     core::arm::ArmCore,
-    wipi::c::{get_graphics_method_table, get_kernel_method_table, CBridge, CError, CMethodBody},
+    wipi::c::{get_graphics_method_table, get_kernel_method_table, CBridge, CContext, CMethodBody},
 };
 
 use super::bridge::KtfCBridge;
@@ -25,18 +25,20 @@ struct WIPICInterface {
     interface_12: u32,
 }
 
-fn write_methods(bridge: &mut dyn CBridge, methods: Vec<Box<dyn CMethodBody<CError>>>) -> anyhow::Result<u32> {
-    let address = bridge.alloc((methods.len() * 4) as u32)?;
+fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::Result<u32> {
+    let address = context.bridge.alloc((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
     for method in methods {
-        let address = bridge.register_function(Box::new(move |bridge: &mut dyn CBridge| {
-            let result = method.call(bridge, vec![])?;
+        let address = context.bridge.register_function(Box::new(move |bridge: Box<dyn CBridge>| {
+            let context = CContext { bridge };
+
+            let result = method.call(context, vec![])?;
 
             Ok::<_, anyhow::Error>(result)
         }))?;
 
-        bridge.write_raw(cursor, &address.to_le_bytes())?;
+        context.bridge.write_raw(cursor, &address.to_le_bytes())?;
         cursor += 4;
     }
 
@@ -46,17 +48,19 @@ fn write_methods(bridge: &mut dyn CBridge, methods: Vec<Box<dyn CMethodBody<CErr
 pub fn get_wipic_knl_interface(core: ArmCore) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut bridge = KtfCBridge::new(core);
-    let address = write_methods(&mut bridge, kernel_methods)?;
+    let mut context = CContext {
+        bridge: Box::new(KtfCBridge::new(core)),
+    };
+    let address = write_methods(&mut context, kernel_methods)?;
 
     Ok(address)
 }
 
-fn get_wipic_interfaces(bridge: &mut dyn CBridge) -> anyhow::Result<u32> {
+fn get_wipic_interfaces(mut context: CContext) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();
-    let interface_2 = write_methods(bridge, graphics_methods)?;
+    let interface_2 = write_methods(&mut context, graphics_methods)?;
 
     let interface = WIPICInterface {
         interface_0: 0,
@@ -74,10 +78,10 @@ fn get_wipic_interfaces(bridge: &mut dyn CBridge) -> anyhow::Result<u32> {
         interface_12: 0,
     };
 
-    let address = bridge.alloc(size_of::<WIPICInterface>() as u32)?;
+    let address = context.bridge.alloc(size_of::<WIPICInterface>() as u32)?;
 
     let data = unsafe { std::slice::from_raw_parts(&interface as *const _ as *const u8, std::mem::size_of::<WIPICInterface>()) };
-    bridge.write_raw(address, data)?;
+    context.bridge.write_raw(address, data)?;
 
     Ok(address)
 }
