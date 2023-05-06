@@ -2,6 +2,8 @@ mod array;
 mod r#impl;
 mod proxy;
 
+use crate::backend::Backend;
+
 use super::method::{MethodBody, MethodImpl, TypeConverter};
 pub use proxy::JavaObjectProxy;
 
@@ -41,6 +43,7 @@ pub trait JavaBridge {
     fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     fn get_field(&mut self, instance: &JavaObjectProxy, field_offset: u32) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_offset: u32, value: u32);
+    fn backend(&mut self) -> &mut Backend;
 }
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
