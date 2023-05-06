@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaObjectProxy, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaObjectProxy, JavaResult};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}
@@ -21,43 +21,43 @@ impl Display {
         }
     }
 
-    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
+    fn init(_: JavaContext) -> JavaResult<()> {
         log::debug!("Display::<init>");
 
         Ok(())
     }
 
-    fn get_display(java_bridge: &mut dyn JavaBridge, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+    fn get_display(mut context: JavaContext, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDisplay");
 
-        let instance = java_bridge.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
-        java_bridge.call_method(&instance, "<init>", "()V", &[])?;
+        let instance = context.bridge.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
+        context.bridge.call_method(&instance, "<init>", "()V", &[])?;
 
         Ok(instance)
     }
 
-    fn get_default_display(java_bridge: &mut dyn JavaBridge) -> JavaResult<JavaObjectProxy> {
+    fn get_default_display(mut context: JavaContext) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDefaultDisplay");
 
-        let instance = java_bridge.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
-        java_bridge.call_method(&instance, "<init>", "()V", &[])?;
+        let instance = context.bridge.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
+        context.bridge.call_method(&instance, "<init>", "()V", &[])?;
 
         Ok(instance)
     }
 
-    fn get_docked_card(_: &mut dyn JavaBridge) -> JavaResult<JavaObjectProxy> {
+    fn get_docked_card(_: JavaContext) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDockedCard");
 
         Ok(JavaObjectProxy::new(0))
     }
 
-    fn push_card(_: &mut dyn JavaBridge, _: JavaObjectProxy) -> JavaResult<()> {
+    fn push_card(_: JavaContext, _: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Display::pushCard");
 
         Ok(())
     }
 
-    fn add_jlet_event_listener(_: &mut dyn JavaBridge, _: JavaObjectProxy) -> JavaResult<()> {
+    fn add_jlet_event_listener(_: JavaContext, _: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Display::addJletEventListener");
 
         Ok(())

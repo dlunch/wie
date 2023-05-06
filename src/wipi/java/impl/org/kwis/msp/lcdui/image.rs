@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
 
 // class org.kwis.msp.lcdui.Image
 pub struct Image {}
@@ -10,7 +10,7 @@ impl Image {
         }
     }
 
-    fn init(_: &mut dyn JavaBridge, _: u32) -> JavaResult<()> {
+    fn init(_: JavaContext, _: u32) -> JavaResult<()> {
         log::debug!("Image::<init>");
 
         Ok(())

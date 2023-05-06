@@ -1,4 +1,4 @@
-use crate::wipi::java::{JavaBridge, JavaClassProto, JavaMethodProto, JavaResult};
+use crate::wipi::java::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
 
 // class java.lang.Thread
 pub struct Thread {}
@@ -10,7 +10,7 @@ impl Thread {
         }
     }
 
-    fn init(_: &mut dyn JavaBridge) -> JavaResult<()> {
+    fn init(_: JavaContext) -> JavaResult<()> {
         log::debug!("Thread::<init>");
 
         Ok(())
