@@ -3,7 +3,7 @@ use std::{fmt::Display, mem::size_of};
 use crate::{
     core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
     wipi::{
-        java::{get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
+        java::{get_array_proto, get_class_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
         module::ktf::runtime::init::KtfPeb,
     },
 };
@@ -23,7 +23,7 @@ struct JavaClass {
 struct JavaClassDescriptor {
     ptr_name: u32,
     unk1: u32,
-    parent_class: u32,
+    ptr_parent_class: u32,
     ptr_methods: u32,
     ptr_interfaces: u32,
     ptr_properties: u32,
@@ -32,7 +32,7 @@ struct JavaClassDescriptor {
     access_flag: u16,
     unk6: u16,
     unk7: u16,
-    index: u16,
+    unk8: u16,
 }
 
 #[repr(C)]
@@ -154,7 +154,7 @@ impl KtfJavaBridge {
     }
 
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let ptr_class = self.get_ptr_class(name)?;
+        let ptr_class = self.find_ptr_class(name)?;
 
         self.core.write(ptr_target, ptr_class)?;
 
@@ -166,47 +166,56 @@ impl KtfJavaBridge {
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
 
-        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32, ((class_descriptor.index * 4) as u32) << 5)?;
+        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
         log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
 
-    pub fn load_all_classes(&mut self) -> JavaResult<Vec<u32>> {
-        let all_classes = get_all_java_classes();
+    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
+        let vtable_index = self.write_vtable(ptr_class)?;
 
-        let loaded_classes = all_classes
-            .into_iter()
-            .enumerate()
-            .map(|(index, (name, proto))| {
-                let ptr_class = self.load_class_into_vm(index, name, proto)?;
-
-                Ok(ptr_class)
-            })
-            .collect::<JavaResult<_>>()?;
-
-        Ok(loaded_classes)
-    }
-
-    pub fn get_ptr_methods(&self, ptr_class: u32) -> anyhow::Result<u32> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-
-        Ok(class_descriptor.ptr_methods)
-    }
-
-    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32, index: u32) -> JavaResult<JavaObjectProxy> {
         let ptr_instance = Allocator::alloc(&mut self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(&mut self.core, fields_size + 4)?;
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
-        self.core.write(ptr_fields, index)?;
+        self.core.write(ptr_fields, (vtable_index * 4) << 5)?;
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
 
-    fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
+    fn write_vtable(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
+        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+
+        let vtable = if class_descriptor.ptr_parent_class == 0 {
+            class_descriptor.ptr_methods
+        } else {
+            let parent_class = self.core.read::<JavaClass>(class_descriptor.ptr_parent_class)?;
+            let parent_class_descriptor = self.core.read::<JavaClassDescriptor>(parent_class.ptr_descriptor)?;
+            parent_class_descriptor.ptr_methods
+        }; // TODO: we have to properly create vtable
+
+        let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
+        let mut cursor = peb.vtables_base;
+        loop {
+            let current_vtable = self.core.read::<u32>(cursor)?;
+            if current_vtable == 0 {
+                self.core.write(cursor, vtable)?;
+                break;
+            } else if current_vtable == vtable {
+                break;
+            }
+            cursor += 4;
+        }
+        let index = (cursor - peb.vtables_base) / 4;
+        log::debug!("write_vtable({:#x}, {})", ptr_class, index);
+
+        Ok(index)
+    }
+
+    fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
         let mut cursor = peb.java_classes_base;
         loop {
@@ -228,15 +237,17 @@ impl KtfJavaBridge {
 
         // array class is created dynamically
         if name.as_bytes()[0] == b'[' {
-            let ptr_class = self.load_class_into_vm(0, name, get_array_proto())?;
+            let ptr_class = self.load_class_into_vm(name, get_array_proto())?;
 
             Ok(ptr_class)
         } else {
-            Err(anyhow::anyhow!("No such class {}", name))
+            let proto = get_class_proto(name).ok_or_else(|| anyhow::anyhow!("No such class {}", name))?;
+
+            self.load_class_into_vm(name, proto)
         }
     }
 
-    fn load_class_into_vm(&mut self, index: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
+    fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
         let ptr_class = Allocator::alloc(&mut self.core, size_of::<JavaClass>() as u32)?;
         self.core.write(
             ptr_class,
@@ -294,7 +305,7 @@ impl KtfJavaBridge {
             JavaClassDescriptor {
                 ptr_name,
                 unk1: 0,
-                parent_class: 0,
+                ptr_parent_class: 0,
                 ptr_methods,
                 ptr_interfaces: 0,
                 ptr_properties: 0,
@@ -303,7 +314,7 @@ impl KtfJavaBridge {
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
                 unk6: 0,
                 unk7: 0,
-                index: index as u16,
+                unk8: 0,
             },
         )?;
 
@@ -342,16 +353,16 @@ impl JavaBridge for KtfJavaBridge {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let ptr_class = self.get_ptr_class(class_name)?;
+        let ptr_class = self.find_ptr_class(class_name)?;
 
         self.instantiate_from_ptr_class(ptr_class)
     }
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class = self.get_ptr_class(&array_type)?;
+        let ptr_class = self.find_ptr_class(&array_type)?;
 
-        let proxy = self.instantiate_inner(ptr_class, count * 4 + 4, 0)?;
+        let proxy = self.instantiate_inner(ptr_class, count * 4 + 4)?;
         let instance = self.core.read::<JavaClassInstance>(proxy.ptr_instance)?;
         self.core.write(instance.ptr_fields + 4, count)?;
 

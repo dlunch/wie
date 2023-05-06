@@ -61,7 +61,7 @@ struct InitParam2 {
     unk1: u32,
     unk2: u32,
     unk3: u32,
-    ptr_vtables: [u32; 1], // dynamic size
+    ptr_vtables: [u32; 64],
 }
 
 #[repr(C)]
@@ -128,6 +128,7 @@ pub struct KtfPeb {
     pub heap_base: u32,
     pub heap_size: u32,
     pub java_classes_base: u32,
+    pub vtables_base: u32,
 }
 
 pub struct ModuleInfo {
@@ -139,23 +140,9 @@ pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Res
     let (heap_base, heap_size) = Allocator::init(core)?;
     let java_classes_base = KtfJavaBridge::init(core)?;
 
-    let peb = KtfPeb {
-        heap_base,
-        heap_size,
-        java_classes_base,
-    };
-    init_peb(core, peb)?;
-
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
-
-    let mut java_bridge = KtfJavaBridge::new(core.clone());
-    let ptr_classes = java_bridge.load_all_classes()?;
-    let vtables = ptr_classes
-        .iter()
-        .map(|&x| java_bridge.get_ptr_methods(x))
-        .collect::<Result<Vec<_>, _>>()?;
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam0Unk>() as u32)?;
     core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;
@@ -172,22 +159,17 @@ pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Res
     let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     core.write(ptr_param_1, InitParam1 { ptr_unk_struct })?;
 
-    let ptr_param_2 = Allocator::alloc(core, (size_of::<InitParam2>() + (ptr_classes.len() - 1) * 4) as u32)?;
+    let ptr_param_2 = Allocator::alloc(core, (size_of::<InitParam2>()) as u32)?;
     core.write(
         ptr_param_2,
         InitParam2 {
             unk1: 0,
             unk2: 0,
             unk3: 0,
-            ptr_vtables: [0; 1],
+            ptr_vtables: [0; 64],
         },
     )?;
-    let mut cursor = 12;
-    for vtable in vtables {
-        core.write(ptr_param_2 + cursor, vtable)?;
-
-        cursor += 4;
-    }
+    let vtables_base = ptr_param_2 + 12;
 
     let param_3 = InitParam3 {
         unk1: 0,
@@ -224,6 +206,14 @@ pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Res
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
     core.write(ptr_param_4, param_4)?;
+
+    let peb = KtfPeb {
+        heap_base,
+        heap_size,
+        java_classes_base,
+        vtables_base,
+    };
+    init_peb(core, peb)?;
 
     let wipi_exe = core.read::<WipiExe>(wipi_exe)?;
     let exe_interface = core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
