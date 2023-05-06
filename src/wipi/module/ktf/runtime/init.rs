@@ -229,7 +229,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     })
 }
 
-pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> anyhow::Result<u32> {
+fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> anyhow::Result<u32> {
     log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
@@ -244,7 +244,7 @@ pub fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) ->
     }
 }
 
-pub fn init_unk3(core: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+fn init_unk3(core: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
     // calloc??
     log::debug!("init_unk3({}, {})", a0, a1);
 
