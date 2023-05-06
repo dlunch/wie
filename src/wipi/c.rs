@@ -4,6 +4,8 @@ mod kernel;
 pub use graphics::get_graphics_method_table;
 pub use kernel::get_kernel_method_table;
 
+use crate::backend::Backend;
+
 use super::method::TypeConverter;
 pub use super::method::{MethodBody, MethodImpl};
 
@@ -19,6 +21,7 @@ pub trait CBridge {
     fn alloc(&mut self, size: u32) -> CResult<u32>;
     fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()>;
     fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32>;
+    fn backend(&mut self) -> &mut Backend;
 }
 
 fn into_body<M, F, R, P>(method: M) -> CMethodBody

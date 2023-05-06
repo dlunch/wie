@@ -491,4 +491,8 @@ impl JavaBridge for KtfJavaBridge {
     fn put_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32, _value: u32) {
         todo!()
     }
+
+    fn backend(&mut self) -> &mut Backend {
+        &mut self.backend
+    }
 }

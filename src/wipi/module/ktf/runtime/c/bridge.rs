@@ -36,4 +36,7 @@ impl CBridge for KtfCBridge {
             &self.backend,
         )
     }
+    fn backend(&mut self) -> &mut Backend {
+        &mut self.backend
+    }
 }
