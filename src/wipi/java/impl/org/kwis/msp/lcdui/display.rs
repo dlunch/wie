@@ -51,8 +51,8 @@ impl Display {
         Ok(JavaObjectProxy::new(0))
     }
 
-    fn push_card(_: &mut JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::pushCard({:#x})", a0.ptr_instance);
+    fn push_card(_: &mut JavaContext, instance: JavaObjectProxy, a1: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Display::pushCard({:#x}, {:#x})", instance.ptr_instance, a1.ptr_instance);
 
         Ok(())
     }
