@@ -30,7 +30,7 @@ impl Display {
     fn get_display(java_bridge: &mut dyn JavaBridge, _: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDisplay");
 
-        let instance = java_bridge.instantiate("org/kwis/msp/lcdui/Display")?;
+        let instance = java_bridge.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         java_bridge.call_method(&instance, "<init>", "()V", &[])?;
 
         Ok(instance)
@@ -39,7 +39,7 @@ impl Display {
     fn get_default_display(java_bridge: &mut dyn JavaBridge) -> JavaResult<JavaObjectProxy> {
         log::debug!("Display::getDefaultDisplay");
 
-        let instance = java_bridge.instantiate("org/kwis/msp/lcdui/Display")?;
+        let instance = java_bridge.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         java_bridge.call_method(&instance, "<init>", "()V", &[])?;
 
         Ok(instance)

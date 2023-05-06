@@ -335,17 +335,18 @@ impl<'a> KtfJavaBridge<'a> {
 }
 
 impl JavaBridge for KtfJavaBridge<'_> {
-    fn instantiate(&mut self, class_name: &str) -> JavaResult<JavaObjectProxy> {
-        if class_name.as_bytes()[0] == b'[' {
+    fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
+        if type_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
+        let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = self.get_ptr_class(class_name)?;
 
         self.instantiate_inner(ptr_class, None)
     }
 
-    fn instantiate_array(&mut self, element_class_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
-        let array_type = format!("[L{};", element_class_name);
+    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
+        let array_type = format!("[{}", element_type_name);
 
         let ptr_class = self.get_ptr_class(&array_type)?;
 

@@ -34,7 +34,7 @@ impl KtfWipiModule {
     pub fn start(&mut self) -> anyhow::Result<()> {
         let mut java_bridge = KtfJavaBridge::new(&mut self.core, &self.context);
 
-        let arg = java_bridge.instantiate_array("java/lang/String", 0)?;
+        let arg = java_bridge.instantiate_array("Ljava/lang/String;", 0)?;
 
         java_bridge.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
 
