@@ -1,6 +1,7 @@
 mod runtime;
 
 use crate::{
+    backend::Backend,
     core::arm::{allocator::Allocator, ArmCore},
     wipi::java::JavaBridge,
 };
@@ -11,21 +12,26 @@ use self::runtime::KtfJavaBridge;
 pub struct KtfWipiModule {
     core: ArmCore,
     ptr_main_class: u32,
+    backend: Backend,
 }
 
 impl KtfWipiModule {
-    pub fn new(data: &[u8], filename: &str, main_class: &str) -> anyhow::Result<Self> {
+    pub fn new(data: &[u8], filename: &str, main_class: &str, backend: Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let ptr_main_class = Self::init(&mut core, base_address, bss_size, main_class)?;
+        let ptr_main_class = Self::init(&mut core, &backend, base_address, bss_size, main_class)?;
 
-        Ok(Self { core, ptr_main_class })
+        Ok(Self {
+            core,
+            ptr_main_class,
+            backend,
+        })
     }
 
     pub fn start(self) -> anyhow::Result<()> {
-        let mut java_bridge = KtfJavaBridge::new(self.core);
+        let mut java_bridge = KtfJavaBridge::new(self.core, self.backend);
 
         let instance = java_bridge.instantiate_from_ptr_class(self.ptr_main_class)?;
         java_bridge.call_method(&instance, "<init>", "()V", &[])?;
@@ -38,8 +44,8 @@ impl KtfWipiModule {
         Ok(())
     }
 
-    fn init(core: &mut ArmCore, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
-        let module = runtime::init(core, base_address, bss_size)?;
+    fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
+        let module = runtime::init(core, backend, base_address, bss_size)?;
 
         log::info!("Call wipi init at {:#x}", module.fn_init);
         let result = core.run_function(module.fn_init, &[])?;

@@ -1,6 +1,7 @@
 use std::mem::size_of;
 
 use crate::{
+    backend::Backend,
     core::arm::ArmCore,
     wipi::c::{get_graphics_method_table, get_kernel_method_table, CContext, CMethodBody},
 };
@@ -43,10 +44,10 @@ fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::R
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: ArmCore) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: ArmCore, backend: Backend) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut context = KtfCBridge::new(core);
+    let mut context = KtfCBridge::new(core, backend);
     let address = write_methods(&mut context, kernel_methods)?;
 
     Ok(address)

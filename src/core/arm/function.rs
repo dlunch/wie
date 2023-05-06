@@ -2,58 +2,58 @@ use unicorn_engine::RegisterARM;
 
 use super::ArmCore;
 
-pub trait EmulatedFunction<T, E> {
-    fn call(&self, core: ArmCore) -> Result<u32, E>;
+pub trait EmulatedFunction<T, E, C> {
+    fn call(&self, core: ArmCore, context: C) -> Result<u32, E>;
 }
 
-impl<Func, E> EmulatedFunction<(), E> for Func
+impl<Func, E, C> EmulatedFunction<(), E, C> for Func
 where
-    Func: Fn(ArmCore) -> Result<u32, E>,
+    Func: Fn(ArmCore, C) -> Result<u32, E>,
 {
-    fn call(&self, core: ArmCore) -> Result<u32, E> {
-        self(core)
+    fn call(&self, core: ArmCore, context: C) -> Result<u32, E> {
+        self(core, context)
     }
 }
 
-impl<Func, E, Param1> EmulatedFunction<(Param1,), E> for Func
+impl<Func, E, C, Param1> EmulatedFunction<(Param1,), E, C> for Func
 where
-    Func: Fn(ArmCore, Param1) -> Result<u32, E>,
+    Func: Fn(ArmCore, C, Param1) -> Result<u32, E>,
     Param1: EmulatedFunctionParam<Param1>,
 {
-    fn call(&self, mut core: ArmCore) -> Result<u32, E> {
+    fn call(&self, mut core: ArmCore, context: C) -> Result<u32, E> {
         let param1 = Param1::get(&mut core, 0);
 
-        self(core, param1)
+        self(core, context, param1)
     }
 }
 
-impl<Func, E, Param1, Param2> EmulatedFunction<(Param1, Param2), E> for Func
+impl<Func, E, C, Param1, Param2> EmulatedFunction<(Param1, Param2), E, C> for Func
 where
-    Func: Fn(ArmCore, Param1, Param2) -> Result<u32, E>,
+    Func: Fn(ArmCore, C, Param1, Param2) -> Result<u32, E>,
     Param1: EmulatedFunctionParam<Param1>,
     Param2: EmulatedFunctionParam<Param2>,
 {
-    fn call(&self, mut core: ArmCore) -> Result<u32, E> {
+    fn call(&self, mut core: ArmCore, context: C) -> Result<u32, E> {
         let param1 = Param1::get(&mut core, 0);
         let param2 = Param2::get(&mut core, 1);
 
-        self(core, param1, param2)
+        self(core, context, param1, param2)
     }
 }
 
-impl<Func, E, Param1, Param2, Param3> EmulatedFunction<(Param1, Param2, Param3), E> for Func
+impl<Func, E, C, Param1, Param2, Param3> EmulatedFunction<(Param1, Param2, Param3), E, C> for Func
 where
-    Func: Fn(ArmCore, Param1, Param2, Param3) -> Result<u32, E>,
+    Func: Fn(ArmCore, C, Param1, Param2, Param3) -> Result<u32, E>,
     Param1: EmulatedFunctionParam<Param1>,
     Param2: EmulatedFunctionParam<Param2>,
     Param3: EmulatedFunctionParam<Param3>,
 {
-    fn call(&self, mut core: ArmCore) -> Result<u32, E> {
+    fn call(&self, mut core: ArmCore, context: C) -> Result<u32, E> {
         let param1 = Param1::get(&mut core, 0);
         let param2 = Param2::get(&mut core, 1);
         let param3 = Param3::get(&mut core, 2);
 
-        self(core, param1, param2, param3)
+        self(core, context, param1, param2, param3)
     }
 }
 
