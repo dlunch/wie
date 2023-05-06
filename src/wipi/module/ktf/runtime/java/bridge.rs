@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, mem::size_of};
 
 use crate::{
-    core::arm::ArmCore,
+    core::arm::{allocator::Allocator, ArmCore},
     wipi::java::{get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
 };
 
@@ -209,8 +209,8 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32, index: u32) -> JavaResult<JavaObjectProxy> {
-        let ptr_instance = self.context.alloc(size_of::<JavaClassInstance>() as u32)?;
-        let ptr_fields = self.context.alloc(fields_size + 4)?;
+        let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
+        let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         self.core.write(ptr_fields, index)?;
@@ -242,7 +242,7 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn load_class_into_vm(&mut self, index: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let ptr_class = self.context.alloc(size_of::<JavaClass>() as u32)?;
+        let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
         self.core.write(
             ptr_class,
             JavaClass {
@@ -255,7 +255,7 @@ impl<'a> KtfJavaBridge<'a> {
         )?;
 
         let method_count = proto.methods.len();
-        let ptr_methods = self.context.alloc(((method_count + 1) * size_of::<u32>()) as u32)?;
+        let ptr_methods = Allocator::alloc(self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
 
         let mut cursor = ptr_methods;
         for (index, method) in proto.methods.into_iter().enumerate() {
@@ -266,10 +266,10 @@ impl<'a> KtfJavaBridge<'a> {
             })
             .as_bytes();
 
-            let ptr_name = self.context.alloc(fullname.len() as u32)?;
+            let ptr_name = Allocator::alloc(self.core, fullname.len() as u32)?;
             self.core.write_raw(ptr_name, &fullname)?;
 
-            let ptr_method = self.context.alloc(size_of::<JavaMethod>() as u32)?;
+            let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
             let fn_body = self.register_java_method(method.body)?;
             self.core.write(
                 ptr_method,
@@ -290,10 +290,10 @@ impl<'a> KtfJavaBridge<'a> {
             cursor += 4;
         }
 
-        let ptr_name = self.context.alloc((name.len() + 1) as u32)?;
+        let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
         self.core.write_raw(ptr_name, name.as_bytes())?;
 
-        let ptr_descriptor = self.context.alloc(size_of::<JavaClassDescriptor>() as u32)?;
+        let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
         self.core.write(
             ptr_descriptor,
             JavaClassDescriptor {

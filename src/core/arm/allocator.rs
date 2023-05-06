@@ -1,49 +1,79 @@
-use std::collections::BTreeMap;
+use std::mem::size_of;
 
-use crate::util;
+use crate::util::round_up;
 
 use super::{ArmCore, HEAP_BASE};
 
-const ALIGN: u32 = 4;
+const HEAP_SIZE: u32 = 0x100000;
 
-pub struct Allocator {
-    base: u32,
-    map: BTreeMap<u32, u32>,
+#[derive(Clone, Copy)]
+struct AllocationHeader {
+    size: u32,
+    in_use: u32,
 }
 
+pub struct Allocator {}
+
 impl Allocator {
-    pub fn new(core: &mut ArmCore) -> anyhow::Result<Self> {
-        let size = 0x100000;
+    pub fn init(core: &mut ArmCore) -> anyhow::Result<()> {
+        core.alloc(HEAP_BASE, HEAP_SIZE)?;
 
-        core.alloc(HEAP_BASE, size)?;
+        let header = AllocationHeader { size: HEAP_SIZE, in_use: 0 };
 
-        let map = BTreeMap::from_iter(vec![(size, 0)]);
+        core.write(HEAP_BASE, header)?;
 
-        Ok(Self { base: HEAP_BASE, map })
+        Ok(())
     }
 
-    pub fn alloc(&mut self, size: u32) -> Option<u32> {
-        let size = if size == 0 { ALIGN } else { size };
-        let address = self.find_address(size)?;
+    pub fn alloc(core: &mut ArmCore, size: u32) -> anyhow::Result<u32> {
+        let alloc_size = round_up(size as usize + size_of::<AllocationHeader>(), 4) as u32;
 
-        self.map.insert(address, size);
+        let address = Self::find_address(core, alloc_size).ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
 
-        Some(self.base + address)
+        let previous_header = core.read::<AllocationHeader>(address)?;
+
+        let header = AllocationHeader { size: alloc_size, in_use: 1 };
+        core.write(address, header)?;
+
+        // write next
+        if previous_header.size > alloc_size {
+            let next_header = AllocationHeader {
+                size: previous_header.size - alloc_size,
+                in_use: 0,
+            };
+            core.write(address + alloc_size, next_header)?;
+        }
+
+        Ok(address + 8)
     }
 
-    pub fn free(&mut self, address: u32) {
-        let address = address - self.base;
+    pub fn free(core: &mut ArmCore, address: u32) -> anyhow::Result<()> {
+        let base_address = address - 8;
 
-        self.map.remove(&address).unwrap();
+        let header = core.read::<AllocationHeader>(base_address)?;
+        assert!(header.in_use == 1);
+
+        let header = AllocationHeader {
+            size: header.size,
+            in_use: 0,
+        };
+        core.write(base_address, header)?;
+
+        Ok(())
     }
 
-    fn find_address(&self, request_size: u32) -> Option<u32> {
-        let mut cursor = 0;
-        for (address, size) in self.map.iter() {
-            if address - cursor >= request_size {
+    fn find_address(core: &mut ArmCore, request_size: u32) -> Option<u32> {
+        let mut cursor = HEAP_BASE;
+        loop {
+            let header = core.read::<AllocationHeader>(cursor).ok()?;
+            if header.in_use == 0 && header.size >= request_size {
                 return Some(cursor);
             } else {
-                cursor = util::round_up((address + size) as usize, ALIGN as usize) as u32;
+                cursor += header.size;
+            }
+
+            if cursor >= HEAP_BASE + HEAP_SIZE {
+                break;
             }
         }
 

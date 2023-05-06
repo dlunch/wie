@@ -18,7 +18,7 @@ pub struct KtfWipiModule {
 impl KtfWipiModule {
     pub fn new(data: &[u8], filename: &str, main_class: &str) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
-        let context = Context::new(Allocator::new(&mut core)?);
+        let context = Context::new();
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
@@ -50,7 +50,7 @@ impl KtfWipiModule {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let main_class_name = context.alloc(20)?; // TODO size fix
+        let main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
         core.write_raw(main_class_name, main_class.as_bytes())?;
 
         log::info!("Call class getter at {:#x}", module.fn_get_class);
@@ -58,7 +58,7 @@ impl KtfWipiModule {
         if main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
-        context.borrow_mut().allocator.free(main_class_name);
+        Allocator::free(core, main_class_name)?;
 
         log::info!("Got main class: {:#x}", main_class);
 
