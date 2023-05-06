@@ -38,6 +38,24 @@ where
     }
 }
 
+impl<F, R, E, C, P0, P1> MethodBody<E, C> for MethodHolder<F, R, (P0, P1)>
+where
+    C: ?Sized,
+    F: Fn(&mut C, P0, P1) -> Result<R, E>,
+    R: TypeConverter<R, C>,
+    P0: TypeConverter<P0, C>,
+    P1: TypeConverter<P1, C>,
+{
+    fn call(&self, context: &mut C, args: Vec<u32>) -> Result<u32, E> {
+        let p0 = P0::to_rust(context, args[0]);
+        let p1 = P1::to_rust(context, args[1]);
+
+        let result = self.0(context, p0, p1)?;
+
+        Ok(R::from_rust(context, result))
+    }
+}
+
 pub trait MethodImpl<F, R, E, C, P>
 where
     C: ?Sized,
@@ -56,11 +74,24 @@ where
     }
 }
 
-impl<F, R, E, C, P1> MethodImpl<F, R, E, C, (P1,)> for F
+impl<F, R, E, C, P0> MethodImpl<F, R, E, C, (P0,)> for F
 where
     C: ?Sized,
-    F: Fn(&mut C, P1) -> Result<R, E> + 'static,
+    F: Fn(&mut C, P0) -> Result<R, E> + 'static,
     R: TypeConverter<R, C> + 'static,
+    P0: TypeConverter<P0, C> + 'static,
+{
+    fn into_body(self) -> Box<dyn MethodBody<E, C>> {
+        Box::new(MethodHolder(self, PhantomData))
+    }
+}
+
+impl<F, R, E, C, P0, P1> MethodImpl<F, R, E, C, (P0, P1)> for F
+where
+    C: ?Sized,
+    F: Fn(&mut C, P0, P1) -> Result<R, E> + 'static,
+    R: TypeConverter<R, C> + 'static,
+    P0: TypeConverter<P0, C> + 'static,
     P1: TypeConverter<P1, C> + 'static,
 {
     fn into_body(self) -> Box<dyn MethodBody<E, C>> {
