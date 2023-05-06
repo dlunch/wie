@@ -23,10 +23,10 @@ impl CBridge for KtfCBridge {
     }
 
     fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32> {
-        self.core.register_function(move |core: ArmCore| {
+        self.core.register_function(move |core: ArmCore, a0: u32, a1: u32, a2: u32| {
             let mut context = KtfCBridge::new(core);
 
-            let result = method(&mut context)?;
+            let result = method(&mut context, vec![a0, a1, a2])?;
 
             Ok::<_, anyhow::Error>(result)
         })
