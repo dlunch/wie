@@ -1,13 +1,6 @@
-use std::{
-    cell::{RefCell, RefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
-use super::runtime::JavaBridgeContext;
-
-pub struct ContextStorage {
-    pub java_bridge_context: JavaBridgeContext,
-}
+pub struct ContextStorage {}
 
 pub struct Context {
     storage: Rc<RefCell<ContextStorage>>,
@@ -16,14 +9,8 @@ pub struct Context {
 impl Context {
     pub fn new() -> Self {
         Self {
-            storage: Rc::new(RefCell::new(ContextStorage {
-                java_bridge_context: JavaBridgeContext::new(),
-            })),
+            storage: Rc::new(RefCell::new(ContextStorage {})),
         }
-    }
-
-    pub fn borrow_mut(&self) -> RefMut<ContextStorage> {
-        self.storage.borrow_mut()
     }
 }
 

@@ -1,8 +1,11 @@
-use std::{collections::HashMap, fmt::Display, mem::size_of};
+use std::{fmt::Display, mem::size_of};
 
 use crate::{
-    core::arm::{allocator::Allocator, ArmCore},
-    wipi::java::{get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
+    core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
+    wipi::{
+        java::{get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
+        module::ktf::runtime::init::KtfPeb,
+    },
 };
 
 use super::super::Context;
@@ -112,24 +115,18 @@ impl PartialEq for JavaMethodFullname {
     }
 }
 
-pub struct JavaBridgeContext {
-    loaded_classes: HashMap<String, u32>,
-}
-
-impl JavaBridgeContext {
-    pub fn new() -> Self {
-        Self {
-            loaded_classes: HashMap::new(),
-        }
-    }
-}
-
 pub struct KtfJavaBridge<'a> {
     core: &'a mut ArmCore,
     context: &'a Context,
 }
 
 impl<'a> KtfJavaBridge<'a> {
+    pub fn init(core: &mut ArmCore) -> JavaResult<u32> {
+        let java_classes_base = Allocator::alloc(core, 0x1000)?;
+
+        Ok(java_classes_base)
+    }
+
     pub fn new(core: &'a mut ArmCore, context: &'a Context) -> Self {
         Self { core, context }
     }
@@ -188,17 +185,11 @@ impl<'a> KtfJavaBridge<'a> {
             .map(|(index, (name, proto))| {
                 let ptr_class = self.load_class_into_vm(index, name, proto)?;
 
-                Ok((name.into(), ptr_class))
+                Ok(ptr_class)
             })
-            .collect::<JavaResult<Vec<_>>>()?;
+            .collect::<JavaResult<_>>()?;
 
-        self.context
-            .borrow_mut()
-            .java_bridge_context
-            .loaded_classes
-            .extend(loaded_classes.iter().cloned());
-
-        Ok(loaded_classes.into_iter().map(|x| x.1).collect())
+        Ok(loaded_classes)
     }
 
     pub fn get_ptr_methods(&self, ptr_class: u32) -> anyhow::Result<u32> {
@@ -219,25 +210,32 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let loaded_class = self.context.borrow_mut().java_bridge_context.loaded_classes.get(name).cloned();
-
-        if let Some(loaded_class) = loaded_class {
-            Ok(loaded_class)
-        } else {
-            // array class is created dynamically
-            if name.as_bytes()[0] == b'[' {
-                let ptr_class = self.load_class_into_vm(0, name, get_array_proto())?;
-
-                self.context
-                    .borrow_mut()
-                    .java_bridge_context
-                    .loaded_classes
-                    .insert(name.into(), ptr_class);
-
-                Ok(ptr_class)
-            } else {
-                Err(anyhow::anyhow!("No such class {}", name))
+        let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
+        let mut cursor = peb.java_classes_base;
+        loop {
+            let ptr_class = self.core.read::<u32>(cursor)?;
+            if ptr_class == 0 {
+                break;
             }
+
+            let class = self.core.read::<JavaClass>(ptr_class)?;
+            let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+            let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+            if class_name == name {
+                return Ok(ptr_class);
+            }
+
+            cursor += 4;
+        }
+
+        // array class is created dynamically
+        if name.as_bytes()[0] == b'[' {
+            let ptr_class = self.load_class_into_vm(0, name, get_array_proto())?;
+
+            Ok(ptr_class)
+        } else {
+            Err(anyhow::anyhow!("No such class {}", name))
         }
     }
 
@@ -313,6 +311,17 @@ impl<'a> KtfJavaBridge<'a> {
         )?;
 
         self.core.write(ptr_class + 8, ptr_descriptor)?;
+
+        let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
+        let mut cursor = peb.java_classes_base;
+        loop {
+            let current = self.core.read::<u32>(cursor)?;
+            if current == 0 {
+                self.core.write(cursor, ptr_class)?;
+                break;
+            }
+            cursor += 4;
+        }
 
         Ok(ptr_class)
     }
