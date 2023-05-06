@@ -324,8 +324,8 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
-        let closure = move |core: &mut ArmCore, a0: u32, a1: u32, a2: u32| {
-            let mut java_bridge = KtfJavaBridge::new(core);
+        let closure = move |mut core: ArmCore, a0: u32, a1: u32, a2: u32| {
+            let mut java_bridge = KtfJavaBridge::new(&mut core);
             let result = body.call(&mut java_bridge, vec![a0, a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)

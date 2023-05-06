@@ -119,7 +119,7 @@ impl ArmCore {
 
     pub fn register_function<F, P, E>(&mut self, function: F) -> ArmCoreResult<u32>
     where
-        F: for<'a> EmulatedFunction<P, E> + 'static,
+        F: EmulatedFunction<P, E> + 'static,
         E: std::fmt::Debug,
     {
         let bytes = [0x70, 0x47]; // BX LR
@@ -135,9 +135,8 @@ impl ArmCore {
                     uc.reg_read(RegisterARM::LR).unwrap()
                 );
 
-                let mut new_self = Self::from_uc(Unicorn::try_from(uc.get_handle()).unwrap());
-
-                let ret = function.call(&mut new_self).unwrap();
+                let new_self = Self::from_uc(Unicorn::try_from(uc.get_handle()).unwrap());
+                let ret = function.call(new_self).unwrap();
 
                 uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
             })

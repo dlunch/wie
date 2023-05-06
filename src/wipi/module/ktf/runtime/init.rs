@@ -244,12 +244,12 @@ pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Res
     })
 }
 
-fn get_interface(core: &mut ArmCore, r#struct: String) -> anyhow::Result<u32> {
+fn get_interface(mut core: ArmCore, r#struct: String) -> anyhow::Result<u32> {
     log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(&mut core),
+        "WIPI_JBInterface" => get_wipi_jb_interface(&mut core),
         _ => {
             log::warn!("Unknown {}", r#struct);
             log::warn!("Register dump\n{}", core.dump_regs()?);
@@ -259,13 +259,13 @@ fn get_interface(core: &mut ArmCore, r#struct: String) -> anyhow::Result<u32> {
     }
 }
 
-fn init_unk3(core: &mut ArmCore, a0: u32, a1: u32) -> anyhow::Result<u32> {
+fn init_unk3(mut core: ArmCore, a0: u32, a1: u32) -> anyhow::Result<u32> {
     // calloc??
     log::debug!("init_unk3({}, {})", a0, a1);
 
     log::debug!("\n{}", core.dump_regs()?);
 
-    Allocator::alloc(core, a0 * a1)
+    Allocator::alloc(&mut core, a0 * a1)
 }
 
 fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {
