@@ -65,12 +65,6 @@ impl ArmCore {
         Ok(Self { uc })
     }
 
-    pub fn clone(&self) -> Self {
-        let uc = Unicorn::try_from(self.uc.get_handle()).unwrap();
-
-        Self { uc }
-    }
-
     pub fn load(&mut self, data: &[u8], map_size: usize) -> ArmCoreResult<u32> {
         self.uc
             .mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL)
