@@ -2,7 +2,7 @@ mod runtime;
 
 use crate::{
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::java::{JavaBridge, JavaObjectProxy},
+    wipi::java::JavaBridge,
 };
 
 use self::runtime::KtfJavaBridge;
@@ -10,7 +10,7 @@ use self::runtime::KtfJavaBridge;
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
-    main_class_instance: JavaObjectProxy,
+    ptr_main_class: u32,
 }
 
 impl KtfWipiModule {
@@ -19,22 +19,26 @@ impl KtfWipiModule {
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let main_class_instance = Self::init(&mut core, base_address, bss_size, main_class)?;
+        let ptr_main_class = Self::init(&mut core, base_address, bss_size, main_class)?;
 
-        Ok(Self { core, main_class_instance })
+        Ok(Self { core, ptr_main_class })
     }
 
-    pub fn start(&mut self) -> anyhow::Result<()> {
-        let mut java_bridge = KtfJavaBridge::new(self.core.clone());
+    pub fn start(self) -> anyhow::Result<()> {
+        let mut java_bridge = KtfJavaBridge::new(self.core);
+
+        let instance = java_bridge.instantiate_from_ptr_class(self.ptr_main_class)?;
+        java_bridge.call_method(&instance, "<init>", "()V", &[])?;
+
+        log::info!("Main class instance: {:#x}", instance.ptr_instance);
 
         let arg = java_bridge.instantiate_array("Ljava/lang/String;", 0)?;
-
-        java_bridge.call_method(&self.main_class_instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
+        java_bridge.call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
 
         Ok(())
     }
 
-    fn init(core: &mut ArmCore, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<JavaObjectProxy> {
+    fn init(core: &mut ArmCore, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
         let module = runtime::init(core, base_address, bss_size)?;
 
         log::info!("Call wipi init at {:#x}", module.fn_init);
@@ -47,22 +51,15 @@ impl KtfWipiModule {
         core.write_raw(main_class_name, main_class.as_bytes())?;
 
         log::info!("Call class getter at {:#x}", module.fn_get_class);
-        let main_class = core.run_function(module.fn_get_class, &[main_class_name])?;
-        if main_class == 0 {
+        let ptr_main_class = core.run_function(module.fn_get_class, &[main_class_name])?;
+        if ptr_main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
         Allocator::free(core, main_class_name)?;
 
-        log::info!("Got main class: {:#x}", main_class);
+        log::info!("Got main class: {:#x}", ptr_main_class);
 
-        let mut java_bridge = KtfJavaBridge::new(core.clone());
-
-        let instance = java_bridge.instantiate_from_ptr_class(main_class)?;
-        java_bridge.call_method(&instance, "<init>", "()V", &[])?;
-
-        log::info!("Main class instance: {:#x}", instance.ptr_instance);
-
-        Ok(instance)
+        Ok(ptr_main_class)
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {
