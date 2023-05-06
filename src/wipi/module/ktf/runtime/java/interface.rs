@@ -150,10 +150,15 @@ pub fn java_new(core: ArmCore, ptr_class: u32) -> anyhow::Result<u32> {
 pub fn java_array_new(core: ArmCore, element_type: u32, count: u32) -> anyhow::Result<u32> {
     log::debug!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    let element_type_name = (element_type as u8 as char).to_string();
-
     let mut java_bridge = KtfJavaBridge::new(core);
-    let instance = java_bridge.instantiate_array(&element_type_name, count)?;
+
+    // HACK: we don't have element type class
+    let instance = if element_type > 0x100 {
+        java_bridge.instantiate_array_from_ptr_class(element_type, count)?
+    } else {
+        let element_type_name = (element_type as u8 as char).to_string();
+        java_bridge.instantiate_array(&element_type_name, count)?
+    };
 
     Ok(instance.ptr_instance)
 }

@@ -173,6 +173,18 @@ impl KtfJavaBridge {
         Ok(proxy)
     }
 
+    pub fn instantiate_array_from_ptr_class(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
+        let class = self.core.read::<JavaClass>(ptr_class_array)?;
+        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+
+        let proxy = self.instantiate_array_inner(ptr_class_array, count * 4 + 4)?;
+
+        log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+
+        Ok(proxy)
+    }
+
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
         let vtable_index = self.write_vtable(ptr_class)?;
 
@@ -183,6 +195,15 @@ impl KtfJavaBridge {
         self.core.write(ptr_fields, (vtable_index * 4) << 5)?;
 
         Ok(JavaObjectProxy::new(ptr_instance))
+    }
+
+    fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
+        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?;
+        let instance = self.core.read::<JavaClassInstance>(proxy.ptr_instance)?;
+
+        self.core.write(instance.ptr_fields + 4, count)?;
+
+        Ok(proxy)
     }
 
     fn write_vtable(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
@@ -366,15 +387,9 @@ impl JavaBridge for KtfJavaBridge {
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class = self.find_ptr_class(&array_type)?;
+        let ptr_class_array = self.find_ptr_class(&array_type)?;
 
-        let proxy = self.instantiate_inner(ptr_class, count * 4 + 4)?;
-        let instance = self.core.read::<JavaClassInstance>(proxy.ptr_instance)?;
-        self.core.write(instance.ptr_fields + 4, count)?;
-
-        log::info!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
-
-        Ok(proxy)
+        self.instantiate_array_from_ptr_class(ptr_class_array, count)
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
