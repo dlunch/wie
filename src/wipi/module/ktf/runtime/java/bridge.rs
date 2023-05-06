@@ -194,7 +194,13 @@ impl KtfJavaBridge {
         } else {
             let parent_class = self.core.read::<JavaClass>(class_descriptor.ptr_parent_class)?;
             let parent_class_descriptor = self.core.read::<JavaClassDescriptor>(parent_class.ptr_descriptor)?;
-            parent_class_descriptor.ptr_methods
+            let parent_class_name = self.core.read_null_terminated_string(parent_class_descriptor.ptr_name)?;
+
+            if parent_class_name == "java/lang/Object" {
+                class_descriptor.ptr_methods
+            } else {
+                parent_class_descriptor.ptr_methods
+            }
         }; // TODO: we have to properly create vtable
 
         let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
@@ -210,7 +216,7 @@ impl KtfJavaBridge {
             cursor += 4;
         }
         let index = (cursor - peb.vtables_base) / 4;
-        log::debug!("write_vtable({:#x}, {})", ptr_class, index);
+        log::debug!("write_vtable({:#x}, {:#x}, {})", ptr_class, vtable, index);
 
         Ok(index)
     }
