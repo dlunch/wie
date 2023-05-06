@@ -113,18 +113,18 @@ impl PartialEq for JavaMethodFullname {
     }
 }
 
-pub struct KtfJavaBridge<'a> {
-    core: &'a mut ArmCore,
+pub struct KtfJavaBridge {
+    core: ArmCore,
 }
 
-impl<'a> KtfJavaBridge<'a> {
+impl KtfJavaBridge {
     pub fn init(core: &mut ArmCore) -> JavaResult<u32> {
         let java_classes_base = Allocator::alloc(core, 0x1000)?;
 
         Ok(java_classes_base)
     }
 
-    pub fn new(core: &'a mut ArmCore) -> Self {
+    pub fn new(core: ArmCore) -> Self {
         Self { core }
     }
 
@@ -143,7 +143,7 @@ impl<'a> KtfJavaBridge<'a> {
             }
 
             let current_method = self.core.read::<JavaMethod>(ptr)?;
-            let current_fullname = JavaMethodFullname::from_ptr(self.core, current_method.ptr_name)?;
+            let current_fullname = JavaMethodFullname::from_ptr(&self.core, current_method.ptr_name)?;
 
             if current_fullname == fullname {
                 return Ok(ptr);
@@ -197,8 +197,8 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32, index: u32) -> JavaResult<JavaObjectProxy> {
-        let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
-        let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
+        let ptr_instance = Allocator::alloc(&mut self.core, size_of::<JavaClassInstance>() as u32)?;
+        let ptr_fields = Allocator::alloc(&mut self.core, fields_size + 4)?;
 
         self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         self.core.write(ptr_fields, index)?;
@@ -237,7 +237,7 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn load_class_into_vm(&mut self, index: usize, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
+        let ptr_class = Allocator::alloc(&mut self.core, size_of::<JavaClass>() as u32)?;
         self.core.write(
             ptr_class,
             JavaClass {
@@ -250,7 +250,7 @@ impl<'a> KtfJavaBridge<'a> {
         )?;
 
         let method_count = proto.methods.len();
-        let ptr_methods = Allocator::alloc(self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
+        let ptr_methods = Allocator::alloc(&mut self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
 
         let mut cursor = ptr_methods;
         for (index, method) in proto.methods.into_iter().enumerate() {
@@ -261,10 +261,10 @@ impl<'a> KtfJavaBridge<'a> {
             })
             .as_bytes();
 
-            let ptr_name = Allocator::alloc(self.core, fullname.len() as u32)?;
+            let ptr_name = Allocator::alloc(&mut self.core, fullname.len() as u32)?;
             self.core.write_raw(ptr_name, &fullname)?;
 
-            let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
+            let ptr_method = Allocator::alloc(&mut self.core, size_of::<JavaMethod>() as u32)?;
             let fn_body = self.register_java_method(method.body)?;
             self.core.write(
                 ptr_method,
@@ -285,10 +285,10 @@ impl<'a> KtfJavaBridge<'a> {
             cursor += 4;
         }
 
-        let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
+        let ptr_name = Allocator::alloc(&mut self.core, (name.len() + 1) as u32)?;
         self.core.write_raw(ptr_name, name.as_bytes())?;
 
-        let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
+        let ptr_descriptor = Allocator::alloc(&mut self.core, size_of::<JavaClassDescriptor>() as u32)?;
         self.core.write(
             ptr_descriptor,
             JavaClassDescriptor {
@@ -324,8 +324,8 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
-        let closure = move |mut core: ArmCore, a0: u32, a1: u32, a2: u32| {
-            let mut java_bridge = KtfJavaBridge::new(&mut core);
+        let closure = move |core: ArmCore, a0: u32, a1: u32, a2: u32| {
+            let mut java_bridge = KtfJavaBridge::new(core);
             let result = body.call(&mut java_bridge, vec![a0, a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
@@ -335,7 +335,7 @@ impl<'a> KtfJavaBridge<'a> {
     }
 }
 
-impl JavaBridge for KtfJavaBridge<'_> {
+impl JavaBridge for KtfJavaBridge {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
         if type_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));

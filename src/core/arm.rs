@@ -65,7 +65,9 @@ impl ArmCore {
         Ok(Self { uc })
     }
 
-    fn from_uc(uc: Unicorn<'static, ()>) -> Self {
+    pub fn clone(&self) -> Self {
+        let uc = Unicorn::try_from(self.uc.get_handle()).unwrap();
+
         Self { uc }
     }
 
@@ -135,7 +137,9 @@ impl ArmCore {
                     uc.reg_read(RegisterARM::LR).unwrap()
                 );
 
-                let new_self = Self::from_uc(Unicorn::try_from(uc.get_handle()).unwrap());
+                let new_self = Self {
+                    uc: Unicorn::try_from(uc.get_handle()).unwrap(),
+                };
                 let ret = function.call(new_self).unwrap();
 
                 uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
