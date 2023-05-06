@@ -5,7 +5,7 @@ use crate::{
     wipi::c::{get_graphics_method_table, get_kernel_method_table, CBridge, CError, CMethodBody},
 };
 
-use super::{super::Context, bridge::KtfCBridge};
+use super::bridge::KtfCBridge;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -43,10 +43,10 @@ fn write_methods(bridge: &mut dyn CBridge, methods: Vec<Box<dyn CMethodBody<CErr
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore, context: &Context) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut bridge = KtfCBridge::new(core, context);
+    let mut bridge = KtfCBridge::new(core);
     let address = write_methods(&mut bridge, kernel_methods)?;
 
     Ok(address)
