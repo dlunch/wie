@@ -49,7 +49,7 @@ impl ArmCore {
     pub fn new() -> ArmCoreResult<Self> {
         let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).map_err(UnicornError)?;
 
-        uc.add_block_hook(Self::block_hook).map_err(UnicornError)?;
+        uc.add_code_hook(0, 0xffffffff, Self::code_hook).map_err(UnicornError)?;
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .map_err(UnicornError)?;
 
@@ -248,7 +248,7 @@ impl ArmCore {
         Ok(value)
     }
 
-    fn block_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
+    fn code_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
         let insn = uc.mem_read_as_vec(address, size as usize).unwrap();
 
         let cs = Capstone::new()
@@ -266,7 +266,7 @@ impl ArmCore {
             .collect::<Vec<_>>()
             .join("\n");
 
-        log::trace!("Execution block\n{}\n{}", insn_str, Self::dump_regs_inner(uc).unwrap());
+        log::trace!("{}\n{}", insn_str, Self::dump_regs_inner(uc).unwrap());
     }
 
     fn mem_hook(uc: &mut Unicorn<'_, ()>, mem_type: MemType, address: u64, size: usize, value: i64) -> bool {
