@@ -57,7 +57,7 @@ pub fn get_wipi_jb_interface(mut core: ArmCore) -> anyhow::Result<u32> {
 }
 
 pub fn java_class_load(core: ArmCore, ptr_target: u32, name: String) -> anyhow::Result<u32> {
-    log::debug!("load_java_class({:#x}, {})", ptr_target, name);
+    log::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
     let result = KtfJavaBridge::new(core).load_class(ptr_target, &name);
 

@@ -21,7 +21,7 @@ impl Thread {
     }
 
     fn init_1(_: &mut JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Thread::<init>({})", a0.ptr_instance);
+        log::debug!("Thread::<init>({:#x})", a0.ptr_instance);
 
         Ok(())
     }
