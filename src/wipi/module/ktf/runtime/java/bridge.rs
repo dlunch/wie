@@ -172,11 +172,11 @@ impl<'a> KtfJavaBridge<'a> {
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
 
-        let instance = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32, ((class_descriptor.index * 4) as u32) << 5)?;
+        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32, ((class_descriptor.index * 4) as u32) << 5)?;
 
-        log::info!("Instantiated {} at {:#x}", class_name, instance.ptr_instance);
+        log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
-        Ok(instance)
+        Ok(proxy)
     }
 
     pub fn load_all_classes(&mut self) -> JavaResult<Vec<u32>> {
@@ -344,11 +344,13 @@ impl JavaBridge for KtfJavaBridge<'_> {
         let array_type = format!("[{}", element_type_name);
         let ptr_class = self.get_ptr_class(&array_type)?;
 
-        let instance = self.instantiate_inner(ptr_class, count * 4 + 4, 0)?;
+        let proxy = self.instantiate_inner(ptr_class, count * 4 + 4, 0)?;
+        let instance = self.core.read::<JavaClassInstance>(proxy.ptr_instance)?;
+        self.core.write(instance.ptr_fields + 4, count)?;
 
-        log::info!("Instantiated {} at {:#x}", array_type, instance.ptr_instance);
+        log::info!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
 
-        Ok(instance)
+        Ok(proxy)
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
