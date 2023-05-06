@@ -33,8 +33,8 @@ impl JavaMethodProto {
 }
 
 pub trait JavaBridge {
-    fn instantiate(&mut self, class_name: &str) -> JavaResult<JavaObjectProxy>;
-    fn instantiate_array(&mut self, element_class_name: &str, count: u32) -> JavaResult<JavaObjectProxy>;
+    fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy>;
+    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy>;
     fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     fn get_field(&mut self, instance: &JavaObjectProxy, field_offset: u32) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_offset: u32, value: u32);
