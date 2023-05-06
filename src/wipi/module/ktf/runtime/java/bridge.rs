@@ -1,6 +1,7 @@
 use std::{fmt::Display, mem::size_of};
 
 use crate::{
+    backend::Backend,
     core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
     wipi::{
         java::{get_array_proto, get_class_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
@@ -116,6 +117,7 @@ impl PartialEq for JavaMethodFullname {
 
 pub struct KtfJavaBridge {
     core: ArmCore,
+    backend: Backend,
 }
 
 impl KtfJavaBridge {
@@ -125,8 +127,8 @@ impl KtfJavaBridge {
         Ok(java_classes_base)
     }
 
-    pub fn new(core: ArmCore) -> Self {
-        Self { core }
+    pub fn new(core: ArmCore, backend: Backend) -> Self {
+        Self { core, backend }
     }
 
     pub fn get_method(&mut self, ptr_class: u32, fullname: JavaMethodFullname) -> JavaResult<u32> {
@@ -412,15 +414,15 @@ impl KtfJavaBridge {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
-        let closure = move |core: ArmCore, _: u32, a1: u32, a2: u32| {
-            let mut context = KtfJavaBridge::new(core);
+        let closure = move |core: ArmCore, backend: Backend, _: u32, a1: u32, a2: u32| {
+            let mut context = KtfJavaBridge::new(core, backend);
 
             let result = body.call(&mut context, vec![a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };
 
-        self.core.register_function(closure)
+        self.core.register_function(closure, &self.backend)
     }
 }
 
