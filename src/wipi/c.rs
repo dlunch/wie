@@ -12,15 +12,15 @@ pub use super::method::{MethodBody, MethodImpl};
 pub type CError = anyhow::Error;
 pub type CResult<T> = anyhow::Result<T>;
 
-pub type CBridgeMethod = Box<dyn Fn(&mut CContext, Vec<u32>) -> CResult<u32>>;
+pub type CContextMethod = Box<dyn Fn(&mut CContext, Vec<u32>) -> CResult<u32>>;
 pub type CMethodBody = Box<dyn MethodBody<CError, CContext>>;
 
-pub type CContext = dyn CBridge;
+pub type CContext = dyn CContextBase;
 
-pub trait CBridge {
+pub trait CContextBase {
     fn alloc(&mut self, size: u32) -> CResult<u32>;
     fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()>;
-    fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32>;
+    fn register_function(&mut self, method: CContextMethod) -> CResult<u32>;
     fn backend(&mut self) -> &mut Backend;
 }
 

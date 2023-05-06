@@ -4,7 +4,7 @@ use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
     wipi::{
-        java::{get_array_proto, get_class_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
+        java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
         module::ktf::runtime::init::KtfPeb,
     },
 };
@@ -115,12 +115,12 @@ impl PartialEq for JavaMethodFullname {
     }
 }
 
-pub struct KtfJavaBridge {
+pub struct KtfJavaContext {
     core: ArmCore,
     backend: Backend,
 }
 
-impl KtfJavaBridge {
+impl KtfJavaContext {
     pub fn init(core: &mut ArmCore) -> JavaResult<u32> {
         let java_classes_base = Allocator::alloc(core, 0x1000)?;
 
@@ -415,7 +415,7 @@ impl KtfJavaBridge {
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
         let closure = move |core: ArmCore, backend: Backend, _: u32, a1: u32, a2: u32| {
-            let mut context = KtfJavaBridge::new(core, backend);
+            let mut context = KtfJavaContext::new(core, backend);
 
             let result = body.call(&mut context, vec![a1, a2])?; // TODO do we need arg proxy?
 
@@ -426,7 +426,7 @@ impl KtfJavaBridge {
     }
 }
 
-impl JavaBridge for KtfJavaBridge {
+impl JavaContextBase for KtfJavaContext {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
         if type_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));

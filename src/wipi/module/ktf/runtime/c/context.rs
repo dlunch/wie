@@ -1,21 +1,21 @@
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::c::{CBridge, CBridgeMethod, CResult},
+    wipi::c::{CContextBase, CContextMethod, CResult},
 };
 
-pub struct KtfCBridge {
+pub struct KtfCContext {
     core: ArmCore,
     backend: Backend,
 }
 
-impl KtfCBridge {
+impl KtfCContext {
     pub fn new(core: ArmCore, backend: Backend) -> Self {
         Self { core, backend }
     }
 }
 
-impl CBridge for KtfCBridge {
+impl CContextBase for KtfCContext {
     fn alloc(&mut self, size: u32) -> CResult<u32> {
         Allocator::alloc(&mut self.core, size)
     }
@@ -24,10 +24,10 @@ impl CBridge for KtfCBridge {
         self.core.write_raw(address, data)
     }
 
-    fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32> {
+    fn register_function(&mut self, method: CContextMethod) -> CResult<u32> {
         self.core.register_function(
             move |core: ArmCore, backend: Backend, a0: u32, a1: u32, a2: u32| {
-                let mut context = KtfCBridge::new(core, backend);
+                let mut context = KtfCContext::new(core, backend);
 
                 let result = method(&mut context, vec![a0, a1, a2])?;
 

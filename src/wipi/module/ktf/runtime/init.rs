@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     c::interface::get_wipic_knl_interface,
-    java::bridge::KtfJavaBridge,
+    java::context::KtfJavaContext,
     java::interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
 };
 
@@ -141,7 +141,7 @@ pub struct ModuleInfo {
 
 pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
     let (heap_base, heap_size) = Allocator::init(core)?;
-    let java_classes_base = KtfJavaBridge::init(core)?;
+    let java_classes_base = KtfJavaContext::init(core)?;
 
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
 
