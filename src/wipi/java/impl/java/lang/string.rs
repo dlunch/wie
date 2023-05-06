@@ -10,7 +10,7 @@ impl String {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("String::<init>");
 
         Ok(())

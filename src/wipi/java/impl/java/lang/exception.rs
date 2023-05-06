@@ -10,7 +10,7 @@ impl Exception {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Exception::<init>");
 
         Ok(())

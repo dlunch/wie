@@ -2,7 +2,7 @@ mod array;
 mod r#impl;
 mod proxy;
 
-use super::method::{MethodBody, MethodImpl};
+use super::method::{MethodBody, MethodImpl, TypeConverter};
 pub use proxy::JavaObjectProxy;
 
 pub struct JavaClassProto {
@@ -72,4 +72,22 @@ pub fn get_all_java_classes() -> Vec<(&'static str, JavaClassProto)> {
 
 pub fn get_array_proto() -> JavaClassProto {
     array::Array::as_proto()
+}
+
+impl TypeConverter<u32, JavaContext> for u32 {
+    fn to_rust(_: &mut JavaContext, raw: u32) -> u32 {
+        raw
+    }
+
+    fn from_rust(_: &mut JavaContext, rust: u32) -> u32 {
+        rust
+    }
+}
+
+impl TypeConverter<(), JavaContext> for () {
+    fn to_rust(_: &mut JavaContext, _: u32) {}
+
+    fn from_rust(_: &mut JavaContext, _: ()) -> u32 {
+        0
+    }
 }

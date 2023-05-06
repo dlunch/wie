@@ -13,13 +13,13 @@ impl AnnunciatorComponent {
         }
     }
 
-    fn init(_: JavaContext, _: u32) -> JavaResult<()> {
+    fn init(_: &mut JavaContext, _: u32) -> JavaResult<()> {
         log::debug!("AnnunciatorComponent::<init>");
 
         Ok(())
     }
 
-    fn show(_: JavaContext) -> JavaResult<()> {
+    fn show(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("AnnunciatorComponent::show");
 
         Ok(())

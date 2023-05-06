@@ -1,6 +1,6 @@
 use super::{into_body, CContext, CError, CMethodBody, CResult, MethodImpl};
 
-fn dummy(_: CContext) -> CResult<u32> {
+fn dummy(_: &mut CContext) -> CResult<u32> {
     log::debug!("kernel dummy called");
 
     Ok(0)

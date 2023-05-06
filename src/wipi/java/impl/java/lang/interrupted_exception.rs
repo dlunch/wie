@@ -10,7 +10,7 @@ impl InterruptedException {
         }
     }
 
-    fn init(_: JavaContext) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("InterruptedException::<init>");
 
         Ok(())
