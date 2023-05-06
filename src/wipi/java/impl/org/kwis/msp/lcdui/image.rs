@@ -7,14 +7,14 @@ impl Image {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init),
+                JavaMethodProto::new("<init>", "()V", Self::init),
                 JavaMethodProto::new("createImage", "(II)Lorg/kwis/msp/lcdui/Image;", Self::create_image),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics),
             ],
         }
     }
 
-    fn init(_: &mut JavaContext, _: u32) -> JavaResult<()> {
+    fn init(_: &mut JavaContext) -> JavaResult<()> {
         log::debug!("Image::<init>");
 
         Ok(())
