@@ -9,6 +9,8 @@ impl Card {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init),
                 JavaMethodProto::new("<init>", "(I)V", Self::init_1),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height),
             ],
         }
     }
@@ -23,5 +25,17 @@ impl Card {
         log::debug!("Card::<init>");
 
         Ok(())
+    }
+
+    fn get_width(_: &mut dyn JavaBridge) -> JavaResult<u32> {
+        log::debug!("Card::get_width");
+
+        Ok(320) // TODO: hardcoded
+    }
+
+    fn get_height(_: &mut dyn JavaBridge) -> JavaResult<u32> {
+        log::debug!("Card::get_height");
+
+        Ok(480) // TODO: hardcoded
     }
 }
