@@ -335,10 +335,10 @@ impl KtfJavaBridge {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
-        let closure = move |core: ArmCore, a0: u32, a1: u32, a2: u32| {
+        let closure = move |core: ArmCore, _: u32, a1: u32, a2: u32| {
             let mut context = KtfJavaBridge::new(core);
 
-            let result = body.call(&mut context, vec![a0, a1, a2])?; // TODO do we need arg proxy?
+            let result = body.call(&mut context, vec![a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };
