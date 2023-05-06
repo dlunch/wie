@@ -3,10 +3,10 @@ mod runtime;
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore},
-    wipi::java::JavaBridge,
+    wipi::java::JavaContextBase,
 };
 
-use self::runtime::KtfJavaBridge;
+use self::runtime::KtfJavaContext;
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
@@ -31,15 +31,15 @@ impl KtfWipiModule {
     }
 
     pub fn start(self) -> anyhow::Result<()> {
-        let mut java_bridge = KtfJavaBridge::new(self.core, self.backend);
+        let mut java_context = KtfJavaContext::new(self.core, self.backend);
 
-        let instance = java_bridge.instantiate_from_ptr_class(self.ptr_main_class)?;
-        java_bridge.call_method(&instance, "<init>", "()V", &[])?;
+        let instance = java_context.instantiate_from_ptr_class(self.ptr_main_class)?;
+        java_context.call_method(&instance, "<init>", "()V", &[])?;
 
         log::info!("Main class instance: {:#x}", instance.ptr_instance);
 
-        let arg = java_bridge.instantiate_array("Ljava/lang/String;", 0)?;
-        java_bridge.call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
+        let arg = java_context.instantiate_array("Ljava/lang/String;", 0)?;
+        java_context.call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
 
         Ok(())
     }

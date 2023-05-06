@@ -6,7 +6,7 @@ use crate::{
     wipi::c::{get_graphics_method_table, get_kernel_method_table, CContext, CMethodBody},
 };
 
-use super::bridge::KtfCBridge;
+use super::context::KtfCContext;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -47,7 +47,7 @@ fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::R
 pub fn get_wipic_knl_interface(core: ArmCore, backend: Backend) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut context = KtfCBridge::new(core, backend);
+    let mut context = KtfCContext::new(core, backend);
     let address = write_methods(&mut context, kernel_methods)?;
 
     Ok(address)

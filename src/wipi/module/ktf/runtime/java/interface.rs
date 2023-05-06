@@ -3,10 +3,10 @@ use std::mem::size_of;
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore, EmulatedFunctionParam},
-    wipi::java::JavaBridge,
+    wipi::java::JavaContextBase,
 };
 
-use super::bridge::{JavaMethodFullname, KtfJavaBridge};
+use super::context::{JavaMethodFullname, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -60,7 +60,7 @@ pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Re
 pub fn java_class_load(core: ArmCore, backend: Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJavaBridge::new(core, backend).load_class(ptr_target, &name);
+    let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)
@@ -81,7 +81,7 @@ pub fn java_throw(core: ArmCore, _: Backend, error: String, a1: u32) -> anyhow::
 fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
     log::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJavaBridge::new(core, backend).get_method(ptr_class, fullname)?;
+    let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
 
     log::trace!("get_java_method result {:#x}", ptr_method);
 
@@ -143,7 +143,7 @@ fn jb_unk8(_: ArmCore, _: Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<
 pub fn java_new(core: ArmCore, backend: Backend, ptr_class: u32) -> anyhow::Result<u32> {
     log::trace!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJavaBridge::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
+    let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
 
     Ok(instance.ptr_instance)
 }
@@ -151,14 +151,14 @@ pub fn java_new(core: ArmCore, backend: Backend, ptr_class: u32) -> anyhow::Resu
 pub fn java_array_new(core: ArmCore, backend: Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
     log::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    let mut java_bridge = KtfJavaBridge::new(core, backend);
+    let mut java_context = KtfJavaContext::new(core, backend);
 
     // HACK: we don't have element type class
     let instance = if element_type > 0x100 {
-        java_bridge.instantiate_array_from_ptr_class(element_type, count)?
+        java_context.instantiate_array_from_ptr_class(element_type, count)?
     } else {
         let element_type_name = (element_type as u8 as char).to_string();
-        java_bridge.instantiate_array(&element_type_name, count)?
+        java_context.instantiate_array(&element_type_name, count)?
     };
 
     Ok(instance.ptr_instance)

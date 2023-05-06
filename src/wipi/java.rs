@@ -14,7 +14,7 @@ pub struct JavaClassProto {
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
 
-pub type JavaContext = dyn JavaBridge;
+pub type JavaContext = dyn JavaContextBase;
 
 pub struct JavaMethodProto {
     pub name: String,
@@ -37,7 +37,7 @@ impl JavaMethodProto {
     }
 }
 
-pub trait JavaBridge {
+pub trait JavaContextBase {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy>;
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy>;
     fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
