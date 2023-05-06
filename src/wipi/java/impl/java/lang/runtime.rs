@@ -24,7 +24,6 @@ impl Runtime {
         log::debug!("Runtime::get_runtime");
 
         let instance = context.instantiate("Ljava/lang/Runtime;")?;
-
         context.call_method(&instance, "<init>", "()V", &[])?;
 
         Ok(instance)
