@@ -6,7 +6,6 @@ use super::{
     c::interface::get_wipic_knl_interface,
     java::bridge::KtfJavaBridge,
     java::interface::{get_wipi_jb_interface, java_array_new, java_class_load, java_new, java_throw},
-    Context,
 };
 
 #[repr(C)]
@@ -136,7 +135,7 @@ pub struct ModuleInfo {
     pub fn_get_class: u32,
 }
 
-pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
+pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
     let (heap_base, heap_size) = Allocator::init(core)?;
     let java_classes_base = KtfJavaBridge::init(core)?;
 
@@ -151,7 +150,7 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
-    let mut java_bridge = KtfJavaBridge::new(core, context);
+    let mut java_bridge = KtfJavaBridge::new(core);
     let ptr_classes = java_bridge.load_all_classes()?;
     let vtables = ptr_classes
         .iter()
@@ -209,18 +208,18 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     core.write(ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
-        fn_get_interface: core.register_function(get_interface, context)?,
-        fn_java_throw: core.register_function(java_throw, context)?,
+        fn_get_interface: core.register_function(get_interface)?,
+        fn_java_throw: core.register_function(java_throw)?,
         unk1: 0,
         unk2: 0,
         unk3: 0,
-        fn_java_new: core.register_function(java_new, context)?,
-        fn_java_array_new: core.register_function(java_array_new, context)?,
+        fn_java_new: core.register_function(java_new)?,
+        fn_java_array_new: core.register_function(java_array_new)?,
         unk6: 0,
-        fn_java_class_load: core.register_function(java_class_load, context)?,
+        fn_java_class_load: core.register_function(java_class_load)?,
         unk7: 0,
         unk8: 0,
-        fn_unk3: core.register_function(init_unk3, context)?,
+        fn_unk3: core.register_function(init_unk3)?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
@@ -245,12 +244,12 @@ pub fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: 
     })
 }
 
-fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> anyhow::Result<u32> {
+fn get_interface(core: &mut ArmCore, r#struct: String) -> anyhow::Result<u32> {
     log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core, context),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core, context),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             log::warn!("Unknown {}", r#struct);
             log::warn!("Register dump\n{}", core.dump_regs()?);
@@ -260,7 +259,7 @@ fn get_interface(core: &mut ArmCore, context: &Context, r#struct: String) -> any
     }
 }
 
-fn init_unk3(core: &mut ArmCore, _: &Context, a0: u32, a1: u32) -> anyhow::Result<u32> {
+fn init_unk3(core: &mut ArmCore, a0: u32, a1: u32) -> anyhow::Result<u32> {
     // calloc??
     log::debug!("init_unk3({}, {})", a0, a1);
 

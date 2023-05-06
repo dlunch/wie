@@ -117,18 +117,16 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_function<F, P, C, E>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
+    pub fn register_function<F, P, E>(&mut self, function: F) -> ArmCoreResult<u32>
     where
-        F: for<'a> EmulatedFunction<P, &'a C, E> + 'static,
+        F: for<'a> EmulatedFunction<P, E> + 'static,
         E: std::fmt::Debug,
-        C: Clone + 'static,
     {
         let bytes = [0x70, 0x47]; // BX LR
         let address = FUNCTIONS_BASE as u64 + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
 
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
-        let new_context = context.clone();
         self.uc
             .add_code_hook(address, address, move |uc, _, _| {
                 log::debug!(
@@ -139,7 +137,7 @@ impl ArmCore {
 
                 let mut new_self = Self::from_uc(Unicorn::try_from(uc.get_handle()).unwrap());
 
-                let ret = function.call(&mut new_self, &new_context).unwrap();
+                let ret = function.call(&mut new_self).unwrap();
 
                 uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
             })

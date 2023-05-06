@@ -8,8 +8,6 @@ use crate::{
     },
 };
 
-use super::super::Context;
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct JavaClass {
@@ -117,7 +115,6 @@ impl PartialEq for JavaMethodFullname {
 
 pub struct KtfJavaBridge<'a> {
     core: &'a mut ArmCore,
-    context: &'a Context,
 }
 
 impl<'a> KtfJavaBridge<'a> {
@@ -127,8 +124,8 @@ impl<'a> KtfJavaBridge<'a> {
         Ok(java_classes_base)
     }
 
-    pub fn new(core: &'a mut ArmCore, context: &'a Context) -> Self {
-        Self { core, context }
+    pub fn new(core: &'a mut ArmCore) -> Self {
+        Self { core }
     }
 
     pub fn get_method(&mut self, ptr_class: u32, fullname: JavaMethodFullname) -> JavaResult<u32> {
@@ -327,14 +324,14 @@ impl<'a> KtfJavaBridge<'a> {
     }
 
     fn register_java_method(&mut self, body: Box<dyn JavaMethodBody<JavaError>>) -> JavaResult<u32> {
-        let closure = move |core: &mut ArmCore, context: &Context, a0: u32, a1: u32, a2: u32| {
-            let mut java_bridge = KtfJavaBridge::new(core, context);
+        let closure = move |core: &mut ArmCore, a0: u32, a1: u32, a2: u32| {
+            let mut java_bridge = KtfJavaBridge::new(core);
             let result = body.call(&mut java_bridge, vec![a0, a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };
 
-        self.core.register_function(closure, self.context)
+        self.core.register_function(closure)
     }
 }
 

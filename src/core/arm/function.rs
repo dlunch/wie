@@ -2,58 +2,58 @@ use unicorn_engine::RegisterARM;
 
 use super::ArmCore;
 
-pub trait EmulatedFunction<T, C, E> {
-    fn call(&self, core: &mut ArmCore, context: C) -> Result<u32, E>;
+pub trait EmulatedFunction<T, E> {
+    fn call(&self, core: &mut ArmCore) -> Result<u32, E>;
 }
 
-impl<Func, C, E> EmulatedFunction<(), C, E> for Func
+impl<Func, E> EmulatedFunction<(), E> for Func
 where
-    Func: Fn(&mut ArmCore, C) -> Result<u32, E>,
+    Func: Fn(&mut ArmCore) -> Result<u32, E>,
 {
-    fn call(&self, core: &mut ArmCore, context: C) -> Result<u32, E> {
-        self(core, context)
+    fn call(&self, core: &mut ArmCore) -> Result<u32, E> {
+        self(core)
     }
 }
 
-impl<Func, C, E, Param1> EmulatedFunction<(Param1,), C, E> for Func
+impl<Func, E, Param1> EmulatedFunction<(Param1,), E> for Func
 where
-    Func: Fn(&mut ArmCore, C, Param1) -> Result<u32, E>,
+    Func: Fn(&mut ArmCore, Param1) -> Result<u32, E>,
     Param1: EmulatedFunctionParam<Param1>,
 {
-    fn call(&self, core: &mut ArmCore, context: C) -> Result<u32, E> {
+    fn call(&self, core: &mut ArmCore) -> Result<u32, E> {
         let param1 = Param1::get(core, 0);
 
-        self(core, context, param1)
+        self(core, param1)
     }
 }
 
-impl<Func, C, E, Param1, Param2> EmulatedFunction<(Param1, Param2), C, E> for Func
+impl<Func, E, Param1, Param2> EmulatedFunction<(Param1, Param2), E> for Func
 where
-    Func: Fn(&mut ArmCore, C, Param1, Param2) -> Result<u32, E>,
+    Func: Fn(&mut ArmCore, Param1, Param2) -> Result<u32, E>,
     Param1: EmulatedFunctionParam<Param1>,
     Param2: EmulatedFunctionParam<Param2>,
 {
-    fn call(&self, core: &mut ArmCore, context: C) -> Result<u32, E> {
+    fn call(&self, core: &mut ArmCore) -> Result<u32, E> {
         let param1 = Param1::get(core, 0);
         let param2 = Param2::get(core, 1);
 
-        self(core, context, param1, param2)
+        self(core, param1, param2)
     }
 }
 
-impl<Func, C, E, Param1, Param2, Param3> EmulatedFunction<(Param1, Param2, Param3), C, E> for Func
+impl<Func, E, Param1, Param2, Param3> EmulatedFunction<(Param1, Param2, Param3), E> for Func
 where
-    Func: Fn(&mut ArmCore, C, Param1, Param2, Param3) -> Result<u32, E>,
+    Func: Fn(&mut ArmCore, Param1, Param2, Param3) -> Result<u32, E>,
     Param1: EmulatedFunctionParam<Param1>,
     Param2: EmulatedFunctionParam<Param2>,
     Param3: EmulatedFunctionParam<Param3>,
 {
-    fn call(&self, core: &mut ArmCore, context: C) -> Result<u32, E> {
+    fn call(&self, core: &mut ArmCore) -> Result<u32, E> {
         let param1 = Param1::get(core, 0);
         let param2 = Param2::get(core, 1);
         let param3 = Param3::get(core, 2);
 
-        self(core, context, param1, param2, param3)
+        self(core, param1, param2, param3)
     }
 }
 

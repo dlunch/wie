@@ -1,4 +1,3 @@
-mod context;
 mod runtime;
 
 use crate::{
@@ -6,33 +5,27 @@ use crate::{
     wipi::java::{JavaBridge, JavaObjectProxy},
 };
 
-use self::{context::Context, runtime::KtfJavaBridge};
+use self::runtime::KtfJavaBridge;
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
-    context: Context,
     main_class_instance: JavaObjectProxy,
 }
 
 impl KtfWipiModule {
     pub fn new(data: &[u8], filename: &str, main_class: &str) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
-        let context = Context::new();
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let main_class_instance = Self::init(&mut core, &context, base_address, bss_size, main_class)?;
+        let main_class_instance = Self::init(&mut core, base_address, bss_size, main_class)?;
 
-        Ok(Self {
-            core,
-            context,
-            main_class_instance,
-        })
+        Ok(Self { core, main_class_instance })
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        let mut java_bridge = KtfJavaBridge::new(&mut self.core, &self.context);
+        let mut java_bridge = KtfJavaBridge::new(&mut self.core);
 
         let arg = java_bridge.instantiate_array("Ljava/lang/String;", 0)?;
 
@@ -41,8 +34,8 @@ impl KtfWipiModule {
         Ok(())
     }
 
-    fn init(core: &mut ArmCore, context: &Context, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<JavaObjectProxy> {
-        let module = runtime::init(core, context, base_address, bss_size)?;
+    fn init(core: &mut ArmCore, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<JavaObjectProxy> {
+        let module = runtime::init(core, base_address, bss_size)?;
 
         log::info!("Call wipi init at {:#x}", module.fn_init);
         let result = core.run_function(module.fn_init, &[])?;
@@ -62,7 +55,7 @@ impl KtfWipiModule {
 
         log::info!("Got main class: {:#x}", main_class);
 
-        let mut java_bridge = KtfJavaBridge::new(core, context);
+        let mut java_bridge = KtfJavaBridge::new(core);
 
         let instance = java_bridge.instantiate_from_ptr_class(main_class)?;
         java_bridge.call_method(&instance, "<init>", "()V", &[])?;
