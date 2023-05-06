@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use crate::{
     core::arm::ArmCore,
-    wipi::c::{get_graphics_method_table, get_kernel_method_table, CBridge, CContext, CMethodBody},
+    wipi::c::{get_graphics_method_table, get_kernel_method_table, CContext, CMethodBody},
 };
 
 use super::bridge::KtfCBridge;
@@ -30,9 +30,7 @@ fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::R
 
     let mut cursor = address;
     for method in methods {
-        let address = context.bridge.register_function(Box::new(move |bridge: Box<dyn CBridge>| {
-            let context = CContext { bridge };
-
+        let address = context.bridge.register_function(Box::new(move |context| {
             let result = method.call(context, vec![])?;
 
             Ok::<_, anyhow::Error>(result)
