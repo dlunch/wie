@@ -43,7 +43,7 @@ fn write_methods(bridge: &mut dyn CBridge, methods: Vec<Box<dyn CMethodBody<CErr
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: ArmCore) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
     let mut bridge = KtfCBridge::new(core);
