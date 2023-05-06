@@ -244,12 +244,12 @@ pub fn init(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Res
     })
 }
 
-fn get_interface(mut core: ArmCore, r#struct: String) -> anyhow::Result<u32> {
+fn get_interface(core: ArmCore, r#struct: String) -> anyhow::Result<u32> {
     log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(&mut core),
-        "WIPI_JBInterface" => get_wipi_jb_interface(&mut core),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             log::warn!("Unknown {}", r#struct);
             log::warn!("Register dump\n{}", core.dump_regs()?);

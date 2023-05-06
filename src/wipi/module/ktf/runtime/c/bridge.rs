@@ -3,19 +3,19 @@ use crate::{
     wipi::c::{CBridge, CBridgeMethod, CResult},
 };
 
-pub struct KtfCBridge<'a> {
-    core: &'a mut ArmCore,
+pub struct KtfCBridge {
+    core: ArmCore,
 }
 
-impl<'a> KtfCBridge<'a> {
-    pub fn new(core: &'a mut ArmCore) -> Self {
+impl KtfCBridge {
+    pub fn new(core: ArmCore) -> Self {
         Self { core }
     }
 }
 
-impl CBridge for KtfCBridge<'_> {
+impl CBridge for KtfCBridge {
     fn alloc(&mut self, size: u32) -> CResult<u32> {
-        Allocator::alloc(self.core, size)
+        Allocator::alloc(&mut self.core, size)
     }
 
     fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()> {
@@ -23,8 +23,8 @@ impl CBridge for KtfCBridge<'_> {
     }
 
     fn register_function(&mut self, method: CBridgeMethod) -> CResult<u32> {
-        self.core.register_function(move |mut core: ArmCore| {
-            let mut bridge = KtfCBridge::new(&mut core);
+        self.core.register_function(move |core: ArmCore| {
+            let mut bridge = KtfCBridge::new(core);
             let result = method(&mut bridge)?;
 
             Ok::<_, anyhow::Error>(result)

@@ -33,7 +33,7 @@ impl EmulatedFunctionParam<JavaMethodFullname> for JavaMethodFullname {
     }
 }
 
-pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
+pub fn get_wipi_jb_interface(mut core: ArmCore) -> anyhow::Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
         fn_unk1: core.register_function(jb_unk1)?,
@@ -50,7 +50,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
         fn_unk6: core.register_function(jb_unk6)?,
     };
 
-    let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;
+    let address = Allocator::alloc(&mut core, size_of::<WIPIJBInterface>() as u32)?;
     core.write(address, interface)?;
 
     Ok(address)
