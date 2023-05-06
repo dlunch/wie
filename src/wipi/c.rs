@@ -10,12 +10,10 @@ pub use super::method::{MethodBody, MethodImpl};
 pub type CError = anyhow::Error;
 pub type CResult<T> = anyhow::Result<T>;
 
-pub type CBridgeMethod = Box<dyn Fn(CContext) -> CResult<u32>>;
+pub type CBridgeMethod = Box<dyn Fn(&mut CContext) -> CResult<u32>>;
 pub type CMethodBody = Box<dyn MethodBody<CError, CContext>>;
 
-pub struct CContext {
-    pub bridge: Box<dyn CBridge>,
-}
+pub type CContext = dyn CBridge;
 
 pub trait CBridge {
     fn alloc(&mut self, size: u32) -> CResult<u32>;

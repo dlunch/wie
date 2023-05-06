@@ -23,9 +23,9 @@ impl Runtime {
     fn get_runtime(context: &mut JavaContext) -> JavaResult<JavaObjectProxy> {
         log::debug!("Runtime::get_runtime");
 
-        let instance = context.bridge.instantiate("Ljava/lang/Runtime;")?;
+        let instance = context.instantiate("Ljava/lang/Runtime;")?;
 
-        context.bridge.call_method(&instance, "<init>", "()V", &[])?;
+        context.call_method(&instance, "<init>", "()V", &[])?;
 
         Ok(instance)
     }

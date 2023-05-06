@@ -26,17 +26,17 @@ struct WIPICInterface {
 }
 
 fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::Result<u32> {
-    let address = context.bridge.alloc((methods.len() * 4) as u32)?;
+    let address = context.alloc((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
     for method in methods {
-        let address = context.bridge.register_function(Box::new(move |context| {
+        let address = context.register_function(Box::new(move |context| {
             let result = method.call(context, vec![])?;
 
             Ok::<_, anyhow::Error>(result)
         }))?;
 
-        context.bridge.write_raw(cursor, &address.to_le_bytes())?;
+        context.write_raw(cursor, &address.to_le_bytes())?;
         cursor += 4;
     }
 
@@ -46,9 +46,7 @@ fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::R
 pub fn get_wipic_knl_interface(core: ArmCore) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut context = CContext {
-        bridge: Box::new(KtfCBridge::new(core)),
-    };
+    let mut context = KtfCBridge::new(core);
     let address = write_methods(&mut context, kernel_methods)?;
 
     Ok(address)
@@ -76,10 +74,10 @@ fn get_wipic_interfaces(context: &mut CContext) -> anyhow::Result<u32> {
         interface_12: 0,
     };
 
-    let address = context.bridge.alloc(size_of::<WIPICInterface>() as u32)?;
+    let address = context.alloc(size_of::<WIPICInterface>() as u32)?;
 
     let data = unsafe { std::slice::from_raw_parts(&interface as *const _ as *const u8, std::mem::size_of::<WIPICInterface>()) };
-    context.bridge.write_raw(address, data)?;
+    context.write_raw(address, data)?;
 
     Ok(address)
 }
