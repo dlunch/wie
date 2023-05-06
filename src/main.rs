@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     let main_class = env::args().nth(2).ok_or_else(|| anyhow::anyhow!("No main_class argument"))?;
 
     let data = fs::read(&path)?;
-    let mut module = wipi::module::ktf::KtfWipiModule::new(&data, &path, &main_class)?;
+    let module = wipi::module::ktf::KtfWipiModule::new(&data, &path, &main_class)?;
 
     module.start()?;
 
