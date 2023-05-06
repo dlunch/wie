@@ -78,18 +78,18 @@ pub fn java_throw(core: ArmCore, error: String, a1: u32) -> anyhow::Result<u32> 
 }
 
 fn get_java_method(core: ArmCore, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
-    log::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
+    log::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let ptr_method = KtfJavaBridge::new(core).get_method(ptr_class, fullname)?;
 
-    log::debug!("get_java_method result {:#x}", ptr_method);
+    log::trace!("get_java_method result {:#x}", ptr_method);
 
     Ok(ptr_method)
 }
 
 fn jb_unk1(mut core: ArmCore, arg1: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
-    log::debug!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
+    log::trace!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
 
     core.run_function(address, &[arg1])
 }
@@ -121,14 +121,14 @@ fn jb_unk5(_: ArmCore, a0: u32, a1: u32) -> anyhow::Result<u32> {
 
 fn jb_unk6(mut core: ArmCore, address: u32, arg1: u32, arg2: u32) -> anyhow::Result<u32> {
     // call native function?
-    log::debug!("jb_unk6 jump?({:#x}, {:#x}, {:#x})", address, arg1, arg2);
+    log::trace!("jb_unk6 jump?({:#x}, {:#x}, {:#x})", address, arg1, arg2);
 
     core.run_function(address, &[arg1, arg2])
 }
 
 fn jb_unk7(mut core: ArmCore, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
-    log::debug!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+    log::trace!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     core.run_function(address, &[arg1, arg2])
 }
@@ -140,7 +140,7 @@ fn jb_unk8(_: ArmCore, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
 }
 
 pub fn java_new(core: ArmCore, ptr_class: u32) -> anyhow::Result<u32> {
-    log::debug!("java_new({:#x})", ptr_class);
+    log::trace!("java_new({:#x})", ptr_class);
 
     let instance = KtfJavaBridge::new(core).instantiate_from_ptr_class(ptr_class)?;
 
@@ -148,7 +148,7 @@ pub fn java_new(core: ArmCore, ptr_class: u32) -> anyhow::Result<u32> {
 }
 
 pub fn java_array_new(core: ArmCore, element_type: u32, count: u32) -> anyhow::Result<u32> {
-    log::debug!("java_array_new({:#x}, {:#x})", element_type, count);
+    log::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
     let mut java_bridge = KtfJavaBridge::new(core);
 
