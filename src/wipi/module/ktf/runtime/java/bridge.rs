@@ -3,9 +3,7 @@ use std::{fmt::Display, mem::size_of};
 use crate::{
     core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
     wipi::{
-        java::{
-            get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult,
-        },
+        java::{get_all_java_classes, get_array_proto, JavaBridge, JavaClassProto, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
         module::ktf::runtime::init::KtfPeb,
     },
 };
@@ -327,11 +325,9 @@ impl KtfJavaBridge {
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
         let closure = move |core: ArmCore, a0: u32, a1: u32, a2: u32| {
-            let context = JavaContext {
-                bridge: Box::new(KtfJavaBridge::new(core)),
-            };
+            let mut context = KtfJavaBridge::new(core);
 
-            let result = body.call(context, vec![a0, a1, a2])?; // TODO do we need arg proxy?
+            let result = body.call(&mut context, vec![a0, a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };

@@ -12,9 +12,7 @@ pub struct JavaClassProto {
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
 
-pub struct JavaContext {
-    pub bridge: Box<dyn JavaBridge>,
-}
+pub type JavaContext = dyn JavaBridge;
 
 pub struct JavaMethodProto {
     pub name: String,
