@@ -4,7 +4,10 @@ mod kernel;
 pub use graphics::get_graphics_method_table;
 pub use kernel::get_kernel_method_table;
 
-use crate::backend::Backend;
+use crate::{
+    backend::Backend,
+    util::{ByteRead, ByteWrite},
+};
 
 use super::method::TypeConverter;
 pub use super::method::{MethodBody, MethodImpl};
@@ -17,9 +20,8 @@ pub type CMethodBody = Box<dyn MethodBody<CError, CContext>>;
 
 pub type CContext = dyn CContextBase;
 
-pub trait CContextBase {
+pub trait CContextBase: ByteRead + ByteWrite {
     fn alloc(&mut self, size: u32) -> CResult<u32>;
-    fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()>;
     fn register_function(&mut self, method: CContextMethod) -> CResult<u32>;
     fn backend(&mut self) -> &mut Backend;
 }

@@ -1,5 +1,7 @@
 use std::mem::size_of;
 
+use crate::util::write_generic;
+
 use super::{into_body, CContext, CMethodBody, CResult};
 
 #[repr(C)]
@@ -30,12 +32,10 @@ fn get_screen_frame_buffer(context: &mut CContext, a0: u32) -> CResult<u32> {
         id: 0,
     };
 
-    let data = unsafe { std::slice::from_raw_parts(&framebuffer as *const _ as *const u8, std::mem::size_of::<Framebuffer>()) }; // TODO: we should have converter
-    context.write_raw(ptr_framebuffer, data)?;
+    write_generic(context, ptr_framebuffer, framebuffer)?;
 
     let address = context.alloc(4)?;
-    let data = unsafe { std::slice::from_raw_parts(&ptr_framebuffer as *const _ as *const u8, std::mem::size_of::<u32>()) };
-    context.write_raw(address, data)?;
+    write_generic(context, address, ptr_framebuffer)?;
 
     Ok(address)
 }

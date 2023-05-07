@@ -3,6 +3,7 @@ use std::{fmt::Display, mem::size_of};
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
+    util::{read_generic, read_null_terminated_string, write_generic, ByteWrite},
     wipi::{
         java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
         module::ktf::runtime::init::KtfPeb,
@@ -83,9 +84,9 @@ pub struct JavaFullName {
 
 impl JavaFullName {
     pub fn from_ptr(core: &ArmCore, ptr: u32) -> JavaResult<Self> {
-        let tag = core.read(ptr)?;
+        let tag = read_generic(core, ptr)?;
 
-        let value = core.read_null_terminated_string(ptr + 1)?;
+        let value = read_null_terminated_string(core, ptr + 1)?;
         let value = value.split('+').collect::<Vec<_>>();
 
         Ok(JavaFullName {
@@ -141,20 +142,20 @@ impl KtfJavaContext {
     }
 
     pub fn get_method(&mut self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<u32> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+        let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
+        let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
+        let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
 
         let mut cursor = class_descriptor.ptr_methods;
         loop {
-            let ptr = self.core.read::<u32>(cursor)?;
+            let ptr = read_generic::<u32>(&self.core, cursor)?;
             if ptr == 0 {
                 log::error!("Can't find function {} from {}", fullname, class_name);
 
                 return Ok(0);
             }
 
-            let current_method = self.core.read::<JavaMethod>(ptr)?;
+            let current_method = read_generic::<JavaMethod>(&self.core, ptr)?;
             let current_fullname = JavaFullName::from_ptr(&self.core, current_method.ptr_name)?;
 
             if current_fullname == fullname {
@@ -168,15 +169,15 @@ impl KtfJavaContext {
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
         let ptr_class = self.find_ptr_class(name)?;
 
-        self.core.write(ptr_target, ptr_class)?;
+        write_generic(&mut self.core, ptr_target, ptr_class)?;
 
         Ok(())
     }
 
     pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+        let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
+        let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
+        let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
@@ -186,9 +187,9 @@ impl KtfJavaContext {
     }
 
     pub fn instantiate_array_from_ptr_class(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
-        let class = self.core.read::<JavaClass>(ptr_class_array)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+        let class = read_generic::<JavaClass>(&self.core, ptr_class_array)?;
+        let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
+        let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count * 4 + 4)?;
 
@@ -203,8 +204,8 @@ impl KtfJavaContext {
 
         let vtable_index = self.get_vtable_index(ptr_class)?;
 
-        self.core.write(ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
-        self.core.write(ptr_fields, (vtable_index * 4) << 5)?;
+        write_generic(&mut self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
+        write_generic(&mut self.core, ptr_fields, (vtable_index * 4) << 5)?;
 
         log::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
@@ -213,9 +214,9 @@ impl KtfJavaContext {
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
         let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?;
-        let instance = self.core.read::<JavaClassInstance>(proxy.ptr_instance)?;
+        let instance = read_generic::<JavaClassInstance>(&self.core, proxy.ptr_instance)?;
 
-        self.core.write(instance.ptr_fields + 4, count)?;
+        write_generic(&mut self.core, instance.ptr_fields + 4, count)?;
 
         Ok(proxy)
     }
@@ -226,7 +227,7 @@ impl KtfJavaContext {
         let ptr_vtable = Allocator::alloc(&mut self.core, (vtable.len() + 1) as u32 * 4)?;
         let mut cursor = ptr_vtable;
         for item in vtable {
-            self.core.write(cursor, item)?;
+            write_generic(&mut self.core, cursor, item)?;
             cursor += 4;
         }
 
@@ -234,14 +235,14 @@ impl KtfJavaContext {
     }
 
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
-        let class = self.core.read::<JavaClass>(ptr_class)?;
+        let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
 
-        let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
+        let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
         let mut cursor = peb.vtables_base;
         loop {
-            let current_vtable = self.core.read::<u32>(cursor)?;
+            let current_vtable = read_generic::<u32>(&self.core, cursor)?;
             if current_vtable == 0 {
-                self.core.write(cursor, class.ptr_vtable)?;
+                write_generic(&mut self.core, cursor, class.ptr_vtable)?;
                 break;
             }
             if current_vtable == class.ptr_vtable {
@@ -262,12 +263,12 @@ impl KtfJavaContext {
         let mut vtable = Vec::new();
 
         for ptr_class in class_hierarchy {
-            let class = self.core.read::<JavaClass>(ptr_class)?;
-            let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+            let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
+            let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
 
             let mut cursor = class_descriptor.ptr_methods;
             loop {
-                let ptr_method = self.core.read::<u32>(cursor)?;
+                let ptr_method = read_generic::<u32>(&self.core, cursor)?;
                 if ptr_method == 0 {
                     break;
                 }
@@ -284,8 +285,8 @@ impl KtfJavaContext {
 
         let mut current_class = ptr_class;
         loop {
-            let class = self.core.read::<JavaClass>(current_class)?;
-            let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+            let class = read_generic::<JavaClass>(&self.core, current_class)?;
+            let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
             if class_descriptor.ptr_parent_class != 0 {
                 result.push(class_descriptor.ptr_parent_class);
 
@@ -299,17 +300,17 @@ impl KtfJavaContext {
     }
 
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
+        let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
         let mut cursor = peb.java_classes_base;
         loop {
-            let ptr_class = self.core.read::<u32>(cursor)?;
+            let ptr_class = read_generic::<u32>(&self.core, cursor)?;
             if ptr_class == 0 {
                 break;
             }
 
-            let class = self.core.read::<JavaClass>(ptr_class)?;
-            let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-            let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+            let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
+            let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
+            let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
 
             if class_name == name {
                 return Ok(ptr_class);
@@ -334,7 +335,8 @@ impl KtfJavaContext {
         let method_count = proto.methods.len();
 
         let ptr_class = Allocator::alloc(&mut self.core, size_of::<JavaClass>() as u32)?;
-        self.core.write(
+        write_generic(
+            &mut self.core,
             ptr_class,
             JavaClass {
                 ptr_next: ptr_class + 4,
@@ -357,11 +359,12 @@ impl KtfJavaContext {
             .as_bytes();
 
             let ptr_name = Allocator::alloc(&mut self.core, full_name.len() as u32)?;
-            self.core.write_raw(ptr_name, &full_name)?;
+            self.core.write_bytes(ptr_name, &full_name)?;
 
             let ptr_method = Allocator::alloc(&mut self.core, size_of::<JavaMethod>() as u32)?;
             let fn_body = self.register_java_method(method.body)?;
-            self.core.write(
+            write_generic(
+                &mut self.core,
                 ptr_method,
                 JavaMethod {
                     fn_body,
@@ -376,7 +379,7 @@ impl KtfJavaContext {
                 },
             )?;
 
-            self.core.write(cursor, ptr_method)?;
+            write_generic(&mut self.core, cursor, ptr_method)?;
             cursor += 4;
         }
 
@@ -391,10 +394,11 @@ impl KtfJavaContext {
             .as_bytes();
 
             let ptr_name = Allocator::alloc(&mut self.core, full_name.len() as u32)?;
-            self.core.write_raw(ptr_name, &full_name)?;
+            self.core.write_bytes(ptr_name, &full_name)?;
 
             let ptr_field = Allocator::alloc(&mut self.core, size_of::<JavaField>() as u32)?;
-            self.core.write(
+            write_generic(
+                &mut self.core,
                 ptr_field,
                 JavaField {
                     unk1: 0,
@@ -404,15 +408,16 @@ impl KtfJavaContext {
                 },
             )?;
 
-            self.core.write(cursor, ptr_field)?;
+            write_generic(&mut self.core, cursor, ptr_field)?;
             cursor += 4;
         }
 
         let ptr_name = Allocator::alloc(&mut self.core, (name.len() + 1) as u32)?;
-        self.core.write_raw(ptr_name, name.as_bytes())?;
+        self.core.write_bytes(ptr_name, name.as_bytes())?;
 
         let ptr_descriptor = Allocator::alloc(&mut self.core, size_of::<JavaClassDescriptor>() as u32)?;
-        self.core.write(
+        write_generic(
+            &mut self.core,
             ptr_descriptor,
             JavaClassDescriptor {
                 ptr_name,
@@ -430,17 +435,17 @@ impl KtfJavaContext {
             },
         )?;
 
-        self.core.write(ptr_class + 8, ptr_descriptor)?;
+        write_generic(&mut self.core, ptr_class + 8, ptr_descriptor)?;
 
         let ptr_vtable = self.write_vtable(ptr_class)?;
-        self.core.write(ptr_class + 12, ptr_vtable)?;
+        write_generic(&mut self.core, ptr_class + 12, ptr_vtable)?;
 
-        let peb = self.core.read::<KtfPeb>(PEB_BASE)?;
+        let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
         let mut cursor = peb.java_classes_base;
         loop {
-            let current = self.core.read::<u32>(cursor)?;
+            let current = read_generic::<u32>(&self.core, cursor)?;
             if current == 0 {
-                self.core.write(cursor, ptr_class)?;
+                write_generic(&mut self.core, cursor, ptr_class)?;
                 break;
             }
             cursor += 4;
@@ -470,8 +475,8 @@ impl JavaContextBase for KtfJavaContext {
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = self.find_ptr_class(class_name)?;
 
-        let class = self.core.read::<JavaClass>(ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
+        let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
+        let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
@@ -492,10 +497,10 @@ impl JavaContextBase for KtfJavaContext {
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        let instance = self.core.read::<JavaClassInstance>(instance_proxy.ptr_instance)?;
-        let class = self.core.read::<JavaClass>(instance.ptr_class)?;
-        let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
-        let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
+        let instance = read_generic::<JavaClassInstance>(&self.core, instance_proxy.ptr_instance)?;
+        let class = read_generic::<JavaClass>(&self.core, instance.ptr_class)?;
+        let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
+        let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
 
         log::info!("Call {}::{}({})", class_name, name, signature);
 
@@ -507,7 +512,7 @@ impl JavaContextBase for KtfJavaContext {
 
         let ptr_method = self.get_method(instance.ptr_class, fullname)?;
 
-        let method = self.core.read::<JavaMethod>(ptr_method)?;
+        let method = read_generic::<JavaMethod>(&self.core, ptr_method)?;
 
         let mut params = vec![0, instance_proxy.ptr_instance];
         if !args.is_empty() {
