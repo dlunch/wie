@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 pub trait MethodBody<E, C>
 where
@@ -7,7 +7,7 @@ where
     fn call(&self, context: &mut C, args: Vec<u32>) -> Result<u32, E>;
 }
 
-struct MethodHolder<F, R, P>(pub F, std::marker::PhantomData<(R, P)>);
+struct MethodHolder<F, R, P>(pub F, PhantomData<(R, P)>);
 
 impl<F, R, E, C> MethodBody<E, C> for MethodHolder<F, R, ()>
 where

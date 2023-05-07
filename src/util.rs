@@ -1,4 +1,4 @@
-use std::{mem::size_of, slice};
+use core::{mem::size_of, slice};
 
 pub fn round_up(num_to_round: usize, multiple: usize) -> usize {
     if multiple == 0 {

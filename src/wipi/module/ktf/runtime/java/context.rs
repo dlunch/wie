@@ -1,4 +1,4 @@
-use std::{fmt::Display, mem::size_of};
+use core::{fmt::Display, mem::size_of};
 
 use crate::{
     backend::Backend,
@@ -110,7 +110,7 @@ impl JavaFullName {
 }
 
 impl Display for JavaFullName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.name.fmt(f)?;
         self.signature.fmt(f)?;
         write!(f, "@{}", self.tag)?;
