@@ -17,12 +17,12 @@ pub struct KtfWipiModule {
 }
 
 impl KtfWipiModule {
-    pub fn new(data: &[u8], filename: &str, main_class: &str, backend: Backend) -> anyhow::Result<Self> {
+    pub fn new(data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let ptr_main_class = Self::init(&mut core, &backend, base_address, bss_size, main_class)?;
+        let ptr_main_class = Self::init(&mut core, &backend, base_address, bss_size, main_class_name)?;
 
         Ok(Self {
             core,
@@ -45,7 +45,7 @@ impl KtfWipiModule {
         Ok(())
     }
 
-    fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class: &str) -> anyhow::Result<u32> {
+    fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class_name: &str) -> anyhow::Result<u32> {
         let module = runtime::init(core, backend, base_address, bss_size)?;
 
         log::info!("Call wipi init at {:#x}", module.fn_init);
@@ -54,15 +54,15 @@ impl KtfWipiModule {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
-        core.write_bytes(main_class_name, main_class.as_bytes())?;
+        let ptr_main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
+        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
         log::info!("Call class getter at {:#x}", module.fn_get_class);
-        let ptr_main_class = core.run_function(module.fn_get_class, &[main_class_name])?;
+        let ptr_main_class = core.run_function(module.fn_get_class, &[ptr_main_class_name])?;
         if ptr_main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
-        Allocator::free(core, main_class_name)?;
+        Allocator::free(core, ptr_main_class_name)?;
 
         log::info!("Got main class: {:#x}", ptr_main_class);
 
