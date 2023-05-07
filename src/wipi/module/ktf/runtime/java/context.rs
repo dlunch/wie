@@ -144,24 +144,17 @@ impl KtfJavaContext {
     pub fn get_method(&mut self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<u32> {
         let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
-        let mut cursor = class_descriptor.ptr_methods;
-        loop {
-            let ptr = read_generic::<u32>(&self.core, cursor)?;
-            if ptr == 0 {
-                log::error!("Can't find function {} from {}", fullname, class_name);
-
-                return Ok(0);
-            }
-
-            let current_method = read_generic::<JavaMethod>(&self.core, ptr)?;
+        let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
+        for ptr_method in ptr_methods {
+            let current_method = read_generic::<JavaMethod>(&self.core, ptr_method)?;
             let current_fullname = JavaFullName::from_ptr(&self.core, current_method.ptr_name)?;
 
             if current_fullname == fullname {
-                return Ok(ptr);
+                return Ok(ptr_method);
             }
-
-            cursor += 4;
         }
+
+        Err(anyhow::anyhow!("Can't find function {} from {}", fullname, class_name))
     }
 
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
@@ -232,22 +225,19 @@ impl KtfJavaContext {
         let (class, _, _) = self.read_ptr_class(ptr_class)?;
 
         let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
-        let mut cursor = peb.vtables_base;
-        loop {
-            let current_vtable = read_generic::<u32>(&self.core, cursor)?;
-            if current_vtable == 0 {
-                write_generic(&mut self.core, cursor, class.ptr_vtable)?;
-                break;
-            }
-            if current_vtable == class.ptr_vtable {
-                break;
-            }
 
-            cursor += 4;
+        let ptr_vtables = self.read_null_terminated_table(peb.ptr_vtables_base)?;
+
+        for (index, &ptr_vtable) in ptr_vtables.iter().enumerate() {
+            if ptr_vtable == class.ptr_vtable {
+                return Ok(index as u32);
+            }
         }
-        let index = (cursor - peb.vtables_base) / 4;
 
-        Ok(index)
+        let index = ptr_vtables.len();
+        write_generic(&mut self.core, peb.ptr_vtables_base + (index * size_of::<u32>()) as u32, class.ptr_vtable)?;
+
+        Ok(index as u32)
     }
 
     fn build_vtable(&mut self, ptr_class: u32) -> anyhow::Result<Vec<u32>> {
@@ -259,15 +249,9 @@ impl KtfJavaContext {
         for ptr_class in class_hierarchy {
             let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
 
-            let mut cursor = class_descriptor.ptr_methods;
-            loop {
-                let ptr_method = read_generic::<u32>(&self.core, cursor)?;
-                if ptr_method == 0 {
-                    break;
-                }
-                vtable.push(ptr_method);
-                cursor += 4;
-            }
+            let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
+
+            vtable.extend(ptr_methods);
         }
 
         Ok(vtable)
@@ -294,20 +278,14 @@ impl KtfJavaContext {
 
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
-        let mut cursor = peb.java_classes_base;
-        loop {
-            let ptr_class = read_generic::<u32>(&self.core, cursor)?;
-            if ptr_class == 0 {
-                break;
-            }
 
+        let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
+        for ptr_class in ptr_classes {
             let (_, _, class_name) = self.read_ptr_class(ptr_class)?;
 
             if class_name == name {
                 return Ok(ptr_class);
             }
-
-            cursor += 4;
         }
 
         // array class is created dynamically
@@ -432,15 +410,13 @@ impl KtfJavaContext {
         write_generic(&mut self.core, ptr_class + 12, ptr_vtable)?;
 
         let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
-        let mut cursor = peb.java_classes_base;
-        loop {
-            let current = read_generic::<u32>(&self.core, cursor)?;
-            if current == 0 {
-                write_generic(&mut self.core, cursor, ptr_class)?;
-                break;
-            }
-            cursor += 4;
-        }
+
+        let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
+        write_generic(
+            &mut self.core,
+            peb.java_classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
+            ptr_class,
+        )?;
 
         Ok(ptr_class)
     }
@@ -463,6 +439,22 @@ impl KtfJavaContext {
         let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
 
         Ok((class, class_descriptor, class_name))
+    }
+
+    fn read_null_terminated_table(&self, base_address: u32) -> JavaResult<Vec<u32>> {
+        let mut cursor = base_address;
+        let mut result = Vec::new();
+        loop {
+            let item = read_generic::<u32>(&self.core, cursor)?;
+            if item == 0 {
+                break;
+            }
+            result.push(item);
+
+            cursor += 4;
+        }
+
+        Ok(result)
     }
 }
 
