@@ -10,6 +10,7 @@ impl BackLight {
                 JavaMethodProto::new("<init>", "()V", Self::init),
                 JavaMethodProto::new("alwaysOn", "()V", Self::always_on),
             ],
+            fields: vec![],
         }
     }
 

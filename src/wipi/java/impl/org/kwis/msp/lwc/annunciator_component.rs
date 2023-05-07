@@ -10,6 +10,7 @@ impl AnnunciatorComponent {
                 JavaMethodProto::new("<init>", "(Z)V", Self::init),
                 JavaMethodProto::new("show", "()V", Self::show),
             ],
+            fields: vec![],
         }
     }
 

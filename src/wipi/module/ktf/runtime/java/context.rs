@@ -28,7 +28,7 @@ struct JavaClassDescriptor {
     ptr_parent_class: u32,
     ptr_methods: u32,
     ptr_interfaces: u32,
-    ptr_properties: u32,
+    ptr_fields: u32,
     method_count: u16,
     fields_size: u16,
     access_flag: u16,
@@ -53,6 +53,15 @@ struct JavaMethod {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+struct JavaField {
+    unk1: u32,
+    ptr_class: u32,
+    ptr_name: u32,
+    offset: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 struct JavaClassInstance {
     ptr_fields: u32,
     ptr_class: u32,
@@ -66,20 +75,20 @@ struct JavaClassInstanceFields {
 }
 
 #[derive(Clone)]
-pub struct JavaMethodFullname {
+pub struct JavaFullName {
     pub tag: u8,
     pub name: String,
     pub signature: String,
 }
 
-impl JavaMethodFullname {
+impl JavaFullName {
     pub fn from_ptr(core: &ArmCore, ptr: u32) -> JavaResult<Self> {
         let tag = core.read(ptr)?;
 
         let value = core.read_null_terminated_string(ptr + 1)?;
         let value = value.split('+').collect::<Vec<_>>();
 
-        Ok(JavaMethodFullname {
+        Ok(JavaFullName {
             tag,
             name: value[1].into(),
             signature: value[0].into(),
@@ -99,7 +108,7 @@ impl JavaMethodFullname {
     }
 }
 
-impl Display for JavaMethodFullname {
+impl Display for JavaFullName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.name.fmt(f)?;
         self.signature.fmt(f)?;
@@ -109,7 +118,7 @@ impl Display for JavaMethodFullname {
     }
 }
 
-impl PartialEq for JavaMethodFullname {
+impl PartialEq for JavaFullName {
     fn eq(&self, other: &Self) -> bool {
         self.signature == other.signature && self.name == other.name
     }
@@ -131,7 +140,7 @@ impl KtfJavaContext {
         Self { core, backend }
     }
 
-    pub fn get_method(&mut self, ptr_class: u32, fullname: JavaMethodFullname) -> JavaResult<u32> {
+    pub fn get_method(&mut self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<u32> {
         let class = self.core.read::<JavaClass>(ptr_class)?;
         let class_descriptor = self.core.read::<JavaClassDescriptor>(class.ptr_descriptor)?;
         let class_name = self.core.read_null_terminated_string(class_descriptor.ptr_name)?;
@@ -146,7 +155,7 @@ impl KtfJavaContext {
             }
 
             let current_method = self.core.read::<JavaMethod>(ptr)?;
-            let current_fullname = JavaMethodFullname::from_ptr(&self.core, current_method.ptr_name)?;
+            let current_fullname = JavaFullName::from_ptr(&self.core, current_method.ptr_name)?;
 
             if current_fullname == fullname {
                 return Ok(ptr);
@@ -338,18 +347,17 @@ impl KtfJavaContext {
         )?;
 
         let ptr_methods = Allocator::alloc(&mut self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
-
         let mut cursor = ptr_methods;
         for (index, method) in proto.methods.into_iter().enumerate() {
-            let fullname = (JavaMethodFullname {
+            let full_name = (JavaFullName {
                 tag: 0,
                 name: method.name,
                 signature: method.signature,
             })
             .as_bytes();
 
-            let ptr_name = Allocator::alloc(&mut self.core, fullname.len() as u32)?;
-            self.core.write_raw(ptr_name, &fullname)?;
+            let ptr_name = Allocator::alloc(&mut self.core, full_name.len() as u32)?;
+            self.core.write_raw(ptr_name, &full_name)?;
 
             let ptr_method = Allocator::alloc(&mut self.core, size_of::<JavaMethod>() as u32)?;
             let fn_body = self.register_java_method(method.body)?;
@@ -372,6 +380,34 @@ impl KtfJavaContext {
             cursor += 4;
         }
 
+        let ptr_fields = Allocator::alloc(&mut self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
+        let mut cursor = ptr_fields;
+        for (index, field) in proto.fields.into_iter().enumerate() {
+            let full_name = (JavaFullName {
+                tag: 0,
+                name: field.name,
+                signature: field.signature,
+            })
+            .as_bytes();
+
+            let ptr_name = Allocator::alloc(&mut self.core, full_name.len() as u32)?;
+            self.core.write_raw(ptr_name, &full_name)?;
+
+            let ptr_field = Allocator::alloc(&mut self.core, size_of::<JavaField>() as u32)?;
+            self.core.write(
+                ptr_field,
+                JavaField {
+                    unk1: 0,
+                    ptr_class,
+                    ptr_name,
+                    offset: (index as u32) * 4,
+                },
+            )?;
+
+            self.core.write(cursor, ptr_field)?;
+            cursor += 4;
+        }
+
         let ptr_name = Allocator::alloc(&mut self.core, (name.len() + 1) as u32)?;
         self.core.write_raw(ptr_name, name.as_bytes())?;
 
@@ -384,7 +420,7 @@ impl KtfJavaContext {
                 ptr_parent_class: 0,
                 ptr_methods,
                 ptr_interfaces: 0,
-                ptr_properties: 0,
+                ptr_fields,
                 method_count: method_count as u16,
                 fields_size: 0,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
@@ -463,7 +499,7 @@ impl JavaContextBase for KtfJavaContext {
 
         log::info!("Call {}::{}({})", class_name, name, signature);
 
-        let fullname = JavaMethodFullname {
+        let fullname = JavaFullName {
             tag: 0,
             name: name.to_owned(),
             signature: signature.to_owned(),

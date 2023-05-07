@@ -5,6 +5,9 @@ pub struct JletEventListener {}
 
 impl JletEventListener {
     pub fn as_proto() -> JavaClassProto {
-        JavaClassProto { methods: vec![] }
+        JavaClassProto {
+            methods: vec![],
+            fields: vec![],
+        }
     }
 }

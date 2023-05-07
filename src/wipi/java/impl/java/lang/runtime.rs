@@ -11,6 +11,7 @@ impl Runtime {
                 JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime),
                 JavaMethodProto::new("totalMemory", "()J", Self::total_memory),
             ],
+            fields: vec![],
         }
     }
 

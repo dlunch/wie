@@ -7,6 +7,7 @@ impl Clip {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![JavaMethodProto::new("<init>", "(I)V", Self::init)],
+            fields: vec![],
         }
     }
 

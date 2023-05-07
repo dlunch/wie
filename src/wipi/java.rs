@@ -9,6 +9,7 @@ pub use proxy::JavaObjectProxy;
 
 pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
+    pub fields: Vec<JavaFieldProto>,
 }
 
 pub type JavaError = anyhow::Error;
@@ -20,6 +21,11 @@ pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
     pub body: JavaMethodBody,
+}
+
+pub struct JavaFieldProto {
+    pub name: String,
+    pub signature: String,
 }
 
 pub type JavaMethodBody = Box<dyn MethodBody<JavaError, JavaContext>>;

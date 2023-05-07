@@ -12,6 +12,7 @@ impl Card {
                 JavaMethodProto::new("getWidth", "()I", Self::get_width),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height),
             ],
+            fields: vec![],
         }
     }
 

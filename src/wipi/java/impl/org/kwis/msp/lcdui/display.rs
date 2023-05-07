@@ -18,6 +18,7 @@ impl Display {
                     Self::add_jlet_event_listener,
                 ),
             ],
+            fields: vec![],
         }
     }
 
