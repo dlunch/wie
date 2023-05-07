@@ -30,7 +30,10 @@ where
     Ok(unsafe { *(data.as_ptr() as *const T) })
 }
 
-pub fn read_null_terminated_string(reader: &dyn ByteRead, address: u32) -> anyhow::Result<String> {
+pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> anyhow::Result<String>
+where
+    R: ?Sized + ByteRead,
+{
     // TODO we can read by 4bytes at once
 
     let mut result = Vec::new();
