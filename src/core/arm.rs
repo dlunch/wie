@@ -1,9 +1,8 @@
 pub mod allocator;
 mod function;
 
-use std::{
-    error::Error,
-    fmt::{self, Display, Formatter},
+use core::{
+    fmt::Debug,
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -31,10 +30,9 @@ static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 #[derive(Debug)]
 pub struct UnicornError(uc_error);
 
-impl Error for UnicornError {}
-impl Display for UnicornError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.0)
+impl From<UnicornError> for anyhow::Error {
+    fn from(err: UnicornError) -> Self {
+        anyhow::anyhow!("{:?}", err.0)
     }
 }
 
@@ -115,7 +113,7 @@ impl ArmCore {
     pub fn register_function<F, P, E, C>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
         F: EmulatedFunction<P, E, C> + 'static,
-        E: std::fmt::Debug,
+        E: Debug,
         C: Clone + 'static,
     {
         let bytes = [0x70, 0x47]; // BX LR
