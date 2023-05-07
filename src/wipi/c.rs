@@ -6,7 +6,7 @@ pub use kernel::get_kernel_method_table;
 
 use crate::{
     backend::Backend,
-    util::{ByteRead, ByteWrite},
+    util::{read_null_terminated_string, ByteRead, ByteWrite},
 };
 
 use super::method::TypeConverter;
@@ -48,5 +48,15 @@ impl TypeConverter<(), CContext> for () {
 
     fn from_rust(_: &mut CContext, _: ()) -> u32 {
         0
+    }
+}
+
+impl TypeConverter<String, CContext> for String {
+    fn to_rust(context: &mut CContext, raw: u32) -> String {
+        read_null_terminated_string(context, raw).unwrap()
+    }
+
+    fn from_rust(_: &mut CContext, _: String) -> u32 {
+        unimplemented!()
     }
 }

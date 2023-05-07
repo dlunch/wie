@@ -24,8 +24,8 @@ fn alloc(context: &mut CContext, size: u32) -> CResult<u32> {
     context.alloc(size)
 }
 
-fn get_resource_id(_: &mut CContext, a0: u32, a1: u32) -> CResult<u32> {
-    log::debug!("get_resource_id({:#x}, {:#x})", a0, a1);
+fn get_resource_id(_: &mut CContext, name: String, ptr_size: u32) -> CResult<u32> {
+    log::debug!("get_resource_id({}, {:#x})", name, ptr_size);
 
     Ok(4321)
 }
