@@ -4,7 +4,6 @@ mod function;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
-    slice,
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -14,7 +13,7 @@ use unicorn_engine::{
     RegisterARM, Unicorn,
 };
 
-use crate::util::round_up;
+use crate::util::{round_up, ByteRead, ByteWrite};
 
 use self::function::EmulatedFunction;
 
@@ -157,53 +156,6 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn read<T>(&self, address: u32) -> ArmCoreResult<T>
-    where
-        T: Copy,
-    {
-        let data = self.uc.mem_read_as_vec(address as u64, std::mem::size_of::<T>()).map_err(UnicornError)?;
-
-        log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
-
-        Ok(unsafe { *(data.as_ptr() as *const T) })
-    }
-
-    pub fn read_null_terminated_string(&self, address: u32) -> ArmCoreResult<String> {
-        // TODO we can read by 4bytes at once
-
-        let mut result = Vec::new();
-        let mut cursor = address;
-        loop {
-            let mut item = [0];
-            self.uc.mem_read(cursor as u64, &mut item).map_err(UnicornError)?;
-            cursor += 1;
-
-            if item[0] == 0 {
-                break;
-            }
-
-            result.push(item[0]);
-        }
-
-        log::trace!("Read address: {:#x}, data: {:02x?}", address, result);
-
-        Ok(String::from_utf8(result)?)
-    }
-
-    pub fn write<T>(&mut self, address: u32, data: T) -> ArmCoreResult<()> {
-        let data_slice = unsafe { slice::from_raw_parts(&data as *const T as *const u8, std::mem::size_of::<T>()) };
-
-        self.write_raw(address, data_slice)
-    }
-
-    pub fn write_raw(&mut self, address: u32, data: &[u8]) -> ArmCoreResult<()> {
-        log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
-
-        self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
-
-        Ok(())
-    }
-
     pub fn dump_regs(&self) -> ArmCoreResult<String> {
         Self::dump_regs_inner(&self.uc)
     }
@@ -306,5 +258,25 @@ impl ArmCore {
 
             false
         }
+    }
+}
+
+impl ByteRead for ArmCore {
+    fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
+        let data = self.uc.mem_read_as_vec(address as u64, size as usize).map_err(UnicornError)?;
+
+        log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
+
+        Ok(data)
+    }
+}
+
+impl ByteWrite for ArmCore {
+    fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+        log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
+
+        self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
+
+        Ok(())
     }
 }

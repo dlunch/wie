@@ -3,6 +3,7 @@ use std::mem::size_of;
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore, EmulatedFunctionParam},
+    util::write_generic,
     wipi::java::JavaContextBase,
 };
 
@@ -52,7 +53,7 @@ pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Re
     };
 
     let address = Allocator::alloc(&mut core, size_of::<WIPIJBInterface>() as u32)?;
-    core.write(address, interface)?;
+    write_generic(&mut core, address, interface)?;
 
     Ok(address)
 }

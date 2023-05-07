@@ -3,6 +3,7 @@ mod runtime;
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore},
+    util::ByteWrite,
     wipi::java::JavaContextBase,
 };
 
@@ -54,7 +55,7 @@ impl KtfWipiModule {
         }
 
         let main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
-        core.write_raw(main_class_name, main_class.as_bytes())?;
+        core.write_bytes(main_class_name, main_class.as_bytes())?;
 
         log::info!("Call class getter at {:#x}", module.fn_get_class);
         let ptr_main_class = core.run_function(module.fn_get_class, &[main_class_name])?;

@@ -3,6 +3,7 @@ use std::mem::size_of;
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore, PEB_BASE},
+    util::{read_generic, write_generic},
 };
 
 use super::{
@@ -148,22 +149,23 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam0Unk>() as u32)?;
-    core.write(ptr_unk_struct, InitParam0Unk { unk: 0 })?;
+    write_generic(core, ptr_unk_struct, InitParam0Unk { unk: 0 })?;
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
-    core.write(ptr_param_0, InitParam0 { ptr_unk_struct })?;
+    write_generic(core, ptr_param_0, InitParam0 { ptr_unk_struct })?;
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1UnkUnk>() as u32)?;
-    core.write(ptr_unk_struct, InitParam1UnkUnk { unk: [0; 8] })?;
+    write_generic(core, ptr_unk_struct, InitParam1UnkUnk { unk: [0; 8] })?;
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1Unk>() as u32)?;
-    core.write(ptr_unk_struct, InitParam1Unk { ptr_unk_struct })?;
+    write_generic(core, ptr_unk_struct, InitParam1Unk { ptr_unk_struct })?;
 
     let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
-    core.write(ptr_param_1, InitParam1 { ptr_unk_struct })?;
+    write_generic(core, ptr_param_1, InitParam1 { ptr_unk_struct })?;
 
     let ptr_param_2 = Allocator::alloc(core, (size_of::<InitParam2>()) as u32)?;
-    core.write(
+    write_generic(
+        core,
         ptr_param_2,
         InitParam2 {
             unk1: 0,
@@ -190,7 +192,7 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     };
 
     let ptr_param_3 = Allocator::alloc(core, size_of::<InitParam3>() as u32)?;
-    core.write(ptr_param_3, param_3)?;
+    write_generic(core, ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
         fn_get_interface: core.register_function(get_interface, backend)?,
@@ -208,7 +210,7 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
-    core.write(ptr_param_4, param_4)?;
+    write_generic(core, ptr_param_4, param_4)?;
 
     let peb = KtfPeb {
         heap_base,
@@ -218,9 +220,9 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     };
     init_peb(core, peb)?;
 
-    let wipi_exe = core.read::<WipiExe>(wipi_exe)?;
-    let exe_interface = core.read::<ExeInterface>(wipi_exe.ptr_exe_interface)?;
-    let exe_interface_functions = core.read::<ExeInterfaceFunctions>(exe_interface.ptr_functions)?;
+    let wipi_exe = read_generic::<WipiExe>(core, wipi_exe)?;
+    let exe_interface = read_generic::<ExeInterface>(core, wipi_exe.ptr_exe_interface)?;
+    let exe_interface_functions = read_generic::<ExeInterfaceFunctions>(core, exe_interface.ptr_functions)?;
 
     log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core.run_function(
@@ -261,7 +263,7 @@ fn init_unk3(mut core: ArmCore, _: Backend, a0: u32) -> anyhow::Result<u32> {
 
 fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {
     core.alloc(PEB_BASE, 0x1000)?;
-    core.write(PEB_BASE, peb)?;
+    write_generic(core, PEB_BASE, peb)?;
 
     Ok(())
 }

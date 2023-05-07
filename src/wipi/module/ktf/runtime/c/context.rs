@@ -1,6 +1,7 @@
 use crate::{
     backend::Backend,
     core::arm::{allocator::Allocator, ArmCore},
+    util::{ByteRead, ByteWrite},
     wipi::c::{CContextBase, CContextMethod, CResult},
 };
 
@@ -20,10 +21,6 @@ impl CContextBase for KtfCContext {
         Allocator::alloc(&mut self.core, size)
     }
 
-    fn write_raw(&mut self, address: u32, data: &[u8]) -> CResult<()> {
-        self.core.write_raw(address, data)
-    }
-
     fn register_function(&mut self, method: CContextMethod) -> CResult<u32> {
         self.core.register_function(
             move |core: ArmCore, backend: Backend, a0: u32, a1: u32, a2: u32| {
@@ -38,5 +35,17 @@ impl CContextBase for KtfCContext {
     }
     fn backend(&mut self) -> &mut Backend {
         &mut self.backend
+    }
+}
+
+impl ByteRead for KtfCContext {
+    fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
+        self.core.read_bytes(address, size)
+    }
+}
+
+impl ByteWrite for KtfCContext {
+    fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+        self.core.write_bytes(address, data)
     }
 }

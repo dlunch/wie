@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::util::round_up;
+use crate::util::{read_generic, round_up, write_generic};
 
 use super::{ArmCore, HEAP_BASE};
 
@@ -20,7 +20,7 @@ impl Allocator {
 
         let header = AllocationHeader { size: HEAP_SIZE, in_use: 0 };
 
-        core.write(HEAP_BASE, header)?;
+        write_generic(core, HEAP_BASE, header)?;
 
         Ok((HEAP_BASE, HEAP_SIZE))
     }
@@ -30,10 +30,10 @@ impl Allocator {
 
         let address = Self::find_address(core, alloc_size).ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
 
-        let previous_header = core.read::<AllocationHeader>(address)?;
+        let previous_header = read_generic::<AllocationHeader>(core, address)?;
 
         let header = AllocationHeader { size: alloc_size, in_use: 1 };
-        core.write(address, header)?;
+        write_generic(core, address, header)?;
 
         // write next
         if previous_header.size > alloc_size {
@@ -41,7 +41,7 @@ impl Allocator {
                 size: previous_header.size - alloc_size,
                 in_use: 0,
             };
-            core.write(address + alloc_size, next_header)?;
+            write_generic(core, address + alloc_size, next_header)?;
         }
 
         Ok(address + 8)
@@ -50,14 +50,14 @@ impl Allocator {
     pub fn free(core: &mut ArmCore, address: u32) -> anyhow::Result<()> {
         let base_address = address - 8;
 
-        let header = core.read::<AllocationHeader>(base_address)?;
+        let header = read_generic::<AllocationHeader>(core, base_address)?;
         assert!(header.in_use == 1);
 
         let header = AllocationHeader {
             size: header.size,
             in_use: 0,
         };
-        core.write(base_address, header)?;
+        write_generic(core, base_address, header)?;
 
         Ok(())
     }
@@ -65,7 +65,7 @@ impl Allocator {
     fn find_address(core: &mut ArmCore, request_size: u32) -> Option<u32> {
         let mut cursor = HEAP_BASE;
         loop {
-            let header = core.read::<AllocationHeader>(cursor).ok()?;
+            let header = read_generic::<AllocationHeader>(core, cursor).ok()?;
             if header.in_use == 0 && header.size >= request_size {
                 return Some(cursor);
             } else {

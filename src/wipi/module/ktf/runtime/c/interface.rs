@@ -3,6 +3,7 @@ use std::mem::size_of;
 use crate::{
     backend::Backend,
     core::arm::ArmCore,
+    util::write_generic,
     wipi::c::{get_graphics_method_table, get_kernel_method_table, CContext, CMethodBody},
 };
 
@@ -37,7 +38,7 @@ fn write_methods(context: &mut CContext, methods: Vec<CMethodBody>) -> anyhow::R
             Ok::<_, anyhow::Error>(result)
         }))?;
 
-        context.write_raw(cursor, &address.to_le_bytes())?;
+        write_generic(context, cursor, address)?;
         cursor += 4;
     }
 
@@ -77,8 +78,7 @@ fn get_wipic_interfaces(context: &mut CContext) -> anyhow::Result<u32> {
 
     let address = context.alloc(size_of::<WIPICInterface>() as u32)?;
 
-    let data = unsafe { std::slice::from_raw_parts(&interface as *const _ as *const u8, std::mem::size_of::<WIPICInterface>()) };
-    context.write_raw(address, data)?;
+    write_generic(context, address, interface)?;
 
     Ok(address)
 }

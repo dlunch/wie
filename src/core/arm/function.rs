@@ -1,5 +1,7 @@
 use unicorn_engine::RegisterARM;
 
+use crate::util::read_null_terminated_string;
+
 use super::ArmCore;
 
 pub trait EmulatedFunction<T, E, C> {
@@ -79,7 +81,7 @@ impl EmulatedFunctionParam<String> for String {
     fn get(core: &mut ArmCore, pos: usize) -> String {
         let ptr = Self::read(core, pos);
 
-        core.read_null_terminated_string(ptr).unwrap()
+        read_null_terminated_string(core, ptr).unwrap()
     }
 }
 
