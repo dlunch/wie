@@ -43,6 +43,16 @@ impl TypeConverter<u32, CContext> for u32 {
     }
 }
 
+impl TypeConverter<i32, CContext> for i32 {
+    fn to_rust(_: &mut CContext, raw: u32) -> i32 {
+        raw as _
+    }
+
+    fn from_rust(_: &mut CContext, rust: i32) -> u32 {
+        rust as _
+    }
+}
+
 impl TypeConverter<(), CContext> for () {
     fn to_rust(_: &mut CContext, _: u32) {}
 
