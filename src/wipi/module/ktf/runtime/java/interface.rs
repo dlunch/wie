@@ -6,7 +6,7 @@ use crate::{
     wipi::java::JavaContextBase,
 };
 
-use super::context::{JavaMethodFullname, KtfJavaContext};
+use super::context::{JavaFullName, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -26,8 +26,8 @@ struct WIPIJBInterface {
     fn_unk6: u32,
 }
 
-impl EmulatedFunctionParam<JavaMethodFullname> for JavaMethodFullname {
-    fn get(core: &mut ArmCore, pos: usize) -> JavaMethodFullname {
+impl EmulatedFunctionParam<JavaFullName> for JavaFullName {
+    fn get(core: &mut ArmCore, pos: usize) -> JavaFullName {
         let ptr = Self::read(core, pos);
 
         Self::from_ptr(core, ptr).unwrap()
@@ -78,7 +78,7 @@ pub fn java_throw(core: ArmCore, _: Backend, error: String, a1: u32) -> anyhow::
     Ok(0)
 }
 
-fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, fullname: JavaMethodFullname) -> anyhow::Result<u32> {
+fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, fullname: JavaFullName) -> anyhow::Result<u32> {
     log::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;

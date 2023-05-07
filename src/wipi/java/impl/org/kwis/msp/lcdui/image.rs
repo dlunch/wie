@@ -11,6 +11,7 @@ impl Image {
                 JavaMethodProto::new("createImage", "(II)Lorg/kwis/msp/lcdui/Image;", Self::create_image),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics),
             ],
+            fields: vec![],
         }
     }
 

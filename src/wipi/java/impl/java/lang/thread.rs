@@ -11,6 +11,7 @@ impl Thread {
                 JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init_1),
                 JavaMethodProto::new("start", "()V", Self::start),
             ],
+            fields: vec![],
         }
     }
 
