@@ -132,7 +132,7 @@ pub struct KtfPeb {
     pub heap_base: u32,
     pub heap_size: u32,
     pub java_classes_base: u32,
-    pub vtables_base: u32,
+    pub ptr_vtables_base: u32,
 }
 
 pub struct ModuleInfo {
@@ -174,7 +174,7 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
             ptr_vtables: [0; 64],
         },
     )?;
-    let vtables_base = ptr_param_2 + 12;
+    let ptr_vtables_base = ptr_param_2 + 12;
 
     let param_3 = InitParam3 {
         unk1: 0,
@@ -216,7 +216,7 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
         heap_base,
         heap_size,
         java_classes_base,
-        vtables_base,
+        ptr_vtables_base,
     };
     init_peb(core, peb)?;
 
