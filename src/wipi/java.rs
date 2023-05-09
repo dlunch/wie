@@ -49,6 +49,7 @@ pub trait JavaContextBase {
     fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     fn get_field(&mut self, instance: &JavaObjectProxy, field_offset: u32) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_offset: u32, value: u32);
+    fn schedule_task(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn backend(&mut self) -> &mut Backend;
 }
 

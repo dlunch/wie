@@ -6,7 +6,10 @@ use crate::{
     util::{read_generic, read_null_terminated_string, write_generic, ByteWrite},
     wipi::{
         java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult},
-        module::ktf::runtime::init::KtfPeb,
+        module::ktf::{
+            runtime::init::KtfPeb,
+            task::{KtfTask, KtfTaskContext},
+        },
     },
 };
 
@@ -523,5 +526,15 @@ impl JavaContextBase for KtfJavaContext {
 
     fn backend(&mut self) -> &mut Backend {
         &mut self.backend
+    }
+
+    fn schedule_task(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
+        let function = self.register_java_method(callback)?;
+
+        let task = KtfTask::new(self.core.clone(), KtfTaskContext::from_pc(function));
+
+        self.backend.scheduler().schedule(task);
+
+        Ok(())
     }
 }
