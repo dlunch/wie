@@ -26,13 +26,6 @@ pub trait CContextBase: ByteRead + ByteWrite {
     fn backend(&mut self) -> &mut Backend;
 }
 
-fn into_body<M, F, R, P>(method: M) -> CMethodBody
-where
-    M: MethodImpl<F, R, CError, CContext, P>,
-{
-    method.into_body()
-}
-
 impl TypeConverter<u32, CContext> for u32 {
     fn to_rust(_: &mut CContext, raw: u32) -> u32 {
         raw

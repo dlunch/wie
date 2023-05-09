@@ -1,8 +1,8 @@
 use core::mem::size_of;
 
-use crate::util::write_generic;
+use crate::{util::write_generic, wipi::method::MethodImpl};
 
-use super::{into_body, CContext, CMethodBody, CResult};
+use super::{CContext, CMethodBody, CResult};
 
 #[repr(C)]
 struct Framebuffer {
@@ -48,30 +48,30 @@ fn get_display_info(_: &mut CContext, a0: u32, a1: u32) -> CResult<u32> {
 
 pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
-        into_body(stub),
-        into_body(stub),
-        into_body(get_screen_frame_buffer),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(stub),
-        into_body(get_display_info),
+        stub.into_body(),
+        stub.into_body(),
+        get_screen_frame_buffer.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        stub.into_body(),
+        get_display_info.into_body(),
     ]
 }
