@@ -68,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     let mut archive = ZipArchive::new(file)?;
 
     let vendor = ArchiveVendor::from_archive(&mut archive)?;
-    let backend = Backend::new();
+    let mut backend = Backend::new();
 
     match vendor {
         Some(ArchiveVendor::Ktf {
@@ -79,12 +79,14 @@ fn main() -> anyhow::Result<()> {
             let mut data = Vec::new();
             module_file.read_to_end(&mut data)?;
 
-            let module = wipi::module::ktf::KtfWipiModule::new(&data, &module_file_name, &main_class_name, backend)?;
+            let module = wipi::module::ktf::KtfWipiModule::new(&data, &module_file_name, &main_class_name, backend.clone())?;
 
             module.start()?;
-
-            Ok(())
         }
-        None => Err(anyhow::anyhow!("Unknown vendor")),
+        None => return Err(anyhow::anyhow!("Unknown vendor")),
     }
+
+    backend.scheduler().run();
+
+    Ok(())
 }

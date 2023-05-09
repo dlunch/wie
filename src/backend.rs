@@ -1,8 +1,9 @@
 use alloc::rc::Rc;
-use core::cell::{Ref, RefCell};
+use core::cell::{Ref, RefCell, RefMut};
 
 struct Storage {
     resource: Resource,
+    scheduler: Scheduler,
 }
 
 pub struct Backend {
@@ -12,12 +13,19 @@ pub struct Backend {
 impl Backend {
     pub fn new() -> Self {
         Self {
-            storage: Rc::new(RefCell::new(Storage { resource: Resource::new() })),
+            storage: Rc::new(RefCell::new(Storage {
+                resource: Resource::new(),
+                scheduler: Scheduler::new(),
+            })),
         }
     }
 
     pub fn resource(&self) -> Ref<'_, Resource> {
         Ref::map(self.storage.borrow(), |x| &x.resource)
+    }
+
+    pub fn scheduler(&mut self) -> RefMut<'_, Scheduler> {
+        RefMut::map(self.storage.borrow_mut(), |x| &mut x.scheduler)
     }
 }
 
@@ -54,5 +62,30 @@ impl Resource {
 
     pub fn data(&self, id: u32) -> &[u8] {
         &self.files[id as usize].1
+    }
+}
+
+pub trait Task {
+    fn run_some(&mut self);
+}
+
+pub struct Scheduler {
+    tasks: Vec<Box<dyn Task>>,
+}
+
+impl Scheduler {
+    pub fn new() -> Self {
+        Self { tasks: Vec::new() }
+    }
+
+    pub fn schedule<T>(&mut self, task: T)
+    where
+        T: Task + 'static,
+    {
+        self.tasks.push(Box::new(task))
+    }
+
+    pub fn run(&mut self) {
+        unimplemented!()
     }
 }
