@@ -19,8 +19,6 @@ use self::function::EmulatedFunction;
 pub use function::EmulatedFunctionParam;
 
 const IMAGE_BASE: u32 = 0x100000;
-const STACK_BASE: u32 = 0x70000000;
-const STACK_SIZE: u32 = 0x10000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const RUN_FUNCTION_LR: u32 = 0x7f000000;
 const HEAP_BASE: u32 = 0x40000000;
@@ -38,6 +36,25 @@ impl From<UnicornError> for anyhow::Error {
 
 pub type ArmCoreResult<T> = anyhow::Result<T>;
 
+pub struct ArmCoreContext {
+    pub r0: u32,
+    pub r1: u32,
+    pub r2: u32,
+    pub r3: u32,
+    pub r4: u32,
+    pub r5: u32,
+    pub r6: u32,
+    pub r7: u32,
+    pub r8: u32,
+    pub sb: u32,
+    pub sl: u32,
+    pub fp: u32,
+    pub ip: u32,
+    pub sp: u32,
+    pub lr: u32,
+    pub pc: u32,
+}
+
 pub struct ArmCore {
     uc: Unicorn<'static, ()>,
 }
@@ -50,14 +67,10 @@ impl ArmCore {
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .map_err(UnicornError)?;
 
-        uc.mem_map(STACK_BASE as u64, STACK_SIZE as usize, Permission::READ | Permission::WRITE)
-            .map_err(UnicornError)?;
         uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ | Permission::EXEC)
             .map_err(UnicornError)?;
 
         uc.reg_write(RegisterARM::CPSR, 0x40000010).map_err(UnicornError)?; // usr32
-        uc.reg_write(RegisterARM::SP, STACK_BASE as u64 + STACK_SIZE as u64)
-            .map_err(UnicornError)?;
 
         Ok(Self { uc })
     }
@@ -75,6 +88,15 @@ impl ArmCore {
         self.uc.mem_write(IMAGE_BASE as u64, data).map_err(UnicornError)?;
 
         Ok(IMAGE_BASE)
+    }
+
+    pub fn run_some(&mut self, until: u32, max_instructions: u32) -> ArmCoreResult<()> {
+        let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+        self.uc
+            .emu_start(pc as u64, until as u64, 0, max_instructions as usize)
+            .map_err(UnicornError)?;
+
+        Ok(())
     }
 
     pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
@@ -162,6 +184,48 @@ impl ArmCore {
 
     pub fn dump_regs(&self) -> ArmCoreResult<String> {
         Self::dump_regs_inner(&self.uc)
+    }
+
+    pub fn restore_context(&mut self, context: &ArmCoreContext) -> ArmCoreResult<()> {
+        self.uc.reg_write(RegisterARM::R0, context.r0 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R1, context.r1 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R2, context.r2 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R3, context.r3 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R4, context.r4 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R5, context.r5 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R6, context.r6 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R7, context.r7 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R8, context.r8 as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R9, context.sb as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R10, context.sl as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R11, context.fp as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::R12, context.ip as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::SP, context.sp as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::LR, context.lr as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::PC, context.pc as u64).map_err(UnicornError)?;
+
+        Ok(())
+    }
+
+    pub fn save_context(&mut self) -> ArmCoreResult<ArmCoreContext> {
+        Ok(ArmCoreContext {
+            r0: self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32,
+            r1: self.uc.reg_read(RegisterARM::R1).map_err(UnicornError)? as u32,
+            r2: self.uc.reg_read(RegisterARM::R2).map_err(UnicornError)? as u32,
+            r3: self.uc.reg_read(RegisterARM::R3).map_err(UnicornError)? as u32,
+            r4: self.uc.reg_read(RegisterARM::R4).map_err(UnicornError)? as u32,
+            r5: self.uc.reg_read(RegisterARM::R5).map_err(UnicornError)? as u32,
+            r6: self.uc.reg_read(RegisterARM::R6).map_err(UnicornError)? as u32,
+            r7: self.uc.reg_read(RegisterARM::R7).map_err(UnicornError)? as u32,
+            r8: self.uc.reg_read(RegisterARM::R8).map_err(UnicornError)? as u32,
+            sb: self.uc.reg_read(RegisterARM::SB).map_err(UnicornError)? as u32,
+            sl: self.uc.reg_read(RegisterARM::SL).map_err(UnicornError)? as u32,
+            fp: self.uc.reg_read(RegisterARM::FP).map_err(UnicornError)? as u32,
+            ip: self.uc.reg_read(RegisterARM::IP).map_err(UnicornError)? as u32,
+            sp: self.uc.reg_read(RegisterARM::SP).map_err(UnicornError)? as u32,
+            lr: self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)? as u32,
+            pc: self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32,
+        })
     }
 
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> ArmCoreResult<String> {

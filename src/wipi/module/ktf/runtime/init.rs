@@ -129,8 +129,6 @@ struct ExeInterfaceFunctions {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct KtfPeb {
-    pub heap_base: u32,
-    pub heap_size: u32,
     pub java_classes_base: u32,
     pub ptr_vtables_base: u32,
 }
@@ -141,7 +139,6 @@ pub struct ModuleInfo {
 }
 
 pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
-    let (heap_base, heap_size) = Allocator::init(core)?;
     let java_classes_base = KtfJavaContext::init(core)?;
 
     let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
@@ -213,8 +210,6 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     write_generic(core, ptr_param_4, param_4)?;
 
     let peb = KtfPeb {
-        heap_base,
-        heap_size,
         java_classes_base,
         ptr_vtables_base,
     };
