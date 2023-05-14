@@ -2,40 +2,40 @@ mod runtime;
 mod task;
 
 use crate::{
-    backend::Backend,
+    backend::{Backend, Task},
     core::arm::{allocator::Allocator, ArmCore},
     util::ByteWrite,
     wipi::java::JavaContextBase,
 };
 
-use self::runtime::KtfJavaContext;
+use self::{runtime::KtfJavaContext, task::KtfTask};
 
 // client.bin from jar, extracted from ktf phone
-pub struct KtfWipiModule {
-    core: ArmCore,
-    ptr_main_class: u32,
-    backend: Backend,
-}
+pub struct KtfWipiModule {}
 
 impl KtfWipiModule {
-    pub fn new(data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<Self> {
+    pub fn start(data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<impl Task> {
         let mut core = ArmCore::new()?;
+        Allocator::init(&mut core)?;
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let ptr_main_class = Self::init(&mut core, &backend, base_address, bss_size, main_class_name)?;
+        let ptr_main_class_name = Allocator::alloc(&mut core, 20)?; // TODO size fix
+        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
-        Ok(Self {
-            core,
-            ptr_main_class,
-            backend,
-        })
+        let entry = core.register_function(Self::do_start, &backend)?;
+
+        let task = KtfTask::from_pc_args(&mut core, entry, &[base_address, bss_size, ptr_main_class_name])?;
+
+        Ok(task)
     }
 
-    pub fn start(self) -> anyhow::Result<()> {
-        let mut java_context = KtfJavaContext::new(self.core, self.backend);
+    fn do_start(mut core: ArmCore, backend: Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
+        let ptr_main_class = Self::init(&mut core, &backend, base_address, bss_size, &main_class_name)?;
 
-        let instance = java_context.instantiate_from_ptr_class(self.ptr_main_class)?;
+        let mut java_context = KtfJavaContext::new(core, backend);
+
+        let instance = java_context.instantiate_from_ptr_class(ptr_main_class)?;
         java_context.call_method(&instance, "<init>", "()V", &[])?;
 
         log::info!("Main class instance: {:#x}", instance.ptr_instance);
@@ -43,7 +43,7 @@ impl KtfWipiModule {
         let arg = java_context.instantiate_array("Ljava/lang/String;", 0)?;
         java_context.call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])?;
 
-        Ok(())
+        Ok(0)
     }
 
     fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class_name: &str) -> anyhow::Result<u32> {

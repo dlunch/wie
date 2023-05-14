@@ -79,14 +79,13 @@ fn main() -> anyhow::Result<()> {
             let mut data = Vec::new();
             module_file.read_to_end(&mut data)?;
 
-            let module = wipi::module::ktf::KtfWipiModule::new(&data, &module_file_name, &main_class_name, backend.clone())?;
-
-            module.start()?;
+            let task = wipi::module::ktf::KtfWipiModule::start(&data, &module_file_name, &main_class_name, backend.clone())?;
+            backend.scheduler().schedule(task);
         }
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     }
 
-    backend.scheduler().run();
+    backend.scheduler().run()?;
 
     Ok(())
 }

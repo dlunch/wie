@@ -66,7 +66,7 @@ impl Resource {
 }
 
 pub trait Task {
-    fn run_some(&mut self);
+    fn run_some(&mut self) -> anyhow::Result<()>;
 }
 
 pub struct Scheduler {
@@ -85,7 +85,13 @@ impl Scheduler {
         self.tasks.push(Box::new(task))
     }
 
-    pub fn run(&mut self) {
-        unimplemented!()
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        while !self.tasks.is_empty() {
+            for task in &mut self.tasks {
+                task.run_some()?;
+            }
+        }
+
+        Ok(())
     }
 }
