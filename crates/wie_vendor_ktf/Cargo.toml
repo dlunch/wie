@@ -1,0 +1,15 @@
+[package]
+name = "wie_vendor_ktf"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+log = { workspace = true }
+
+wie_backend = { path = "../wie_backend" }
+wie_base = { path = "../wie_base" }
+wie_core_arm = { path = "../wie_core_arm" }
+wie_wipi_c = { path = "../wie_wipi_c" }
+wie_wipi_java = { path = "../wie_wipi_java" }

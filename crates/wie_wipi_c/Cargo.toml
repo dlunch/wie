@@ -1,0 +1,12 @@
+[package]
+name = "wie_wipi_c"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+log = { workspace = true }
+
+wie_base = { path = "../wie_base" }
+wie_backend = { path = "../wie_backend" }

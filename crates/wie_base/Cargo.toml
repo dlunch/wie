@@ -1,0 +1,9 @@
+[package]
+name = "wie_base"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+log = { version = "0.4" }
+anyhow = { workspace = true }

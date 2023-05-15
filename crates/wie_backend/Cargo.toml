@@ -1,0 +1,8 @@
+[package]
+name = "wie_backend"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
