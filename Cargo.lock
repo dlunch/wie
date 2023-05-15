@@ -520,11 +520,71 @@ name = "wie"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "capstone",
  "log",
  "pretty_env_logger",
- "unicorn-engine",
+ "wie_backend",
+ "wie_vendor_ktf",
  "zip",
+]
+
+[[package]]
+name = "wie_backend"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "wie_base"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "log",
+]
+
+[[package]]
+name = "wie_core_arm"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "capstone",
+ "log",
+ "unicorn-engine",
+ "wie_backend",
+ "wie_base",
+]
+
+[[package]]
+name = "wie_vendor_ktf"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "log",
+ "wie_backend",
+ "wie_base",
+ "wie_core_arm",
+ "wie_wipi_c",
+ "wie_wipi_java",
+]
+
+[[package]]
+name = "wie_wipi_c"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "log",
+ "wie_backend",
+ "wie_base",
+]
+
+[[package]]
+name = "wie_wipi_java"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "log",
+ "wie_backend",
+ "wie_base",
 ]
 
 [[package]]

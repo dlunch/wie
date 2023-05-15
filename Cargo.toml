@@ -1,3 +1,19 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "crates/wie_backend",
+    "crates/wie_base",
+    "crates/wie_core_arm",
+    "crates/wie_vendor_ktf",
+    "crates/wie_wipi_c",
+    "crates/wie_wipi_java",
+]
+
+[workspace.dependencies]
+anyhow = { version = "^1.0", default-features = false }
+log = { version = "^0.4" }
+
 [package]
 name = "wie"
 version = "0.0.1"
@@ -6,9 +22,10 @@ description = "placeholder"
 license = "MIT"
 
 [dependencies]
-unicorn-engine = { version = "^2.0" }
-capstone = { version = "^0.11" }
-log = { version = "^0.4" }
-pretty_env_logger = { version = "^0.4" }
 anyhow = { version = "^1.0", features = ["backtrace"] }
+log = { workspace = true }
+pretty_env_logger = { version = "^0.4" }
 zip = { version = "^0.6" }
+
+wie_backend = { path = "crates/wie_backend" }
+wie_vendor_ktf = { path = "crates/wie_vendor_ktf" }

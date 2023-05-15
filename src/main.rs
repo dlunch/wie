@@ -1,15 +1,9 @@
-extern crate alloc;
-
-mod backend;
-mod core;
-mod util;
-mod wipi;
-
 use std::{env, fs::File, io::Read, str};
 
 use zip::ZipArchive;
 
-use self::backend::Backend;
+use wie_backend::Backend;
+use wie_vendor_ktf::KtfWipiModule;
 
 enum ArchiveVendor {
     Ktf { module_file_name: String, main_class_name: String },
@@ -79,7 +73,7 @@ fn main() -> anyhow::Result<()> {
             let mut data = Vec::new();
             module_file.read_to_end(&mut data)?;
 
-            let task = wipi::module::ktf::KtfWipiModule::start(&data, &module_file_name, &main_class_name, backend.clone())?;
+            let task = KtfWipiModule::start(&data, &module_file_name, &main_class_name, backend.clone())?;
             backend.scheduler().schedule(task);
         }
         None => return Err(anyhow::anyhow!("Unknown vendor")),
