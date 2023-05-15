@@ -5,10 +5,10 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+anyhow = { workspace = true }
+log = { workspace = true }
 unicorn-engine = { version = "^2.0" }
 capstone = { version = "^0.11" }
-log = { workspace = true }
-anyhow = { workspace = true }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
