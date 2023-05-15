@@ -2,8 +2,8 @@
 extern crate alloc;
 
 mod array;
-mod r#impl;
 mod base;
+mod r#impl;
 mod proxy;
 
 pub use self::{
