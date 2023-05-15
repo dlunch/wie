@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use wie_backend::Backend;
 use wie_base::util::write_generic;
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunctionParam};
+use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::JavaContextBase;
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
@@ -24,14 +24,6 @@ struct WIPIJBInterface {
     fn_unk2: u32,
     fn_unk3: u32,
     fn_unk6: u32,
-}
-
-impl EmulatedFunctionParam<JavaFullName> for JavaFullName {
-    fn get(core: &mut ArmCore, pos: usize) -> JavaFullName {
-        let ptr = Self::read(core, pos);
-
-        Self::from_ptr(core, ptr).unwrap()
-    }
 }
 
 pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Result<u32> {
@@ -78,7 +70,8 @@ pub fn java_throw(core: ArmCore, _: Backend, error: String, a1: u32) -> anyhow::
     Ok(0)
 }
 
-fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, fullname: JavaFullName) -> anyhow::Result<u32> {
+fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
+    let fullname = JavaFullName::from_ptr(&core, ptr_fullname)?;
     log::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
