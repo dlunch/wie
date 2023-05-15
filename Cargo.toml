@@ -21,8 +21,8 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-anyhow = { version = "^1.0", features = ["backtrace"] }
 log = { workspace = true }
+anyhow = { version = "^1.0", features = ["backtrace"] }
 pretty_env_logger = { version = "^0.4" }
 zip = { version = "^0.6" }
 
