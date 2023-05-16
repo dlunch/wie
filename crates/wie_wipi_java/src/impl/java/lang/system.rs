@@ -16,6 +16,6 @@ impl System {
     fn current_time_millis(_: &mut JavaContext) -> JavaResult<u32> {
         log::debug!("System::current_time_millis()");
 
-        Ok(0)
+        Ok(0x100000) // TODO this should be ptr of 8 bytes
     }
 }
