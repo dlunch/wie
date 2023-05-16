@@ -4,12 +4,10 @@ mod object;
 mod runnable;
 mod runtime;
 mod string;
+mod system;
 mod thread;
 
-pub use self::exception::Exception;
-pub use self::interrupted_exception::InterruptedException;
-pub use self::object::Object;
-pub use self::runnable::Runnable;
-pub use self::runtime::Runtime;
-pub use self::string::String;
-pub use self::thread::Thread;
+pub use self::{
+    exception::Exception, interrupted_exception::InterruptedException, object::Object, runnable::Runnable, runtime::Runtime, string::String,
+    system::System, thread::Thread,
+};
