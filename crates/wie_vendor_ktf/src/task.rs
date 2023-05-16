@@ -11,6 +11,8 @@ pub struct KtfTask {
 
 impl KtfTask {
     pub fn from_pc_args(core: &mut ArmCore, pc: u32, args: &[u32]) -> anyhow::Result<Self> {
+        log::debug!("Creating task from pc {:08x} with args {:?}", pc, args);
+
         let stack_base = Allocator::alloc(core, STACK_SIZE)? + STACK_SIZE;
         let mut context = ArmCoreContext {
             r0: 0,
