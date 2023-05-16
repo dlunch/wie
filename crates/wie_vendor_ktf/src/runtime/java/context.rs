@@ -454,6 +454,23 @@ impl KtfJavaContext {
 
         Ok(result)
     }
+
+    fn find_field_offset(&self, proxy: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
+        let instance = read_generic::<JavaClassInstance>(&self.core, proxy.ptr_instance)?;
+        let (_, class_descriptor, _) = self.read_ptr_class(instance.ptr_class)?;
+
+        let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields)?;
+        for ptr_field in ptr_fields {
+            let field = read_generic::<JavaField>(&self.core, ptr_field)?;
+
+            let fullname = JavaFullName::from_ptr(&self.core, field.ptr_name)?;
+            if fullname.name == field_name {
+                return Ok(field.offset);
+            }
+        }
+
+        Err(anyhow::anyhow!("Cannot find field"))
+    }
 }
 
 impl JavaContextBase for KtfJavaContext {
@@ -515,12 +532,18 @@ impl JavaContextBase for KtfJavaContext {
         &mut self.backend
     }
 
-    fn get_field(&mut self, _: &JavaObjectProxy, _: &str) -> JavaResult<u32> {
-        todo!()
+    fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
+        let offset = self.find_field_offset(instance, field_name)?;
+
+        let instance = read_generic::<JavaClassInstance>(&self.core, instance.ptr_instance)?;
+        read_generic::<u32>(&self.core, instance.ptr_fields + offset + 4)
     }
 
-    fn put_field(&mut self, _: &JavaObjectProxy, _: &str, _: u32) -> JavaResult<()> {
-        todo!()
+    fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()> {
+        let offset = self.find_field_offset(instance, field_name)?;
+
+        let instance = read_generic::<JavaClassInstance>(&self.core, instance.ptr_instance)?;
+        write_generic(&mut self.core, instance.ptr_fields + offset + 4, value)
     }
 
     fn schedule_task(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
