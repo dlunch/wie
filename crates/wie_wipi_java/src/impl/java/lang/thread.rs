@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_base::method::MethodImpl;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaError, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaError, JavaMethodProto, JavaResult, JavaFieldProto},
     proxy::JavaObjectProxy,
 };
 
@@ -18,7 +18,9 @@ impl Thread {
                 JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init_1),
                 JavaMethodProto::new("start", "()V", Self::start),
             ],
-            fields: vec![],
+            fields: vec![
+                JavaFieldProto::new("runnable", "Ljava/lang/Runnable;")
+            ],
         }
     }
 
@@ -28,18 +30,24 @@ impl Thread {
         Ok(())
     }
 
-    fn init_1(_: &mut JavaContext, instance: JavaObjectProxy, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Thread::<init>({:#x}, {:#x})", instance.ptr_instance, a0.ptr_instance);
+    fn init_1(context: &mut JavaContext, instance: JavaObjectProxy, runnable: JavaObjectProxy) -> JavaResult<()> {
+        log::debug!("Thread::<init>({:#x}, {:#x})", instance.ptr_instance, runnable.ptr_instance);
+
+        context.put_field(&instance, "runnable", runnable.ptr_instance)?;
 
         Ok(())
     }
 
-    fn start(context: &mut JavaContext) -> JavaResult<()> {
+    fn start(context: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Thread::start");
 
+        let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
+
         context.schedule_task(
-            (|_: &mut JavaContext| {
+            (move |context: &mut JavaContext| {
                 log::debug!("Thread::run");
+
+                context.call_method(&runnable, "run", "()V", &[])?;
 
                 Ok::<_, JavaError>(())
             })
