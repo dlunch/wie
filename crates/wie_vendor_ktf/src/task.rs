@@ -61,4 +61,8 @@ impl Task for KtfTask {
 
         Ok(())
     }
+
+    fn is_finished(&self) -> bool {
+        self.context.pc == TASK_LR
+    }
 }

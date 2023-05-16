@@ -62,7 +62,7 @@ fn main() -> anyhow::Result<()> {
     let mut archive = ZipArchive::new(file)?;
 
     let vendor = ArchiveVendor::from_archive(&mut archive)?;
-    let mut backend = Backend::new();
+    let backend = Backend::new();
 
     match vendor {
         Some(ArchiveVendor::Ktf {
@@ -79,7 +79,7 @@ fn main() -> anyhow::Result<()> {
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     }
 
-    backend.scheduler().run()?;
+    backend.run()?;
 
     Ok(())
 }

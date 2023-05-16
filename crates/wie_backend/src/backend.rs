@@ -1,13 +1,9 @@
 use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{Ref, RefCell, RefMut};
 
-struct Storage {
-    resource: Resource,
-    scheduler: Scheduler,
-}
-
 pub struct Backend {
-    storage: Rc<RefCell<Storage>>,
+    resource: Rc<RefCell<Resource>>,
+    scheduler: Rc<RefCell<Scheduler>>,
 }
 
 impl Default for Backend {
@@ -19,26 +15,29 @@ impl Default for Backend {
 impl Backend {
     pub fn new() -> Self {
         Self {
-            storage: Rc::new(RefCell::new(Storage {
-                resource: Resource::new(),
-                scheduler: Scheduler::new(),
-            })),
+            resource: Rc::new(RefCell::new(Resource::new())),
+            scheduler: Rc::new(RefCell::new(Scheduler::new())),
         }
     }
 
     pub fn resource(&self) -> Ref<'_, Resource> {
-        Ref::map(self.storage.borrow(), |x| &x.resource)
+        (*self.resource).borrow()
     }
 
-    pub fn scheduler(&mut self) -> RefMut<'_, Scheduler> {
-        RefMut::map(self.storage.borrow_mut(), |x| &mut x.scheduler)
+    pub fn scheduler(&self) -> RefMut<'_, Scheduler> {
+        self.scheduler.borrow_mut()
+    }
+
+    pub fn run(self) -> anyhow::Result<()> {
+        Scheduler::run(self)
     }
 }
 
 impl Clone for Backend {
     fn clone(&self) -> Self {
         Self {
-            storage: self.storage.clone(),
+            resource: self.resource.clone(),
+            scheduler: self.scheduler.clone(),
         }
     }
 }
@@ -79,6 +78,7 @@ impl Resource {
 
 pub trait Task {
     fn run_some(&mut self) -> anyhow::Result<()>;
+    fn is_finished(&self) -> bool;
 }
 
 pub struct Scheduler {
@@ -103,11 +103,24 @@ impl Scheduler {
         self.tasks.push(Box::new(task))
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        while !self.tasks.is_empty() {
-            for task in &mut self.tasks {
-                task.run_some()?;
+    fn run(backend: Backend) -> anyhow::Result<()> {
+        loop {
+            let tasks = backend.scheduler().tasks.drain(..).collect::<Vec<_>>();
+            if tasks.is_empty() {
+                break;
             }
+
+            let mut new_tasks = Vec::with_capacity(tasks.len());
+
+            for mut task in tasks {
+                task.run_some()?;
+
+                if !task.is_finished() {
+                    new_tasks.push(task);
+                }
+            }
+
+            backend.scheduler().tasks = new_tasks;
         }
 
         Ok(())
