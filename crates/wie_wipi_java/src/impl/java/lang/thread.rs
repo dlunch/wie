@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_base::method::MethodImpl;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaError, JavaMethodProto, JavaResult, JavaFieldProto},
+    base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -18,9 +18,7 @@ impl Thread {
                 JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init_1),
                 JavaMethodProto::new("start", "()V", Self::start),
             ],
-            fields: vec![
-                JavaFieldProto::new("runnable", "Ljava/lang/Runnable;")
-            ],
+            fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;")],
         }
     }
 
