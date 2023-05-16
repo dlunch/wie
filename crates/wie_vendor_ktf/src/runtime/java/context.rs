@@ -16,7 +16,7 @@ struct JavaClass {
     ptr_descriptor: u32,
     ptr_vtable: u32,
     vtable_count: u16,
-    unk2: u16,
+    unk_flag: u16,
 }
 
 #[repr(C)]
@@ -311,7 +311,7 @@ impl KtfJavaContext {
                 ptr_descriptor: 0,
                 ptr_vtable: 0,
                 vtable_count: method_count as u16,
-                unk2: 0,
+                unk_flag: 8,
             },
         )?;
 
