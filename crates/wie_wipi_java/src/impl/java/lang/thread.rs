@@ -17,6 +17,8 @@ impl Thread {
                 JavaMethodProto::new("<init>", "()V", Self::init),
                 JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init_1),
                 JavaMethodProto::new("start", "()V", Self::start),
+                JavaMethodProto::new("sleep", "(J)V", Self::sleep),
+                JavaMethodProto::new("yield", "()V", Self::r#yield),
             ],
             fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;")],
         }
@@ -53,5 +55,17 @@ impl Thread {
         )?;
 
         Ok(())
+    }
+
+    fn sleep(_: &mut JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
+        log::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
+
+        Ok(0x100000) // TODO this should be ptr of 4 bytes
+    }
+
+    fn r#yield(_: &mut JavaContext) -> JavaResult<u32> {
+        log::debug!("Thread::yield()");
+
+        Ok(0x100000) // TODO this should be ptr of 4 bytes
     }
 }
