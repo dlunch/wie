@@ -50,7 +50,7 @@ pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Re
 }
 
 pub fn java_class_load(core: ArmCore, backend: Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
-    log::trace!("load_java_class({:#x}, {})", ptr_target, name);
+    log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
     let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name);
 
@@ -72,7 +72,7 @@ pub fn java_throw(core: ArmCore, _: Backend, error: String, a1: u32) -> anyhow::
 
 fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
     let fullname = JavaFullName::from_ptr(&core, ptr_fullname)?;
-    log::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
+    log::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
 
