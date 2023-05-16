@@ -142,11 +142,8 @@ impl ArmCore {
         let new_context = context.clone();
         self.uc
             .add_code_hook(address, address, move |uc, _, _| {
-                log::debug!(
-                    "Registered function called at {:#x}, LR: {:#x}",
-                    address,
-                    uc.reg_read(RegisterARM::LR).unwrap()
-                );
+                let lr = uc.reg_read(RegisterARM::LR).unwrap();
+                log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
 
                 let new_self = Self {
                     uc: Unicorn::try_from(uc.get_handle()).unwrap(),
@@ -154,6 +151,7 @@ impl ArmCore {
                 let ret = function.call(new_self, new_context.clone()).unwrap();
 
                 uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
+                uc.reg_write(RegisterARM::PC, lr).unwrap();
             })
             .map_err(UnicornError)?;
 
