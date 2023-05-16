@@ -511,16 +511,16 @@ impl JavaContextBase for KtfJavaContext {
         self.core.run_function(method.fn_body, &params)
     }
 
-    fn get_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32) -> JavaResult<u32> {
-        todo!()
-    }
-
-    fn put_field(&mut self, _instance_proxy: &JavaObjectProxy, _field_offset: u32, _value: u32) {
-        todo!()
-    }
-
     fn backend(&mut self) -> &mut Backend {
         &mut self.backend
+    }
+
+    fn get_field(&mut self, _: &JavaObjectProxy, _: &str) -> JavaResult<u32> {
+        todo!()
+    }
+
+    fn put_field(&mut self, _: &JavaObjectProxy, _: &str, _: u32) -> JavaResult<()> {
+        todo!()
     }
 
     fn schedule_task(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
