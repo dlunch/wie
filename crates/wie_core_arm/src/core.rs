@@ -186,10 +186,10 @@ impl ArmCore {
         self.uc.reg_write(RegisterARM::R6, context.r6 as u64).map_err(UnicornError)?;
         self.uc.reg_write(RegisterARM::R7, context.r7 as u64).map_err(UnicornError)?;
         self.uc.reg_write(RegisterARM::R8, context.r8 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R9, context.sb as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R10, context.sl as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R11, context.fp as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R12, context.ip as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::SB, context.sb as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::SL, context.sl as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::FP, context.fp as u64).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::IP, context.ip as u64).map_err(UnicornError)?;
         self.uc.reg_write(RegisterARM::SP, context.sp as u64).map_err(UnicornError)?;
         self.uc.reg_write(RegisterARM::LR, context.lr as u64).map_err(UnicornError)?;
         self.uc.reg_write(RegisterARM::PC, context.pc as u64).map_err(UnicornError)?;
