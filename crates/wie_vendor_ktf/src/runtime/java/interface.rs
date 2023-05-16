@@ -83,7 +83,7 @@ fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, ptr_fullname
 
 fn jb_unk1(mut core: ArmCore, _: Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
-    log::trace!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
+    log::debug!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
 
     core.run_function(address, &[arg1]) // TODO change to jump
 }
@@ -115,14 +115,14 @@ fn jb_unk5(_: ArmCore, _: Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
 
 fn jb_unk6(mut core: ArmCore, _: Backend, address: u32, arg1: u32, arg2: u32) -> anyhow::Result<u32> {
     // call native function?
-    log::trace!("jb_unk6 jump?({:#x}, {:#x}, {:#x})", address, arg1, arg2);
+    log::debug!("jb_unk6 jump?({:#x}, {:#x}, {:#x})", address, arg1, arg2);
 
     core.run_function(address, &[arg1, arg2]) // TODO change to jump
 }
 
 fn jb_unk7(mut core: ArmCore, _: Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
-    log::trace!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+    log::debug!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     core.run_function(address, &[arg1, arg2]) // TODO change to jump
 }
