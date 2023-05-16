@@ -41,7 +41,7 @@ struct JavaClassDescriptor {
 struct JavaMethod {
     fn_body: u32,
     ptr_class: u32,
-    unk1: u32,
+    fn_body1: u32, // native method body?
     ptr_name: u32,
     unk2: u16,
     unk3: u16,
@@ -336,7 +336,7 @@ impl KtfJavaContext {
                 JavaMethod {
                     fn_body,
                     ptr_class,
-                    unk1: 0,
+                    fn_body1: fn_body,
                     ptr_name,
                     unk2: 0,
                     unk3: 0,
