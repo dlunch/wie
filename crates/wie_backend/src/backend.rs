@@ -120,7 +120,7 @@ impl Scheduler {
                 }
             }
 
-            backend.scheduler().tasks = new_tasks;
+            backend.scheduler().tasks.append(&mut new_tasks);
         }
 
         Ok(())
