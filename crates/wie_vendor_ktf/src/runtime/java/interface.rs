@@ -113,11 +113,15 @@ fn jb_unk5(_: ArmCore, _: Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
     Ok(0)
 }
 
-fn jb_unk6(mut core: ArmCore, _: Backend, address: u32, arg1: u32, arg2: u32) -> anyhow::Result<u32> {
-    // call native function?
-    log::debug!("jb_unk6 jump?({:#x}, {:#x}, {:#x})", address, arg1, arg2);
+fn jb_unk6(mut core: ArmCore, _: Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
+    // jump?
+    log::debug!("jb_unk6 jump?({:#x}, {:#x})", address, ptr_data);
 
-    core.run_function(address, &[arg1, arg2]) // TODO change to jump
+    let result = core.run_function(address, &[ptr_data])?;
+
+    write_generic(&mut core, ptr_data, result)?;
+
+    Ok(ptr_data)
 }
 
 fn jb_unk7(mut core: ArmCore, _: Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {

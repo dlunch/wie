@@ -60,12 +60,12 @@ impl Thread {
     fn sleep(_: &mut JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
         log::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
 
-        Ok(0x100000) // TODO this should be ptr of 4 bytes
+        Ok(0)
     }
 
     fn r#yield(_: &mut JavaContext) -> JavaResult<u32> {
         log::debug!("Thread::yield()");
 
-        Ok(0x100000) // TODO this should be ptr of 4 bytes
+        Ok(0)
     }
 }
