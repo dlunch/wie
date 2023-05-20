@@ -1,17 +1,20 @@
 use core::cell::RefCell;
 
-use wie_backend::{Task, TaskStatus};
-use wie_base::Core;
-use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
+use wie_base::{
+    task::{Task, TaskStatus},
+    Core,
+};
+
+use crate::{core::ArmCoreContext, Allocator, ArmCore};
 
 const STACK_SIZE: u32 = 0x1000;
 const TASK_LR: u32 = 0x7f000000;
 
-pub struct KtfTask {
+pub struct ArmCoreTask {
     context: RefCell<ArmCoreContext>,
 }
 
-impl KtfTask {
+impl ArmCoreTask {
     pub fn from_pc_args(core: &mut ArmCore, pc: u32, args: &[u32]) -> anyhow::Result<Self> {
         log::debug!("Creating task from pc {:08x} with args {:?}", pc, args);
 
@@ -57,7 +60,7 @@ impl KtfTask {
     }
 }
 
-impl Task for KtfTask {
+impl Task for ArmCoreTask {
     fn run_some(&self, core: &mut dyn Core) -> anyhow::Result<()> {
         let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
         core.restore_context(&self.context.borrow())?;

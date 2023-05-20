@@ -1,22 +1,11 @@
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 
-use wie_base::Core;
+use wie_base::{
+    task::{Task, TaskStatus},
+    Core,
+};
 
 use crate::Backend;
-
-#[derive(Eq, PartialEq)]
-pub enum TaskStatus {
-    Running,
-    Sleeping(u64),
-    Finished,
-}
-
-pub trait Task {
-    fn run_some(&self, core: &mut dyn Core) -> anyhow::Result<()>;
-    fn status(&self) -> TaskStatus;
-    fn sleep(&self, core: &mut dyn Core, time: u64);
-    fn r#yield(&self, core: &mut dyn Core);
-}
 
 pub struct Scheduler {
     tasks: Vec<Box<dyn Task>>,
