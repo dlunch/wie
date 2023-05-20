@@ -1,4 +1,6 @@
-use wie_backend::Task;
+use core::cell::RefCell;
+
+use wie_backend::{Task, TaskStatus};
 use wie_base::Core;
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
 
@@ -6,7 +8,7 @@ const STACK_SIZE: u32 = 0x1000;
 const TASK_LR: u32 = 0x7f000000;
 
 pub struct KtfTask {
-    context: ArmCoreContext,
+    context: RefCell<ArmCoreContext>,
 }
 
 impl KtfTask {
@@ -49,23 +51,37 @@ impl KtfTask {
             todo!()
         }
 
-        Ok(Self { context })
+        Ok(Self {
+            context: RefCell::new(context),
+        })
     }
 }
 
 impl Task for KtfTask {
-    fn run_some(&mut self, core: &mut dyn Core) -> anyhow::Result<()> {
-        let arm_core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
-        arm_core.restore_context(&self.context)?;
+    fn run_some(&self, core: &mut dyn Core) -> anyhow::Result<()> {
+        let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+        core.restore_context(&self.context.borrow())?;
 
-        arm_core.run_some(TASK_LR, 100)?;
+        core.run_some(TASK_LR, 100)?;
 
-        self.context = arm_core.save_context()?;
+        self.context.replace(core.save_context()?);
 
         Ok(())
     }
 
-    fn is_finished(&self) -> bool {
-        self.context.pc == TASK_LR
+    fn status(&self) -> TaskStatus {
+        if self.context.borrow().pc == TASK_LR {
+            TaskStatus::Finished
+        } else {
+            TaskStatus::Running
+        }
+    }
+
+    fn sleep(&self, _: &mut dyn Core, _: u64) {
+        todo!()
+    }
+
+    fn r#yield(&self, _: &mut dyn Core) {
+        todo!()
     }
 }
