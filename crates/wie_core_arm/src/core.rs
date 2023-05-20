@@ -125,7 +125,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
+    pub fn set_next(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<()> {
         // is there cleaner way to do this?
         if !params.is_empty() {
             self.uc.reg_write(RegisterARM::R0, params[0] as u64).map_err(UnicornError)?;
@@ -148,12 +148,19 @@ impl ArmCore {
             }
         }
 
-        log::trace!("Run function start {:#x}, params {:?}", address, params);
+        self.uc.reg_write(RegisterARM::PC, address as u64).map_err(UnicornError)?;
 
+        Ok(())
+    }
+
+    pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
         let previous_lr = self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?; // TODO do we have to save more callee-saved registers?
 
+        self.set_next(address, params)?;
+
+        log::trace!("Run function start {:#x}, params {:?}", address, params);
+
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::PC, address as u64).map_err(UnicornError)?;
         self.run(RUN_FUNCTION_LR)?;
 
         let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
