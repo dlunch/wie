@@ -44,10 +44,10 @@ fn write_methods(context: &mut dyn CContextBase, methods: Vec<CMethodBody>) -> a
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(mut core: ArmCore, mut backend: Backend) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut context = KtfCContext::new(&mut core, &mut backend);
+    let mut context = KtfCContext::new(core, backend);
     let address = write_methods(&mut context, kernel_methods)?;
 
     Ok(address)
