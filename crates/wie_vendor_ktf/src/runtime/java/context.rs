@@ -562,4 +562,8 @@ impl JavaContextBase for KtfJavaContext<'_> {
     fn task_sleep(&mut self, time: u64) {
         self.backend.scheduler().current_task().unwrap().sleep(self.core, time);
     }
+
+    fn task_yield(&mut self) {
+        self.backend.scheduler().current_task().unwrap().r#yield(self.core);
+    }
 }
