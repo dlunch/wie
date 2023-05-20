@@ -6,3 +6,5 @@ license = "MIT"
 
 [dependencies]
 anyhow = { workspace = true }
+
+wie_base = { path = "../wie_base" }

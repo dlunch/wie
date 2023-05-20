@@ -532,6 +532,7 @@ name = "wie_backend"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "wie_base",
 ]
 
 [[package]]

@@ -1,6 +1,5 @@
-use alloc::{boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use core::{
-    cell::RefCell,
     fmt::Debug,
     sync::atomic::{AtomicU32, Ordering},
 };
@@ -11,7 +10,10 @@ use unicorn_engine::{
     RegisterARM, Unicorn,
 };
 
-use wie_base::util::{round_up, ByteRead, ByteWrite};
+use wie_base::{
+    util::{round_up, ByteRead, ByteWrite},
+    Core,
+};
 
 use crate::function::EmulatedFunction;
 
@@ -56,7 +58,7 @@ type FunctionType = dyn Fn(&mut ArmCore) -> u32;
 
 pub struct ArmCore {
     pub(crate) uc: Unicorn<'static, ()>,
-    functions: Rc<RefCell<BTreeMap<u32, Box<FunctionType>>>>,
+    functions: BTreeMap<u32, Box<FunctionType>>,
 }
 
 impl ArmCore {
@@ -73,7 +75,7 @@ impl ArmCore {
 
         Ok(Self {
             uc,
-            functions: Rc::new(RefCell::new(BTreeMap::new())),
+            functions: BTreeMap::new(),
         })
     }
 
@@ -99,11 +101,11 @@ impl ArmCore {
                     let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
                     if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
                         let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
-                        let function = self.functions.borrow_mut().remove(&cur_pc).unwrap();
+                        let function = self.functions.remove(&cur_pc).unwrap();
 
                         let ret = function(self);
 
-                        self.functions.borrow_mut().insert(cur_pc, function);
+                        self.functions.insert(cur_pc, function);
 
                         self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
                         pc = lr as u32;
@@ -176,7 +178,7 @@ impl ArmCore {
             function.call(core, &mut new_context.clone()).unwrap()
         };
 
-        self.functions.borrow_mut().insert(address as u32, Box::new(callback));
+        self.functions.insert(address as u32, Box::new(callback));
 
         log::trace!("Register function at {:#x}", address);
 
@@ -364,11 +366,4 @@ impl ByteWrite for ArmCore {
     }
 }
 
-impl Clone for ArmCore {
-    fn clone(&self) -> Self {
-        Self {
-            uc: Unicorn::try_from(self.uc.get_handle()).unwrap(),
-            functions: self.functions.clone(),
-        }
-    }
-}
+impl Core for ArmCore {}

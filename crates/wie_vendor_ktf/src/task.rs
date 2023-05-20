@@ -1,11 +1,11 @@
 use wie_backend::Task;
+use wie_base::Core;
 use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
 
 const STACK_SIZE: u32 = 0x1000;
 const TASK_LR: u32 = 0x7f000000;
 
 pub struct KtfTask {
-    core: ArmCore,
     context: ArmCoreContext,
 }
 
@@ -49,17 +49,18 @@ impl KtfTask {
             todo!()
         }
 
-        Ok(Self { core: core.clone(), context })
+        Ok(Self { context })
     }
 }
 
 impl Task for KtfTask {
-    fn run_some(&mut self) -> anyhow::Result<()> {
-        self.core.restore_context(&self.context)?;
+    fn run_some(&mut self, core: &mut dyn Core) -> anyhow::Result<()> {
+        let arm_core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+        arm_core.restore_context(&self.context)?;
 
-        self.core.run_some(TASK_LR, 100)?;
+        arm_core.run_some(TASK_LR, 100)?;
 
-        self.context = self.core.save_context()?;
+        self.context = arm_core.save_context()?;
 
         Ok(())
     }

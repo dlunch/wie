@@ -11,18 +11,22 @@ use crate::{runtime::KtfJavaContext, task::KtfTask};
 pub struct KtfWipiModule {}
 
 impl KtfWipiModule {
-    pub fn start(data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<impl Task> {
+    pub fn create_core() -> anyhow::Result<ArmCore> {
         let mut core = ArmCore::new()?;
         Allocator::init(&mut core)?;
 
-        let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
+        Ok(core)
+    }
 
-        let ptr_main_class_name = Allocator::alloc(&mut core, 20)?; // TODO size fix
+    pub fn start(core: &mut ArmCore, data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<impl Task> {
+        let (base_address, bss_size) = Self::load(core, data, filename)?;
+
+        let ptr_main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
         core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
         let entry = core.register_function(Self::do_start, &backend)?;
 
-        let task = KtfTask::from_pc_args(&mut core, entry, &[base_address, bss_size, ptr_main_class_name])?;
+        let task = KtfTask::from_pc_args(core, entry, &[base_address, bss_size, ptr_main_class_name])?;
 
         Ok(task)
     }
