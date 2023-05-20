@@ -1,5 +1,6 @@
-use alloc::{format, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
 use core::{
+    cell::RefCell,
     fmt::Debug,
     sync::atomic::{AtomicU32, Ordering},
 };
@@ -51,8 +52,11 @@ pub struct ArmCoreContext {
     pub pc: u32,
 }
 
+type FunctionType = dyn Fn(&mut ArmCore) -> u32;
+
 pub struct ArmCore {
     pub(crate) uc: Unicorn<'static, ()>,
+    functions: Rc<RefCell<BTreeMap<u32, Box<FunctionType>>>>,
 }
 
 impl ArmCore {
@@ -63,12 +67,14 @@ impl ArmCore {
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .map_err(UnicornError)?;
 
-        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ | Permission::EXEC)
-            .map_err(UnicornError)?;
+        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ).map_err(UnicornError)?;
 
         uc.reg_write(RegisterARM::CPSR, 0x40000010).map_err(UnicornError)?; // usr32
 
-        Ok(Self { uc })
+        Ok(Self {
+            uc,
+            functions: Rc::new(RefCell::new(BTreeMap::new())),
+        })
     }
 
     pub fn load(&mut self, data: &[u8], map_size: usize) -> ArmCoreResult<u32> {
@@ -81,12 +87,34 @@ impl ArmCore {
     }
 
     pub fn run_some(&mut self, until: u32, max_instructions: u32) -> ArmCoreResult<()> {
-        let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
-        self.uc
-            .emu_start(pc as u64, until as u64, 0, max_instructions as usize)
-            .map_err(UnicornError)?;
+        let mut pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
+        loop {
+            let result = self
+                .uc
+                .emu_start(pc as u64, until as u64, 0, max_instructions as usize)
+                .map_err(UnicornError);
 
-        Ok(())
+            if let Err(err) = &result {
+                if err.0 == uc_error::FETCH_PROT {
+                    let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+                    if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
+                        let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
+                        let function = self.functions.borrow_mut().remove(&cur_pc).unwrap();
+
+                        let ret = function(self);
+
+                        self.functions.borrow_mut().insert(cur_pc, function);
+
+                        self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
+                        pc = lr as u32;
+
+                        continue;
+                    }
+                }
+            }
+
+            return result.map_err(anyhow::Error::from);
+        }
     }
 
     pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
@@ -117,7 +145,8 @@ impl ArmCore {
         let previous_lr = self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?; // TODO do we have to save more callee-saved registers?
 
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
-        self.uc.emu_start(address as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
+        self.uc.reg_write(RegisterARM::PC, address as u64).map_err(UnicornError)?;
+        self.run_some(RUN_FUNCTION_LR, 0)?;
 
         let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
 
@@ -140,20 +169,19 @@ impl ArmCore {
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
         let new_context = context.clone();
-        self.uc
-            .add_code_hook(address, address, move |uc, _, _| {
-                let lr = uc.reg_read(RegisterARM::LR).unwrap();
-                log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
+        let functions = self.functions.clone();
+        let callback = move |core: &mut ArmCore| {
+            let lr = core.uc.reg_read(RegisterARM::LR).unwrap();
+            log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
 
-                let new_self = Self {
-                    uc: Unicorn::try_from(uc.get_handle()).unwrap(),
-                };
-                let ret = function.call(new_self, new_context.clone()).unwrap();
+            let new_self = Self {
+                uc: Unicorn::try_from(core.uc.get_handle()).unwrap(),
+                functions: functions.clone(),
+            };
+            function.call(new_self, new_context.clone()).unwrap()
+        };
 
-                uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
-                uc.reg_write(RegisterARM::PC, lr).unwrap();
-            })
-            .map_err(UnicornError)?;
+        self.functions.borrow_mut().insert(address as u32, Box::new(callback));
 
         log::trace!("Register function at {:#x}", address);
 
@@ -277,6 +305,10 @@ impl ArmCore {
         let pc = uc.reg_read(RegisterARM::PC).unwrap();
         let lr = uc.reg_read(RegisterARM::LR).unwrap();
 
+        if mem_type == MemType::FETCH_PROT && pc == address && (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&(address as u32)) {
+            return false;
+        }
+
         if mem_type == MemType::READ || mem_type == MemType::FETCH || mem_type == MemType::WRITE {
             let value_str = if mem_type == MemType::WRITE {
                 format!("{:#x}", value)
@@ -341,6 +373,7 @@ impl Clone for ArmCore {
     fn clone(&self) -> Self {
         Self {
             uc: Unicorn::try_from(self.uc.get_handle()).unwrap(),
+            functions: self.functions.clone(),
         }
     }
 }
