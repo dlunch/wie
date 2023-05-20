@@ -61,11 +61,11 @@ impl ArmCoreTask {
 }
 
 impl Task for ArmCoreTask {
-    fn run_some(&self, core: &mut dyn Core) -> anyhow::Result<()> {
+    fn run(&self, core: &mut dyn Core) -> anyhow::Result<()> {
         let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
         core.restore_context(&self.context.borrow())?;
 
-        core.run_some(TASK_LR, 100)?;
+        core.run_some(TASK_LR)?;
 
         self.context.replace(core.save_context()?);
 
