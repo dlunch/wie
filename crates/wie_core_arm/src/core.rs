@@ -86,35 +86,43 @@ impl ArmCore {
         Ok(IMAGE_BASE)
     }
 
-    pub fn run_some(&mut self, until: u32, max_instructions: u32) -> ArmCoreResult<()> {
-        let mut pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
-        loop {
-            let result = self
-                .uc
-                .emu_start(pc as u64, until as u64, 0, max_instructions as usize)
-                .map_err(UnicornError);
+    pub fn run_some(&mut self, until: u32) -> ArmCoreResult<()> {
+        let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
+        let result = self.uc.emu_start(pc as u64, until as u64, 0, 0).map_err(UnicornError);
 
-            if let Err(err) = &result {
-                if err.0 == uc_error::FETCH_PROT {
-                    let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
-                    if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
-                        let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
-                        let function = self.functions.remove(&cur_pc).unwrap();
+        if let Err(err) = &result {
+            if err.0 == uc_error::FETCH_PROT {
+                let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+                if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
+                    let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
+                    let function = self.functions.remove(&cur_pc).unwrap();
 
-                        let ret = function(self);
+                    let ret = function(self);
 
-                        self.functions.insert(cur_pc, function);
+                    self.functions.insert(cur_pc, function);
 
-                        self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
-                        pc = lr as u32;
+                    self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
+                    self.uc.reg_write(RegisterARM::PC, lr).unwrap();
 
-                        continue;
-                    }
+                    return Ok(());
                 }
             }
-
-            return result.map_err(anyhow::Error::from);
         }
+
+        Ok(result?)
+    }
+
+    pub fn run(&mut self, until: u32) -> ArmCoreResult<()> {
+        loop {
+            self.run_some(until)?;
+            let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+
+            if pc == until {
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
@@ -146,7 +154,7 @@ impl ArmCore {
 
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
         self.uc.reg_write(RegisterARM::PC, address as u64).map_err(UnicornError)?;
-        self.run_some(RUN_FUNCTION_LR, 0)?;
+        self.run(RUN_FUNCTION_LR)?;
 
         let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
 

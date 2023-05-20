@@ -52,7 +52,7 @@ impl Scheduler {
 
             for task in tasks {
                 backend.scheduler().current_task = Some(task.clone());
-                task.borrow().run_some(core)?;
+                task.borrow().run(core)?;
 
                 let task = backend.scheduler().current_task.take().unwrap();
 
