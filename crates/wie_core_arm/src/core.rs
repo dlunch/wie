@@ -50,7 +50,7 @@ pub struct ArmCoreContext {
     pub pc: u32,
 }
 
-type FunctionType = dyn Fn(&mut ArmCore) -> u32;
+type FunctionType = dyn Fn(&mut ArmCore);
 
 pub struct ArmCore {
     pub(crate) uc: Unicorn<'static, ()>,
@@ -94,7 +94,11 @@ impl ArmCore {
             if err.0 == uc_error::FETCH_PROT {
                 let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
                 if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
-                    self.call_registered_function(cur_pc)?;
+                    let function = self.functions.remove(&cur_pc).unwrap();
+
+                    function(self);
+
+                    self.functions.insert(cur_pc, function);
 
                     return Ok(());
                 }
@@ -164,11 +168,12 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_function<F, P, E, C>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
+    pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
-        F: EmulatedFunction<P, E, C> + 'static,
+        F: EmulatedFunction<P, E, C, R> + 'static,
         E: Debug,
         C: Clone + 'static,
+        R: ResultWriter<R>,
     {
         let bytes = [0x70, 0x47]; // BX LR
         let address = FUNCTIONS_BASE as u64 + (self.functions_count * 2) as u64;
@@ -177,10 +182,11 @@ impl ArmCore {
 
         let new_context = context.clone();
         let callback = move |core: &mut ArmCore| {
-            let lr = core.uc.reg_read(RegisterARM::LR).unwrap();
+            let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
             log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
 
-            function.call(core, &mut new_context.clone()).unwrap()
+            let result = function.call(core, &mut new_context.clone()).unwrap();
+            R::write(core, result, lr).unwrap();
         };
 
         self.functions.insert(address as u32, Box::new(callback));
@@ -245,20 +251,6 @@ impl ArmCore {
             lr: self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)? as u32,
             pc: self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32,
         })
-    }
-
-    fn call_registered_function(&mut self, pc: u32) -> ArmCoreResult<()> {
-        let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
-        let function = self.functions.remove(&pc).unwrap();
-
-        let ret = function(self);
-
-        self.functions.insert(pc, function);
-
-        self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
-        self.uc.reg_write(RegisterARM::PC, lr).unwrap();
-
-        Ok(())
     }
 
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> ArmCoreResult<String> {
@@ -387,3 +379,16 @@ impl ByteWrite for ArmCore {
 }
 
 impl Core for ArmCore {}
+
+pub trait ResultWriter<R> {
+    fn write(core: &mut ArmCore, value: R, lr: u32) -> anyhow::Result<()>;
+}
+
+impl ResultWriter<u32> for u32 {
+    fn write(core: &mut ArmCore, value: u32, lr: u32) -> anyhow::Result<()> {
+        core.uc.reg_write(RegisterARM::R0, value as u64).map_err(UnicornError)?;
+        core.uc.reg_write(RegisterARM::PC, lr as u64).map_err(UnicornError)?;
+
+        Ok(())
+    }
+}
