@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String};
 
 use wie_backend::Backend;
 use wie_base::{
@@ -9,7 +9,7 @@ use wie_base::{
 pub type CError = anyhow::Error;
 pub type CResult<T> = anyhow::Result<T>;
 
-pub type CContextMethod = Box<dyn Fn(&mut CContext, Vec<u32>) -> CResult<u32>>;
+pub type CContextMethod = Box<dyn Fn(&mut CContext, &[u32]) -> CResult<u32>>;
 pub type CMethodBody = Box<dyn MethodBody<CError, CContext>>;
 
 pub type CContext = dyn CContextBase;

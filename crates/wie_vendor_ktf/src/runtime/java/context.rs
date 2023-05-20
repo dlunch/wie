@@ -426,7 +426,7 @@ impl<'a> KtfJavaContext<'a> {
             // Hack to put lifetime on context.
             let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
 
-            let result = body.call(context, vec![a1, a2])?; // TODO do we need arg proxy?
+            let result = body.call(context, &[a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };

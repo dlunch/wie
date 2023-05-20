@@ -1,4 +1,4 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 
 use wie_backend::Backend;
 use wie_base::util::{ByteRead, ByteWrite};
@@ -29,7 +29,7 @@ impl CContextBase for KtfCContext<'_> {
                 // Hack to put lifetime on context.
                 let context: &mut KtfCContext<'static> = unsafe { core::mem::transmute(&mut context) };
 
-                let result = method(context, vec![a0, a1, a2])?;
+                let result = method(context, &[a0, a1, a2])?;
 
                 Ok::<_, anyhow::Error>(result)
             },
