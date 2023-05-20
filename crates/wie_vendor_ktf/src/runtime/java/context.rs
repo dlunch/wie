@@ -560,6 +560,6 @@ impl JavaContextBase for KtfJavaContext<'_> {
     }
 
     fn task_sleep(&mut self, time: u64) {
-        self.backend.scheduler().current_task().as_ref().unwrap().sleep(self.core, time);
+        self.backend.scheduler().current_task().unwrap().sleep(self.core, time);
     }
 }

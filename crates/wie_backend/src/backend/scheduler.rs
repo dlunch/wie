@@ -1,4 +1,6 @@
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use core::cell::{Ref, RefCell};
+
+use alloc::{boxed::Box, collections::BTreeMap, rc::Rc, vec::Vec};
 
 use wie_base::{
     task::{Task, TaskStatus},
@@ -8,9 +10,9 @@ use wie_base::{
 use crate::Backend;
 
 pub struct Scheduler {
-    tasks: Vec<Box<dyn Task>>,
-    current_task: Option<Box<dyn Task>>,
-    sleeping_tasks: BTreeMap<u64, Box<dyn Task>>,
+    tasks: Vec<Rc<RefCell<Box<dyn Task>>>>,
+    current_task: Option<Rc<RefCell<Box<dyn Task>>>>,
+    sleeping_tasks: BTreeMap<u64, Rc<RefCell<Box<dyn Task>>>>,
 }
 
 impl Default for Scheduler {
@@ -32,18 +34,16 @@ impl Scheduler {
     where
         T: Task + 'static,
     {
-        self.tasks.push(Box::new(task))
+        self.tasks.push(Rc::new(RefCell::new(Box::new(task))))
     }
 
-    pub fn current_task(&self) -> &Option<Box<dyn Task>> {
-        &self.current_task
+    pub fn current_task(&self) -> Option<Ref<'_, Box<dyn Task>>> {
+        self.current_task.as_ref().map(|x| x.borrow())
     }
 
     pub(crate) fn run(backend: Backend, core: &mut dyn Core) -> anyhow::Result<()> {
-        let mut scheduler = backend.scheduler();
-
         loop {
-            let tasks = scheduler.tasks.drain(..).collect::<Vec<_>>();
+            let tasks = backend.scheduler().tasks.drain(..).collect::<Vec<_>>();
             if tasks.is_empty() {
                 break;
             }
@@ -51,21 +51,21 @@ impl Scheduler {
             let mut new_tasks = Vec::with_capacity(tasks.len());
 
             for task in tasks {
-                scheduler.current_task = Some(task);
-                scheduler.current_task.as_ref().unwrap().run_some(core)?;
+                backend.scheduler().current_task = Some(task.clone());
+                task.borrow().run_some(core)?;
 
-                let task = scheduler.current_task.take().unwrap();
+                let task = backend.scheduler().current_task.take().unwrap();
 
-                let status = task.status();
+                let status = task.borrow().status();
 
                 if status == TaskStatus::Running {
                     new_tasks.push(task);
                 } else if let TaskStatus::Sleeping(until) = status {
-                    scheduler.sleeping_tasks.insert(until, task);
+                    backend.scheduler().sleeping_tasks.insert(until, task);
                 }
             }
 
-            scheduler.tasks.append(&mut new_tasks);
+            backend.scheduler().tasks.append(&mut new_tasks);
         }
 
         Ok(())
