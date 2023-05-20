@@ -94,15 +94,7 @@ impl ArmCore {
             if err.0 == uc_error::FETCH_PROT {
                 let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
                 if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
-                    let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
-                    let function = self.functions.remove(&cur_pc).unwrap();
-
-                    let ret = function(self);
-
-                    self.functions.insert(cur_pc, function);
-
-                    self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
-                    self.uc.reg_write(RegisterARM::PC, lr).unwrap();
+                    self.call_registered_function(cur_pc)?;
 
                     return Ok(());
                 }
@@ -253,6 +245,20 @@ impl ArmCore {
             lr: self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)? as u32,
             pc: self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32,
         })
+    }
+
+    fn call_registered_function(&mut self, pc: u32) -> ArmCoreResult<()> {
+        let lr = self.uc.reg_read(RegisterARM::LR).unwrap();
+        let function = self.functions.remove(&pc).unwrap();
+
+        let ret = function(self);
+
+        self.functions.insert(pc, function);
+
+        self.uc.reg_write(RegisterARM::R0, ret as u64).unwrap();
+        self.uc.reg_write(RegisterARM::PC, lr).unwrap();
+
+        Ok(())
     }
 
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> ArmCoreResult<String> {
