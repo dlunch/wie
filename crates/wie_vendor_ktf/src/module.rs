@@ -27,10 +27,10 @@ impl KtfWipiModule {
         Ok(task)
     }
 
-    fn do_start(mut core: ArmCore, backend: Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
+    fn do_start(mut core: ArmCore, mut backend: Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
         let ptr_main_class = Self::init(&mut core, &backend, base_address, bss_size, &main_class_name)?;
 
-        let mut java_context = KtfJavaContext::new(core, backend);
+        let mut java_context = KtfJavaContext::new(&mut core, &mut backend);
 
         let instance = java_context.instantiate_from_ptr_class(ptr_main_class)?;
         java_context.call_method(&instance, "<init>", "()V", &[])?;

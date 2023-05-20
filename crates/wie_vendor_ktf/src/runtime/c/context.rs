@@ -5,46 +5,49 @@ use wie_base::util::{ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_c::{CContextBase, CContextMethod, CResult};
 
-pub struct KtfCContext {
-    core: ArmCore,
-    backend: Backend,
+pub struct KtfCContext<'a> {
+    core: &'a mut ArmCore,
+    backend: &'a mut Backend,
 }
 
-impl KtfCContext {
-    pub fn new(core: ArmCore, backend: Backend) -> Self {
+impl<'a> KtfCContext<'a> {
+    pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
         Self { core, backend }
     }
 }
 
-impl CContextBase for KtfCContext {
+impl CContextBase for KtfCContext<'_> {
     fn alloc(&mut self, size: u32) -> CResult<u32> {
-        Allocator::alloc(&mut self.core, size)
+        Allocator::alloc(self.core, size)
     }
 
     fn register_function(&mut self, method: CContextMethod) -> CResult<u32> {
         self.core.register_function(
-            move |core: ArmCore, backend: Backend, a0: u32, a1: u32, a2: u32| {
-                let mut context = KtfCContext::new(core, backend);
+            move |mut core: ArmCore, mut backend: Backend, a0: u32, a1: u32, a2: u32| {
+                let mut context = KtfCContext::new(&mut core, &mut backend);
 
-                let result = method(&mut context, vec![a0, a1, a2])?;
+                // Hack to put lifetime on context.
+                let context: &mut KtfCContext<'static> = unsafe { core::mem::transmute(&mut context) };
+
+                let result = method(context, vec![a0, a1, a2])?;
 
                 Ok::<_, anyhow::Error>(result)
             },
-            &self.backend,
+            self.backend,
         )
     }
     fn backend(&mut self) -> &mut Backend {
-        &mut self.backend
+        self.backend
     }
 }
 
-impl ByteRead for KtfCContext {
+impl ByteRead for KtfCContext<'_> {
     fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
         self.core.read_bytes(address, size)
     }
 }
 
-impl ByteWrite for KtfCContext {
+impl ByteWrite for KtfCContext<'_> {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
         self.core.write_bytes(address, data)
     }
