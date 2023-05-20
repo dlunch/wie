@@ -57,14 +57,16 @@ impl Thread {
         Ok(())
     }
 
-    fn sleep(_: &mut JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
+    fn sleep(context: &mut JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
         log::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
+        context.task_sleep(a1 as u64);
 
         Ok(0)
     }
 
-    fn r#yield(_: &mut JavaContext) -> JavaResult<u32> {
+    fn r#yield(context: &mut JavaContext) -> JavaResult<u32> {
         log::debug!("Thread::yield()");
+        context.task_yield();
 
         Ok(0)
     }
