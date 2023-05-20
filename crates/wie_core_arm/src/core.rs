@@ -1,8 +1,5 @@
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
-use core::{
-    fmt::Debug,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::fmt::Debug;
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
@@ -22,7 +19,6 @@ const FUNCTIONS_BASE: u32 = 0x71000000;
 const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const PEB_BASE: u32 = 0x7ff00000;
-static FUNCTIONS_COUNT: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Debug)]
 pub struct UnicornError(uc_error);
@@ -59,6 +55,7 @@ type FunctionType = dyn Fn(&mut ArmCore) -> u32;
 pub struct ArmCore {
     pub(crate) uc: Unicorn<'static, ()>,
     functions: BTreeMap<u32, Box<FunctionType>>,
+    functions_count: usize,
 }
 
 impl ArmCore {
@@ -76,6 +73,7 @@ impl ArmCore {
         Ok(Self {
             uc,
             functions: BTreeMap::new(),
+            functions_count: 0,
         })
     }
 
@@ -166,7 +164,7 @@ impl ArmCore {
         C: Clone + 'static,
     {
         let bytes = [0x70, 0x47]; // BX LR
-        let address = FUNCTIONS_BASE as u64 + FUNCTIONS_COUNT.fetch_add(2, Ordering::SeqCst) as u64;
+        let address = FUNCTIONS_BASE as u64 + (self.functions_count * 2) as u64;
 
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
@@ -179,6 +177,7 @@ impl ArmCore {
         };
 
         self.functions.insert(address as u32, Box::new(callback));
+        self.functions_count += 1;
 
         log::trace!("Register function at {:#x}", address);
 
