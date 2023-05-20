@@ -169,16 +169,11 @@ impl ArmCore {
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
         let new_context = context.clone();
-        let functions = self.functions.clone();
         let callback = move |core: &mut ArmCore| {
             let lr = core.uc.reg_read(RegisterARM::LR).unwrap();
             log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
 
-            let new_self = Self {
-                uc: Unicorn::try_from(core.uc.get_handle()).unwrap(),
-                functions: functions.clone(),
-            };
-            function.call(new_self, new_context.clone()).unwrap()
+            function.call(core, &mut new_context.clone()).unwrap()
         };
 
         self.functions.borrow_mut().insert(address as u32, Box::new(callback));

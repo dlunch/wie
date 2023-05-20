@@ -26,7 +26,7 @@ struct WIPIJBInterface {
     fn_unk6: u32,
 }
 
-pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Result<u32> {
+pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
         fn_unk1: core.register_function(jb_unk1, backend)?,
@@ -43,16 +43,16 @@ pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Re
         fn_unk6: core.register_function(jb_unk6, backend)?,
     };
 
-    let address = Allocator::alloc(&mut core, size_of::<WIPIJBInterface>() as u32)?;
-    write_generic(&mut core, address, interface)?;
+    let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;
+    write_generic(core, address, interface)?;
 
     Ok(address)
 }
 
-pub fn java_class_load(mut core: ArmCore, mut backend: Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
+pub fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJavaContext::new(&mut core, &mut backend).load_class(ptr_target, &name);
+    let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)
@@ -63,92 +63,92 @@ pub fn java_class_load(mut core: ArmCore, mut backend: Backend, ptr_target: u32,
     }
 }
 
-pub fn java_throw(core: ArmCore, _: Backend, error: String, a1: u32) -> anyhow::Result<u32> {
+pub fn java_throw(core: &mut ArmCore, _: &mut Backend, error: String, a1: u32) -> anyhow::Result<u32> {
     log::error!("java_throw({}, {})", error, a1);
     log::error!("\n{}", core.dump_regs()?);
 
     Ok(0)
 }
 
-fn get_java_method(mut core: ArmCore, mut backend: Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
-    let fullname = JavaFullName::from_ptr(&core, ptr_fullname)?;
+fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
+    let fullname = JavaFullName::from_ptr(core, ptr_fullname)?;
     log::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJavaContext::new(&mut core, &mut backend).get_method(ptr_class, fullname)?;
+    let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
 
     log::trace!("get_java_method result {:#x}", ptr_method);
 
     Ok(ptr_method)
 }
 
-fn jb_unk1(mut core: ArmCore, _: Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
+fn jb_unk1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
 
     core.run_function(address, &[arg1]) // TODO change to jump
 }
 
-fn jb_unk2(_: ArmCore, _: Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
+fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
     log::debug!("jb_unk2({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
-fn jb_unk3(_: ArmCore, _: Backend, string: u32, a1: u32) -> anyhow::Result<u32> {
+fn jb_unk3(_: &mut ArmCore, _: &mut Backend, string: u32, a1: u32) -> anyhow::Result<u32> {
     // register string?
     log::debug!("jb_unk3({:#x}, {:#x})", string, a1);
 
     Ok(string)
 }
 
-fn jb_unk4(_: ArmCore, _: Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
+fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
     log::debug!("jb_unk4({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
-fn jb_unk5(_: ArmCore, _: Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
+fn jb_unk5(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
     log::debug!("jb_unk5({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
-fn jb_unk6(mut core: ArmCore, _: Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
+fn jb_unk6(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk6 jump?({:#x}, {:#x})", address, ptr_data);
 
     let result = core.run_function(address, &[ptr_data])?;
 
-    write_generic(&mut core, ptr_data, result)?;
+    write_generic(core, ptr_data, result)?;
 
     Ok(ptr_data)
 }
 
-fn jb_unk7(mut core: ArmCore, _: Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
+fn jb_unk7(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     core.run_function(address, &[arg1, arg2]) // TODO change to jump
 }
 
-fn jb_unk8(_: ArmCore, _: Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
+fn jb_unk8(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
     log::debug!("jb_unk8({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     Ok(0)
 }
 
-pub fn java_new(mut core: ArmCore, mut backend: Backend, ptr_class: u32) -> anyhow::Result<u32> {
+pub fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<u32> {
     log::trace!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJavaContext::new(&mut core, &mut backend).instantiate_from_ptr_class(ptr_class)?;
+    let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
 
     Ok(instance.ptr_instance)
 }
 
-pub fn java_array_new(mut core: ArmCore, mut backend: Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
+pub fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
     log::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    let mut java_context = KtfJavaContext::new(&mut core, &mut backend);
+    let mut java_context = KtfJavaContext::new(core, backend);
 
     // HACK: we don't have element type class
     let instance = if element_type > 0x100 {

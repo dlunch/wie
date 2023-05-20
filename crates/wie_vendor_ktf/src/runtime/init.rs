@@ -233,12 +233,12 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     })
 }
 
-fn get_interface(core: ArmCore, backend: Backend, r#struct: String) -> anyhow::Result<u32> {
+fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: String) -> anyhow::Result<u32> {
     log::debug!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, backend),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core, &backend),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core, backend),
         _ => {
             log::warn!("Unknown {}", r#struct);
             log::warn!("Register dump\n{}", core.dump_regs()?);
@@ -248,11 +248,11 @@ fn get_interface(core: ArmCore, backend: Backend, r#struct: String) -> anyhow::R
     }
 }
 
-fn init_unk3(mut core: ArmCore, _: Backend, a0: u32) -> anyhow::Result<u32> {
+fn init_unk3(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
     // alloc??
     log::debug!("init_unk3({})", a0);
 
-    Allocator::alloc(&mut core, a0)
+    Allocator::alloc(core, a0)
 }
 
 fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {

@@ -420,8 +420,8 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
-        let closure = move |mut core: ArmCore, mut backend: Backend, _: u32, a1: u32, a2: u32| {
-            let mut context = KtfJavaContext::new(&mut core, &mut backend);
+        let closure = move |core: &mut ArmCore, backend: &mut Backend, _: u32, a1: u32, a2: u32| {
+            let mut context = KtfJavaContext::new(core, backend);
 
             // Hack to put lifetime on context.
             let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
