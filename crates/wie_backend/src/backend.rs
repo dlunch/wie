@@ -1,9 +1,14 @@
+mod window;
+
 use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{Ref, RefCell, RefMut};
+
+use self::window::Window;
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     scheduler: Rc<RefCell<Scheduler>>,
+    window: Rc<RefCell<Window>>,
 }
 
 impl Default for Backend {
@@ -17,6 +22,7 @@ impl Backend {
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             scheduler: Rc::new(RefCell::new(Scheduler::new())),
+            window: Rc::new(RefCell::new(Window::new())),
         }
     }
 
@@ -38,6 +44,7 @@ impl Clone for Backend {
         Self {
             resource: self.resource.clone(),
             scheduler: self.scheduler.clone(),
+            window: self.window.clone(),
         }
     }
 }
