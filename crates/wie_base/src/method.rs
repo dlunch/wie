@@ -1,11 +1,11 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::boxed::Box;
 use core::marker::PhantomData;
 
 pub trait MethodBody<E, C>
 where
     C: ?Sized,
 {
-    fn call(&self, context: &mut C, args: Vec<u32>) -> Result<u32, E>;
+    fn call(&self, context: &mut C, args: &[u32]) -> Result<u32, E>;
 }
 
 struct MethodHolder<F, R, P>(pub F, PhantomData<(R, P)>);
@@ -16,7 +16,7 @@ where
     F: Fn(&mut C) -> Result<R, E>,
     R: TypeConverter<R, C>,
 {
-    fn call(&self, context: &mut C, _: Vec<u32>) -> Result<u32, E> {
+    fn call(&self, context: &mut C, _: &[u32]) -> Result<u32, E> {
         let result = self.0(context)?;
 
         Ok(R::from_rust(context, result))
@@ -30,7 +30,7 @@ where
     R: TypeConverter<R, C>,
     P0: TypeConverter<P0, C>,
 {
-    fn call(&self, context: &mut C, args: Vec<u32>) -> Result<u32, E> {
+    fn call(&self, context: &mut C, args: &[u32]) -> Result<u32, E> {
         let p0 = P0::to_rust(context, args[0]);
 
         let result = self.0(context, p0)?;
@@ -47,7 +47,7 @@ where
     P0: TypeConverter<P0, C>,
     P1: TypeConverter<P1, C>,
 {
-    fn call(&self, context: &mut C, args: Vec<u32>) -> Result<u32, E> {
+    fn call(&self, context: &mut C, args: &[u32]) -> Result<u32, E> {
         let p0 = P0::to_rust(context, args[0]);
         let p1 = P1::to_rust(context, args[1]);
 
@@ -66,7 +66,7 @@ where
     P1: TypeConverter<P1, C>,
     P2: TypeConverter<P2, C>,
 {
-    fn call(&self, context: &mut C, args: Vec<u32>) -> Result<u32, E> {
+    fn call(&self, context: &mut C, args: &[u32]) -> Result<u32, E> {
         let p0 = P0::to_rust(context, args[0]);
         let p1 = P1::to_rust(context, args[1]);
         let p2 = P2::to_rust(context, args[2]);
