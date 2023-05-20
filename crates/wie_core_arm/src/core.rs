@@ -392,3 +392,12 @@ impl ResultWriter<u32> for u32 {
         Ok(())
     }
 }
+
+impl ResultWriter<(u32, Vec<u32>)> for (u32, Vec<u32>) {
+    fn write(core: &mut ArmCore, value: (u32, Vec<u32>), lr: u32) -> anyhow::Result<()> {
+        core.uc.reg_write(RegisterARM::LR, lr as u64).map_err(UnicornError)?;
+        core.set_next(value.0, &value.1)?;
+
+        Ok(())
+    }
+}
