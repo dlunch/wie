@@ -123,19 +123,19 @@ impl PartialEq for JavaFullName {
     }
 }
 
-pub struct KtfJavaContext {
-    core: ArmCore,
-    backend: Backend,
+pub struct KtfJavaContext<'a> {
+    core: &'a mut ArmCore,
+    backend: &'a mut Backend,
 }
 
-impl KtfJavaContext {
+impl<'a> KtfJavaContext<'a> {
     pub fn init(core: &mut ArmCore) -> JavaResult<u32> {
         let java_classes_base = Allocator::alloc(core, 0x1000)?;
 
         Ok(java_classes_base)
     }
 
-    pub fn new(core: ArmCore, backend: Backend) -> Self {
+    pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
         Self { core, backend }
     }
 
@@ -144,8 +144,8 @@ impl KtfJavaContext {
 
         let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
         for ptr_method in ptr_methods {
-            let current_method = read_generic::<JavaMethod>(&self.core, ptr_method)?;
-            let current_fullname = JavaFullName::from_ptr(&self.core, current_method.ptr_name)?;
+            let current_method = read_generic::<JavaMethod>(self.core, ptr_method)?;
+            let current_fullname = JavaFullName::from_ptr(self.core, current_method.ptr_name)?;
 
             if current_fullname == fullname {
                 return Ok(ptr_method);
@@ -158,7 +158,7 @@ impl KtfJavaContext {
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
         let ptr_class = self.find_ptr_class(name)?;
 
-        write_generic(&mut self.core, ptr_target, ptr_class)?;
+        write_generic(self.core, ptr_target, ptr_class)?;
 
         Ok(())
     }
@@ -184,13 +184,13 @@ impl KtfJavaContext {
     }
 
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
-        let ptr_instance = Allocator::alloc(&mut self.core, size_of::<JavaClassInstance>() as u32)?;
-        let ptr_fields = Allocator::alloc(&mut self.core, fields_size + 4)?;
+        let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
+        let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
 
         let vtable_index = self.get_vtable_index(ptr_class)?;
 
-        write_generic(&mut self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
-        write_generic(&mut self.core, ptr_fields, (vtable_index * 4) << 5)?;
+        write_generic(self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
+        write_generic(self.core, ptr_fields, (vtable_index * 4) << 5)?;
 
         log::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
@@ -199,9 +199,9 @@ impl KtfJavaContext {
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
         let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?;
-        let instance = read_generic::<JavaClassInstance>(&self.core, proxy.ptr_instance)?;
+        let instance = read_generic::<JavaClassInstance>(self.core, proxy.ptr_instance)?;
 
-        write_generic(&mut self.core, instance.ptr_fields + 4, count)?;
+        write_generic(self.core, instance.ptr_fields + 4, count)?;
 
         Ok(proxy)
     }
@@ -209,10 +209,10 @@ impl KtfJavaContext {
     fn write_vtable(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let vtable = self.build_vtable(ptr_class)?;
 
-        let ptr_vtable = Allocator::alloc(&mut self.core, (vtable.len() + 1) as u32 * 4)?;
+        let ptr_vtable = Allocator::alloc(self.core, (vtable.len() + 1) as u32 * 4)?;
         let mut cursor = ptr_vtable;
         for item in vtable {
-            write_generic(&mut self.core, cursor, item)?;
+            write_generic(self.core, cursor, item)?;
             cursor += 4;
         }
 
@@ -222,7 +222,7 @@ impl KtfJavaContext {
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let (class, _, _) = self.read_ptr_class(ptr_class)?;
 
-        let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
+        let peb = read_generic::<KtfPeb>(self.core, PEB_BASE)?;
 
         let ptr_vtables = self.read_null_terminated_table(peb.ptr_vtables_base)?;
 
@@ -233,7 +233,7 @@ impl KtfJavaContext {
         }
 
         let index = ptr_vtables.len();
-        write_generic(&mut self.core, peb.ptr_vtables_base + (index * size_of::<u32>()) as u32, class.ptr_vtable)?;
+        write_generic(self.core, peb.ptr_vtables_base + (index * size_of::<u32>()) as u32, class.ptr_vtable)?;
 
         Ok(index as u32)
     }
@@ -275,7 +275,7 @@ impl KtfJavaContext {
     }
 
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
+        let peb = read_generic::<KtfPeb>(self.core, PEB_BASE)?;
 
         let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
         for ptr_class in ptr_classes {
@@ -301,9 +301,9 @@ impl KtfJavaContext {
     fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
         let method_count = proto.methods.len();
 
-        let ptr_class = Allocator::alloc(&mut self.core, size_of::<JavaClass>() as u32)?;
+        let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
         write_generic(
-            &mut self.core,
+            self.core,
             ptr_class,
             JavaClass {
                 ptr_next: ptr_class + 4,
@@ -315,7 +315,7 @@ impl KtfJavaContext {
             },
         )?;
 
-        let ptr_methods = Allocator::alloc(&mut self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
+        let ptr_methods = Allocator::alloc(self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
         let mut cursor = ptr_methods;
         for (index, method) in proto.methods.into_iter().enumerate() {
             let full_name = (JavaFullName {
@@ -325,13 +325,13 @@ impl KtfJavaContext {
             })
             .as_bytes();
 
-            let ptr_name = Allocator::alloc(&mut self.core, full_name.len() as u32)?;
+            let ptr_name = Allocator::alloc(self.core, full_name.len() as u32)?;
             self.core.write_bytes(ptr_name, &full_name)?;
 
-            let ptr_method = Allocator::alloc(&mut self.core, size_of::<JavaMethod>() as u32)?;
+            let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
             let fn_body = self.register_java_method(method.body)?;
             write_generic(
-                &mut self.core,
+                self.core,
                 ptr_method,
                 JavaMethod {
                     fn_body,
@@ -346,11 +346,11 @@ impl KtfJavaContext {
                 },
             )?;
 
-            write_generic(&mut self.core, cursor, ptr_method)?;
+            write_generic(self.core, cursor, ptr_method)?;
             cursor += 4;
         }
 
-        let ptr_fields = Allocator::alloc(&mut self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
+        let ptr_fields = Allocator::alloc(self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
         let mut cursor = ptr_fields;
         for (index, field) in proto.fields.into_iter().enumerate() {
             let full_name = (JavaFullName {
@@ -360,12 +360,12 @@ impl KtfJavaContext {
             })
             .as_bytes();
 
-            let ptr_name = Allocator::alloc(&mut self.core, full_name.len() as u32)?;
+            let ptr_name = Allocator::alloc(self.core, full_name.len() as u32)?;
             self.core.write_bytes(ptr_name, &full_name)?;
 
-            let ptr_field = Allocator::alloc(&mut self.core, size_of::<JavaField>() as u32)?;
+            let ptr_field = Allocator::alloc(self.core, size_of::<JavaField>() as u32)?;
             write_generic(
-                &mut self.core,
+                self.core,
                 ptr_field,
                 JavaField {
                     unk1: 0,
@@ -375,16 +375,16 @@ impl KtfJavaContext {
                 },
             )?;
 
-            write_generic(&mut self.core, cursor, ptr_field)?;
+            write_generic(self.core, cursor, ptr_field)?;
             cursor += 4;
         }
 
-        let ptr_name = Allocator::alloc(&mut self.core, (name.len() + 1) as u32)?;
+        let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
         self.core.write_bytes(ptr_name, name.as_bytes())?;
 
-        let ptr_descriptor = Allocator::alloc(&mut self.core, size_of::<JavaClassDescriptor>() as u32)?;
+        let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
         write_generic(
-            &mut self.core,
+            self.core,
             ptr_descriptor,
             JavaClassDescriptor {
                 ptr_name,
@@ -402,16 +402,16 @@ impl KtfJavaContext {
             },
         )?;
 
-        write_generic(&mut self.core, ptr_class + 8, ptr_descriptor)?;
+        write_generic(self.core, ptr_class + 8, ptr_descriptor)?;
 
         let ptr_vtable = self.write_vtable(ptr_class)?;
-        write_generic(&mut self.core, ptr_class + 12, ptr_vtable)?;
+        write_generic(self.core, ptr_class + 12, ptr_vtable)?;
 
-        let peb = read_generic::<KtfPeb>(&self.core, PEB_BASE)?;
+        let peb = read_generic::<KtfPeb>(self.core, PEB_BASE)?;
 
         let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
         write_generic(
-            &mut self.core,
+            self.core,
             peb.java_classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
             ptr_class,
         )?;
@@ -420,21 +420,24 @@ impl KtfJavaContext {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
-        let closure = move |core: ArmCore, backend: Backend, _: u32, a1: u32, a2: u32| {
-            let mut context = KtfJavaContext::new(core, backend);
+        let closure = move |mut core: ArmCore, mut backend: Backend, _: u32, a1: u32, a2: u32| {
+            let mut context = KtfJavaContext::new(&mut core, &mut backend);
 
-            let result = body.call(&mut context, vec![a1, a2])?; // TODO do we need arg proxy?
+            // Hack to put lifetime on context.
+            let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
+
+            let result = body.call(context, vec![a1, a2])?; // TODO do we need arg proxy?
 
             Ok::<_, JavaError>(result)
         };
 
-        self.core.register_function(closure, &self.backend)
+        self.core.register_function(closure, self.backend)
     }
 
     fn read_ptr_class(&self, ptr_class: u32) -> JavaResult<(JavaClass, JavaClassDescriptor, String)> {
-        let class = read_generic::<JavaClass>(&self.core, ptr_class)?;
-        let class_descriptor = read_generic::<JavaClassDescriptor>(&self.core, class.ptr_descriptor)?;
-        let class_name = read_null_terminated_string(&self.core, class_descriptor.ptr_name)?;
+        let class = read_generic::<JavaClass>(self.core, ptr_class)?;
+        let class_descriptor = read_generic::<JavaClassDescriptor>(self.core, class.ptr_descriptor)?;
+        let class_name = read_null_terminated_string(self.core, class_descriptor.ptr_name)?;
 
         Ok((class, class_descriptor, class_name))
     }
@@ -443,7 +446,7 @@ impl KtfJavaContext {
         let mut cursor = base_address;
         let mut result = Vec::new();
         loop {
-            let item = read_generic::<u32>(&self.core, cursor)?;
+            let item = read_generic::<u32>(self.core, cursor)?;
             if item == 0 {
                 break;
             }
@@ -456,14 +459,14 @@ impl KtfJavaContext {
     }
 
     fn find_field_offset(&self, proxy: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
-        let instance = read_generic::<JavaClassInstance>(&self.core, proxy.ptr_instance)?;
+        let instance = read_generic::<JavaClassInstance>(self.core, proxy.ptr_instance)?;
         let (_, class_descriptor, _) = self.read_ptr_class(instance.ptr_class)?;
 
         let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields)?;
         for ptr_field in ptr_fields {
-            let field = read_generic::<JavaField>(&self.core, ptr_field)?;
+            let field = read_generic::<JavaField>(self.core, ptr_field)?;
 
-            let fullname = JavaFullName::from_ptr(&self.core, field.ptr_name)?;
+            let fullname = JavaFullName::from_ptr(self.core, field.ptr_name)?;
             if fullname.name == field_name {
                 return Ok(field.offset);
             }
@@ -473,7 +476,7 @@ impl KtfJavaContext {
     }
 }
 
-impl JavaContextBase for KtfJavaContext {
+impl JavaContextBase for KtfJavaContext<'_> {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
         if type_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
@@ -502,7 +505,7 @@ impl JavaContextBase for KtfJavaContext {
     }
 
     fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        let instance = read_generic::<JavaClassInstance>(&self.core, instance_proxy.ptr_instance)?;
+        let instance = read_generic::<JavaClassInstance>(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
         log::info!("Call {}::{}({})", class_name, name, signature);
@@ -515,7 +518,7 @@ impl JavaContextBase for KtfJavaContext {
 
         let ptr_method = self.get_method(instance.ptr_class, fullname)?;
 
-        let method = read_generic::<JavaMethod>(&self.core, ptr_method)?;
+        let method = read_generic::<JavaMethod>(self.core, ptr_method)?;
 
         let mut params = vec![0, instance_proxy.ptr_instance];
         if !args.is_empty() {
@@ -529,27 +532,27 @@ impl JavaContextBase for KtfJavaContext {
     }
 
     fn backend(&mut self) -> &mut Backend {
-        &mut self.backend
+        self.backend
     }
 
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
         let offset = self.find_field_offset(instance, field_name)?;
 
-        let instance = read_generic::<JavaClassInstance>(&self.core, instance.ptr_instance)?;
-        read_generic::<u32>(&self.core, instance.ptr_fields + offset + 4)
+        let instance = read_generic::<JavaClassInstance>(self.core, instance.ptr_instance)?;
+        read_generic::<u32>(self.core, instance.ptr_fields + offset + 4)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()> {
         let offset = self.find_field_offset(instance, field_name)?;
 
-        let instance = read_generic::<JavaClassInstance>(&self.core, instance.ptr_instance)?;
-        write_generic(&mut self.core, instance.ptr_fields + offset + 4, value)
+        let instance = read_generic::<JavaClassInstance>(self.core, instance.ptr_instance)?;
+        write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
 
     fn schedule_task(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         let function = self.register_java_method(callback)?;
 
-        let task = KtfTask::from_pc_args(&mut self.core, function, &[])?;
+        let task = KtfTask::from_pc_args(self.core, function, &[])?;
 
         self.backend.scheduler().schedule(task);
 

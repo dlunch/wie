@@ -49,10 +49,10 @@ pub fn get_wipi_jb_interface(mut core: ArmCore, backend: &Backend) -> anyhow::Re
     Ok(address)
 }
 
-pub fn java_class_load(core: ArmCore, backend: Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
+pub fn java_class_load(mut core: ArmCore, mut backend: Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     log::debug!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name);
+    let result = KtfJavaContext::new(&mut core, &mut backend).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)
@@ -70,11 +70,11 @@ pub fn java_throw(core: ArmCore, _: Backend, error: String, a1: u32) -> anyhow::
     Ok(0)
 }
 
-fn get_java_method(core: ArmCore, backend: Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
+fn get_java_method(mut core: ArmCore, mut backend: Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
     let fullname = JavaFullName::from_ptr(&core, ptr_fullname)?;
     log::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
+    let ptr_method = KtfJavaContext::new(&mut core, &mut backend).get_method(ptr_class, fullname)?;
 
     log::trace!("get_java_method result {:#x}", ptr_method);
 
@@ -137,18 +137,18 @@ fn jb_unk8(_: ArmCore, _: Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<
     Ok(0)
 }
 
-pub fn java_new(core: ArmCore, backend: Backend, ptr_class: u32) -> anyhow::Result<u32> {
+pub fn java_new(mut core: ArmCore, mut backend: Backend, ptr_class: u32) -> anyhow::Result<u32> {
     log::trace!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
+    let instance = KtfJavaContext::new(&mut core, &mut backend).instantiate_from_ptr_class(ptr_class)?;
 
     Ok(instance.ptr_instance)
 }
 
-pub fn java_array_new(core: ArmCore, backend: Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
+pub fn java_array_new(mut core: ArmCore, mut backend: Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
     log::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    let mut java_context = KtfJavaContext::new(core, backend);
+    let mut java_context = KtfJavaContext::new(&mut core, &mut backend);
 
     // HACK: we don't have element type class
     let instance = if element_type > 0x100 {
