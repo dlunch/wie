@@ -549,7 +549,7 @@ impl JavaContextBase for KtfJavaContext<'_> {
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
 
-    fn schedule_task(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
+    fn task_schedule(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         let function = self.register_java_method(callback)?;
 
         let task = ArmCoreTask::from_pc_args(self.core, function, &[])?;
@@ -557,5 +557,9 @@ impl JavaContextBase for KtfJavaContext<'_> {
         self.backend.scheduler().schedule(task);
 
         Ok(())
+    }
+
+    fn task_sleep(&mut self, time: u64) {
+        self.backend.scheduler().current_task().as_ref().unwrap().sleep(self.core, time);
     }
 }

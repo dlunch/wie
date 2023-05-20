@@ -1,8 +1,10 @@
 use alloc::vec;
+use wie_base::method::MethodImpl;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
+    JavaError,
 };
 
 // class org.kwis.msp.lcdui.Card
@@ -21,8 +23,19 @@ impl Card {
         }
     }
 
-    fn init(_: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    fn init(context: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
+
+        context.task_schedule(
+            (move |context: &mut JavaContext| -> Result<(), JavaError> {
+                loop {
+                    context.task_sleep(16);
+
+                    // call self::paint
+                }
+            })
+            .into_body(),
+        )?;
 
         Ok(())
     }

@@ -43,7 +43,7 @@ impl Thread {
 
         let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
 
-        context.schedule_task(
+        context.task_schedule(
             (move |context: &mut JavaContext| {
                 log::debug!("Thread::run");
 
