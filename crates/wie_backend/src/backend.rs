@@ -3,6 +3,8 @@ mod window;
 use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{Ref, RefCell, RefMut};
 
+use wie_base::Core;
+
 use self::window::Window;
 
 pub struct Backend {
@@ -34,8 +36,8 @@ impl Backend {
         self.scheduler.borrow_mut()
     }
 
-    pub fn run(self) -> anyhow::Result<()> {
-        Scheduler::run(self)
+    pub fn run(self, core: &mut dyn Core) -> anyhow::Result<()> {
+        Scheduler::run(self, core)
     }
 }
 
@@ -84,7 +86,7 @@ impl Resource {
 }
 
 pub trait Task {
-    fn run_some(&mut self) -> anyhow::Result<()>;
+    fn run_some(&mut self, core: &mut dyn Core) -> anyhow::Result<()>;
     fn is_finished(&self) -> bool;
 }
 
@@ -110,7 +112,7 @@ impl Scheduler {
         self.tasks.push(Box::new(task))
     }
 
-    fn run(backend: Backend) -> anyhow::Result<()> {
+    fn run(backend: Backend, core: &mut dyn Core) -> anyhow::Result<()> {
         loop {
             let tasks = backend.scheduler().tasks.drain(..).collect::<Vec<_>>();
             if tasks.is_empty() {
@@ -120,7 +122,7 @@ impl Scheduler {
             let mut new_tasks = Vec::with_capacity(tasks.len());
 
             for mut task in tasks {
-                task.run_some()?;
+                task.run_some(core)?;
 
                 if !task.is_finished() {
                     new_tasks.push(task);
