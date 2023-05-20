@@ -6,7 +6,6 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Core;
 
-pub use self::scheduler::{Task, TaskStatus};
 use self::{scheduler::Scheduler, window::Window};
 
 pub struct Backend {

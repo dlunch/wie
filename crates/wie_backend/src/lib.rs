@@ -3,4 +3,4 @@ extern crate alloc;
 
 mod backend;
 
-pub use self::backend::{Backend, Task, TaskStatus};
+pub use self::backend::Backend;

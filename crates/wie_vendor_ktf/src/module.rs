@@ -1,11 +1,11 @@
 use alloc::string::String;
 
-use wie_backend::{Backend, Task};
-use wie_base::util::ByteWrite;
-use wie_core_arm::{Allocator, ArmCore};
+use wie_backend::Backend;
+use wie_base::{task::Task, util::ByteWrite};
+use wie_core_arm::{Allocator, ArmCore, ArmCoreTask};
 use wie_wipi_java::JavaContextBase;
 
-use crate::{runtime::KtfJavaContext, task::KtfTask};
+use crate::runtime::KtfJavaContext;
 
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {}
@@ -26,7 +26,7 @@ impl KtfWipiModule {
 
         let entry = core.register_function(Self::do_start, &backend)?;
 
-        let task = KtfTask::from_pc_args(core, entry, &[base_address, bss_size, ptr_main_class_name])?;
+        let task = ArmCoreTask::from_pc_args(core, entry, &[base_address, bss_size, ptr_main_class_name])?;
 
         Ok(task)
     }

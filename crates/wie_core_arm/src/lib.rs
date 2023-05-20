@@ -4,8 +4,10 @@ extern crate alloc;
 mod allocator;
 mod core;
 mod function;
+mod task;
 
 pub use self::{
     allocator::Allocator,
-    core::{ArmCore, ArmCoreContext, PEB_BASE},
+    core::{ArmCore, PEB_BASE},
+    task::ArmCoreTask,
 };
