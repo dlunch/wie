@@ -23,16 +23,19 @@ impl Card {
         }
     }
 
-    fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
         context.task_schedule(
-            (move |context: &mut dyn JavaContext| -> Result<(), JavaError> {
+            (move |context: &mut dyn JavaContext| async {
                 loop {
-                    context.task_sleep(16);
+                    // context.task_sleep(16);
 
                     // call self::paint
+                    todo!();
                 }
+
+                Ok::<(), JavaError>(())
             })
             .into_body(),
         )?;
@@ -40,19 +43,19 @@ impl Card {
         Ok(())
     }
 
-    fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
+    async fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }
 
-    fn get_width(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn get_width(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_width");
 
         Ok(320) // TODO: hardcoded
     }
 
-    fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded

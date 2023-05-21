@@ -12,7 +12,7 @@ impl Array {
         }
     }
 
-    fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
         log::debug!("Array::<init>");
 
         Ok(())

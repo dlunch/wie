@@ -19,13 +19,13 @@ impl BackLight {
         }
     }
 
-    fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Backlight::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
-    fn always_on(_: &mut dyn JavaContext) -> JavaResult<()> {
+    async fn always_on(_: &mut dyn JavaContext) -> JavaResult<()> {
         log::debug!("Backlight::alwaysOn");
 
         Ok(())

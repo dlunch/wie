@@ -16,7 +16,7 @@ impl Object {
         }
     }
 
-    fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Object::<init>({:#x})", instance.ptr_instance);
 
         Ok(())

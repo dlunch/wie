@@ -20,13 +20,13 @@ impl Image {
         }
     }
 
-    fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Image::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
-    fn create_image(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy> {
+    async fn create_image(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy> {
         log::debug!("Image::createImage({}, {})", a0, a1);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
@@ -35,7 +35,7 @@ impl Image {
         Ok(instance)
     }
 
-    fn get_graphics(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
+    async fn get_graphics(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
         log::debug!("Image::get_graphics");
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
