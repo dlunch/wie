@@ -1,8 +1,8 @@
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
-use core::{fmt::Debug, future::Future};
+use core::{fmt::Debug, future::Future, marker::PhantomData};
 
 use capstone::{arch::BuildsCapstone, Capstone};
-use futures::{future::LocalBoxFuture, FutureExt};
+use futures::FutureExt;
 use unicorn_engine::{
     unicorn_const::{uc_error, Arch, HookType, MemType, Mode, Permission},
     RegisterARM, Unicorn,
@@ -36,11 +36,9 @@ impl From<UnicornError> for anyhow::Error {
 
 pub type ArmCoreResult<T> = anyhow::Result<T>;
 
-type FunctionType = dyn Fn(&mut ArmCore) -> LocalBoxFuture<'static, ()>;
-
 pub struct ArmCore {
     pub(crate) uc: Unicorn<'static, ()>,
-    functions: BTreeMap<u32, Box<FunctionType>>,
+    functions: BTreeMap<u32, Box<dyn RegisteredFunction>>,
     functions_count: usize,
 }
 
@@ -84,7 +82,7 @@ impl ArmCore {
                 if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
                     let function = self.functions.remove(&cur_pc).unwrap();
 
-                    function(self).await;
+                    function.call(self).await;
 
                     self.functions.insert(cur_pc, function);
                 }
@@ -145,31 +143,18 @@ impl ArmCore {
 
     pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
-        F: EmulatedFunction<P, E, C, R> + 'static + Clone,
-        E: Debug,
+        F: EmulatedFunction<P, E, C, R> + 'static,
+        E: Debug + 'static,
         C: Clone + 'static,
-        R: ResultWriter<R>,
+        R: ResultWriter<R> + 'static,
+        P: 'static,
     {
         let bytes = [0x70, 0x47]; // BX LR
         let address = FUNCTIONS_BASE as u64 + (self.functions_count * 2) as u64;
 
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
-        let new_context = context.clone();
-        let callback = move |core: &mut ArmCore| {
-            let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
-            log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
-
-            let mut new_context = new_context.clone();
-            let core: &mut ArmCore = unsafe { core::mem::transmute(core) };
-            let f = function.clone();
-
-            async move {
-                let result = f.call(core, &mut new_context).await.unwrap();
-                R::write(core, result, lr).unwrap();
-            }
-            .boxed_local()
-        };
+        let callback = RegisteredFunctionHolder::new(function, context);
 
         self.functions.insert(address as u32, Box::new(callback));
         self.functions_count += 1;
@@ -381,5 +366,59 @@ impl ResultWriter<(u32, Vec<u32>)> for (u32, Vec<u32>) {
         core.set_next(value.0, &value.1)?;
 
         Ok(())
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+trait RegisteredFunction {
+    async fn call(&self, core: &mut ArmCore);
+}
+
+struct RegisteredFunctionHolder<F, P, E, C, R>
+where
+    F: EmulatedFunction<P, E, C, R> + 'static,
+    E: Debug,
+    C: Clone + 'static,
+    R: ResultWriter<R>,
+{
+    function: Box<F>,
+    context: C,
+    _phantom: PhantomData<(P, E, C, R)>,
+}
+
+impl<F, P, E, C, R> RegisteredFunctionHolder<F, P, E, C, R>
+where
+    F: EmulatedFunction<P, E, C, R> + 'static,
+    E: Debug,
+    C: Clone + 'static,
+    R: ResultWriter<R>,
+{
+    pub fn new(function: F, context: &C) -> Self {
+        Self {
+            function: Box::new(function),
+            context: context.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl<F, P, E, C, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, C, R>
+where
+    F: EmulatedFunction<P, E, C, R> + 'static,
+    E: Debug,
+    C: Clone + 'static,
+    R: ResultWriter<R>,
+{
+    async fn call(&self, core: &mut ArmCore) {
+        let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
+        let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
+        log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
+
+        let mut new_context = self.context.clone();
+        let core: &mut ArmCore = unsafe { core::mem::transmute(core) };
+
+        let result = self.function.call(core, &mut new_context).await.unwrap();
+        R::write(core, result, lr).unwrap();
     }
 }

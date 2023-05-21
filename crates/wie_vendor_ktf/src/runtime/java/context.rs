@@ -420,18 +420,15 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
-        let closure = move |core: &mut ArmCore, backend: &mut Backend, _: u32, a1: u32, a2: u32| async move {
-            /*   let mut context = KtfJavaContext::new(core, backend);
+        let closure = move |core: &mut ArmCore, backend: &mut Backend, _: u32, a1: u32, a2: u32| {
+            let mut context = KtfJavaContext::new(core, backend);
 
             // Hack to put lifetime on context.
             let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
 
-            let result = body.call(context, &[a1, a2])?; // TODO do we need arg proxy?
+            let result = body.call(context, &[a1, a2]); // TODO do we need arg proxy?
 
-            Ok::<_, JavaError>(result)
-            */
-            todo!();
-            Ok::<_, JavaError>(0)
+            async move { result }
         };
 
         self.core.register_function(closure, self.backend)
