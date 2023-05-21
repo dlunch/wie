@@ -8,12 +8,11 @@ use crate::method::{MethodBody, TypeConverter};
 pub type CError = anyhow::Error;
 pub type CResult<T> = anyhow::Result<T>;
 
-pub type CContextMethod = Box<dyn Fn(&mut dyn CContext, &[u32]) -> CResult<u32>>;
 pub type CMethodBody = Box<dyn MethodBody<CError>>;
 
 pub trait CContext: ByteRead + ByteWrite {
     fn alloc(&mut self, size: u32) -> CResult<u32>;
-    fn register_function(&mut self, method: CContextMethod) -> CResult<u32>;
+    fn register_function(&mut self, method: CMethodBody) -> CResult<u32>;
     fn backend(&mut self) -> &mut Backend;
 }
 

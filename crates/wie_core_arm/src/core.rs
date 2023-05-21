@@ -33,6 +33,7 @@ impl From<UnicornError> for anyhow::Error {
     }
 }
 
+pub type ArmCoreError = anyhow::Error;
 pub type ArmCoreResult<T> = anyhow::Result<T>;
 
 pub struct ArmCore {

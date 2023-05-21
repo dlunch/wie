@@ -3,8 +3,8 @@ use core::{fmt::Display, mem::size_of};
 
 use wie_backend::Backend;
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
-use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult};
+use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
+use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaMethodBody, JavaObjectProxy, JavaResult};
 
 use crate::runtime::KtfPeb;
 
@@ -420,20 +420,9 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
-        let closure = move |core: &mut ArmCore, backend: &mut Backend, _: u32, a1: u32, a2: u32| {
-            // let mut context = KtfJavaContext::new(core, backend);
+        let proxy = JavaMethodProxy::new(body);
 
-            // // Hack to put lifetime on context.
-            // let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
-
-            // let result = body.call(context, &[a1, a2]); // TODO do we need arg proxy?
-
-            todo!();
-
-            async move { Ok::<_, JavaError>(0) }
-        };
-
-        self.core.register_function(closure, self.backend)
+        self.core.register_function(proxy, self.backend)
     }
 
     fn read_ptr_class(&self, ptr_class: u32) -> JavaResult<(JavaClass, JavaClassDescriptor, String)> {
@@ -564,5 +553,33 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn task_yield(&mut self) {
         todo!()
+    }
+}
+
+struct JavaMethodProxy {
+    body: JavaMethodBody,
+}
+
+impl JavaMethodProxy {
+    pub fn new(body: JavaMethodBody) -> Self {
+        Self { body }
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMethodProxy {
+    async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
+        let _a0 = u32::get(core, 0);
+        let a1 = u32::get(core, 1);
+        let a2 = u32::get(core, 2);
+
+        let mut context = KtfJavaContext::new(core, backend);
+
+        // Hack to put lifetime on context.
+        let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
+
+        let result = self.body.call(context, &[a1, a2]).await?; // TODO do we need arg proxy?
+
+        Ok(result)
     }
 }
