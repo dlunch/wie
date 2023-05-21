@@ -4,7 +4,6 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
     method::MethodImpl,
     proxy::JavaObjectProxy,
-    JavaError,
 };
 
 // class org.kwis.msp.lcdui.Card
@@ -26,18 +25,7 @@ impl Card {
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
-        context.task_schedule(
-            (move |_context: &mut dyn JavaContext| async {
-                // loop {
-                //     context.task_sleep(16);
-
-                //     // call self::paint
-                // }
-
-                Ok::<(), JavaError>(())
-            })
-            .into_body(),
-        )?;
+        context.task_schedule(Self::tick.into_body())?;
 
         Ok(())
     }
@@ -58,5 +46,13 @@ impl Card {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded
+    }
+
+    async fn tick(context: &mut dyn JavaContext) -> JavaResult<()> {
+        loop {
+            context.task_sleep(16);
+
+            // call self::paint
+        }
     }
 }
