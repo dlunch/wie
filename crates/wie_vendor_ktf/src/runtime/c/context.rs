@@ -23,7 +23,8 @@ impl CContextBase for KtfCContext<'_> {
 
     fn register_function(&mut self, method: CContextMethod) -> CResult<u32> {
         self.core.register_function(
-            move |core: &mut ArmCore, backend: &mut Backend, a0: u32, a1: u32, a2: u32| {
+            move |core: &mut ArmCore, backend: &mut Backend, a0: u32, a1: u32, a2: u32| async move {
+                /*
                 let mut context = KtfCContext::new(core, backend);
 
                 // Hack to put lifetime on context.
@@ -32,6 +33,9 @@ impl CContextBase for KtfCContext<'_> {
                 let result = method(context, &[a0, a1, a2])?;
 
                 Ok::<_, anyhow::Error>(result)
+                */
+                todo!();
+                Ok::<_, anyhow::Error>(0)
             },
             self.backend,
         )
