@@ -4,7 +4,7 @@ use core::{fmt::Display, mem::size_of};
 use wie_backend::Backend;
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult};
+use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaMethodBody, JavaObjectProxy, JavaResult};
 
 use crate::runtime::KtfPeb;
 

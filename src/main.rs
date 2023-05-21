@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<()> {
             module_file.read_to_end(&mut data)?;
 
             let mut core = KtfWipiModule::create_core()?;
-            let future = KtfWipiModule::start(&mut core, &data, &module_file_name, &main_class_name, backend.clone());
+            let future = KtfWipiModule::start(&mut core, &data, &module_file_name, &main_class_name, backend);
 
             (core, future)
         }
@@ -86,6 +86,4 @@ fn main() -> anyhow::Result<()> {
     loop {
         executor.tick();
     }
-
-    Ok(())
 }
