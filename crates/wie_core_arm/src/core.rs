@@ -415,7 +415,6 @@ where
         log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
         let mut new_context = self.context.clone();
-        let core: &mut ArmCore = unsafe { core::mem::transmute(core) };
 
         let result = self.function.call(core, &mut new_context).await.unwrap();
         R::write(core, result, lr).unwrap();
