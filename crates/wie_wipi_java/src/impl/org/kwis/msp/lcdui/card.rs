@@ -27,13 +27,12 @@ impl Card {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
         context.task_schedule(
-            (move |context: &mut dyn JavaContext| async {
-                loop {
-                    // context.task_sleep(16);
+            (move |_context: &mut dyn JavaContext| async {
+                // loop {
+                //     context.task_sleep(16);
 
-                    // call self::paint
-                    todo!();
-                }
+                //     // call self::paint
+                // }
 
                 Ok::<(), JavaError>(())
             })
