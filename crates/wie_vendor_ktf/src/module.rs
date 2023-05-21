@@ -31,7 +31,7 @@ impl KtfWipiModule {
         core.run_function(entry, &[base_address, bss_size, ptr_main_class_name])
     }
 
-    fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
+    async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
         // let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?; // TODO
         let ptr_main_class = 0;
 

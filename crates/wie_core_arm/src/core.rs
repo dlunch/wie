@@ -2,6 +2,7 @@ use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec}
 use core::{fmt::Debug, future::Future};
 
 use capstone::{arch::BuildsCapstone, Capstone};
+use futures::{future::LocalBoxFuture, FutureExt};
 use unicorn_engine::{
     unicorn_const::{uc_error, Arch, HookType, MemType, Mode, Permission},
     RegisterARM, Unicorn,
@@ -35,7 +36,7 @@ impl From<UnicornError> for anyhow::Error {
 
 pub type ArmCoreResult<T> = anyhow::Result<T>;
 
-type FunctionType = dyn Fn(&mut ArmCore);
+type FunctionType = dyn Fn(&mut ArmCore) -> LocalBoxFuture<'static, ()>;
 
 pub struct ArmCore {
     pub(crate) uc: Unicorn<'static, ()>,
@@ -138,7 +139,7 @@ impl ArmCore {
 
     pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
-        F: EmulatedFunction<P, E, C, R> + 'static,
+        F: EmulatedFunction<P, E, C, R> + 'static + Clone,
         E: Debug,
         C: Clone + 'static,
         R: ResultWriter<R>,
@@ -153,8 +154,15 @@ impl ArmCore {
             let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
             log::debug!("Registered function called at {:#x}, LR: {:#x}", address, lr);
 
-            let result = function.call(core, &mut new_context.clone()).unwrap();
-            R::write(core, result, lr).unwrap();
+            let mut new_context = new_context.clone();
+            let core: &mut ArmCore = unsafe { core::mem::transmute(core) };
+            let f = function.clone();
+
+            async move {
+                let result = f.call(core, &mut new_context).await.unwrap();
+                R::write(core, result, lr).unwrap();
+            }
+            .boxed_local()
         };
 
         self.functions.insert(address as u32, Box::new(callback));
