@@ -4,7 +4,7 @@ use core::{fmt::Display, mem::size_of};
 use wie_backend::Backend;
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaMethodBody, JavaObjectProxy, JavaResult};
+use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaMethodBody, JavaObjectProxy, JavaResult};
 
 use crate::runtime::KtfPeb;
 
@@ -477,7 +477,7 @@ impl<'a> KtfJavaContext<'a> {
 }
 
 #[async_trait::async_trait(?Send)]
-impl JavaContextBase for KtfJavaContext<'_> {
+impl JavaContext for KtfJavaContext<'_> {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
         if type_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));

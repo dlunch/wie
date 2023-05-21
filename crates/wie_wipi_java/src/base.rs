@@ -1,9 +1,12 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 use wie_backend::Backend;
-use wie_base::method::{MethodBody, MethodImpl, TypeConverter};
 
-use crate::{array::Array, proxy::JavaObjectProxy};
+use crate::{
+    array::Array,
+    method::{MethodBody, MethodImpl, TypeConverter},
+    proxy::JavaObjectProxy,
+};
 
 pub struct JavaClassProto {
     pub methods: Vec<JavaMethodProto>,
@@ -12,8 +15,6 @@ pub struct JavaClassProto {
 
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
-
-pub type JavaContext = dyn JavaContextBase;
 
 pub struct JavaMethodProto {
     pub name: String,
@@ -35,12 +36,12 @@ impl JavaFieldProto {
     }
 }
 
-pub type JavaMethodBody = Box<dyn MethodBody<JavaError, JavaContext>>;
+pub type JavaMethodBody = Box<dyn MethodBody<JavaError>>;
 
 impl JavaMethodProto {
     pub fn new<M, F, R, P>(name: &str, signature: &str, method: M) -> Self
     where
-        M: MethodImpl<F, R, JavaError, JavaContext, P>,
+        M: MethodImpl<F, R, JavaError, P>,
     {
         Self {
             name: name.into(),
@@ -51,7 +52,7 @@ impl JavaMethodProto {
 }
 
 #[async_trait::async_trait(?Send)]
-pub trait JavaContextBase {
+pub trait JavaContext {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy>;
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy>;
     async fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
@@ -91,20 +92,20 @@ pub fn get_array_proto() -> JavaClassProto {
     Array::as_proto()
 }
 
-impl TypeConverter<u32, JavaContext> for u32 {
-    fn to_rust(_: &mut JavaContext, raw: u32) -> u32 {
+impl TypeConverter<u32> for u32 {
+    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> u32 {
         raw
     }
 
-    fn from_rust(_: &mut JavaContext, rust: u32) -> u32 {
+    fn from_rust(_: &mut dyn JavaContext, rust: u32) -> u32 {
         rust
     }
 }
 
-impl TypeConverter<(), JavaContext> for () {
-    fn to_rust(_: &mut JavaContext, _: u32) {}
+impl TypeConverter<()> for () {
+    fn to_rust(_: &mut dyn JavaContext, _: u32) {}
 
-    fn from_rust(_: &mut JavaContext, _: ()) -> u32 {
+    fn from_rust(_: &mut dyn JavaContext, _: ()) -> u32 {
         0
     }
 }

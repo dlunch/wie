@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-pub mod method;
 pub mod util;
 
 use core::any::Any;

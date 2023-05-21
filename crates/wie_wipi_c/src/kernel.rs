@@ -1,34 +1,37 @@
 use alloc::{string::String, vec, vec::Vec};
 
-use wie_base::{method::MethodImpl, util::write_generic};
+use wie_base::util::write_generic;
 
-use crate::base::{CContext, CError, CMethodBody, CResult};
+use crate::{
+    base::{CContext, CError, CMethodBody, CResult},
+    method::MethodImpl,
+};
 
-fn stub(_: &mut CContext) -> CResult<u32> {
+fn stub(_: &mut dyn CContext) -> CResult<u32> {
     log::debug!("kernel stub called");
 
     Ok(0)
 }
 
-fn current_time(_: &mut CContext) -> CResult<u32> {
+fn current_time(_: &mut dyn CContext) -> CResult<u32> {
     log::debug!("current_time()");
 
     Ok(0)
 }
 
-fn def_timer(_: &mut CContext, a0: u32, a1: u32) -> CResult<()> {
+fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
     log::debug!("def_timer({:#x}, {:#x})", a0, a1);
 
     Ok(())
 }
 
-fn alloc(context: &mut CContext, size: u32) -> CResult<u32> {
+fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
     log::debug!("alloc({:#x})", size);
 
     context.alloc(size)
 }
 
-fn get_resource_id(context: &mut CContext, name: String, ptr_size: u32) -> CResult<i32> {
+fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
     log::debug!("get_resource_id({}, {:#x})", name, ptr_size);
 
     let id = context.backend().resource().id(&name);
@@ -43,7 +46,7 @@ fn get_resource_id(context: &mut CContext, name: String, ptr_size: u32) -> CResu
     Ok(id as _)
 }
 
-fn get_resource(context: &mut CContext, id: u32, buf: u32, buf_size: u32) -> CResult<i32> {
+fn get_resource(context: &mut dyn CContext, id: u32, buf: u32, buf_size: u32) -> CResult<i32> {
     log::debug!("get_resource({}, {:#x}, {})", id, buf, buf_size);
 
     let size = context.backend().resource().size(id);
@@ -60,7 +63,7 @@ fn get_resource(context: &mut CContext, id: u32, buf: u32, buf_size: u32) -> CRe
 
 pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<CMethodBody>
 where
-    M: MethodImpl<F, R, CError, CContext, P>,
+    M: MethodImpl<F, R, CError, P>,
 {
     vec![
         stub.into_body(),

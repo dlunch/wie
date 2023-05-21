@@ -1,8 +1,8 @@
 use alloc::vec;
-use wie_base::method::MethodImpl;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    method::MethodImpl,
     proxy::JavaObjectProxy,
     JavaError,
 };
@@ -23,11 +23,11 @@ impl Card {
         }
     }
 
-    fn init(context: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
         context.task_schedule(
-            (move |context: &mut JavaContext| -> Result<(), JavaError> {
+            (move |context: &mut dyn JavaContext| -> Result<(), JavaError> {
                 loop {
                     context.task_sleep(16);
 
@@ -40,19 +40,19 @@ impl Card {
         Ok(())
     }
 
-    fn init_1(_: &mut JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
+    fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }
 
-    fn get_width(_: &mut JavaContext) -> JavaResult<u32> {
+    fn get_width(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_width");
 
         Ok(320) // TODO: hardcoded
     }
 
-    fn get_height(_: &mut JavaContext) -> JavaResult<u32> {
+    fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded
