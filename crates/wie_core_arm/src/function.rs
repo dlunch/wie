@@ -25,62 +25,62 @@ where
     }
 }
 
-impl<'a, E, C, R, F, Fut, Param1> FnHelper<'a, E, C, R, (Param1,)> for F
+impl<'a, E, C, R, F, Fut, P0> FnHelper<'a, E, C, R, (P0,)> for F
 where
-    F: Fn(&'a mut ArmCore, &'a mut C, Param1) -> Fut,
+    F: Fn(&'a mut ArmCore, &'a mut C, P0) -> Fut,
     Fut: Future<Output = Result<R, E>> + 'a,
     C: 'a,
     R: 'a,
-    Param1: EmulatedFunctionParam<Param1>,
+    P0: EmulatedFunctionParam<P0>,
 {
     type Output = Fut;
     fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Fut {
-        let param1 = Param1::get(core, 0);
+        let param1 = P0::get(core, 0);
 
         self(core, context, param1)
     }
 }
 
-impl<'a, E, C, R, F, Fut, Param1, Param2> FnHelper<'a, E, C, R, (Param1, Param2)> for F
+impl<'a, E, C, R, F, Fut, P0, P1> FnHelper<'a, E, C, R, (P0, P1)> for F
 where
-    F: Fn(&'a mut ArmCore, &'a mut C, Param1, Param2) -> Fut,
+    F: Fn(&'a mut ArmCore, &'a mut C, P0, P1) -> Fut,
     Fut: Future<Output = Result<R, E>> + 'a,
     C: 'a,
     R: 'a,
-    Param1: EmulatedFunctionParam<Param1>,
-    Param2: EmulatedFunctionParam<Param2>,
+    P0: EmulatedFunctionParam<P0>,
+    P1: EmulatedFunctionParam<P1>,
 {
     type Output = Fut;
     fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Fut {
-        let param1 = Param1::get(core, 0);
-        let param2 = Param2::get(core, 1);
+        let param1 = P0::get(core, 0);
+        let param2 = P1::get(core, 1);
 
         self(core, context, param1, param2)
     }
 }
 
-impl<'a, E, C, R, F, Fut, Param1, Param2, Param3> FnHelper<'a, E, C, R, (Param1, Param2, Param3)> for F
+impl<'a, E, C, R, F, Fut, P0, P1, P2> FnHelper<'a, E, C, R, (P0, P1, P2)> for F
 where
-    F: Fn(&'a mut ArmCore, &'a mut C, Param1, Param2, Param3) -> Fut,
+    F: Fn(&'a mut ArmCore, &'a mut C, P0, P1, P2) -> Fut,
     Fut: Future<Output = Result<R, E>> + 'a,
     C: 'a,
     R: 'a,
-    Param1: EmulatedFunctionParam<Param1>,
-    Param2: EmulatedFunctionParam<Param2>,
-    Param3: EmulatedFunctionParam<Param3>,
+    P0: EmulatedFunctionParam<P0>,
+    P1: EmulatedFunctionParam<P1>,
+    P2: EmulatedFunctionParam<P2>,
 {
     type Output = Fut;
     fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Fut {
-        let param1 = Param1::get(core, 0);
-        let param2 = Param2::get(core, 1);
-        let param3 = Param3::get(core, 2);
+        let param1 = P0::get(core, 0);
+        let param2 = P1::get(core, 1);
+        let param3 = P2::get(core, 2);
 
         self(core, context, param1, param2, param3)
     }
 }
 
 #[async_trait::async_trait(?Send)]
-pub trait EmulatedFunction<T, E, C, R> {
+pub trait EmulatedFunction<P, E, C, R> {
     async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E>;
 }
 
@@ -95,10 +95,10 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<Func, E, C, R, Param1> EmulatedFunction<(Param1,), E, C, R> for Func
+impl<Func, E, C, R, P0> EmulatedFunction<(P0,), E, C, R> for Func
 where
-    Func: for<'a> FnHelper<'a, E, C, R, (Param1,)>,
-    Param1: EmulatedFunctionParam<Param1>,
+    Func: for<'a> FnHelper<'a, E, C, R, (P0,)>,
+    P0: EmulatedFunctionParam<P0>,
 {
     async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E> {
         self.do_call(core, context).await
@@ -106,11 +106,11 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<Func, E, C, R, Param1, Param2> EmulatedFunction<(Param1, Param2), E, C, R> for Func
+impl<Func, E, C, R, P0, P1> EmulatedFunction<(P0, P1), E, C, R> for Func
 where
-    Func: for<'a> FnHelper<'a, E, C, R, (Param1, Param2)>,
-    Param1: EmulatedFunctionParam<Param1>,
-    Param2: EmulatedFunctionParam<Param2>,
+    Func: for<'a> FnHelper<'a, E, C, R, (P0, P1)>,
+    P0: EmulatedFunctionParam<P0>,
+    P1: EmulatedFunctionParam<P1>,
 {
     async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E> {
         self.do_call(core, context).await
@@ -118,12 +118,12 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<Func, E, C, R, Param1, Param2, Param3> EmulatedFunction<(Param1, Param2, Param3), E, C, R> for Func
+impl<Func, E, C, R, P0, P1, P2> EmulatedFunction<(P0, P1, P2), E, C, R> for Func
 where
-    Func: for<'a> FnHelper<'a, E, C, R, (Param1, Param2, Param3)>,
-    Param1: EmulatedFunctionParam<Param1>,
-    Param2: EmulatedFunctionParam<Param2>,
-    Param3: EmulatedFunctionParam<Param3>,
+    Func: for<'a> FnHelper<'a, E, C, R, (P0, P1, P2)>,
+    P0: EmulatedFunctionParam<P0>,
+    P1: EmulatedFunctionParam<P1>,
+    P2: EmulatedFunctionParam<P2>,
 {
     async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E> {
         self.do_call(core, context).await
