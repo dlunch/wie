@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
-use core::fmt::Debug;
+use core::{fmt::Debug, future::Future};
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
@@ -12,11 +12,15 @@ use wie_base::{
     Core,
 };
 
-use crate::function::EmulatedFunction;
+use crate::{
+    context::ArmCoreContext,
+    function::EmulatedFunction,
+    future::{RunFunctionFuture, RunFunctionResult},
+};
 
 const IMAGE_BASE: u32 = 0x100000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
-const RUN_FUNCTION_LR: u32 = 0x7f000000;
+pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const PEB_BASE: u32 = 0x7ff00000;
 
@@ -30,25 +34,6 @@ impl From<UnicornError> for anyhow::Error {
 }
 
 pub type ArmCoreResult<T> = anyhow::Result<T>;
-
-pub struct ArmCoreContext {
-    pub r0: u32,
-    pub r1: u32,
-    pub r2: u32,
-    pub r3: u32,
-    pub r4: u32,
-    pub r5: u32,
-    pub r6: u32,
-    pub r7: u32,
-    pub r8: u32,
-    pub sb: u32,
-    pub sl: u32,
-    pub fp: u32,
-    pub ip: u32,
-    pub sp: u32,
-    pub lr: u32,
-    pub pc: u32,
-}
 
 type FunctionType = dyn Fn(&mut ArmCore);
 
@@ -86,9 +71,11 @@ impl ArmCore {
         Ok(IMAGE_BASE)
     }
 
-    pub fn run_some(&mut self, until: u32) -> ArmCoreResult<()> {
+    pub fn run(&mut self, context: &ArmCoreContext) -> ArmCoreResult<ArmCoreContext> {
+        self.restore_context(context)?;
+
         let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
-        let result = self.uc.emu_start(pc as u64, until as u64, 0, 0).map_err(UnicornError);
+        let result = self.uc.emu_start(pc as u64, 0, 0, 0).map_err(UnicornError);
 
         if let Err(err) = &result {
             if err.0 == uc_error::FETCH_PROT {
@@ -99,26 +86,13 @@ impl ArmCore {
                     function(self);
 
                     self.functions.insert(cur_pc, function);
-
-                    return Ok(());
                 }
+            } else {
+                result?;
             }
         }
 
-        Ok(result?)
-    }
-
-    pub fn run(&mut self, until: u32) -> ArmCoreResult<()> {
-        loop {
-            self.run_some(until)?;
-            let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
-
-            if pc == until {
-                break;
-            }
-        }
-
-        Ok(())
+        self.save_context()
     }
 
     pub fn set_next(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<()> {
@@ -149,23 +123,17 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn run_function(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<u32> {
-        let previous_lr = self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?; // TODO do we have to save more callee-saved registers?
+    pub fn run_function<R>(&mut self, address: u32, params: &[u32]) -> impl Future<Output = R>
+    where
+        R: RunFunctionResult<R>,
+    {
+        let previous_context = ArmCoreContext::from_uc(&self.uc);
+        self.set_next(address, params).unwrap();
+        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).unwrap();
 
-        self.set_next(address, params)?;
+        let context = ArmCoreContext::from_uc(&self.uc);
 
-        log::trace!("Run function start {:#x}, params {:?}", address, params);
-
-        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
-        self.run(RUN_FUNCTION_LR)?;
-
-        let result = self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32;
-
-        log::trace!("Run function end, result: {:#x}", result);
-
-        self.uc.reg_write(RegisterARM::LR, previous_lr).map_err(UnicornError)?;
-
-        Ok(result)
+        RunFunctionFuture::from_context(context, previous_context)
     }
 
     pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
@@ -358,6 +326,8 @@ impl ArmCore {
     }
 }
 
+impl Core for ArmCore {}
+
 impl ByteRead for ArmCore {
     fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
         let data = self.uc.mem_read_as_vec(address as u64, size as usize).map_err(UnicornError)?;
@@ -377,8 +347,6 @@ impl ByteWrite for ArmCore {
         Ok(())
     }
 }
-
-impl Core for ArmCore {}
 
 pub trait ResultWriter<R> {
     fn write(core: &mut ArmCore, value: R, lr: u32) -> anyhow::Result<()>;

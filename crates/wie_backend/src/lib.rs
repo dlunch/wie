@@ -1,6 +1,7 @@
-#![no_std]
-extern crate alloc;
-
 mod backend;
+mod executor;
 
-pub use self::backend::Backend;
+pub use self::{
+    backend::Backend,
+    executor::{CoreExecutor, CoreExecutorFuture},
+};

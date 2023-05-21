@@ -137,10 +137,10 @@ pub struct ModuleInfo {
     pub fn_get_class: u32,
 }
 
-pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
+pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
     let java_classes_base = KtfJavaContext::init(core)?;
 
-    let wipi_exe = core.run_function(base_address + 1, &[bss_size])?;
+    let wipi_exe = core.run_function(base_address + 1, &[bss_size]).await;
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
@@ -219,10 +219,12 @@ pub fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: 
     let exe_interface_functions = read_generic::<ExeInterfaceFunctions>(core, exe_interface.ptr_functions)?;
 
     log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
-    let result = core.run_function(
-        exe_interface_functions.fn_init,
-        &[ptr_param_0, ptr_param_1, ptr_param_2, ptr_param_3, ptr_param_4],
-    )?;
+    let result = core
+        .run_function::<u32>(
+            exe_interface_functions.fn_init,
+            &[ptr_param_0, ptr_param_1, ptr_param_2, ptr_param_3, ptr_param_4],
+        )
+        .await;
     if result != 0 {
         return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
     }
