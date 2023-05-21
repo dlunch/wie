@@ -28,6 +28,8 @@ impl KtfWipiModule {
 
         let entry = core.register_function(Self::do_start, &backend).unwrap();
 
+        let stack_base = Allocator::alloc(core, 0x1000).unwrap();
+        core.setup_stack(stack_base, 0x1000).unwrap();
         core.run_function(entry, &[base_address, bss_size, ptr_main_class_name])
     }
 

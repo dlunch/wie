@@ -76,7 +76,7 @@ impl ArmCore {
         self.restore_context(&context)?;
 
         let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
-        let result = self.uc.emu_start(pc as u64, 0, 0, 0).map_err(UnicornError);
+        let result = self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError);
 
         if let Err(err) = &result {
             if err.0 == uc_error::FETCH_PROT {
@@ -94,6 +94,12 @@ impl ArmCore {
         }
 
         self.save_context()
+    }
+
+    pub fn setup_stack(&mut self, stack_base: u32, size: u32) -> ArmCoreResult<()> {
+        self.uc.reg_write(RegisterARM::SP, (stack_base + size) as u64).map_err(UnicornError)?;
+
+        Ok(())
     }
 
     pub fn set_next(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<()> {
