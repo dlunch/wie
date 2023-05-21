@@ -5,7 +5,7 @@ use alloc::string::String;
 use wie_backend::Backend;
 use wie_base::util::ByteWrite;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::JavaContextBase;
+use wie_wipi_java::JavaContext;
 
 use crate::runtime::KtfJavaContext;
 

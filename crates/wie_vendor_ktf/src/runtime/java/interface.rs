@@ -8,7 +8,7 @@ use core::mem::size_of;
 use wie_backend::Backend;
 use wie_base::util::write_generic;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::JavaContextBase;
+use wie_wipi_java::JavaContext;
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 

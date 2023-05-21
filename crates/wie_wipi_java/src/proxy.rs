@@ -1,6 +1,4 @@
-use wie_base::method::TypeConverter;
-
-use crate::base::JavaContext;
+use crate::{base::JavaContext, method::TypeConverter};
 
 pub struct JavaObjectProxy {
     pub ptr_instance: u32,
@@ -12,12 +10,12 @@ impl JavaObjectProxy {
     }
 }
 
-impl TypeConverter<JavaObjectProxy, JavaContext> for JavaObjectProxy {
-    fn to_rust(_: &mut JavaContext, raw: u32) -> JavaObjectProxy {
+impl TypeConverter<JavaObjectProxy> for JavaObjectProxy {
+    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> JavaObjectProxy {
         JavaObjectProxy::new(raw)
     }
 
-    fn from_rust(_: &mut JavaContext, rust: JavaObjectProxy) -> u32 {
+    fn from_rust(_: &mut dyn JavaContext, rust: JavaObjectProxy) -> u32 {
         rust.ptr_instance
     }
 }

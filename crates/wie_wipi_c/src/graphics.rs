@@ -2,9 +2,12 @@ use alloc::{vec, vec::Vec};
 
 use core::mem::size_of;
 
-use wie_base::{method::MethodImpl, util::write_generic};
+use wie_base::util::write_generic;
 
-use crate::base::{CContext, CMethodBody, CResult};
+use crate::{
+    base::{CContext, CMethodBody, CResult},
+    method::MethodImpl,
+};
 
 #[repr(C)]
 struct Framebuffer {
@@ -15,13 +18,13 @@ struct Framebuffer {
     id: u32,
 }
 
-fn stub(_: &mut CContext) -> CResult<u32> {
+fn stub(_: &mut dyn CContext) -> CResult<u32> {
     log::debug!("graphics stub called");
 
     Ok(0)
 }
 
-fn get_screen_frame_buffer(context: &mut CContext, a0: u32) -> CResult<u32> {
+fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult<u32> {
     log::debug!("get_screen_frame_buffer({:#x})", a0);
 
     let ptr_framebuffer = context.alloc(size_of::<Framebuffer>() as u32)?;
@@ -42,7 +45,7 @@ fn get_screen_frame_buffer(context: &mut CContext, a0: u32) -> CResult<u32> {
     Ok(address)
 }
 
-fn get_display_info(_: &mut CContext, a0: u32, a1: u32) -> CResult<u32> {
+fn get_display_info(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<u32> {
     log::debug!("get_display_info({:#x}, {:#x})", a0, a1);
 
     Ok(0)

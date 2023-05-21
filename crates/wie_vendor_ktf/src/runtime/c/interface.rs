@@ -4,7 +4,7 @@ use core::mem::size_of;
 use wie_backend::Backend;
 use wie_base::util::write_generic;
 use wie_core_arm::ArmCore;
-use wie_wipi_c::{get_graphics_method_table, get_kernel_method_table, CContext, CContextBase, CMethodBody};
+use wie_wipi_c::{get_graphics_method_table, get_kernel_method_table, CContext, CMethodBody};
 
 use crate::runtime::c::context::KtfCContext;
 
@@ -26,7 +26,7 @@ struct WIPICInterface {
     interface_12: u32,
 }
 
-fn write_methods(context: &mut dyn CContextBase, methods: Vec<CMethodBody>) -> anyhow::Result<u32> {
+fn write_methods(context: &mut dyn CContext, methods: Vec<CMethodBody>) -> anyhow::Result<u32> {
     let address = context.alloc((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
@@ -53,7 +53,7 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore, backend: &mut Backend) -> any
     Ok(address)
 }
 
-fn get_wipic_interfaces(context: &mut CContext) -> anyhow::Result<u32> {
+fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();

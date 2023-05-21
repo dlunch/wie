@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use wie_backend::Backend;
 use wie_base::util::{ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_c::{CContextBase, CContextMethod, CResult};
+use wie_wipi_c::{CContext, CContextMethod, CResult};
 
 pub struct KtfCContext<'a> {
     core: &'a mut ArmCore,
@@ -16,7 +16,7 @@ impl<'a> KtfCContext<'a> {
     }
 }
 
-impl CContextBase for KtfCContext<'_> {
+impl CContext for KtfCContext<'_> {
     fn alloc(&mut self, size: u32) -> CResult<u32> {
         Allocator::alloc(self.core, size)
     }

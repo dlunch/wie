@@ -13,7 +13,7 @@ impl System {
         }
     }
 
-    fn current_time_millis(_: &mut JavaContext) -> JavaResult<u32> {
+    fn current_time_millis(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("System::currentTimeMillis()");
 
         Ok(0)

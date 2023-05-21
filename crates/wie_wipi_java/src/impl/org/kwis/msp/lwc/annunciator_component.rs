@@ -19,13 +19,13 @@ impl AnnunciatorComponent {
         }
     }
 
-    fn init(_: &mut JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
+    fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
         log::debug!("AnnunciatorComponent::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }
 
-    fn show(_: &mut JavaContext) -> JavaResult<()> {
+    fn show(_: &mut dyn JavaContext) -> JavaResult<()> {
         log::debug!("AnnunciatorComponent::show");
 
         Ok(())
