@@ -2,7 +2,6 @@ use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec}
 use core::{fmt::Debug, future::Future, marker::PhantomData};
 
 use capstone::{arch::BuildsCapstone, Capstone};
-use futures::FutureExt;
 use unicorn_engine::{
     unicorn_const::{uc_error, Arch, HookType, MemType, Mode, Permission},
     RegisterARM, Unicorn,
