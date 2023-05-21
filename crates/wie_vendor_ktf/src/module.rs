@@ -32,18 +32,19 @@ impl KtfWipiModule {
     }
 
     async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
-        // let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?; // TODO
-        let ptr_main_class = 0;
+        let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?;
 
         let mut java_context = KtfJavaContext::new(core, backend);
 
         let instance = java_context.instantiate_from_ptr_class(ptr_main_class)?;
-        // java_context.call_method(&instance, "<init>", "()V", &[]).await?; // TODO
+        java_context.call_method(&instance, "<init>", "()V", &[]).await?;
 
         log::info!("Main class instance: {:#x}", instance.ptr_instance);
 
         let arg = java_context.instantiate_array("Ljava/lang/String;", 0)?;
-        // java_context.call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance]).await?; // TODO
+        java_context
+            .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
+            .await?;
 
         Ok(0)
     }

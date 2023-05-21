@@ -121,8 +121,7 @@ async fn jb_unk6(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u3
     // jump?
     log::debug!("jb_unk6 jump?({:#x}, {:#x})", address, ptr_data);
 
-    // let result = core.run_function(address, &[ptr_data]).await?; // TODO
-    let result = 0;
+    let result = core.run_function::<u32>(address, &[ptr_data]).await;
 
     write_generic(core, ptr_data, result)?;
 
