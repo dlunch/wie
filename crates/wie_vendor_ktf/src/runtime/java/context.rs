@@ -1,9 +1,9 @@
-use alloc::{borrow::ToOwned, format, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{fmt::Display, mem::size_of};
 
 use wie_backend::Backend;
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
-use wie_core_arm::{Allocator, ArmCore, ArmCoreTask, PEB_BASE};
+use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContextBase, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult};
 
 use crate::runtime::KtfPeb;
@@ -476,6 +476,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 }
 
+#[async_trait::async_trait(?Send)]
 impl JavaContextBase for KtfJavaContext<'_> {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
         if type_name.as_bytes()[0] == b'[' {
@@ -504,7 +505,7 @@ impl JavaContextBase for KtfJavaContext<'_> {
         Ok(proxy)
     }
 
-    fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
+    async fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         let instance = read_generic::<JavaClassInstance>(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
@@ -528,7 +529,7 @@ impl JavaContextBase for KtfJavaContext<'_> {
             params.push(args[1]);
         }
 
-        self.core.run_function(method.fn_body, &params)
+        Ok(self.core.run_function(method.fn_body, &params).await)
     }
 
     fn backend(&mut self) -> &mut Backend {
@@ -550,20 +551,16 @@ impl JavaContextBase for KtfJavaContext<'_> {
     }
 
     fn task_schedule(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
-        let function = self.register_java_method(callback)?;
+        let _function = self.register_java_method(callback)?;
 
-        let task = ArmCoreTask::from_pc_args(self.core, function, &[])?;
-
-        self.backend.scheduler().schedule(task);
-
-        Ok(())
+        todo!()
     }
 
-    fn task_sleep(&mut self, time: u64) {
-        self.backend.scheduler().current_task().unwrap().sleep(self.core, time);
+    fn task_sleep(&mut self, _time: u64) {
+        todo!()
     }
 
     fn task_yield(&mut self) {
-        self.backend.scheduler().current_task().unwrap().r#yield(self.core);
+        todo!()
     }
 }

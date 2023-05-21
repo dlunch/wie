@@ -1,16 +1,16 @@
-mod scheduler;
 mod window;
 
-use alloc::{rc::Rc, string::String, vec::Vec};
-use core::cell::{Ref, RefCell, RefMut};
+use std::{
+    cell::{Ref, RefCell},
+    rc::Rc,
+    string::String,
+    vec::Vec,
+};
 
-use wie_base::Core;
-
-use self::{scheduler::Scheduler, window::Window};
+use self::window::Window;
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
-    scheduler: Rc<RefCell<Scheduler>>,
     window: Rc<RefCell<Window>>,
 }
 
@@ -24,7 +24,6 @@ impl Backend {
     pub fn new() -> Self {
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
-            scheduler: Rc::new(RefCell::new(Scheduler::new())),
             window: Rc::new(RefCell::new(Window::new())),
         }
     }
@@ -32,21 +31,12 @@ impl Backend {
     pub fn resource(&self) -> Ref<'_, Resource> {
         (*self.resource).borrow()
     }
-
-    pub fn scheduler(&self) -> RefMut<'_, Scheduler> {
-        self.scheduler.borrow_mut()
-    }
-
-    pub fn run(self, core: &mut dyn Core) -> anyhow::Result<()> {
-        Scheduler::run(self, core)
-    }
 }
 
 impl Clone for Backend {
     fn clone(&self) -> Self {
         Self {
             resource: self.resource.clone(),
-            scheduler: self.scheduler.clone(),
             window: self.window.clone(),
         }
     }

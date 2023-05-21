@@ -30,7 +30,7 @@ impl Image {
         log::debug!("Image::createImage({}, {})", a0, a1);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
-        context.call_method(&instance, "<init>", "()V", &[])?;
+        // context.call_method(&instance, "<init>", "()V", &[]).await?; // TODO
 
         Ok(instance)
     }
@@ -39,7 +39,7 @@ impl Image {
         log::debug!("Image::get_graphics");
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&instance, "<init>", "()V", &[])?;
+        // context.call_method(&instance, "<init>", "()V", &[]).await?; // TODO
 
         Ok(instance)
     }

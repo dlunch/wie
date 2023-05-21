@@ -41,13 +41,13 @@ impl Thread {
     fn start(context: &mut JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Thread::start");
 
-        let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
+        let _runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
 
         context.task_schedule(
-            (move |context: &mut JavaContext| {
+            (move |_context: &mut JavaContext| {
                 log::debug!("Thread::run");
 
-                context.call_method(&runnable, "run", "()V", &[])?;
+                // context.call_method(&runnable, "run", "()V", &[]).await?; // TODO
 
                 Ok::<_, JavaError>(())
             })

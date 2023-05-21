@@ -37,7 +37,7 @@ impl Display {
         log::debug!("Display::getDisplay({:#x}", a0.ptr_instance);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
-        context.call_method(&instance, "<init>", "()V", &[])?;
+        // context.call_method(&instance, "<init>", "()V", &[]).await?; // TODO
 
         Ok(instance)
     }
@@ -46,7 +46,7 @@ impl Display {
         log::debug!("Display::getDefaultDisplay");
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
-        context.call_method(&instance, "<init>", "()V", &[])?;
+        // context.call_method(&instance, "<init>", "()V", &[]).await?; // TODO
 
         Ok(instance)
     }
