@@ -7,7 +7,7 @@ mod kernel;
 mod method;
 
 pub use self::{
-    base::{CContext, CContextMethod, CMethodBody, CResult},
+    base::{CContext, CMethodBody, CResult},
     graphics::get_graphics_method_table,
     kernel::get_kernel_method_table,
 };

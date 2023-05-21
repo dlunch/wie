@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 use core::mem::size_of;
 
 use wie_backend::Backend;
@@ -31,12 +31,7 @@ fn write_methods(context: &mut dyn CContext, methods: Vec<CMethodBody>) -> anyho
 
     let mut cursor = address;
     for method in methods {
-        let address = context.register_function(Box::new(move |context, args| {
-            todo!()
-            // let result = method.call(context, args)?;
-
-            // Ok::<_, anyhow::Error>(result)
-        }))?;
+        let address = context.register_function(method)?;
 
         write_generic(context, cursor, address)?;
         cursor += 4;
