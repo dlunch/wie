@@ -72,8 +72,8 @@ impl ArmCore {
         Ok(IMAGE_BASE)
     }
 
-    pub fn run(&mut self, context: &ArmCoreContext) -> ArmCoreResult<ArmCoreContext> {
-        self.restore_context(context)?;
+    pub async fn run(&mut self, context: ArmCoreContext) -> ArmCoreResult<ArmCoreContext> {
+        self.restore_context(&context)?;
 
         let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
         let result = self.uc.emu_start(pc as u64, 0, 0, 0).map_err(UnicornError);
@@ -84,7 +84,7 @@ impl ArmCore {
                 if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
                     let function = self.functions.remove(&cur_pc).unwrap();
 
-                    function(self);
+                    function(self).await;
 
                     self.functions.insert(cur_pc, function);
                 }
