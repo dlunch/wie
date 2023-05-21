@@ -7,31 +7,31 @@ use crate::{
     method::MethodImpl,
 };
 
-fn stub(_: &mut dyn CContext) -> CResult<u32> {
+async fn stub(_: &mut dyn CContext) -> CResult<u32> {
     log::debug!("kernel stub called");
 
     Ok(0)
 }
 
-fn current_time(_: &mut dyn CContext) -> CResult<u32> {
+async fn current_time(_: &mut dyn CContext) -> CResult<u32> {
     log::debug!("current_time()");
 
     Ok(0)
 }
 
-fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
+async fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
     log::debug!("def_timer({:#x}, {:#x})", a0, a1);
 
     Ok(())
 }
 
-fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
+async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
     log::debug!("alloc({:#x})", size);
 
     context.alloc(size)
 }
 
-fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
+async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
     log::debug!("get_resource_id({}, {:#x})", name, ptr_size);
 
     let id = context.backend().resource().id(&name);
@@ -46,7 +46,7 @@ fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> C
     Ok(id as _)
 }
 
-fn get_resource(context: &mut dyn CContext, id: u32, buf: u32, buf_size: u32) -> CResult<i32> {
+async fn get_resource(context: &mut dyn CContext, id: u32, buf: u32, buf_size: u32) -> CResult<i32> {
     log::debug!("get_resource({}, {:#x}, {})", id, buf, buf_size);
 
     let size = context.backend().resource().size(id);

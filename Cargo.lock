@@ -695,6 +695,7 @@ name = "wie_wipi_c"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "log",
  "wie_backend",
  "wie_base",

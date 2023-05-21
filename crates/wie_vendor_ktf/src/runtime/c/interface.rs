@@ -32,9 +32,10 @@ fn write_methods(context: &mut dyn CContext, methods: Vec<CMethodBody>) -> anyho
     let mut cursor = address;
     for method in methods {
         let address = context.register_function(Box::new(move |context, args| {
-            let result = method.call(context, args)?;
+            todo!()
+            // let result = method.call(context, args)?;
 
-            Ok::<_, anyhow::Error>(result)
+            // Ok::<_, anyhow::Error>(result)
         }))?;
 
         write_generic(context, cursor, address)?;
@@ -53,7 +54,7 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore, backend: &mut Backend) -> any
     Ok(address)
 }
 
-fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32> {
+async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32> {
     log::debug!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();

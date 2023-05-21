@@ -13,7 +13,7 @@ impl Jlet {
         }
     }
 
-    fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
         log::debug!("Jlet::<init>");
 
         Ok(())
