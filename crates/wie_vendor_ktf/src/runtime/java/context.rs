@@ -575,10 +575,7 @@ impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMetho
 
         let mut context = KtfJavaContext::new(core, backend);
 
-        // Hack to put lifetime on context.
-        let context: &mut KtfJavaContext<'static> = unsafe { core::mem::transmute(&mut context) };
-
-        let result = self.body.call(context, &[a1, a2]).await?; // TODO do we need arg proxy?
+        let result = self.body.call(&mut context, &[a1, a2]).await?; // TODO do we need arg proxy?
 
         Ok(result)
     }
