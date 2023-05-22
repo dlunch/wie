@@ -63,9 +63,6 @@ impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for CMethodPr
 
         let mut context = KtfCContext::new(core, backend);
 
-        // Hack to put lifetime on context.
-        let context: &mut KtfCContext<'static> = unsafe { core::mem::transmute(&mut context) };
-
-        self.body.call(context, &[a0, a1, a2]).await
+        self.body.call(&mut context, &[a0, a1, a2]).await
     }
 }
