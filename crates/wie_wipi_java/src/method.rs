@@ -91,7 +91,6 @@ impl<F, R, E, P0> MethodBody<E> for MethodHolder<F, R, (P0,)>
 where
     F: for<'a> FnHelper<'a, E, R, (P0,)>,
     R: TypeConverter<R>,
-    P0: TypeConverter<P0>,
 {
     async fn call(&self, context: &mut dyn JavaContext, args: &[u32]) -> Result<u32, E> {
         let result = self.0.do_call(context, args).await?;
@@ -105,8 +104,6 @@ impl<F, R, E, P0, P1> MethodBody<E> for MethodHolder<F, R, (P0, P1)>
 where
     F: for<'a> FnHelper<'a, E, R, (P0, P1)>,
     R: TypeConverter<R>,
-    P0: TypeConverter<P0>,
-    P1: TypeConverter<P1>,
 {
     async fn call(&self, context: &mut dyn JavaContext, args: &[u32]) -> Result<u32, E> {
         let result = self.0.do_call(context, args).await?;
@@ -120,9 +117,6 @@ impl<F, R, E, P0, P1, P2> MethodBody<E> for MethodHolder<F, R, (P0, P1, P2)>
 where
     F: for<'a> FnHelper<'a, E, R, (P0, P1, P2)>,
     R: TypeConverter<R>,
-    P0: TypeConverter<P0>,
-    P1: TypeConverter<P1>,
-    P2: TypeConverter<P2>,
 {
     async fn call(&self, context: &mut dyn JavaContext, args: &[u32]) -> Result<u32, E> {
         let result = self.0.do_call(context, args).await?;
@@ -149,7 +143,7 @@ impl<F, R, E, P0> MethodImpl<F, R, E, (P0,)> for F
 where
     F: for<'a> FnHelper<'a, E, R, (P0,)> + 'static,
     R: TypeConverter<R> + 'static,
-    P0: TypeConverter<P0> + 'static,
+    P0: 'static,
 {
     fn into_body(self) -> Box<dyn MethodBody<E>> {
         Box::new(MethodHolder(self, PhantomData))
@@ -160,8 +154,8 @@ impl<F, R, E, P0, P1> MethodImpl<F, R, E, (P0, P1)> for F
 where
     F: for<'a> FnHelper<'a, E, R, (P0, P1)> + 'static,
     R: TypeConverter<R> + 'static,
-    P0: TypeConverter<P0> + 'static,
-    P1: TypeConverter<P1> + 'static,
+    P0: 'static,
+    P1: 'static,
 {
     fn into_body(self) -> Box<dyn MethodBody<E>> {
         Box::new(MethodHolder(self, PhantomData))
@@ -172,9 +166,9 @@ impl<F, R, E, P0, P1, P2> MethodImpl<F, R, E, (P0, P1, P2)> for F
 where
     F: for<'a> FnHelper<'a, E, R, (P0, P1, P2)> + 'static,
     R: TypeConverter<R> + 'static,
-    P0: TypeConverter<P0> + 'static,
-    P1: TypeConverter<P1> + 'static,
-    P2: TypeConverter<P2> + 'static,
+    P0: 'static,
+    P1: 'static,
+    P2: 'static,
 {
     fn into_body(self) -> Box<dyn MethodBody<E>> {
         Box::new(MethodHolder(self, PhantomData))
