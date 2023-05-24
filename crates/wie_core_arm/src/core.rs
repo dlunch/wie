@@ -16,6 +16,7 @@ use crate::{
     context::ArmCoreContext,
     function::EmulatedFunction,
     future::{RunFunctionFuture, RunFunctionResult},
+    Allocator,
 };
 
 const IMAGE_BASE: u32 = 0x100000;
@@ -94,12 +95,6 @@ impl ArmCore {
         self.save_context()
     }
 
-    pub fn setup_stack(&mut self, stack_base: u32, size: u32) -> ArmCoreResult<()> {
-        self.uc.reg_write(RegisterARM::SP, (stack_base + size) as u64).map_err(UnicornError)?;
-
-        Ok(())
-    }
-
     pub fn set_next(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<()> {
         // is there cleaner way to do this?
         if !params.is_empty() {
@@ -133,12 +128,23 @@ impl ArmCore {
         R: RunFunctionResult<R>,
     {
         let previous_context = ArmCoreContext::from_uc(&self.uc);
+
+        let stack_base = Allocator::alloc(self, 0x1000).unwrap();
+        self.uc
+            .reg_write(RegisterARM::SP, (stack_base + 0x1000) as u64)
+            .map_err(UnicornError)
+            .unwrap();
+
         self.set_next(address, params).unwrap();
         self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).unwrap();
 
         let context = ArmCoreContext::from_uc(&self.uc);
 
-        RunFunctionFuture::from_context(context, previous_context)
+        let future = RunFunctionFuture::from_context(context, previous_context.clone());
+
+        self.restore_context(&previous_context).unwrap();
+
+        future
     }
 
     pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
