@@ -59,6 +59,7 @@ pub trait JavaContext {
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()>;
     fn backend(&mut self) -> &mut Backend;
+    fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
 }
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
