@@ -58,9 +58,6 @@ pub trait JavaContext {
     async fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()>;
-    fn task_schedule(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
-    fn task_sleep(&mut self, time: u64);
-    fn task_yield(&mut self);
     fn backend(&mut self) -> &mut Backend;
 }
 

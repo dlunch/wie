@@ -540,20 +540,6 @@ impl JavaContext for KtfJavaContext<'_> {
         let instance = read_generic::<JavaClassInstance>(self.core, instance.ptr_instance)?;
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
-
-    fn task_schedule(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
-        let _function = self.register_java_method(callback)?;
-
-        todo!()
-    }
-
-    fn task_sleep(&mut self, _time: u64) {
-        todo!()
-    }
-
-    fn task_yield(&mut self) {
-        todo!()
-    }
 }
 
 struct JavaMethodProxy {

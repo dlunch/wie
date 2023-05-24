@@ -1,8 +1,9 @@
 use alloc::vec;
 
+use wie_backend::task;
+
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
-    method::MethodImpl,
     proxy::JavaObjectProxy,
 };
 
@@ -17,6 +18,7 @@ impl Card {
                 JavaMethodProto::new("<init>", "(I)V", Self::init_1),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height),
+                JavaMethodProto::new("run", "()V", Self::run),
             ],
             fields: vec![],
         }
@@ -25,7 +27,11 @@ impl Card {
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
-        context.task_schedule(Self::tick.into_body())?;
+        let thread = context.instantiate("Ljava/lang/Thread;")?;
+        context
+            .call_method(&thread, "<init>", "(Ljava/lang/Runnable;)V", &[instance.ptr_instance])
+            .await?;
+        context.call_method(&thread, "start", "()V", &[]).await?;
 
         Ok(())
     }
@@ -48,9 +54,9 @@ impl Card {
         Ok(480) // TODO: hardcoded
     }
 
-    async fn tick(context: &mut dyn JavaContext) -> JavaResult<()> {
+    async fn run(_: &mut dyn JavaContext) -> JavaResult<()> {
         loop {
-            context.task_sleep(16);
+            task::sleep(16).await;
 
             // call self::paint
         }

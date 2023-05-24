@@ -1,5 +1,4 @@
 use core::{
-    cell::RefMut,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -7,8 +6,7 @@ use core::{
 };
 
 use futures::{future::LocalBoxFuture, FutureExt};
-
-use wie_backend::CoreExecutorFuture;
+use wie_backend::CoreExecutor;
 
 use crate::{
     context::ArmCoreContext,
@@ -37,8 +35,6 @@ where
     }
 }
 
-impl<R> CoreExecutorFuture<ArmCoreContext> for RunFunctionFuture<R> where R: RunFunctionResult<R> {}
-
 impl<R> Future for RunFunctionFuture<R>
 where
     R: RunFunctionResult<R>,
@@ -56,9 +52,9 @@ where
                 return Poll::Pending;
             }
         }
-        let core = self.get_core().clone();
-        let mut core = RefMut::map(core.borrow_mut(), |x| (*x).as_any_mut().downcast_mut::<ArmCore>().unwrap());
-        let core: &mut ArmCore = unsafe { core::mem::transmute(&mut *core) };
+        let executor = CoreExecutor::current_executor();
+
+        let core: &mut ArmCore = unsafe { core::mem::transmute(&mut executor.core_mut()) }; // TODO
 
         if self.context.as_ref().unwrap().pc == RUN_FUNCTION_LR {
             let result = R::get(self.context.as_ref().unwrap());

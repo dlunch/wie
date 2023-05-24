@@ -29,5 +29,3 @@ impl<T: Any> AsAny for T {
 }
 
 pub trait Core: AsAny {}
-
-pub trait CoreContext: AsAny {}

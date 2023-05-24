@@ -1,21 +1,26 @@
 use std::{
-    cell::RefCell,
+    cell::{RefCell, RefMut},
     future::Future,
+    mem::swap,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 
-use wie_base::{Core, CoreContext};
+use wie_base::Core;
 
 thread_local! {
     #[allow(clippy::type_complexity)]
-    pub static CORE: RefCell<Option<Rc<RefCell<Box<dyn Core>>>>> = RefCell::new(None);
+    pub static EXECUTOR_INNER: RefCell<Option<Rc<RefCell<ExecutorInner>>>> = RefCell::new(None);
+}
+
+pub struct ExecutorInner {
+    pub core: Box<dyn Core>,
+    tasks: Vec<Pin<Box<dyn Future<Output = ()>>>>,
 }
 
 pub struct CoreExecutor {
-    core: Rc<RefCell<Box<dyn Core>>>,
-    tasks: Vec<Pin<Box<dyn Future<Output = ()>>>>,
+    inner: Rc<RefCell<ExecutorInner>>,
 }
 
 impl CoreExecutor {
@@ -23,9 +28,13 @@ impl CoreExecutor {
     where
         C: Core + 'static,
     {
-        Self {
-            core: Rc::new(RefCell::new(Box::new(core))),
+        let inner = ExecutorInner {
+            core: Box::new(core),
             tasks: Vec::new(),
+        };
+
+        Self {
+            inner: Rc::new(RefCell::new(inner)),
         }
     }
 
@@ -34,7 +43,7 @@ impl CoreExecutor {
             future.await;
         };
 
-        self.tasks.push(Box::pin(fut));
+        self.inner.borrow_mut().tasks.push(Box::pin(fut));
     }
 
     pub fn run(mut self) {
@@ -43,26 +52,40 @@ impl CoreExecutor {
         }
     }
 
+    pub fn current_executor() -> CoreExecutor {
+        EXECUTOR_INNER.with(|f| {
+            let inner = f.borrow().as_ref().unwrap().clone();
+            Self { inner }
+        })
+    }
+
+    pub fn core_mut(&self) -> RefMut<'_, Box<dyn Core>> {
+        RefMut::map(self.inner.borrow_mut(), |x| &mut x.core)
+    }
+
     fn tick(&mut self) {
         let waker = Self::dummy_waker();
         let mut context = Context::from_waker(&waker);
 
-        CORE.with(|f| {
-            f.borrow_mut().replace(self.core.clone());
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().replace(self.inner.clone());
         });
 
         let mut next_tasks = Vec::new();
-        for mut task in self.tasks.drain(..) {
+        let mut tasks = Vec::new();
+        swap(&mut tasks, &mut self.inner.borrow_mut().tasks);
+
+        for mut task in tasks.drain(..) {
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(_) => {}
                 Poll::Pending => next_tasks.push(task),
             }
         }
-        CORE.with(|f| {
+        EXECUTOR_INNER.with(|f| {
             f.borrow_mut().take();
         });
 
-        self.tasks = next_tasks;
+        self.inner.borrow_mut().tasks = next_tasks;
     }
 
     fn dummy_raw_waker() -> RawWaker {
@@ -77,14 +100,5 @@ impl CoreExecutor {
 
     fn dummy_waker() -> Waker {
         unsafe { Waker::from_raw(Self::dummy_raw_waker()) }
-    }
-}
-
-pub trait CoreExecutorFuture<C>: Unpin
-where
-    C: CoreContext + 'static,
-{
-    fn get_core(&self) -> Rc<RefCell<Box<dyn Core>>> {
-        CORE.with(|f| f.borrow().as_ref().unwrap().clone())
     }
 }

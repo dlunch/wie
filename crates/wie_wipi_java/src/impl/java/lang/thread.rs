@@ -1,8 +1,9 @@
 use alloc::vec;
 
+use wie_backend::task;
+
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodProto, JavaResult},
-    method::MethodImpl,
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -42,30 +43,27 @@ impl Thread {
 
         let _runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
 
-        context.task_schedule(
-            (move |_context: &mut dyn JavaContext| async {
-                log::debug!("Thread::run");
+        task::spawn(async {
+            log::debug!("Thread::run");
 
-                // context.call_method(&runnable, "run", "()V", &[]).await?; // TODO
+            todo!()
 
-                Ok::<_, JavaError>(())
-            })
-            .into_body(),
-        )?;
+            // context.call_method(&runnable, "run", "()V", &[]).await?; // TODO
+        });
 
         Ok(())
     }
 
-    async fn sleep(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
+    async fn sleep(_: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
         log::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
-        context.task_sleep(a1 as u64);
+        task::sleep(a1 as u64).await;
 
         Ok(0)
     }
 
-    async fn r#yield(context: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("Thread::yield()");
-        context.task_yield();
+        task::yield_now().await;
 
         Ok(0)
     }
