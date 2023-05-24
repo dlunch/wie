@@ -4,7 +4,9 @@ use wie_backend::task;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    method::MethodImpl,
     proxy::JavaObjectProxy,
+    JavaError,
 };
 
 // class org.kwis.msp.lcdui.Card
@@ -18,7 +20,6 @@ impl Card {
                 JavaMethodProto::new("<init>", "(I)V", Self::init_1),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height),
-                JavaMethodProto::new("run", "()V", Self::run),
             ],
             fields: vec![],
         }
@@ -27,11 +28,19 @@ impl Card {
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
-        let thread = context.instantiate("Ljava/lang/Thread;")?;
-        context
-            .call_method(&thread, "<init>", "(Ljava/lang/Runnable;)V", &[instance.ptr_instance])
-            .await?;
-        context.call_method(&thread, "start", "()V", &[]).await?;
+        context.spawn(
+            (|_: &mut dyn JavaContext| async {
+                loop {
+                    task::sleep(16).await;
+
+                    // call self::paint
+                }
+
+                #[allow(unreachable_code)]
+                Ok::<_, JavaError>(()) // to conveniently specify the return type
+            })
+            .into_body(),
+        )?;
 
         Ok(())
     }
@@ -52,13 +61,5 @@ impl Card {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded
-    }
-
-    async fn run(_: &mut dyn JavaContext) -> JavaResult<()> {
-        loop {
-            task::sleep(16).await;
-
-            // call self::paint
-        }
     }
 }
