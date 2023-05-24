@@ -49,6 +49,10 @@ impl CoreExecutor {
     pub fn run(mut self) {
         loop {
             self.tick();
+
+            if self.inner.borrow_mut().tasks.is_empty() {
+                break;
+            }
         }
     }
 
