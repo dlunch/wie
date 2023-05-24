@@ -1,10 +1,12 @@
-use alloc::vec;
+use alloc::{boxed::Box, vec};
 
 use wie_backend::task;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
+    method::MethodBody,
     proxy::JavaObjectProxy,
+    JavaError,
 };
 
 // class java.lang.Thread
@@ -41,15 +43,9 @@ impl Thread {
     async fn start(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Thread::start");
 
-        let _runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
+        let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
 
-        task::spawn(async {
-            log::debug!("Thread::run");
-
-            todo!()
-
-            // context.call_method(&runnable, "run", "()V", &[]).await?; // TODO
-        });
+        context.spawn(Box::new(ThreadStartProxy { runnable }))?;
 
         Ok(())
     }
@@ -64,6 +60,21 @@ impl Thread {
     async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("Thread::yield()");
         task::yield_now().await;
+
+        Ok(0)
+    }
+}
+
+struct ThreadStartProxy {
+    runnable: JavaObjectProxy,
+}
+
+#[async_trait::async_trait(?Send)]
+impl MethodBody<JavaError> for ThreadStartProxy {
+    async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+        log::debug!("Thread::run");
+
+        context.call_method(&self.runnable, "run", "()V", &[]).await?;
 
         Ok(0)
     }
