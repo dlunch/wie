@@ -1,5 +1,6 @@
 use unicorn_engine::{RegisterARM, Unicorn};
 
+#[derive(Clone)]
 pub struct ArmCoreContext {
     pub r0: u32,
     pub r1: u32,
