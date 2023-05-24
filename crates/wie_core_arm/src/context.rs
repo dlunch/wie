@@ -1,7 +1,5 @@
 use unicorn_engine::{RegisterARM, Unicorn};
 
-use wie_base::CoreContext;
-
 pub struct ArmCoreContext {
     pub r0: u32,
     pub r1: u32,
@@ -43,5 +41,3 @@ impl ArmCoreContext {
         }
     }
 }
-
-impl CoreContext for ArmCoreContext {}

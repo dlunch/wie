@@ -85,4 +85,6 @@ fn main() -> anyhow::Result<()> {
     executor.spawn(future);
 
     executor.run();
+
+    Ok(())
 }
