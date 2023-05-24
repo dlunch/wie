@@ -37,7 +37,13 @@ impl CoreExecutor {
         self.tasks.push(Box::pin(fut));
     }
 
-    pub fn tick(&mut self) {
+    pub fn run(mut self) {
+        loop {
+            self.tick();
+        }
+    }
+
+    fn tick(&mut self) {
         let waker = Self::dummy_waker();
         let mut context = Context::from_waker(&waker);
 
