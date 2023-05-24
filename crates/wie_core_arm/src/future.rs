@@ -54,7 +54,8 @@ where
         }
         let executor = CoreExecutor::current_executor();
 
-        let core: &mut ArmCore = unsafe { core::mem::transmute(&mut executor.core_mut()) }; // TODO
+        let mut core = executor.core_mut();
+        let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
 
         if self.context.as_ref().unwrap().pc == RUN_FUNCTION_LR {
             let result = R::get(self.context.as_ref().unwrap());
@@ -62,6 +63,7 @@ where
 
             Poll::Ready(result)
         } else {
+            let core: &mut ArmCore = unsafe { core::mem::transmute(core) }; // TODO
             let fut = core.run(self.context.take().unwrap());
             self.waiting_fut = Some(fut.boxed_local());
 
