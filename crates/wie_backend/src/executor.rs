@@ -89,7 +89,7 @@ impl CoreExecutor {
             f.borrow_mut().take();
         });
 
-        self.inner.borrow_mut().tasks = next_tasks;
+        self.inner.borrow_mut().tasks.append(&mut next_tasks);
     }
 
     fn dummy_raw_waker() -> RawWaker {
