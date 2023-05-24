@@ -83,7 +83,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut executor = CoreExecutor::new(core);
     executor.spawn(future);
-    loop {
-        executor.tick();
-    }
+
+    executor.run();
 }
