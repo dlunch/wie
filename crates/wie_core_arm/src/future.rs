@@ -83,3 +83,7 @@ impl RunFunctionResult<u32> for u32 {
         context.r0
     }
 }
+
+impl RunFunctionResult<()> for () {
+    fn get(_: &ArmCoreContext) {}
+}

@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{fmt::Display, mem::size_of};
 
-use wie_backend::Backend;
+use wie_backend::{task, Backend, CoreExecutor};
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaMethodBody, JavaObjectProxy, JavaResult};
@@ -539,6 +539,19 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let instance = read_generic::<JavaClassInstance>(self.core, instance.ptr_instance)?;
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
+    }
+
+    fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
+        let entry = self.core.register_function(JavaMethodProxy::new(callback), self.backend)?;
+        task::spawn({
+            let executor: CoreExecutor = CoreExecutor::current_executor();
+            let mut core = executor.core_mut();
+            let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+
+            core.run_function::<()>(entry, &[])
+        });
+
+        Ok(())
     }
 }
 
