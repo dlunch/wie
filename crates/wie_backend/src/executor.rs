@@ -15,7 +15,7 @@ thread_local! {
 }
 
 pub struct ExecutorInner {
-    pub core: Box<dyn Core>,
+    core: Box<dyn Core>,
     tasks: Vec<Pin<Box<dyn Future<Output = ()>>>>,
 }
 
