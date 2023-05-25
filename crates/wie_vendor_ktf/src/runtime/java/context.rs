@@ -544,7 +544,7 @@ impl JavaContext for KtfJavaContext<'_> {
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         let entry = self.core.register_function(JavaMethodProxy::new(callback), self.backend)?;
         task::spawn({
-            let executor: CoreExecutor = CoreExecutor::current_executor();
+            let executor: CoreExecutor = CoreExecutor::current();
             let mut core = executor.core_mut();
             let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
 

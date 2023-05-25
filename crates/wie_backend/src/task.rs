@@ -18,7 +18,7 @@ pub fn yield_now() -> YieldFuture {
 }
 
 pub fn spawn<R>(future: impl Future<Output = R> + 'static) {
-    let mut executor = CoreExecutor::current_executor();
+    let mut executor = CoreExecutor::current();
     executor.spawn(future);
 }
 

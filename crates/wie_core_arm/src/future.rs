@@ -52,7 +52,7 @@ where
                 return Poll::Pending;
             }
         }
-        let executor = CoreExecutor::current_executor();
+        let executor = CoreExecutor::current();
 
         let mut core = executor.core_mut();
         let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
