@@ -56,7 +56,7 @@ impl CoreExecutor {
         }
     }
 
-    pub fn current_executor() -> CoreExecutor {
+    pub fn current() -> CoreExecutor {
         EXECUTOR_INNER.with(|f| {
             let inner = f.borrow().as_ref().unwrap().clone();
             Self { inner }
