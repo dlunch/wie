@@ -1,13 +1,15 @@
 use std::{
     cell::{RefCell, RefMut},
+    collections::HashMap,
     future::Future,
-    mem::swap,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 
 use wie_base::Core;
+
+use crate::time::Instant;
 
 thread_local! {
     #[allow(clippy::type_complexity)]
@@ -16,7 +18,10 @@ thread_local! {
 
 pub struct ExecutorInner {
     core: Box<dyn Core>,
-    tasks: Vec<Pin<Box<dyn Future<Output = ()>>>>,
+    current_task_id: Option<usize>,
+    tasks: HashMap<usize, Pin<Box<dyn Future<Output = ()>>>>,
+    sleeping_tasks: HashMap<usize, Instant>,
+    last_task_id: usize,
 }
 
 pub struct CoreExecutor {
@@ -30,7 +35,10 @@ impl CoreExecutor {
     {
         let inner = ExecutorInner {
             core: Box::new(core),
-            tasks: Vec::new(),
+            current_task_id: None,
+            tasks: HashMap::new(),
+            sleeping_tasks: HashMap::new(),
+            last_task_id: 0,
         };
 
         Self {
@@ -43,7 +51,13 @@ impl CoreExecutor {
             future.await;
         };
 
-        self.inner.borrow_mut().tasks.push(Box::pin(fut));
+        let task_id = {
+            let mut inner = self.inner.borrow_mut();
+            inner.last_task_id += 1;
+            inner.last_task_id
+        };
+
+        self.inner.borrow_mut().tasks.insert(task_id, Box::pin(fut));
     }
 
     pub fn run(mut self) {
@@ -63,46 +77,59 @@ impl CoreExecutor {
         })
     }
 
+    pub fn current_task_id() -> Option<usize> {
+        EXECUTOR_INNER.with(|f| f.borrow().as_ref().unwrap().borrow().current_task_id)
+    }
+
     pub fn core_mut(&self) -> RefMut<'_, Box<dyn Core>> {
         RefMut::map(self.inner.borrow_mut(), |x| &mut x.core)
     }
 
-    fn tick(&mut self) {
-        let waker = Self::dummy_waker();
-        let mut context = Context::from_waker(&waker);
+    pub(crate) fn sleep(&mut self, task_id: usize, until: Instant) {
+        self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
+    }
 
+    fn tick(&mut self) {
         EXECUTOR_INNER.with(|f| {
             f.borrow_mut().replace(self.inner.clone());
         });
 
-        let mut next_tasks = Vec::new();
-        let mut tasks = Vec::new();
-        swap(&mut tasks, &mut self.inner.borrow_mut().tasks);
+        let mut next_tasks = HashMap::new();
+        let tasks = self.inner.borrow_mut().tasks.drain().collect::<HashMap<_, _>>();
+        let sleeping_tasks = self.inner.borrow().sleeping_tasks.clone();
 
-        for mut task in tasks.drain(..) {
+        for (task_id, mut task) in tasks.into_iter() {
+            if sleeping_tasks.contains_key(&task_id) {
+                continue;
+            }
+
+            let waker = Self::waker_from_task_id(task_id);
+            let mut context = Context::from_waker(&waker);
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(_) => {}
-                Poll::Pending => next_tasks.push(task),
+                Poll::Pending => {
+                    next_tasks.insert(task_id, task);
+                }
             }
         }
         EXECUTOR_INNER.with(|f| {
             f.borrow_mut().take();
         });
 
-        self.inner.borrow_mut().tasks.append(&mut next_tasks);
+        self.inner.borrow_mut().tasks.extend(next_tasks.into_iter())
     }
 
-    fn dummy_raw_waker() -> RawWaker {
+    fn dummy_raw_waker(task_id: usize) -> RawWaker {
         fn no_op(_: *const ()) {}
-        fn clone(_: *const ()) -> RawWaker {
-            CoreExecutor::dummy_raw_waker()
+        fn clone(data: *const ()) -> RawWaker {
+            CoreExecutor::dummy_raw_waker(data as usize)
         }
 
         let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-        RawWaker::new(core::ptr::null::<()>(), vtable)
+        RawWaker::new(task_id as _, vtable)
     }
 
-    fn dummy_waker() -> Waker {
-        unsafe { Waker::from_raw(Self::dummy_raw_waker()) }
+    fn waker_from_task_id(task_id: usize) -> Waker {
+        unsafe { Waker::from_raw(Self::dummy_raw_waker(task_id)) }
     }
 }

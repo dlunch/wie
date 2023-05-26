@@ -1,10 +1,8 @@
-use alloc::vec;
-
-use wie_backend::task;
+use alloc::{boxed::Box, vec};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
-    method::MethodImpl,
+    method::MethodBody,
     proxy::JavaObjectProxy,
     JavaError,
 };
@@ -28,19 +26,7 @@ impl Card {
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
-        context.spawn(
-            (|_: &mut dyn JavaContext| async {
-                loop {
-                    task::sleep(16).await;
-
-                    // call self::paint
-                }
-
-                #[allow(unreachable_code)]
-                Ok::<_, JavaError>(()) // to conveniently specify the return type
-            })
-            .into_body(),
-        )?;
+        context.spawn(Box::new(CardLoop {}))?;
 
         Ok(())
     }
@@ -61,5 +47,21 @@ impl Card {
         log::debug!("Card::get_height");
 
         Ok(480) // TODO: hardcoded
+    }
+}
+
+struct CardLoop {}
+
+#[async_trait::async_trait(?Send)]
+impl MethodBody<JavaError> for CardLoop {
+    async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+        loop {
+            context.sleep(16).await;
+
+            // call self::paint
+        }
+
+        #[allow(unreachable_code)]
+        Ok(0)
     }
 }

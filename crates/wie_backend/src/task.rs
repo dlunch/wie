@@ -1,16 +1,13 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex},
-    task::{Context, Poll, Waker},
-    thread,
-    time::Duration,
+    task::{Context, Poll},
 };
 
-use crate::CoreExecutor;
+use crate::{time::Instant, CoreExecutor};
 
-pub fn sleep(duration: u64) -> SleepFuture {
-    SleepFuture::new(duration)
+pub fn sleep(until: Instant) -> SleepFuture {
+    SleepFuture::new(until)
 }
 
 pub fn yield_now() -> YieldFuture {
@@ -33,43 +30,29 @@ impl Future for YieldFuture {
 }
 
 pub struct SleepFuture {
-    duration: u64,
-    state: Arc<Mutex<bool>>,
-    waker: Option<Waker>,
+    until: Instant,
+    registered: bool,
 }
 
 impl SleepFuture {
-    pub fn new(duration: u64) -> Self {
-        Self {
-            duration,
-            state: Arc::new(Mutex::new(false)),
-            waker: None,
-        }
+    pub fn new(until: Instant) -> Self {
+        Self { until, registered: false }
     }
 }
 
 impl Future for SleepFuture {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.waker.is_none() {
-            self.waker = Some(cx.waker().clone());
+    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if !self.registered {
+            let task_id = CoreExecutor::current_task_id().unwrap();
+            CoreExecutor::current().sleep(task_id, self.until);
 
-            // TODO temp
-            let waker = cx.waker().clone();
-            let duration = Duration::from_millis(self.duration);
-            let state1 = self.state.clone();
-            thread::spawn(move || {
-                thread::sleep(duration);
-                *state1.lock().unwrap() = true;
-                waker.wake_by_ref();
-            });
-        }
+            self.registered = true;
 
-        if *self.state.lock().unwrap() {
-            Poll::Ready(())
-        } else {
             Poll::Pending
+        } else {
+            Poll::Ready(())
         }
     }
 }
