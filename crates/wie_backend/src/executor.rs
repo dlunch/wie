@@ -9,7 +9,7 @@ use std::{
 
 use wie_base::Core;
 
-use crate::time::Instant;
+use crate::{time::Instant, Backend};
 
 thread_local! {
     #[allow(clippy::type_complexity)]
@@ -60,9 +60,11 @@ impl CoreExecutor {
         self.inner.borrow_mut().tasks.insert(task_id, Box::pin(fut));
     }
 
-    pub fn run(mut self) {
+    pub fn run(mut self, backend: Backend) {
         loop {
-            self.tick();
+            let now = backend.time().now();
+
+            self.tick(now);
 
             if self.inner.borrow_mut().tasks.is_empty() {
                 break;
@@ -89,34 +91,44 @@ impl CoreExecutor {
         self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
     }
 
-    fn tick(&mut self) {
+    pub(crate) fn tick(&mut self, now: Instant) {
         EXECUTOR_INNER.with(|f| {
             f.borrow_mut().replace(self.inner.clone());
         });
 
         let mut next_tasks = HashMap::new();
         let tasks = self.inner.borrow_mut().tasks.drain().collect::<HashMap<_, _>>();
-        let sleeping_tasks = self.inner.borrow().sleeping_tasks.clone();
+        let mut sleeping_tasks = self.inner.borrow_mut().sleeping_tasks.drain().collect::<HashMap<_, _>>();
 
         for (task_id, mut task) in tasks.into_iter() {
-            if sleeping_tasks.contains_key(&task_id) {
-                continue;
+            let item = sleeping_tasks.get(&task_id);
+            if let Some(item) = item {
+                if *item > now {
+                    sleeping_tasks.remove(&task_id);
+                } else {
+                    continue;
+                }
             }
 
             let waker = Self::waker_from_task_id(task_id);
             let mut context = Context::from_waker(&waker);
+            self.inner.borrow_mut().current_task_id = Some(task_id);
+
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(_) => {}
                 Poll::Pending => {
                     next_tasks.insert(task_id, task);
                 }
             }
+
+            self.inner.borrow_mut().current_task_id = None;
         }
         EXECUTOR_INNER.with(|f| {
             f.borrow_mut().take();
         });
 
-        self.inner.borrow_mut().tasks.extend(next_tasks.into_iter())
+        self.inner.borrow_mut().sleeping_tasks.extend(sleeping_tasks.into_iter());
+        self.inner.borrow_mut().tasks.extend(next_tasks.into_iter());
     }
 
     fn dummy_raw_waker(task_id: usize) -> RawWaker {
