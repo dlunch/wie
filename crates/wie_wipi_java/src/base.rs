@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use wie_backend::Backend;
+use wie_backend::{task::SleepFuture, Backend};
 
 use crate::{
     array::Array,
@@ -60,6 +60,7 @@ pub trait JavaContext {
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()>;
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
+    fn sleep(&mut self, duration: u64) -> SleepFuture;
 }
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {

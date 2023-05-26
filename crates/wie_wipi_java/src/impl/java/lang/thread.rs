@@ -50,9 +50,9 @@ impl Thread {
         Ok(())
     }
 
-    async fn sleep(_: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
+    async fn sleep(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
         log::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
-        task::sleep(a1 as u64).await;
+        context.sleep(a1 as u64).await;
 
         Ok(0)
     }
