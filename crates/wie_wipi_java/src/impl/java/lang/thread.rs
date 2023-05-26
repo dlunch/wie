@@ -41,7 +41,7 @@ impl Thread {
     }
 
     async fn start(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Thread::start");
+        log::debug!("Thread::start({:#x})", instance.ptr_instance);
 
         let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
 
