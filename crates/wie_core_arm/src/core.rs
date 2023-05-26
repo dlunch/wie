@@ -80,11 +80,11 @@ impl ArmCore {
             if err.0 == uc_error::FETCH_PROT {
                 let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
                 if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
-                    let function = self.functions.remove(&cur_pc).unwrap();
+                    let core: &mut ArmCore = unsafe { core::mem::transmute(self as &mut ArmCore) }; // TODO
 
-                    function.call(self).await;
+                    let function = self.functions.get(&cur_pc).unwrap();
 
-                    self.functions.insert(cur_pc, function);
+                    function.call(core).await;
                 }
             } else {
                 result?;
