@@ -353,7 +353,8 @@ impl<'a> KtfJavaContext<'a> {
             cursor += 4;
         }
 
-        let ptr_fields = Allocator::alloc(self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
+        let field_count = proto.fields.len();
+        let ptr_fields = Allocator::alloc(self.core, ((field_count + 1) * size_of::<u32>()) as u32)?;
         let mut cursor = ptr_fields;
         for (index, field) in proto.fields.into_iter().enumerate() {
             let full_name = (JavaFullName {
@@ -397,7 +398,7 @@ impl<'a> KtfJavaContext<'a> {
                 ptr_interfaces: 0,
                 ptr_fields,
                 method_count: method_count as u16,
-                fields_size: 0,
+                fields_size: (field_count * 4) as u16,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
                 unk6: 0,
                 unk7: 0,
