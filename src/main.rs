@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<()> {
             module_file.read_to_end(&mut data)?;
 
             let mut core = KtfWipiModule::create_core()?;
-            let future = KtfWipiModule::start(&mut core, &data, &module_file_name, &main_class_name, backend);
+            let future = KtfWipiModule::start(&mut core, &data, &module_file_name, &main_class_name, backend.clone());
 
             (core, future)
         }
@@ -84,7 +84,7 @@ fn main() -> anyhow::Result<()> {
     let mut executor = CoreExecutor::new(core);
     executor.spawn(future);
 
-    executor.run();
+    executor.run(backend);
 
     Ok(())
 }
