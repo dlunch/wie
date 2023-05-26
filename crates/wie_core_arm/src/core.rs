@@ -16,7 +16,6 @@ use crate::{
     context::ArmCoreContext,
     function::EmulatedFunction,
     future::{RunFunctionFuture, RunFunctionResult},
-    Allocator,
 };
 
 const IMAGE_BASE: u32 = 0x100000;
@@ -95,56 +94,11 @@ impl ArmCore {
         self.save_context()
     }
 
-    pub fn set_next(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<()> {
-        // is there cleaner way to do this?
-        if !params.is_empty() {
-            self.uc.reg_write(RegisterARM::R0, params[0] as u64).map_err(UnicornError)?;
-        }
-        if params.len() > 1 {
-            self.uc.reg_write(RegisterARM::R1, params[1] as u64).map_err(UnicornError)?;
-        }
-        if params.len() > 2 {
-            self.uc.reg_write(RegisterARM::R2, params[2] as u64).map_err(UnicornError)?;
-        }
-        if params.len() > 3 {
-            self.uc.reg_write(RegisterARM::R3, params[3] as u64).map_err(UnicornError)?;
-        }
-        if params.len() > 4 {
-            for param in params[4..].iter() {
-                let sp = self.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
-
-                self.uc.reg_write(RegisterARM::SP, sp - 4).map_err(UnicornError)?;
-                self.uc.mem_write(sp - 4, &param.to_le_bytes()).map_err(UnicornError)?;
-            }
-        }
-
-        self.uc.reg_write(RegisterARM::PC, address as u64).map_err(UnicornError)?;
-
-        Ok(())
-    }
-
     pub fn run_function<R>(&mut self, address: u32, params: &[u32]) -> impl Future<Output = R>
     where
         R: RunFunctionResult<R>,
     {
-        let previous_context = ArmCoreContext::from_uc(&self.uc);
-
-        let stack_base = Allocator::alloc(self, 0x1000).unwrap();
-        self.uc
-            .reg_write(RegisterARM::SP, (stack_base + 0x1000) as u64)
-            .map_err(UnicornError)
-            .unwrap();
-
-        self.set_next(address, params).unwrap();
-        self.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).unwrap();
-
-        let context = ArmCoreContext::from_uc(&self.uc);
-
-        let future = RunFunctionFuture::from_context(context, previous_context.clone());
-
-        self.restore_context(&previous_context).unwrap();
-
-        future
+        RunFunctionFuture::new(self, address, params)
     }
 
     pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
