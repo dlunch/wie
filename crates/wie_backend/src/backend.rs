@@ -7,11 +7,14 @@ use std::{
     vec::Vec,
 };
 
+use crate::time::Time;
+
 use self::window::Window;
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     window: Rc<RefCell<Window>>,
+    time: Rc<RefCell<Time>>,
 }
 
 impl Default for Backend {
@@ -25,11 +28,16 @@ impl Backend {
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             window: Rc::new(RefCell::new(Window::new())),
+            time: Rc::new(RefCell::new(Time::new())),
         }
     }
 
     pub fn resource(&self) -> Ref<'_, Resource> {
         (*self.resource).borrow()
+    }
+
+    pub fn time(&self) -> Ref<'_, Time> {
+        (*self.time).borrow()
     }
 }
 
@@ -38,6 +46,7 @@ impl Clone for Backend {
         Self {
             resource: self.resource.clone(),
             window: self.window.clone(),
+            time: self.time.clone(),
         }
     }
 }
