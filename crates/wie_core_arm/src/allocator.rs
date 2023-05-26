@@ -44,11 +44,15 @@ impl Allocator {
             write_generic(core, address + alloc_size, next_header)?;
         }
 
+        log::trace!("Allocated {:#x} bytes at {:#x}", size, address + 8);
+
         Ok(address + 8)
     }
 
     pub fn free(core: &mut ArmCore, address: u32) -> anyhow::Result<()> {
         let base_address = address - 8;
+
+        log::trace!("Freeing {:#x}", base_address);
 
         let header = read_generic::<AllocationHeader>(core, base_address)?;
         assert!(header.in_use == 1);
