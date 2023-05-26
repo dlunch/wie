@@ -103,9 +103,10 @@ impl CoreExecutor {
         for (task_id, mut task) in tasks.into_iter() {
             let item = sleeping_tasks.get(&task_id);
             if let Some(item) = item {
-                if *item > now {
+                if *item <= now {
                     sleeping_tasks.remove(&task_id);
                 } else {
+                    next_tasks.insert(task_id, task);
                     continue;
                 }
             }
