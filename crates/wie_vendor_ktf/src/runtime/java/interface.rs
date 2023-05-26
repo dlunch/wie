@@ -1,8 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::string::{String, ToString};
 use core::mem::size_of;
 
 use wie_backend::Backend;
@@ -85,11 +81,11 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
     Ok(ptr_method)
 }
 
-async fn jb_unk1(_: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<(u32, Vec<u32>)> {
+async fn jb_unk1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
 
-    Ok((address, vec![arg1]))
+    Ok(core.run_function::<u32>(address, &[arg1]).await)
 }
 
 async fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
@@ -129,11 +125,11 @@ async fn jb_unk6(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u3
     Ok(ptr_data)
 }
 
-async fn jb_unk7(_: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<(u32, Vec<u32>)> {
+async fn jb_unk7(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
     // jump?
     log::debug!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
-    Ok((address, vec![arg1, arg2]))
+    Ok(core.run_function::<u32>(address, &[arg1, arg2]).await)
 }
 
 async fn jb_unk8(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
