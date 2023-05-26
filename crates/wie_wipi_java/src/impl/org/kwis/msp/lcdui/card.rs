@@ -26,7 +26,7 @@ impl Card {
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Card::<init>({:#x})", instance.ptr_instance);
 
-        context.spawn(Box::new(CardLoop {}))?;
+        context.spawn(Box::new(CardLoop { instance }))?;
 
         Ok(())
     }
@@ -50,7 +50,9 @@ impl Card {
     }
 }
 
-struct CardLoop {}
+struct CardLoop {
+    instance: JavaObjectProxy,
+}
 
 #[async_trait::async_trait(?Send)]
 impl MethodBody<JavaError> for CardLoop {
@@ -58,7 +60,10 @@ impl MethodBody<JavaError> for CardLoop {
         loop {
             context.sleep(16).await;
 
-            // call self::paint
+            context
+                .call_method(&self.instance, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[0])
+                .await
+                .unwrap();
         }
 
         #[allow(unreachable_code)]
