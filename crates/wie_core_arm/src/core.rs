@@ -123,8 +123,8 @@ impl ArmCore {
         Ok(address as u32 + 1)
     }
 
-    pub fn alloc(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
-        log::trace!("Alloc address: {:#x}, size: {:#x}", address, size);
+    pub fn map(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
+        log::trace!("Map address: {:#x}, size: {:#x}", address, size);
 
         self.uc
             .mem_map(address as u64, size as usize, Permission::READ | Permission::WRITE)

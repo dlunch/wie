@@ -258,7 +258,7 @@ async fn init_unk3(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Resu
 }
 
 fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {
-    core.alloc(PEB_BASE, 0x1000)?;
+    core.map(PEB_BASE, 0x1000)?;
     write_generic(core, PEB_BASE, peb)?;
 
     Ok(())
