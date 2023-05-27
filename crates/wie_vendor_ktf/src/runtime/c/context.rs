@@ -21,6 +21,10 @@ impl CContext for KtfCContext<'_> {
         Allocator::alloc(self.core, size)
     }
 
+    fn free(&mut self, ptr: u32) -> CResult<()> {
+        Allocator::free(self.core, ptr)
+    }
+
     fn register_function(&mut self, body: CMethodBody) -> CResult<u32> {
         let proxy = CMethodProxy::new(body);
 
