@@ -523,6 +523,9 @@ impl JavaContext for KtfJavaContext<'_> {
         if args.len() > 1 {
             params.push(args[1]);
         }
+        if args.len() > 2 {
+            todo!()
+        }
 
         Ok(self.core.run_function(method.fn_body, &params).await?)
     }
