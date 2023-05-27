@@ -22,7 +22,7 @@ impl Graphics {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Graphics::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub Graphics::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

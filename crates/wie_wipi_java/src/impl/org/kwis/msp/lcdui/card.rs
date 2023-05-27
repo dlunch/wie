@@ -24,7 +24,7 @@ impl Card {
     }
 
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Card::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub Card::<init>({:#x})", instance.ptr_instance);
 
         context.spawn(Box::new(CardLoop { instance }))?;
 
@@ -32,7 +32,7 @@ impl Card {
     }
 
     async fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
-        log::debug!("Card::<init>({:#x}, {})", instance.ptr_instance, a0);
+        log::warn!("stub Card::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }

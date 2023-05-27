@@ -19,7 +19,7 @@ fn gen_stub(id: u32) -> CMethodBody {
 }
 
 async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
-    log::trace!("current_time()");
+    log::debug!("current_time()");
 
     Ok(context.backend().time().now().raw() as u32)
 }
@@ -31,13 +31,13 @@ async fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
 }
 
 async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
-    log::trace!("alloc({:#x})", size);
+    log::debug!("alloc({:#x})", size);
 
     context.alloc(size)
 }
 
 async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
-    log::trace!("calloc({:#x})", size);
+    log::debug!("calloc({:#x})", size);
 
     let memory = context.alloc(size)?;
 
@@ -48,7 +48,7 @@ async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
 }
 
 async fn free(context: &mut dyn CContext, memory: CMemoryId) -> CResult<CMemoryId> {
-    log::trace!("free({:#x})", memory.0);
+    log::debug!("free({:#x})", memory.0);
 
     context.free(memory)?;
 
@@ -56,7 +56,7 @@ async fn free(context: &mut dyn CContext, memory: CMemoryId) -> CResult<CMemoryI
 }
 
 async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
-    log::trace!("get_resource_id({}, {:#x})", name, ptr_size);
+    log::debug!("get_resource_id({}, {:#x})", name, ptr_size);
 
     let id = context.backend().resource().id(&name);
     if id.is_none() {
@@ -71,7 +71,7 @@ async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32
 }
 
 async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_size: u32) -> CResult<i32> {
-    log::trace!("get_resource({}, {:#x}, {})", id, buf.0, buf_size);
+    log::debug!("get_resource({}, {:#x}, {})", id, buf.0, buf_size);
 
     let size = context.backend().resource().size(id);
 

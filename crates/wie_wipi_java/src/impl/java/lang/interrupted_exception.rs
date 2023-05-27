@@ -17,7 +17,7 @@ impl InterruptedException {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("InterruptedException::<init>{:#x}", instance.ptr_instance);
+        log::warn!("stub InterruptedException::<init>{:#x}", instance.ptr_instance);
 
         Ok(())
     }

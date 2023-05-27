@@ -41,7 +41,7 @@ impl Thread {
     }
 
     async fn start(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::trace!("Thread::start({:#x})", instance.ptr_instance);
+        log::debug!("Thread::start({:#x})", instance.ptr_instance);
 
         let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
 
@@ -51,14 +51,14 @@ impl Thread {
     }
 
     async fn sleep(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
-        log::trace!("Thread::sleep({:#x}, {:#x})", a0, a1);
+        log::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
         context.sleep(a1 as u64).await;
 
         Ok(0)
     }
 
     async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::trace!("Thread::yield()");
+        log::debug!("Thread::yield()");
         task::yield_now().await;
 
         Ok(0)

@@ -28,7 +28,7 @@ impl Display {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub Display::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
