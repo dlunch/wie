@@ -61,11 +61,14 @@ impl MethodBody<JavaError> for CardLoop {
             context.sleep(100).await; // We should wait for startApp to finish
         }
 
+        let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
+        context.call_method(&graphics, "<init>", "()V", &[]).await?;
+
         loop {
             context.sleep(16).await;
 
             context
-                .call_method(&self.instance, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[0])
+                .call_method(&self.instance, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
                 .await?;
         }
 
