@@ -16,6 +16,7 @@ impl Graphics {
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect),
+                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image),
             ],
             fields: vec![],
         }
@@ -44,6 +45,12 @@ impl Graphics {
 
     async fn fill_rect(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: u32, a2: u32, a3: u32, a4: u32) -> JavaResult<()> {
         log::warn!("stub Graphics::fillRect({:#x}, {}, {}, {}, {})", a0.ptr_instance, a1, a2, a3, a4);
+
+        Ok(())
+    }
+
+    async fn draw_image(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
+        log::warn!("stub Graphics::drawImage({:#x}, {}, {}, {})", a0.ptr_instance, a1, a2, a3);
 
         Ok(())
     }
