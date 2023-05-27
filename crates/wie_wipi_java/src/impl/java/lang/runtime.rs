@@ -36,7 +36,7 @@ impl Runtime {
     }
 
     async fn total_memory(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::debug!("Runtime::total_memory");
+        log::warn!("stub Runtime::total_memory");
 
         Ok(0x100000) // TODO: hardcoded
     }

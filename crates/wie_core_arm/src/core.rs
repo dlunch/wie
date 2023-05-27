@@ -391,7 +391,7 @@ where
     async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
         let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
         let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
-        log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
+        log::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
         let mut new_context = self.context.clone();
 

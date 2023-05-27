@@ -26,7 +26,7 @@ impl BackLight {
     }
 
     async fn always_on(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::debug!("Backlight::alwaysOn");
+        log::warn!("stub Backlight::alwaysOn");
 
         Ok(())
     }

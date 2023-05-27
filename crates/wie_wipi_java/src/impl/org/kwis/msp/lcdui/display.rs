@@ -34,7 +34,7 @@ impl Display {
     }
 
     async fn get_display(context: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::debug!("Display::getDisplay({:#x}", a0.ptr_instance);
+        log::warn!("stub Display::getDisplay({:#x}", a0.ptr_instance);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
@@ -43,7 +43,7 @@ impl Display {
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::debug!("Display::getDefaultDisplay");
+        log::warn!("stub Display::getDefaultDisplay");
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
@@ -52,19 +52,19 @@ impl Display {
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::debug!("Display::getDockedCard");
+        log::warn!("stub Display::getDockedCard");
 
         Ok(JavaObjectProxy::new(0))
     }
 
     async fn push_card(_: &mut dyn JavaContext, instance: JavaObjectProxy, a1: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::pushCard({:#x}, {:#x})", instance.ptr_instance, a1.ptr_instance);
+        log::warn!("stub Display::pushCard({:#x}, {:#x})", instance.ptr_instance, a1.ptr_instance);
 
         Ok(())
     }
 
     async fn add_jlet_event_listener(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Display::addJletEventListener({:#x})", a0.ptr_instance);
+        log::warn!("stub Display::addJletEventListener({:#x})", a0.ptr_instance);
 
         Ok(())
     }
