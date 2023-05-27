@@ -1,5 +1,7 @@
-use core::ops::Add;
-use std::time::SystemTime;
+use std::{
+    ops::{Add, Sub},
+    time::SystemTime,
+};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -20,6 +22,14 @@ impl Add<u64> for Instant {
 
     fn add(self, rhs: u64) -> Self::Output {
         Self { value: self.value + rhs }
+    }
+}
+
+impl Sub for Instant {
+    type Output = u64;
+
+    fn sub(self, rhs: Instant) -> Self::Output {
+        self.value - rhs.value
     }
 }
 
