@@ -64,10 +64,9 @@ pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_targ
 }
 
 pub async fn java_throw(core: &mut ArmCore, _: &mut Backend, error: String, a1: u32) -> anyhow::Result<u32> {
-    log::error!("java_throw({}, {})", error, a1);
-    log::error!("\n{}", core.dump_regs()?);
+    log::debug!("java_throw({}, {})", error, a1);
 
-    Ok(0)
+    Err(anyhow::anyhow!("Java Exception thrown {}, {:#x}\n{}", error, a1, core.dump_regs()?))
 }
 
 async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
