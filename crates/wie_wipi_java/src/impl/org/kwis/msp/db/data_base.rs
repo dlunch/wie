@@ -11,18 +11,25 @@ pub struct DataBase {}
 impl DataBase {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            methods: vec![JavaMethodProto::new(
-                "openDataBase",
-                "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
-                Self::open_data_base,
-            )],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init),
+                JavaMethodProto::new("openDataBase", "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;", Self::open_data_base),
+            ],
             fields: vec![],
         }
     }
+    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub DataBase::<init>({:#x})", instance.ptr_instance);
 
-    async fn open_data_base(_: &mut dyn JavaContext, _a0: JavaObjectProxy, _a1: u32, _a2: u32) -> JavaResult<JavaObjectProxy> {
+        Ok(())
+    }
+
+    async fn open_data_base(context: &mut dyn JavaContext, _a0: JavaObjectProxy, _a1: u32, _a2: u32) -> JavaResult<JavaObjectProxy> {
         log::warn!("stub DataBase::openDataBase({:#x}, {}, {})", _a0.ptr_instance, _a1, _a2);
 
-        Ok(JavaObjectProxy::new(0))
+        let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;")?;
+        context.call_method(&instance, "<init>", "()V", &[]).await?;
+
+        Ok(instance)
     }
 }
