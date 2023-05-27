@@ -3,7 +3,7 @@ use core::future::Future;
 
 use unicorn_engine::RegisterARM;
 
-use wie_base::util::read_null_terminated_string;
+use wie_base::util::{read_generic, read_null_terminated_string};
 
 use crate::ArmCore;
 
@@ -143,7 +143,9 @@ pub trait EmulatedFunctionParam<T> {
         } else if pos == 3 {
             core.uc.reg_read(RegisterARM::R3).unwrap() as u32
         } else {
-            todo!()
+            let sp = core.uc.reg_read(RegisterARM::SP).unwrap() as u32;
+
+            read_generic(core, sp + 4 * (pos as u32 - 4)).unwrap()
         }
     }
 }
