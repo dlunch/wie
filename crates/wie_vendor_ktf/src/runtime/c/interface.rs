@@ -27,7 +27,7 @@ struct WIPICInterface {
 }
 
 fn write_methods(context: &mut dyn CContext, methods: Vec<CMethodBody>) -> anyhow::Result<u32> {
-    let address = context.alloc((methods.len() * 4) as u32)?;
+    let address = context.alloc_raw((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
     for method in methods {
@@ -77,7 +77,7 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
         interface_12: 0,
     };
 
-    let address = context.alloc(size_of::<WIPICInterface>() as u32)?;
+    let address = context.alloc_raw(size_of::<WIPICInterface>() as u32)?;
 
     write_generic(context, address, interface)?;
 

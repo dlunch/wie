@@ -10,9 +10,14 @@ pub type CResult<T> = anyhow::Result<T>;
 
 pub type CMethodBody = Box<dyn MethodBody<CError>>;
 
+#[derive(Clone, Copy)]
+pub struct CMemoryId(pub u32);
+
 pub trait CContext: ByteRead + ByteWrite {
-    fn alloc(&mut self, size: u32) -> CResult<u32>;
-    fn free(&mut self, ptr: u32) -> CResult<()>;
+    fn alloc_raw(&mut self, size: u32) -> CResult<u32>;
+    fn alloc(&mut self, size: u32) -> CResult<CMemoryId>;
+    fn free(&mut self, memory: CMemoryId) -> CResult<()>;
+    fn data_ptr(&self, memory: CMemoryId) -> CResult<u32>;
     fn register_function(&mut self, method: CMethodBody) -> CResult<u32>;
     fn backend(&mut self) -> &mut Backend;
 }
@@ -24,6 +29,16 @@ impl TypeConverter<u32> for u32 {
 
     fn from_rust(_: &mut dyn CContext, rust: u32) -> u32 {
         rust
+    }
+}
+
+impl TypeConverter<CMemoryId> for CMemoryId {
+    fn to_rust(_: &mut dyn CContext, raw: u32) -> CMemoryId {
+        CMemoryId(raw)
+    }
+
+    fn from_rust(_: &mut dyn CContext, rust: CMemoryId) -> u32 {
+        rust.0
     }
 }
 

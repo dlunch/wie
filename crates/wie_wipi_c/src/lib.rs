@@ -9,7 +9,7 @@ mod media;
 mod method;
 
 pub use self::{
-    base::{CContext, CMethodBody, CResult},
+    base::{CContext, CMemoryId, CMethodBody, CResult},
     database::get_database_method_table,
     graphics::get_graphics_method_table,
     kernel::get_kernel_method_table,
