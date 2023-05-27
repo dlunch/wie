@@ -4,9 +4,8 @@ extern crate alloc;
 
 pub mod util;
 
+use alloc::{boxed::Box, string::String};
 use core::any::Any;
-
-use alloc::boxed::Box;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -33,6 +32,7 @@ pub trait Core: AsAny {
     fn free_context(&mut self, context: Box<dyn CoreContext>);
     fn restore_context(&mut self, context: &dyn CoreContext);
     fn save_context(&self) -> Box<dyn CoreContext>;
+    fn dump_reg_stack(&self) -> String;
 }
 
 pub trait CoreContext: AsAny {}
