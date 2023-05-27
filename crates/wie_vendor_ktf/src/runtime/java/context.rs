@@ -147,7 +147,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
         for ptr_method in ptr_methods {
-            let current_method = read_generic::<JavaMethod>(self.core, ptr_method)?;
+            let current_method: JavaMethod = read_generic(self.core, ptr_method)?;
             let current_fullname = JavaFullName::from_ptr(self.core, current_method.ptr_name)?;
 
             if current_fullname == fullname {
@@ -202,7 +202,7 @@ impl<'a> KtfJavaContext<'a> {
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
         let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?;
-        let instance = read_generic::<JavaClassInstance>(self.core, proxy.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count)?;
 
@@ -225,7 +225,7 @@ impl<'a> KtfJavaContext<'a> {
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let (class, _, _) = self.read_ptr_class(ptr_class)?;
 
-        let peb = read_generic::<KtfPeb>(self.core, PEB_BASE)?;
+        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
 
         let ptr_vtables = self.read_null_terminated_table(peb.ptr_vtables_base)?;
 
@@ -278,7 +278,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let peb = read_generic::<KtfPeb>(self.core, PEB_BASE)?;
+        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
 
         let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
         for ptr_class in ptr_classes {
@@ -411,7 +411,7 @@ impl<'a> KtfJavaContext<'a> {
         let ptr_vtable = self.write_vtable(ptr_class)?;
         write_generic(self.core, ptr_class + 12, ptr_vtable)?;
 
-        let peb = read_generic::<KtfPeb>(self.core, PEB_BASE)?;
+        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
 
         let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
         write_generic(
@@ -430,8 +430,8 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn read_ptr_class(&self, ptr_class: u32) -> JavaResult<(JavaClass, JavaClassDescriptor, String)> {
-        let class = read_generic::<JavaClass>(self.core, ptr_class)?;
-        let class_descriptor = read_generic::<JavaClassDescriptor>(self.core, class.ptr_descriptor)?;
+        let class: JavaClass = read_generic(self.core, ptr_class)?;
+        let class_descriptor: JavaClassDescriptor = read_generic(self.core, class.ptr_descriptor)?;
         let class_name = read_null_terminated_string(self.core, class_descriptor.ptr_name)?;
 
         Ok((class, class_descriptor, class_name))
@@ -441,7 +441,7 @@ impl<'a> KtfJavaContext<'a> {
         let mut cursor = base_address;
         let mut result = Vec::new();
         loop {
-            let item = read_generic::<u32>(self.core, cursor)?;
+            let item: u32 = read_generic(self.core, cursor)?;
             if item == 0 {
                 break;
             }
@@ -454,12 +454,12 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn find_field_offset(&self, proxy: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
-        let instance = read_generic::<JavaClassInstance>(self.core, proxy.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
         let (_, class_descriptor, _) = self.read_ptr_class(instance.ptr_class)?;
 
         let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields)?;
         for ptr_field in ptr_fields {
-            let field = read_generic::<JavaField>(self.core, ptr_field)?;
+            let field: JavaField = read_generic(self.core, ptr_field)?;
 
             let fullname = JavaFullName::from_ptr(self.core, field.ptr_name)?;
             if fullname.name == field_name {
@@ -501,7 +501,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     async fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        let instance = read_generic::<JavaClassInstance>(self.core, instance_proxy.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
         log::info!("Call {}::{}({})", class_name, name, signature);
@@ -514,7 +514,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let ptr_method = self.get_method(instance.ptr_class, fullname)?;
 
-        let method = read_generic::<JavaMethod>(self.core, ptr_method)?;
+        let method: JavaMethod = read_generic(self.core, ptr_method)?;
 
         let mut params = vec![0, instance_proxy.ptr_instance];
         if !args.is_empty() {
@@ -534,14 +534,14 @@ impl JavaContext for KtfJavaContext<'_> {
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
         let offset = self.find_field_offset(instance, field_name)?;
 
-        let instance = read_generic::<JavaClassInstance>(self.core, instance.ptr_instance)?;
-        read_generic::<u32>(self.core, instance.ptr_fields + offset + 4)
+        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
+        read_generic(self.core, instance.ptr_fields + offset + 4)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()> {
         let offset = self.find_field_offset(instance, field_name)?;
 
-        let instance = read_generic::<JavaClassInstance>(self.core, instance.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
 

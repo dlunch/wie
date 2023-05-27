@@ -214,9 +214,9 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     };
     init_peb(core, peb)?;
 
-    let wipi_exe = read_generic::<WipiExe>(core, wipi_exe)?;
-    let exe_interface = read_generic::<ExeInterface>(core, wipi_exe.ptr_exe_interface)?;
-    let exe_interface_functions = read_generic::<ExeInterfaceFunctions>(core, exe_interface.ptr_functions)?;
+    let wipi_exe: WipiExe = read_generic(core, wipi_exe)?;
+    let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
+    let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
     log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core
