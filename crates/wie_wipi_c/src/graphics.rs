@@ -20,7 +20,7 @@ struct Framebuffer {
 
 fn gen_stub(id: u32) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move {
-        log::warn!("graphics stub{} called", id);
+        log::warn!("stub graphics{}", id);
 
         Ok(0)
     };
