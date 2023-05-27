@@ -7,7 +7,7 @@ use crate::{
 
 fn gen_stub(id: u32) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move {
-        log::warn!("database stub{} called", id);
+        log::warn!("stub database{}", id);
 
         Ok(0)
     };
