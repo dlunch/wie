@@ -15,6 +15,10 @@ impl Instant {
             value: epoch.as_millis() as u64,
         }
     }
+
+    pub fn raw(&self) -> u64 {
+        self.value
+    }
 }
 
 impl Add<u64> for Instant {

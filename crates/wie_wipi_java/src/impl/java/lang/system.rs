@@ -16,10 +16,10 @@ impl System {
         }
     }
 
-    async fn current_time_millis(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<u32> {
         log::debug!("System::currentTimeMillis()");
 
-        Ok(0)
+        Ok(context.backend().time().now().raw() as u32)
     }
 
     async fn gc(_: &mut dyn JavaContext) -> JavaResult<u32> {
