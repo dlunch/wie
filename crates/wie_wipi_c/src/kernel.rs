@@ -33,9 +33,19 @@ async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
     log::debug!("alloc({:#x})", size);
 
     let ptr = context.alloc(4)?;
-    let data = context.alloc(size)?;
+    let data = context.alloc(size + 4)?; // add safe margin, some program writer after allocation
 
     write_generic(context, ptr, data)?;
+
+    Ok(ptr)
+}
+
+async fn free(context: &mut dyn CContext, ptr: u32) -> CResult<u32> {
+    log::debug!("free({:#x})", ptr);
+
+    let data: u32 = read_generic(context, ptr)?;
+    context.free(data)?;
+    context.free(ptr)?;
 
     Ok(ptr)
 }
@@ -99,7 +109,7 @@ where
         gen_stub(19),
         alloc.into_body(),
         gen_stub(21),
-        gen_stub(22),
+        free.into_body(),
         gen_stub(23),
         gen_stub(24),
         def_timer.into_body(),

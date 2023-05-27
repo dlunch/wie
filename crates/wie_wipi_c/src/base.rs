@@ -12,6 +12,7 @@ pub type CMethodBody = Box<dyn MethodBody<CError>>;
 
 pub trait CContext: ByteRead + ByteWrite {
     fn alloc(&mut self, size: u32) -> CResult<u32>;
+    fn free(&mut self, ptr: u32) -> CResult<()>;
     fn register_function(&mut self, method: CMethodBody) -> CResult<u32>;
     fn backend(&mut self) -> &mut Backend;
 }
