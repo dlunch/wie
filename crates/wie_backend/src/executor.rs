@@ -83,7 +83,9 @@ impl CoreExecutor {
 
                 let now = backend.time().now();
 
-                std::thread::sleep(std::time::Duration::from_millis(next_wakeup - now));
+                if next_wakeup > now {
+                    std::thread::sleep(std::time::Duration::from_millis(next_wakeup - now));
+                }
             }
 
             self.tick(now)?;
