@@ -45,7 +45,7 @@ impl Allocator {
 
         let address = Self::find_address(core, alloc_size).ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
 
-        let previous_header = read_generic::<AllocationHeader>(core, address)?;
+        let previous_header: AllocationHeader = read_generic(core, address)?;
 
         let header = AllocationHeader::new(alloc_size, true);
         write_generic(core, address, header)?;
@@ -66,7 +66,7 @@ impl Allocator {
 
         log::trace!("Freeing {:#x}", base_address);
 
-        let header = read_generic::<AllocationHeader>(core, base_address)?;
+        let header: AllocationHeader = read_generic(core, base_address)?;
         assert!(header.in_use());
 
         let header = AllocationHeader::new(header.size(), false);
@@ -78,7 +78,7 @@ impl Allocator {
     fn find_address(core: &mut ArmCore, request_size: u32) -> Option<u32> {
         let mut cursor = HEAP_BASE;
         loop {
-            let header = read_generic::<AllocationHeader>(core, cursor).ok()?;
+            let header: AllocationHeader = read_generic(core, cursor).ok()?;
             if !header.in_use() && header.size() >= request_size {
                 return Some(cursor);
             } else {

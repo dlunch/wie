@@ -22,9 +22,10 @@ pub trait ByteWrite {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()>;
 }
 
-pub fn read_generic<T>(reader: &dyn ByteRead, address: u32) -> anyhow::Result<T>
+pub fn read_generic<T, R>(reader: &R, address: u32) -> anyhow::Result<T>
 where
     T: Copy,
+    R: ?Sized + ByteRead,
 {
     let data = reader.read_bytes(address, size_of::<T>() as u32)?;
 
