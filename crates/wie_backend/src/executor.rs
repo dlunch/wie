@@ -25,6 +25,8 @@ pub struct ExecutorInner {
     last_task_id: usize,
 }
 
+// We abuse rust async to implement generator.
+// CoreExecutor polls future even it's pending state, to make generator future to be able to continue.
 pub struct CoreExecutor {
     inner: Rc<RefCell<ExecutorInner>>,
 }
