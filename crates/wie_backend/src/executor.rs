@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 
-use wie_base::Core;
+use wie_base::{Core, CoreContext};
 
 use crate::{time::Instant, Backend};
 
@@ -19,7 +19,7 @@ thread_local! {
 pub struct ExecutorInner {
     core: Box<dyn Core>,
     current_task_id: Option<usize>,
-    tasks: HashMap<usize, Pin<Box<dyn Future<Output = ()>>>>,
+    tasks: HashMap<usize, Task>,
     sleeping_tasks: HashMap<usize, Instant>,
     last_task_id: usize,
 }
@@ -46,9 +46,16 @@ impl CoreExecutor {
         }
     }
 
-    pub fn spawn<R>(&mut self, future: impl Future<Output = R> + 'static) {
+    pub fn spawn<F, Fut, R>(&mut self, f: F)
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = R> + 'static,
+    {
+        let context = self.inner.borrow_mut().core.new_context();
+
         let fut = async move {
-            future.await;
+            f().await;
+            // CoreExecutor::current().core_mut().free_context(context); // TODO
         };
 
         let task_id = {
@@ -57,7 +64,7 @@ impl CoreExecutor {
             inner.last_task_id
         };
 
-        self.inner.borrow_mut().tasks.insert(task_id, Box::pin(fut));
+        self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut), context });
     }
 
     pub fn run(mut self, backend: Backend) {
@@ -115,9 +122,11 @@ impl CoreExecutor {
             let mut context = Context::from_waker(&waker);
             self.inner.borrow_mut().current_task_id = Some(task_id);
 
-            match task.as_mut().poll(&mut context) {
+            self.inner.borrow_mut().core.restore_context(&*task.context);
+            match task.fut.as_mut().poll(&mut context) {
                 Poll::Ready(_) => {}
                 Poll::Pending => {
+                    task.context = self.inner.borrow_mut().core.save_context();
                     next_tasks.insert(task_id, task);
                 }
             }
@@ -145,4 +154,9 @@ impl CoreExecutor {
     fn waker_from_task_id(task_id: usize) -> Waker {
         unsafe { Waker::from_raw(Self::dummy_raw_waker(task_id)) }
     }
+}
+
+struct Task {
+    fut: Pin<Box<dyn Future<Output = ()>>>,
+    context: Box<dyn CoreContext>,
 }

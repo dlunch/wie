@@ -14,9 +14,13 @@ pub fn yield_now() -> YieldFuture {
     YieldFuture {}
 }
 
-pub fn spawn<R>(future: impl Future<Output = R> + 'static) {
+pub fn spawn<F, Fut, R>(f: F)
+where
+    F: Fn() -> Fut + 'static,
+    Fut: Future<Output = R> + 'static,
+{
     let mut executor = CoreExecutor::current();
-    executor.spawn(future);
+    executor.spawn(f);
 }
 
 pub struct YieldFuture {}

@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     let vendor = ArchiveVendor::from_archive(&mut archive)?;
     let backend = Backend::new();
 
-    let (core, future) = match vendor {
+    let executor = match vendor {
         Some(ArchiveVendor::Ktf {
             module_file_name,
             main_class_name,
@@ -73,16 +73,15 @@ fn main() -> anyhow::Result<()> {
             let mut data = Vec::new();
             module_file.read_to_end(&mut data)?;
 
-            let mut core = KtfWipiModule::create_core()?;
-            let future = KtfWipiModule::start(&mut core, &data, &module_file_name, &main_class_name, backend.clone());
+            let core = KtfWipiModule::create_core()?;
+            let mut executor = CoreExecutor::new(core);
 
-            (core, future)
+            KtfWipiModule::start(&mut executor, &data, &module_file_name, &main_class_name, backend.clone());
+
+            executor
         }
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
-
-    let mut executor = CoreExecutor::new(core);
-    executor.spawn(future);
 
     executor.run(backend);
 

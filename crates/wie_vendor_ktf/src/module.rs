@@ -1,8 +1,6 @@
-use core::future::Future;
-
 use alloc::string::String;
 
-use wie_backend::Backend;
+use wie_backend::{Backend, CoreExecutor};
 use wie_base::util::ByteWrite;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::JavaContext;
@@ -20,15 +18,28 @@ impl KtfWipiModule {
         Ok(core)
     }
 
-    pub fn start(core: &mut ArmCore, data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> impl Future<Output = u32> {
-        let (base_address, bss_size) = Self::load(core, data, filename).unwrap();
+    pub fn start(executor: &mut CoreExecutor, data: &[u8], filename: &str, main_class_name: &str, backend: Backend) {
+        let (entry, base_address, bss_size, ptr_main_class_name) = {
+            let mut core = executor.core_mut();
+            let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
 
-        let ptr_main_class_name = Allocator::alloc(core, 20).unwrap(); // TODO size fix
-        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
+            let (base_address, bss_size) = Self::load(core, data, filename).unwrap();
 
-        let entry = core.register_function(Self::do_start, &backend).unwrap();
+            let ptr_main_class_name = Allocator::alloc(core, 20).unwrap(); // TODO size fix
+            core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
 
-        core.run_function(entry, &[base_address, bss_size, ptr_main_class_name])
+            let entry = core.register_function(Self::do_start, &backend).unwrap();
+
+            (entry, base_address, bss_size, ptr_main_class_name)
+        };
+
+        executor.spawn(move || {
+            let executor = CoreExecutor::current();
+            let mut core = executor.core_mut();
+            let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+
+            core.run_function::<()>(entry, &[base_address, bss_size, ptr_main_class_name])
+        });
     }
 
     async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
