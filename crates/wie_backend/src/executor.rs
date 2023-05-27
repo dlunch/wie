@@ -77,6 +77,15 @@ impl CoreExecutor {
         loop {
             let now = backend.time().now();
 
+            let running_task_count = self.inner.borrow().tasks.len() - self.inner.borrow().sleeping_tasks.len();
+            if running_task_count == 0 {
+                let next_wakeup = *self.inner.borrow().sleeping_tasks.values().min().unwrap();
+
+                let now = backend.time().now();
+
+                std::thread::sleep(std::time::Duration::from_millis(next_wakeup - now));
+            }
+
             self.tick(now)?;
 
             if self.inner.borrow_mut().tasks.is_empty() {
