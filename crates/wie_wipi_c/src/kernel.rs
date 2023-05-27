@@ -108,7 +108,7 @@ where
         gen_stub(18),
         gen_stub(19),
         alloc.into_body(),
-        gen_stub(21),
+        alloc.into_body(), // actually calloc
         free.into_body(),
         gen_stub(23),
         gen_stub(24),
