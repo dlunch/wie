@@ -4,7 +4,7 @@ use core::mem::size_of;
 use wie_backend::Backend;
 use wie_base::util::write_generic;
 use wie_core_arm::ArmCore;
-use wie_wipi_c::{get_graphics_method_table, get_kernel_method_table, get_media_method_table, CContext, CMethodBody};
+use wie_wipi_c::{get_database_method_table, get_graphics_method_table, get_kernel_method_table, get_media_method_table, CContext, CMethodBody};
 
 use crate::runtime::c::context::KtfCContext;
 
@@ -55,6 +55,9 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
     let graphics_methods = get_graphics_method_table();
     let interface_2 = write_methods(context, graphics_methods)?;
 
+    let database_methods = get_database_method_table();
+    let interface_6 = write_methods(context, database_methods)?;
+
     let media_methods = get_media_method_table();
     let interface_9 = write_methods(context, media_methods)?;
 
@@ -65,7 +68,7 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
         interface_3: 0,
         interface_4: 0,
         interface_5: 0,
-        interface_6: 0,
+        interface_6,
         interface_7: 0,
         interface_8: 0,
         interface_9,
