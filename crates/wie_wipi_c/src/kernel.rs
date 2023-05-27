@@ -17,10 +17,10 @@ fn gen_stub(id: u32) -> CMethodBody {
     body.into_body()
 }
 
-async fn current_time(_: &mut dyn CContext) -> CResult<u32> {
+async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
     log::debug!("current_time()");
 
-    Ok(0)
+    Ok(context.backend().time().now().raw() as u32)
 }
 
 async fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
