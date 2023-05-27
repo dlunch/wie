@@ -33,7 +33,7 @@ async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
     log::debug!("alloc({:#x})", size);
 
     let ptr = context.alloc(4)?;
-    let data = context.alloc(size + 4)?; // add safe margin, some program writer after allocation
+    let data = context.alloc(size + 8)?; // add safe margin, some program writer after allocation
 
     write_generic(context, ptr, data)?;
 
