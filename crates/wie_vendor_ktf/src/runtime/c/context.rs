@@ -1,9 +1,9 @@
 use alloc::{boxed::Box, vec::Vec};
 
 use wie_backend::Backend;
-use wie_base::util::{ByteRead, ByteWrite};
+use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
-use wie_wipi_c::{CContext, CMethodBody, CResult};
+use wie_wipi_c::{CContext, CMemoryId, CMethodBody, CResult};
 
 pub struct KtfCContext<'a> {
     core: &'a mut ArmCore,
@@ -17,12 +17,25 @@ impl<'a> KtfCContext<'a> {
 }
 
 impl CContext for KtfCContext<'_> {
-    fn alloc(&mut self, size: u32) -> CResult<u32> {
+    fn alloc_raw(&mut self, size: u32) -> CResult<u32> {
         Allocator::alloc(self.core, size)
     }
 
-    fn free(&mut self, ptr: u32) -> CResult<()> {
-        Allocator::free(self.core, ptr)
+    fn alloc(&mut self, size: u32) -> CResult<CMemoryId> {
+        let ptr = Allocator::alloc(self.core, size + 12)?; // all allocation has indirect pointer
+        write_generic(self.core, ptr, ptr + 4)?;
+
+        Ok(CMemoryId(ptr))
+    }
+
+    fn free(&mut self, memory: CMemoryId) -> CResult<()> {
+        Allocator::free(self.core, memory.0)
+    }
+
+    fn data_ptr(&self, memory: CMemoryId) -> CResult<u32> {
+        let base: u32 = read_generic(self.core, memory.0)?;
+
+        Ok(base + 8) // all data has offset of 8 bytes
     }
 
     fn register_function(&mut self, body: CMethodBody) -> CResult<u32> {

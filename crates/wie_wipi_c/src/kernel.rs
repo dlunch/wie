@@ -1,10 +1,10 @@
 use alloc::{string::String, vec, vec::Vec};
 use core::iter;
 
-use wie_base::util::{read_generic, write_generic};
+use wie_base::util::write_generic;
 
 use crate::{
-    base::{CContext, CError, CMethodBody, CResult},
+    base::{CContext, CError, CMemoryId, CMethodBody, CResult},
     method::MethodImpl,
 };
 
@@ -30,39 +30,29 @@ async fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
     Ok(())
 }
 
-async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
+async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
     log::debug!("alloc({:#x})", size);
 
-    let ptr = context.alloc(4)?;
-    let data = context.alloc(size + 8)?; // add safe margin, some program writer after allocation
-
-    write_generic(context, ptr, data)?;
-
-    Ok(ptr)
+    context.alloc(size)
 }
 
-async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
+async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
     log::debug!("calloc({:#x})", size);
 
-    let ptr = context.alloc(4)?;
-    let data = context.alloc(size + 8)?; // add safe margin, some program writer after allocation
-
-    write_generic(context, ptr, data)?;
+    let memory = context.alloc(size)?;
 
     let zero = iter::repeat(0).take(size as usize).collect::<Vec<_>>();
-    context.write_bytes(data, &zero)?;
+    context.write_bytes(context.data_ptr(memory)?, &zero)?;
 
-    Ok(ptr)
+    Ok(memory)
 }
 
-async fn free(context: &mut dyn CContext, ptr: u32) -> CResult<u32> {
-    log::debug!("free({:#x})", ptr);
+async fn free(context: &mut dyn CContext, memory: CMemoryId) -> CResult<CMemoryId> {
+    log::debug!("free({:#x})", memory.0);
 
-    let data: u32 = read_generic(context, ptr)?;
-    context.free(data)?;
-    context.free(ptr)?;
+    context.free(memory)?;
 
-    Ok(ptr)
+    Ok(memory)
 }
 
 async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
@@ -80,8 +70,8 @@ async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32
     Ok(id as _)
 }
 
-async fn get_resource(context: &mut dyn CContext, id: u32, buf: u32, buf_size: u32) -> CResult<i32> {
-    log::debug!("get_resource({}, {:#x}, {})", id, buf, buf_size);
+async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_size: u32) -> CResult<i32> {
+    log::debug!("get_resource({}, {:#x}, {})", id, buf.0, buf_size);
 
     let size = context.backend().resource().size(id);
 
@@ -91,8 +81,7 @@ async fn get_resource(context: &mut dyn CContext, id: u32, buf: u32, buf_size: u
 
     let data = context.backend().resource().data(id).to_vec(); // TODO: can we avoid to_vec()?
 
-    let ptr: u32 = read_generic(context, buf)?;
-    context.write_bytes(ptr, &data)?;
+    context.write_bytes(context.data_ptr(buf)?, &data)?;
 
     Ok(0)
 }
