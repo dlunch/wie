@@ -14,6 +14,8 @@ impl DataBase {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init),
                 JavaMethodProto::new("openDataBase", "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;", Self::open_data_base),
+                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records),
+                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base),
             ],
             fields: vec![],
         }
@@ -31,5 +33,17 @@ impl DataBase {
         context.call_method(&instance, "<init>", "()V", &[]).await?;
 
         Ok(instance)
+    }
+
+    async fn get_number_of_records(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<u32> {
+        log::warn!("stub DataBase::getNumberOfRecords({:#x})", _a0.ptr_instance);
+
+        Ok(0)
+    }
+
+    async fn close_data_base(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub DataBase::closeDataBase({:#x})", _a0.ptr_instance);
+
+        Ok(())
     }
 }
