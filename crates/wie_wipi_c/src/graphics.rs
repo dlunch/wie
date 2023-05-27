@@ -31,7 +31,7 @@ fn gen_stub(id: u32) -> CMethodBody {
 async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
     log::debug!("get_screen_frame_buffer({:#x})", a0);
 
-    let franebuffer_data = context.alloc(320 * 480)?;
+    let framebuffer_data = context.alloc(320 * 480)?;
 
     let framebuffer = Framebuffer {
         // TODO: hardcoded
@@ -39,7 +39,7 @@ async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult
         height: 480,
         bpl: 1280,
         bpp: 32,
-        id: franebuffer_data,
+        id: framebuffer_data,
     };
 
     let memory = context.alloc(size_of::<Framebuffer>() as u32)?;
