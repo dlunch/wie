@@ -88,7 +88,11 @@ impl CoreExecutor {
                 }
             }
 
-            self.tick(now)?;
+            self.tick(now).map_err(|x| {
+                let reg_stack = self.inner.borrow().core.dump_reg_stack();
+
+                anyhow::anyhow!("{}\n{}", x, reg_stack)
+            })?;
 
             if self.inner.borrow_mut().tasks.is_empty() {
                 break;

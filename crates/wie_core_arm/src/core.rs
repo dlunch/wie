@@ -327,6 +327,10 @@ impl Core for ArmCore {
             pc: self.uc.reg_read(RegisterARM::PC).unwrap() as u32,
         })
     }
+
+    fn dump_reg_stack(&self) -> String {
+        self.dump_regs().unwrap() + "\n" + &self.dump_stack().unwrap()
+    }
 }
 
 impl ByteRead for ArmCore {
