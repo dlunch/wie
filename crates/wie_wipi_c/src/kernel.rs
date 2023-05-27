@@ -1,4 +1,5 @@
 use alloc::{string::String, vec, vec::Vec};
+use core::iter;
 
 use wie_base::util::{read_generic, write_generic};
 
@@ -36,6 +37,20 @@ async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
     let data = context.alloc(size + 8)?; // add safe margin, some program writer after allocation
 
     write_generic(context, ptr, data)?;
+
+    Ok(ptr)
+}
+
+async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
+    log::debug!("calloc({:#x})", size);
+
+    let ptr = context.alloc(4)?;
+    let data = context.alloc(size + 8)?; // add safe margin, some program writer after allocation
+
+    write_generic(context, ptr, data)?;
+
+    let zero = iter::repeat(0).take(size as usize).collect::<Vec<_>>();
+    context.write_bytes(data, &zero)?;
 
     Ok(ptr)
 }
@@ -108,7 +123,7 @@ where
         gen_stub(18),
         gen_stub(19),
         alloc.into_body(),
-        alloc.into_body(), // actually calloc
+        calloc.into_body(),
         free.into_body(),
         gen_stub(23),
         gen_stub(24),
