@@ -64,6 +64,15 @@ fn main() -> anyhow::Result<()> {
     let vendor = ArchiveVendor::from_archive(&mut archive)?;
     let backend = Backend::new();
 
+    for index in 0..archive.len() {
+        let mut file = archive.by_index(index)?;
+
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+
+        backend.resource_mut().add(file.name(), data);
+    }
+
     let executor = match vendor {
         Some(ArchiveVendor::Ktf {
             module_file_name,

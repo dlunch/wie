@@ -1,7 +1,7 @@
 mod window;
 
 use std::{
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
     rc::Rc,
     string::String,
     vec::Vec,
@@ -36,6 +36,10 @@ impl Backend {
         (*self.resource).borrow()
     }
 
+    pub fn resource_mut(&self) -> RefMut<'_, Resource> {
+        (*self.resource).borrow_mut()
+    }
+
     pub fn time(&self) -> Ref<'_, Time> {
         (*self.time).borrow()
     }
@@ -64,6 +68,10 @@ impl Default for Resource {
 impl Resource {
     pub fn new() -> Self {
         Self { files: Vec::new() }
+    }
+
+    pub fn add(&mut self, path: &str, data: Vec<u8>) {
+        self.files.push((path.to_string(), data));
     }
 
     pub fn id(&self, path: &str) -> Option<u32> {
