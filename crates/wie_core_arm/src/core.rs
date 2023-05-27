@@ -73,7 +73,7 @@ impl ArmCore {
 
     pub async fn run(&mut self) -> ArmCoreResult<()> {
         let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
-        let result = self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 100).map_err(UnicornError);
+        let result = self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError);
 
         if let Err(err) = &result {
             if err.0 == uc_error::FETCH_PROT {
