@@ -18,10 +18,14 @@ struct Framebuffer {
     id: u32,
 }
 
-async fn stub(_: &mut dyn CContext) -> CResult<u32> {
-    log::debug!("graphics stub called");
+fn gen_stub(id: u32) -> CMethodBody {
+    let body = move |_: &mut dyn CContext| async move {
+        log::warn!("graphics stub{} called", id);
 
-    Ok(0)
+        Ok(0)
+    };
+
+    body.into_body()
 }
 
 async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult<u32> {
@@ -53,30 +57,30 @@ async fn get_display_info(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<u32
 
 pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
-        stub.into_body(),
-        stub.into_body(),
+        gen_stub(0),
+        gen_stub(1),
         get_screen_frame_buffer.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
-        stub.into_body(),
+        gen_stub(3),
+        gen_stub(4),
+        gen_stub(5),
+        gen_stub(6),
+        gen_stub(7),
+        gen_stub(8),
+        gen_stub(9),
+        gen_stub(10),
+        gen_stub(11),
+        gen_stub(12),
+        gen_stub(13),
+        gen_stub(14),
+        gen_stub(15),
+        gen_stub(16),
+        gen_stub(17),
+        gen_stub(18),
+        gen_stub(19),
+        gen_stub(20),
+        gen_stub(21),
+        gen_stub(22),
+        gen_stub(23),
         get_display_info.into_body(),
     ]
 }
