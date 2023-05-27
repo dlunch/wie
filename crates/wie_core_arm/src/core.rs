@@ -137,6 +137,21 @@ impl ArmCore {
         Self::dump_regs_inner(&self.uc)
     }
 
+    pub fn dump_stack(&self) -> ArmCoreResult<String> {
+        let sp = self.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
+
+        let mut result = String::new();
+
+        for i in 0..16 {
+            let address = sp + (i * 4);
+            let value = self.uc.mem_read_as_vec(address, 4).map_err(UnicornError)?;
+
+            result += &format!("SP+{:#x}: {:#x}\n", i * 4, u32::from_le_bytes(value.try_into().unwrap()));
+        }
+
+        Ok(result)
+    }
+
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> ArmCoreResult<String> {
         let value = (|| {
             Ok::<_, uc_error>(
