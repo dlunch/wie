@@ -1,6 +1,6 @@
 use alloc::{string::String, vec, vec::Vec};
 
-use wie_base::util::write_generic;
+use wie_base::util::{read_generic, write_generic};
 
 use crate::{
     base::{CContext, CError, CMethodBody, CResult},
@@ -28,7 +28,12 @@ async fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
 async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<u32> {
     log::debug!("alloc({:#x})", size);
 
-    context.alloc(size)
+    let ptr = context.alloc(4)?;
+    let data = context.alloc(size)?;
+
+    write_generic(context, ptr, data)?;
+
+    Ok(ptr)
 }
 
 async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
@@ -56,7 +61,9 @@ async fn get_resource(context: &mut dyn CContext, id: u32, buf: u32, buf_size: u
     }
 
     let data = context.backend().resource().data(id).to_vec(); // TODO: can we avoid to_vec()?
-    context.write_bytes(buf, &data)?;
+
+    let ptr: u32 = read_generic(context, buf)?;
+    context.write_bytes(ptr, &data)?;
 
     Ok(0)
 }
