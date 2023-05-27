@@ -26,7 +26,7 @@ impl Font {
     }
 
     async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::debug!("Font::get_height");
+        log::warn!("stub Font::get_height");
 
         Ok(12) // TODO: hardcoded
     }

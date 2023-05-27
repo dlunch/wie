@@ -26,7 +26,7 @@ impl AnnunciatorComponent {
     }
 
     async fn show(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::debug!("AnnunciatorComponent::show");
+        log::warn!("stub AnnunciatorComponent::show");
 
         Ok(())
     }

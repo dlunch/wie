@@ -28,7 +28,7 @@ impl Graphics {
     }
 
     async fn get_font(context: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::debug!("Graphics::getFont({:#x})", a0.ptr_instance);
+        log::warn!("stub Graphics::getFont({:#x})", a0.ptr_instance);
 
         let font = context.instantiate("Lorg/kwis/msp/lcdui/Font;")?;
         context.call_method(&font, "<init>", "()V", &[]).await?;
@@ -37,13 +37,13 @@ impl Graphics {
     }
 
     async fn set_color(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: u32) -> JavaResult<()> {
-        log::debug!("Graphics::setColor({:#x}, {})", a0.ptr_instance, a1);
+        log::warn!("stub Graphics::setColor({:#x}, {})", a0.ptr_instance, a1);
 
         Ok(())
     }
 
     async fn fill_rect(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: u32, a2: u32, a3: u32, a4: u32) -> JavaResult<()> {
-        log::debug!("Graphics::fillRect({:#x}, {}, {}, {}, {})", a0.ptr_instance, a1, a2, a3, a4);
+        log::warn!("stub Graphics::fillRect({:#x}, {}, {}, {}, {})", a0.ptr_instance, a1, a2, a3, a4);
 
         Ok(())
     }

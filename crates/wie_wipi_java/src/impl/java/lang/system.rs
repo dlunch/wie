@@ -17,13 +17,13 @@ impl System {
     }
 
     async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::debug!("System::currentTimeMillis()");
+        log::trace!("System::currentTimeMillis()");
 
         Ok(context.backend().time().now().raw() as u32)
     }
 
     async fn gc(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::debug!("System::gc()");
+        log::trace!("System::gc()");
 
         Ok(0)
     }

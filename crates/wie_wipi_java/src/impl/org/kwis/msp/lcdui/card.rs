@@ -38,13 +38,13 @@ impl Card {
     }
 
     async fn get_width(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::debug!("Card::get_width");
+        log::warn!("stub Card::get_width");
 
         Ok(320) // TODO: hardcoded
     }
 
     async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::debug!("Card::get_height");
+        log::warn!("stub Card::get_height");
 
         Ok(480) // TODO: hardcoded
     }
