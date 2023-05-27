@@ -57,6 +57,8 @@ impl KtfWipiModule {
             .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
             .await?;
 
+        backend.set_init_flag();
+
         Ok(0)
     }
 

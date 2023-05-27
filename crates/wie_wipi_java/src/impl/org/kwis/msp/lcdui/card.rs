@@ -57,7 +57,10 @@ struct CardLoop {
 #[async_trait::async_trait(?Send)]
 impl MethodBody<JavaError> for CardLoop {
     async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
-        context.sleep(1000).await; // TODO We should wait for startApp to finish
+        while !context.backend().init_flag() {
+            context.sleep(100).await; // We should wait for startApp to finish
+        }
+
         loop {
             context.sleep(16).await;
 
