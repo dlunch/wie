@@ -28,4 +28,11 @@ impl<T: Any> AsAny for T {
     }
 }
 
-pub trait Core: AsAny {}
+pub trait Core: AsAny {
+    fn new_context(&mut self) -> Box<dyn CoreContext>;
+    fn free_context(&mut self, context: Box<dyn CoreContext>);
+    fn restore_context(&mut self, context: &dyn CoreContext);
+    fn save_context(&self) -> Box<dyn CoreContext>;
+}
+
+pub trait CoreContext: AsAny {}

@@ -9,13 +9,14 @@ use unicorn_engine::{
 
 use wie_base::{
     util::{round_up, ByteRead, ByteWrite},
-    Core,
+    Core, CoreContext,
 };
 
 use crate::{
     context::ArmCoreContext,
     function::EmulatedFunction,
     future::{RunFunctionFuture, RunFunctionResult},
+    Allocator,
 };
 
 const IMAGE_BASE: u32 = 0x100000;
@@ -70,9 +71,7 @@ impl ArmCore {
         Ok(IMAGE_BASE)
     }
 
-    pub async fn run(&mut self, context: ArmCoreContext) -> ArmCoreResult<ArmCoreContext> {
-        self.restore_context(&context)?;
-
+    pub async fn run(&mut self) -> ArmCoreResult<()> {
         let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
         let result = self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 100).map_err(UnicornError);
 
@@ -91,7 +90,7 @@ impl ArmCore {
             }
         }
 
-        self.save_context()
+        Ok(())
     }
 
     pub fn run_function<R>(&mut self, address: u32, params: &[u32]) -> impl Future<Output = R>
@@ -136,48 +135,6 @@ impl ArmCore {
 
     pub fn dump_regs(&self) -> ArmCoreResult<String> {
         Self::dump_regs_inner(&self.uc)
-    }
-
-    pub fn restore_context(&mut self, context: &ArmCoreContext) -> ArmCoreResult<()> {
-        self.uc.reg_write(RegisterARM::R0, context.r0 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R1, context.r1 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R2, context.r2 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R3, context.r3 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R4, context.r4 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R5, context.r5 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R6, context.r6 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R7, context.r7 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::R8, context.r8 as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::SB, context.sb as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::SL, context.sl as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::FP, context.fp as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::IP, context.ip as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::SP, context.sp as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::LR, context.lr as u64).map_err(UnicornError)?;
-        self.uc.reg_write(RegisterARM::PC, context.pc as u64).map_err(UnicornError)?;
-
-        Ok(())
-    }
-
-    pub fn save_context(&mut self) -> ArmCoreResult<ArmCoreContext> {
-        Ok(ArmCoreContext {
-            r0: self.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32,
-            r1: self.uc.reg_read(RegisterARM::R1).map_err(UnicornError)? as u32,
-            r2: self.uc.reg_read(RegisterARM::R2).map_err(UnicornError)? as u32,
-            r3: self.uc.reg_read(RegisterARM::R3).map_err(UnicornError)? as u32,
-            r4: self.uc.reg_read(RegisterARM::R4).map_err(UnicornError)? as u32,
-            r5: self.uc.reg_read(RegisterARM::R5).map_err(UnicornError)? as u32,
-            r6: self.uc.reg_read(RegisterARM::R6).map_err(UnicornError)? as u32,
-            r7: self.uc.reg_read(RegisterARM::R7).map_err(UnicornError)? as u32,
-            r8: self.uc.reg_read(RegisterARM::R8).map_err(UnicornError)? as u32,
-            sb: self.uc.reg_read(RegisterARM::SB).map_err(UnicornError)? as u32,
-            sl: self.uc.reg_read(RegisterARM::SL).map_err(UnicornError)? as u32,
-            fp: self.uc.reg_read(RegisterARM::FP).map_err(UnicornError)? as u32,
-            ip: self.uc.reg_read(RegisterARM::IP).map_err(UnicornError)? as u32,
-            sp: self.uc.reg_read(RegisterARM::SP).map_err(UnicornError)? as u32,
-            lr: self.uc.reg_read(RegisterARM::LR).map_err(UnicornError)? as u32,
-            pc: self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32,
-        })
     }
 
     fn dump_regs_inner(uc: &Unicorn<'_, ()>) -> ArmCoreResult<String> {
@@ -285,7 +242,76 @@ impl ArmCore {
     }
 }
 
-impl Core for ArmCore {}
+impl Core for ArmCore {
+    fn new_context(&mut self) -> Box<dyn CoreContext> {
+        let sp = Allocator::alloc(self, 0x1000).unwrap();
+
+        Box::new(ArmCoreContext {
+            r0: 0,
+            r1: 0,
+            r2: 0,
+            r3: 0,
+            r4: 0,
+            r5: 0,
+            r6: 0,
+            r7: 0,
+            r8: 0,
+            sb: 0,
+            sl: 0,
+            fp: 0,
+            ip: 0,
+            sp: sp + 0x1000,
+            lr: 0,
+            pc: 0,
+        })
+    }
+
+    fn free_context(&mut self, _context: Box<dyn CoreContext>) {
+        todo!()
+    }
+
+    fn restore_context(&mut self, context: &dyn CoreContext) {
+        let context = context.as_any().downcast_ref::<ArmCoreContext>().unwrap();
+
+        self.uc.reg_write(RegisterARM::R0, context.r0 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R1, context.r1 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R2, context.r2 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R3, context.r3 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R4, context.r4 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R5, context.r5 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R6, context.r6 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R7, context.r7 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::R8, context.r8 as u64).unwrap();
+        self.uc.reg_write(RegisterARM::SB, context.sb as u64).unwrap();
+        self.uc.reg_write(RegisterARM::SL, context.sl as u64).unwrap();
+        self.uc.reg_write(RegisterARM::FP, context.fp as u64).unwrap();
+        self.uc.reg_write(RegisterARM::IP, context.ip as u64).unwrap();
+        self.uc.reg_write(RegisterARM::SP, context.sp as u64).unwrap();
+        self.uc.reg_write(RegisterARM::LR, context.lr as u64).unwrap();
+        self.uc.reg_write(RegisterARM::PC, context.pc as u64).unwrap();
+    }
+
+    fn save_context(&self) -> Box<dyn CoreContext> {
+        Box::new(ArmCoreContext {
+            r0: self.uc.reg_read(RegisterARM::R0).unwrap() as u32,
+            r1: self.uc.reg_read(RegisterARM::R1).unwrap() as u32,
+            r2: self.uc.reg_read(RegisterARM::R2).unwrap() as u32,
+            r3: self.uc.reg_read(RegisterARM::R3).unwrap() as u32,
+            r4: self.uc.reg_read(RegisterARM::R4).unwrap() as u32,
+            r5: self.uc.reg_read(RegisterARM::R5).unwrap() as u32,
+            r6: self.uc.reg_read(RegisterARM::R6).unwrap() as u32,
+            r7: self.uc.reg_read(RegisterARM::R7).unwrap() as u32,
+            r8: self.uc.reg_read(RegisterARM::R8).unwrap() as u32,
+            sb: self.uc.reg_read(RegisterARM::SB).unwrap() as u32,
+            sl: self.uc.reg_read(RegisterARM::SL).unwrap() as u32,
+            fp: self.uc.reg_read(RegisterARM::FP).unwrap() as u32,
+            ip: self.uc.reg_read(RegisterARM::IP).unwrap() as u32,
+            sp: self.uc.reg_read(RegisterARM::SP).unwrap() as u32,
+            lr: self.uc.reg_read(RegisterARM::LR).unwrap() as u32,
+            pc: self.uc.reg_read(RegisterARM::PC).unwrap() as u32,
+        })
+    }
+}
 
 impl ByteRead for ArmCore {
     fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {

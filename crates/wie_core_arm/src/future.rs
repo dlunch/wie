@@ -6,19 +6,19 @@ use core::{
 };
 
 use futures::{future::LocalBoxFuture, FutureExt};
+use unicorn_engine::RegisterARM;
 use wie_backend::CoreExecutor;
+use wie_base::Core;
 
 use crate::{
     context::ArmCoreContext,
     core::{ArmCoreResult, RUN_FUNCTION_LR},
-    Allocator, ArmCore,
+    ArmCore,
 };
 
 pub struct RunFunctionFuture<R> {
+    waiting_fut: Option<LocalBoxFuture<'static, ArmCoreResult<()>>>,
     previous_context: ArmCoreContext,
-    context: Option<ArmCoreContext>,
-    stack_base: u32,
-    waiting_fut: Option<LocalBoxFuture<'static, ArmCoreResult<ArmCoreContext>>>,
     _phantom: PhantomData<R>,
 }
 
@@ -27,24 +27,20 @@ where
     R: RunFunctionResult<R>,
 {
     pub fn new(core: &mut ArmCore, address: u32, params: &[u32]) -> Self {
-        let previous_context = ArmCoreContext::from_uc(&core.uc);
-        let mut context = previous_context.clone();
+        let previous_context = *core.save_context().into_any().downcast::<ArmCoreContext>().unwrap();
 
-        let stack_base = Allocator::alloc(core, 0x1000).unwrap();
-        Self::set_context(core, &mut context, stack_base + 0x1000, address, params);
+        let mut context = previous_context.clone();
+        Self::set_context(core, &mut context, address, params);
+        core.restore_context(&context);
 
         Self {
-            previous_context,
-            context: Some(context),
-            stack_base,
             waiting_fut: None,
+            previous_context,
             _phantom: PhantomData,
         }
     }
 
-    pub fn set_context(core: &mut ArmCore, context: &mut ArmCoreContext, sp: u32, address: u32, params: &[u32]) {
-        context.sp = sp;
-
+    pub fn set_context(core: &mut ArmCore, context: &mut ArmCoreContext, address: u32, params: &[u32]) {
         // is there cleaner way to do this?
         if !params.is_empty() {
             context.r0 = params[0];
@@ -77,31 +73,33 @@ where
     type Output = R;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let executor = CoreExecutor::current();
+
         if let Some(fut) = &mut self.waiting_fut {
             let poll = fut.as_mut().poll(cx);
 
             if let Poll::Ready(x) = poll {
+                x.unwrap();
+
                 self.waiting_fut = None;
-                self.context = Some(x.unwrap());
             } else {
                 return Poll::Pending;
             }
         }
-        let executor = CoreExecutor::current();
 
         let mut core = executor.core_mut();
         let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
 
-        if self.context.as_ref().unwrap().pc == RUN_FUNCTION_LR {
-            let result = R::get(self.context.as_ref().unwrap());
-            Allocator::free(core, self.stack_base).unwrap();
+        let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
 
-            core.restore_context(&self.previous_context).unwrap();
+        if pc == RUN_FUNCTION_LR {
+            let result = R::get(core);
+            core.restore_context(&self.previous_context);
 
             Poll::Ready(result)
         } else {
-            let core: &mut ArmCore = unsafe { core::mem::transmute(core) }; // TODO
-            let fut = core.run(self.context.take().unwrap());
+            let core1: &mut ArmCore = unsafe { core::mem::transmute(core as &mut ArmCore) }; // TODO
+            let fut = core1.run();
             self.waiting_fut = Some(fut.boxed_local());
 
             Poll::Pending
@@ -112,15 +110,15 @@ where
 impl<R> Unpin for RunFunctionFuture<R> where R: RunFunctionResult<R> {}
 
 pub trait RunFunctionResult<R> {
-    fn get(context: &ArmCoreContext) -> R;
+    fn get(context: &ArmCore) -> R;
 }
 
 impl RunFunctionResult<u32> for u32 {
-    fn get(context: &ArmCoreContext) -> u32 {
-        context.r0
+    fn get(context: &ArmCore) -> u32 {
+        context.uc.reg_read(RegisterARM::R0).unwrap() as u32
     }
 }
 
 impl RunFunctionResult<()> for () {
-    fn get(_: &ArmCoreContext) {}
+    fn get(_: &ArmCore) {}
 }
