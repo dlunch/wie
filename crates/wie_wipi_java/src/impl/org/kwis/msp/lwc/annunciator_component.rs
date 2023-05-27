@@ -20,7 +20,7 @@ impl AnnunciatorComponent {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
-        log::debug!("AnnunciatorComponent::<init>({:#x}, {})", instance.ptr_instance, a0);
+        log::warn!("stub AnnunciatorComponent::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }

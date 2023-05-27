@@ -14,7 +14,7 @@ impl Jlet {
     }
 
     async fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::debug!("Jlet::<init>");
+        log::warn!("stub Jlet::<init>");
 
         Ok(())
     }

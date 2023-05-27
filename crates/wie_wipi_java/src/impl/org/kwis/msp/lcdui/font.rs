@@ -20,7 +20,7 @@ impl Font {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Font::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub Font::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

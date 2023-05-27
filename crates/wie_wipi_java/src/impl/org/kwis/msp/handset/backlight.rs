@@ -20,7 +20,7 @@ impl BackLight {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Backlight::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub Backlight::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }

@@ -171,7 +171,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
-        log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -181,7 +181,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count * 4 + 4)?;
 
-        log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -195,7 +195,7 @@ impl<'a> KtfJavaContext<'a> {
         write_generic(self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         write_generic(self.core, ptr_fields, (vtable_index * 4) << 5)?;
 
-        log::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
+        log::debug!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
@@ -484,7 +484,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
-        log::info!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -495,7 +495,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
-        log::info!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
+        log::debug!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -504,7 +504,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
-        log::info!("Call {}::{}({})", class_name, name, signature);
+        log::debug!("Call {}::{}({})", class_name, name, signature);
 
         let fullname = JavaFullName {
             tag: 0,
