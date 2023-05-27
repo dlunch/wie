@@ -31,7 +31,7 @@ pub struct Allocator {}
 
 impl Allocator {
     pub fn init(core: &mut ArmCore) -> anyhow::Result<(u32, u32)> {
-        core.alloc(HEAP_BASE, HEAP_SIZE)?;
+        core.map(HEAP_BASE, HEAP_SIZE)?;
 
         let header = AllocationHeader::new(HEAP_SIZE, false);
 
