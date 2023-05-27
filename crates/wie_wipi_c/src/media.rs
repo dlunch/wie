@@ -43,5 +43,6 @@ pub fn get_media_method_table() -> Vec<CMethodBody> {
         gen_stub(23),
         gen_stub(24),
         gen_stub(25),
+        gen_stub(26),
     ]
 }
