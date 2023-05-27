@@ -352,6 +352,7 @@ impl<'a> KtfJavaContext<'a> {
             write_generic(self.core, cursor, ptr_method)?;
             cursor += 4;
         }
+        write_generic(self.core, cursor, 0u32)?;
 
         let field_count = proto.fields.len();
         let ptr_fields = Allocator::alloc(self.core, ((field_count + 1) * size_of::<u32>()) as u32)?;
@@ -382,9 +383,11 @@ impl<'a> KtfJavaContext<'a> {
             write_generic(self.core, cursor, ptr_field)?;
             cursor += 4;
         }
+        write_generic(self.core, cursor, 0u32)?;
 
         let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
         self.core.write_bytes(ptr_name, name.as_bytes())?;
+        self.core.write_bytes(ptr_name + name.len() as u32, &[0])?;
 
         let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
         write_generic(
