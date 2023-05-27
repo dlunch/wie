@@ -44,13 +44,20 @@ impl Graphics {
     }
 
     async fn fill_rect(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: u32, a2: u32, a3: u32, a4: u32) -> JavaResult<()> {
-        log::warn!("stub Graphics::fillRect({:#x}, {}, {}, {}, {})", a0.ptr_instance, a1, a2, a3, a4);
+        log::warn!("stub Graphics::fillRect({:#x}, {:#x}, {}, {}, {})", a0.ptr_instance, a1, a2, a3, a4);
 
         Ok(())
     }
 
-    async fn draw_image(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
-        log::warn!("stub Graphics::drawImage({:#x}, {}, {}, {})", a0.ptr_instance, a1, a2, a3);
+    async fn draw_image(_: &mut dyn JavaContext, a0: JavaObjectProxy, a1: JavaObjectProxy, a2: u32, a3: u32, a4: u32) -> JavaResult<()> {
+        log::warn!(
+            "stub Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
+            a0.ptr_instance,
+            a1.ptr_instance,
+            a2,
+            a3,
+            a4
+        );
 
         Ok(())
     }
