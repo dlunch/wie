@@ -83,7 +83,7 @@ impl ArmCore {
 
                     let function = self.functions.get(&cur_pc).unwrap();
 
-                    function.call(core).await;
+                    function.call(core).await?;
                 }
             } else {
                 result?;
@@ -93,7 +93,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn run_function<R>(&mut self, address: u32, params: &[u32]) -> impl Future<Output = R>
+    pub fn run_function<R>(&mut self, address: u32, params: &[u32]) -> impl Future<Output = ArmCoreResult<R>>
     where
         R: RunFunctionResult<R>,
     {
@@ -348,7 +348,7 @@ impl ResultWriter<u32> for u32 {
 
 #[async_trait::async_trait(?Send)]
 trait RegisteredFunction {
-    async fn call(&self, core: &mut ArmCore);
+    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()>;
 }
 
 struct RegisteredFunctionHolder<F, P, E, C, R>
@@ -387,14 +387,16 @@ where
     C: Clone + 'static,
     R: ResultWriter<R>,
 {
-    async fn call(&self, core: &mut ArmCore) {
+    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
         let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
         let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
         log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
         let mut new_context = self.context.clone();
 
-        let result = self.function.call(core, &mut new_context).await.unwrap();
-        R::write(core, result, lr).unwrap();
+        let result = self.function.call(core, &mut new_context).await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+        R::write(core, result, lr)?;
+
+        Ok(())
     }
 }

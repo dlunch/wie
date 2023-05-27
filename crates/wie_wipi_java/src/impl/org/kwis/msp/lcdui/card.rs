@@ -63,8 +63,7 @@ impl MethodBody<JavaError> for CardLoop {
 
             context
                 .call_method(&self.instance, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[0])
-                .await
-                .unwrap();
+                .await?;
         }
 
         #[allow(unreachable_code)]

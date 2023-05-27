@@ -85,7 +85,7 @@ async fn jb_unk1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -
     // jump?
     log::debug!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
 
-    Ok(core.run_function::<u32>(address, &[arg1]).await)
+    core.run_function::<u32>(address, &[arg1]).await
 }
 
 async fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
@@ -129,7 +129,7 @@ async fn jb_unk7(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, addr
     // jump?
     log::debug!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
-    Ok(core.run_function::<u32>(address, &[arg1, arg2]).await)
+    core.run_function::<u32>(address, &[arg1, arg2]).await
 }
 
 async fn jb_unk8(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {

@@ -1,6 +1,7 @@
 use std::{
     cell::{RefCell, RefMut},
     collections::HashMap,
+    fmt::Debug,
     future::Future,
     pin::Pin,
     rc::Rc,
@@ -46,16 +47,19 @@ impl CoreExecutor {
         }
     }
 
-    pub fn spawn<F, Fut, R>(&mut self, f: F)
+    pub fn spawn<F, Fut, E, R>(&mut self, f: F)
     where
         F: Fn() -> Fut + 'static,
-        Fut: Future<Output = R> + 'static,
+        E: Debug,
+        Fut: Future<Output = Result<R, E>> + 'static,
     {
         let context = self.inner.borrow_mut().core.new_context();
 
         let fut = async move {
-            f().await;
+            f().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
             // CoreExecutor::current().core_mut().free_context(context); // TODO
+
+            Ok::<(), anyhow::Error>(())
         };
 
         let task_id = {
@@ -67,16 +71,18 @@ impl CoreExecutor {
         self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut), context });
     }
 
-    pub fn run(mut self, backend: Backend) {
+    pub fn run(mut self, backend: Backend) -> anyhow::Result<()> {
         loop {
             let now = backend.time().now();
 
-            self.tick(now);
+            self.tick(now)?;
 
             if self.inner.borrow_mut().tasks.is_empty() {
                 break;
             }
         }
+
+        Ok(())
     }
 
     pub fn current() -> CoreExecutor {
@@ -98,7 +104,7 @@ impl CoreExecutor {
         self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
     }
 
-    pub(crate) fn tick(&mut self, now: Instant) {
+    pub(crate) fn tick(&mut self, now: Instant) -> anyhow::Result<()> {
         EXECUTOR_INNER.with(|f| {
             f.borrow_mut().replace(self.inner.clone());
         });
@@ -124,7 +130,11 @@ impl CoreExecutor {
 
             self.inner.borrow_mut().core.restore_context(&*task.context);
             match task.fut.as_mut().poll(&mut context) {
-                Poll::Ready(_) => {}
+                Poll::Ready(x) => {
+                    if x.is_err() {
+                        return Err(x.err().unwrap());
+                    }
+                }
                 Poll::Pending => {
                     task.context = self.inner.borrow_mut().core.save_context();
                     next_tasks.insert(task_id, task);
@@ -139,6 +149,8 @@ impl CoreExecutor {
 
         self.inner.borrow_mut().sleeping_tasks.extend(sleeping_tasks.into_iter());
         self.inner.borrow_mut().tasks.extend(next_tasks.into_iter());
+
+        Ok(())
     }
 
     fn dummy_raw_waker(task_id: usize) -> RawWaker {
@@ -157,6 +169,6 @@ impl CoreExecutor {
 }
 
 struct Task {
-    fut: Pin<Box<dyn Future<Output = ()>>>,
+    fut: Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
     context: Box<dyn CoreContext>,
 }
