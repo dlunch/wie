@@ -1,4 +1,5 @@
 use std::{
+    fmt::Debug,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -14,10 +15,11 @@ pub fn yield_now() -> YieldFuture {
     YieldFuture {}
 }
 
-pub fn spawn<F, Fut, R>(f: F)
+pub fn spawn<F, Fut, E, R>(f: F)
 where
     F: Fn() -> Fut + 'static,
-    Fut: Future<Output = R> + 'static,
+    E: Debug,
+    Fut: Future<Output = Result<R, E>> + 'static,
 {
     let mut executor = CoreExecutor::current();
     executor.spawn(f);

@@ -524,7 +524,7 @@ impl JavaContext for KtfJavaContext<'_> {
             params.push(args[1]);
         }
 
-        Ok(self.core.run_function(method.fn_body, &params).await)
+        Ok(self.core.run_function(method.fn_body, &params).await?)
     }
 
     fn backend(&mut self) -> &mut Backend {

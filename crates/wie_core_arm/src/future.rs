@@ -70,7 +70,7 @@ impl<R> Future for RunFunctionFuture<R>
 where
     R: RunFunctionResult<R>,
 {
-    type Output = R;
+    type Output = ArmCoreResult<R>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let executor = CoreExecutor::current();
@@ -79,7 +79,9 @@ where
             let poll = fut.as_mut().poll(cx);
 
             if let Poll::Ready(x) = poll {
-                x.unwrap();
+                if x.is_err() {
+                    return Poll::Ready(Err(x.err().unwrap()));
+                }
 
                 self.waiting_fut = None;
             } else {
@@ -96,7 +98,7 @@ where
             let result = R::get(core);
             core.restore_context(&self.previous_context);
 
-            Poll::Ready(result)
+            Poll::Ready(Ok(result))
         } else {
             let core1: &mut ArmCore = unsafe { core::mem::transmute(core as &mut ArmCore) }; // TODO
             let fut = core1.run();

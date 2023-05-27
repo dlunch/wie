@@ -64,7 +64,7 @@ impl KtfWipiModule {
         let module = crate::runtime::init(core, backend, base_address, bss_size).await?;
 
         log::info!("Call wipi init at {:#x}", module.fn_init);
-        let result = core.run_function::<u32>(module.fn_init, &[]).await;
+        let result = core.run_function::<u32>(module.fn_init, &[]).await?;
         if result != 0 {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
@@ -73,7 +73,7 @@ impl KtfWipiModule {
         core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
         log::info!("Call class getter at {:#x}", module.fn_get_class);
-        let ptr_main_class = core.run_function(module.fn_get_class, &[ptr_main_class_name]).await;
+        let ptr_main_class = core.run_function(module.fn_get_class, &[ptr_main_class_name]).await?;
         if ptr_main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
