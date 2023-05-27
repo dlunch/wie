@@ -16,6 +16,8 @@ struct Framebuffer {
     bpl: u32,
     bpp: u32,
     id: u32,
+    unk1: u32,
+    ptr_unk2: u32,
 }
 
 fn gen_stub(id: u32) -> CMethodBody {
@@ -31,6 +33,10 @@ fn gen_stub(id: u32) -> CMethodBody {
 async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult<u32> {
     log::debug!("get_screen_frame_buffer({:#x})", a0);
 
+    let ptr_unk3 = context.alloc(12)?;
+    let ptr_unk2 = context.alloc(12)?;
+    write_generic(context, ptr_unk2, ptr_unk3)?;
+
     let ptr_framebuffer = context.alloc(size_of::<Framebuffer>() as u32)?;
     let framebuffer = Framebuffer {
         // TODO: hardcoded
@@ -39,6 +45,8 @@ async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult
         bpl: 1280,
         bpp: 32,
         id: 0,
+        unk1: 0,
+        ptr_unk2,
     };
 
     write_generic(context, ptr_framebuffer, framebuffer)?;
