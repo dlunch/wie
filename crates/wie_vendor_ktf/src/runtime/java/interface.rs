@@ -95,7 +95,7 @@ async fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::
 
 async fn jb_unk3(_: &mut ArmCore, _: &mut Backend, string: u32, a1: u32) -> anyhow::Result<u32> {
     // register string?
-    log::trace!("jb_unk3({:#x}, {:#x})", string, a1);
+    log::warn!("stub jb_unk3({:#x}, {:#x})", string, a1);
 
     Ok(string)
 }
