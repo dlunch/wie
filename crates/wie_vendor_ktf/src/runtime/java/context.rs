@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
-use core::{fmt::Display, mem::size_of};
+use core::{fmt::Display, iter, mem::size_of};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -189,6 +189,9 @@ impl<'a> KtfJavaContext<'a> {
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
         let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
+
+        let zero = iter::repeat(0).take((fields_size + 4) as usize).collect::<Vec<_>>();
+        self.core.write_bytes(ptr_fields, &zero)?;
 
         let vtable_index = self.get_vtable_index(ptr_class)?;
 
