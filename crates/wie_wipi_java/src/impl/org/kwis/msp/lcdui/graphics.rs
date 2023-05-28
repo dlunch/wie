@@ -17,6 +17,10 @@ impl Graphics {
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image),
+                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x),
+                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y),
+                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width),
+                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height),
             ],
             fields: vec![],
         }
@@ -60,5 +64,29 @@ impl Graphics {
         );
 
         Ok(())
+    }
+
+    async fn get_clip_x(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<u32> {
+        log::warn!("stub Graphics::getClipX({:#x})", a0.ptr_instance);
+
+        Ok(0)
+    }
+
+    async fn get_clip_y(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<u32> {
+        log::warn!("stub Graphics::getClipY({:#x})", a0.ptr_instance);
+
+        Ok(0)
+    }
+
+    async fn get_clip_width(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<u32> {
+        log::warn!("stub Graphics::getClipWidth({:#x})", a0.ptr_instance);
+
+        Ok(0)
+    }
+
+    async fn get_clip_height(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<u32> {
+        log::warn!("stub Graphics::getClipHeight({:#x})", a0.ptr_instance);
+
+        Ok(0)
     }
 }
