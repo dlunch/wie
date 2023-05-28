@@ -36,7 +36,7 @@ impl Display {
     }
 
     async fn get_display(context: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub Display::getDisplay({:#x}", a0.ptr_instance);
+        log::warn!("stub Display::getDisplay({:#x})", a0.ptr_instance);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
