@@ -15,7 +15,6 @@ pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     window: Rc<RefCell<Window>>,
     time: Rc<RefCell<Time>>,
-    init_flag: Rc<RefCell<bool>>,
 }
 
 impl Default for Backend {
@@ -30,7 +29,6 @@ impl Backend {
             resource: Rc::new(RefCell::new(Resource::new())),
             window: Rc::new(RefCell::new(Window::new())),
             time: Rc::new(RefCell::new(Time::new())),
-            init_flag: Rc::new(RefCell::new(false)),
         }
     }
 
@@ -45,14 +43,6 @@ impl Backend {
     pub fn time(&self) -> Ref<'_, Time> {
         (*self.time).borrow()
     }
-
-    pub fn init_flag(&self) -> bool {
-        *self.init_flag.borrow()
-    }
-
-    pub fn set_init_flag(&self) {
-        *self.init_flag.borrow_mut() = true;
-    }
 }
 
 impl Clone for Backend {
@@ -61,7 +51,6 @@ impl Clone for Backend {
             resource: self.resource.clone(),
             window: self.window.clone(),
             time: self.time.clone(),
-            init_flag: self.init_flag.clone(),
         }
     }
 }

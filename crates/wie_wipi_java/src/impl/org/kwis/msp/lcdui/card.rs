@@ -1,10 +1,8 @@
-use alloc::{boxed::Box, vec};
+use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
-    method::MethodBody,
     proxy::JavaObjectProxy,
-    JavaError,
 };
 
 // class org.kwis.msp.lcdui.Card
@@ -23,18 +21,14 @@ impl Card {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::warn!("stub Card::<init>({:#x})", instance.ptr_instance);
-
-        context.spawn(Box::new(CardLoop { instance }))?;
 
         Ok(())
     }
 
-    async fn init_1(context: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
+    async fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
         log::warn!("stub Card::<init>({:#x}, {})", instance.ptr_instance, a0);
-
-        context.spawn(Box::new(CardLoop { instance }))?;
 
         Ok(())
     }
@@ -49,32 +43,5 @@ impl Card {
         log::warn!("stub Card::get_height");
 
         Ok(480) // TODO: hardcoded
-    }
-}
-
-struct CardLoop {
-    instance: JavaObjectProxy,
-}
-
-#[async_trait::async_trait(?Send)]
-impl MethodBody<JavaError> for CardLoop {
-    async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
-        while !context.backend().init_flag() {
-            context.sleep(100).await; // We should wait for startApp to finish
-        }
-
-        let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&graphics, "<init>", "()V", &[]).await?;
-
-        loop {
-            context.sleep(16).await;
-
-            context
-                .call_method(&self.instance, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
-                .await?;
-        }
-
-        #[allow(unreachable_code)]
-        Ok(0)
     }
 }
