@@ -77,9 +77,11 @@ impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for CMethodPr
         let a0 = u32::get(core, 0);
         let a1 = u32::get(core, 1);
         let a2 = u32::get(core, 2);
+        let a3 = u32::get(core, 3);
+        let a4 = u32::get(core, 4);
 
         let mut context = KtfCContext::new(core, backend);
 
-        self.body.call(&mut context, &[a0, a1, a2]).await
+        self.body.call(&mut context, &[a0, a1, a2, a3, a4]).await
     }
 }
