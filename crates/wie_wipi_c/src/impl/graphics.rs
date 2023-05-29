@@ -54,6 +54,14 @@ async fn get_display_info(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<u32
     Ok(0)
 }
 
+async fn create_image(context: &mut dyn CContext, ptr_image: u32, memory: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
+    log::warn!("stub create_image({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, memory.0, offset, len);
+
+    context.free(memory)?;
+
+    Ok(0)
+}
+
 pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
         gen_stub(0),
@@ -88,7 +96,7 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         gen_stub(29),
         gen_stub(30),
         gen_stub(31),
-        gen_stub(32),
+        create_image.into_body(),
         gen_stub(33),
         gen_stub(34),
         gen_stub(35),
