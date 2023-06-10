@@ -6,4 +6,4 @@ license = "MIT"
 
 [dependencies]
 anyhow = { workspace = true }
-log = { version = "0.4" }
+log = { workspace = true }
