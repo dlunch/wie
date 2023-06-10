@@ -10,7 +10,7 @@ use std::{
 
 use wie_base::{Core, CoreContext};
 
-use crate::{time::Instant, Backend};
+use crate::time::{Instant, Time};
 
 thread_local! {
     #[allow(clippy::type_complexity)]
@@ -73,35 +73,6 @@ impl CoreExecutor {
         self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut), context });
     }
 
-    pub fn run(mut self, backend: Backend) -> anyhow::Result<()> {
-        loop {
-            let now = backend.time().now();
-
-            let running_task_count = self.inner.borrow().tasks.len() - self.inner.borrow().sleeping_tasks.len();
-            if running_task_count == 0 {
-                let next_wakeup = *self.inner.borrow().sleeping_tasks.values().min().unwrap();
-
-                let now = backend.time().now();
-
-                if next_wakeup > now {
-                    std::thread::sleep(std::time::Duration::from_millis(next_wakeup - now));
-                }
-            }
-
-            self.tick(now).map_err(|x| {
-                let reg_stack = self.inner.borrow().core.dump_reg_stack();
-
-                anyhow::anyhow!("{}\n{}", x, reg_stack)
-            })?;
-
-            if self.inner.borrow_mut().tasks.is_empty() {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn current() -> CoreExecutor {
         EXECUTOR_INNER.with(|f| {
             let inner = f.borrow().as_ref().unwrap().clone();
@@ -117,15 +88,31 @@ impl CoreExecutor {
         RefMut::map(self.inner.borrow_mut(), |x| &mut x.core)
     }
 
-    pub(crate) fn sleep(&mut self, task_id: usize, until: Instant) {
-        self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
-    }
-
-    pub(crate) fn tick(&mut self, now: Instant) -> anyhow::Result<()> {
+    pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
         EXECUTOR_INNER.with(|f| {
             f.borrow_mut().replace(self.inner.clone());
         });
 
+        let start = time.now();
+        loop {
+            let now = time.now();
+
+            // TODO hardcode
+            if now - start > 8 {
+                break;
+            }
+
+            self.step(now)?;
+        }
+
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().take();
+        });
+
+        Ok(())
+    }
+
+    fn step(&mut self, now: Instant) -> anyhow::Result<()> {
         let mut next_tasks = HashMap::new();
         let tasks = self.inner.borrow_mut().tasks.drain().collect::<HashMap<_, _>>();
         let mut sleeping_tasks = self.inner.borrow_mut().sleeping_tasks.drain().collect::<HashMap<_, _>>();
@@ -149,7 +136,13 @@ impl CoreExecutor {
             match task.fut.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
                     if x.is_err() {
-                        return Err(x.err().unwrap());
+                        return Err(x
+                            .map_err(|x| {
+                                let reg_stack = self.inner.borrow().core.dump_reg_stack();
+
+                                anyhow::anyhow!("{}\n{}", x, reg_stack)
+                            })
+                            .unwrap_err());
                     }
                 }
                 Poll::Pending => {
@@ -160,14 +153,15 @@ impl CoreExecutor {
 
             self.inner.borrow_mut().current_task_id = None;
         }
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().take();
-        });
 
         self.inner.borrow_mut().sleeping_tasks.extend(sleeping_tasks.into_iter());
         self.inner.borrow_mut().tasks.extend(next_tasks.into_iter());
 
         Ok(())
+    }
+
+    pub(crate) fn sleep(&mut self, task_id: usize, until: Instant) {
+        self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
     }
 
     fn dummy_raw_waker(task_id: usize) -> RawWaker {
