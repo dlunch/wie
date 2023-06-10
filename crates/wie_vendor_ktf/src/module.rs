@@ -13,6 +13,7 @@ use crate::runtime::KtfJavaContext;
 pub struct KtfWipiModule {
     core: ArmCore,
     entry: u32,
+    render: u32,
     base_address: u32,
     bss_size: u32,
     ptr_main_class_name: u32,
@@ -30,10 +31,12 @@ impl KtfWipiModule {
         core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
 
         let entry = core.register_function(Self::do_start, &backend).unwrap();
+        let render = core.register_function(Self::do_render, &backend).unwrap();
 
         Ok(Self {
             core,
             entry,
+            render,
             base_address,
             bss_size,
             ptr_main_class_name,
@@ -54,6 +57,14 @@ impl KtfWipiModule {
         java_context
             .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
             .await?;
+
+        Ok(0)
+    }
+
+    async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<u32> {
+        let mut java_context = KtfJavaContext::new(core, backend);
+
+        java_context.call_static_method("org/kwis/msp/lcdui/Display", "paint", "()V", &[]).await?;
 
         Ok(0)
     }
@@ -103,5 +114,9 @@ impl Module for KtfWipiModule {
         self.core
             .run_function::<()>(self.entry, &[self.base_address, self.bss_size, self.ptr_main_class_name])
             .boxed_local()
+    }
+
+    fn render(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>> {
+        self.core.run_function::<()>(self.render, &[]).boxed_local()
     }
 }

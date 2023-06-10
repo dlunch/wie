@@ -1,11 +1,14 @@
 mod window;
 
+use core::future::Future;
 use std::{
     cell::{Ref, RefCell, RefMut},
     rc::Rc,
     string::String,
     vec::Vec,
 };
+
+use wie_base::Module;
 
 use crate::{time::Time, Executor};
 
@@ -43,23 +46,33 @@ impl Backend {
     }
 
     pub fn run(self, mut executor: Executor) -> anyhow::Result<()> {
-        executor.spawn(move || {
-            let executor = Executor::current();
-            let mut module = executor.module_mut();
-
-            module.start()
-        });
+        Backend::spawn(&mut executor, |module| module.start());
 
         let window = Window::new();
 
         window.run(
             || {},
             move || {
+                Backend::spawn(&mut executor, |module| module.render()); // TODO do we have to wait until end?
+
                 executor.tick(&self.time()).unwrap();
             },
         );
 
         Ok(())
+    }
+
+    fn spawn<F, Fut>(executor: &mut Executor, f: F)
+    where
+        F: FnOnce(&mut dyn Module) -> Fut + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + 'static,
+    {
+        executor.spawn(|| {
+            let executor = Executor::current();
+            let mut module = executor.module_mut();
+
+            f(module.as_mut())
+        });
     }
 }
 

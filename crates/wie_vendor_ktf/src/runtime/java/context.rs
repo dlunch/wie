@@ -186,6 +186,14 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy)
     }
 
+    pub async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
+        log::debug!("Call {}::{}({})", class_name, method_name, signature);
+
+        let ptr_class = self.find_ptr_class(class_name)?;
+
+        self.call_method_inner(ptr_class, method_name, signature, args).await
+    }
+
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
         let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
@@ -475,6 +483,23 @@ impl<'a> KtfJavaContext<'a> {
 
         Err(anyhow::anyhow!("Cannot find field"))
     }
+
+    async fn call_method_inner(&mut self, ptr_class: u32, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
+        let fullname = JavaFullName {
+            tag: 0,
+            name: method_name.to_owned(),
+            signature: signature.to_owned(),
+        };
+
+        let ptr_method = self.get_method(ptr_class, fullname)?;
+
+        let method: JavaMethod = read_generic(self.core, ptr_method)?;
+
+        let mut params = vec![0];
+        params.extend(args);
+
+        self.core.run_function(method.fn_body, &params).await
+    }
 }
 
 #[async_trait::async_trait(?Send)]
@@ -512,28 +537,10 @@ impl JavaContext for KtfJavaContext<'_> {
 
         log::debug!("Call {}::{}({})", class_name, name, signature);
 
-        let fullname = JavaFullName {
-            tag: 0,
-            name: name.to_owned(),
-            signature: signature.to_owned(),
-        };
+        let mut params = vec![instance_proxy.ptr_instance];
+        params.extend(args);
 
-        let ptr_method = self.get_method(instance.ptr_class, fullname)?;
-
-        let method: JavaMethod = read_generic(self.core, ptr_method)?;
-
-        let mut params = vec![0, instance_proxy.ptr_instance];
-        if !args.is_empty() {
-            params.push(args[0]);
-        }
-        if args.len() > 1 {
-            params.push(args[1]);
-        }
-        if args.len() > 2 {
-            todo!()
-        }
-
-        Ok(self.core.run_function(method.fn_body, &params).await?)
+        self.call_method_inner(instance.ptr_class, name, signature, &params).await
     }
 
     fn backend(&mut self) -> &mut Backend {
