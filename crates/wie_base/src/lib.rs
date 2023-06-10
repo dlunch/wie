@@ -40,6 +40,7 @@ pub trait Core: AsAny {
 pub trait Module: AsAny {
     fn core_mut(&mut self) -> &mut dyn Core;
     fn start(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>>;
+    fn render(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>>;
 }
 
 pub trait CoreContext: AsAny {}

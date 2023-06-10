@@ -1,10 +1,8 @@
-use alloc::{boxed::Box, vec};
+use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
-    method::MethodBody,
     proxy::JavaObjectProxy,
-    JavaError,
 };
 
 // class org.kwis.msp.lcdui.Display
@@ -24,6 +22,8 @@ impl Display {
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::add_jlet_event_listener,
                 ),
+                // private
+                JavaMethodProto::new("paint", "()V", Self::paint),
             ],
             fields: vec![JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;")],
         }
@@ -65,8 +65,6 @@ impl Display {
         let card = context.get_field(&instance, "card")?;
         if card == 0 {
             context.put_field(&instance, "card", a1.ptr_instance)?;
-
-            context.spawn(Box::new(DisplayLoop { instance: a1 }))?;
         }
 
         Ok(())
@@ -77,27 +75,10 @@ impl Display {
 
         Ok(())
     }
-}
 
-struct DisplayLoop {
-    instance: JavaObjectProxy,
-}
+    async fn paint(_: &mut dyn JavaContext) -> JavaResult<()> {
+        log::warn!("stub Display::paint()");
 
-#[async_trait::async_trait(?Send)]
-impl MethodBody<JavaError> for DisplayLoop {
-    async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
-        let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&graphics, "<init>", "()V", &[]).await?;
-
-        loop {
-            context.sleep(16).await;
-
-            context
-                .call_method(&self.instance, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
-                .await?;
-        }
-
-        #[allow(unreachable_code)]
-        Ok(0)
+        Ok(())
     }
 }
