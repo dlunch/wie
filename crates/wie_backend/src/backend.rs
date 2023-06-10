@@ -7,13 +7,12 @@ use std::{
     vec::Vec,
 };
 
-use crate::time::Time;
+use crate::{time::Time, CoreExecutor};
 
 use self::window::Window;
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
-    window: Rc<RefCell<Window>>,
     time: Rc<RefCell<Time>>,
 }
 
@@ -27,7 +26,6 @@ impl Backend {
     pub fn new() -> Self {
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
-            window: Rc::new(RefCell::new(Window::new())),
             time: Rc::new(RefCell::new(Time::new())),
         }
     }
@@ -43,13 +41,25 @@ impl Backend {
     pub fn time(&self) -> Ref<'_, Time> {
         (*self.time).borrow()
     }
+
+    pub fn run(self, mut executor: CoreExecutor) -> anyhow::Result<()> {
+        let window = Window::new();
+
+        window.run(
+            || {},
+            move || {
+                executor.tick(&self.time()).unwrap();
+            },
+        );
+
+        Ok(())
+    }
 }
 
 impl Clone for Backend {
     fn clone(&self) -> Self {
         Self {
             resource: self.resource.clone(),
-            window: self.window.clone(),
             time: self.time.clone(),
         }
     }

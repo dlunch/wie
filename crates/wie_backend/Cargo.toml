@@ -6,5 +6,6 @@ license = "MIT"
 
 [dependencies]
 anyhow = { workspace = true }
+winit = { version = "0.28.0", features = ["wayland"] }
 
 wie_base = { path = "../wie_base" }

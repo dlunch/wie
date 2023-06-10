@@ -92,7 +92,7 @@ fn main() -> anyhow::Result<()> {
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
 
-    executor.run(backend)?;
+    backend.run(executor)?;
 
     Ok(())
 }
