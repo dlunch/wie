@@ -5,7 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{time::Instant, CoreExecutor};
+use crate::{time::Instant, Executor};
 
 pub fn sleep(until: Instant) -> SleepFuture {
     SleepFuture::new(until)
@@ -21,7 +21,7 @@ where
     E: Debug,
     Fut: Future<Output = Result<R, E>> + 'static,
 {
-    let mut executor = CoreExecutor::current();
+    let mut executor = Executor::current();
     executor.spawn(f);
 }
 
@@ -51,8 +51,8 @@ impl Future for SleepFuture {
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         if !self.registered {
-            let task_id = CoreExecutor::current_task_id().unwrap();
-            CoreExecutor::current().sleep(task_id, self.until);
+            let task_id = Executor::current_task_id().unwrap();
+            Executor::current().sleep(task_id, self.until);
 
             self.registered = true;
 

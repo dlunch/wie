@@ -6,4 +6,5 @@ license = "MIT"
 
 [dependencies]
 anyhow = { workspace = true }
+futures = { workspace = true }
 log = { workspace = true }

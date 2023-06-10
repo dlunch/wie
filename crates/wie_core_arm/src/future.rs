@@ -8,7 +8,7 @@ use core::{
 use futures::{future::LocalBoxFuture, FutureExt};
 use unicorn_engine::RegisterARM;
 
-use wie_backend::CoreExecutor;
+use wie_backend::Executor;
 use wie_base::Core;
 
 use crate::{
@@ -74,7 +74,7 @@ where
     type Output = ArmCoreResult<R>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let executor = CoreExecutor::current();
+        let executor = Executor::current();
 
         if let Some(fut) = &mut self.waiting_fut {
             let poll = fut.as_mut().poll(cx);
@@ -90,8 +90,8 @@ where
             }
         }
 
-        let mut core = executor.core_mut();
-        let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+        let mut module = executor.module_mut();
+        let core = module.core_mut().as_any_mut().downcast_mut::<ArmCore>().unwrap();
 
         let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
 

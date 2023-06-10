@@ -7,7 +7,7 @@ use std::{
     vec::Vec,
 };
 
-use crate::{time::Time, CoreExecutor};
+use crate::{time::Time, Executor};
 
 use self::window::Window;
 
@@ -42,7 +42,14 @@ impl Backend {
         (*self.time).borrow()
     }
 
-    pub fn run(self, mut executor: CoreExecutor) -> anyhow::Result<()> {
+    pub fn run(self, mut executor: Executor) -> anyhow::Result<()> {
+        executor.spawn(move || {
+            let executor = Executor::current();
+            let mut module = executor.module_mut();
+
+            module.start()
+        });
+
         let window = Window::new();
 
         window.run(

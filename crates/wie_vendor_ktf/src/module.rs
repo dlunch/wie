@@ -1,45 +1,43 @@
 use alloc::string::String;
 
-use wie_backend::{Backend, CoreExecutor};
-use wie_base::util::ByteWrite;
+use futures::{future::LocalBoxFuture, FutureExt};
+
+use wie_backend::Backend;
+use wie_base::{util::ByteWrite, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::JavaContext;
 
 use crate::runtime::KtfJavaContext;
 
 // client.bin from jar, extracted from ktf phone
-pub struct KtfWipiModule {}
+pub struct KtfWipiModule {
+    core: ArmCore,
+    entry: u32,
+    base_address: u32,
+    bss_size: u32,
+    ptr_main_class_name: u32,
+}
 
 impl KtfWipiModule {
-    pub fn create_core() -> anyhow::Result<ArmCore> {
+    pub fn new(data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
+
         Allocator::init(&mut core)?;
 
-        Ok(core)
-    }
+        let (base_address, bss_size) = Self::load(&mut core, data, filename).unwrap();
 
-    pub fn start(executor: &mut CoreExecutor, data: &[u8], filename: &str, main_class_name: &str, backend: Backend) {
-        let (entry, base_address, bss_size, ptr_main_class_name) = {
-            let mut core = executor.core_mut();
-            let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+        let ptr_main_class_name = Allocator::alloc(&mut core, 20).unwrap(); // TODO size fix
+        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
 
-            let (base_address, bss_size) = Self::load(core, data, filename).unwrap();
+        let entry = core.register_function(Self::do_start, &backend).unwrap();
 
-            let ptr_main_class_name = Allocator::alloc(core, 20).unwrap(); // TODO size fix
-            core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
-
-            let entry = core.register_function(Self::do_start, &backend).unwrap();
-
-            (entry, base_address, bss_size, ptr_main_class_name)
-        };
-
-        executor.spawn(move || {
-            let executor = CoreExecutor::current();
-            let mut core = executor.core_mut();
-            let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
-
-            core.run_function::<()>(entry, &[base_address, bss_size, ptr_main_class_name])
-        });
+        Ok(Self {
+            core,
+            entry,
+            base_address,
+            bss_size,
+            ptr_main_class_name,
+        })
     }
 
     async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
@@ -93,5 +91,17 @@ impl KtfWipiModule {
         log::info!("Loaded at {:#x}, size {:#x}, bss {:#x}", base_address, data.len(), bss_size);
 
         Ok((base_address, bss_size))
+    }
+}
+
+impl Module for KtfWipiModule {
+    fn core_mut(&mut self) -> &mut dyn Core {
+        &mut self.core
+    }
+
+    fn start(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>> {
+        self.core
+            .run_function::<()>(self.entry, &[self.base_address, self.bss_size, self.ptr_main_class_name])
+            .boxed_local()
     }
 }
