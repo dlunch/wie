@@ -2,7 +2,7 @@ use std::{env, fs::File, io::Read, str};
 
 use zip::ZipArchive;
 
-use wie_backend::{Backend, CoreExecutor};
+use wie_backend::{Backend, Executor};
 use wie_vendor_ktf::KtfWipiModule;
 
 enum ArchiveVendor {
@@ -73,7 +73,7 @@ fn main() -> anyhow::Result<()> {
         backend.resource_mut().add(file.name(), data);
     }
 
-    let executor = match vendor {
+    let module = match vendor {
         Some(ArchiveVendor::Ktf {
             module_file_name,
             main_class_name,
@@ -82,16 +82,12 @@ fn main() -> anyhow::Result<()> {
             let mut data = Vec::new();
             module_file.read_to_end(&mut data)?;
 
-            let core = KtfWipiModule::create_core()?;
-            let mut executor = CoreExecutor::new(core);
-
-            KtfWipiModule::start(&mut executor, &data, &module_file_name, &main_class_name, backend.clone());
-
-            executor
+            KtfWipiModule::new(&data, &module_file_name, &main_class_name, backend.clone())?
         }
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
 
+    let executor = Executor::new(module);
     backend.run(executor)?;
 
     Ok(())

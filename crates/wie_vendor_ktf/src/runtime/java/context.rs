@@ -3,7 +3,7 @@ use core::{fmt::Display, iter, mem::size_of};
 
 use wie_backend::{
     task::{self, SleepFuture},
-    Backend, CoreExecutor,
+    Backend, Executor,
 };
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
@@ -557,9 +557,9 @@ impl JavaContext for KtfJavaContext<'_> {
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         let entry = self.core.register_function(JavaMethodProxy::new(callback), self.backend)?;
         task::spawn(move || {
-            let executor: CoreExecutor = CoreExecutor::current();
-            let mut core = executor.core_mut();
-            let core = core.as_any_mut().downcast_mut::<ArmCore>().unwrap();
+            let executor: Executor = Executor::current();
+            let mut module = executor.module_mut();
+            let core = module.core_mut().as_any_mut().downcast_mut::<ArmCore>().unwrap();
 
             core.run_function::<()>(entry, &[])
         });

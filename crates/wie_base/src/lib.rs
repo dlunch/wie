@@ -7,6 +7,8 @@ pub mod util;
 use alloc::{boxed::Box, string::String};
 use core::any::Any;
 
+use futures::future::LocalBoxFuture;
+
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -33,6 +35,11 @@ pub trait Core: AsAny {
     fn restore_context(&mut self, context: &dyn CoreContext);
     fn save_context(&self) -> Box<dyn CoreContext>;
     fn dump_reg_stack(&self) -> String;
+}
+
+pub trait Module: AsAny {
+    fn core_mut(&mut self) -> &mut dyn Core;
+    fn start(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>>;
 }
 
 pub trait CoreContext: AsAny {}

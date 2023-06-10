@@ -1422,6 +1422,7 @@ name = "wie_base"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "futures",
  "log",
 ]
 
@@ -1445,6 +1446,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "futures",
  "log",
  "wie_backend",
  "wie_base",

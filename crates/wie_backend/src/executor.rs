@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 
-use wie_base::{Core, CoreContext};
+use wie_base::{CoreContext, Module};
 
 use crate::time::{Instant, Time};
 
@@ -18,7 +18,7 @@ thread_local! {
 }
 
 pub struct ExecutorInner {
-    core: Box<dyn Core>,
+    module: Box<dyn Module>,
     current_task_id: Option<usize>,
     tasks: HashMap<usize, Task>,
     sleeping_tasks: HashMap<usize, Instant>,
@@ -27,17 +27,17 @@ pub struct ExecutorInner {
 
 // We abuse rust async to implement generator.
 // CoreExecutor polls future even it's pending state, to make generator future to be able to continue.
-pub struct CoreExecutor {
+pub struct Executor {
     inner: Rc<RefCell<ExecutorInner>>,
 }
 
-impl CoreExecutor {
-    pub fn new<C>(core: C) -> Self
+impl Executor {
+    pub fn new<M>(module: M) -> Self
     where
-        C: Core + 'static,
+        M: Module + 'static,
     {
-        let inner = ExecutorInner {
-            core: Box::new(core),
+        let inner: ExecutorInner = ExecutorInner {
+            module: Box::new(module),
             current_task_id: None,
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
@@ -51,11 +51,11 @@ impl CoreExecutor {
 
     pub fn spawn<F, Fut, E, R>(&mut self, f: F)
     where
-        F: Fn() -> Fut + 'static,
+        F: FnOnce() -> Fut + 'static,
         E: Debug,
         Fut: Future<Output = Result<R, E>> + 'static,
     {
-        let context = self.inner.borrow_mut().core.new_context();
+        let context = self.inner.borrow_mut().module.core_mut().new_context();
 
         let fut = async move {
             f().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
@@ -73,7 +73,7 @@ impl CoreExecutor {
         self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut), context });
     }
 
-    pub fn current() -> CoreExecutor {
+    pub fn current() -> Executor {
         EXECUTOR_INNER.with(|f| {
             let inner = f.borrow().as_ref().unwrap().clone();
             Self { inner }
@@ -84,8 +84,8 @@ impl CoreExecutor {
         EXECUTOR_INNER.with(|f| f.borrow().as_ref().unwrap().borrow().current_task_id)
     }
 
-    pub fn core_mut(&self) -> RefMut<'_, Box<dyn Core>> {
-        RefMut::map(self.inner.borrow_mut(), |x| &mut x.core)
+    pub fn module_mut(&self) -> RefMut<'_, Box<dyn Module>> {
+        RefMut::map(self.inner.borrow_mut(), |x| &mut x.module)
     }
 
     pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
@@ -132,13 +132,13 @@ impl CoreExecutor {
             let mut context = Context::from_waker(&waker);
             self.inner.borrow_mut().current_task_id = Some(task_id);
 
-            self.inner.borrow_mut().core.restore_context(&*task.context);
+            self.inner.borrow_mut().module.core_mut().restore_context(&*task.context);
             match task.fut.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
                     if x.is_err() {
                         return Err(x
                             .map_err(|x| {
-                                let reg_stack = self.inner.borrow().core.dump_reg_stack();
+                                let reg_stack = self.inner.borrow_mut().module.core_mut().dump_reg_stack();
 
                                 anyhow::anyhow!("{}\n{}", x, reg_stack)
                             })
@@ -146,7 +146,7 @@ impl CoreExecutor {
                     }
                 }
                 Poll::Pending => {
-                    task.context = self.inner.borrow_mut().core.save_context();
+                    task.context = self.inner.borrow_mut().module.core_mut().save_context();
                     next_tasks.insert(task_id, task);
                 }
             }
@@ -167,7 +167,7 @@ impl CoreExecutor {
     fn dummy_raw_waker(task_id: usize) -> RawWaker {
         fn no_op(_: *const ()) {}
         fn clone(data: *const ()) -> RawWaker {
-            CoreExecutor::dummy_raw_waker(data as usize)
+            Executor::dummy_raw_waker(data as usize)
         }
 
         let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
