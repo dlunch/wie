@@ -1,5 +1,6 @@
 use alloc::vec;
-use wie_base::CanvasHandle;
+
+use wie_backend::CanvasHandle;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},

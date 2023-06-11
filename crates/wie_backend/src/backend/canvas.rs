@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use wie_base::CanvasHandle;
-
 #[allow(dead_code)] // TODO
 pub struct Canvas {
     buf: Vec<u32>,
@@ -15,6 +13,7 @@ impl Canvas {
     }
 }
 
+pub type CanvasHandle = u32;
 pub struct Canvases {
     canvases: HashMap<CanvasHandle, Canvas>,
     last_id: u32,
