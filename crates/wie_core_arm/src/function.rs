@@ -1,11 +1,66 @@
 use alloc::{boxed::Box, string::String};
-use core::future::Future;
+use core::{fmt::Debug, future::Future, marker::PhantomData};
 
 use unicorn_engine::RegisterARM;
 
 use wie_base::util::{read_generic, read_null_terminated_string};
 
-use crate::ArmCore;
+use crate::{core::ArmCoreResult, ArmCore};
+
+#[async_trait::async_trait(?Send)]
+pub trait RegisteredFunction {
+    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()>;
+}
+
+pub struct RegisteredFunctionHolder<F, P, E, C, R>
+where
+    F: EmulatedFunction<P, E, C, R> + 'static,
+    E: Debug,
+    C: Clone + 'static,
+    R: ResultWriter<R>,
+{
+    function: Box<F>,
+    context: C,
+    _phantom: PhantomData<(P, E, C, R)>,
+}
+
+impl<F, P, E, C, R> RegisteredFunctionHolder<F, P, E, C, R>
+where
+    F: EmulatedFunction<P, E, C, R> + 'static,
+    E: Debug,
+    C: Clone + 'static,
+    R: ResultWriter<R>,
+{
+    pub fn new(function: F, context: &C) -> Self {
+        Self {
+            function: Box::new(function),
+            context: context.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl<F, P, E, C, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, C, R>
+where
+    F: EmulatedFunction<P, E, C, R> + 'static,
+    E: Debug,
+    C: Clone + 'static,
+    R: ResultWriter<R>,
+{
+    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
+        let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
+        let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
+        log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
+
+        let mut new_context = self.context.clone();
+
+        let result = self.function.call(core, &mut new_context).await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+        R::write(core, result, lr)?;
+
+        Ok(())
+    }
+}
 
 trait FnHelper<'a, E, C, R, P> {
     type Output: Future<Output = Result<R, E>> + 'a;
@@ -161,5 +216,18 @@ impl EmulatedFunctionParam<String> for String {
 impl EmulatedFunctionParam<u32> for u32 {
     fn get(core: &mut ArmCore, pos: usize) -> u32 {
         Self::read(core, pos)
+    }
+}
+
+pub trait ResultWriter<R> {
+    fn write(core: &mut ArmCore, value: R, lr: u32) -> anyhow::Result<()>;
+}
+
+impl ResultWriter<u32> for u32 {
+    fn write(core: &mut ArmCore, value: u32, lr: u32) -> anyhow::Result<()> {
+        core.uc.reg_write(RegisterARM::R0, value as u64).unwrap();
+        core.uc.reg_write(RegisterARM::PC, lr as u64).unwrap();
+
+        Ok(())
     }
 }
