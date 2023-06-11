@@ -93,7 +93,7 @@ impl Display {
     }
 
     async fn paint(context: &mut dyn JavaContext) -> JavaResult<()> {
-        log::warn!("stub Display::paint");
+        log::trace!("Display::paint");
 
         let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
         if display == 0 {
