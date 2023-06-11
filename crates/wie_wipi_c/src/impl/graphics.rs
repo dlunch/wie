@@ -61,10 +61,13 @@ async fn get_display_info(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<u32
     Ok(0)
 }
 
-async fn create_image(context: &mut dyn CContext, ptr_image: u32, memory: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
-    log::warn!("stub create_image({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, memory.0, offset, len);
+async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
+    log::warn!("stub create_image({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
 
-    context.free(memory)?;
+    let ptr_image_data = context.data_ptr(image_data)?;
+    let _data = context.read_bytes(ptr_image_data + offset, len)?;
+
+    context.free(image_data)?;
 
     Ok(0)
 }
@@ -72,24 +75,24 @@ async fn create_image(context: &mut dyn CContext, ptr_image: u32, memory: CMemor
 #[allow(clippy::too_many_arguments)]
 async fn draw_image(
     _: &mut dyn CContext,
-    ptr_frame_buffer: CMemoryId,
+    frame_buffer: CMemoryId,
     a1: u32,
     a2: u32,
     a3: u32,
     a4: u32,
-    ptr_image: CMemoryId,
+    image: CMemoryId,
     a6: u32,
     a7: u32,
     a8: u32,
 ) -> CResult<u32> {
     log::warn!(
         "stub draw_image({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
-        ptr_frame_buffer.0,
+        frame_buffer.0,
         a1,
         a2,
         a3,
         a4,
-        ptr_image.0,
+        image.0,
         a6,
         a7,
         a8
@@ -98,10 +101,10 @@ async fn draw_image(
     Ok(0)
 }
 
-async fn flush(context: &mut dyn CContext, a0: u32, ptr_frame_buffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
-    log::warn!("flush({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", a0, ptr_frame_buffer.0, a2, a3, a4, a5);
+async fn flush(context: &mut dyn CContext, a0: u32, frame_buffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
+    log::warn!("flush({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", a0, frame_buffer.0, a2, a3, a4, a5);
 
-    let frame_buffer: Framebuffer = read_generic(context, context.data_ptr(ptr_frame_buffer)?)?;
+    let frame_buffer: Framebuffer = read_generic(context, context.data_ptr(frame_buffer)?)?;
 
     let ptr_framebuffer_data = context.data_ptr(frame_buffer.id)?;
     let framebuffer_data = context.read_bytes(ptr_framebuffer_data, frame_buffer.width * frame_buffer.height * 4)?;
