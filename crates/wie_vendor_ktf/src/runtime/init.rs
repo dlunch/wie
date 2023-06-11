@@ -50,6 +50,7 @@ struct InitParam1 {
 #[derive(Clone, Copy)]
 struct InitParam1Unk {
     ptr_unk_struct: u32,
+    unk: [u32; 31],
 }
 
 #[repr(C)]
@@ -154,7 +155,14 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     write_generic(core, ptr_unk_struct, InitParam1UnkUnk { unk: [0; 8] })?;
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1Unk>() as u32)?;
-    write_generic(core, ptr_unk_struct, InitParam1Unk { ptr_unk_struct })?;
+    write_generic(
+        core,
+        ptr_unk_struct,
+        InitParam1Unk {
+            ptr_unk_struct,
+            unk: [0; 31],
+        },
+    )?;
 
     let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     write_generic(core, ptr_param_1, InitParam1 { ptr_unk_struct })?;
