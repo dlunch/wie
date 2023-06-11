@@ -51,30 +51,35 @@ async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CM
 async fn draw_image(
     context: &mut dyn CContext,
     framebuffer: CMemoryId,
-    a1: u32,
-    a2: u32,
-    a3: u32,
-    a4: u32,
+    dx: u32,
+    dy: u32,
+    w: u32,
+    h: u32,
     image: CMemoryId,
-    a6: u32,
-    a7: u32,
-    a8: u32,
+    sx: u32,
+    sy: u32,
+    graphics_context: u32,
 ) -> CResult<u32> {
-    log::warn!(
-        "stub MC_grpDrawImage({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+    log::debug!(
+        "MC_grpDrawImage({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         framebuffer.0,
-        a1,
-        a2,
-        a3,
-        a4,
+        dx,
+        dy,
+        w,
+        h,
         image.0,
-        a6,
-        a7,
-        a8
+        sx,
+        sy,
+        graphics_context
     );
 
-    let _framebuffer: Framebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
-    let _image: Image = read_generic(context, context.data_ptr(image)?)?;
+    let framebuffer: Framebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+    let image: Image = read_generic(context, context.data_ptr(image)?)?;
+
+    let image_data = image.image_data(context)?;
+
+    let mut canvas = framebuffer.canvas(context)?;
+    canvas.draw(dx, dy, w, h, &image_data, sx, sy, image.image_width());
 
     Ok(0)
 }
@@ -98,7 +103,7 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
     let mut canvases = backend.canvases_mut();
     let screen_canvas = canvases.canvas(backend.screen_canvas());
 
-    screen_canvas.draw(&data);
+    screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &data, 0, 0, framebuffer.width);
 
     Ok(0)
 }
