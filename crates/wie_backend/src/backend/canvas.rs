@@ -7,16 +7,12 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub(crate) fn new(width: u32, height: u32) -> Self {
+    fn new(width: u32, height: u32) -> Self {
         Self {
             width,
             height,
             buf: vec![0; (width * height) as usize],
         }
-    }
-
-    pub(crate) fn buffer(&self) -> &[u32] {
-        &self.buf
     }
 
     pub fn width(&self) -> u32 {
@@ -31,8 +27,12 @@ impl Canvas {
         4
     }
 
-    pub fn blit(&mut self, buf: &[u32]) {
+    pub fn draw(&mut self, buf: &[u32]) {
         self.buf.copy_from_slice(buf);
+    }
+
+    pub fn copy(&self, target: &mut [u32]) {
+        target.copy_from_slice(&self.buf);
     }
 }
 
