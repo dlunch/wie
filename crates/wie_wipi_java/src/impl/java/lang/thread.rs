@@ -16,8 +16,7 @@ impl Thread {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init),
-                JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init_1),
+                JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init),
                 JavaMethodProto::new("start", "()V", Self::start),
                 JavaMethodProto::new("sleep", "(J)V", Self::sleep),
                 JavaMethodProto::new("yield", "()V", Self::r#yield),
@@ -26,13 +25,7 @@ impl Thread {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::debug!("Thread::<init>({:#x})", instance.ptr_instance);
-
-        Ok(())
-    }
-
-    async fn init_1(context: &mut dyn JavaContext, instance: JavaObjectProxy, runnable: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy, runnable: JavaObjectProxy) -> JavaResult<()> {
         log::debug!("Thread::<init>({:#x}, {:#x})", instance.ptr_instance, runnable.ptr_instance);
 
         context.put_field(&instance, "runnable", runnable.ptr_instance)?;
