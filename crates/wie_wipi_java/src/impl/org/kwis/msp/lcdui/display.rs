@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
+    base::{JavaAccessFlag, JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -26,8 +26,8 @@ impl Display {
                 JavaMethodProto::new("paint", "()V", Self::paint),
             ],
             fields: vec![
-                JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;"),
-                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;"),
+                JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;", JavaAccessFlag::NONE),
+                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaAccessFlag::STATIC),
             ],
         }
     }

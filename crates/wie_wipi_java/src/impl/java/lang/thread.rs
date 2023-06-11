@@ -22,7 +22,7 @@ impl Thread {
                 JavaMethodProto::new("sleep", "(J)V", Self::sleep),
                 JavaMethodProto::new("yield", "()V", Self::r#yield),
             ],
-            fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;")],
+            fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;", crate::JavaAccessFlag::NONE)],
         }
     }
 

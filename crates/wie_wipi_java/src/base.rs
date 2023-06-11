@@ -16,6 +16,12 @@ pub struct JavaClassProto {
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
 
+#[derive(Eq, PartialEq)]
+pub enum JavaAccessFlag {
+    NONE,
+    STATIC,
+}
+
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
@@ -25,13 +31,15 @@ pub struct JavaMethodProto {
 pub struct JavaFieldProto {
     pub name: String,
     pub signature: String,
+    pub access_flag: JavaAccessFlag,
 }
 
 impl JavaFieldProto {
-    pub fn new(name: &str, signature: &str) -> Self {
+    pub fn new(name: &str, signature: &str, access_flag: JavaAccessFlag) -> Self {
         Self {
             name: name.into(),
             signature: signature.into(),
+            access_flag,
         }
     }
 }

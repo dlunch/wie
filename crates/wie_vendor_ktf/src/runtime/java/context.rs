@@ -7,9 +7,26 @@ use wie_backend::{
 };
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
-use wie_wipi_java::{get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaMethodBody, JavaObjectProxy, JavaResult};
+use wie_wipi_java::{get_array_proto, get_class_proto, JavaAccessFlag, JavaClassProto, JavaContext, JavaMethodBody, JavaObjectProxy, JavaResult};
 
 use crate::runtime::KtfPeb;
+
+bitflags::bitflags! {
+    struct JavaAccessFlagBit: u32 {
+        const NONE = 0;
+        const STATIC = 8;
+    }
+
+}
+
+impl JavaAccessFlagBit {
+    fn from_access_flag(access_flag: JavaAccessFlag) -> JavaAccessFlagBit {
+        match access_flag {
+            JavaAccessFlag::NONE => JavaAccessFlagBit::NONE,
+            JavaAccessFlag::STATIC => JavaAccessFlagBit::STATIC,
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -56,10 +73,10 @@ struct JavaMethod {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct JavaField {
-    unk1: u32,
+    access_flag: u32,
     ptr_class: u32,
     ptr_name: u32,
-    offset: u32,
+    offset_or_value: u32,
 }
 
 #[repr(C)]
@@ -372,14 +389,20 @@ impl<'a> KtfJavaContext<'a> {
             self.core.write_bytes(ptr_name, &full_name)?;
 
             let ptr_field = Allocator::alloc(self.core, size_of::<JavaField>() as u32)?;
+            let offset_or_value = if field.access_flag == JavaAccessFlag::STATIC {
+                0
+            } else {
+                (index as u32) * 4
+            };
+
             write_generic(
                 self.core,
                 ptr_field,
                 JavaField {
-                    unk1: 0,
+                    access_flag: JavaAccessFlagBit::from_access_flag(field.access_flag).bits(),
                     ptr_class,
                     ptr_name,
-                    offset: (index as u32) * 4,
+                    offset_or_value,
                 },
             )?;
 
@@ -459,9 +482,8 @@ impl<'a> KtfJavaContext<'a> {
         Ok(result)
     }
 
-    fn find_field_offset(&self, proxy: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
-        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
-        let (_, class_descriptor, _) = self.read_ptr_class(instance.ptr_class)?;
+    fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
+        let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
 
         let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields)?;
         for ptr_field in ptr_fields {
@@ -469,7 +491,7 @@ impl<'a> KtfJavaContext<'a> {
 
             let fullname = JavaFullName::from_ptr(self.core, field.ptr_name)?;
             if fullname.name == field_name {
-                return Ok(field.offset);
+                return Ok(ptr_field);
             }
         }
 
@@ -548,25 +570,51 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
-        let offset = self.find_field_offset(instance, field_name)?;
-
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
+        let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
+        let field: JavaField = read_generic(self.core, ptr_field)?;
+
+        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+
+        let offset = field.offset_or_value;
+
         read_generic(self.core, instance.ptr_fields + offset + 4)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()> {
-        let offset = self.find_field_offset(instance, field_name)?;
-
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
+        let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
+        let field: JavaField = read_generic(self.core, ptr_field)?;
+
+        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+
+        let offset = field.offset_or_value;
+
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
 
-    fn get_static_field(&mut self, _class_name: &str, _field_name: &str) -> JavaResult<u32> {
-        Ok(0) // TODO
+    fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32> {
+        let ptr_class = self.find_ptr_class(class_name)?;
+        let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
+        let field: JavaField = read_generic(self.core, ptr_field)?;
+
+        assert!(field.access_flag & 0x0008 != 0, "Field is not static");
+
+        Ok(field.offset_or_value)
     }
 
-    fn put_static_field(&mut self, _class_name: &str, _field_name: &str, _value: u32) -> JavaResult<()> {
-        Ok(()) // TODO
+    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()> {
+        let ptr_class = self.find_ptr_class(class_name)?;
+        let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
+        let mut field: JavaField = read_generic(self.core, ptr_field)?;
+
+        assert!(field.access_flag & 0x0008 != 0, "Field is not static");
+
+        field.offset_or_value = value;
+
+        write_generic(self.core, ptr_field, field)?;
+
+        Ok(())
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
