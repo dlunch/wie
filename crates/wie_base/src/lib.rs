@@ -37,10 +37,11 @@ pub trait Core: AsAny {
     fn dump_reg_stack(&self) -> String;
 }
 
+pub type CanvasHandle = u32;
 pub trait Module: AsAny {
     fn core_mut(&mut self) -> &mut dyn Core;
     fn start(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>>;
-    fn render(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>>;
+    fn render(&mut self, canvas_handle: CanvasHandle) -> LocalBoxFuture<'static, anyhow::Result<()>>;
 }
 
 pub trait CoreContext: AsAny {

@@ -3,7 +3,7 @@ use alloc::string::String;
 use futures::{future::LocalBoxFuture, FutureExt};
 
 use wie_backend::Backend;
-use wie_base::{util::ByteWrite, Core, Module};
+use wie_base::{util::ByteWrite, CanvasHandle, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::JavaContext;
 
@@ -64,10 +64,12 @@ impl KtfWipiModule {
         Ok(0)
     }
 
-    async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<u32> {
+    async fn do_render(core: &mut ArmCore, backend: &mut Backend, canvas_handle: CanvasHandle) -> anyhow::Result<u32> {
         let mut java_context = KtfJavaContext::new(core, backend);
 
-        java_context.call_static_method("org/kwis/msp/lcdui/Display", "paint", "()V", &[]).await?;
+        java_context
+            .call_static_method("org/kwis/msp/lcdui/Display", "paint", "()V", &[canvas_handle])
+            .await?;
 
         Ok(0)
     }
@@ -119,7 +121,7 @@ impl Module for KtfWipiModule {
             .boxed_local()
     }
 
-    fn render(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>> {
-        self.core.run_function::<()>(self.render, &[]).boxed_local()
+    fn render(&mut self, canvas_handle: CanvasHandle) -> LocalBoxFuture<'static, anyhow::Result<()>> {
+        self.core.run_function::<()>(self.render, &[canvas_handle]).boxed_local()
     }
 }
