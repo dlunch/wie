@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-#[allow(dead_code)] // TODO
 pub struct Canvas {
     buf: Vec<u32>,
 }
@@ -8,8 +7,12 @@ pub struct Canvas {
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
-            buf: vec![0; (width * height * 4) as usize],
+            buf: vec![0; (width * height) as usize],
         }
+    }
+
+    pub(crate) fn buffer(&self) -> &[u32] {
+        &self.buf
     }
 }
 
