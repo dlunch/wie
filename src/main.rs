@@ -77,13 +77,7 @@ fn main() -> anyhow::Result<()> {
         Some(ArchiveVendor::Ktf {
             module_file_name,
             main_class_name,
-        }) => {
-            let mut module_file = archive.by_name(&module_file_name)?;
-            let mut data = Vec::new();
-            module_file.read_to_end(&mut data)?;
-
-            KtfWipiModule::new(&data, &module_file_name, &main_class_name, backend.clone())?
-        }
+        }) => KtfWipiModule::new(&module_file_name, &main_class_name, backend.clone())?,
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
 
