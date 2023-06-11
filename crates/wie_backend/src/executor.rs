@@ -92,9 +92,7 @@ impl Executor {
     }
 
     pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().replace(self.inner.clone());
-        });
+        let _guard = ExecutorGuard::new(self.inner.clone());
 
         let start = time.now();
         loop {
@@ -108,10 +106,6 @@ impl Executor {
             self.step(now)?;
         }
 
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().take();
-        });
-
         Ok(())
     }
 
@@ -121,9 +115,7 @@ impl Executor {
         E: Debug,
         Fut: Future<Output = Result<R, E>> + 'static,
     {
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().replace(self.inner.clone());
-        });
+        let _guard = ExecutorGuard::new(self.inner.clone());
 
         let task_id = self.spawn(f);
 
@@ -135,10 +127,6 @@ impl Executor {
                 break;
             }
         }
-
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().take();
-        });
 
         Ok(())
     }
@@ -213,4 +201,24 @@ impl Executor {
 struct Task {
     fut: Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
     context: Box<dyn CoreContext>,
+}
+
+struct ExecutorGuard {}
+
+impl ExecutorGuard {
+    pub fn new(inner: Rc<RefCell<ExecutorInner>>) -> Self {
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().replace(inner);
+        });
+
+        Self {}
+    }
+}
+
+impl Drop for ExecutorGuard {
+    fn drop(&mut self) {
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().take();
+        });
+    }
 }
