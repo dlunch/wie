@@ -63,6 +63,35 @@ async fn create_image(context: &mut dyn CContext, ptr_image: u32, memory: CMemor
     Ok(0)
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn draw_image(
+    _: &mut dyn CContext,
+    ptr_frame_buffer: CMemoryId,
+    a1: u32,
+    a2: u32,
+    a3: u32,
+    a4: u32,
+    ptr_image: CMemoryId,
+    a6: u32,
+    a7: u32,
+    a8: u32,
+) -> CResult<u32> {
+    log::warn!(
+        "stub draw_image({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+        ptr_frame_buffer.0,
+        a1,
+        a2,
+        a3,
+        a4,
+        ptr_image.0,
+        a6,
+        a7,
+        a8
+    );
+
+    Ok(0)
+}
+
 async fn flush(context: &mut dyn CContext, a0: u32, ptr_frame_buffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
     log::warn!("flush({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", a0, ptr_frame_buffer.0, a2, a3, a4, a5);
 
@@ -97,7 +126,7 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         gen_stub(10),
         gen_stub(11),
         gen_stub(12),
-        gen_stub(13),
+        draw_image.into_body(),
         gen_stub(14),
         gen_stub(15),
         gen_stub(16),
