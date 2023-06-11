@@ -85,15 +85,15 @@ struct Image {
     loop_count: u32,
     delay: u32,
     animated: u32,
-    buf_id: CMemoryId,
+    buf: CMemoryId,
     offset: u32,
     current: u32,
     len: u32,
 }
 
 impl Image {
-    pub fn new(context: &mut dyn CContext, data: CMemoryId, offset: u32, len: u32) -> anyhow::Result<Self> {
-        let ptr_image_data = context.data_ptr(data)?;
+    pub fn new(context: &mut dyn CContext, buf: CMemoryId, offset: u32, len: u32) -> anyhow::Result<Self> {
+        let ptr_image_data = context.data_ptr(buf)?;
         let data = context.read_bytes(ptr_image_data + offset, len)?;
         let canvas_handle = context.backend().canvases_mut().new_canvas_from_image(&data)?;
 
@@ -112,10 +112,10 @@ impl Image {
             loop_count: 0,
             delay: 0,
             animated: 0,
-            buf_id: CMemoryId(0),
-            offset: 0,
+            buf,
+            offset,
             current: 0,
-            len: 0,
+            len,
         })
     }
 }
@@ -150,8 +150,6 @@ async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CM
     let memory = context.alloc(size_of::<Image>() as u32)?;
     write_generic(context, ptr_image, memory)?;
     write_generic(context, context.data_ptr(memory)?, image)?;
-
-    context.free(image_data)?;
 
     Ok(0)
 }
