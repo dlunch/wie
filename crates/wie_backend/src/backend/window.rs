@@ -1,5 +1,9 @@
-use std::time::{Duration, Instant};
+use std::{
+    num::NonZeroU32,
+    time::{Duration, Instant},
+};
 
+use softbuffer::{Buffer, Context, Surface};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -22,8 +26,13 @@ impl Window {
     pub fn run<U, R>(self, mut update: U, mut render: R)
     where
         U: FnMut() + 'static,
-        R: FnMut() + 'static,
+        R: FnMut(&mut Buffer) + 'static,
     {
+        let context = unsafe { Context::new(&self.window) }.unwrap();
+        let mut surface = unsafe { Surface::new(&context, &self.window) }.unwrap();
+
+        surface.resize(NonZeroU32::new(320).unwrap(), NonZeroU32::new(480).unwrap()).unwrap(); // TODO hardcoded
+
         let mut last_redraw = Instant::now();
         self.event_loop.run(move |event, _, control_flow| match event {
             Event::WindowEvent {
@@ -34,7 +43,9 @@ impl Window {
                 update();
             }
             Event::RedrawRequested(_) => {
-                render();
+                let mut buffer = surface.buffer_mut().unwrap();
+                render(&mut buffer);
+                buffer.present().unwrap();
             }
             Event::RedrawEventsCleared => {
                 let now = Instant::now();

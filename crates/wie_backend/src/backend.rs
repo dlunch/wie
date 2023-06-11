@@ -75,10 +75,14 @@ impl Backend {
 
         window.run(
             || {},
-            move || {
+            move |buffer| {
                 executor.tick(&self.time()).unwrap();
 
                 Backend::run_task(&mut executor, &self.time(), move |module| module.render()).unwrap();
+
+                let mut canvases = self.canvases_mut();
+                let canvas = canvases.canvas(self.screen_canvas);
+                buffer.copy_from_slice(canvas.buffer());
             },
         );
 
