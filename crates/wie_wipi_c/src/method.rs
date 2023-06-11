@@ -137,6 +137,36 @@ where
     }
 }
 
+impl<'a, E, R, F, Fut, P0, P1, P2, P3, P4, P5, P6, P7, P8> FnHelper<'a, E, R, (P0, P1, P2, P3, P4, P5, P6, P7, P8)> for F
+where
+    F: Fn(&'a mut dyn CContext, P0, P1, P2, P3, P4, P5, P6, P7, P8) -> Fut,
+    Fut: Future<Output = Result<R, E>> + 'a,
+    P0: TypeConverter<P0> + 'a,
+    P1: TypeConverter<P1> + 'a,
+    P2: TypeConverter<P2> + 'a,
+    P3: TypeConverter<P3> + 'a,
+    P4: TypeConverter<P4> + 'a,
+    P5: TypeConverter<P5> + 'a,
+    P6: TypeConverter<P6> + 'a,
+    P7: TypeConverter<P7> + 'a,
+    P8: TypeConverter<P8> + 'a,
+{
+    type Output = Fut;
+    fn do_call(&self, context: &'a mut dyn CContext, args: &[u32]) -> Fut {
+        let p0 = P0::to_rust(context, args[0]);
+        let p1 = P1::to_rust(context, args[1]);
+        let p2 = P2::to_rust(context, args[2]);
+        let p3 = P3::to_rust(context, args[3]);
+        let p4 = P4::to_rust(context, args[4]);
+        let p5 = P5::to_rust(context, args[5]);
+        let p6 = P6::to_rust(context, args[6]);
+        let p7 = P7::to_rust(context, args[7]);
+        let p8 = P8::to_rust(context, args[8]);
+
+        self(context, p0, p1, p2, p3, p4, p5, p6, p7, p8)
+    }
+}
+
 struct MethodHolder<F, R, P>(pub F, PhantomData<(R, P)>);
 
 #[async_trait::async_trait(?Send)]
@@ -221,6 +251,19 @@ where
 impl<F, R, E, P0, P1, P2, P3, P4, P5> MethodBody<E> for MethodHolder<F, R, (P0, P1, P2, P3, P4, P5)>
 where
     F: for<'a> FnHelper<'a, E, R, (P0, P1, P2, P3, P4, P5)>,
+    R: TypeConverter<R>,
+{
+    async fn call(&self, context: &mut dyn CContext, args: &[u32]) -> Result<u32, E> {
+        let result = self.0.do_call(context, args).await?;
+
+        Ok(R::from_rust(context, result))
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl<F, R, E, P0, P1, P2, P3, P4, P5, P6, P7, P8> MethodBody<E> for MethodHolder<F, R, (P0, P1, P2, P3, P4, P5, P6, P7, P8)>
+where
+    F: for<'a> FnHelper<'a, E, R, (P0, P1, P2, P3, P4, P5, P6, P7, P8)>,
     R: TypeConverter<R>,
 {
     async fn call(&self, context: &mut dyn CContext, args: &[u32]) -> Result<u32, E> {
@@ -319,6 +362,25 @@ where
     P3: 'static,
     P4: 'static,
     P5: 'static,
+{
+    fn into_body(self) -> Box<dyn MethodBody<E>> {
+        Box::new(MethodHolder(self, PhantomData))
+    }
+}
+
+impl<F, R, E, P0, P1, P2, P3, P4, P5, P6, P7, P8> MethodImpl<F, R, E, (P0, P1, P2, P3, P4, P5, P6, P7, P8)> for F
+where
+    F: for<'a> FnHelper<'a, E, R, (P0, P1, P2, P3, P4, P5, P6, P7, P8)> + 'static,
+    R: TypeConverter<R> + 'static,
+    P0: 'static,
+    P1: 'static,
+    P2: 'static,
+    P3: 'static,
+    P4: 'static,
+    P5: 'static,
+    P6: 'static,
+    P7: 'static,
+    P8: 'static,
 {
     fn into_body(self) -> Box<dyn MethodBody<E>> {
         Box::new(MethodHolder(self, PhantomData))
