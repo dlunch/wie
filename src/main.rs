@@ -2,7 +2,7 @@ use std::{env, fs::File, io::Read, str};
 
 use zip::ZipArchive;
 
-use wie_backend::{Backend, Executor};
+use wie_backend::Backend;
 use wie_vendor_ktf::KtfWipiModule;
 
 enum ArchiveVendor {
@@ -87,8 +87,7 @@ fn main() -> anyhow::Result<()> {
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
 
-    let executor = Executor::new(module);
-    backend.run(executor)?;
+    backend.run(module)?;
 
     Ok(())
 }

@@ -5,7 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{time::Instant, Executor};
+use crate::{executor::Executor, time::Instant};
 
 pub fn sleep(until: Instant) -> SleepFuture {
     SleepFuture::new(until)

@@ -10,7 +10,7 @@ use std::{
 
 use wie_base::Module;
 
-use crate::{time::Time, Executor};
+use crate::{executor::Executor, time::Time};
 
 use self::window::Window;
 
@@ -45,7 +45,11 @@ impl Backend {
         (*self.time).borrow()
     }
 
-    pub fn run(self, mut executor: Executor) -> anyhow::Result<()> {
+    pub fn run<M>(self, module: M) -> anyhow::Result<()>
+    where
+        M: Module + 'static,
+    {
+        let mut executor = Executor::new(module);
         Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
         let window = Window::new();
