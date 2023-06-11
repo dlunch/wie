@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 anyhow = { workspace = true }
+image = { version = "^0.24" }
 softbuffer = { version = "^0.3" }
 winit = { version = "0.28.0", features = ["wayland"] }
 

@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Cursor};
+
+use image::io::Reader as ImageReader;
 
 pub struct Canvas {
     width: u32,
@@ -7,12 +9,25 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    fn new(width: u32, height: u32) -> Self {
+    fn from_size(width: u32, height: u32) -> Self {
         Self {
             width,
             height,
             buf: vec![0; (width * height) as usize],
         }
+    }
+
+    fn from_image(image: &[u8]) -> anyhow::Result<Self> {
+        let image = ImageReader::new(Cursor::new(image)).with_guessed_format()?.decode()?;
+        let rgba = image.into_rgba8();
+
+        let pixels = rgba.pixels().map(|x| u32::from_le_bytes(x.0)).collect::<Vec<_>>();
+
+        Ok(Self {
+            width: rgba.width(),
+            height: rgba.height(),
+            buf: pixels,
+        })
     }
 
     pub fn width(&self) -> u32 {
@@ -51,14 +66,15 @@ impl Canvases {
     }
 
     pub fn new_canvas(&mut self, width: u32, height: u32) -> CanvasHandle {
-        let canvas = Canvas::new(width, height);
+        let canvas = Canvas::from_size(width, height);
 
-        self.last_id += 1;
-        let handle = self.last_id;
+        self.insert_canvas(canvas)
+    }
 
-        self.canvases.insert(handle, canvas);
+    pub fn new_canvas_from_image(&mut self, image: &[u8]) -> anyhow::Result<CanvasHandle> {
+        let canvas = Canvas::from_image(image)?;
 
-        handle
+        Ok(self.insert_canvas(canvas))
     }
 
     pub fn destroy(&mut self, handle: CanvasHandle) {
@@ -67,6 +83,15 @@ impl Canvases {
 
     pub fn canvas(&mut self, handle: CanvasHandle) -> &mut Canvas {
         self.canvases.get_mut(&handle).unwrap()
+    }
+
+    fn insert_canvas(&mut self, canvas: Canvas) -> CanvasHandle {
+        self.last_id += 1;
+        let handle = self.last_id;
+
+        self.canvases.insert(handle, canvas);
+
+        handle
     }
 }
 
