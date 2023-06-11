@@ -20,10 +20,13 @@ pub struct KtfWipiModule {
 }
 
 impl KtfWipiModule {
-    pub fn new(data: &[u8], filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<Self> {
+    pub fn new(filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
         Allocator::init(&mut core)?;
+
+        let resource = backend.resource();
+        let data = resource.data(resource.id(filename).unwrap());
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename).unwrap();
 
