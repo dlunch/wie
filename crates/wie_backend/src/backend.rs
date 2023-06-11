@@ -73,9 +73,9 @@ impl Backend {
         window.run(
             || {},
             move || {
-                Backend::run_task(&mut executor, &self.time(), move |module| module.render(self.screen_canvas)).unwrap();
-
                 executor.tick(&self.time()).unwrap();
+
+                Backend::run_task(&mut executor, &self.time(), move |module| module.render(self.screen_canvas)).unwrap();
             },
         );
 
