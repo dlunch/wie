@@ -30,7 +30,7 @@ fn gen_stub(id: u32) -> CMethodBody {
 }
 
 async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
-    log::debug!("get_screen_frame_buffer({:#x})", a0);
+    log::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let (width, height, bytes_per_pixel) = {
         let backend = context.backend();
@@ -55,14 +55,8 @@ async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult
     Ok(memory)
 }
 
-async fn get_display_info(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<u32> {
-    log::warn!("stub get_display_info({:#x}, {:#x})", a0, a1);
-
-    Ok(0)
-}
-
 async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
-    log::warn!("stub create_image({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
+    log::warn!("stub MC_grpCreateImage({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
 
     let ptr_image_data = context.data_ptr(image_data)?;
     let _data = context.read_bytes(ptr_image_data + offset, len)?;
@@ -86,7 +80,7 @@ async fn draw_image(
     a8: u32,
 ) -> CResult<u32> {
     log::warn!(
-        "stub draw_image({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+        "stub MC_grpDrawImage({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         frame_buffer.0,
         a1,
         a2,
@@ -102,7 +96,15 @@ async fn draw_image(
 }
 
 async fn flush(context: &mut dyn CContext, a0: u32, frame_buffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
-    log::warn!("flush({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", a0, frame_buffer.0, a2, a3, a4, a5);
+    log::warn!(
+        "stub MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+        a0,
+        frame_buffer.0,
+        a2,
+        a3,
+        a4,
+        a5
+    );
 
     let frame_buffer: Framebuffer = read_generic(context, context.data_ptr(frame_buffer)?)?;
 
@@ -146,7 +148,7 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         flush.into_body(),
         gen_stub(22),
         gen_stub(23),
-        get_display_info.into_body(),
+        gen_stub(24),
         gen_stub(25),
         gen_stub(26),
         gen_stub(27),
