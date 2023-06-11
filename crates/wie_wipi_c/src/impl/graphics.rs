@@ -23,7 +23,14 @@ struct Framebuffer {
 }
 
 impl Framebuffer {
-    pub fn from_width_height(context: &mut dyn CContext, width: u32, height: u32, bytes_per_pixel: u32) -> anyhow::Result<Self> {
+    pub fn from_compatible_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
+        let (width, height, bytes_per_pixel) = {
+            let mut canvases = context.backend().canvases_mut();
+            let canvas = canvases.canvas(canvas_handle);
+
+            (canvas.width(), canvas.height(), canvas.bytes_per_pixel())
+        };
+
         let buf = context.alloc(width * height * bytes_per_pixel)?;
 
         Ok(Self {
@@ -37,8 +44,7 @@ impl Framebuffer {
 
     pub fn from_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
         let (width, height, bytes_per_pixel, data) = {
-            let backend = context.backend();
-            let mut canvases = backend.canvases_mut();
+            let mut canvases = context.backend().canvases_mut();
             let canvas = canvases.canvas(canvas_handle);
 
             let mut data = vec![0; (canvas.width() * canvas.height()) as usize];
@@ -55,7 +61,7 @@ impl Framebuffer {
             width,
             height,
             bpl: width * bytes_per_pixel,
-            bpp: bytes_per_pixel * 4,
+            bpp: bytes_per_pixel * 8,
             buf,
         })
     }
@@ -86,7 +92,11 @@ struct Image {
 }
 
 impl Image {
-    pub fn from_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
+    pub fn new(context: &mut dyn CContext, data: CMemoryId, offset: u32, len: u32) -> anyhow::Result<Self> {
+        let ptr_image_data = context.data_ptr(data)?;
+        let data = context.read_bytes(ptr_image_data + offset, len)?;
+        let canvas_handle = context.backend().canvases_mut().new_canvas_from_image(&data)?;
+
         let img_framebuffer = Framebuffer::from_canvas(context, canvas_handle)?;
         let mask_framebuffer = Framebuffer {
             width: 0,
@@ -123,15 +133,8 @@ fn gen_stub(id: u32) -> CMethodBody {
 async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
     log::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
-    let (width, height, bytes_per_pixel) = {
-        let backend = context.backend();
-        let mut canvases = backend.canvases_mut();
-        let canvas = canvases.canvas(backend.screen_canvas());
-
-        (canvas.width(), canvas.height(), canvas.bytes_per_pixel())
-    };
-
-    let framebuffer = Framebuffer::from_width_height(context, width, height, bytes_per_pixel)?;
+    let screen_canvas = context.backend().screen_canvas();
+    let framebuffer = Framebuffer::from_compatible_canvas(context, screen_canvas)?;
 
     let memory = context.alloc(size_of::<Framebuffer>() as u32)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
@@ -142,11 +145,7 @@ async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<
 async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
     log::debug!("MC_grpCreateImage({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
 
-    let ptr_image_data = context.data_ptr(image_data)?;
-    let data = context.read_bytes(ptr_image_data + offset, len)?;
-
-    let canvas_handle = context.backend().canvases_mut().new_canvas_from_image(&data)?;
-    let image = Image::from_canvas(context, canvas_handle)?;
+    let image = Image::new(context, image_data, offset, len)?;
 
     let memory = context.alloc(size_of::<Image>() as u32)?;
     write_generic(context, ptr_image, memory)?;
