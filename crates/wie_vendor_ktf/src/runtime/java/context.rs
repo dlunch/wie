@@ -545,6 +545,15 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(proxy)
     }
 
+    fn destroy(&mut self, proxy: JavaObjectProxy) -> JavaResult<()> {
+        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
+
+        Allocator::free(self.core, instance.ptr_fields)?;
+        Allocator::free(self.core, proxy.ptr_instance)?;
+
+        Ok(())
+    }
+
     async fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;

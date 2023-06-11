@@ -117,6 +117,8 @@ impl Display {
             )
             .await?;
 
+        context.destroy(graphics)?;
+
         Ok(())
     }
 }

@@ -63,6 +63,7 @@ impl JavaMethodProto {
 pub trait JavaContext {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy>;
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy>;
+    fn destroy(&mut self, instance: JavaObjectProxy) -> JavaResult<()>;
     async fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32>;
