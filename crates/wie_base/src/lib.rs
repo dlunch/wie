@@ -43,4 +43,6 @@ pub trait Module: AsAny {
     fn render(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>>;
 }
 
-pub trait CoreContext: AsAny {}
+pub trait CoreContext: AsAny {
+    fn clone(&self) -> Box<dyn CoreContext>;
+}

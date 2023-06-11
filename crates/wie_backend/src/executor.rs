@@ -57,9 +57,10 @@ impl Executor {
     {
         let context = self.inner.borrow_mut().module.core_mut().new_context();
 
+        let context1 = context.clone();
         let fut = async move {
             f().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
-            // CoreExecutor::current().core_mut().free_context(context); // TODO
+            Executor::current().module_mut().core_mut().free_context(context1);
 
             Ok::<(), anyhow::Error>(())
         };
