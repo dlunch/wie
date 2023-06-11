@@ -20,7 +20,7 @@ pub struct KtfWipiModule {
 }
 
 impl KtfWipiModule {
-    pub fn new(filename: &str, main_class_name: &str, backend: Backend) -> anyhow::Result<Self> {
+    pub fn new(filename: &str, main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
         Allocator::init(&mut core)?;
@@ -33,8 +33,8 @@ impl KtfWipiModule {
         let ptr_main_class_name = Allocator::alloc(&mut core, 20).unwrap(); // TODO size fix
         core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
 
-        let entry = core.register_function(Self::do_start, &backend).unwrap();
-        let render = core.register_function(Self::do_render, &backend).unwrap();
+        let entry = core.register_function(Self::do_start, backend).unwrap();
+        let render = core.register_function(Self::do_render, backend).unwrap();
 
         Ok(Self {
             core,
