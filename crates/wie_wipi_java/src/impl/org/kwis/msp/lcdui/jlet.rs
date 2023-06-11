@@ -14,7 +14,7 @@ impl Jlet {
     }
 
     async fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::warn!("stub Jlet::<init>");
+        log::warn!("stub org.kwis.msp.lcdui.Jlet::<init>");
 
         Ok(())
     }

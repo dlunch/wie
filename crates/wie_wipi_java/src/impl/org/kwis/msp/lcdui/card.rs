@@ -22,25 +22,25 @@ impl Card {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Card::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
     async fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
-        log::warn!("stub Card::<init>({:#x}, {})", instance.ptr_instance, a0);
+        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }
 
     async fn get_width(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::warn!("stub Card::get_width");
+        log::warn!("stub org.kwis.msp.lcdui.Card::get_width");
 
         Ok(320) // TODO: hardcoded
     }
 
     async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::warn!("stub Card::get_height");
+        log::warn!("stub org.kwis.msp.lcdui.Card::get_height");
 
         Ok(480) // TODO: hardcoded
     }

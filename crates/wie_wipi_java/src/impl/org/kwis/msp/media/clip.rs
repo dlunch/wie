@@ -17,7 +17,7 @@ impl Clip {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
-        log::warn!("stub Clip::<init>({:#x}, {})", instance.ptr_instance, a0);
+        log::warn!("stub org.kwis.msp.media.Clip::<init>({:#x}, {})", instance.ptr_instance, a0);
 
         Ok(())
     }

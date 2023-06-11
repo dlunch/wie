@@ -20,13 +20,13 @@ impl Font {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Font::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub org.kwis.msp.lcdui.Font::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
     async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::warn!("stub Font::get_height");
+        log::warn!("stub org.kwis.msp.lcdui.Font::get_height");
 
         Ok(12) // TODO: hardcoded
     }

@@ -21,7 +21,7 @@ impl HandsetProperty {
     }
 
     async fn get_system_property(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub HandsetProperty::getSystemProperty({:#x})", _a0.ptr_instance);
+        log::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({:#x})", _a0.ptr_instance);
 
         Ok(JavaObjectProxy::new(0))
     }

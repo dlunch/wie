@@ -35,13 +35,13 @@ impl Display {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Display::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub org.kwis.msp.lcdui.Display::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
     async fn get_display(context: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub Display::getDisplay({:#x})", a0.ptr_instance);
+        log::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", a0.ptr_instance);
 
         let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
         if display == 0 {
@@ -57,7 +57,7 @@ impl Display {
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub Display::getDefaultDisplay");
+        log::warn!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let ptr_instance = context
             .call_static_method(
@@ -72,13 +72,17 @@ impl Display {
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub Display::getDockedCard");
+        log::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
         Ok(JavaObjectProxy::new(0))
     }
 
     async fn push_card(context: &mut dyn JavaContext, instance: JavaObjectProxy, a1: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Display::pushCard({:#x}, {:#x})", instance.ptr_instance, a1.ptr_instance);
+        log::warn!(
+            "stub org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})",
+            instance.ptr_instance,
+            a1.ptr_instance
+        );
 
         let card = context.get_field(&instance, "card")?;
         if card == 0 {
@@ -89,7 +93,7 @@ impl Display {
     }
 
     async fn add_jlet_event_listener(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Display::addJletEventListener({:#x})", a0.ptr_instance);
+        log::warn!("stub org.kwis.msp.lcdui.Display::addJletEventListener({:#x})", a0.ptr_instance);
 
         Ok(())
     }

@@ -21,13 +21,13 @@ impl DataBase {
         }
     }
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub DataBase::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub org.kwis.msp.db.DataBase::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
     async fn open_data_base(context: &mut dyn JavaContext, _a0: JavaObjectProxy, _a1: u32, _a2: u32) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub DataBase::openDataBase({:#x}, {}, {})", _a0.ptr_instance, _a1, _a2);
+        log::warn!("stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})", _a0.ptr_instance, _a1, _a2);
 
         let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
@@ -36,13 +36,13 @@ impl DataBase {
     }
 
     async fn get_number_of_records(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<u32> {
-        log::warn!("stub DataBase::getNumberOfRecords({:#x})", _a0.ptr_instance);
+        log::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", _a0.ptr_instance);
 
         Ok(0)
     }
 
     async fn close_data_base(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub DataBase::closeDataBase({:#x})", _a0.ptr_instance);
+        log::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", _a0.ptr_instance);
 
         Ok(())
     }
