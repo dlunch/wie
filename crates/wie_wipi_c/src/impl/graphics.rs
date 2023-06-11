@@ -187,8 +187,8 @@ async fn draw_image(
 }
 
 async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
-    log::warn!(
-        "stub MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+    log::debug!(
+        "MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         a0,
         framebuffer.0,
         a2,
