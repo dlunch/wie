@@ -21,13 +21,13 @@ impl Runtime {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Runtime::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub java.lang.Runtime::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
     async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::debug!("Runtime::get_runtime");
+        log::debug!("java.lang.Runtime::get_runtime");
 
         let instance = context.instantiate("Ljava/lang/Runtime;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
@@ -36,7 +36,7 @@ impl Runtime {
     }
 
     async fn total_memory(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::warn!("stub Runtime::total_memory");
+        log::warn!("stub java.lang.Runtime::total_memory");
 
         Ok(0x100000) // TODO: hardcoded
     }

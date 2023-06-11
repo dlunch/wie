@@ -14,7 +14,7 @@ impl BackLight {
     }
 
     async fn always_on(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::warn!("stub Backlight::alwaysOn");
+        log::warn!("stub org.kwis.msp.handset.Backlight::alwaysOn");
 
         Ok(())
     }

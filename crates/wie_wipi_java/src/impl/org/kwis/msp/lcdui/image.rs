@@ -21,13 +21,13 @@ impl Image {
     }
 
     async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Image::<init>({:#x})", instance.ptr_instance);
+        log::warn!("stub org.kwis.msp.lcdui.Image::<init>({:#x})", instance.ptr_instance);
 
         Ok(())
     }
 
     async fn create_image(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub Image::createImage({}, {})", a0, a1);
+        log::warn!("stub org.kwis.msp.lcdui.Image::createImage({}, {})", a0, a1);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
@@ -36,7 +36,7 @@ impl Image {
     }
 
     async fn get_graphics(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub Image::get_graphics");
+        log::warn!("stub org.kwis.msp.lcdui.Image::get_graphics");
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
         context.call_method(&instance, "<init>", "(I)V", &[0]).await?;
