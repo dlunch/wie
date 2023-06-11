@@ -108,7 +108,7 @@ impl ArmCore {
         R: ResultWriter<R> + 'static,
         P: 'static,
     {
-        let bytes = [0x70, 0x47]; // BX LR
+        let bytes = [0x00, 0xBE]; // BKPT
         let address = FUNCTIONS_BASE as u64 + (self.functions_count * 2) as u64;
 
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
