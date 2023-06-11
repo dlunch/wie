@@ -1,4 +1,4 @@
-mod canvas;
+pub mod canvas;
 mod window;
 
 use std::{
@@ -9,11 +9,14 @@ use std::{
     vec::Vec,
 };
 
-use wie_base::{CanvasHandle, Module};
+use wie_base::Module;
 
 use crate::{executor::Executor, time::Time};
 
-use self::{canvas::Canvases, window::Window};
+use self::{
+    canvas::{CanvasHandle, Canvases},
+    window::Window,
+};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
@@ -75,7 +78,7 @@ impl Backend {
             move || {
                 executor.tick(&self.time()).unwrap();
 
-                Backend::run_task(&mut executor, &self.time(), move |module| module.render(self.screen_canvas)).unwrap();
+                Backend::run_task(&mut executor, &self.time(), move |module| module.render()).unwrap();
             },
         );
 
