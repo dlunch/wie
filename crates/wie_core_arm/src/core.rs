@@ -282,8 +282,10 @@ impl Core for ArmCore {
         })
     }
 
-    fn free_context(&mut self, _context: Box<dyn CoreContext>) {
-        todo!()
+    fn free_context(&mut self, context: Box<dyn CoreContext>) {
+        let context = context.as_any().downcast_ref::<ArmCoreContext>().unwrap();
+
+        Allocator::free(self, context.sp - 0x1000).unwrap();
     }
 
     fn restore_context(&mut self, context: &dyn CoreContext) {
