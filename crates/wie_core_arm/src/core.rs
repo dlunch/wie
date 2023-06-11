@@ -51,7 +51,10 @@ impl ArmCore {
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .map_err(UnicornError)?;
 
-        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ).map_err(UnicornError)?;
+        uc.mem_map(FUNCTIONS_BASE as u64, 0x1000, Permission::READ | Permission::EXEC)
+            .map_err(UnicornError)?;
+        uc.add_code_hook(FUNCTIONS_BASE as u64, FUNCTIONS_BASE as u64 + 0x1000, |uc, _, _| uc.emu_stop().unwrap())
+            .map_err(UnicornError)?;
 
         uc.reg_write(RegisterARM::CPSR, 0x40000010).map_err(UnicornError)?; // usr32
 
@@ -73,21 +76,15 @@ impl ArmCore {
 
     pub async fn run(&mut self) -> ArmCoreResult<()> {
         let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
-        let result = self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError);
+        self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
 
-        if let Err(err) = &result {
-            if err.0 == uc_error::FETCH_PROT {
-                let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
-                if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
-                    let core: &mut ArmCore = unsafe { core::mem::transmute(self as &mut ArmCore) }; // TODO
+        let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+        if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
+            let core: &mut ArmCore = unsafe { core::mem::transmute(self as &mut ArmCore) }; // TODO
 
-                    let function = self.functions.get(&cur_pc).unwrap();
+            let function = self.functions.get(&cur_pc).unwrap();
 
-                    function.call(core).await?;
-                }
-            } else {
-                result?;
-            }
+            function.call(core).await?;
         }
 
         Ok(())
@@ -108,7 +105,7 @@ impl ArmCore {
         R: ResultWriter<R> + 'static,
         P: 'static,
     {
-        let bytes = [0x00, 0xBE]; // BKPT
+        let bytes = [0x70, 0x47]; // BX LR
         let address = FUNCTIONS_BASE as u64 + (self.functions_count * 2) as u64;
 
         self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
