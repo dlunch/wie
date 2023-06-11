@@ -1,22 +1,25 @@
+mod canvas;
 mod window;
 
-use core::future::Future;
 use std::{
     cell::{Ref, RefCell, RefMut},
+    future::Future,
     rc::Rc,
     string::String,
     vec::Vec,
 };
 
-use wie_base::Module;
+use wie_base::{CanvasHandle, Module};
 
 use crate::{executor::Executor, time::Time};
 
-use self::window::Window;
+use self::{canvas::Canvases, window::Window};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
+    canvases: Rc<RefCell<Canvases>>,
+    screen_canvas: CanvasHandle,
 }
 
 impl Default for Backend {
@@ -27,9 +30,14 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
+        let mut canvases = Canvases::new();
+        let screen_canvas = canvases.new_canvas(320, 480); // TODO hardcoded size
+
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
+            canvases: Rc::new(RefCell::new(canvases)),
+            screen_canvas,
         }
     }
 
@@ -45,6 +53,14 @@ impl Backend {
         (*self.time).borrow()
     }
 
+    pub fn canvases_mut(&self) -> RefMut<'_, Canvases> {
+        (*self.canvases).borrow_mut()
+    }
+
+    pub fn screen_canvas(&self) -> CanvasHandle {
+        self.screen_canvas
+    }
+
     pub fn run<M>(self, module: M) -> anyhow::Result<()>
     where
         M: Module + 'static,
@@ -57,7 +73,7 @@ impl Backend {
         window.run(
             || {},
             move || {
-                Backend::run_task(&mut executor, &self.time(), |module| module.render()).unwrap();
+                Backend::run_task(&mut executor, &self.time(), move |module| module.render(self.screen_canvas)).unwrap();
 
                 executor.tick(&self.time()).unwrap();
             },
@@ -85,6 +101,8 @@ impl Clone for Backend {
         Self {
             resource: self.resource.clone(),
             time: self.time.clone(),
+            canvases: self.canvases.clone(),
+            screen_canvas: self.screen_canvas,
         }
     }
 }

@@ -1,4 +1,5 @@
 use alloc::vec;
+use wie_base::CanvasHandle;
 
 use crate::{
     base::{JavaAccessFlag, JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
@@ -92,7 +93,7 @@ impl Display {
         Ok(())
     }
 
-    async fn paint(context: &mut dyn JavaContext) -> JavaResult<()> {
+    async fn paint(context: &mut dyn JavaContext, canvas_handle: CanvasHandle) -> JavaResult<()> {
         log::trace!("Display::paint");
 
         let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
@@ -106,7 +107,7 @@ impl Display {
         }
 
         let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&graphics, "<init>", "()V", &[]).await?;
+        context.call_method(&graphics, "<init>", "(I)V", &[canvas_handle]).await?;
 
         context
             .call_method(

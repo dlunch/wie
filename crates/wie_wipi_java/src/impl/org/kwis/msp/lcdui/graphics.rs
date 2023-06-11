@@ -1,4 +1,5 @@
 use alloc::vec;
+use wie_base::CanvasHandle;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
@@ -12,7 +13,7 @@ impl Graphics {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init),
+                JavaMethodProto::new("<init>", "(I)V", Self::init),
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect),
@@ -26,8 +27,8 @@ impl Graphics {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub Graphics::<init>({:#x})", instance.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy, canvas_handle: CanvasHandle) -> JavaResult<()> {
+        log::warn!("stub Graphics::<init>({:#x}, {})", instance.ptr_instance, canvas_handle);
 
         Ok(())
     }
