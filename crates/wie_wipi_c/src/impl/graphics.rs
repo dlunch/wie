@@ -32,14 +32,20 @@ fn gen_stub(id: u32) -> CMethodBody {
 async fn get_screen_frame_buffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
     log::debug!("get_screen_frame_buffer({:#x})", a0);
 
-    let framebuffer_data = context.alloc(320 * 480 * 4)?;
+    let (width, height, bytes_per_pixel) = {
+        let backend = context.backend();
+        let mut canvases = backend.canvases_mut();
+        let screen_canvas = canvases.canvas(backend.screen_canvas());
+        (screen_canvas.width(), screen_canvas.height(), screen_canvas.bytes_per_pixel())
+    };
+
+    let framebuffer_data = context.alloc(width * height * bytes_per_pixel)?;
 
     let framebuffer = Framebuffer {
-        // TODO: hardcoded
-        width: 320,
-        height: 480,
-        bpl: 1280,
-        bpp: 32,
+        width,
+        height,
+        bpl: width * bytes_per_pixel,
+        bpp: bytes_per_pixel * 4,
         id: framebuffer_data,
     };
 
