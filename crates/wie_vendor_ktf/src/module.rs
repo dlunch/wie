@@ -26,15 +26,15 @@ impl KtfWipiModule {
         Allocator::init(&mut core)?;
 
         let resource = backend.resource();
-        let data = resource.data(resource.id(filename).unwrap());
+        let data = resource.data(resource.id(filename).ok_or(anyhow::anyhow!("Resource not found"))?);
 
-        let (base_address, bss_size) = Self::load(&mut core, data, filename).unwrap();
+        let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let ptr_main_class_name = Allocator::alloc(&mut core, 20).unwrap(); // TODO size fix
-        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes()).unwrap();
+        let ptr_main_class_name = Allocator::alloc(&mut core, 20)?; // TODO size fix
+        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
-        let entry = core.register_function(Self::do_start, backend).unwrap();
-        let render = core.register_function(Self::do_render, backend).unwrap();
+        let entry = core.register_function(Self::do_start, backend)?;
+        let render = core.register_function(Self::do_render, backend)?;
 
         Ok(Self {
             core,
