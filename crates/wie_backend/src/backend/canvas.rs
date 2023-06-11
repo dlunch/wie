@@ -1,18 +1,34 @@
 use std::collections::HashMap;
 
 pub struct Canvas {
+    width: u32,
+    height: u32,
     buf: Vec<u32>,
 }
 
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
+            width,
+            height,
             buf: vec![0; (width * height) as usize],
         }
     }
 
     pub(crate) fn buffer(&self) -> &[u32] {
         &self.buf
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn bytes_per_pixel(&self) -> u32 {
+        4
     }
 
     pub fn blit(&mut self, buf: &[u32]) {
