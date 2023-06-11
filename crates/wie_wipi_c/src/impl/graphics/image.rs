@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::base::{CContext, CMemoryId};
 
 use super::Framebuffer;
@@ -36,5 +38,13 @@ impl Image {
             current: 0,
             len,
         })
+    }
+
+    pub fn image_width(&self) -> u32 {
+        self.img.width
+    }
+
+    pub fn image_data(&self, context: &mut dyn CContext) -> anyhow::Result<Vec<u32>> {
+        self.img.data(context)
     }
 }

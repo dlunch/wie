@@ -82,7 +82,7 @@ impl Backend {
 
                 let mut canvases = self.canvases_mut();
                 let canvas = canvases.canvas(self.screen_canvas);
-                canvas.copy(buffer);
+                buffer.copy_from_slice(canvas.buffer())
             },
         );
 

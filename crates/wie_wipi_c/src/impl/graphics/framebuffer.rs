@@ -1,15 +1,19 @@
-use alloc::{vec, vec::Vec};
-use core::{mem::forget, slice};
+use alloc::vec::Vec;
+use core::{
+    mem::forget,
+    ops::{Deref, DerefMut},
+    slice,
+};
 
-use wie_backend::CanvasHandle;
+use wie_backend::{Canvas, CanvasHandle};
 
 use crate::base::{CContext, CMemoryId};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Framebuffer {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
     bpl: u32,
     bpp: u32,
     buf: CMemoryId,
@@ -50,10 +54,7 @@ impl Framebuffer {
             let mut canvases = context.backend().canvases_mut();
             let canvas = canvases.canvas(canvas_handle);
 
-            let mut data = vec![0; (canvas.width() * canvas.height()) as usize];
-            canvas.copy(&mut data);
-
-            (canvas.width(), canvas.height(), canvas.bytes_per_pixel(), data)
+            (canvas.width(), canvas.height(), canvas.bytes_per_pixel(), canvas.buffer().to_vec())
         };
 
         let data = unsafe { slice::from_raw_parts(data.as_ptr() as _, data.len() * 4) }; // TODO
@@ -77,5 +78,47 @@ impl Framebuffer {
         forget(raw);
 
         Ok(data)
+    }
+
+    pub fn canvas<'a>(&'a self, context: &'a mut dyn CContext) -> anyhow::Result<FramebufferCanvas<'a>> {
+        let canvas = Canvas::from_raw(self.width, self.height, self.data(context)?);
+
+        Ok(FramebufferCanvas {
+            framebuffer: self,
+            context,
+            canvas,
+        })
+    }
+
+    pub fn write(&self, context: &mut dyn CContext, data: &[u32]) -> anyhow::Result<()> {
+        let data = unsafe { slice::from_raw_parts(data.as_ptr() as _, data.len() * 4) }; // TODO
+
+        context.write_bytes(context.data_ptr(self.buf)?, data)
+    }
+}
+
+pub struct FramebufferCanvas<'a> {
+    framebuffer: &'a Framebuffer,
+    context: &'a mut dyn CContext,
+    canvas: Canvas,
+}
+
+impl Drop for FramebufferCanvas<'_> {
+    fn drop(&mut self) {
+        self.framebuffer.write(self.context, self.canvas.buffer()).unwrap()
+    }
+}
+
+impl Deref for FramebufferCanvas<'_> {
+    type Target = Canvas;
+
+    fn deref(&self) -> &Self::Target {
+        &self.canvas
+    }
+}
+
+impl DerefMut for FramebufferCanvas<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.canvas
     }
 }
