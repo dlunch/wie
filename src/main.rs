@@ -77,7 +77,7 @@ fn main() -> anyhow::Result<()> {
         Some(ArchiveVendor::Ktf {
             module_file_name,
             main_class_name,
-        }) => KtfWipiModule::new(&module_file_name, &main_class_name, backend.clone())?,
+        }) => KtfWipiModule::new(&module_file_name, &main_class_name, &backend)?,
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
 
