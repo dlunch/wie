@@ -25,7 +25,10 @@ impl Display {
                 // private
                 JavaMethodProto::new("paint", "()V", Self::paint),
             ],
-            fields: vec![JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;")],
+            fields: vec![
+                JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;"),
+                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;"),
+            ],
         }
     }
 
@@ -38,19 +41,32 @@ impl Display {
     async fn get_display(context: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::warn!("stub Display::getDisplay({:#x})", a0.ptr_instance);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
+        if display == 0 {
+            let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
+            context.call_method(&instance, "<init>", "()V", &[]).await?;
 
-        Ok(instance)
+            context.put_static_field("org/kwis/msp/lcdui/Display", "display", instance.ptr_instance)?;
+
+            Ok(instance)
+        } else {
+            Ok(JavaObjectProxy::new(display))
+        }
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
         log::warn!("stub Display::getDefaultDisplay");
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        let ptr_instance = context
+            .call_static_method(
+                "org/kwis/msp/lcdui/Display",
+                "getDisplay",
+                "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
+                &[0],
+            )
+            .await?;
 
-        Ok(instance)
+        Ok(JavaObjectProxy::new(ptr_instance))
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
@@ -76,8 +92,30 @@ impl Display {
         Ok(())
     }
 
-    async fn paint(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::warn!("stub Display::paint()");
+    async fn paint(context: &mut dyn JavaContext) -> JavaResult<()> {
+        log::warn!("stub Display::paint");
+
+        let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
+        if display == 0 {
+            return Ok(());
+        }
+
+        let card = context.get_field(&JavaObjectProxy::new(display), "card")?;
+        if card == 0 {
+            return Ok(());
+        }
+
+        let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
+        context.call_method(&graphics, "<init>", "()V", &[]).await?;
+
+        context
+            .call_method(
+                &JavaObjectProxy::new(card),
+                "paint",
+                "(Lorg/kwis/msp/lcdui/Graphics;)V",
+                &[graphics.ptr_instance],
+            )
+            .await?;
 
         Ok(())
     }

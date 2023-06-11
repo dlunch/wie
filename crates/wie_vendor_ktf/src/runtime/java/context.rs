@@ -186,14 +186,6 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy)
     }
 
-    pub async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        log::debug!("Call {}::{}({})", class_name, method_name, signature);
-
-        let ptr_class = self.find_ptr_class(class_name)?;
-
-        self.call_method_inner(ptr_class, method_name, signature, args).await
-    }
-
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
         let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
@@ -543,6 +535,14 @@ impl JavaContext for KtfJavaContext<'_> {
         self.call_method_inner(instance.ptr_class, name, signature, &params).await
     }
 
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
+        log::debug!("Call {}::{}({})", class_name, method_name, signature);
+
+        let ptr_class = self.find_ptr_class(class_name)?;
+
+        self.call_method_inner(ptr_class, method_name, signature, args).await
+    }
+
     fn backend(&mut self) -> &mut Backend {
         self.backend
     }
@@ -559,6 +559,14 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
+    }
+
+    fn get_static_field(&mut self, _class_name: &str, _field_name: &str) -> JavaResult<u32> {
+        Ok(0) // TODO
+    }
+
+    fn put_static_field(&mut self, _class_name: &str, _field_name: &str, _value: u32) -> JavaResult<()> {
+        Ok(()) // TODO
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {

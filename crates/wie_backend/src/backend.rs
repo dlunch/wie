@@ -46,14 +46,14 @@ impl Backend {
     }
 
     pub fn run(self, mut executor: Executor) -> anyhow::Result<()> {
-        Backend::spawn(&mut executor, |module| module.start());
+        Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
         let window = Window::new();
 
         window.run(
             || {},
             move || {
-                Backend::spawn(&mut executor, |module| module.render()); // TODO do we have to wait until end?
+                Backend::run_task(&mut executor, &self.time(), |module| module.render()).unwrap();
 
                 executor.tick(&self.time()).unwrap();
             },
@@ -62,17 +62,17 @@ impl Backend {
         Ok(())
     }
 
-    fn spawn<F, Fut>(executor: &mut Executor, f: F)
+    fn run_task<F, Fut>(executor: &mut Executor, time: &Time, f: F) -> anyhow::Result<()>
     where
         F: FnOnce(&mut dyn Module) -> Fut + 'static,
         Fut: Future<Output = anyhow::Result<()>> + 'static,
     {
-        executor.spawn(|| {
+        executor.run(time, || {
             let executor = Executor::current();
             let mut module = executor.module_mut();
 
             f(module.as_mut())
-        });
+        })
     }
 }
 
