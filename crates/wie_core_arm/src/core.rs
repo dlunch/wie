@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
-use core::{fmt::Debug, future::Future, marker::PhantomData};
+use core::{fmt::Debug, future::Future};
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
@@ -14,7 +14,7 @@ use wie_base::{
 
 use crate::{
     context::ArmCoreContext,
-    function::EmulatedFunction,
+    function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
     future::{RunFunctionFuture, RunFunctionResult},
     Allocator,
 };
@@ -350,74 +350,6 @@ impl ByteWrite for ArmCore {
         log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
 
         self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
-
-        Ok(())
-    }
-}
-
-pub trait ResultWriter<R> {
-    fn write(core: &mut ArmCore, value: R, lr: u32) -> anyhow::Result<()>;
-}
-
-impl ResultWriter<u32> for u32 {
-    fn write(core: &mut ArmCore, value: u32, lr: u32) -> anyhow::Result<()> {
-        core.uc.reg_write(RegisterARM::R0, value as u64).map_err(UnicornError)?;
-        core.uc.reg_write(RegisterARM::PC, lr as u64).map_err(UnicornError)?;
-
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait(?Send)]
-trait RegisteredFunction {
-    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()>;
-}
-
-struct RegisteredFunctionHolder<F, P, E, C, R>
-where
-    F: EmulatedFunction<P, E, C, R> + 'static,
-    E: Debug,
-    C: Clone + 'static,
-    R: ResultWriter<R>,
-{
-    function: Box<F>,
-    context: C,
-    _phantom: PhantomData<(P, E, C, R)>,
-}
-
-impl<F, P, E, C, R> RegisteredFunctionHolder<F, P, E, C, R>
-where
-    F: EmulatedFunction<P, E, C, R> + 'static,
-    E: Debug,
-    C: Clone + 'static,
-    R: ResultWriter<R>,
-{
-    pub fn new(function: F, context: &C) -> Self {
-        Self {
-            function: Box::new(function),
-            context: context.clone(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-#[async_trait::async_trait(?Send)]
-impl<F, P, E, C, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, C, R>
-where
-    F: EmulatedFunction<P, E, C, R> + 'static,
-    E: Debug,
-    C: Clone + 'static,
-    R: ResultWriter<R>,
-{
-    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
-        let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
-        let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
-        log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
-
-        let mut new_context = self.context.clone();
-
-        let result = self.function.call(core, &mut new_context).await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
-        R::write(core, result, lr)?;
 
         Ok(())
     }
