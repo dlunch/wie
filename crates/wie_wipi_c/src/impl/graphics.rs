@@ -1,10 +1,9 @@
-use alloc::{vec, vec::Vec};
-use core::{
-    mem::{forget, size_of},
-    slice,
-};
+mod framebuffer;
+mod image;
 
-use wie_backend::CanvasHandle;
+use alloc::{vec, vec::Vec};
+use core::mem::size_of;
+
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
@@ -12,113 +11,7 @@ use crate::{
     method::MethodImpl,
 };
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct Framebuffer {
-    width: u32,
-    height: u32,
-    bpl: u32,
-    bpp: u32,
-    buf: CMemoryId,
-}
-
-impl Framebuffer {
-    pub fn from_compatible_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
-        let (width, height, bytes_per_pixel) = {
-            let mut canvases = context.backend().canvases_mut();
-            let canvas = canvases.canvas(canvas_handle);
-
-            (canvas.width(), canvas.height(), canvas.bytes_per_pixel())
-        };
-
-        let buf = context.alloc(width * height * bytes_per_pixel)?;
-
-        Ok(Self {
-            width,
-            height,
-            bpl: width * bytes_per_pixel,
-            bpp: bytes_per_pixel * 8,
-            buf,
-        })
-    }
-
-    pub fn from_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
-        let (width, height, bytes_per_pixel, data) = {
-            let mut canvases = context.backend().canvases_mut();
-            let canvas = canvases.canvas(canvas_handle);
-
-            let mut data = vec![0; (canvas.width() * canvas.height()) as usize];
-            canvas.copy(&mut data);
-
-            (canvas.width(), canvas.height(), canvas.bytes_per_pixel(), data)
-        };
-
-        let data = unsafe { slice::from_raw_parts(data.as_ptr() as _, data.len() * 4) }; // TODO
-        let buf = context.alloc(width * height * bytes_per_pixel)?;
-        context.write_bytes(context.data_ptr(buf)?, data)?;
-
-        Ok(Self {
-            width,
-            height,
-            bpl: width * bytes_per_pixel,
-            bpp: bytes_per_pixel * 8,
-            buf,
-        })
-    }
-
-    pub fn data(&self, context: &dyn CContext) -> anyhow::Result<Vec<u32>> {
-        let mut raw = context.read_bytes(context.data_ptr(self.buf)?, self.width * self.height * self.bpp / 8)?;
-
-        // TODO
-        let data = unsafe { Vec::from_raw_parts(raw.as_mut_ptr() as _, raw.len() / 4, raw.capacity() / 4) };
-        forget(raw);
-
-        Ok(data)
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct Image {
-    img: Framebuffer,
-    mask: Framebuffer,
-    loop_count: u32,
-    delay: u32,
-    animated: u32,
-    buf: CMemoryId,
-    offset: u32,
-    current: u32,
-    len: u32,
-}
-
-impl Image {
-    pub fn new(context: &mut dyn CContext, buf: CMemoryId, offset: u32, len: u32) -> anyhow::Result<Self> {
-        let ptr_image_data = context.data_ptr(buf)?;
-        let data = context.read_bytes(ptr_image_data + offset, len)?;
-        let canvas_handle = context.backend().canvases_mut().new_canvas_from_image(&data)?;
-
-        let img_framebuffer = Framebuffer::from_canvas(context, canvas_handle)?;
-        let mask_framebuffer = Framebuffer {
-            width: 0,
-            height: 0,
-            bpl: 0,
-            bpp: 0,
-            buf: CMemoryId(0),
-        };
-
-        Ok(Self {
-            img: img_framebuffer,
-            mask: mask_framebuffer,
-            loop_count: 0,
-            delay: 0,
-            animated: 0,
-            buf,
-            offset,
-            current: 0,
-            len,
-        })
-    }
-}
+use self::{framebuffer::Framebuffer, image::Image};
 
 fn gen_stub(id: u32) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move {
