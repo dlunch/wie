@@ -49,7 +49,7 @@ impl Executor {
         }
     }
 
-    pub fn spawn<F, Fut, E, R>(&mut self, f: F)
+    pub fn spawn<F, Fut, E, R>(&mut self, f: F) -> usize
     where
         F: FnOnce() -> Fut + 'static,
         E: Debug,
@@ -71,6 +71,8 @@ impl Executor {
         };
 
         self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut), context });
+
+        task_id
     }
 
     pub fn current() -> Executor {
@@ -103,6 +105,34 @@ impl Executor {
             }
 
             self.step(now)?;
+        }
+
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().take();
+        });
+
+        Ok(())
+    }
+
+    pub fn run<F, Fut, E, R>(&mut self, time: &Time, f: F) -> anyhow::Result<()>
+    where
+        F: FnOnce() -> Fut + 'static,
+        E: Debug,
+        Fut: Future<Output = Result<R, E>> + 'static,
+    {
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().replace(self.inner.clone());
+        });
+
+        let task_id = self.spawn(f);
+
+        loop {
+            let now = time.now();
+            self.step(now)?;
+
+            if !self.inner.borrow().tasks.contains_key(&task_id) {
+                break;
+            }
         }
 
         EXECUTOR_INNER.with(|f| {

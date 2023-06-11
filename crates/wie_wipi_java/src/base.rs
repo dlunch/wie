@@ -56,8 +56,11 @@ pub trait JavaContext {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy>;
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy>;
     async fn call_method(&mut self, instance: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32>;
     fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()>;
+    fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32>;
+    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()>;
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
