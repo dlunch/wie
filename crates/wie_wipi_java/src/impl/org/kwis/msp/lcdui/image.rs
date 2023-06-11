@@ -39,7 +39,7 @@ impl Image {
         log::warn!("stub Image::get_graphics");
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        context.call_method(&instance, "<init>", "(I)V", &[0]).await?;
 
         Ok(instance)
     }
