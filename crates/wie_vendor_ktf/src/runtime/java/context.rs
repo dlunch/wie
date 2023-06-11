@@ -243,7 +243,9 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
-        let (class, _, _) = self.read_ptr_class(ptr_class)?;
+        let (class, _, class_name) = self.read_ptr_class(ptr_class)?;
+
+        log::trace!("get_vtable_index {} {:#x} {:#x}", class_name, ptr_class, class.ptr_vtable);
 
         let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
 
