@@ -32,7 +32,7 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new<M>(module: M) -> Self
+    pub(crate) fn new<M>(module: M) -> Self
     where
         M: Module + 'static,
     {
