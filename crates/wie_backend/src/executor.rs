@@ -103,6 +103,11 @@ impl Executor {
                 break;
             }
 
+            let running_task_count = self.inner.borrow().tasks.len() - self.inner.borrow().sleeping_tasks.len();
+            if running_task_count == 0 {
+                break;
+            }
+
             self.step(now)?;
         }
 
