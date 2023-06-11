@@ -14,6 +14,10 @@ impl Canvas {
     pub(crate) fn buffer(&self) -> &[u32] {
         &self.buf
     }
+
+    pub fn blit(&mut self, buf: &[u32]) {
+        self.buf.copy_from_slice(buf);
+    }
 }
 
 pub type CanvasHandle = u32;

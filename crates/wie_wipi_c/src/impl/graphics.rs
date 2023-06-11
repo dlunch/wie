@@ -2,7 +2,7 @@ use alloc::{vec, vec::Vec};
 
 use core::mem::size_of;
 
-use wie_base::util::write_generic;
+use wie_base::util::{read_generic, write_generic};
 
 use crate::{
     base::{CContext, CMemoryId, CMethodBody, CResult},
@@ -10,6 +10,7 @@ use crate::{
 };
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 struct Framebuffer {
     width: u32,
     height: u32,
@@ -62,6 +63,25 @@ async fn create_image(context: &mut dyn CContext, ptr_image: u32, memory: CMemor
     Ok(0)
 }
 
+async fn flush(context: &mut dyn CContext, a0: u32, ptr_frame_buffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
+    log::warn!("flush({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", a0, ptr_frame_buffer.0, a2, a3, a4, a5);
+
+    let frame_buffer: Framebuffer = read_generic(context, context.data_ptr(ptr_frame_buffer)?)?;
+
+    let ptr_framebuffer_data = context.data_ptr(frame_buffer.id)?;
+    let framebuffer_data = context.read_bytes(ptr_framebuffer_data, frame_buffer.width * frame_buffer.height * 4)?;
+
+    let framebuffer_data = unsafe { core::slice::from_raw_parts(framebuffer_data.as_ptr() as *const u32, framebuffer_data.len() / 4) }; // TODO
+
+    let backend = context.backend();
+    let mut canvases = backend.canvases_mut();
+    let screen_canvas = canvases.canvas(backend.screen_canvas());
+
+    screen_canvas.blit(framebuffer_data);
+
+    Ok(0)
+}
+
 pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
         gen_stub(0),
@@ -85,7 +105,7 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         gen_stub(18),
         gen_stub(19),
         gen_stub(20),
-        gen_stub(21),
+        flush.into_body(),
         gen_stub(22),
         gen_stub(23),
         get_display_info.into_body(),
