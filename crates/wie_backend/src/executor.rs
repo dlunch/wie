@@ -105,7 +105,10 @@ impl Executor {
 
             let running_task_count = self.inner.borrow().tasks.len() - self.inner.borrow().sleeping_tasks.len();
             if running_task_count == 0 {
-                break;
+                let next_wakeup = *self.inner.borrow().sleeping_tasks.values().min().unwrap();
+                if now < next_wakeup {
+                    break;
+                }
             }
 
             self.step(now)?;
