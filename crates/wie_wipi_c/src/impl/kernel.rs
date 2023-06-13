@@ -1,12 +1,25 @@
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::iter;
 
-use wie_base::util::write_generic;
+use wie_base::util::{read_generic, write_generic};
 
 use crate::{
     base::{CContext, CError, CMemoryId, CMethodBody, CResult},
-    method::MethodImpl,
+    method::{MethodBody, MethodImpl},
 };
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Timer {
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    time: u64,
+
+    param: u32,
+    unk4: u32,
+    fn_callback: u32,
+}
 
 fn gen_stub(id: u32) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move {
@@ -24,10 +37,59 @@ async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
     Ok(context.backend().time().now().raw() as u32)
 }
 
-async fn def_timer(_: &mut dyn CContext, a0: u32, a1: u32) -> CResult<()> {
-    log::warn!("stub MC_knlDefTimer({:#x}, {:#x})", a0, a1);
+async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32) -> CResult<()> {
+    log::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
+
+    let timer = Timer {
+        unk1: 0,
+        unk2: 0,
+        unk3: 0,
+        time: 0,
+        param: 0,
+        unk4: 0,
+        fn_callback,
+    };
+
+    write_generic(context, ptr_timer, timer)?;
 
     Ok(())
+}
+
+async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32, timeout_high: u32, param: u32) -> CResult<()> {
+    log::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_high, timeout_low, param);
+
+    let timer: Timer = read_generic(context, ptr_timer)?;
+
+    context.spawn(Box::new(TimerCallback {
+        timer,
+        timeout: ((timeout_high as u64) << 32) | (timeout_low as u64),
+        param,
+    }))?;
+
+    Ok(())
+}
+
+struct TimerCallback {
+    timer: Timer,
+    timeout: u64,
+    param: u32,
+}
+
+#[async_trait::async_trait(?Send)]
+impl MethodBody<CError> for TimerCallback {
+    async fn call(&self, context: &mut dyn CContext, _: &[u32]) -> Result<u32, CError> {
+        context.sleep(self.timeout).await;
+
+        context.call_method(self.timer.fn_callback, &[self.param]).await?;
+
+        Ok(0)
+    }
+}
+
+async fn unset_timer(_: &mut dyn CContext, a0: u32) -> CResult<()> {
+    log::warn!("stub MC_knlUnsetTimer({:#x})", a0);
+
+    todo!();
 }
 
 async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
@@ -79,7 +141,7 @@ async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_s
         return Ok(-1);
     }
 
-    let data = context.backend().resource().data(id).to_vec(); // TODO: can we avoid to_vec()?
+    let data = context.backend().clone().resource().data(id).to_vec(); // TODO: can we avoid to_vec()?
 
     context.write_bytes(context.data_ptr(buf)?, &data)?;
 
@@ -117,8 +179,8 @@ where
         gen_stub(23),
         gen_stub(24),
         def_timer.into_body(),
-        gen_stub(26),
-        gen_stub(27),
+        set_timer.into_body(),
+        unset_timer.into_body(),
         current_time.into_body(),
         gen_stub(29),
         gen_stub(30),

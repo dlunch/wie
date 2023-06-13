@@ -1,6 +1,9 @@
 use alloc::{boxed::Box, vec::Vec};
 
-use wie_backend::Backend;
+use wie_backend::{
+    task::{self, SleepFuture},
+    Backend, Executor,
+};
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
 use wie_wipi_c::{CContext, CMemoryId, CMethodBody, CResult};
@@ -16,6 +19,7 @@ impl<'a> KtfCContext<'a> {
     }
 }
 
+#[async_trait::async_trait(?Send)]
 impl CContext for KtfCContext<'_> {
     fn alloc_raw(&mut self, size: u32) -> CResult<u32> {
         Allocator::alloc(self.core, size)
@@ -46,6 +50,29 @@ impl CContext for KtfCContext<'_> {
 
     fn backend(&mut self) -> &mut Backend {
         self.backend
+    }
+
+    async fn call_method(&mut self, address: u32, args: &[u32]) -> CResult<u32> {
+        self.core.run_function(address, args).await
+    }
+
+    fn spawn(&mut self, callback: CMethodBody) -> CResult<()> {
+        let entry = self.core.register_function(CMethodProxy::new(callback), self.backend)?;
+        task::spawn(move || {
+            let executor: Executor = Executor::current();
+            let mut module = executor.module_mut();
+            let core = module.core_mut().as_any_mut().downcast_mut::<ArmCore>().unwrap();
+
+            core.run_function::<()>(entry, &[])
+        });
+
+        Ok(())
+    }
+
+    fn sleep(&mut self, duration: u64) -> SleepFuture {
+        let until = self.backend.time().now() + duration;
+
+        task::sleep(until)
     }
 }
 
