@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String};
 
-use wie_backend::Backend;
+use wie_backend::{task::SleepFuture, Backend};
 use wie_base::util::{read_null_terminated_string, ByteRead, ByteWrite};
 
 use crate::method::{MethodBody, TypeConverter};
@@ -13,13 +13,17 @@ pub type CMethodBody = Box<dyn MethodBody<CError>>;
 #[derive(Clone, Copy)]
 pub struct CMemoryId(pub u32);
 
+#[async_trait::async_trait(?Send)]
 pub trait CContext: ByteRead + ByteWrite {
     fn alloc_raw(&mut self, size: u32) -> CResult<u32>;
     fn alloc(&mut self, size: u32) -> CResult<CMemoryId>;
     fn free(&mut self, memory: CMemoryId) -> CResult<()>;
     fn data_ptr(&self, memory: CMemoryId) -> CResult<u32>;
     fn register_function(&mut self, method: CMethodBody) -> CResult<u32>;
+    async fn call_method(&mut self, address: u32, args: &[u32]) -> CResult<u32>;
     fn backend(&mut self) -> &mut Backend;
+    fn spawn(&mut self, callback: CMethodBody) -> CResult<()>;
+    fn sleep(&mut self, duration: u64) -> SleepFuture;
 }
 
 impl TypeConverter<u32> for u32 {
