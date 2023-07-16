@@ -25,6 +25,23 @@ pub struct ExecutorInner {
     last_task_id: usize,
 }
 
+#[async_trait::async_trait(?Send)]
+pub trait AsyncCallable<R, E> {
+    async fn call(self) -> Result<R, E>;
+}
+
+#[async_trait::async_trait(?Send)]
+impl<F, R, E, Fut> AsyncCallable<R, E> for F
+where
+    F: FnOnce() -> Fut + 'static,
+    E: Debug,
+    Fut: Future<Output = Result<R, E>> + 'static,
+{
+    async fn call(self) -> Result<R, E> {
+        self().await
+    }
+}
+
 // We abuse rust async to implement generator.
 // CoreExecutor polls future even it's pending state, to make generator future to be able to continue.
 pub struct Executor {
@@ -49,17 +66,16 @@ impl Executor {
         }
     }
 
-    pub fn spawn<F, Fut, E, R>(&mut self, f: F) -> usize
+    pub fn spawn<C, R, E>(&mut self, callable: C) -> usize
     where
-        F: FnOnce() -> Fut + 'static,
+        C: AsyncCallable<R, E> + 'static,
         E: Debug,
-        Fut: Future<Output = Result<R, E>> + 'static,
     {
         let context = self.inner.borrow_mut().module.core_mut().new_context();
 
         let context1 = context.clone();
         let fut = async move {
-            f().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+            callable.call().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
             Executor::current().module_mut().core_mut().free_context(context1);
 
             Ok::<(), anyhow::Error>(())
@@ -117,15 +133,14 @@ impl Executor {
         Ok(())
     }
 
-    pub fn run<F, Fut, E, R>(&mut self, time: &Time, f: F) -> anyhow::Result<()>
+    pub fn run<C, R, E>(&mut self, time: &Time, callable: C) -> anyhow::Result<()>
     where
-        F: FnOnce() -> Fut + 'static,
+        C: AsyncCallable<R, E> + 'static,
         E: Debug,
-        Fut: Future<Output = Result<R, E>> + 'static,
     {
         let _guard = ExecutorGuard::new(self.inner.clone());
 
-        let task_id = self.spawn(f);
+        let task_id = self.spawn(callable);
 
         loop {
             let now = time.now();

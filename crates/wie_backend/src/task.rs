@@ -5,7 +5,10 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{executor::Executor, time::Instant};
+use crate::{
+    executor::{AsyncCallable, Executor},
+    time::Instant,
+};
 
 pub fn sleep(until: Instant) -> SleepFuture {
     SleepFuture::new(until)
@@ -15,14 +18,13 @@ pub fn yield_now() -> YieldFuture {
     YieldFuture {}
 }
 
-pub fn spawn<F, Fut, E, R>(f: F)
+pub fn spawn<C, R, E>(callable: C)
 where
-    F: Fn() -> Fut + 'static,
+    C: AsyncCallable<R, E> + 'static,
     E: Debug,
-    Fut: Future<Output = Result<R, E>> + 'static,
 {
     let mut executor = Executor::current();
-    executor.spawn(f);
+    executor.spawn(callable);
 }
 
 pub struct YieldFuture {}
