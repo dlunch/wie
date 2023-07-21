@@ -196,8 +196,8 @@ impl Executor {
             self.inner.borrow_mut().current_task_id = None;
         }
 
-        self.inner.borrow_mut().sleeping_tasks.extend(sleeping_tasks.into_iter());
-        self.inner.borrow_mut().tasks.extend(next_tasks.into_iter());
+        self.inner.borrow_mut().sleeping_tasks.extend(sleeping_tasks);
+        self.inner.borrow_mut().tasks.extend(next_tasks);
 
         Ok(())
     }
