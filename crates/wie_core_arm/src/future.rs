@@ -100,8 +100,7 @@ where
 
             Poll::Ready(Ok(result))
         } else {
-            let core1: &mut ArmCore = unsafe { core::mem::transmute(core as &mut ArmCore) }; // TODO
-            let fut = core1.run();
+            let fut = core.clone().run();
             self.waiting_fut = Some(fut.boxed_local());
 
             Poll::Pending
