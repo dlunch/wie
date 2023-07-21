@@ -87,7 +87,7 @@ impl ArmCore {
     }
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-    pub async fn run(&mut self) -> ArmCoreResult<()> {
+    pub async fn run(self) -> ArmCoreResult<()> {
         let mut inner = self.inner.borrow_mut();
 
         let pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
