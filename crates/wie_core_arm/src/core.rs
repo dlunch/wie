@@ -1,5 +1,5 @@
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
-use core::{fmt::Debug, future::Future};
+use alloc::{boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
+use core::{cell::RefCell, fmt::Debug, future::Future};
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
@@ -8,7 +8,7 @@ use unicorn_engine::{
 };
 
 use wie_base::{
-    util::{round_up, ByteRead, ByteWrite},
+    util::{read_generic, round_up, ByteRead, ByteWrite},
     Core, CoreContext,
 };
 
@@ -37,10 +37,15 @@ impl From<UnicornError> for anyhow::Error {
 pub type ArmCoreError = anyhow::Error;
 pub type ArmCoreResult<T> = anyhow::Result<T>;
 
-pub struct ArmCore {
-    pub(crate) uc: Unicorn<'static, ()>,
-    functions: BTreeMap<u32, Box<dyn RegisteredFunction>>,
+struct ArmCoreInner {
+    uc: Unicorn<'static, ()>,
+    functions: BTreeMap<u32, Rc<Box<dyn RegisteredFunction>>>,
     functions_count: usize,
+}
+
+#[derive(Clone)]
+pub struct ArmCore {
+    inner: Rc<RefCell<ArmCoreInner>>,
 }
 
 impl ArmCore {
@@ -58,33 +63,46 @@ impl ArmCore {
 
         uc.reg_write(RegisterARM::CPSR, 0x40000010).map_err(UnicornError)?; // usr32
 
-        Ok(Self {
+        let inner = ArmCoreInner {
             uc,
             functions: BTreeMap::new(),
             functions_count: 0,
+        };
+
+        Ok(Self {
+            inner: Rc::new(RefCell::new(inner)),
         })
     }
 
     pub fn load(&mut self, data: &[u8], map_size: usize) -> ArmCoreResult<u32> {
-        self.uc
+        let mut inner = self.inner.borrow_mut();
+
+        inner
+            .uc
             .mem_map(IMAGE_BASE as u64, round_up(map_size, 0x1000), Permission::ALL)
             .map_err(UnicornError)?;
-        self.uc.mem_write(IMAGE_BASE as u64, data).map_err(UnicornError)?;
+        inner.uc.mem_write(IMAGE_BASE as u64, data).map_err(UnicornError)?;
 
         Ok(IMAGE_BASE)
     }
 
+    #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
     pub async fn run(&mut self) -> ArmCoreResult<()> {
-        let pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
-        self.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
+        let mut inner = self.inner.borrow_mut();
 
-        let cur_pc = self.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+        let pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
+        inner.uc.emu_start(pc as u64, RUN_FUNCTION_LR as u64, 0, 0).map_err(UnicornError)?;
+
+        let cur_pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+
         if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
-            let core: &mut ArmCore = unsafe { core::mem::transmute(self as &mut ArmCore) }; // TODO
+            let mut self1 = self.clone();
 
-            let function = self.functions.get(&cur_pc).unwrap();
+            let function = inner.functions.get(&cur_pc).unwrap().clone();
 
-            function.call(core).await?;
+            core::mem::drop(inner);
+
+            function.call(&mut self1).await?;
         }
 
         Ok(())
@@ -105,15 +123,17 @@ impl ArmCore {
         R: ResultWriter<R> + 'static,
         P: 'static,
     {
-        let bytes = [0x70, 0x47]; // BX LR
-        let address = FUNCTIONS_BASE as u64 + (self.functions_count * 2) as u64;
+        let mut inner = self.inner.borrow_mut();
 
-        self.uc.mem_write(address, &bytes).map_err(UnicornError)?;
+        let bytes = [0x70, 0x47]; // BX LR
+        let address = FUNCTIONS_BASE as u64 + (inner.functions_count * 2) as u64;
+
+        inner.uc.mem_write(address, &bytes).map_err(UnicornError)?;
 
         let callback = RegisteredFunctionHolder::new(function, context);
 
-        self.functions.insert(address as u32, Box::new(callback));
-        self.functions_count += 1;
+        inner.functions.insert(address as u32, Rc::new(Box::new(callback)));
+        inner.functions_count += 1;
 
         log::trace!("Register function at {:#x}", address);
 
@@ -123,7 +143,10 @@ impl ArmCore {
     pub fn map(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
         log::trace!("Map address: {:#x}, size: {:#x}", address, size);
 
-        self.uc
+        let mut inner = self.inner.borrow_mut();
+
+        inner
+            .uc
             .mem_map(address as u64, size as usize, Permission::READ | Permission::WRITE)
             .map_err(UnicornError)?;
 
@@ -131,20 +154,64 @@ impl ArmCore {
     }
 
     pub fn dump_regs(&self) -> ArmCoreResult<String> {
-        Self::dump_regs_inner(&self.uc)
+        let inner = self.inner.borrow();
+
+        Self::dump_regs_inner(&inner.uc)
     }
 
     pub fn dump_stack(&self) -> ArmCoreResult<String> {
-        let sp = self.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
+        let inner = self.inner.borrow();
+
+        let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
 
         let mut result = String::new();
 
         for i in 0..16 {
             let address = sp + (i * 4);
-            let value = self.uc.mem_read_as_vec(address, 4).map_err(UnicornError)?;
+            let value = inner.uc.mem_read_as_vec(address, 4).map_err(UnicornError)?;
 
             result += &format!("SP+{:#x}: {:#x}\n", i * 4, u32::from_le_bytes(value.try_into().unwrap()));
         }
+
+        Ok(result)
+    }
+
+    pub(crate) fn read_pc_lr(&self) -> ArmCoreResult<(u32, u32)> {
+        let inner = self.inner.borrow();
+
+        let lr = inner.uc.reg_read(RegisterARM::LR).map_err(UnicornError)? as u32;
+        let pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32;
+
+        Ok((pc, lr))
+    }
+
+    pub(crate) fn write_result(&mut self, result: u32, lr: u32) -> ArmCoreResult<()> {
+        let mut inner = self.inner.borrow_mut();
+
+        inner.uc.reg_write(RegisterARM::R0, result as u64).map_err(UnicornError)?;
+        inner.uc.reg_write(RegisterARM::PC, lr as u64).map_err(UnicornError)?;
+
+        Ok(())
+    }
+
+    pub(crate) fn read_param(&self, pos: usize) -> ArmCoreResult<u32> {
+        let inner = self.inner.borrow();
+
+        let result = if pos == 0 {
+            inner.uc.reg_read(RegisterARM::R0).map_err(UnicornError)? as u32
+        } else if pos == 1 {
+            inner.uc.reg_read(RegisterARM::R1).map_err(UnicornError)? as u32
+        } else if pos == 2 {
+            inner.uc.reg_read(RegisterARM::R2).map_err(UnicornError)? as u32
+        } else if pos == 3 {
+            inner.uc.reg_read(RegisterARM::R3).map_err(UnicornError)? as u32
+        } else {
+            let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)? as u32;
+
+            core::mem::drop(inner);
+
+            read_generic(self, sp + 4 * (pos as u32 - 4))?
+        };
 
         Ok(result)
     }
@@ -286,44 +353,47 @@ impl Core for ArmCore {
     }
 
     fn restore_context(&mut self, context: &dyn CoreContext) {
+        let mut inner = self.inner.borrow_mut();
         let context = context.as_any().downcast_ref::<ArmCoreContext>().unwrap();
 
-        self.uc.reg_write(RegisterARM::R0, context.r0 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R1, context.r1 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R2, context.r2 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R3, context.r3 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R4, context.r4 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R5, context.r5 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R6, context.r6 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R7, context.r7 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::R8, context.r8 as u64).unwrap();
-        self.uc.reg_write(RegisterARM::SB, context.sb as u64).unwrap();
-        self.uc.reg_write(RegisterARM::SL, context.sl as u64).unwrap();
-        self.uc.reg_write(RegisterARM::FP, context.fp as u64).unwrap();
-        self.uc.reg_write(RegisterARM::IP, context.ip as u64).unwrap();
-        self.uc.reg_write(RegisterARM::SP, context.sp as u64).unwrap();
-        self.uc.reg_write(RegisterARM::LR, context.lr as u64).unwrap();
-        self.uc.reg_write(RegisterARM::PC, context.pc as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R0, context.r0 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R1, context.r1 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R2, context.r2 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R3, context.r3 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R4, context.r4 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R5, context.r5 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R6, context.r6 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R7, context.r7 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::R8, context.r8 as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::SB, context.sb as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::SL, context.sl as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::FP, context.fp as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::IP, context.ip as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::SP, context.sp as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::LR, context.lr as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::PC, context.pc as u64).unwrap();
     }
 
     fn save_context(&self) -> Box<dyn CoreContext> {
+        let inner = self.inner.borrow();
+
         Box::new(ArmCoreContext {
-            r0: self.uc.reg_read(RegisterARM::R0).unwrap() as u32,
-            r1: self.uc.reg_read(RegisterARM::R1).unwrap() as u32,
-            r2: self.uc.reg_read(RegisterARM::R2).unwrap() as u32,
-            r3: self.uc.reg_read(RegisterARM::R3).unwrap() as u32,
-            r4: self.uc.reg_read(RegisterARM::R4).unwrap() as u32,
-            r5: self.uc.reg_read(RegisterARM::R5).unwrap() as u32,
-            r6: self.uc.reg_read(RegisterARM::R6).unwrap() as u32,
-            r7: self.uc.reg_read(RegisterARM::R7).unwrap() as u32,
-            r8: self.uc.reg_read(RegisterARM::R8).unwrap() as u32,
-            sb: self.uc.reg_read(RegisterARM::SB).unwrap() as u32,
-            sl: self.uc.reg_read(RegisterARM::SL).unwrap() as u32,
-            fp: self.uc.reg_read(RegisterARM::FP).unwrap() as u32,
-            ip: self.uc.reg_read(RegisterARM::IP).unwrap() as u32,
-            sp: self.uc.reg_read(RegisterARM::SP).unwrap() as u32,
-            lr: self.uc.reg_read(RegisterARM::LR).unwrap() as u32,
-            pc: self.uc.reg_read(RegisterARM::PC).unwrap() as u32,
+            r0: inner.uc.reg_read(RegisterARM::R0).unwrap() as u32,
+            r1: inner.uc.reg_read(RegisterARM::R1).unwrap() as u32,
+            r2: inner.uc.reg_read(RegisterARM::R2).unwrap() as u32,
+            r3: inner.uc.reg_read(RegisterARM::R3).unwrap() as u32,
+            r4: inner.uc.reg_read(RegisterARM::R4).unwrap() as u32,
+            r5: inner.uc.reg_read(RegisterARM::R5).unwrap() as u32,
+            r6: inner.uc.reg_read(RegisterARM::R6).unwrap() as u32,
+            r7: inner.uc.reg_read(RegisterARM::R7).unwrap() as u32,
+            r8: inner.uc.reg_read(RegisterARM::R8).unwrap() as u32,
+            sb: inner.uc.reg_read(RegisterARM::SB).unwrap() as u32,
+            sl: inner.uc.reg_read(RegisterARM::SL).unwrap() as u32,
+            fp: inner.uc.reg_read(RegisterARM::FP).unwrap() as u32,
+            ip: inner.uc.reg_read(RegisterARM::IP).unwrap() as u32,
+            sp: inner.uc.reg_read(RegisterARM::SP).unwrap() as u32,
+            lr: inner.uc.reg_read(RegisterARM::LR).unwrap() as u32,
+            pc: inner.uc.reg_read(RegisterARM::PC).unwrap() as u32,
         })
     }
 
@@ -334,7 +404,9 @@ impl Core for ArmCore {
 
 impl ByteRead for ArmCore {
     fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
-        let data = self.uc.mem_read_as_vec(address as u64, size as usize).map_err(UnicornError)?;
+        let inner = self.inner.borrow();
+
+        let data = inner.uc.mem_read_as_vec(address as u64, size as usize).map_err(UnicornError)?;
 
         log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
 
@@ -345,8 +417,9 @@ impl ByteRead for ArmCore {
 impl ByteWrite for ArmCore {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
         log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
+        let mut inner = self.inner.borrow_mut();
 
-        self.uc.mem_write(address as u64, data).map_err(UnicornError)?;
+        inner.uc.mem_write(address as u64, data).map_err(UnicornError)?;
 
         Ok(())
     }

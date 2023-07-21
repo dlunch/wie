@@ -6,10 +6,9 @@ use core::{
 };
 
 use futures::{future::LocalBoxFuture, FutureExt};
-use unicorn_engine::RegisterARM;
 
 use wie_backend::Executor;
-use wie_base::Core;
+use wie_base::{util::ByteWrite, Core};
 
 use crate::{
     context::ArmCoreContext,
@@ -58,7 +57,7 @@ where
         if params.len() > 4 {
             for param in params[4..].iter() {
                 context.sp -= 4;
-                core.uc.mem_write(context.sp as u64, &param.to_le_bytes()).unwrap();
+                core.write_bytes(context.sp, &param.to_le_bytes()).unwrap();
             }
         }
 
@@ -93,7 +92,7 @@ where
         let mut module = executor.module_mut();
         let core = module.core_mut().as_any_mut().downcast_mut::<ArmCore>().unwrap();
 
-        let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
+        let (pc, _) = core.read_pc_lr().unwrap();
 
         if pc == RUN_FUNCTION_LR {
             let result = R::get(core);
@@ -113,12 +112,12 @@ where
 impl<R> Unpin for RunFunctionFuture<R> where R: RunFunctionResult<R> {}
 
 pub trait RunFunctionResult<R> {
-    fn get(context: &ArmCore) -> R;
+    fn get(core: &ArmCore) -> R;
 }
 
 impl RunFunctionResult<u32> for u32 {
-    fn get(context: &ArmCore) -> u32 {
-        context.uc.reg_read(RegisterARM::R0).unwrap() as u32
+    fn get(core: &ArmCore) -> u32 {
+        core.read_param(0).unwrap()
     }
 }
 

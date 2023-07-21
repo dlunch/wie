@@ -1,9 +1,7 @@
 use alloc::{boxed::Box, string::String};
 use core::{fmt::Debug, future::Future, marker::PhantomData};
 
-use unicorn_engine::RegisterARM;
-
-use wie_base::util::{read_generic, read_null_terminated_string};
+use wie_base::util::read_null_terminated_string;
 
 use crate::{core::ArmCoreResult, ArmCore};
 
@@ -49,8 +47,8 @@ where
     R: ResultWriter<R>,
 {
     async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
-        let lr = core.uc.reg_read(RegisterARM::LR).unwrap() as u32;
-        let pc = core.uc.reg_read(RegisterARM::PC).unwrap() as u32;
+        let (pc, lr) = core.read_pc_lr()?;
+
         log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
         let mut new_context = self.context.clone();
@@ -189,19 +187,7 @@ pub trait EmulatedFunctionParam<T> {
     fn get(core: &mut ArmCore, pos: usize) -> T;
 
     fn read(core: &mut ArmCore, pos: usize) -> u32 {
-        if pos == 0 {
-            core.uc.reg_read(RegisterARM::R0).unwrap() as u32
-        } else if pos == 1 {
-            core.uc.reg_read(RegisterARM::R1).unwrap() as u32
-        } else if pos == 2 {
-            core.uc.reg_read(RegisterARM::R2).unwrap() as u32
-        } else if pos == 3 {
-            core.uc.reg_read(RegisterARM::R3).unwrap() as u32
-        } else {
-            let sp = core.uc.reg_read(RegisterARM::SP).unwrap() as u32;
-
-            read_generic(core, sp + 4 * (pos as u32 - 4)).unwrap()
-        }
+        core.read_param(pos).unwrap()
     }
 }
 
@@ -225,9 +211,6 @@ pub trait ResultWriter<R> {
 
 impl ResultWriter<u32> for u32 {
     fn write(core: &mut ArmCore, value: u32, lr: u32) -> anyhow::Result<()> {
-        core.uc.reg_write(RegisterARM::R0, value as u64).unwrap();
-        core.uc.reg_write(RegisterARM::PC, lr as u64).unwrap();
-
-        Ok(())
+        core.write_result(value, lr)
     }
 }
