@@ -75,7 +75,7 @@ impl Allocator {
         Ok(())
     }
 
-    fn find_address(core: &mut ArmCore, request_size: u32) -> Option<u32> {
+    fn find_address(core: &ArmCore, request_size: u32) -> Option<u32> {
         let mut cursor = HEAP_BASE;
         loop {
             let header: AllocationHeader = read_generic(core, cursor).ok()?;
