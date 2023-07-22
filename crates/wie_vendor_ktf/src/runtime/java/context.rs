@@ -3,11 +3,13 @@ use core::{fmt::Display, iter, mem::size_of};
 
 use wie_backend::{
     task::{self, SleepFuture},
-    Backend, Executor,
+    AsyncCallable, Backend, Executor,
 };
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
-use wie_wipi_java::{get_array_proto, get_class_proto, JavaAccessFlag, JavaClassProto, JavaContext, JavaMethodBody, JavaObjectProxy, JavaResult};
+use wie_wipi_java::{
+    get_array_proto, get_class_proto, JavaAccessFlag, JavaClassProto, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult,
+};
 
 use crate::runtime::KtfPeb;
 
@@ -629,14 +631,31 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
-        let entry = self.core.register_function(JavaMethodProxy::new(callback), self.backend)?;
-        task::spawn(move || {
-            let executor: Executor = Executor::current();
-            let mut module = executor.module_mut();
-            let core = ArmCore::from_core_mut(module.core_mut()).unwrap();
+        struct SpawnProxy {
+            backend: Backend,
+            callback: JavaMethodBody,
+        }
 
-            core.run_function::<()>(entry, &[])
-        });
+        #[async_trait::async_trait(?Send)]
+        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+            #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
+            async fn call(self) -> Result<u32, JavaError> {
+                let executor: Executor = Executor::current();
+                let mut module = executor.module_mut();
+                let mut core = ArmCore::from_core_mut(module.core_mut()).unwrap().clone();
+
+                core::mem::drop(module);
+
+                let mut backend = self.backend.clone();
+                let mut context = KtfJavaContext::new(&mut core, &mut backend);
+
+                self.callback.call(&mut context, &[]).await
+            }
+        }
+
+        let backend = self.backend.clone();
+
+        task::spawn(SpawnProxy { backend, callback });
 
         Ok(())
     }
