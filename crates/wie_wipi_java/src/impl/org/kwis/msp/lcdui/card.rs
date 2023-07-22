@@ -33,15 +33,23 @@ impl Card {
         Ok(())
     }
 
-    async fn get_width(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::get_width");
+    async fn get_width(context: &mut dyn JavaContext) -> JavaResult<u32> {
+        log::trace!("org.kwis.msp.lcdui.Card::get_width");
 
-        Ok(320) // TODO: hardcoded
+        let screen_canvas = context.backend().screen_canvas();
+        let mut canvases = context.backend().canvases_mut();
+        let canvas = canvases.canvas(screen_canvas);
+
+        Ok(canvas.width())
     }
 
-    async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::get_height");
+    async fn get_height(context: &mut dyn JavaContext) -> JavaResult<u32> {
+        log::trace!("org.kwis.msp.lcdui.Card::get_height");
 
-        Ok(480) // TODO: hardcoded
+        let screen_canvas = context.backend().screen_canvas();
+        let mut canvases = context.backend().canvases_mut();
+        let canvas = canvases.canvas(screen_canvas);
+
+        Ok(canvas.height())
     }
 }
