@@ -30,7 +30,7 @@ impl Framebuffer {
         }
     }
 
-    pub fn from_compatible_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
+    pub fn from_canvas_empty(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
         let (width, height, bytes_per_pixel) = {
             let mut canvases = context.backend().canvases_mut();
             let canvas = canvases.canvas(canvas_handle);
