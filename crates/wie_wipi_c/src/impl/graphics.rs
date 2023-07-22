@@ -27,7 +27,7 @@ async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<
     log::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let screen_canvas = context.backend().screen_canvas();
-    let framebuffer = Framebuffer::from_compatible_canvas(context, screen_canvas)?;
+    let framebuffer = Framebuffer::from_canvas_empty(context, screen_canvas)?;
 
     let memory = context.alloc(size_of::<Framebuffer>() as u32)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
