@@ -23,6 +23,19 @@ pub struct ArmCoreContext {
     pub pc: u32,
 }
 
+impl ArmCoreContext {
+    pub fn from_context<T>(context: Box<T>) -> Option<Self>
+    where
+        T: CoreContext + ?Sized,
+    {
+        context.into_any().downcast::<ArmCoreContext>().ok().map(|x| *x)
+    }
+
+    pub fn from_context_ref(context: &dyn CoreContext) -> Option<&Self> {
+        context.as_any().downcast_ref::<ArmCoreContext>()
+    }
+}
+
 impl CoreContext for ArmCoreContext {
     fn clone(&self) -> Box<dyn CoreContext> {
         Box::new(Clone::clone(self))
