@@ -176,6 +176,10 @@ impl ArmCore {
         Ok(result)
     }
 
+    pub fn from_core_mut(core: &mut dyn Core) -> Option<&mut Self> {
+        core.as_any_mut().downcast_mut::<ArmCore>()
+    }
+
     pub(crate) fn read_pc_lr(&self) -> ArmCoreResult<(u32, u32)> {
         let inner = self.inner.borrow();
 
@@ -351,14 +355,14 @@ impl Core for ArmCore {
     }
 
     fn free_context(&mut self, context: Box<dyn CoreContext>) {
-        let context = context.as_any().downcast_ref::<ArmCoreContext>().unwrap();
+        let context = ArmCoreContext::from_context_ref(&*context).unwrap();
 
         Allocator::free(self, context.sp - 0x1000).unwrap();
     }
 
     fn restore_context(&mut self, context: &dyn CoreContext) {
         let mut inner = self.inner.borrow_mut();
-        let context = context.as_any().downcast_ref::<ArmCoreContext>().unwrap();
+        let context = ArmCoreContext::from_context_ref(context).unwrap();
 
         inner.uc.reg_write(RegisterARM::R0, context.r0 as u64).unwrap();
         inner.uc.reg_write(RegisterARM::R1, context.r1 as u64).unwrap();

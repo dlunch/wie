@@ -61,7 +61,7 @@ impl CContext for KtfCContext<'_> {
         task::spawn(move || {
             let executor: Executor = Executor::current();
             let mut module = executor.module_mut();
-            let core = module.core_mut().as_any_mut().downcast_mut::<ArmCore>().unwrap();
+            let core = ArmCore::from_core_mut(module.core_mut()).unwrap();
 
             core.run_function::<()>(entry, &[])
         });

@@ -27,7 +27,7 @@ where
     R: RunFunctionResult<R>,
 {
     pub fn new(core: &mut ArmCore, address: u32, params: &[u32]) -> Self {
-        let previous_context = *core.save_context().into_any().downcast::<ArmCoreContext>().unwrap();
+        let previous_context = ArmCoreContext::from_context(core.save_context()).unwrap();
 
         let mut context = previous_context.clone();
         Self::set_context(core, &mut context, address, params);
@@ -90,7 +90,7 @@ where
         }
 
         let mut module = executor.module_mut();
-        let core = module.core_mut().as_any_mut().downcast_mut::<ArmCore>().unwrap();
+        let core = ArmCore::from_core_mut(module.core_mut()).unwrap();
 
         let (pc, _) = core.read_pc_lr().unwrap();
 
