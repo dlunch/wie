@@ -2,11 +2,11 @@ use alloc::{boxed::Box, vec::Vec};
 
 use wie_backend::{
     task::{self, SleepFuture},
-    Backend, Executor,
+    AsyncCallable, Backend, Executor,
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
-use wie_wipi_c::{CContext, CMemoryId, CMethodBody, CResult};
+use wie_wipi_c::{CContext, CError, CMemoryId, CMethodBody, CResult};
 
 pub struct KtfCContext<'a> {
     core: &'a mut ArmCore,
@@ -57,14 +57,31 @@ impl CContext for KtfCContext<'_> {
     }
 
     fn spawn(&mut self, callback: CMethodBody) -> CResult<()> {
-        let entry = self.core.register_function(CMethodProxy::new(callback), self.backend)?;
-        task::spawn(move || {
-            let executor: Executor = Executor::current();
-            let mut module = executor.module_mut();
-            let core = ArmCore::from_core_mut(module.core_mut()).unwrap();
+        struct SpawnProxy {
+            backend: Backend,
+            callback: CMethodBody,
+        }
 
-            core.run_function::<()>(entry, &[])
-        });
+        #[async_trait::async_trait(?Send)]
+        impl AsyncCallable<u32, CError> for SpawnProxy {
+            #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
+            async fn call(self) -> Result<u32, CError> {
+                let executor: Executor = Executor::current();
+                let mut module = executor.module_mut();
+                let mut core = ArmCore::from_core_mut(module.core_mut()).unwrap().clone();
+
+                core::mem::drop(module);
+
+                let mut backend = self.backend.clone();
+                let mut context = KtfCContext::new(&mut core, &mut backend);
+
+                self.callback.call(&mut context, &[]).await
+            }
+        }
+
+        let backend = self.backend.clone();
+
+        task::spawn(SpawnProxy { backend, callback });
 
         Ok(())
     }

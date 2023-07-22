@@ -8,5 +8,5 @@ pub use self::{
         canvas::{Canvas, CanvasHandle},
         Backend,
     },
-    executor::Executor,
+    executor::{AsyncCallable, Executor},
 };
