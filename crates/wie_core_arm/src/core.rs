@@ -52,7 +52,7 @@ impl ArmCore {
     pub fn new() -> ArmCoreResult<Self> {
         let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN).map_err(UnicornError)?;
 
-        uc.add_block_hook(Self::code_hook).map_err(UnicornError)?;
+        // uc.add_block_hook(Self::code_hook).map_err(UnicornError)?;
         uc.add_mem_hook(HookType::MEM_INVALID, 0, 0xffff_ffff_ffff_ffff, Self::mem_hook)
             .map_err(UnicornError)?;
 

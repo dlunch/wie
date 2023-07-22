@@ -34,7 +34,7 @@ impl Default for Backend {
 impl Backend {
     pub fn new() -> Self {
         let mut canvases = Canvases::new();
-        let screen_canvas = canvases.new_canvas(320, 480); // TODO hardcoded size
+        let screen_canvas = canvases.new_canvas(240, 320); // TODO hardcoded size
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
@@ -71,7 +71,7 @@ impl Backend {
         let mut executor = Executor::new(module);
         Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
-        let window = Window::new();
+        let window = Window::new(240, 320); // TODO hardcoded size
 
         window.run(
             || {},

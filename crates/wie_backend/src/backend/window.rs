@@ -5,6 +5,7 @@ use std::{
 
 use softbuffer::{Buffer, Context, Surface};
 use winit::{
+    dpi::PhysicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -16,9 +17,11 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new() -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         let event_loop = EventLoop::new();
-        let window = WindowBuilder::new().with_title("Hello world!").build(&event_loop).unwrap();
+        let size = PhysicalSize::new(width, height);
+
+        let window = WindowBuilder::new().with_inner_size(size).with_title("WIPI").build(&event_loop).unwrap();
 
         Self { window, event_loop }
     }
@@ -31,7 +34,11 @@ impl Window {
         let context = unsafe { Context::new(&self.window) }.unwrap();
         let mut surface = unsafe { Surface::new(&context, &self.window) }.unwrap();
 
-        surface.resize(NonZeroU32::new(320).unwrap(), NonZeroU32::new(480).unwrap()).unwrap(); // TODO hardcoded
+        let size = self.window.inner_size();
+
+        surface
+            .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
+            .unwrap();
 
         let mut last_redraw = Instant::now();
         self.event_loop.run(move |event, _, control_flow| match event {
