@@ -43,6 +43,35 @@ impl CContext for KtfCContext<'_> {
     }
 
     fn register_function(&mut self, body: CMethodBody) -> CResult<u32> {
+        struct CMethodProxy {
+            body: CMethodBody,
+        }
+
+        impl CMethodProxy {
+            pub fn new(body: CMethodBody) -> Self {
+                Self { body }
+            }
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for CMethodProxy {
+            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
+                let a0 = u32::get(core, 0);
+                let a1 = u32::get(core, 1);
+                let a2 = u32::get(core, 2);
+                let a3 = u32::get(core, 3);
+                let a4 = u32::get(core, 4);
+                let a5 = u32::get(core, 5);
+                let a6 = u32::get(core, 6);
+                let a7 = u32::get(core, 7);
+                let a8 = u32::get(core, 8); // TODO create arg proxy
+
+                let mut context = KtfCContext::new(core, backend);
+
+                self.body.call(&mut context, &[a0, a1, a2, a3, a4, a5, a6, a7, a8]).await
+            }
+        }
+
         let proxy = CMethodProxy::new(body);
 
         self.core.register_function(proxy, self.backend)
@@ -102,34 +131,5 @@ impl ByteRead for KtfCContext<'_> {
 impl ByteWrite for KtfCContext<'_> {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
         self.core.write_bytes(address, data)
-    }
-}
-
-struct CMethodProxy {
-    body: CMethodBody,
-}
-
-impl CMethodProxy {
-    pub fn new(body: CMethodBody) -> Self {
-        Self { body }
-    }
-}
-
-#[async_trait::async_trait(?Send)]
-impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for CMethodProxy {
-    async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
-        let a0 = u32::get(core, 0);
-        let a1 = u32::get(core, 1);
-        let a2 = u32::get(core, 2);
-        let a3 = u32::get(core, 3);
-        let a4 = u32::get(core, 4);
-        let a5 = u32::get(core, 5);
-        let a6 = u32::get(core, 6);
-        let a7 = u32::get(core, 7);
-        let a8 = u32::get(core, 8); // TODO create arg proxy
-
-        let mut context = KtfCContext::new(core, backend);
-
-        self.body.call(&mut context, &[a0, a1, a2, a3, a4, a5, a6, a7, a8]).await
     }
 }
