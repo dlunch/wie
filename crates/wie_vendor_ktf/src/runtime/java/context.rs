@@ -457,6 +457,34 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
+        struct JavaMethodProxy {
+            body: JavaMethodBody,
+        }
+
+        impl JavaMethodProxy {
+            pub fn new(body: JavaMethodBody) -> Self {
+                Self { body }
+            }
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMethodProxy {
+            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
+                let _a0 = u32::get(core, 0);
+                let a1 = u32::get(core, 1);
+                let a2 = u32::get(core, 2);
+                let a3 = u32::get(core, 3);
+                let a4 = u32::get(core, 4);
+                let a5 = u32::get(core, 5);
+
+                let mut context = KtfJavaContext::new(core, backend);
+
+                let result = self.body.call(&mut context, &[a1, a2, a3, a4, a5]).await?; // TODO do we need arg proxy?
+
+                Ok(result)
+            }
+        }
+
         let proxy = JavaMethodProxy::new(body);
 
         self.core.register_function(proxy, self.backend)
@@ -664,33 +692,5 @@ impl JavaContext for KtfJavaContext<'_> {
         let until = self.backend.time().now() + duration;
 
         task::sleep(until)
-    }
-}
-
-struct JavaMethodProxy {
-    body: JavaMethodBody,
-}
-
-impl JavaMethodProxy {
-    pub fn new(body: JavaMethodBody) -> Self {
-        Self { body }
-    }
-}
-
-#[async_trait::async_trait(?Send)]
-impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMethodProxy {
-    async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
-        let _a0 = u32::get(core, 0);
-        let a1 = u32::get(core, 1);
-        let a2 = u32::get(core, 2);
-        let a3 = u32::get(core, 3);
-        let a4 = u32::get(core, 4);
-        let a5 = u32::get(core, 5);
-
-        let mut context = KtfJavaContext::new(core, backend);
-
-        let result = self.body.call(&mut context, &[a1, a2, a3, a4, a5]).await?; // TODO do we need arg proxy?
-
-        Ok(result)
     }
 }
