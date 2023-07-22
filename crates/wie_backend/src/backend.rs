@@ -69,9 +69,16 @@ impl Backend {
         M: Module + 'static,
     {
         let mut executor = Executor::new(module);
-        Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
-        let window = Window::new(240, 320); // TODO hardcoded size
+        let window = {
+            let screen_canvas = self.screen_canvas();
+            let mut canvases = self.canvases_mut();
+            let canvas = canvases.canvas(screen_canvas);
+
+            Window::new(canvas.width(), canvas.height())
+        };
+
+        Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
         window.run(
             || {},
