@@ -129,8 +129,7 @@ struct ExeInterfaceFunctions {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct KtfPeb {
-    pub java_classes_base: u32,
-    pub ptr_vtables_base: u32,
+    pub ptr_java_context_data: u32,
 }
 
 pub struct ModuleInfo {
@@ -139,8 +138,6 @@ pub struct ModuleInfo {
 }
 
 pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
-    let java_classes_base = KtfJavaContext::init(core)?;
-
     let wipi_exe = core.run_function(base_address + 1, &[bss_size]).await?;
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
@@ -178,7 +175,6 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
             ptr_vtables: [0; 64],
         },
     )?;
-    let ptr_vtables_base = ptr_param_2 + 12;
 
     let param_3 = InitParam3 {
         unk1: 0,
@@ -216,11 +212,8 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
     write_generic(core, ptr_param_4, param_4)?;
 
-    let peb = KtfPeb {
-        java_classes_base,
-        ptr_vtables_base,
-    };
-    init_peb(core, peb)?;
+    let ptr_java_context_data = KtfJavaContext::init(core, ptr_param_2)?;
+    init_peb(core, KtfPeb { ptr_java_context_data })?;
 
     let wipi_exe: WipiExe = read_generic(core, wipi_exe)?;
     let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;

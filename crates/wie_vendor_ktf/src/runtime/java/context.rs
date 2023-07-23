@@ -95,6 +95,13 @@ struct JavaClassInstanceFields {
     fields: [u32; 1],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct JavaContextData {
+    pub classes_base: u32,
+    pub ptr_vtables_base: u32,
+}
+
 #[derive(Clone)]
 pub struct JavaFullName {
     pub tag: u8,
@@ -151,10 +158,21 @@ pub struct KtfJavaContext<'a> {
 }
 
 impl<'a> KtfJavaContext<'a> {
-    pub fn init(core: &mut ArmCore) -> JavaResult<u32> {
-        let java_classes_base = Allocator::alloc(core, 0x1000)?;
+    pub fn init(core: &mut ArmCore, ptr_param_2: u32) -> JavaResult<u32> {
+        let ptr_vtables_base = ptr_param_2 + 12;
+        let classes_base = Allocator::alloc(core, 0x1000)?;
 
-        Ok(java_classes_base)
+        let ptr_java_context_data = Allocator::alloc(core, size_of::<JavaContextData>() as u32)?;
+        write_generic(
+            core,
+            ptr_java_context_data,
+            JavaContextData {
+                classes_base,
+                ptr_vtables_base,
+            },
+        )?;
+
+        Ok(ptr_java_context_data)
     }
 
     pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
@@ -249,9 +267,8 @@ impl<'a> KtfJavaContext<'a> {
 
         log::trace!("get_vtable_index {} {:#x} {:#x}", class_name, ptr_class, class.ptr_vtable);
 
-        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
-
-        let ptr_vtables = self.read_null_terminated_table(peb.ptr_vtables_base)?;
+        let context_data = self.read_context_data()?;
+        let ptr_vtables = self.read_null_terminated_table(context_data.ptr_vtables_base)?;
 
         for (index, &ptr_vtable) in ptr_vtables.iter().enumerate() {
             if ptr_vtable == class.ptr_vtable {
@@ -260,7 +277,11 @@ impl<'a> KtfJavaContext<'a> {
         }
 
         let index = ptr_vtables.len();
-        write_generic(self.core, peb.ptr_vtables_base + (index * size_of::<u32>()) as u32, class.ptr_vtable)?;
+        write_generic(
+            self.core,
+            context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32,
+            class.ptr_vtable,
+        )?;
 
         Ok(index as u32)
     }
@@ -302,9 +323,8 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
-
-        let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
+        let context_data = self.read_context_data()?;
+        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
         for ptr_class in ptr_classes {
             let (_, _, class_name) = self.read_ptr_class(ptr_class)?;
 
@@ -444,12 +464,11 @@ impl<'a> KtfJavaContext<'a> {
         let ptr_vtable = self.write_vtable(ptr_class)?;
         write_generic(self.core, ptr_class + 12, ptr_vtable)?;
 
-        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
-
-        let ptr_classes = self.read_null_terminated_table(peb.java_classes_base)?;
+        let context_data = self.read_context_data()?;
+        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
         write_generic(
             self.core,
-            peb.java_classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
+            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
             ptr_class,
         )?;
 
@@ -545,6 +564,12 @@ impl<'a> KtfJavaContext<'a> {
         params.extend(args);
 
         self.core.run_function(method.fn_body, &params).await
+    }
+
+    fn read_context_data(&self) -> JavaResult<JavaContextData> {
+        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
+
+        read_generic(self.core, peb.ptr_java_context_data)
     }
 }
 
