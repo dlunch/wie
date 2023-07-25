@@ -1,9 +1,6 @@
 use alloc::vec::Vec;
-use core::{
-    mem::forget,
-    ops::{Deref, DerefMut},
-    slice,
-};
+use core::ops::{Deref, DerefMut};
+use wie_base::util::{cast_slice, cast_vec};
 
 use wie_backend::{Canvas, CanvasHandle};
 
@@ -57,7 +54,7 @@ impl Framebuffer {
             (canvas.width(), canvas.height(), canvas.bytes_per_pixel(), canvas.buffer().to_vec())
         };
 
-        let data = unsafe { slice::from_raw_parts(data.as_ptr() as _, data.len() * 4) }; // TODO
+        let data = cast_slice(&data);
         let buf = context.alloc(width * height * bytes_per_pixel)?;
         context.write_bytes(context.data_ptr(buf)?, data)?;
 
@@ -71,11 +68,8 @@ impl Framebuffer {
     }
 
     pub fn data(&self, context: &dyn CContext) -> anyhow::Result<Vec<u32>> {
-        let mut raw = context.read_bytes(context.data_ptr(self.buf)?, self.width * self.height * self.bpp / 8)?;
-
-        // TODO
-        let data = unsafe { Vec::from_raw_parts(raw.as_mut_ptr() as _, raw.len() / 4, raw.capacity() / 4) };
-        forget(raw);
+        let raw = context.read_bytes(context.data_ptr(self.buf)?, self.width * self.height * self.bpp / 8)?;
+        let data = cast_vec(raw);
 
         Ok(data)
     }
@@ -91,7 +85,7 @@ impl Framebuffer {
     }
 
     pub fn write(&self, context: &mut dyn CContext, data: &[u32]) -> anyhow::Result<()> {
-        let data = unsafe { slice::from_raw_parts(data.as_ptr() as _, data.len() * 4) }; // TODO
+        let data = cast_slice(data);
 
         context.write_bytes(context.data_ptr(self.buf)?, data)
     }
