@@ -237,7 +237,7 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
 }
 
 async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: String) -> anyhow::Result<u32> {
-    log::debug!("get_interface({})", r#struct);
+    log::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, backend),
@@ -253,7 +253,7 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
 
 async fn init_unk3(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
     // alloc??
-    log::debug!("init_unk3({})", a0);
+    log::warn!("stub init_unk3({})", a0);
 
     Allocator::alloc(core, a0)
 }
