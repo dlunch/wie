@@ -66,7 +66,7 @@ where
 }
 
 pub fn cast_slice<T, U>(source: &[T]) -> &[U] {
-    let new_len = source.len() * core::mem::size_of::<T>() / core::mem::size_of::<U>();
+    let new_len = core::mem::size_of_val(source) / core::mem::size_of::<U>();
     unsafe { slice::from_raw_parts(source as *const [T] as *const U, new_len) }
 }
 
