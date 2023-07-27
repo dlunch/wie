@@ -81,19 +81,19 @@ impl Backend {
         Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
         window.run(
-            || {},
+            || Ok::<_, anyhow::Error>(()),
             move |buffer| {
-                executor.tick(&self.time()).unwrap();
+                executor.tick(&self.time())?;
 
-                Backend::run_task(&mut executor, &self.time(), move |module| module.render()).unwrap();
+                Backend::run_task(&mut executor, &self.time(), move |module| module.render())?;
 
                 let mut canvases = self.canvases_mut();
                 let canvas = canvases.canvas(self.screen_canvas);
-                buffer.copy_from_slice(canvas.buffer())
-            },
-        );
+                buffer.copy_from_slice(canvas.buffer());
 
-        Ok(())
+                Ok(())
+            },
+        )
     }
 
     fn run_task<F, Fut>(executor: &mut Executor, time: &Time, f: F) -> anyhow::Result<()>
