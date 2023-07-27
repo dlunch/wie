@@ -49,7 +49,7 @@ where
     async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
         let (pc, lr) = core.read_pc_lr()?;
 
-        log::debug!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
+        log::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
         let mut new_context = self.context.clone();
 

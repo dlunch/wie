@@ -235,7 +235,7 @@ impl<'a> KtfJavaContext<'a> {
         write_generic(self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         write_generic(self.core, ptr_fields, (vtable_index * 4) << 5)?;
 
-        log::debug!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
+        log::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
         Ok(JavaObjectProxy::new(ptr_instance))
     }
