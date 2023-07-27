@@ -241,7 +241,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
-        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?;
+        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?; // TODO element size
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count)?;
@@ -615,7 +615,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
-        log::debug!("Call {}::{}({})", class_name, name, signature);
+        log::trace!("Call {}::{}({})", class_name, name, signature);
 
         let mut params = vec![instance_proxy.ptr_instance];
         params.extend(args);
@@ -624,7 +624,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        log::debug!("Call {}::{}({})", class_name, method_name, signature);
+        log::trace!("Call {}::{}({})", class_name, method_name, signature);
 
         let ptr_class = self.find_ptr_class(class_name)?;
 
