@@ -70,6 +70,8 @@ impl Backend {
     {
         let mut executor = Executor::new(module);
 
+        Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
+
         let window = {
             let screen_canvas = self.screen_canvas();
             let mut canvases = self.canvases_mut();
@@ -77,8 +79,6 @@ impl Backend {
 
             Window::new(canvas.width(), canvas.height())
         };
-
-        Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
         window.run(
             || Ok::<_, anyhow::Error>(()),
