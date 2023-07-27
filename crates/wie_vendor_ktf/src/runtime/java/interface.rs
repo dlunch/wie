@@ -2,7 +2,7 @@ use alloc::string::{String, ToString};
 use core::mem::size_of;
 
 use wie_backend::Backend;
-use wie_base::util::write_generic;
+use wie_base::util::{cast_slice, read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::JavaContext;
 
@@ -15,14 +15,14 @@ struct WIPIJBInterface {
     fn_unk1: u32,
     fn_unk7: u32,
     fn_unk8: u32,
-    get_java_method: u32,
+    fn_get_java_method: u32,
     unk4: u32,
     fn_unk4: u32,
     fn_unk5: u32,
     unk7: u32,
     unk8: u32,
     fn_unk2: u32,
-    fn_unk3: u32,
+    fn_register_java_string: u32,
     fn_unk6: u32,
 }
 
@@ -32,14 +32,14 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         fn_unk1: core.register_function(jb_unk1, backend)?,
         fn_unk7: core.register_function(jb_unk7, backend)?,
         fn_unk8: core.register_function(jb_unk8, backend)?,
-        get_java_method: core.register_function(get_java_method, backend)?,
+        fn_get_java_method: core.register_function(get_java_method, backend)?,
         unk4: 0,
         fn_unk4: core.register_function(jb_unk4, backend)?,
         fn_unk5: core.register_function(jb_unk5, backend)?,
         unk7: 0,
         unk8: 0,
         fn_unk2: core.register_function(jb_unk2, backend)?,
-        fn_unk3: core.register_function(jb_unk3, backend)?,
+        fn_register_java_string: core.register_function(register_java_string, backend)?,
         fn_unk6: core.register_function(jb_unk6, backend)?,
     };
 
@@ -93,11 +93,24 @@ async fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::
     Ok(0)
 }
 
-async fn jb_unk3(_: &mut ArmCore, _: &mut Backend, string: u32, a1: u32) -> anyhow::Result<u32> {
-    // register string?
-    log::warn!("stub jb_unk3({:#x}, {:#x})", string, a1);
+async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset: u32, length: u32) -> anyhow::Result<u32> {
+    log::trace!("register_java_string({:#x}, {:#x})", offset, length);
 
-    Ok(string)
+    let mut cursor = offset;
+    let length = if length == 0xffff_ffff {
+        let length: u16 = read_generic(core, offset)?;
+        cursor += 2;
+        length
+    } else {
+        length as _
+    };
+    let bytes = core.read_bytes(cursor, (length * 2) as _)?;
+    let str = String::from_utf16(cast_slice(&bytes))?;
+
+    let mut context = KtfJavaContext::new(core, backend);
+    let instance = context.instantiate_string(&str).await?;
+
+    Ok(instance.ptr_instance)
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
