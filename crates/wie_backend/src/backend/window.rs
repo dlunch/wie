@@ -1,4 +1,5 @@
 use std::{
+    fmt::Debug,
     num::NonZeroU32,
     time::{Duration, Instant},
 };
@@ -26,10 +27,11 @@ impl Window {
         Self { window, event_loop }
     }
 
-    pub fn run<U, R>(self, mut update: U, mut render: R)
+    pub fn run<U, R, E>(self, mut update: U, mut render: R) -> !
     where
-        U: FnMut() + 'static,
-        R: FnMut(&mut Buffer) + 'static,
+        U: FnMut() -> Result<(), E> + 'static,
+        R: FnMut(&mut Buffer) -> Result<(), E> + 'static,
+        E: Debug,
     {
         let context = unsafe { Context::new(&self.window) }.unwrap();
         let mut surface = unsafe { Surface::new(&context, &self.window) }.unwrap();
@@ -47,11 +49,21 @@ impl Window {
                 ..
             } => *control_flow = ControlFlow::Exit,
             Event::MainEventsCleared => {
-                update();
+                let result = update();
+                if let Err(x) = result {
+                    eprintln!("{:?}", x);
+
+                    *control_flow = ControlFlow::Exit;
+                }
             }
             Event::RedrawRequested(_) => {
                 let mut buffer = surface.buffer_mut().unwrap();
-                render(&mut buffer);
+                let result = render(&mut buffer);
+                if let Err(x) = result {
+                    eprintln!("{:?}", x);
+
+                    *control_flow = ControlFlow::Exit;
+                }
                 buffer.present().unwrap();
             }
             Event::RedrawEventsCleared => {
@@ -67,6 +79,6 @@ impl Window {
             }
 
             _ => *control_flow = ControlFlow::Wait,
-        });
+        })
     }
 }
