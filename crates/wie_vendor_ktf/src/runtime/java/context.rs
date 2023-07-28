@@ -5,7 +5,7 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend, Executor,
 };
-use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteWrite};
+use wie_base::util::{cast_slice, cast_vec, read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
     get_array_proto, get_class_proto, JavaAccessFlag, JavaClassProto, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult,
@@ -228,12 +228,9 @@ impl<'a> KtfJavaContext<'a> {
         self.call_method(&instance, "<init>", "(I)V", &[string.len() as u32]).await?;
 
         let field_value = JavaObjectProxy::new(self.get_field(&instance, "value")?);
-        let value_instance: JavaClassInstance = read_generic(self.core, field_value.ptr_instance)?;
-        let value_array_offset = value_instance.ptr_fields + 4;
 
-        for (i, byte) in string.bytes().enumerate() {
-            self.core.write_bytes(value_array_offset + (i as u32) * 4, &[byte, 0, 0, 0])?;
-        }
+        let bytes = string.bytes().map(|x| x as u32).collect::<Vec<_>>();
+        self.store_array(&field_value, 0, &bytes)?;
 
         Ok(instance)
     }
@@ -696,6 +693,22 @@ impl JavaContext for KtfJavaContext<'_> {
         write_generic(self.core, ptr_field, field)?;
 
         Ok(())
+    }
+
+    fn store_array(&mut self, array: &JavaObjectProxy, index: u32, values: &[u32]) -> JavaResult<()> {
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let items_offset = instance.ptr_fields + 4;
+
+        let values_raw = cast_slice(values);
+        self.core.write_bytes(items_offset + 4 * index, values_raw)
+    }
+
+    fn load_array(&mut self, array: &JavaObjectProxy, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let items_offset = instance.ptr_fields + 4;
+
+        let values_raw = self.core.read_bytes(items_offset + 4 * offset, count * 4)?;
+        Ok(cast_vec(values_raw))
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
