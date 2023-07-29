@@ -4,6 +4,7 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
     from_java_string,
     proxy::JavaObjectProxy,
+    to_java_string,
 };
 
 // class org.kwis.msp.handset.HandsetProperty
@@ -23,9 +24,9 @@ impl HandsetProperty {
 
     async fn get_system_property(context: &mut dyn JavaContext, name: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         let name = from_java_string(context, &name)?;
-
         log::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
-        Ok(JavaObjectProxy::new(0))
+        let result = to_java_string(context, "").await?;
+        Ok(result)
     }
 }
