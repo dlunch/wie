@@ -11,7 +11,10 @@ pub struct String {}
 impl String {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            methods: vec![JavaMethodProto::new("<init>", "(I)V", Self::init)],
+            methods: vec![
+                JavaMethodProto::new("<init>", "(I)V", Self::init),
+                JavaMethodProto::new("getBytes", "()[B", Self::get_bytes),
+            ],
             fields: vec![
                 JavaFieldProto::new("value", "[C", JavaAccessFlag::NONE),
                 JavaFieldProto::new("length", "I", JavaAccessFlag::NONE),
@@ -27,5 +30,13 @@ impl String {
         context.put_field(&instance, "length", length)?;
 
         Ok(())
+    }
+
+    async fn get_bytes(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+        log::trace!("java.lang.String::getBytes({:#x})", instance.ptr_instance);
+
+        let array = JavaObjectProxy::new(context.get_field(&instance, "value")?);
+
+        Ok(array)
     }
 }
