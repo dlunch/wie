@@ -108,7 +108,7 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     let str = String::from_utf16(cast_slice(&bytes))?;
 
     let mut context = KtfJavaContext::new(core, backend);
-    let instance = context.instantiate_string(&str).await?;
+    let instance = wie_wipi_java::to_java_string(&mut context, &str).await?;
 
     Ok(instance.ptr_instance)
 }
