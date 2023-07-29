@@ -223,18 +223,6 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy)
     }
 
-    pub async fn instantiate_string(&mut self, string: &str) -> JavaResult<JavaObjectProxy> {
-        let instance = self.instantiate("Ljava/lang/String;")?;
-        self.call_method(&instance, "<init>", "(I)V", &[string.len() as u32]).await?;
-
-        let field_value = JavaObjectProxy::new(self.get_field(&instance, "value")?);
-
-        let bytes = string.bytes().map(|x| x as u32).collect::<Vec<_>>();
-        self.store_array(&field_value, 0, &bytes)?;
-
-        Ok(instance)
-    }
-
     fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
         let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
