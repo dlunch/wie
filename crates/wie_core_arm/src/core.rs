@@ -416,7 +416,7 @@ impl ByteRead for ArmCore {
 
         let data = inner.uc.mem_read_as_vec(address as u64, size as usize).map_err(UnicornError)?;
 
-        log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
+        // log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
 
         Ok(data)
     }
@@ -424,7 +424,7 @@ impl ByteRead for ArmCore {
 
 impl ByteWrite for ArmCore {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
-        log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
+        // log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
         let mut inner = self.inner.borrow_mut();
 
         inner.uc.mem_write(address as u64, data).map_err(UnicornError)?;
