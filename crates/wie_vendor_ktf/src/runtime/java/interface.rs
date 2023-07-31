@@ -1,4 +1,7 @@
-use alloc::string::{String, ToString};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::mem::size_of;
 
 use wie_backend::Backend;
@@ -23,7 +26,7 @@ struct WIPIJBInterface {
     unk8: u32,
     fn_unk2: u32,
     fn_register_java_string: u32,
-    fn_unk6: u32,
+    fn_call_native: u32,
 }
 
 pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::Result<u32> {
@@ -40,7 +43,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         unk8: 0,
         fn_unk2: core.register_function(jb_unk2, backend)?,
         fn_register_java_string: core.register_function(register_java_string, backend)?,
-        fn_unk6: core.register_function(jb_unk6, backend)?,
+        fn_call_native: core.register_function(call_native, backend)?,
     };
 
     let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;
@@ -125,11 +128,14 @@ async fn jb_unk5(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::
     Ok(0)
 }
 
-async fn jb_unk6(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
-    // jump?
-    log::debug!("jb_unk6 jump?({:#x}, {:#x})", address, ptr_data);
+async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
+    log::debug!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
-    let result = core.run_function::<u32>(address, &[ptr_data]).await?;
+    let args = (0..6).map(|x| read_generic(core, ptr_data + x * 4));
+    let args = [Ok(0)].into_iter().chain(args.into_iter()).collect::<anyhow::Result<Vec<_>>>()?;
+    log::debug!("args: {:?}", args);
+
+    let result = core.run_function::<u32>(address, &args).await?;
 
     write_generic(core, ptr_data, result)?;
     write_generic(core, ptr_data + 4, 0u32)?;
