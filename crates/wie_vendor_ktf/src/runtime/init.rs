@@ -37,7 +37,7 @@ struct InitParam4 {
     fn_java_class_load: u32,
     unk7: u32,
     unk8: u32,
-    fn_unk3: u32,
+    fn_alloc: u32,
 }
 
 #[repr(C)]
@@ -206,7 +206,7 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
         fn_java_class_load: core.register_function(java_class_load, backend)?,
         unk7: 0,
         unk8: 0,
-        fn_unk3: core.register_function(init_unk3, backend)?,
+        fn_alloc: core.register_function(alloc, backend)?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
@@ -251,9 +251,8 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
     }
 }
 
-async fn init_unk3(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
-    // alloc??
-    log::warn!("stub init_unk3({})", a0);
+async fn alloc(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
+    log::debug!("alloc({})", a0);
 
     Allocator::alloc(core, a0)
 }
