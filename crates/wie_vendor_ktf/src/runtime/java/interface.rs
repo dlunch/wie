@@ -132,7 +132,7 @@ async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data
     log::debug!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
     let args = (0..6).map(|x| read_generic(core, ptr_data + x * 4));
-    let args = [Ok(0)].into_iter().chain(args.into_iter()).collect::<anyhow::Result<Vec<_>>>()?;
+    let args = [Ok(0)].into_iter().chain(args).collect::<anyhow::Result<Vec<_>>>()?;
     log::debug!("args: {:?}", args);
 
     let result = core.run_function::<u32>(address, &args).await?;
