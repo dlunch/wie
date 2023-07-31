@@ -216,7 +216,7 @@ impl<'a> KtfJavaContext<'a> {
     pub fn instantiate_array_from_ptr_class(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
         let (_, _, class_name) = self.read_ptr_class(ptr_class_array)?;
 
-        let proxy = self.instantiate_array_inner(ptr_class_array, count * 4 + 4)?;
+        let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
         log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
@@ -241,7 +241,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
-        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?; // TODO element size
+        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 8)?; // TODO element size
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count)?;
@@ -688,14 +688,14 @@ impl JavaContext for KtfJavaContext<'_> {
         let items_offset = instance.ptr_fields + 4;
 
         let values_raw = cast_slice(values);
-        self.core.write_bytes(items_offset + 4 * index, values_raw)
+        self.core.write_bytes(items_offset + 8 + 4 * index, values_raw)
     }
 
     fn load_array(&mut self, array: &JavaObjectProxy, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
         let items_offset = instance.ptr_fields + 4;
 
-        let values_raw = self.core.read_bytes(items_offset + 4 * offset, count * 4)?;
+        let values_raw = self.core.read_bytes(items_offset + 8 + 4 * offset, count * 4)?;
         Ok(cast_vec(values_raw))
     }
 
