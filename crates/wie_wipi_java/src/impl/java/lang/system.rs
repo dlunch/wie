@@ -1,6 +1,9 @@
 use alloc::vec;
 
-use crate::base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult};
+use crate::{
+    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    JavaObjectProxy,
+};
 
 // class java.lang.System
 pub struct System {}
@@ -11,6 +14,7 @@ impl System {
             methods: vec![
                 JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis),
                 JavaMethodProto::new("gc", "()V", Self::gc),
+                JavaMethodProto::new("arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V", Self::arraycopy),
             ],
             fields: vec![],
         }
@@ -26,5 +30,28 @@ impl System {
         log::trace!("java.lang.System::gc()");
 
         Ok(0)
+    }
+
+    async fn arraycopy(
+        context: &mut dyn JavaContext,
+        src: JavaObjectProxy,
+        src_pos: u32,
+        dest: JavaObjectProxy,
+        dest_pos: u32,
+        length: u32,
+    ) -> JavaResult<()> {
+        log::trace!(
+            "java.lang.System::arraycopy({:#x}, {}, {:#x}, {}, {})",
+            src.ptr_instance,
+            src_pos,
+            dest.ptr_instance,
+            dest_pos,
+            length
+        );
+
+        let src_data = context.load_array(&src, src_pos, length)?;
+        context.store_array(&dest, dest_pos, &src_data)?;
+
+        Ok(())
     }
 }
