@@ -14,12 +14,6 @@ use crate::runtime::{
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InitParam0 {
-    ptr_unk_struct: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct InitParam0Unk {
     unk: u32,
 }
 
@@ -142,11 +136,8 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
 
     log::info!("Got wipi_exe {:#x}", wipi_exe);
 
-    let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam0Unk>() as u32)?;
-    write_generic(core, ptr_unk_struct, InitParam0Unk { unk: 0 })?;
-
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
-    write_generic(core, ptr_param_0, InitParam0 { ptr_unk_struct })?;
+    write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1UnkUnk>() as u32)?;
     write_generic(core, ptr_unk_struct, InitParam1UnkUnk { unk: [0; 8] })?;
