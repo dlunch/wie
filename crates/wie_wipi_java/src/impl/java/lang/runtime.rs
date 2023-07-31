@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -12,9 +12,9 @@ impl Runtime {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init),
-                JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime),
-                JavaMethodProto::new("totalMemory", "()J", Self::total_memory),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("totalMemory", "()J", Self::total_memory, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![],
         }

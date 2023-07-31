@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -11,7 +11,7 @@ pub struct Clip {}
 impl Clip {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            methods: vec![JavaMethodProto::new("<init>", "(I)V", Self::init)],
+            methods: vec![JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodAccessFlag::NONE)],
             fields: vec![],
         }
     }

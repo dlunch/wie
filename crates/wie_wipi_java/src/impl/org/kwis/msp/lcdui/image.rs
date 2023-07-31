@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -12,9 +12,19 @@ impl Image {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init),
-                JavaMethodProto::new("createImage", "(II)Lorg/kwis/msp/lcdui/Image;", Self::create_image),
-                JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new(
+                    "createImage",
+                    "(II)Lorg/kwis/msp/lcdui/Image;",
+                    Self::create_image,
+                    JavaMethodAccessFlag::NONE,
+                ),
+                JavaMethodProto::new(
+                    "getGraphics",
+                    "()Lorg/kwis/msp/lcdui/Graphics;",
+                    Self::get_graphics,
+                    JavaMethodAccessFlag::NONE,
+                ),
             ],
             fields: vec![],
         }

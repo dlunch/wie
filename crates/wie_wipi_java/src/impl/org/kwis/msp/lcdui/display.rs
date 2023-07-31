@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_backend::CanvasHandle;
 
 use crate::{
-    base::{JavaAccessFlag, JavaClassProto, JavaContext, JavaFieldProto, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -14,22 +14,38 @@ impl Display {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init),
-                JavaMethodProto::new("getDisplay", "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;", Self::get_display),
-                JavaMethodProto::new("getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", Self::get_default_display),
-                JavaMethodProto::new("getDockedCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_docked_card),
-                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new(
+                    "getDisplay",
+                    "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
+                    Self::get_display,
+                    JavaMethodAccessFlag::NONE,
+                ),
+                JavaMethodProto::new(
+                    "getDefaultDisplay",
+                    "()Lorg/kwis/msp/lcdui/Display;",
+                    Self::get_default_display,
+                    JavaMethodAccessFlag::NONE,
+                ),
+                JavaMethodProto::new(
+                    "getDockedCard",
+                    "()Lorg/kwis/msp/lcdui/Card;",
+                    Self::get_docked_card,
+                    JavaMethodAccessFlag::NONE,
+                ),
+                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new(
                     "addJletEventListener",
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::add_jlet_event_listener,
+                    JavaMethodAccessFlag::NONE,
                 ),
                 // private
-                JavaMethodProto::new("paint", "()V", Self::paint),
+                JavaMethodProto::new("paint", "()V", Self::paint, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![
-                JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;", JavaAccessFlag::NONE),
-                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaAccessFlag::STATIC),
+                JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::STATIC),
             ],
         }
     }

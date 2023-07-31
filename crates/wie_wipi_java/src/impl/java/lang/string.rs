@@ -1,8 +1,8 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    JavaAccessFlag, JavaContext, JavaObjectProxy, JavaResult,
+    base::{JavaClassProto, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto},
+    JavaContext, JavaFieldAccessFlag, JavaObjectProxy, JavaResult,
 };
 
 // class java.lang.String
@@ -12,12 +12,12 @@ impl String {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init),
-                JavaMethodProto::new("getBytes", "()[B", Self::get_bytes),
+                JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![
-                JavaFieldProto::new("value", "[C", JavaAccessFlag::NONE),
-                JavaFieldProto::new("length", "I", JavaAccessFlag::NONE),
+                JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("length", "I", JavaFieldAccessFlag::NONE),
             ],
         }
     }
