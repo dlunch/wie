@@ -1,7 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::string::{String, ToString};
 use core::mem::size_of;
 
 use wie_backend::Backend;
@@ -130,11 +127,7 @@ async fn jb_unk5(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::
 async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
     log::debug!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
-    let args = (0..6).map(|x| read_generic(core, ptr_data + x * 4));
-    let args = [Ok(0)].into_iter().chain(args).collect::<anyhow::Result<Vec<_>>>()?;
-    log::debug!("args: {:?}", args);
-
-    let result = core.run_function::<u32>(address, &args).await?;
+    let result = core.run_function::<u32>(address, &[ptr_data]).await?;
 
     write_generic(core, ptr_data, result)?;
     write_generic(core, ptr_data + 4, 0u32)?;

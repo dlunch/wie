@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     JavaObjectProxy,
 };
 
@@ -12,9 +12,14 @@ impl System {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis),
-                JavaMethodProto::new("gc", "()V", Self::gc),
-                JavaMethodProto::new("arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V", Self::arraycopy),
+                JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodAccessFlag::NATIVE),
+                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodAccessFlag::NATIVE),
+                JavaMethodProto::new(
+                    "arraycopy",
+                    "(Ljava/lang/Object;ILjava/lang/Object;II)V",
+                    Self::arraycopy,
+                    JavaMethodAccessFlag::NATIVE,
+                ),
             ],
             fields: vec![],
         }

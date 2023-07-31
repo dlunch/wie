@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_backend::CanvasHandle;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -14,15 +14,20 @@ impl Graphics {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init),
-                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font),
-                JavaMethodProto::new("setColor", "(I)V", Self::set_color),
-                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect),
-                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image),
-                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x),
-                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y),
-                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width),
-                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height),
+                JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new(
+                    "drawImage",
+                    "(Lorg/kwis/msp/lcdui/Image;III)V",
+                    Self::draw_image,
+                    JavaMethodAccessFlag::NONE,
+                ),
+                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![],
         }

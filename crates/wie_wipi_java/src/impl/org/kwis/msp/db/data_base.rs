@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -12,10 +12,15 @@ impl DataBase {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init),
-                JavaMethodProto::new("openDataBase", "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;", Self::open_data_base),
-                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records),
-                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new(
+                    "openDataBase",
+                    "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
+                    Self::open_data_base,
+                    JavaMethodAccessFlag::NONE,
+                ),
+                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![],
         }

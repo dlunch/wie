@@ -8,24 +8,25 @@ use wie_backend::{
 use wie_base::util::{cast_slice, cast_vec, read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
-    get_array_proto, get_class_proto, JavaAccessFlag, JavaClassProto, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult,
+    get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
+    JavaObjectProxy, JavaResult,
 };
 
 use crate::runtime::KtfPeb;
 
 bitflags::bitflags! {
-    struct JavaAccessFlagBit: u32 {
+    struct JavaFieldAccessFlagBit: u32 {
         const NONE = 0;
         const STATIC = 8;
     }
 
 }
 
-impl JavaAccessFlagBit {
-    fn from_access_flag(access_flag: JavaAccessFlag) -> JavaAccessFlagBit {
+impl JavaFieldAccessFlagBit {
+    fn from_access_flag(access_flag: JavaFieldAccessFlag) -> JavaFieldAccessFlagBit {
         match access_flag {
-            JavaAccessFlag::NONE => JavaAccessFlagBit::NONE,
-            JavaAccessFlag::STATIC => JavaAccessFlagBit::STATIC,
+            JavaFieldAccessFlag::NONE => JavaFieldAccessFlagBit::NONE,
+            JavaFieldAccessFlag::STATIC => JavaFieldAccessFlagBit::STATIC,
         }
     }
 }
@@ -376,7 +377,7 @@ impl<'a> KtfJavaContext<'a> {
             self.core.write_bytes(ptr_name, &full_name)?;
 
             let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
-            let fn_body = self.register_java_method(method.body)?;
+            let fn_body = self.register_java_method(method.body, method.access_flag == JavaMethodAccessFlag::NATIVE)?;
             write_generic(
                 self.core,
                 ptr_method,
@@ -413,7 +414,7 @@ impl<'a> KtfJavaContext<'a> {
             self.core.write_bytes(ptr_name, &full_name)?;
 
             let ptr_field = Allocator::alloc(self.core, size_of::<JavaField>() as u32)?;
-            let offset_or_value = if field.access_flag == JavaAccessFlag::STATIC {
+            let offset_or_value = if field.access_flag == JavaFieldAccessFlag::STATIC {
                 0
             } else {
                 (index as u32) * 4
@@ -423,7 +424,7 @@ impl<'a> KtfJavaContext<'a> {
                 self.core,
                 ptr_field,
                 JavaField {
-                    access_flag: JavaAccessFlagBit::from_access_flag(field.access_flag).bits(),
+                    access_flag: JavaFieldAccessFlagBit::from_access_flag(field.access_flag).bits(),
                     ptr_class,
                     ptr_name,
                     offset_or_value,
@@ -475,36 +476,43 @@ impl<'a> KtfJavaContext<'a> {
         Ok(ptr_class)
     }
 
-    fn register_java_method(&mut self, body: JavaMethodBody) -> JavaResult<u32> {
+    fn register_java_method(&mut self, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
         struct JavaMethodProxy {
             body: JavaMethodBody,
+            native: bool,
         }
 
         impl JavaMethodProxy {
-            pub fn new(body: JavaMethodBody) -> Self {
-                Self { body }
+            pub fn new(body: JavaMethodBody, native: bool) -> Self {
+                Self { body, native }
             }
         }
 
         #[async_trait::async_trait(?Send)]
         impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMethodProxy {
             async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
-                let _a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
                 let a3 = u32::get(core, 3);
                 let a4 = u32::get(core, 4);
                 let a5 = u32::get(core, 5);
+                let a6 = u32::get(core, 6);
+
+                let args = if self.native {
+                    (0..6).map(|x| read_generic(core, a1 + x * 4)).collect::<JavaResult<Vec<u32>>>()?
+                } else {
+                    vec![a1, a2, a3, a4, a5, a6]
+                };
 
                 let mut context = KtfJavaContext::new(core, backend);
 
-                let result = self.body.call(&mut context, &[a1, a2, a3, a4, a5]).await?; // TODO do we need arg proxy?
+                let result = self.body.call(&mut context, &args).await?; // TODO do we need arg proxy?
 
                 Ok(result)
             }
         }
 
-        let proxy = JavaMethodProxy::new(body);
+        let proxy = JavaMethodProxy::new(body, native);
 
         self.core.register_function(proxy, self.backend)
     }

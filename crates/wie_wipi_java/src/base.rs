@@ -17,25 +17,33 @@ pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
 
 #[derive(Eq, PartialEq)]
-pub enum JavaAccessFlag {
+pub enum JavaMethodAccessFlag {
     NONE,
-    STATIC,
+    STATIC = 0x8,
+    NATIVE = 0x100,
+}
+
+#[derive(Eq, PartialEq)]
+pub enum JavaFieldAccessFlag {
+    NONE,
+    STATIC = 0x8,
 }
 
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
     pub body: JavaMethodBody,
+    pub access_flag: JavaMethodAccessFlag,
 }
 
 pub struct JavaFieldProto {
     pub name: String,
     pub signature: String,
-    pub access_flag: JavaAccessFlag,
+    pub access_flag: JavaFieldAccessFlag,
 }
 
 impl JavaFieldProto {
-    pub fn new(name: &str, signature: &str, access_flag: JavaAccessFlag) -> Self {
+    pub fn new(name: &str, signature: &str, access_flag: JavaFieldAccessFlag) -> Self {
         Self {
             name: name.into(),
             signature: signature.into(),
@@ -47,7 +55,7 @@ impl JavaFieldProto {
 pub type JavaMethodBody = Box<dyn MethodBody<JavaError>>;
 
 impl JavaMethodProto {
-    pub fn new<M, F, R, P>(name: &str, signature: &str, method: M) -> Self
+    pub fn new<M, F, R, P>(name: &str, signature: &str, method: M, access_flag: JavaMethodAccessFlag) -> Self
     where
         M: MethodImpl<F, R, JavaError, P>,
     {
@@ -55,6 +63,7 @@ impl JavaMethodProto {
             name: name.into(),
             signature: signature.into(),
             body: method.into_body(),
+            access_flag,
         }
     }
 }

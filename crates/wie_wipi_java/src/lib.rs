@@ -11,7 +11,10 @@ mod proxy;
 mod string;
 
 pub use self::{
-    base::{get_array_proto, get_class_proto, JavaAccessFlag, JavaClassProto, JavaContext, JavaError, JavaMethodBody, JavaResult},
+    base::{
+        get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
+        JavaResult,
+    },
     proxy::JavaObjectProxy,
     string::{from_java_string, to_java_string},
 };
