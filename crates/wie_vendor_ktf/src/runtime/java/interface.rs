@@ -7,7 +7,7 @@ use core::mem::size_of;
 use wie_backend::Backend;
 use wie_base::util::{cast_slice, read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::JavaContext;
+use wie_wipi_java::{JavaContext, JavaObjectProxy};
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 
@@ -17,7 +17,7 @@ struct WIPIJBInterface {
     unk1: u32,
     fn_java_jump_1: u32,
     fn_java_jump_2: u32,
-    fn_unk8: u32,
+    fn_store_array: u32,
     fn_get_java_method: u32,
     unk4: u32,
     fn_unk4: u32,
@@ -34,7 +34,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         unk1: 0,
         fn_java_jump_1: core.register_function(java_jump_1, backend)?,
         fn_java_jump_2: core.register_function(java_jump_2, backend)?,
-        fn_unk8: core.register_function(jb_unk8, backend)?,
+        fn_store_array: core.register_function(store_array, backend)?,
         fn_get_java_method: core.register_function(get_java_method, backend)?,
         unk4: 0,
         fn_unk4: core.register_function(jb_unk4, backend)?,
@@ -148,8 +148,11 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, 
     core.run_function::<u32>(address, &[arg1, arg2]).await
 }
 
-async fn jb_unk8(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32, a2: u32) -> anyhow::Result<u32> {
-    log::warn!("stub jb_unk8({:#x}, {:#x}, {:#x})", a0, a1, a2);
+async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, index: u32, value: u32) -> anyhow::Result<u32> {
+    log::debug!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
+
+    let mut context = KtfJavaContext::new(core, backend);
+    context.store_array(&JavaObjectProxy::new(array), index, &[value])?;
 
     Ok(0)
 }
