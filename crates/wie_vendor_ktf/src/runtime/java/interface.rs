@@ -15,8 +15,8 @@ use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 #[derive(Clone, Copy)]
 struct WIPIJBInterface {
     unk1: u32,
-    fn_unk1: u32,
-    fn_unk7: u32,
+    fn_java_jump_1: u32,
+    fn_java_jump_2: u32,
     fn_unk8: u32,
     fn_get_java_method: u32,
     unk4: u32,
@@ -32,8 +32,8 @@ struct WIPIJBInterface {
 pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_unk1: core.register_function(jb_unk1, backend)?,
-        fn_unk7: core.register_function(jb_unk7, backend)?,
+        fn_java_jump_1: core.register_function(java_jump_1, backend)?,
+        fn_java_jump_2: core.register_function(java_jump_2, backend)?,
         fn_unk8: core.register_function(jb_unk8, backend)?,
         fn_get_java_method: core.register_function(get_java_method, backend)?,
         unk4: 0,
@@ -83,9 +83,8 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
     Ok(ptr_method)
 }
 
-async fn jb_unk1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
-    // jump?
-    log::debug!("jb_unk1 jump?({:#x}, {:#x})", arg1, address);
+async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
+    log::debug!("java_jump_1({:#x}, {:#x})", arg1, address);
 
     core.run_function::<u32>(address, &[arg1]).await
 }
@@ -143,9 +142,8 @@ async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data
     Ok(ptr_data)
 }
 
-async fn jb_unk7(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
-    // jump?
-    log::debug!("jb_unk7 jump?({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+async fn java_jump_2(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
+    log::debug!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     core.run_function::<u32>(address, &[arg1, arg2]).await
 }
