@@ -235,7 +235,6 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
         "WIPI_JBInterface" => get_wipi_jb_interface(core, backend),
         _ => {
             log::warn!("Unknown {}", r#struct);
-            log::warn!("Register dump\n{}", core.dump_regs()?);
 
             Ok(0)
         }
