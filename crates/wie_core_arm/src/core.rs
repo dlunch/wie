@@ -351,6 +351,7 @@ impl Core for ArmCore {
             sp: sp + 0x1000,
             lr: 0,
             pc: 0,
+            apsr: 0,
         })
     }
 
@@ -380,6 +381,7 @@ impl Core for ArmCore {
         inner.uc.reg_write(RegisterARM::SP, context.sp as u64).unwrap();
         inner.uc.reg_write(RegisterARM::LR, context.lr as u64).unwrap();
         inner.uc.reg_write(RegisterARM::PC, context.pc as u64).unwrap();
+        inner.uc.reg_write(RegisterARM::APSR, context.apsr as u64).unwrap();
     }
 
     fn save_context(&self) -> Box<dyn CoreContext> {
@@ -402,6 +404,7 @@ impl Core for ArmCore {
             sp: inner.uc.reg_read(RegisterARM::SP).unwrap() as u32,
             lr: inner.uc.reg_read(RegisterARM::LR).unwrap() as u32,
             pc: inner.uc.reg_read(RegisterARM::PC).unwrap() as u32,
+            apsr: inner.uc.reg_read(RegisterARM::APSR).unwrap() as u32,
         })
     }
 
