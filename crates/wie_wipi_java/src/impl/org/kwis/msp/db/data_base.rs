@@ -21,6 +21,7 @@ impl DataBase {
                 ),
                 JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![],
         }
@@ -50,5 +51,11 @@ impl DataBase {
         log::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", _a0.ptr_instance);
 
         Ok(())
+    }
+
+    async fn insert_record(_: &mut dyn JavaContext, _a0: JavaObjectProxy, _a1: JavaObjectProxy, _a2: u32, _a3: u32) -> JavaResult<u32> {
+        log::warn!("stub org.kwis.msp.db.DataBase::insertRecord({:#x})", _a0.ptr_instance);
+
+        Ok(0)
     }
 }
