@@ -1,4 +1,4 @@
 mod clip;
 mod play_listener;
 
-pub use self::{ clip::Clip, play_listener::PlayListener, };
+pub use self::{clip::Clip, play_listener::PlayListener};
