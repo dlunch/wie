@@ -97,6 +97,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/StringBuffer" => crate::r#impl::java::lang::StringBuffer::as_proto(),
         "java/lang/System" => crate::r#impl::java::lang::System::as_proto(),
         "java/lang/Thread" => crate::r#impl::java::lang::Thread::as_proto(),
+        "java/io/IOException" => crate::r#impl::java::io::IOException::as_proto(),
         "org/kwis/msp/db/DataBase" => crate::r#impl::org::kwis::msp::db::DataBase::as_proto(),
         "org/kwis/msp/handset/BackLight" => crate::r#impl::org::kwis::msp::handset::BackLight::as_proto(),
         "org/kwis/msp/handset/HandsetProperty" => crate::r#impl::org::kwis::msp::handset::HandsetProperty::as_proto(),
