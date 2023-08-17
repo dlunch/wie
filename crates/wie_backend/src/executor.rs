@@ -5,8 +5,10 @@ use std::{
     future::Future,
     pin::Pin,
     rc::Rc,
-    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
+    task::{Context, Poll},
 };
+
+use futures::task::noop_waker;
 
 use wie_base::{CoreContext, Module};
 
@@ -170,7 +172,7 @@ impl Executor {
                 }
             }
 
-            let waker = Self::waker_from_task_id(task_id);
+            let waker = noop_waker();
             let mut context = Context::from_waker(&waker);
             self.inner.borrow_mut().current_task_id = Some(task_id);
 
@@ -204,20 +206,6 @@ impl Executor {
 
     pub(crate) fn sleep(&mut self, task_id: usize, until: Instant) {
         self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
-    }
-
-    fn dummy_raw_waker(task_id: usize) -> RawWaker {
-        fn no_op(_: *const ()) {}
-        fn clone(data: *const ()) -> RawWaker {
-            Executor::dummy_raw_waker(data as usize)
-        }
-
-        let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-        RawWaker::new(task_id as _, vtable)
-    }
-
-    fn waker_from_task_id(task_id: usize) -> Waker {
-        unsafe { Waker::from_raw(Self::dummy_raw_waker(task_id)) }
     }
 }
 
