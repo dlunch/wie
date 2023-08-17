@@ -14,11 +14,7 @@ use crate::{
 use self::{framebuffer::Framebuffer, image::Image};
 
 fn gen_stub(id: u32) -> CMethodBody {
-    let body = move |_: &mut dyn CContext| async move {
-        log::warn!("stub graphics{}", id);
-
-        Ok(0)
-    };
+    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented graphics{}", id)) };
 
     body.into_body()
 }

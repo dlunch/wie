@@ -22,11 +22,7 @@ pub struct Timer {
 }
 
 fn gen_stub(id: u32) -> CMethodBody {
-    let body = move |_: &mut dyn CContext| async move {
-        log::warn!("stub kernel{}", id);
-
-        Ok(0)
-    };
+    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented kernel{}", id)) };
 
     body.into_body()
 }
