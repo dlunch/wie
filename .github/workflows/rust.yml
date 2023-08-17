@@ -1,6 +1,6 @@
 on:
   - push
-# - pull_request
+  - pull_request
 
 name: Rust CI
 
