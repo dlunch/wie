@@ -27,7 +27,7 @@ impl Runtime {
     }
 
     async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
-        log::debug!("java.lang.Runtime::get_runtime");
+        log::trace!("java.lang.Runtime::get_runtime");
 
         let instance = context.instantiate("Ljava/lang/Runtime;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
