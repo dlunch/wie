@@ -90,6 +90,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     Some(match name {
         "java/lang/Exception" => crate::r#impl::java::lang::Exception::as_proto(),
         "java/lang/InterruptedException" => crate::r#impl::java::lang::InterruptedException::as_proto(),
+        "java/lang/IllegalArgumentException" => crate::r#impl::java::lang::IllegalArgumentException::as_proto(),
         "java/lang/Object" => crate::r#impl::java::lang::Object::as_proto(),
         "java/lang/Runnable" => crate::r#impl::java::lang::Runnable::as_proto(),
         "java/lang/Runtime" => crate::r#impl::java::lang::Runtime::as_proto(),
