@@ -1,11 +1,13 @@
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{fmt::Display, iter, mem::size_of};
 
+use bytemuck::{cast_slice, Pod, Zeroable};
+
 use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend, Executor,
 };
-use wie_base::util::{cast_slice, cast_vec, read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
+use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
     get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
@@ -32,7 +34,7 @@ impl JavaFieldAccessFlagBit {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaClass {
     ptr_next: u32,
     unk1: u32,
@@ -43,7 +45,7 @@ struct JavaClass {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaClassDescriptor {
     ptr_name: u32,
     unk1: u32,
@@ -60,7 +62,7 @@ struct JavaClassDescriptor {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaMethod {
     fn_body: u32,
     ptr_class: u32,
@@ -74,7 +76,7 @@ struct JavaMethod {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaField {
     access_flag: u32,
     ptr_class: u32,
@@ -83,21 +85,21 @@ struct JavaField {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaClassInstance {
     ptr_fields: u32,
     ptr_class: u32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaClassInstanceFields {
     vtable_index: u32, // left shifted by 5
     fields: [u32; 1],
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaContextData {
     pub classes_base: u32,
     pub ptr_vtables_base: u32,
@@ -704,7 +706,11 @@ impl JavaContext for KtfJavaContext<'_> {
         let items_offset = instance.ptr_fields + 4;
 
         let values_raw = self.core.read_bytes(items_offset + 8 + 4 * offset, count * 4)?;
-        Ok(cast_vec(values_raw))
+        let values = values_raw
+            .chunks(4)
+            .map(|x| u32::from_le_bytes(x.try_into().unwrap()))
+            .collect::<Vec<_>>();
+        Ok(values)
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {

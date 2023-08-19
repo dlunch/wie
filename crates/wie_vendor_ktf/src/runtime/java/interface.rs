@@ -1,15 +1,20 @@
-use alloc::string::{String, ToString};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::mem::size_of;
 
+use bytemuck::{Pod, Zeroable};
+
 use wie_backend::Backend;
-use wie_base::util::{cast_slice, read_generic, write_generic, ByteRead};
+use wie_base::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::{JavaContext, JavaObjectProxy};
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct WIPIJBInterface {
     unk1: u32,
     fn_java_jump_1: u32,
@@ -104,7 +109,8 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
         length as _
     };
     let bytes = core.read_bytes(cursor, (length * 2) as _)?;
-    let str = String::from_utf16(cast_slice(&bytes))?;
+    let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
+    let str = String::from_utf16(&bytes_u16)?;
 
     let mut context = KtfJavaContext::new(core, backend);
     let instance = wie_wipi_java::to_java_string(&mut context, &str).await?;

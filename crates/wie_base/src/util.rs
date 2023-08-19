@@ -1,5 +1,7 @@
 use alloc::{string::String, vec::Vec};
-use core::{mem::size_of, slice};
+use core::mem::size_of;
+
+use bytemuck::{bytes_of, from_bytes, AnyBitPattern, NoUninit};
 
 pub fn round_up(num_to_round: usize, multiple: usize) -> usize {
     if multiple == 0 {
@@ -24,12 +26,12 @@ pub trait ByteWrite {
 
 pub fn read_generic<T, R>(reader: &R, address: u32) -> anyhow::Result<T>
 where
-    T: Copy,
+    T: Copy + AnyBitPattern,
     R: ?Sized + ByteRead,
 {
     let data = reader.read_bytes(address, size_of::<T>() as u32)?;
 
-    Ok(unsafe { *(data.as_ptr() as *const T) })
+    Ok(*from_bytes(&data))
 }
 
 pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> anyhow::Result<String>
@@ -59,23 +61,9 @@ where
 pub fn write_generic<W, T>(writer: &mut W, address: u32, data: T) -> anyhow::Result<()>
 where
     W: ?Sized + ByteWrite,
+    T: NoUninit,
 {
-    let data_slice = unsafe { slice::from_raw_parts(&data as *const T as *const u8, size_of::<T>()) };
+    let data_slice = bytes_of(&data);
 
     writer.write_bytes(address, data_slice)
-}
-
-pub fn cast_slice<T, U>(source: &[T]) -> &[U] {
-    let new_len = core::mem::size_of_val(source) / core::mem::size_of::<U>();
-    unsafe { slice::from_raw_parts(source as *const [T] as *const U, new_len) }
-}
-
-pub fn cast_vec<T, U>(source: Vec<T>) -> Vec<U> {
-    let new_len = source.len() * core::mem::size_of::<T>() / core::mem::size_of::<U>();
-    let new_capacity = source.capacity() * core::mem::size_of::<T>() / core::mem::size_of::<U>();
-
-    let result = unsafe { Vec::from_raw_parts(source.as_ptr() as _, new_len, new_capacity) };
-    core::mem::forget(source);
-
-    result
 }

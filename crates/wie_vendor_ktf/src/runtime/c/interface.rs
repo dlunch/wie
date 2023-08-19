@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 use core::mem::size_of;
 
+use bytemuck::{Pod, Zeroable};
+
 use wie_backend::Backend;
 use wie_base::util::write_generic;
 use wie_core_arm::ArmCore;
@@ -9,7 +11,7 @@ use wie_wipi_c::{get_database_method_table, get_graphics_method_table, get_kerne
 use crate::runtime::c::context::KtfCContext;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct WIPICInterface {
     interface_0: u32,
     interface_1: u32,

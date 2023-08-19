@@ -1,5 +1,7 @@
 use alloc::{boxed::Box, string::String};
 
+use bytemuck::{Pod, Zeroable};
+
 use wie_backend::{task::SleepFuture, Backend};
 use wie_base::util::{read_null_terminated_string, ByteRead, ByteWrite};
 
@@ -10,7 +12,8 @@ pub type CResult<T> = anyhow::Result<T>;
 
 pub type CMethodBody = Box<dyn MethodBody<CError>>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 pub struct CMemoryId(pub u32);
 
 #[async_trait::async_trait(?Send)]

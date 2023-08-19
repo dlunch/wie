@@ -1,13 +1,14 @@
 use alloc::vec::Vec;
 use core::ops::{Deref, DerefMut};
-use wie_base::util::{cast_slice, cast_vec};
+
+use bytemuck::{cast_slice, cast_vec, Pod, Zeroable};
 
 use wie_backend::{Canvas, CanvasHandle};
 
 use crate::base::{CContext, CMemoryId};
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Framebuffer {
     pub width: u32,
     pub height: u32,

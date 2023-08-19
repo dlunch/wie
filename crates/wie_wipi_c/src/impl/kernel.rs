@@ -1,6 +1,8 @@
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::iter;
 
+use bytemuck::{Pod, Zeroable};
+
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
@@ -8,8 +10,8 @@ use crate::{
     method::{MethodBody, MethodImpl},
 };
 
-#[repr(C)]
-#[derive(Clone, Copy)]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Timer {
     unk1: u32,
     unk2: u32,

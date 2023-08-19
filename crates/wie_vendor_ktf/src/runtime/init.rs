@@ -1,6 +1,8 @@
 use alloc::string::String;
 use core::mem::size_of;
 
+use bytemuck::{Pod, Zeroable};
+
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
@@ -12,13 +14,13 @@ use crate::runtime::{
 };
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam0 {
     unk: u32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam4 {
     fn_get_interface: u32,
     fn_java_throw: u32,
@@ -35,26 +37,26 @@ struct InitParam4 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam1 {
     ptr_unk_struct: u32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam1Unk {
     ptr_unk_struct: u32,
     unk: [u32; 31],
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam1UnkUnk {
     unk: [u32; 8],
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam2 {
     unk1: u32,
     unk2: u32,
@@ -63,7 +65,7 @@ struct InitParam2 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam3 {
     unk1: u32,
     unk2: u32,
@@ -81,7 +83,7 @@ struct InitParam3 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct WipiExe {
     ptr_exe_interface: u32,
     ptr_name: u32,
@@ -96,7 +98,7 @@ struct WipiExe {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct ExeInterface {
     ptr_functions: u32,
     ptr_name: u32,
@@ -109,7 +111,7 @@ struct ExeInterface {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct ExeInterfaceFunctions {
     unk1: u32,
     unk2: u32,
@@ -121,7 +123,7 @@ struct ExeInterfaceFunctions {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct KtfPeb {
     pub ptr_java_context_data: u32,
 }
