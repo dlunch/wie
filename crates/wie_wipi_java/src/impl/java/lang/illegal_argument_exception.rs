@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::base::JavaClassProto;
 
-// class java/lang/IllegalArgumentException
+// class java.lang.IllegalArgumentException
 pub struct IllegalArgumentException {}
 
 impl IllegalArgumentException {
