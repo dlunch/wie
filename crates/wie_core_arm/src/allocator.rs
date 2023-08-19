@@ -1,12 +1,15 @@
 use core::mem::size_of;
 
+use bytemuck::{Pod, Zeroable};
+
 use wie_base::util::{read_generic, round_up, write_generic};
 
 use crate::core::{ArmCore, HEAP_BASE};
 
 const HEAP_SIZE: u32 = 0x100000;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 struct AllocationHeader {
     data: u32,
 }

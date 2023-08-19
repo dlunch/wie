@@ -1,11 +1,13 @@
 use alloc::vec::Vec;
 
+use bytemuck::{Pod, Zeroable};
+
 use crate::base::{CContext, CMemoryId};
 
 use super::Framebuffer;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Image {
     img: Framebuffer,
     mask: Framebuffer,

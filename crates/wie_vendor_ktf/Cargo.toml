@@ -8,6 +8,7 @@ license = "MIT"
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bitflags = { version = "^2.3", default-features = false }
+bytemuck = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true }
 
