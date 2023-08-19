@@ -69,7 +69,7 @@ pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_targ
 }
 
 pub async fn java_throw(_: &mut ArmCore, _: &mut Backend, error: String, a1: u32) -> anyhow::Result<u32> {
-    log::trace!("java_throw({}, {})", error, a1);
+    log::error!("java_throw({}, {})", error, a1);
 
     Err(anyhow::anyhow!("Java Exception thrown {}, {:#x}", error, a1))
 }
@@ -86,7 +86,7 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
 }
 
 async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
-    log::debug!("java_jump_1({:#x}, {:#x})", arg1, address);
+    log::trace!("java_jump_1({:#x}, {:#x})", arg1, address);
 
     core.run_function::<u32>(address, &[arg1]).await
 }
@@ -131,7 +131,7 @@ async fn jb_unk5(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::
 }
 
 async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
-    log::debug!("java_jump_native({:#x}, {:#x})", address, ptr_data);
+    log::trace!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
     let result = core.run_function::<u32>(address, &[ptr_data]).await?;
 
@@ -142,13 +142,13 @@ async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data
 }
 
 async fn java_jump_2(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
-    log::debug!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+    log::trace!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     core.run_function::<u32>(address, &[arg1, arg2]).await
 }
 
 async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, index: u32, value: u32) -> anyhow::Result<u32> {
-    log::debug!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
+    log::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
 
     let mut context = KtfJavaContext::new(core, backend);
     context.store_array(&JavaObjectProxy::new(array), index, &[value])?;
@@ -157,7 +157,7 @@ async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, inde
 }
 
 pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<u32> {
-    log::debug!("java_new({:#x})", ptr_class);
+    log::trace!("java_new({:#x})", ptr_class);
 
     let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
 
@@ -165,7 +165,7 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
 }
 
 pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
-    log::debug!("java_array_new({:#x}, {:#x})", element_type, count);
+    log::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
     let mut java_context = KtfJavaContext::new(core, backend);
 
