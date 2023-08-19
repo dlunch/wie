@@ -136,7 +136,7 @@ pub struct ModuleInfo {
 pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
     let wipi_exe = core.run_function(base_address + 1, &[bss_size]).await?;
 
-    log::info!("Got wipi_exe {:#x}", wipi_exe);
+    log::debug!("Got wipi_exe {:#x}", wipi_exe);
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
@@ -212,7 +212,7 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
-    log::info!("Call init at {:#x}", exe_interface_functions.fn_init);
+    log::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core
         .run_function::<u32>(
             exe_interface_functions.fn_init,
