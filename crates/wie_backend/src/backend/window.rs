@@ -51,7 +51,7 @@ impl Window {
             Event::MainEventsCleared => {
                 let result = update();
                 if let Err(x) = result {
-                    eprintln!("{:?}", x);
+                    log::error!("{:?}", x);
 
                     *control_flow = ControlFlow::Exit;
                 }
@@ -60,7 +60,7 @@ impl Window {
                 let mut buffer = surface.buffer_mut().unwrap();
                 let result = render(&mut buffer);
                 if let Err(x) = result {
-                    eprintln!("{:?}", x);
+                    log::error!("{:?}", x);
 
                     *control_flow = ControlFlow::Exit;
                 }
