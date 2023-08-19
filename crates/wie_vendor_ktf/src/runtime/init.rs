@@ -244,7 +244,7 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
 }
 
 async fn alloc(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
-    log::debug!("alloc({})", a0);
+    log::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)
 }
