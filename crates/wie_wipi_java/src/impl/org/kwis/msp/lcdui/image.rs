@@ -30,8 +30,8 @@ impl Image {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Image::<init>({:#x})", instance.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.lcdui.Image::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }

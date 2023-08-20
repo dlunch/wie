@@ -50,14 +50,14 @@ impl Display {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::<init>({:#x})", instance.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.lcdui.Display::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
-    async fn get_display(context: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", a0.ptr_instance);
+    async fn get_display(context: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+        log::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", this.ptr_instance);
 
         let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
         if display == 0 {
@@ -93,16 +93,16 @@ impl Display {
         Ok(JavaObjectProxy::new(0))
     }
 
-    async fn push_card(context: &mut dyn JavaContext, instance: JavaObjectProxy, a1: JavaObjectProxy) -> JavaResult<()> {
+    async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy, a1: JavaObjectProxy) -> JavaResult<()> {
         log::warn!(
             "stub org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})",
-            instance.ptr_instance,
+            this.ptr_instance,
             a1.ptr_instance
         );
 
-        let card = context.get_field(&instance, "card")?;
+        let card = context.get_field(&this, "card")?;
         if card == 0 {
-            context.put_field(&instance, "card", a1.ptr_instance)?;
+            context.put_field(&this, "card", a1.ptr_instance)?;
         }
 
         Ok(())

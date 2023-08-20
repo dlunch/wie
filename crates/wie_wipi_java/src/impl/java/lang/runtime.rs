@@ -20,8 +20,8 @@ impl Runtime {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub java.lang.Runtime::<init>({:#x})", instance.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub java.lang.Runtime::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }

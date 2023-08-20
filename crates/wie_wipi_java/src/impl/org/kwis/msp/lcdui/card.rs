@@ -21,14 +21,14 @@ impl Card {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x})", instance.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
-    async fn init_1(_: &mut dyn JavaContext, instance: JavaObjectProxy, a0: u32) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", instance.ptr_instance, a0);
+    async fn init_1(_: &mut dyn JavaContext, this: JavaObjectProxy, a0: u32) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", this.ptr_instance, a0);
 
         Ok(())
     }
