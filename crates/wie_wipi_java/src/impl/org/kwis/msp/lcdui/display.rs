@@ -93,23 +93,27 @@ impl Display {
         Ok(JavaObjectProxy::new(0))
     }
 
-    async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy, a1: JavaObjectProxy) -> JavaResult<()> {
+    async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy, c: JavaObjectProxy) -> JavaResult<()> {
         log::warn!(
             "stub org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})",
             this.ptr_instance,
-            a1.ptr_instance
+            c.ptr_instance
         );
 
         let card = context.get_field(&this, "card")?;
         if card == 0 {
-            context.put_field(&this, "card", a1.ptr_instance)?;
+            context.put_field(&this, "card", c.ptr_instance)?;
         }
 
         Ok(())
     }
 
-    async fn add_jlet_event_listener(_: &mut dyn JavaContext, a0: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::addJletEventListener({:#x})", a0.ptr_instance);
+    async fn add_jlet_event_listener(_: &mut dyn JavaContext, this: JavaObjectProxy, qel: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!(
+            "stub org.kwis.msp.lcdui.Display::addJletEventListener({:#x}, {:#x})",
+            this.ptr_instance,
+            qel.ptr_instance
+        );
 
         Ok(())
     }

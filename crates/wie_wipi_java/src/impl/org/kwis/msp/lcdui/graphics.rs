@@ -54,27 +54,27 @@ impl Graphics {
         Ok(())
     }
 
-    async fn fill_rect(_: &mut dyn JavaContext, this: JavaObjectProxy, a1: u32, a2: u32, a3: u32, a4: u32) -> JavaResult<()> {
+    async fn fill_rect(_: &mut dyn JavaContext, this: JavaObjectProxy, x: u32, y: u32, width: u32, height: u32) -> JavaResult<()> {
         log::warn!(
             "stub org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
-            a1,
-            a2,
-            a3,
-            a4
+            x,
+            y,
+            width,
+            height
         );
 
         Ok(())
     }
 
-    async fn draw_image(_: &mut dyn JavaContext, this: JavaObjectProxy, a1: JavaObjectProxy, a2: u32, a3: u32, a4: u32) -> JavaResult<()> {
+    async fn draw_image(_: &mut dyn JavaContext, this: JavaObjectProxy, img: JavaObjectProxy, x: u32, y: u32, anchor: u32) -> JavaResult<()> {
         log::warn!(
             "stub org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
-            a1.ptr_instance,
-            a2,
-            a3,
-            a4
+            img.ptr_instance,
+            x,
+            y,
+            anchor
         );
 
         Ok(())
