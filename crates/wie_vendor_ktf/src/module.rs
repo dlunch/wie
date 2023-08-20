@@ -5,7 +5,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use wie_backend::Backend;
 use wie_base::{util::ByteWrite, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::JavaContext;
+use wie_wipi_java::{JavaContext, JavaObjectProxy};
 
 use crate::runtime::KtfJavaContext;
 
@@ -69,9 +69,29 @@ impl KtfWipiModule {
 
         let mut java_context = KtfJavaContext::new(core, backend);
 
+        let display = java_context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
+        if display == 0 {
+            return Ok(0);
+        }
+
+        let card = java_context.get_field(&JavaObjectProxy::new(display), "card")?;
+        if card == 0 {
+            return Ok(0);
+        }
+
+        let graphics = java_context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
+        java_context.call_method(&graphics, "<init>", "(I)V", &[screen_canvas]).await?;
+
         java_context
-            .call_static_method("org/kwis/msp/lcdui/Display", "paint", "()V", &[screen_canvas])
+            .call_method(
+                &JavaObjectProxy::new(card),
+                "paint",
+                "(Lorg/kwis/msp/lcdui/Graphics;)V",
+                &[graphics.ptr_instance],
+            )
             .await?;
+
+        java_context.destroy(graphics)?;
 
         Ok(0)
     }
