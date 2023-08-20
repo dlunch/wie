@@ -72,7 +72,7 @@ impl JavaMethodProto {
 #[async_trait::async_trait(?Send)]
 pub trait JavaContext {
     fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>;
-    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Object>>;
+    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>>;
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
     async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>;
@@ -80,9 +80,9 @@ pub trait JavaContext {
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()>;
     fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32>;
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()>;
-    fn store_array(&mut self, array: &JavaObjectProxy<Object>, offset: u32, values: &[u32]) -> JavaResult<()>;
-    fn load_array(&mut self, array: &JavaObjectProxy<Object>, offset: u32, count: u32) -> JavaResult<Vec<u32>>;
-    fn array_length(&mut self, array: &JavaObjectProxy<Object>) -> JavaResult<u32>;
+    fn store_array(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u32]) -> JavaResult<()>;
+    fn load_array(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>>;
+    fn array_length(&mut self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>;
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
