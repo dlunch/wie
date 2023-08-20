@@ -47,7 +47,7 @@ impl StringBuffer {
         let current_count = context.get_field(&instance, "count")?;
 
         let ptr_value_to_add = JavaObjectProxy::new(context.get_field(&string, "value")?);
-        let count_to_add = context.get_field(&string, "length")?;
+        let count_to_add = context.call_method(&string, "length", "()I", &[]).await?;
         let value_to_add = context.load_array(&ptr_value_to_add, 0, count_to_add)?;
 
         StringBuffer::ensure_capacity(context, &instance, current_count + count_to_add)?;
