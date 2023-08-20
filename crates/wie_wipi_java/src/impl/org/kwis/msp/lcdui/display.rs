@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use wie_backend::CanvasHandle;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
@@ -40,8 +38,6 @@ impl Display {
                     Self::add_jlet_event_listener,
                     JavaMethodAccessFlag::NONE,
                 ),
-                // private
-                JavaMethodProto::new("paint", "()V", Self::paint, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
@@ -114,36 +110,6 @@ impl Display {
             this.ptr_instance,
             qel.ptr_instance
         );
-
-        Ok(())
-    }
-
-    async fn paint(context: &mut dyn JavaContext, canvas_handle: CanvasHandle) -> JavaResult<()> {
-        log::trace!("Display::paint");
-
-        let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
-        if display == 0 {
-            return Ok(());
-        }
-
-        let card = context.get_field(&JavaObjectProxy::new(display), "card")?;
-        if card == 0 {
-            return Ok(());
-        }
-
-        let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&graphics, "<init>", "(I)V", &[canvas_handle]).await?;
-
-        context
-            .call_method(
-                &JavaObjectProxy::new(card),
-                "paint",
-                "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                &[graphics.ptr_instance],
-            )
-            .await?;
-
-        context.destroy(graphics)?;
 
         Ok(())
     }
