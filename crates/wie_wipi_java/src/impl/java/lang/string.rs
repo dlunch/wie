@@ -66,6 +66,6 @@ impl String {
 
         let value = JavaObjectProxy::new(context.get_field(&instance, "value")?);
 
-        Ok(context.array_length(&value)?)
+        context.array_length(&value)
     }
 }
