@@ -20,17 +20,17 @@ impl Runtime {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<()> {
         log::warn!("stub java.lang.Runtime::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
-    async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
+    async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Runtime>> {
         log::trace!("java.lang.Runtime::get_runtime");
 
-        let instance = context.instantiate("Ljava/lang/Runtime;")?;
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        let instance = context.instantiate("Ljava/lang/Runtime;")?.cast();
+        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         Ok(instance)
     }

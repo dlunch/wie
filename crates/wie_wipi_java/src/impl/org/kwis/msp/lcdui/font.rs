@@ -19,7 +19,7 @@ impl Font {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Font>) -> JavaResult<()> {
         log::warn!("stub org.kwis.msp.lcdui.Font::<init>({:#x})", this.ptr_instance);
 
         Ok(())

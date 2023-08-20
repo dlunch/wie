@@ -6,6 +6,7 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     method::MethodBody,
     proxy::JavaObjectProxy,
+    r#impl::java::lang::Runnable,
     JavaError,
 };
 
@@ -25,18 +26,18 @@ impl Thread {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy, runnable: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, runnable: JavaObjectProxy<Runnable>) -> JavaResult<()> {
         log::trace!("Thread::<init>({:#x}, {:#x})", this.ptr_instance, runnable.ptr_instance);
 
-        context.put_field(&this, "runnable", runnable.ptr_instance)?;
+        context.put_field(&this.cast(), "runnable", runnable.ptr_instance)?;
 
         Ok(())
     }
 
-    async fn start(context: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+    async fn start(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>) -> JavaResult<()> {
         log::trace!("Thread::start({:#x})", this.ptr_instance);
 
-        let runnable = JavaObjectProxy::new(context.get_field(&this, "runnable")?);
+        let runnable = JavaObjectProxy::new(context.get_field(&this.cast(), "runnable")?);
 
         context.spawn(Box::new(ThreadStartProxy { runnable }))?;
 
@@ -59,7 +60,7 @@ impl Thread {
 }
 
 struct ThreadStartProxy {
-    runnable: JavaObjectProxy,
+    runnable: JavaObjectProxy<Runnable>,
 }
 
 #[async_trait::async_trait(?Send)]
@@ -67,7 +68,7 @@ impl MethodBody<JavaError> for ThreadStartProxy {
     async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
         log::trace!("Thread::run");
 
-        context.call_method(&self.runnable, "run", "()V", &[]).await?;
+        context.call_method(&self.runnable.cast(), "run", "()V", &[]).await?;
 
         Ok(0)
     }

@@ -16,5 +16,6 @@ pub use self::{
         JavaResult,
     },
     proxy::JavaObjectProxy,
+    r#impl::java::lang::Object,
     string::{from_java_string, to_java_string},
 };

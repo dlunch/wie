@@ -5,6 +5,7 @@ use wie_backend::CanvasHandle;
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
+    r#impl::org::kwis::msp::lcdui::{Font, Image},
 };
 
 // class org.kwis.msp.lcdui.Graphics
@@ -33,28 +34,28 @@ impl Graphics {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy, canvas_handle: CanvasHandle) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, canvas_handle: CanvasHandle) -> JavaResult<()> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::<init>({:#x}, {})", this.ptr_instance, canvas_handle);
 
         Ok(())
     }
 
-    async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+    async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Font>> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:#x})", this.ptr_instance);
 
-        let font = context.instantiate("Lorg/kwis/msp/lcdui/Font;")?;
-        context.call_method(&font, "<init>", "()V", &[]).await?;
+        let font = context.instantiate("Lorg/kwis/msp/lcdui/Font;")?.cast();
+        context.call_method(&font.cast(), "<init>", "()V", &[]).await?;
 
         Ok(font)
     }
 
-    async fn set_color(_: &mut dyn JavaContext, this: JavaObjectProxy, a1: u32) -> JavaResult<()> {
+    async fn set_color(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a1: u32) -> JavaResult<()> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, a1);
 
         Ok(())
     }
 
-    async fn fill_rect(_: &mut dyn JavaContext, this: JavaObjectProxy, x: u32, y: u32, width: u32, height: u32) -> JavaResult<()> {
+    async fn fill_rect(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: u32, y: u32, width: u32, height: u32) -> JavaResult<()> {
         log::warn!(
             "stub org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
@@ -67,7 +68,14 @@ impl Graphics {
         Ok(())
     }
 
-    async fn draw_image(_: &mut dyn JavaContext, this: JavaObjectProxy, img: JavaObjectProxy, x: u32, y: u32, anchor: u32) -> JavaResult<()> {
+    async fn draw_image(
+        _: &mut dyn JavaContext,
+        this: JavaObjectProxy<Graphics>,
+        img: JavaObjectProxy<Image>,
+        x: u32,
+        y: u32,
+        anchor: u32,
+    ) -> JavaResult<()> {
         log::warn!(
             "stub org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
@@ -80,25 +88,25 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_clip_x(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<u32> {
+    async fn get_clip_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn get_clip_y(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<u32> {
+    async fn get_clip_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn get_clip_width(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<u32> {
+    async fn get_clip_width(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn get_clip_height(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<u32> {
+    async fn get_clip_height(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})", this.ptr_instance);
 
         Ok(0)
