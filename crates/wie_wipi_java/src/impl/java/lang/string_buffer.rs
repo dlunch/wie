@@ -19,6 +19,7 @@ impl StringBuffer {
                     Self::append_string,
                     JavaMethodAccessFlag::NONE,
                 ),
+                JavaMethodProto::new("toString", "()Ljava/lang/String;", Self::to_string, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("value", "[C", crate::JavaFieldAccessFlag::NONE),
@@ -55,6 +56,18 @@ impl StringBuffer {
         context.store_array(&value, current_count, &value_to_add)?;
 
         Ok(instance)
+    }
+
+    async fn to_string(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+        log::trace!("java.lang.StringBuffer::toString({:#x})", instance.ptr_instance);
+
+        let value = JavaObjectProxy::new(context.get_field(&instance, "value")?);
+        let count = context.get_field(&instance, "count")?;
+
+        let string = context.instantiate("Ljava/lang/String;")?;
+        context.call_method(&string, "<init>", "([CII)V", &[value.ptr_instance, 0, count]).await?;
+
+        Ok(string)
     }
 
     fn ensure_capacity(context: &mut dyn JavaContext, instance: &JavaObjectProxy, capacity: u32) -> JavaResult<()> {
