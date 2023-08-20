@@ -544,7 +544,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
-        let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
+        let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
         let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields)?;
         for ptr_field in ptr_fields {
@@ -556,7 +556,7 @@ impl<'a> KtfJavaContext<'a> {
             }
         }
 
-        Err(anyhow::anyhow!("Cannot find field"))
+        Err(anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
     }
 
     async fn call_method_inner(&mut self, ptr_class: u32, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
