@@ -26,8 +26,8 @@ impl DataBase {
             fields: vec![],
         }
     }
-    async fn init(_: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.db.DataBase::<init>({:#x})", instance.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.db.DataBase::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }

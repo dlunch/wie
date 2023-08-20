@@ -25,18 +25,18 @@ impl Thread {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy, runnable: JavaObjectProxy) -> JavaResult<()> {
-        log::trace!("Thread::<init>({:#x}, {:#x})", instance.ptr_instance, runnable.ptr_instance);
+    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy, runnable: JavaObjectProxy) -> JavaResult<()> {
+        log::trace!("Thread::<init>({:#x}, {:#x})", this.ptr_instance, runnable.ptr_instance);
 
-        context.put_field(&instance, "runnable", runnable.ptr_instance)?;
+        context.put_field(&this, "runnable", runnable.ptr_instance)?;
 
         Ok(())
     }
 
-    async fn start(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
-        log::trace!("Thread::start({:#x})", instance.ptr_instance);
+    async fn start(context: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::trace!("Thread::start({:#x})", this.ptr_instance);
 
-        let runnable = JavaObjectProxy::new(context.get_field(&instance, "runnable")?);
+        let runnable = JavaObjectProxy::new(context.get_field(&this, "runnable")?);
 
         context.spawn(Box::new(ThreadStartProxy { runnable }))?;
 
