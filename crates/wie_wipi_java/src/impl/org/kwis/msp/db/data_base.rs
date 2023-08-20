@@ -32,8 +32,18 @@ impl DataBase {
         Ok(())
     }
 
-    async fn open_data_base(context: &mut dyn JavaContext, _a0: JavaObjectProxy, _a1: u32, _a2: u32) -> JavaResult<JavaObjectProxy> {
-        log::warn!("stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})", _a0.ptr_instance, _a1, _a2);
+    async fn open_data_base(
+        context: &mut dyn JavaContext,
+        data_base_name: JavaObjectProxy,
+        record_size: u32,
+        create: u32,
+    ) -> JavaResult<JavaObjectProxy> {
+        log::warn!(
+            "stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})",
+            data_base_name.ptr_instance,
+            record_size,
+            create
+        );
 
         let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;")?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
@@ -41,20 +51,26 @@ impl DataBase {
         Ok(instance)
     }
 
-    async fn get_number_of_records(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<u32> {
-        log::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", _a0.ptr_instance);
+    async fn get_number_of_records(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<u32> {
+        log::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn close_data_base(_: &mut dyn JavaContext, _a0: JavaObjectProxy) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", _a0.ptr_instance);
+    async fn close_data_base(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
-    async fn insert_record(_: &mut dyn JavaContext, _a0: JavaObjectProxy, _a1: JavaObjectProxy, _a2: u32, _a3: u32) -> JavaResult<u32> {
-        log::warn!("stub org.kwis.msp.db.DataBase::insertRecord({:#x})", _a0.ptr_instance);
+    async fn insert_record(_: &mut dyn JavaContext, this: JavaObjectProxy, data: JavaObjectProxy, offset: u32, num_bytes: u32) -> JavaResult<u32> {
+        log::warn!(
+            "stub org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
+            this.ptr_instance,
+            data.ptr_instance,
+            offset,
+            num_bytes
+        );
 
         Ok(0)
     }
