@@ -81,6 +81,7 @@ pub trait JavaContext {
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()>;
     fn store_array(&mut self, array: &JavaObjectProxy, offset: u32, values: &[u32]) -> JavaResult<()>;
     fn load_array(&mut self, array: &JavaObjectProxy, offset: u32, count: u32) -> JavaResult<Vec<u32>>;
+    fn array_length(&mut self, array: &JavaObjectProxy) -> JavaResult<u32>;
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
