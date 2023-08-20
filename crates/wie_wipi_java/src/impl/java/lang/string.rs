@@ -48,7 +48,7 @@ impl String {
         context.put_field(&instance, "value", array.ptr_instance)?;
 
         let data = context.load_array(&value, offset, count)?;
-        context.store_array(&array, 0, &data)?;
+        context.store_array(&array, 0, &data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
     }
@@ -56,7 +56,7 @@ impl String {
     async fn get_bytes(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::trace!("java.lang.String::getBytes({:#x})", instance.ptr_instance);
 
-        let value = JavaObjectProxy::new(context.get_field(&instance, "value")?);
+        let value = JavaObjectProxy::new(context.get_field(&instance, "value")?); // TODO convert to bytes..
 
         Ok(value)
     }
