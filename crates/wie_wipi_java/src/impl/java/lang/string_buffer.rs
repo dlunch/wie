@@ -31,8 +31,8 @@ impl StringBuffer {
     async fn init(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<()> {
         log::trace!("java.lang.StringBuffer::<init>({:#x})", instance.ptr_instance);
 
-        let value = context.instantiate_array("C", 16)?;
-        context.put_field(&instance, "value", value.ptr_instance)?;
+        let java_value_array = context.instantiate_array("C", 16)?;
+        context.put_field(&instance, "value", java_value_array.ptr_instance)?;
         context.put_field(&instance, "count", 0)?;
 
         Ok(())
@@ -46,14 +46,14 @@ impl StringBuffer {
         );
         let current_count = context.get_field(&instance, "count")?;
 
-        let ptr_value_to_add = JavaObjectProxy::new(context.get_field(&string, "value")?);
+        let java_value_to_add_array = JavaObjectProxy::new(context.get_field(&string, "value")?);
         let count_to_add = context.call_method(&string, "length", "()I", &[]).await?;
-        let value_to_add = context.load_array(&ptr_value_to_add, 0, count_to_add)?;
+        let value_to_add = context.load_array(&java_value_to_add_array, 0, count_to_add)?;
 
         StringBuffer::ensure_capacity(context, &instance, current_count + count_to_add)?;
 
-        let value = JavaObjectProxy::new(context.get_field(&instance, "value")?);
-        context.store_array(&value, current_count, &value_to_add)?;
+        let java_value_aray = JavaObjectProxy::new(context.get_field(&instance, "value")?);
+        context.store_array(&java_value_aray, current_count, &value_to_add)?;
 
         Ok(instance)
     }
@@ -61,27 +61,29 @@ impl StringBuffer {
     async fn to_string(context: &mut dyn JavaContext, instance: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
         log::trace!("java.lang.StringBuffer::toString({:#x})", instance.ptr_instance);
 
-        let value = JavaObjectProxy::new(context.get_field(&instance, "value")?);
+        let java_value = JavaObjectProxy::new(context.get_field(&instance, "value")?);
         let count = context.get_field(&instance, "count")?;
 
         let string = context.instantiate("Ljava/lang/String;")?;
-        context.call_method(&string, "<init>", "([CII)V", &[value.ptr_instance, 0, count]).await?;
+        context
+            .call_method(&string, "<init>", "([CII)V", &[java_value.ptr_instance, 0, count])
+            .await?;
 
         Ok(string)
     }
 
     fn ensure_capacity(context: &mut dyn JavaContext, instance: &JavaObjectProxy, capacity: u32) -> JavaResult<()> {
-        let value = JavaObjectProxy::new(context.get_field(instance, "value")?);
-        let current_capacity = context.array_length(&value)?;
+        let java_value_array = JavaObjectProxy::new(context.get_field(instance, "value")?);
+        let current_capacity = context.array_length(&java_value_array)?;
 
         if current_capacity < capacity {
-            let old_values = context.load_array(&value, 0, current_capacity)?;
+            let old_values = context.load_array(&java_value_array, 0, current_capacity)?;
             let new_capacity = capacity * 2;
 
-            let new_value = context.instantiate_array("C", new_capacity)?;
+            let java_new_value_array = context.instantiate_array("C", new_capacity)?;
             // TODO free existing array
-            context.put_field(instance, "value", new_value.ptr_instance)?;
-            context.store_array(&new_value, 0, &old_values)?;
+            context.put_field(instance, "value", java_new_value_array.ptr_instance)?;
+            context.store_array(&java_new_value_array, 0, &old_values)?;
         }
 
         Ok(())
