@@ -244,7 +244,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
-        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 8)?; // TODO element size
+        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?; // TODO element size
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count)?;
@@ -695,22 +695,28 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn store_array(&mut self, array: &JavaObjectProxy, index: u32, values: &[u32]) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
-        let items_offset = instance.ptr_fields + 4;
+        let items_offset = instance.ptr_fields + 8;
 
         let values_raw = cast_slice(values);
-        self.core.write_bytes(items_offset + 8 + 4 * index, values_raw)
+        self.core.write_bytes(items_offset + 4 * index, values_raw)
     }
 
     fn load_array(&mut self, array: &JavaObjectProxy, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
-        let items_offset = instance.ptr_fields + 4;
+        let items_offset = instance.ptr_fields + 8;
 
-        let values_raw = self.core.read_bytes(items_offset + 8 + 4 * offset, count * 4)?;
+        let values_raw = self.core.read_bytes(items_offset + 4 * offset, count * 4)?;
         let values = values_raw
             .chunks(4)
             .map(|x| u32::from_le_bytes(x.try_into().unwrap()))
             .collect::<Vec<_>>();
         Ok(values)
+    }
+
+    fn array_length(&mut self, array: &JavaObjectProxy) -> JavaResult<u32> {
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+
+        read_generic(self.core, instance.ptr_fields + 4)
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
