@@ -13,6 +13,7 @@ impl String {
         JavaClassProto {
             methods: vec![
                 JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "([CII)V", Self::init_with_partial_char_array, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodAccessFlag::NONE),
             ],
             fields: vec![
@@ -28,6 +29,31 @@ impl String {
         let array = context.instantiate_array("I", length)?;
         context.put_field(&instance, "value", array.ptr_instance)?;
         context.put_field(&instance, "length", length)?;
+
+        Ok(())
+    }
+
+    async fn init_with_partial_char_array(
+        context: &mut dyn JavaContext,
+        instance: JavaObjectProxy,
+        value: JavaObjectProxy,
+        offset: u32,
+        count: u32,
+    ) -> JavaResult<()> {
+        log::trace!(
+            "java.lang.String::<init>({:#x}, {}, {}, {})",
+            instance.ptr_instance,
+            value.ptr_instance,
+            offset,
+            count
+        );
+
+        let array = context.instantiate_array("I", count)?;
+        context.put_field(&instance, "value", array.ptr_instance)?;
+        context.put_field(&instance, "length", count)?;
+
+        let data = context.load_array(&value, offset, count)?;
+        context.store_array(&array, 0, &data)?;
 
         Ok(())
     }
