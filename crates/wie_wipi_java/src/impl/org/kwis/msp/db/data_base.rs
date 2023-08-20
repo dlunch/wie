@@ -1,8 +1,10 @@
 use alloc::vec;
 
 use crate::{
+    array::Array,
     base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
+    r#impl::java::lang::String,
 };
 
 // class org.kwis.msp.db.DataBase
@@ -26,7 +28,7 @@ impl DataBase {
             fields: vec![],
         }
     }
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<()> {
         log::warn!("stub org.kwis.msp.db.DataBase::<init>({:#x})", this.ptr_instance);
 
         Ok(())
@@ -34,10 +36,10 @@ impl DataBase {
 
     async fn open_data_base(
         context: &mut dyn JavaContext,
-        data_base_name: JavaObjectProxy,
+        data_base_name: JavaObjectProxy<String>,
         record_size: u32,
         create: u32,
-    ) -> JavaResult<JavaObjectProxy> {
+    ) -> JavaResult<JavaObjectProxy<DataBase>> {
         log::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})",
             data_base_name.ptr_instance,
@@ -45,25 +47,31 @@ impl DataBase {
             create
         );
 
-        let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;")?;
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;")?.cast();
+        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         Ok(instance)
     }
 
-    async fn get_number_of_records(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<u32> {
+    async fn get_number_of_records(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<u32> {
         log::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn close_data_base(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+    async fn close_data_base(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<()> {
         log::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
-    async fn insert_record(_: &mut dyn JavaContext, this: JavaObjectProxy, data: JavaObjectProxy, offset: u32, num_bytes: u32) -> JavaResult<u32> {
+    async fn insert_record(
+        _: &mut dyn JavaContext,
+        this: JavaObjectProxy<DataBase>,
+        data: JavaObjectProxy<Array>,
+        offset: u32,
+        num_bytes: u32,
+    ) -> JavaResult<u32> {
         log::warn!(
             "stub org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
             this.ptr_instance,

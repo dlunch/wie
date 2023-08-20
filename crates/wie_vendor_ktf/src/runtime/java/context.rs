@@ -11,7 +11,7 @@ use wie_base::util::{read_generic, read_null_terminated_string, write_generic, B
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
     get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
-    JavaObjectProxy, JavaResult,
+    JavaObjectProxy, JavaResult, Object,
 };
 
 use crate::runtime::KtfPeb;
@@ -206,7 +206,7 @@ impl<'a> KtfJavaContext<'a> {
         Ok(())
     }
 
-    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy> {
+    pub fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy<Object>> {
         let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
@@ -216,7 +216,7 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy)
     }
 
-    pub fn instantiate_array_from_ptr_class(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
+    pub fn instantiate_array_from_ptr_class(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy<Object>> {
         let (_, _, class_name) = self.read_ptr_class(ptr_class_array)?;
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
@@ -226,7 +226,7 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy)
     }
 
-    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy> {
+    fn instantiate_inner(&mut self, ptr_class: u32, fields_size: u32) -> JavaResult<JavaObjectProxy<Object>> {
         let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as u32)?;
         let ptr_fields = Allocator::alloc(self.core, fields_size + 4)?;
 
@@ -240,10 +240,10 @@ impl<'a> KtfJavaContext<'a> {
 
         log::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
-        Ok(JavaObjectProxy::new(ptr_instance))
+        Ok(JavaObjectProxy::<Object>::new(ptr_instance))
     }
 
-    fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy> {
+    fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy<Object>> {
         let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?; // TODO element size
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
@@ -585,7 +585,7 @@ impl<'a> KtfJavaContext<'a> {
 
 #[async_trait::async_trait(?Send)]
 impl JavaContext for KtfJavaContext<'_> {
-    fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy> {
+    fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>> {
         if type_name.as_bytes()[0] == b'[' {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
@@ -601,7 +601,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(proxy)
     }
 
-    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy> {
+    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Object>> {
         let array_type = format!("[{}", element_type_name);
         let ptr_class_array = self.find_ptr_class(&array_type)?;
 
@@ -612,7 +612,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(proxy)
     }
 
-    fn destroy(&mut self, proxy: JavaObjectProxy) -> JavaResult<()> {
+    fn destroy(&mut self, proxy: JavaObjectProxy<Object>) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
         Allocator::free(self.core, instance.ptr_fields)?;
@@ -621,7 +621,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(())
     }
 
-    async fn call_method(&mut self, instance_proxy: &JavaObjectProxy, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
+    async fn call_method(&mut self, instance_proxy: &JavaObjectProxy<Object>, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
@@ -645,7 +645,7 @@ impl JavaContext for KtfJavaContext<'_> {
         self.backend
     }
 
-    fn get_field(&mut self, instance: &JavaObjectProxy, field_name: &str) -> JavaResult<u32> {
+    fn get_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
@@ -657,7 +657,7 @@ impl JavaContext for KtfJavaContext<'_> {
         read_generic(self.core, instance.ptr_fields + offset + 4)
     }
 
-    fn put_field(&mut self, instance: &JavaObjectProxy, field_name: &str, value: u32) -> JavaResult<()> {
+    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
@@ -693,7 +693,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(())
     }
 
-    fn store_array(&mut self, array: &JavaObjectProxy, index: u32, values: &[u32]) -> JavaResult<()> {
+    fn store_array(&mut self, array: &JavaObjectProxy<Object>, index: u32, values: &[u32]) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
         let items_offset = instance.ptr_fields + 8;
 
@@ -701,7 +701,7 @@ impl JavaContext for KtfJavaContext<'_> {
         self.core.write_bytes(items_offset + 4 * index, values_raw)
     }
 
-    fn load_array(&mut self, array: &JavaObjectProxy, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
+    fn load_array(&mut self, array: &JavaObjectProxy<Object>, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
         let items_offset = instance.ptr_fields + 8;
 
@@ -713,7 +713,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(values)
     }
 
-    fn array_length(&mut self, array: &JavaObjectProxy) -> JavaResult<u32> {
+    fn array_length(&mut self, array: &JavaObjectProxy<Object>) -> JavaResult<u32> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
 
         read_generic(self.core, instance.ptr_fields + 4)

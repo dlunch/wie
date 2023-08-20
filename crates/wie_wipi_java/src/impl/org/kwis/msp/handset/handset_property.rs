@@ -4,6 +4,7 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     from_java_string,
     proxy::JavaObjectProxy,
+    r#impl::java::lang::String,
     to_java_string,
 };
 
@@ -23,7 +24,7 @@ impl HandsetProperty {
         }
     }
 
-    async fn get_system_property(context: &mut dyn JavaContext, name: JavaObjectProxy) -> JavaResult<JavaObjectProxy> {
+    async fn get_system_property(context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<String>> {
         let name = from_java_string(context, &name)?;
         log::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 

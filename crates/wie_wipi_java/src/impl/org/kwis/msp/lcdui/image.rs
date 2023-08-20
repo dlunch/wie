@@ -3,6 +3,7 @@ use alloc::vec;
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
+    r#impl::org::kwis::msp::lcdui::Graphics,
 };
 
 // class org.kwis.msp.lcdui.Image
@@ -30,26 +31,26 @@ impl Image {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<()> {
         log::warn!("stub org.kwis.msp.lcdui.Image::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
-    async fn create_image(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy> {
+    async fn create_image(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy<Image>> {
         log::warn!("stub org.kwis.msp.lcdui.Image::createImage({}, {})", a0, a1);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?.cast();
+        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         Ok(instance)
     }
 
-    async fn get_graphics(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy> {
+    async fn get_graphics(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Graphics>> {
         log::warn!("stub org.kwis.msp.lcdui.Image::get_graphics");
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        context.call_method(&instance, "<init>", "(I)V", &[0]).await?;
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?.cast();
+        context.call_method(&instance.cast(), "<init>", "(I)V", &[0]).await?;
 
         Ok(instance)
     }

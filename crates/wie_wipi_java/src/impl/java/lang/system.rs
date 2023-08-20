@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use crate::{
+    array::Array,
     base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     JavaObjectProxy,
 };
@@ -39,9 +40,9 @@ impl System {
 
     async fn arraycopy(
         context: &mut dyn JavaContext,
-        src: JavaObjectProxy,
+        src: JavaObjectProxy<Array>,
         src_pos: u32,
-        dest: JavaObjectProxy,
+        dest: JavaObjectProxy<Array>,
         dest_pos: u32,
         length: u32,
     ) -> JavaResult<()> {
@@ -54,8 +55,8 @@ impl System {
             length
         );
 
-        let src_data = context.load_array(&src, src_pos, length)?;
-        context.store_array(&dest, dest_pos, &src_data)?;
+        let src_data = context.load_array(&src.cast(), src_pos, length)?;
+        context.store_array(&dest.cast(), dest_pos, &src_data)?;
 
         Ok(())
     }
