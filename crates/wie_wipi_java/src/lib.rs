@@ -11,6 +11,7 @@ mod proxy;
 mod string;
 
 pub use self::{
+    array::Array,
     base::{
         get_array_proto, get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
         JavaResult,
