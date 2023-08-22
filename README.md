@@ -1,7 +1,11 @@
 # WIPI Emulator
 
+Run WIPI Application on your PC.
+
 ## Status
 
-Can load wipi applications extracted from ktf phone(jar + aotc)
+Currently, only jar file extracted from ktf phone is supported right now. And almost all of application will raise error to run due to missing api implementations.
 
-We need more API implementation to run application sproperly
+## Executing app with detailed log
+
+`env RUST_LOG=trace cargo run -- <path to wipi jar>`
