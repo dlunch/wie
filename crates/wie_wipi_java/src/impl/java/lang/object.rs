@@ -3,6 +3,7 @@ use alloc::vec;
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
+    r#impl::java::lang::Class,
 };
 
 // class java.lang.Object
@@ -25,9 +26,11 @@ impl Object {
         Ok(())
     }
 
-    async fn get_class(_: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<JavaObjectProxy<Object>> {
+    async fn get_class(context: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<JavaObjectProxy<Class>> {
         log::warn!("stub java.lang.Object::get_class({:#x})", this.ptr_instance);
 
-        Ok(JavaObjectProxy::new(0))
+        let result = context.instantiate("Ljava/lang/Class;")?.cast();
+
+        Ok(result)
     }
 }
