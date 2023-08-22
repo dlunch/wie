@@ -46,9 +46,16 @@ impl Class {
         let name = from_java_string(context, &name)?;
         log::debug!("getResourceAsStream name: {}", name);
 
-        let result = context.instantiate("Ljava/io/InputStream;")?.cast();
-        context.call_method(&result.cast(), "<init>", "()V", &[]).await?;
+        let resource = context.backend().resource().id(&name);
+        if let Some(resource) = resource {
+            let _data = context.backend().resource().data(resource); // TODO
 
-        Ok(result)
+            let result = context.instantiate("Ljava/io/InputStream;")?.cast();
+            context.call_method(&result.cast(), "<init>", "()V", &[]).await?;
+
+            Ok(result)
+        } else {
+            Ok(JavaObjectProxy::new(0))
+        }
     }
 }
