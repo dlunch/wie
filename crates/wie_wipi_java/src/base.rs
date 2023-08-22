@@ -90,6 +90,8 @@ pub trait JavaContext {
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     Some(match name {
+        "java/io/IOException" => crate::r#impl::java::io::IOException::as_proto(),
+        "java/io/InputStream" => crate::r#impl::java::io::InputStream::as_proto(),
         "java/lang/Class" => crate::r#impl::java::lang::Class::as_proto(),
         "java/lang/Exception" => crate::r#impl::java::lang::Exception::as_proto(),
         "java/lang/IllegalArgumentException" => crate::r#impl::java::lang::IllegalArgumentException::as_proto(),
@@ -101,7 +103,6 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/StringBuffer" => crate::r#impl::java::lang::StringBuffer::as_proto(),
         "java/lang/System" => crate::r#impl::java::lang::System::as_proto(),
         "java/lang/Thread" => crate::r#impl::java::lang::Thread::as_proto(),
-        "java/io/IOException" => crate::r#impl::java::io::IOException::as_proto(),
         "org/kwis/msp/db/DataBase" => crate::r#impl::org::kwis::msp::db::DataBase::as_proto(),
         "org/kwis/msp/db/DataBaseRecordException" => crate::r#impl::org::kwis::msp::db::DataBaseRecordException::as_proto(),
         "org/kwis/msp/handset/BackLight" => crate::r#impl::org::kwis::msp::handset::BackLight::as_proto(),
