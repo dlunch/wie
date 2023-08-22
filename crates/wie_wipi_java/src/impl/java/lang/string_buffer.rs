@@ -60,6 +60,7 @@ impl StringBuffer {
 
         let java_value_aray = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
         context.store_array(&java_value_aray, current_count, &value_to_add)?;
+        context.put_field(&this.cast(), "count", current_count + count_to_add)?;
 
         Ok(this)
     }
