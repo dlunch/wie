@@ -90,6 +90,7 @@ pub trait JavaContext {
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     Some(match name {
+        "java/lang/Class" => crate::r#impl::java::lang::Class::as_proto(),
         "java/lang/Exception" => crate::r#impl::java::lang::Exception::as_proto(),
         "java/lang/IllegalArgumentException" => crate::r#impl::java::lang::IllegalArgumentException::as_proto(),
         "java/lang/InterruptedException" => crate::r#impl::java::lang::InterruptedException::as_proto(),
