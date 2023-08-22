@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
@@ -45,13 +45,18 @@ impl Class {
 
         let name = from_java_string(context, &name)?;
         log::debug!("getResourceAsStream name: {}", name);
+        let name_without_slash = &name[1..]; // name starts with a slash
 
-        let resource = context.backend().resource().id(&name);
-        if let Some(resource) = resource {
-            let _data = context.backend().resource().data(resource); // TODO
+        let resource = context.backend().resource().id(name_without_slash);
+        if let Some(x) = resource {
+            let data_u32 = context.backend().resource().data(x).iter().map(|x| *x as u32).collect::<Vec<_>>();
 
+            let array = context.instantiate_array("B", data_u32.len() as u32)?;
+            context.store_array(&array, 0, &data_u32)?;
+
+            // should be ByteArrayInputStream or something, but i'm lazy..
             let result = context.instantiate("Ljava/io/InputStream;")?.cast();
-            context.call_method(&result.cast(), "<init>", "()V", &[]).await?;
+            context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;
 
             Ok(result)
         } else {
