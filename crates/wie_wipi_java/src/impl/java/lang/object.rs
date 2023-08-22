@@ -30,6 +30,7 @@ impl Object {
         log::warn!("stub java.lang.Object::get_class({:#x})", this.ptr_instance);
 
         let result = context.instantiate("Ljava/lang/Class;")?.cast();
+        context.call_method(&result.cast(), "<init>", "()V", &[]).await?;
 
         Ok(result)
     }
