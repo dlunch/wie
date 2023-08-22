@@ -98,7 +98,6 @@ fn main() -> anyhow::Result<()> {
 
     for index in 0..archive.len() {
         let mut file = archive.by_index(index)?;
-        log::debug!("Loading resource {}", file.name());
 
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;

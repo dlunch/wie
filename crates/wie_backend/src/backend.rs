@@ -137,15 +137,21 @@ impl Resource {
     }
 
     pub fn add(&mut self, path: &str, data: Vec<u8>) {
+        log::debug!("Adding resource {}, {}b", path, data.len());
+
         self.files.push((path.to_string(), data));
     }
 
     pub fn id(&self, path: &str) -> Option<u32> {
+        log::trace!("Looking for resource {}", path);
+
         for (id, file) in self.files.iter().enumerate() {
             if file.0 == path {
                 return Some(id as _);
             }
         }
+
+        log::warn!("No such resource {}", path);
 
         None
     }
