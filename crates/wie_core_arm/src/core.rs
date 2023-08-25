@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
 use core::{cell::RefCell, fmt::Debug, future::Future};
 
 use capstone::{arch::BuildsCapstone, Capstone};
@@ -160,11 +160,17 @@ impl ArmCore {
     }
 
     fn format_callstack_address(address: u32) -> String {
-        if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&address) {
-            format!("client.bin+{:#x}\n", address - 5 - IMAGE_BASE)
+        let address = address - 5; // Thumb + 4bytes BL instr
+
+        let description = if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&address) {
+            format!("client.bin+{:#x}", address - IMAGE_BASE)
+        } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address) {
+            "<Native function>".to_owned()
         } else {
-            format!("{:#x}\n", address)
-        }
+            "<Unknown>".to_owned()
+        };
+
+        format!("{:#x}: {}\n", address, description)
     }
 
     pub fn dump_stack(&self) -> ArmCoreResult<String> {
