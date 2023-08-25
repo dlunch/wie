@@ -160,8 +160,6 @@ impl ArmCore {
     }
 
     fn format_callstack_address(address: u32) -> String {
-        let address = address - 5; // Thumb + 4bytes BL instr
-
         let description = if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&address) {
             format!("client.bin+{:#x}", address - IMAGE_BASE)
         } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address) {
@@ -184,7 +182,7 @@ impl ArmCore {
         let mut call_stack = format!(
             "{}{}",
             Self::format_callstack_address(pc as u32),
-            Self::format_callstack_address(lr as u32)
+            Self::format_callstack_address((lr - 5) as u32)
         );
 
         for i in 0..128 {
@@ -199,7 +197,7 @@ impl ArmCore {
             if value_u32 % 2 == 1 {
                 // TODO image size temp
                 if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&value_u32) {
-                    call_stack += &Self::format_callstack_address(value_u32);
+                    call_stack += &Self::format_callstack_address(value_u32 - 5);
                 }
             }
         }
