@@ -165,15 +165,26 @@ impl ArmCore {
         let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
 
         let mut result = String::new();
+        let mut call_stack = String::new();
 
-        for i in 0..16 {
+        for i in 0..128 {
             let address = sp + (i * 4);
             let value = inner.uc.mem_read_as_vec(address, 4).map_err(UnicornError)?;
+            let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
 
-            result += &format!("SP+{:#x}: {:#x}\n", i * 4, u32::from_le_bytes(value.try_into().unwrap()));
+            if i < 16 {
+                result += &format!("SP+{:#x}: {:#x}\n", i * 4, value_u32);
+            }
+
+            if value_u32 % 2 == 1 {
+                // TODO image size temp
+                if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&value_u32) {
+                    call_stack += &format!("client.bin+{:#x}\n", value_u32 - 5 - IMAGE_BASE);
+                }
+            }
         }
 
-        Ok(result)
+        Ok(format!("Possible call stack:\n{}\n\nStack:\n{}", call_stack, result))
     }
 
     pub fn from_core_mut(core: &mut dyn Core) -> Option<&mut Self> {
