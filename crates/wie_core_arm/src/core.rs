@@ -159,13 +159,27 @@ impl ArmCore {
         Self::dump_regs_inner(&inner.uc)
     }
 
+    fn format_callstack_address(address: u32) -> String {
+        if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&address) {
+            format!("client.bin+{:#x}\n", address - 5 - IMAGE_BASE)
+        } else {
+            format!("{:#x}\n", address)
+        }
+    }
+
     pub fn dump_stack(&self) -> ArmCoreResult<String> {
         let inner = self.inner.borrow();
 
         let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
+        let pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)?;
+        let lr = inner.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?;
 
         let mut result = String::new();
-        let mut call_stack = String::new();
+        let mut call_stack = format!(
+            "{}{}",
+            Self::format_callstack_address(pc as u32),
+            Self::format_callstack_address(lr as u32)
+        );
 
         for i in 0..128 {
             let address = sp + (i * 4);
@@ -179,7 +193,7 @@ impl ArmCore {
             if value_u32 % 2 == 1 {
                 // TODO image size temp
                 if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&value_u32) {
-                    call_stack += &format!("client.bin+{:#x}\n", value_u32 - 5 - IMAGE_BASE);
+                    call_stack += &Self::format_callstack_address(value_u32);
                 }
             }
         }
