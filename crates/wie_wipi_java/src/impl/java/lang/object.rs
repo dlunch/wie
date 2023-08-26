@@ -12,6 +12,8 @@ pub struct Object {}
 impl Object {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("getClass", "()Ljava/lang/Class;", Self::get_class, JavaMethodAccessFlag::NONE),

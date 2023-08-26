@@ -16,6 +16,8 @@ pub struct Thread {}
 impl Thread {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Object",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("start", "()V", Self::start, JavaMethodAccessFlag::NONE),

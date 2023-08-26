@@ -12,6 +12,8 @@ pub struct System {}
 impl System {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Object",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodAccessFlag::NATIVE),
                 JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodAccessFlag::NATIVE),

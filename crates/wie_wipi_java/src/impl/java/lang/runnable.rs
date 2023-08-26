@@ -6,8 +6,11 @@ use crate::base::JavaClassProto;
 pub struct Runnable {}
 
 impl Runnable {
+    // TODO Create JavaInterfaceProto
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "",
+            interfaces: vec![],
             methods: vec![],
             fields: vec![],
         }

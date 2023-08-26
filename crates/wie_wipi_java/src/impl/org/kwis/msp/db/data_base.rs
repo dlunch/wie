@@ -13,6 +13,8 @@ pub struct DataBase {}
 impl DataBase {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Object",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new(

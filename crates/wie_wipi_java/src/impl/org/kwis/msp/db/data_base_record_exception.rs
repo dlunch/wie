@@ -8,6 +8,8 @@ pub struct DataBaseRecordException {}
 impl DataBaseRecordException {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Exception",
+            interfaces: vec![],
             methods: vec![],
             fields: vec![],
         }

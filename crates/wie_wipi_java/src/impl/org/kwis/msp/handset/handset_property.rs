@@ -14,6 +14,8 @@ pub struct HandsetProperty {}
 impl HandsetProperty {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Object",
+            interfaces: vec![],
             methods: vec![JavaMethodProto::new(
                 "getSystemProperty",
                 "(Ljava/lang/String;)Ljava/lang/String;",
