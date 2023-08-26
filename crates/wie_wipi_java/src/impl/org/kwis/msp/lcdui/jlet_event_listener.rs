@@ -8,6 +8,8 @@ pub struct JletEventListener {}
 impl JletEventListener {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "",
+            interfaces: vec![],
             methods: vec![],
             fields: vec![],
         }

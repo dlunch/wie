@@ -14,6 +14,8 @@ pub struct Graphics {}
 impl Graphics {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Object",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodAccessFlag::NONE),

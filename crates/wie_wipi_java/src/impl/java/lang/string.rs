@@ -12,6 +12,8 @@ pub struct String {}
 impl String {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "java/lang/Object",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "([C)V", Self::init_with_char_array, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("<init>", "([CII)V", Self::init_with_partial_char_array, JavaMethodAccessFlag::NONE),

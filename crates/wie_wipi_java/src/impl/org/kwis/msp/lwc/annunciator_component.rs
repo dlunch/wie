@@ -11,6 +11,8 @@ pub struct AnnunciatorComponent {}
 impl AnnunciatorComponent {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
+            parent_class: "org/kwis/msp/lwc/ShellComponent",
+            interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(Z)V", Self::init, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("show", "()V", Self::show, JavaMethodAccessFlag::NONE),
