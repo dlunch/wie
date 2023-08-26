@@ -2,7 +2,7 @@ use alloc::{vec, vec::Vec};
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    r#impl::java::lang::{Object, String},
+    r#impl::java::{io::InputStream, lang::String},
     string::from_java_string,
     JavaContext, JavaMethodAccessFlag, JavaObjectProxy, JavaResult,
 };
@@ -36,7 +36,7 @@ impl Class {
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<Class>,
         name: JavaObjectProxy<String>,
-    ) -> JavaResult<JavaObjectProxy<Object>> {
+    ) -> JavaResult<JavaObjectProxy<InputStream>> {
         log::warn!(
             "stub java.lang.Class::getResourceAsStream({:#x}, {:#x})",
             this.ptr_instance,
