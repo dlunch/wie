@@ -88,9 +88,9 @@ impl StringBuffer {
             let new_capacity = capacity * 2;
 
             let java_new_value_array = context.instantiate_array("C", new_capacity)?;
-            // TODO free existing array
             context.put_field(&this.cast(), "value", java_new_value_array.ptr_instance)?;
             context.store_array(&java_new_value_array, 0, &old_values)?;
+            context.destroy(java_value_array.cast())?;
         }
 
         Ok(())
