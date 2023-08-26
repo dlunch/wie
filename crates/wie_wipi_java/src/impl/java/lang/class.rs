@@ -54,8 +54,7 @@ impl Class {
             let array = context.instantiate_array("B", data_u32.len() as u32)?;
             context.store_array(&array, 0, &data_u32)?;
 
-            // should be ByteArrayInputStream or something, but i'm lazy..
-            let result = context.instantiate("Ljava/io/InputStream;")?.cast();
+            let result = context.instantiate("Ljava/io/ByteArrayInputStream;")?.cast();
             context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;
 
             Ok(result)
