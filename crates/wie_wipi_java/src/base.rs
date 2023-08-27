@@ -106,6 +106,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/StringBuffer" => crate::r#impl::java::lang::StringBuffer::as_proto(),
         "java/lang/System" => crate::r#impl::java::lang::System::as_proto(),
         "java/lang/Thread" => crate::r#impl::java::lang::Thread::as_proto(),
+        "java/lang/Throwable" => crate::r#impl::java::lang::Throwable::as_proto(),
         "org/kwis/msp/db/DataBase" => crate::r#impl::org::kwis::msp::db::DataBase::as_proto(),
         "org/kwis/msp/db/DataBaseRecordException" => crate::r#impl::org::kwis::msp::db::DataBaseRecordException::as_proto(),
         "org/kwis/msp/handset/BackLight" => crate::r#impl::org::kwis::msp::handset::BackLight::as_proto(),
@@ -118,6 +119,9 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "org/kwis/msp/lcdui/Jlet" => crate::r#impl::org::kwis::msp::lcdui::Jlet::as_proto(),
         "org/kwis/msp/lcdui/JletEventListener" => crate::r#impl::org::kwis::msp::lcdui::JletEventListener::as_proto(),
         "org/kwis/msp/lwc/AnnunciatorComponent" => crate::r#impl::org::kwis::msp::lwc::AnnunciatorComponent::as_proto(),
+        "org/kwis/msp/lwc/Component" => crate::r#impl::org::kwis::msp::lwc::Component::as_proto(),
+        "org/kwis/msp/lwc/ContainerComponent" => crate::r#impl::org::kwis::msp::lwc::ContainerComponent::as_proto(),
+        "org/kwis/msp/lwc/ShellComponent" => crate::r#impl::org::kwis::msp::lwc::ShellComponent::as_proto(),
         "org/kwis/msp/media/Clip" => crate::r#impl::org::kwis::msp::media::Clip::as_proto(),
         "org/kwis/msp/media/PlayListener" => crate::r#impl::org::kwis::msp::media::PlayListener::as_proto(),
 
