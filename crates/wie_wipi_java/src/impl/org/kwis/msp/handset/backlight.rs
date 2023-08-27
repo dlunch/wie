@@ -8,7 +8,7 @@ pub struct BackLight {}
 impl BackLight {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            parent_class: "java/lang/Object",
+            parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, JavaMethodAccessFlag::NONE)],
             fields: vec![],

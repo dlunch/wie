@@ -12,7 +12,7 @@ pub struct Object {}
 impl Object {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            parent_class: "",
+            parent_class: None,
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
