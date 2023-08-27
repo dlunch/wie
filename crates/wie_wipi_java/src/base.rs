@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub struct JavaClassProto {
-    pub parent_class: &'static str,
+    pub parent_class: Option<&'static str>,
     pub interfaces: Vec<&'static str>,
     pub methods: Vec<JavaMethodProto>,
     pub fields: Vec<JavaFieldProto>,

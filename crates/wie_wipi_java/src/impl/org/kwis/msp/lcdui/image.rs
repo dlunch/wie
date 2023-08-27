@@ -12,7 +12,7 @@ pub struct Image {}
 impl Image {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            parent_class: "java/lang/Object",
+            parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),

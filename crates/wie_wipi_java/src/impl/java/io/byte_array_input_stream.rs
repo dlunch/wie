@@ -11,7 +11,7 @@ pub struct ByteArrayInputStream {}
 impl ByteArrayInputStream {
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            parent_class: "java/io/InputStream",
+            parent_class: Some("java/io/InputStream"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("<init>", "([B)V", Self::init, JavaMethodAccessFlag::NONE)],
             fields: vec![JavaFieldProto::new("buf", "[B", JavaFieldAccessFlag::NONE)],

@@ -9,7 +9,7 @@ impl Runnable {
     // TODO Create JavaInterfaceProto
     pub fn as_proto() -> JavaClassProto {
         JavaClassProto {
-            parent_class: "",
+            parent_class: None,
             interfaces: vec![],
             methods: vec![],
             fields: vec![],
