@@ -70,7 +70,7 @@ struct JavaMethod {
     ptr_name: u32,
     unk2: u16,
     unk3: u16,
-    vtable_index: u16,
+    index_in_vtable: u16,
     access_flag: u16,
     unk6: u32,
 }
@@ -152,6 +152,101 @@ impl Display for JavaFullName {
 impl PartialEq for JavaFullName {
     fn eq(&self, other: &Self) -> bool {
         self.signature == other.signature && self.name == other.name
+    }
+}
+
+struct JavaVtableMethod {
+    ptr_method: u32,
+    name: JavaFullName,
+}
+
+struct JavaVtableBuilder {
+    items: Vec<JavaVtableMethod>,
+}
+
+impl JavaVtableBuilder {
+    pub fn new(context: &KtfJavaContext<'_>, ptr_parent_class: Option<u32>) -> JavaResult<Self> {
+        let items = if let Some(x) = ptr_parent_class {
+            Self::build_vtable(context, x)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(Self { items })
+    }
+
+    pub fn add(&mut self, ptr_method: u32, name: &JavaFullName) -> usize {
+        if let Some(index) = self.items.iter().position(|x| x.name == *name) {
+            self.items[index] = JavaVtableMethod {
+                ptr_method,
+                name: name.to_owned(),
+            };
+
+            index
+        } else {
+            self.items.push(JavaVtableMethod {
+                ptr_method,
+                name: name.to_owned(),
+            });
+
+            self.items.len() - 1
+        }
+    }
+
+    pub fn serialize(&self) -> Vec<u32> {
+        self.items.iter().map(|x| x.ptr_method).collect()
+    }
+
+    fn build_vtable(context: &KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<Vec<JavaVtableMethod>> {
+        let mut class_hierarchy = Self::read_class_hierarchy(context, ptr_class)?;
+        class_hierarchy.reverse();
+
+        let mut vtable: Vec<JavaVtableMethod> = Vec::new();
+
+        for ptr_class in class_hierarchy {
+            let (_, class_descriptor, _) = context.read_ptr_class(ptr_class)?;
+
+            let ptr_methods = context.read_null_terminated_table(class_descriptor.ptr_methods)?;
+
+            let items = ptr_methods
+                .into_iter()
+                .map(|x| {
+                    let method: JavaMethod = read_generic(context.core, x)?;
+                    let name = JavaFullName::from_ptr(context.core, method.ptr_name)?;
+
+                    Ok::<_, JavaError>(JavaVtableMethod { ptr_method: x, name })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            for item in items {
+                if let Some(index) = vtable.iter().position(|x| x.name == item.name) {
+                    vtable[index] = item;
+                } else {
+                    vtable.push(item);
+                }
+            }
+        }
+
+        Ok(vtable)
+    }
+
+    fn read_class_hierarchy(context: &KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<Vec<u32>> {
+        let mut result = vec![ptr_class];
+
+        let mut current_class = ptr_class;
+        loop {
+            let (_, class_descriptor, _) = context.read_ptr_class(current_class)?;
+
+            if class_descriptor.ptr_parent_class != 0 {
+                result.push(class_descriptor.ptr_parent_class);
+
+                current_class = class_descriptor.ptr_parent_class;
+            } else {
+                break;
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -276,42 +371,6 @@ impl<'a> KtfJavaContext<'a> {
         Ok(index as u32)
     }
 
-    fn build_vtable(&mut self, ptr_class: u32) -> anyhow::Result<Vec<u32>> {
-        let mut class_hierarchy = self.read_class_hierarchy(ptr_class)?;
-        class_hierarchy.reverse();
-
-        let mut vtable = Vec::new();
-
-        for ptr_class in class_hierarchy {
-            let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
-
-            let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
-
-            vtable.extend(ptr_methods);
-        }
-
-        Ok(vtable)
-    }
-
-    fn read_class_hierarchy(&mut self, ptr_class: u32) -> anyhow::Result<Vec<u32>> {
-        let mut result = vec![ptr_class];
-
-        let mut current_class = ptr_class;
-        loop {
-            let (_, class_descriptor, _) = self.read_ptr_class(current_class)?;
-
-            if class_descriptor.ptr_parent_class != 0 {
-                result.push(class_descriptor.ptr_parent_class);
-
-                current_class = class_descriptor.ptr_parent_class;
-            } else {
-                break;
-            }
-        }
-
-        Ok(result)
-    }
-
     fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let context_data = self.read_context_data()?;
         let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
@@ -336,36 +395,33 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let method_count = proto.methods.len();
+        let ptr_parent_class = proto
+            .parent_class
+            .map(|x| {
+                let parent_proto = get_class_proto(x).ok_or_else(|| anyhow::anyhow!("No such class {}", x))?;
+                self.load_class_into_vm(x, parent_proto)
+            })
+            .transpose()?;
+        let mut vtable_builder = JavaVtableBuilder::new(self, ptr_parent_class)?;
 
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
-        write_generic(
-            self.core,
-            ptr_class,
-            JavaClass {
-                ptr_next: ptr_class + 4,
-                unk1: 0,
-                ptr_descriptor: 0,
-                ptr_vtable: 0,
-                vtable_count: method_count as u16,
-                unk_flag: 8,
-            },
-        )?;
 
         let mut methods = Vec::new();
-        for (index, method) in proto.methods.into_iter().enumerate() {
-            let full_name = (JavaFullName {
+        for method in proto.methods.into_iter() {
+            let full_name = JavaFullName {
                 tag: 0,
                 name: method.name,
                 signature: method.signature,
-            })
-            .as_bytes();
+            };
+            let full_name_bytes = full_name.as_bytes();
 
-            let ptr_name = Allocator::alloc(self.core, full_name.len() as u32)?;
-            self.core.write_bytes(ptr_name, &full_name)?;
+            let ptr_name = Allocator::alloc(self.core, full_name_bytes.len() as u32)?;
+            self.core.write_bytes(ptr_name, &full_name_bytes)?;
 
             let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
             let fn_body = self.register_java_method(method.body, method.access_flag == JavaMethodAccessFlag::NATIVE)?;
+            let index_in_vtable = vtable_builder.add(ptr_method, &full_name) as u16;
+
             write_generic(
                 self.core,
                 ptr_method,
@@ -376,7 +432,7 @@ impl<'a> KtfJavaContext<'a> {
                     ptr_name,
                     unk2: 0,
                     unk3: 0,
-                    vtable_index: index as u16,
+                    index_in_vtable,
                     access_flag: 1, //  ACC_PUBLIC
                     unk6: 0,
                 },
@@ -430,7 +486,7 @@ impl<'a> KtfJavaContext<'a> {
             JavaClassDescriptor {
                 ptr_name,
                 unk1: 0,
-                ptr_parent_class: 0,
+                ptr_parent_class: ptr_parent_class.unwrap_or(0),
                 ptr_methods,
                 ptr_interfaces: 0,
                 ptr_fields,
@@ -443,12 +499,21 @@ impl<'a> KtfJavaContext<'a> {
             },
         )?;
 
-        write_generic(self.core, ptr_class + 8, ptr_descriptor)?;
-
-        let vtable = self.build_vtable(ptr_class)?;
+        let vtable = vtable_builder.serialize();
         let ptr_vtable = self.write_null_terminated_table(&vtable)?;
 
-        write_generic(self.core, ptr_class + 12, ptr_vtable)?;
+        write_generic(
+            self.core,
+            ptr_class,
+            JavaClass {
+                ptr_next: ptr_class + 4,
+                unk1: 0,
+                ptr_descriptor,
+                ptr_vtable,
+                vtable_count: vtable.len() as u16,
+                unk_flag: 8,
+            },
+        )?;
 
         let context_data = self.read_context_data()?;
         let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
