@@ -58,6 +58,20 @@ where
     Ok(String::from_utf8(result)?)
 }
 
+pub fn write_null_terminated_string<W>(writer: &mut W, address: u32, string: &str) -> anyhow::Result<()>
+where
+    W: ?Sized + ByteWrite,
+{
+    let bytes = string.as_bytes();
+
+    writer.write_bytes(address, bytes)?;
+    writer.write_bytes(address + bytes.len() as u32, &[0])?;
+
+    // log::trace!("Write address: {:#x}, data: {:02x?}", address, bytes);
+
+    Ok(())
+}
+
 pub fn write_generic<W, T>(writer: &mut W, address: u32, data: T) -> anyhow::Result<()>
 where
     W: ?Sized + ByteWrite,
