@@ -7,7 +7,7 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend, Executor,
 };
-use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
+use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
     get_array_proto, get_class_proto, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
@@ -421,8 +421,7 @@ impl<'a> KtfJavaContext<'a> {
         let ptr_fields = self.write_null_terminated_table(&fields)?;
 
         let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
-        self.core.write_bytes(ptr_name, name.as_bytes())?;
-        self.core.write_bytes(ptr_name + name.len() as u32, &[0])?;
+        write_null_terminated_string(self.core, ptr_name, name)?;
 
         let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
         write_generic(
