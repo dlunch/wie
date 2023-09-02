@@ -252,19 +252,6 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy.cast())
     }
 
-    fn write_vtable(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
-        let vtable = self.build_vtable(ptr_class)?;
-
-        let ptr_vtable = Allocator::alloc(self.core, (vtable.len() + 1) as u32 * 4)?;
-        let mut cursor = ptr_vtable;
-        for item in vtable {
-            write_generic(self.core, cursor, item)?;
-            cursor += 4;
-        }
-
-        Ok(ptr_vtable)
-    }
-
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let (class, _, class_name) = self.read_ptr_class(ptr_class)?;
 
@@ -365,8 +352,7 @@ impl<'a> KtfJavaContext<'a> {
             },
         )?;
 
-        let ptr_methods = Allocator::alloc(self.core, ((method_count + 1) * size_of::<u32>()) as u32)?;
-        let mut cursor = ptr_methods;
+        let mut methods = Vec::new();
         for (index, method) in proto.methods.into_iter().enumerate() {
             let full_name = (JavaFullName {
                 tag: 0,
@@ -396,14 +382,11 @@ impl<'a> KtfJavaContext<'a> {
                 },
             )?;
 
-            write_generic(self.core, cursor, ptr_method)?;
-            cursor += 4;
+            methods.push(ptr_method);
         }
-        write_generic(self.core, cursor, 0u32)?;
+        let ptr_methods = self.write_null_terminated_table(&methods)?;
 
-        let field_count = proto.fields.len();
-        let ptr_fields = Allocator::alloc(self.core, ((field_count + 1) * size_of::<u32>()) as u32)?;
-        let mut cursor = ptr_fields;
+        let mut fields = Vec::new();
         for (index, field) in proto.fields.into_iter().enumerate() {
             let full_name = (JavaFullName {
                 tag: 0,
@@ -433,10 +416,9 @@ impl<'a> KtfJavaContext<'a> {
                 },
             )?;
 
-            write_generic(self.core, cursor, ptr_field)?;
-            cursor += 4;
+            fields.push(ptr_field);
         }
-        write_generic(self.core, cursor, 0u32)?;
+        let ptr_fields = self.write_null_terminated_table(&fields)?;
 
         let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
         self.core.write_bytes(ptr_name, name.as_bytes())?;
@@ -453,8 +435,8 @@ impl<'a> KtfJavaContext<'a> {
                 ptr_methods,
                 ptr_interfaces: 0,
                 ptr_fields,
-                method_count: method_count as u16,
-                fields_size: (field_count * 4) as u16,
+                method_count: methods.len() as u16,
+                fields_size: (fields.len() * 4) as u16,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
                 unk6: 0,
                 unk7: 0,
@@ -464,7 +446,9 @@ impl<'a> KtfJavaContext<'a> {
 
         write_generic(self.core, ptr_class + 8, ptr_descriptor)?;
 
-        let ptr_vtable = self.write_vtable(ptr_class)?;
+        let vtable = self.build_vtable(ptr_class)?;
+        let ptr_vtable = self.write_null_terminated_table(&vtable)?;
+
         write_generic(self.core, ptr_class + 12, ptr_vtable)?;
 
         let context_data = self.read_context_data()?;
@@ -541,6 +525,20 @@ impl<'a> KtfJavaContext<'a> {
         }
 
         Ok(result)
+    }
+
+    fn write_null_terminated_table(&mut self, items: &[u32]) -> JavaResult<u32> {
+        let base_address = Allocator::alloc(self.core, ((items.len() + 1) * size_of::<u32>()) as u32)?;
+
+        let mut cursor = base_address;
+        for &item in items {
+            write_generic(self.core, cursor, item)?;
+
+            cursor += 4;
+        }
+        write_generic(self.core, cursor, 0u32)?;
+
+        Ok(base_address)
     }
 
     fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
