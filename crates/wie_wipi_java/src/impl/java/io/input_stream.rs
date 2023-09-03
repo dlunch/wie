@@ -16,6 +16,7 @@ impl InputStream {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new_abstract("available", "()I", JavaMethodFlag::NONE),
+                JavaMethodProto::new_abstract("read", "([B)I", JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }
