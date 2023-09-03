@@ -36,7 +36,7 @@ pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
     pub body: Option<JavaMethodBody>,
-    pub access_flag: JavaMethodFlag,
+    pub flag: JavaMethodFlag,
 }
 
 pub struct JavaFieldProto {
@@ -58,7 +58,7 @@ impl JavaFieldProto {
 pub type JavaMethodBody = Box<dyn MethodBody<JavaError>>;
 
 impl JavaMethodProto {
-    pub fn new<M, F, R, P>(name: &str, signature: &str, method: M, access_flag: JavaMethodFlag) -> Self
+    pub fn new<M, F, R, P>(name: &str, signature: &str, method: M, flag: JavaMethodFlag) -> Self
     where
         M: MethodImpl<F, R, JavaError, P>,
     {
@@ -66,7 +66,7 @@ impl JavaMethodProto {
             name: name.into(),
             signature: signature.into(),
             body: Some(method.into_body()),
-            access_flag,
+            flag,
         }
     }
 }
