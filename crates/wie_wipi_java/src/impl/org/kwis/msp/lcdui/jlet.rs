@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use crate::base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult};
+use crate::base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult};
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet {}
@@ -10,7 +10,7 @@ impl Jlet {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE)],
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE)],
             fields: vec![],
         }
     }

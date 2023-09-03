@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::java::lang::Class,
 };
@@ -15,8 +15,8 @@ impl Object {
             parent_class: None,
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getClass", "()Ljava/lang/Class;", Self::get_class, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getClass", "()Ljava/lang/Class;", Self::get_class, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }

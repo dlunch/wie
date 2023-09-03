@@ -10,7 +10,7 @@ use wie_backend::{
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
-    get_array_proto, get_class_proto, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaMethodBody,
+    get_array_proto, get_class_proto, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag,
     JavaObjectProxy, JavaResult, Object,
 };
 
@@ -421,9 +421,9 @@ impl<'a> KtfJavaContext<'a> {
             let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
 
             let (fn_body, fn_body_native) = if let Some(x) = method.body {
-                let fn_method = self.register_java_method(x, method.access_flag == JavaMethodAccessFlag::NATIVE)?;
+                let fn_method = self.register_java_method(x, method.access_flag == JavaMethodFlag::NATIVE)?;
 
-                if method.access_flag == JavaMethodAccessFlag::NATIVE {
+                if method.access_flag == JavaMethodFlag::NATIVE {
                     (0, fn_method)
                 } else {
                     (fn_method, 0)

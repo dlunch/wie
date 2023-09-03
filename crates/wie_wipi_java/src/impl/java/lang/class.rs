@@ -4,7 +4,7 @@ use crate::{
     base::{JavaClassProto, JavaMethodProto},
     r#impl::java::{io::InputStream, lang::String},
     string::from_java_string,
-    JavaContext, JavaMethodAccessFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
 // class java.lang.Class
@@ -16,12 +16,12 @@ impl Class {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "getResourceAsStream",
                     "(Ljava/lang/String;)Ljava/io/InputStream;",
                     Self::get_resource_as_stream,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
             ],
             fields: vec![],

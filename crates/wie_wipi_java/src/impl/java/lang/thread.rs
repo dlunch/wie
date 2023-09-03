@@ -3,7 +3,7 @@ use alloc::{boxed::Box, vec};
 use wie_backend::task;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     method::MethodBody,
     proxy::JavaObjectProxy,
     r#impl::java::lang::Runnable,
@@ -19,10 +19,10 @@ impl Thread {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("start", "()V", Self::start, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("sleep", "(J)V", Self::sleep, JavaMethodAccessFlag::NATIVE),
-                JavaMethodProto::new("yield", "()V", Self::r#yield, JavaMethodAccessFlag::NATIVE),
+                JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("start", "()V", Self::start, JavaMethodFlag::NONE),
+                JavaMethodProto::new("sleep", "(J)V", Self::sleep, JavaMethodFlag::NATIVE),
+                JavaMethodProto::new("yield", "()V", Self::r#yield, JavaMethodFlag::NATIVE),
             ],
             fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;", crate::JavaFieldAccessFlag::NONE)],
         }

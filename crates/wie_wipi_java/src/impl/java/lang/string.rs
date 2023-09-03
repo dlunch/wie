@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     array::Array,
-    base::{JavaClassProto, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto},
+    base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
     JavaContext, JavaFieldAccessFlag, JavaObjectProxy, JavaResult,
 };
 
@@ -15,10 +15,10 @@ impl String {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "([C)V", Self::init_with_char_array, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("<init>", "([CII)V", Self::init_with_partial_char_array, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("length", "()I", Self::length, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "([C)V", Self::init_with_char_array, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "([CII)V", Self::init_with_partial_char_array, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodFlag::NONE),
+                JavaMethodProto::new("length", "()I", Self::length, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE)],
         }

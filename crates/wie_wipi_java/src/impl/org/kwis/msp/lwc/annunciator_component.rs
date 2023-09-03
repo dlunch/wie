@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -14,8 +14,8 @@ impl AnnunciatorComponent {
             parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Z)V", Self::init, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("show", "()V", Self::show, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "(Z)V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("show", "()V", Self::show, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }

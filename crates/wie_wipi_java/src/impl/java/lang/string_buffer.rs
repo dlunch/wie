@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     array::Array,
-    base::{JavaClassProto, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto},
+    base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
     r#impl::java::lang::String,
     JavaContext, JavaObjectProxy, JavaResult,
 };
@@ -16,14 +16,14 @@ impl StringBuffer {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "append",
                     "(Ljava/lang/String;)Ljava/lang/StringBuffer;",
                     Self::append_string,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
-                JavaMethodProto::new("toString", "()Ljava/lang/String;", Self::to_string, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("toString", "()Ljava/lang/String;", Self::to_string, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("value", "[C", crate::JavaFieldAccessFlag::NONE),

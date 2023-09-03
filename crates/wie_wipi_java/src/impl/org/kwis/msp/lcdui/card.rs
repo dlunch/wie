@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -14,10 +14,10 @@ impl Card {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("<init>", "(I)V", Self::init_1, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(I)V", Self::init_1, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }

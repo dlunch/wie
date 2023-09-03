@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     array::Array,
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::java::lang::String,
 };
@@ -16,16 +16,16 @@ impl DataBase {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "openDataBase",
                     "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
                     Self::open_data_base,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
-                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodFlag::NONE),
+                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodFlag::NONE),
+                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }

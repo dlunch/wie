@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    Array, JavaContext, JavaFieldAccessFlag, JavaMethodAccessFlag, JavaObjectProxy, JavaResult,
+    Array, JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
 // class java.io.ByteArrayInputStream
@@ -13,7 +13,7 @@ impl ByteArrayInputStream {
         JavaClassProto {
             parent_class: Some("java/io/InputStream"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "([B)V", Self::init, JavaMethodAccessFlag::NONE)],
+            methods: vec![JavaMethodProto::new("<init>", "([B)V", Self::init, JavaMethodFlag::NONE)],
             fields: vec![JavaFieldProto::new("buf", "[B", JavaFieldAccessFlag::NONE)],
         }
     }

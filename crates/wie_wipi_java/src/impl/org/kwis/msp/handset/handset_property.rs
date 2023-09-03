@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     from_java_string,
     proxy::JavaObjectProxy,
     r#impl::java::lang::String,
@@ -20,7 +20,7 @@ impl HandsetProperty {
                 "getSystemProperty",
                 "(Ljava/lang/String;)Ljava/lang/String;",
                 Self::get_system_property,
-                JavaMethodAccessFlag::NONE,
+                JavaMethodFlag::NONE,
             )],
             fields: vec![],
         }

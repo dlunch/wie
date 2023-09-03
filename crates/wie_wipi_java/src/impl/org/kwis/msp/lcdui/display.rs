@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::{
         java::lang::String,
@@ -18,31 +18,31 @@ impl Display {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
                     Self::get_display,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
                 JavaMethodProto::new(
                     "getDefaultDisplay",
                     "()Lorg/kwis/msp/lcdui/Display;",
                     Self::get_default_display,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
                 JavaMethodProto::new(
                     "getDockedCard",
                     "()Lorg/kwis/msp/lcdui/Card;",
                     Self::get_docked_card,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
-                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "addJletEventListener",
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::add_jlet_event_listener,
-                    JavaMethodAccessFlag::NONE,
+                    JavaMethodFlag::NONE,
                 ),
             ],
             fields: vec![

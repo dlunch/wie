@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    JavaContext, JavaMethodAccessFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
 // class java.io.InputStream
@@ -13,7 +13,7 @@ impl InputStream {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE)],
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE)],
             fields: vec![],
         }
     }
