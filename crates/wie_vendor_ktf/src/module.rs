@@ -46,7 +46,7 @@ impl KtfWipiModule {
         })
     }
 
-    async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<u32> {
+    async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
         let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?;
 
         let mut java_context = KtfJavaContext::new(core, backend);
@@ -61,22 +61,22 @@ impl KtfWipiModule {
             .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
             .await?;
 
-        Ok(0)
+        Ok(())
     }
 
-    async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<u32> {
+    async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<()> {
         let screen_canvas = backend.screen_canvas();
 
         let mut java_context = KtfJavaContext::new(core, backend);
 
         let display = java_context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
         if display == 0 {
-            return Ok(0);
+            return Ok(());
         }
 
         let card = java_context.get_field(&JavaObjectProxy::new(display), "card")?;
         if card == 0 {
-            return Ok(0);
+            return Ok(());
         }
 
         let graphics = java_context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
@@ -93,7 +93,7 @@ impl KtfWipiModule {
 
         java_context.destroy(graphics)?;
 
-        Ok(0)
+        Ok(())
     }
 
     async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class_name: &str) -> anyhow::Result<u32> {

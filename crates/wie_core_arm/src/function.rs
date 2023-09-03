@@ -214,3 +214,9 @@ impl ResultWriter<u32> for u32 {
         core.write_result(value, lr)
     }
 }
+
+impl ResultWriter<()> for () {
+    fn write(core: &mut ArmCore, _: (), lr: u32) -> anyhow::Result<()> {
+        core.write_result(0, lr)
+    }
+}
