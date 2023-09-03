@@ -421,9 +421,9 @@ impl<'a> KtfJavaContext<'a> {
             let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
 
             let (fn_body, fn_body_native) = if let Some(x) = method.body {
-                let fn_method = self.register_java_method(x, method.access_flag == JavaMethodFlag::NATIVE)?;
+                let fn_method = self.register_java_method(x, method.flag == JavaMethodFlag::NATIVE)?;
 
-                if method.access_flag == JavaMethodFlag::NATIVE {
+                if method.flag == JavaMethodFlag::NATIVE {
                     (0, fn_method)
                 } else {
                     (fn_method, 0)
