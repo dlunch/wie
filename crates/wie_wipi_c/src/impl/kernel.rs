@@ -58,6 +58,23 @@ async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32,
 
     let timer: Timer = read_generic(context, ptr_timer)?;
 
+    struct TimerCallback {
+        timer: Timer,
+        timeout: u64,
+        param: u32,
+    }
+
+    #[async_trait::async_trait(?Send)]
+    impl MethodBody<CError> for TimerCallback {
+        async fn call(&self, context: &mut dyn CContext, _: &[u32]) -> Result<u32, CError> {
+            context.sleep(self.timeout).await;
+
+            context.call_method(self.timer.fn_callback, &[self.param]).await?;
+
+            Ok(0)
+        }
+    }
+
     context.spawn(Box::new(TimerCallback {
         timer,
         timeout: ((timeout_high as u64) << 32) | (timeout_low as u64),
@@ -65,23 +82,6 @@ async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32,
     }))?;
 
     Ok(())
-}
-
-struct TimerCallback {
-    timer: Timer,
-    timeout: u64,
-    param: u32,
-}
-
-#[async_trait::async_trait(?Send)]
-impl MethodBody<CError> for TimerCallback {
-    async fn call(&self, context: &mut dyn CContext, _: &[u32]) -> Result<u32, CError> {
-        context.sleep(self.timeout).await;
-
-        context.call_method(self.timer.fn_callback, &[self.param]).await?;
-
-        Ok(0)
-    }
 }
 
 async fn unset_timer(_: &mut dyn CContext, a0: u32) -> CResult<()> {
