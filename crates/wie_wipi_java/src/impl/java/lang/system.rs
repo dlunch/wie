@@ -16,7 +16,7 @@ impl System {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodAccessFlag::NATIVE),
-                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodAccessFlag::NATIVE),
+                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new(
                     "arraycopy",
                     "(Ljava/lang/Object;ILjava/lang/Object;II)V",

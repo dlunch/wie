@@ -66,7 +66,7 @@ struct JavaClassDescriptor {
 struct JavaMethod {
     fn_body: u32,
     ptr_class: u32,
-    fn_body1: u32, // native method body?
+    fn_body_native: u32,
     ptr_name: u32,
     unk2: u16,
     unk3: u16,
@@ -419,10 +419,17 @@ impl<'a> KtfJavaContext<'a> {
             self.core.write_bytes(ptr_name, &full_name_bytes)?;
 
             let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
-            let fn_body = if let Some(x) = method.body {
-                self.register_java_method(x, method.access_flag == JavaMethodAccessFlag::NATIVE)?
+
+            let (fn_body, fn_body_native) = if let Some(x) = method.body {
+                let fn_method = self.register_java_method(x, method.access_flag == JavaMethodAccessFlag::NATIVE)?;
+
+                if method.access_flag == JavaMethodAccessFlag::NATIVE {
+                    (0, fn_method)
+                } else {
+                    (fn_method, 0)
+                }
             } else {
-                0
+                (0, 0)
             };
 
             let index_in_vtable = vtable_builder.add(ptr_method, &full_name) as u16;
@@ -433,7 +440,7 @@ impl<'a> KtfJavaContext<'a> {
                 JavaMethod {
                     fn_body,
                     ptr_class,
-                    fn_body1: fn_body,
+                    fn_body_native,
                     ptr_name,
                     unk2: 0,
                     unk3: 0,

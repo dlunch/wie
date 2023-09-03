@@ -21,8 +21,8 @@ impl Thread {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/Runnable;)V", Self::init, JavaMethodAccessFlag::NONE),
                 JavaMethodProto::new("start", "()V", Self::start, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("sleep", "(J)V", Self::sleep, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("yield", "()V", Self::r#yield, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("sleep", "(J)V", Self::sleep, JavaMethodAccessFlag::NATIVE),
+                JavaMethodProto::new("yield", "()V", Self::r#yield, JavaMethodAccessFlag::NATIVE),
             ],
             fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;", crate::JavaFieldAccessFlag::NONE)],
         }
