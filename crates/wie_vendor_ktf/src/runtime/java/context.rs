@@ -418,20 +418,14 @@ impl<'a> KtfJavaContext<'a> {
             let ptr_name = Allocator::alloc(self.core, full_name_bytes.len() as u32)?;
             self.core.write_bytes(ptr_name, &full_name_bytes)?;
 
-            let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
-
-            let (fn_body, fn_body_native) = if let Some(x) = method.body {
-                let fn_method = self.register_java_method(x, method.flag == JavaMethodFlag::NATIVE)?;
-
-                if method.flag == JavaMethodFlag::NATIVE {
-                    (0, fn_method)
-                } else {
-                    (fn_method, 0)
-                }
+            let fn_method = self.register_java_method(method.body, method.flag == JavaMethodFlag::NATIVE)?;
+            let (fn_body, fn_body_native) = if method.flag == JavaMethodFlag::NATIVE {
+                (0, fn_method)
             } else {
-                (0, 0)
+                (fn_method, 0)
             };
 
+            let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
             let index_in_vtable = vtable_builder.add(ptr_method, &full_name) as u16;
 
             write_generic(

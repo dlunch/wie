@@ -35,7 +35,7 @@ pub enum JavaFieldAccessFlag {
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
-    pub body: Option<JavaMethodBody>,
+    pub body: JavaMethodBody,
     pub flag: JavaMethodFlag,
 }
 
@@ -65,16 +65,31 @@ impl JavaMethodProto {
         Self {
             name: name.into(),
             signature: signature.into(),
-            body: Some(method.into_body()),
+            body: method.into_body(),
             flag,
         }
     }
 
     pub fn new_abstract(name: &str, signature: &str, flag: JavaMethodFlag) -> Self {
+        struct AbstractCall {
+            name: String,
+            signature: String,
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl MethodBody<JavaError> for AbstractCall {
+            async fn call(&self, _: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+                Err(anyhow::anyhow!("Call to abstract function {}{}", self.name, self.signature))
+            }
+        }
+
         Self {
             name: name.into(),
             signature: signature.into(),
-            body: None,
+            body: Box::new(AbstractCall {
+                name: name.into(),
+                signature: signature.into(),
+            }),
             flag,
         }
     }

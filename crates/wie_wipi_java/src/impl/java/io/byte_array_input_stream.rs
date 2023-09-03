@@ -17,7 +17,10 @@ impl ByteArrayInputStream {
                 JavaMethodProto::new("<init>", "([B)V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("available", "()I", Self::available, JavaMethodFlag::NONE),
             ],
-            fields: vec![JavaFieldProto::new("buf", "[B", JavaFieldAccessFlag::NONE)],
+            fields: vec![
+                JavaFieldProto::new("buf", "[B", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("pos", "I", JavaFieldAccessFlag::NONE),
+            ],
         }
     }
 
@@ -29,13 +32,18 @@ impl ByteArrayInputStream {
         );
 
         context.put_field(&this.cast(), "buf", data.ptr_instance)?;
+        context.put_field(&this.cast(), "pos", 0)?;
 
         Ok(())
     }
 
-    async fn available(_: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<u32> {
-        log::warn!("stub java.lang.ByteArrayInputStream::available({:#x})", this.ptr_instance);
+    async fn available(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<u32> {
+        log::trace!("java.lang.ByteArrayInputStream::available({:#x})", this.ptr_instance);
 
-        Ok(0)
+        let buf = JavaObjectProxy::new(context.get_field(&this.cast(), "buf")?);
+        let pos = context.get_field(&this.cast(), "pos")?;
+        let buf_length = context.array_length(&buf)?;
+
+        Ok(buf_length - pos)
     }
 }
