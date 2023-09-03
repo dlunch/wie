@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_backend::CanvasHandle;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::org::kwis::msp::lcdui::{Font, Image},
 };
@@ -17,20 +17,15 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new(
-                    "drawImage",
-                    "(Lorg/kwis/msp/lcdui/Image;III)V",
-                    Self::draw_image,
-                    JavaMethodAccessFlag::NONE,
-                ),
-                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::NONE),
+                JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodFlag::NONE),
+                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
+                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }

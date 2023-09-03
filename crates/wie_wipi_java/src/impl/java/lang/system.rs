@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     array::Array,
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     JavaObjectProxy,
 };
 
@@ -15,13 +15,13 @@ impl System {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodAccessFlag::NATIVE),
-                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodAccessFlag::NONE),
+                JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodFlag::NATIVE),
+                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "arraycopy",
                     "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                     Self::arraycopy,
-                    JavaMethodAccessFlag::NATIVE,
+                    JavaMethodFlag::NATIVE,
                 ),
             ],
             fields: vec![],

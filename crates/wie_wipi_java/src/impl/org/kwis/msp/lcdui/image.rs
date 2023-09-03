@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::org::kwis::msp::lcdui::Graphics,
 };
@@ -15,19 +15,9 @@ impl Image {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodAccessFlag::NONE),
-                JavaMethodProto::new(
-                    "createImage",
-                    "(II)Lorg/kwis/msp/lcdui/Image;",
-                    Self::create_image,
-                    JavaMethodAccessFlag::NONE,
-                ),
-                JavaMethodProto::new(
-                    "getGraphics",
-                    "()Lorg/kwis/msp/lcdui/Graphics;",
-                    Self::get_graphics,
-                    JavaMethodAccessFlag::NONE,
-                ),
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("createImage", "(II)Lorg/kwis/msp/lcdui/Image;", Self::create_image, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }

@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use crate::base::{JavaClassProto, JavaContext, JavaMethodAccessFlag, JavaMethodProto, JavaResult};
+use crate::base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult};
 
 // class org.kwis.msp.handset.Backlight
 pub struct BackLight {}
@@ -10,7 +10,7 @@ impl BackLight {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, JavaMethodAccessFlag::NONE)],
+            methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, JavaMethodFlag::NONE)],
             fields: vec![],
         }
     }
