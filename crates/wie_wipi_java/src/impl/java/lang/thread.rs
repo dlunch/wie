@@ -39,6 +39,21 @@ impl Thread {
     async fn start(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>) -> JavaResult<()> {
         log::trace!("Thread::start({:#x})", this.ptr_instance);
 
+        struct ThreadStartProxy {
+            runnable: JavaObjectProxy<Runnable>,
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl MethodBody<JavaError> for ThreadStartProxy {
+            async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+                log::trace!("Thread::run");
+
+                context.call_method(&self.runnable.cast(), "run", "()V", &[]).await?;
+
+                Ok(0)
+            }
+        }
+
         let runnable = JavaObjectProxy::new(context.get_field(&this.cast(), "runnable")?);
 
         context.spawn(Box::new(ThreadStartProxy { runnable }))?;
@@ -56,21 +71,6 @@ impl Thread {
     async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<u32> {
         log::trace!("Thread::yield()");
         task::yield_now().await;
-
-        Ok(0)
-    }
-}
-
-struct ThreadStartProxy {
-    runnable: JavaObjectProxy<Runnable>,
-}
-
-#[async_trait::async_trait(?Send)]
-impl MethodBody<JavaError> for ThreadStartProxy {
-    async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
-        log::trace!("Thread::run");
-
-        context.call_method(&self.runnable.cast(), "run", "()V", &[]).await?;
 
         Ok(0)
     }
