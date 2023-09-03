@@ -35,7 +35,7 @@ pub enum JavaFieldAccessFlag {
 pub struct JavaMethodProto {
     pub name: String,
     pub signature: String,
-    pub body: JavaMethodBody,
+    pub body: Option<JavaMethodBody>,
     pub access_flag: JavaMethodAccessFlag,
 }
 
@@ -65,7 +65,7 @@ impl JavaMethodProto {
         Self {
             name: name.into(),
             signature: signature.into(),
-            body: method.into_body(),
+            body: Some(method.into_body()),
             access_flag,
         }
     }
