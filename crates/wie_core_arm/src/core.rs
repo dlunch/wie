@@ -179,11 +179,10 @@ impl ArmCore {
         let lr = inner.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?;
 
         let mut result = String::new();
-        let mut call_stack = format!(
-            "{}{}",
-            Self::format_callstack_address(pc as u32),
-            Self::format_callstack_address((lr - 5) as u32)
-        );
+        let mut call_stack = Self::format_callstack_address(pc as u32);
+        if lr as u32 != RUN_FUNCTION_LR {
+            call_stack += &Self::format_callstack_address((lr - 5) as u32);
+        }
 
         for i in 0..128 {
             let address = sp + (i * 4);
