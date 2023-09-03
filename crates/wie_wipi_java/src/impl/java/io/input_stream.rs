@@ -13,7 +13,10 @@ impl InputStream {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE)],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new_abstract("available", "()I", JavaMethodFlag::NONE),
+            ],
             fields: vec![],
         }
     }

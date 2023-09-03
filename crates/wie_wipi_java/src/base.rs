@@ -69,6 +69,15 @@ impl JavaMethodProto {
             flag,
         }
     }
+
+    pub fn new_abstract(name: &str, signature: &str, flag: JavaMethodFlag) -> Self {
+        Self {
+            name: name.into(),
+            signature: signature.into(),
+            body: None,
+            flag,
+        }
+    }
 }
 
 #[async_trait::async_trait(?Send)]
