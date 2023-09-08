@@ -47,9 +47,9 @@ impl Class {
 
         let name = from_java_string(context, &name)?;
         log::debug!("getResourceAsStream name: {}", name);
-        let name_without_slash = &name[1..]; // name starts with a slash
+        let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-        let resource = context.backend().resource().id(name_without_slash);
+        let resource = context.backend().resource().id(normalized_name);
         if let Some(x) = resource {
             let data_u32 = context.backend().resource().data(x).iter().map(|x| *x as u32).collect::<Vec<_>>();
 
