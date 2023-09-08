@@ -17,6 +17,7 @@ impl ByteArrayInputStream {
                 JavaMethodProto::new("<init>", "([B)V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("available", "()I", Self::available, JavaMethodFlag::NONE),
                 JavaMethodProto::new("read", "([BII)I", Self::read, JavaMethodFlag::NONE),
+                JavaMethodProto::new("close", "()V", Self::close, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("buf", "[B", JavaFieldAccessFlag::NONE),
@@ -85,5 +86,11 @@ impl ByteArrayInputStream {
         context.put_field(&this.cast(), "pos", pos + len)?;
 
         Ok(len)
+    }
+
+    async fn close(_: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<()> {
+        log::trace!("java.lang.ByteArrayInputStream::close({:#x})", this.ptr_instance);
+
+        Ok(())
     }
 }

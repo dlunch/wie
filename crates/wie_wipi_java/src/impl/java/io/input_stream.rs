@@ -18,6 +18,7 @@ impl InputStream {
                 JavaMethodProto::new_abstract("available", "()I", JavaMethodFlag::NONE),
                 JavaMethodProto::new_abstract("read", "([BII)I", JavaMethodFlag::NONE),
                 JavaMethodProto::new("read", "([B)I", Self::read, JavaMethodFlag::NONE),
+                JavaMethodProto::new_abstract("close", "()V", JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }
