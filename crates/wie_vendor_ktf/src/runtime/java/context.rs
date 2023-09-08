@@ -661,10 +661,23 @@ impl<'a> KtfJavaContext<'a> {
 
         let method: JavaMethod = read_generic(self.core, ptr_method)?;
 
-        let mut params = vec![0];
-        params.extend(args);
+        if method.flag.contains(JavaMethodFlagBit::NATIVE) {
+            let arg_container = Allocator::alloc(self.core, (args.len() as u32) * 4)?;
+            for (i, arg) in args.iter().enumerate() {
+                write_generic(self.core, arg_container + (i * 4) as u32, *arg)?;
+            }
 
-        self.core.run_function(method.fn_body, &params).await
+            let result = self.core.run_function(method.fn_body_native, &[0, arg_container]).await;
+
+            Allocator::free(self.core, arg_container)?;
+
+            result
+        } else {
+            let mut params = vec![0];
+            params.extend(args);
+
+            self.core.run_function(method.fn_body, &params).await
+        }
     }
 
     fn read_context_data(&self) -> JavaResult<JavaContextData> {
