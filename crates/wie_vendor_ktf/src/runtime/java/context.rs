@@ -21,7 +21,6 @@ bitflags::bitflags! {
         const NONE = 0;
         const STATIC = 8;
     }
-
 }
 
 impl JavaFieldAccessFlagBit {
@@ -29,6 +28,28 @@ impl JavaFieldAccessFlagBit {
         match access_flag {
             JavaFieldAccessFlag::NONE => JavaFieldAccessFlagBit::NONE,
             JavaFieldAccessFlag::STATIC => JavaFieldAccessFlagBit::STATIC,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct JavaMethodFlagBit(u16);
+
+bitflags::bitflags! {
+    impl JavaMethodFlagBit: u16 {
+        const NONE = 0;
+        const STATIC = 8;
+        const NATIVE = 0x100;
+    }
+}
+
+impl JavaMethodFlagBit {
+    fn from_flag(flag: JavaMethodFlag) -> JavaMethodFlagBit {
+        match flag {
+            JavaMethodFlag::NONE => JavaMethodFlagBit::NONE,
+            JavaMethodFlag::STATIC => JavaMethodFlagBit::STATIC,
+            JavaMethodFlag::NATIVE => JavaMethodFlagBit::NATIVE,
         }
     }
 }
@@ -71,7 +92,7 @@ struct JavaMethod {
     unk2: u16,
     unk3: u16,
     index_in_vtable: u16,
-    access_flag: u16,
+    flag: JavaMethodFlagBit,
     unk6: u32,
 }
 
@@ -428,6 +449,8 @@ impl<'a> KtfJavaContext<'a> {
             let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
             let index_in_vtable = vtable_builder.add(ptr_method, &full_name) as u16;
 
+            let flag = JavaMethodFlagBit::from_flag(method.flag);
+
             write_generic(
                 self.core,
                 ptr_method,
@@ -439,7 +462,7 @@ impl<'a> KtfJavaContext<'a> {
                     unk2: 0,
                     unk3: 0,
                     index_in_vtable,
-                    access_flag: 1, //  ACC_PUBLIC
+                    flag,
                     unk6: 0,
                 },
             )?;
