@@ -133,6 +133,18 @@ pub struct JavaFullName {
     pub signature: String,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct JavaExceptionHandler {
+    ptr_method: u32,
+    ptr_this: u32,
+    ptr_old_handler: u32,
+    current_state: u32, // state is returned on restore context
+    unk3: u32,
+    ptr_functions: u32, // function table to restore context and unk
+    context: [u32; 11], // r4-lr
+}
+
 impl JavaFullName {
     pub fn from_ptr(core: &ArmCore, ptr: u32) -> JavaResult<Self> {
         let tag = read_generic(core, ptr)?;

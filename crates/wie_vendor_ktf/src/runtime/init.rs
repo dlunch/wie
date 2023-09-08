@@ -45,7 +45,8 @@ struct InitParam1 {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam1Unk {
-    unk: [u32; 32],
+    unk: [u32; 8],
+    current_java_exception_handler: u32,
 }
 
 #[repr(C)]
@@ -119,6 +120,7 @@ struct ExeInterfaceFunctions {
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct KtfPeb {
     pub ptr_java_context_data: u32,
+    pub ptr_current_java_exception_handler: u32,
 }
 
 pub struct ModuleInfo {
@@ -135,7 +137,14 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
     let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1Unk>() as u32)?;
-    write_generic(core, ptr_unk_struct, InitParam1Unk { unk: [0; 32] })?;
+    write_generic(
+        core,
+        ptr_unk_struct,
+        InitParam1Unk {
+            unk: [0; 8],
+            current_java_exception_handler: 0,
+        },
+    )?;
 
     let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     write_generic(core, ptr_param_1, InitParam1 { ptr_unk_struct })?;
@@ -189,7 +198,13 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     write_generic(core, ptr_param_4, param_4)?;
 
     let ptr_java_context_data = KtfJavaContext::init(core, ptr_param_2)?;
-    init_peb(core, KtfPeb { ptr_java_context_data })?;
+    init_peb(
+        core,
+        KtfPeb {
+            ptr_java_context_data,
+            ptr_current_java_exception_handler: ptr_unk_struct + 32,
+        },
+    )?;
 
     let wipi_exe: WipiExe = read_generic(core, wipi_exe)?;
     let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
