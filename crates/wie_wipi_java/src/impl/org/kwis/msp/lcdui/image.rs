@@ -4,6 +4,7 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::org::kwis::msp::lcdui::Graphics,
+    Array,
 };
 
 // class org.kwis.msp.lcdui.Image
@@ -17,6 +18,12 @@ impl Image {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("createImage", "(II)Lorg/kwis/msp/lcdui/Image;", Self::create_image, JavaMethodFlag::NONE),
+                JavaMethodProto::new(
+                    "createImage",
+                    "([BII)Lorg/kwis/msp/lcdui/Image;",
+                    Self::create_image_from_bytes,
+                    JavaMethodFlag::NONE,
+                ),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, JavaMethodFlag::NONE),
             ],
             fields: vec![],
@@ -29,8 +36,27 @@ impl Image {
         Ok(())
     }
 
-    async fn create_image(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<JavaObjectProxy<Image>> {
-        log::warn!("stub org.kwis.msp.lcdui.Image::createImage({}, {})", a0, a1);
+    async fn create_image(context: &mut dyn JavaContext, width: u32, height: u32) -> JavaResult<JavaObjectProxy<Image>> {
+        log::warn!("stub org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
+
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?.cast();
+        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
+
+        Ok(instance)
+    }
+
+    async fn create_image_from_bytes(
+        context: &mut dyn JavaContext,
+        data: JavaObjectProxy<Array>,
+        offset: u32,
+        length: u32,
+    ) -> JavaResult<JavaObjectProxy<Image>> {
+        log::warn!(
+            "stub org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})",
+            data.ptr_instance,
+            offset,
+            length
+        );
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?.cast();
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
