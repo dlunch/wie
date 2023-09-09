@@ -1,10 +1,10 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::org::kwis::msp::lcdui::Graphics,
-    Array,
+    Array, JavaFieldAccessFlag,
 };
 
 // class org.kwis.msp.lcdui.Image
@@ -26,7 +26,7 @@ impl Image {
                 ),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, JavaMethodFlag::NONE),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("imgData", "[B", JavaFieldAccessFlag::NONE)],
         }
     }
 
