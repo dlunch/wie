@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{str, string::String as RustString, vec, vec::Vec};
 
 use crate::{
     array::Array,
@@ -104,5 +104,30 @@ impl String {
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 
         context.array_length(&value)
+    }
+
+    pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
+        let java_value = JavaObjectProxy::new(context.get_field(&instance.cast(), "value")?);
+        let length = context.array_length(&java_value)?;
+        let string = context
+            .load_array(&java_value, 0, length)?
+            .into_iter()
+            .map(|x| x as u8)
+            .collect::<Vec<_>>();
+
+        Ok(str::from_utf8(&string)?.into())
+    }
+
+    pub async fn to_java_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JavaObjectProxy<String>> {
+        let bytes = string.bytes().map(|x| x as u32).collect::<Vec<_>>();
+        let java_value = context.instantiate_array("C", bytes.len() as u32)?;
+        context.store_array(&java_value, 0, &bytes)?;
+
+        let instance = context.instantiate("Ljava/lang/String;")?.cast();
+        context
+            .call_method(&instance.cast(), "<init>", "([C)V", &[java_value.ptr_instance])
+            .await?;
+
+        Ok(instance)
     }
 }

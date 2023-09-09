@@ -2,10 +2,8 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    from_java_string,
     proxy::JavaObjectProxy,
     r#impl::java::lang::String,
-    to_java_string,
 };
 
 // class org.kwis.msp.handset.HandsetProperty
@@ -27,10 +25,10 @@ impl HandsetProperty {
     }
 
     async fn get_system_property(context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<String>> {
-        let name = from_java_string(context, &name)?;
+        let name = String::to_rust_string(context, &name)?;
         log::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
-        let result = to_java_string(context, "").await?;
+        let result = String::to_java_string(context, "").await?;
         Ok(result)
     }
 }

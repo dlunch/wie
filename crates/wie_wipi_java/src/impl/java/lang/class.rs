@@ -3,7 +3,6 @@ use alloc::{vec, vec::Vec};
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
     r#impl::java::{io::InputStream, lang::String},
-    string::from_java_string,
     JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
@@ -45,7 +44,7 @@ impl Class {
             name.ptr_instance
         );
 
-        let name = from_java_string(context, &name)?;
+        let name = String::to_rust_string(context, &name)?;
         log::debug!("getResourceAsStream name: {}", name);
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
