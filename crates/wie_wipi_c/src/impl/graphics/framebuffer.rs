@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::{cast_slice, cast_vec, Pod, Zeroable};
 
-use wie_backend::{Canvas, CanvasHandle};
+use wie_backend::Canvas;
 
 use crate::base::{CContext, CMemoryId};
 
@@ -28,13 +28,11 @@ impl Framebuffer {
         }
     }
 
-    pub fn from_canvas_empty(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
-        let (width, height, bytes_per_pixel) = {
-            let mut canvases = context.backend().canvases_mut();
-            let canvas = canvases.canvas(canvas_handle);
+    pub fn from_screen_canvas(context: &mut dyn CContext) -> anyhow::Result<Self> {
+        let canvas = context.backend().screen_canvas_mut();
 
-            (canvas.width(), canvas.height(), canvas.bytes_per_pixel())
-        };
+        let (width, height, bytes_per_pixel) = (canvas.width(), canvas.height(), canvas.bytes_per_pixel());
+        core::mem::drop(canvas);
 
         let buf = context.alloc(width * height * bytes_per_pixel)?;
 
@@ -47,23 +45,18 @@ impl Framebuffer {
         })
     }
 
-    pub fn from_canvas(context: &mut dyn CContext, canvas_handle: CanvasHandle) -> anyhow::Result<Self> {
-        let (width, height, bytes_per_pixel, data) = {
-            let mut canvases = context.backend().canvases_mut();
-            let canvas = canvases.canvas(canvas_handle);
+    pub fn from_canvas(context: &mut dyn CContext, canvas: &Canvas) -> anyhow::Result<Self> {
+        let buf = context.alloc(canvas.width() * canvas.height() * canvas.bytes_per_pixel())?;
 
-            (canvas.width(), canvas.height(), canvas.bytes_per_pixel(), canvas.buffer().to_vec())
-        };
-
-        let data = cast_slice(&data);
-        let buf = context.alloc(width * height * bytes_per_pixel)?;
+        let canvas_buf = canvas.buffer().to_vec();
+        let data = cast_slice(&canvas_buf);
         context.write_bytes(context.data_ptr(buf)?, data)?;
 
         Ok(Self {
-            width,
-            height,
-            bpl: width * bytes_per_pixel,
-            bpp: bytes_per_pixel * 8,
+            width: canvas.width(),
+            height: canvas.height(),
+            bpl: canvas.width() * canvas.bytes_per_pixel(),
+            bpp: canvas.bytes_per_pixel() * 8,
             buf,
         })
     }
