@@ -13,16 +13,12 @@ use wie_base::Module;
 
 use crate::{executor::Executor, time::Time};
 
-use self::{
-    canvas::{CanvasHandle, Canvases},
-    window::Window,
-};
+use self::{canvas::Canvas, window::Window};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
-    canvases: Rc<RefCell<Canvases>>,
-    screen_canvas: CanvasHandle,
+    screen_canvas: Rc<RefCell<Canvas>>,
 }
 
 impl Default for Backend {
@@ -33,14 +29,12 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let mut canvases = Canvases::new();
-        let screen_canvas = canvases.new_canvas(240, 320); // TODO hardcoded size
+        let screen_canvas = Canvas::from_size(240, 320); // TODO hardcoded size
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
-            canvases: Rc::new(RefCell::new(canvases)),
-            screen_canvas,
+            screen_canvas: Rc::new(RefCell::new(screen_canvas)),
         }
     }
 
@@ -56,12 +50,8 @@ impl Backend {
         (*self.time).borrow()
     }
 
-    pub fn canvases_mut(&self) -> RefMut<'_, Canvases> {
-        (*self.canvases).borrow_mut()
-    }
-
-    pub fn screen_canvas(&self) -> CanvasHandle {
-        self.screen_canvas
+    pub fn screen_canvas_mut(&self) -> RefMut<'_, Canvas> {
+        (*self.screen_canvas).borrow_mut()
     }
 
     pub fn run<M>(self, module: M) -> anyhow::Result<()>
@@ -72,13 +62,9 @@ impl Backend {
 
         Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
-        let window = {
-            let screen_canvas = self.screen_canvas();
-            let mut canvases = self.canvases_mut();
-            let canvas = canvases.canvas(screen_canvas);
-
-            Window::new(canvas.width(), canvas.height())
-        };
+        let screen_canvas = self.screen_canvas_mut();
+        let window = Window::new(screen_canvas.width(), screen_canvas.height());
+        core::mem::drop(screen_canvas);
 
         window.run(
             || Ok::<_, anyhow::Error>(()),
@@ -87,8 +73,7 @@ impl Backend {
 
                 Backend::run_task(&mut executor, &self.time(), move |module| module.render())?;
 
-                let mut canvases = self.canvases_mut();
-                let canvas = canvases.canvas(self.screen_canvas);
+                let canvas = self.screen_canvas_mut();
                 buffer.copy_from_slice(canvas.buffer());
 
                 Ok(())
@@ -115,8 +100,7 @@ impl Clone for Backend {
         Self {
             resource: self.resource.clone(),
             time: self.time.clone(),
-            canvases: self.canvases.clone(),
-            screen_canvas: self.screen_canvas,
+            screen_canvas: self.screen_canvas.clone(),
         }
     }
 }

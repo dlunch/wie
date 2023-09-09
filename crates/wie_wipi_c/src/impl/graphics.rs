@@ -22,8 +22,7 @@ fn gen_stub(id: u32) -> CMethodBody {
 async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
     log::trace!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
-    let screen_canvas = context.backend().screen_canvas();
-    let framebuffer = Framebuffer::from_canvas_empty(context, screen_canvas)?;
+    let framebuffer = Framebuffer::from_screen_canvas(context)?;
 
     let memory = context.alloc(size_of::<Framebuffer>() as u32)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
@@ -95,9 +94,7 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
 
     let data = framebuffer.data(context)?;
 
-    let backend = context.backend();
-    let mut canvases = backend.canvases_mut();
-    let screen_canvas = canvases.canvas(backend.screen_canvas());
+    let mut screen_canvas = context.backend().screen_canvas_mut();
 
     screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &data, 0, 0, framebuffer.width);
 

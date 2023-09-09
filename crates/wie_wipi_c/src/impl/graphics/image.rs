@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 
 use bytemuck::{Pod, Zeroable};
+use wie_backend::Canvas;
 
 use crate::base::{CContext, CMemoryId};
 
@@ -24,9 +25,9 @@ impl Image {
     pub fn new(context: &mut dyn CContext, buf: CMemoryId, offset: u32, len: u32) -> anyhow::Result<Self> {
         let ptr_image_data = context.data_ptr(buf)?;
         let data = context.read_bytes(ptr_image_data + offset, len)?;
-        let canvas_handle = context.backend().canvases_mut().new_canvas_from_image(&data)?;
+        let canvas = Canvas::from_image(&data)?;
 
-        let img_framebuffer = Framebuffer::from_canvas(context, canvas_handle)?;
+        let img_framebuffer = Framebuffer::from_canvas(context, &canvas)?;
         let mask_framebuffer = Framebuffer::empty();
 
         Ok(Self {
