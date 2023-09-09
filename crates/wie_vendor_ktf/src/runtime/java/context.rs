@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{fmt::Display, iter, mem::size_of};
 
-use bytemuck::{cast_slice, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -10,8 +10,8 @@ use wie_backend::{
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
-    get_array_proto, get_class_proto, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag,
-    JavaObjectProxy, JavaResult, Object,
+    get_class_proto, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    Object,
 };
 
 use crate::runtime::KtfPeb;
@@ -73,7 +73,7 @@ struct JavaClassDescriptor {
     ptr_parent_class: u32,
     ptr_methods: u32,
     ptr_interfaces: u32,
-    ptr_fields: u32,
+    ptr_fields_or_element_type: u32, // for array class, this is element type
     method_count: u16,
     fields_size: u16,
     access_flag: u16,
@@ -372,12 +372,30 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
-        let proxy = self.instantiate_inner(ptr_class_array, count * 4 + 4)?; // TODO element size
+        let element_size = self.get_array_element_size(ptr_class_array)?;
+        let proxy = self.instantiate_inner(ptr_class_array, count * element_size + 4)?;
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count)?;
 
         Ok(proxy.cast())
+    }
+
+    fn get_array_element_size(&self, ptr_class_array: u32) -> JavaResult<u32> {
+        let (_, _, class_name) = self.read_ptr_class(ptr_class_array)?;
+
+        if class_name.starts_with("[L") {
+            Ok(4)
+        } else {
+            let element = class_name.as_bytes()[1];
+            Ok(match element {
+                b'B' => 1,
+                b'C' => 1,
+                b'I' => 4,
+                b'Z' => 1,
+                _ => unimplemented!("get_array_element_size {}", class_name),
+            })
+        }
     }
 
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
@@ -417,7 +435,7 @@ impl<'a> KtfJavaContext<'a> {
 
         // array class is created dynamically
         if name.as_bytes()[0] == b'[' {
-            let ptr_class = self.load_class_into_vm(name, get_array_proto())?;
+            let ptr_class = self.load_array_class_into_vm(name)?;
 
             Ok(ptr_class)
         } else {
@@ -425,6 +443,67 @@ impl<'a> KtfJavaContext<'a> {
 
             self.load_class_into_vm(name, proto)
         }
+    }
+
+    fn load_array_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
+        let ptr_parent_class = self.get_ptr_class("java/lang/Object")?;
+        let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
+
+        /* TODO we need load class from client.bin
+        let element_type_name = &name[1..];
+        let element_type = if element_type_name.starts_with('L') {
+            self.get_ptr_class(&element_type_name[1..element_type_name.len() - 1])?
+        } else {
+            0
+        };
+        */
+        let element_type = 0;
+
+        let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
+        write_null_terminated_string(self.core, ptr_name, name)?;
+
+        let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
+        write_generic(
+            self.core,
+            ptr_descriptor,
+            JavaClassDescriptor {
+                ptr_name,
+                unk1: 0,
+                ptr_parent_class,
+                ptr_methods: 0,
+                ptr_interfaces: 0,
+                ptr_fields_or_element_type: element_type,
+                method_count: 0,
+                fields_size: 0,
+                access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
+                unk6: 0,
+                unk7: 0,
+                unk8: 0,
+            },
+        )?;
+
+        write_generic(
+            self.core,
+            ptr_class,
+            JavaClass {
+                ptr_next: ptr_class + 4,
+                unk1: 0,
+                ptr_descriptor,
+                ptr_vtable: 0,
+                vtable_count: 0,
+                unk_flag: 8,
+            },
+        )?;
+
+        let context_data = self.read_context_data()?;
+        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
+        write_generic(
+            self.core,
+            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
+            ptr_class,
+        )?;
+
+        Ok(ptr_class)
     }
 
     fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
@@ -530,7 +609,7 @@ impl<'a> KtfJavaContext<'a> {
                 ptr_parent_class: ptr_parent_class.unwrap_or(0),
                 ptr_methods,
                 ptr_interfaces: 0,
-                ptr_fields,
+                ptr_fields_or_element_type: ptr_fields,
                 method_count: methods.len() as u16,
                 fields_size: (fields.len() * 4) as u16,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
@@ -649,7 +728,7 @@ impl<'a> KtfJavaContext<'a> {
     fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
         let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
-        let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields)?;
+        let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields_or_element_type)?;
         for ptr_field in ptr_fields {
             let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -813,18 +892,28 @@ impl JavaContext for KtfJavaContext<'_> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
         let items_offset = instance.ptr_fields + 8;
 
-        let values_raw = cast_slice(values);
-        self.core.write_bytes(items_offset + 4 * index, values_raw)
+        let element_size = self.get_array_element_size(instance.ptr_class)?;
+        let bytes = values
+            .iter()
+            .flat_map(|x| x.to_le_bytes().into_iter().take(element_size as usize))
+            .collect::<Vec<_>>();
+
+        self.core.write_bytes(items_offset + element_size * index, &bytes)
     }
 
     fn load_array(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
         let items_offset = instance.ptr_fields + 8;
 
-        let values_raw = self.core.read_bytes(items_offset + 4 * offset, count * 4)?;
+        let element_size = self.get_array_element_size(instance.ptr_class)?;
+
+        let values_raw = self.core.read_bytes(items_offset + element_size * offset, count * element_size)?;
         let values = values_raw
-            .chunks(4)
-            .map(|x| u32::from_le_bytes(x.try_into().unwrap()))
+            .chunks(element_size as usize)
+            .map(|x| {
+                let bytes = x.iter().chain(iter::repeat(&0)).take(4).copied().collect::<Vec<_>>();
+                u32::from_le_bytes(bytes.try_into().unwrap())
+            })
             .collect::<Vec<_>>();
         Ok(values)
     }
