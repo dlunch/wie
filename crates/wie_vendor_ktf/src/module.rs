@@ -91,7 +91,7 @@ impl KtfWipiModule {
         java_context.destroy(graphics)?;
 
         if image.ptr_instance != 0 {
-            let data = JavaObjectProxy::new(java_context.get_field(&image, "img_data")?);
+            let data = JavaObjectProxy::new(java_context.get_field(&image, "imgData")?);
             let size = java_context.array_length(&data)?;
             let buffer = java_context.load_array(&data, 0, size)?;
 

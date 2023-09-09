@@ -29,16 +29,26 @@ impl Graphics {
                 JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, JavaMethodFlag::NONE),
             ],
-            fields: vec![JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", JavaFieldAccessFlag::NONE)],
+            fields: vec![
+                JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
+            ],
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, display: JavaObjectProxy<Display>) -> JavaResult<()> {
-        log::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x})",
+    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, display: JavaObjectProxy<Display>) -> JavaResult<()> {
+        log::trace!(
+            "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x})",
             this.ptr_instance,
             display.ptr_instance
         );
+
+        let width = context.get_field(&display.cast(), "m_w")?;
+        let height = context.get_field(&display.cast(), "m_h")?;
+
+        context.put_field(&this.cast(), "w", width)?;
+        context.put_field(&this.cast(), "h", height)?;
 
         Ok(())
     }
@@ -113,21 +123,30 @@ impl Graphics {
     }
 
     async fn draw_image(
-        _: &mut dyn JavaContext,
+        context: &mut dyn JavaContext,
         this: JavaObjectProxy<Graphics>,
         img: JavaObjectProxy<Image>,
         x: u32,
         y: u32,
         anchor: u32,
     ) -> JavaResult<()> {
-        log::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
+        log::trace!(
+            "org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
             img.ptr_instance,
             x,
             y,
             anchor
         );
+
+        let src_buf = Image::get_buf(context, &img)?;
+        let src_width = context.get_field(&img.cast(), "w")?;
+        let src_height = context.get_field(&img.cast(), "h")?;
+
+        let image = Self::get_image(context, &this).await?;
+        let mut canvas = Image::get_canvas(context, &image)?;
+
+        canvas.draw(x, y, src_width, src_height, &src_buf, 0, 0, src_width);
 
         Ok(())
     }
@@ -154,5 +173,31 @@ impl Graphics {
         log::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})", this.ptr_instance);
 
         Ok(0)
+    }
+
+    async fn get_image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {
+        let image = JavaObjectProxy::new(context.get_field(&this.cast(), "img")?);
+
+        if image.ptr_instance != 0 {
+            Ok(image)
+        } else {
+            let width = context.get_field(&this.cast(), "w")?;
+            let height = context.get_field(&this.cast(), "h")?;
+
+            let image = JavaObjectProxy::new(
+                context
+                    .call_static_method(
+                        "org/kwis/msp/lcdui/Image",
+                        "createImage",
+                        "(II)Lorg/kwis/msp/lcdui/Image;",
+                        &[width, height],
+                    )
+                    .await?,
+            );
+
+            context.put_field(&this.cast(), "img", image.ptr_instance)?;
+
+            Ok(image)
+        }
     }
 }

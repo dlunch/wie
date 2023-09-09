@@ -1,4 +1,5 @@
 use alloc::{vec, vec::Vec};
+use core::ops::{Deref, DerefMut};
 
 use bytemuck::cast_slice;
 
@@ -106,5 +107,63 @@ impl Image {
             .await?;
 
         Ok(instance)
+    }
+
+    pub fn get_buf(context: &mut dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u32>> {
+        let java_img_data = JavaObjectProxy::new(context.get_field(&this.cast(), "imgData")?);
+        let img_data_len = context.array_length(&java_img_data)?;
+
+        let img_data = context.load_array(&java_img_data.cast(), 0, img_data_len)?;
+        let result = img_data
+            .chunks(4)
+            .map(|x| u32::from_le_bytes([x[0] as u8, x[1] as u8, x[2] as u8, x[3] as u8]))
+            .collect::<Vec<_>>();
+
+        Ok(result)
+    }
+
+    pub fn get_canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
+        let buf = Self::get_buf(context, this)?;
+
+        let width = context.get_field(&this.cast(), "w")?;
+        let height = context.get_field(&this.cast(), "h")?;
+
+        let canvas = Canvas::from_raw(width, height, cast_slice(&buf).to_vec());
+
+        Ok(ImageCanvas {
+            image: this,
+            context,
+            canvas,
+        })
+    }
+}
+
+pub struct ImageCanvas<'a> {
+    image: &'a JavaObjectProxy<Image>,
+    context: &'a mut dyn JavaContext,
+    canvas: Canvas,
+}
+
+impl Drop for ImageCanvas<'_> {
+    fn drop(&mut self) {
+        let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
+
+        let buffer: &[u8] = cast_slice(self.canvas.buffer());
+        let buffer_u32 = buffer.iter().map(|&x| x as u32).collect::<Vec<_>>();
+        self.context.store_array(&data, 0, &buffer_u32).unwrap();
+    }
+}
+
+impl Deref for ImageCanvas<'_> {
+    type Target = Canvas;
+
+    fn deref(&self) -> &Self::Target {
+        &self.canvas
+    }
+}
+
+impl DerefMut for ImageCanvas<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.canvas
     }
 }
