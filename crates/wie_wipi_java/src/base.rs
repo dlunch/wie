@@ -148,6 +148,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "org/kwis/msp/lwc/ContainerComponent" => crate::r#impl::org::kwis::msp::lwc::ContainerComponent::as_proto(),
         "org/kwis/msp/lwc/ShellComponent" => crate::r#impl::org::kwis::msp::lwc::ShellComponent::as_proto(),
         "org/kwis/msp/media/Clip" => crate::r#impl::org::kwis::msp::media::Clip::as_proto(),
+        "org/kwis/msp/media/Player" => crate::r#impl::org::kwis::msp::media::Player::as_proto(),
         "org/kwis/msp/media/PlayListener" => crate::r#impl::org::kwis::msp::media::PlayListener::as_proto(),
 
         _ => return None,
