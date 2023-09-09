@@ -54,23 +54,27 @@ impl Graphics {
     }
 
     async fn init_with_image(
-        _: &mut dyn JavaContext,
+        context: &mut dyn JavaContext,
         this: JavaObjectProxy<Graphics>,
         image: JavaObjectProxy<Image>,
         a0: u32,
         a1: u32,
-        a2: u32,
-        a3: u32,
+        width: u32,
+        height: u32,
     ) -> JavaResult<()> {
-        log::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
+        log::trace!(
+            "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
             this.ptr_instance,
             image.ptr_instance,
             a0,
             a1,
-            a2,
-            a3
+            width,
+            height
         );
+
+        context.put_field(&this.cast(), "img", image.ptr_instance)?;
+        context.put_field(&this.cast(), "w", width)?;
+        context.put_field(&this.cast(), "h", height)?;
 
         Ok(())
     }
