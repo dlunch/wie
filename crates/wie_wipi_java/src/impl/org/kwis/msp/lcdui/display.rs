@@ -50,7 +50,11 @@ impl Display {
                     JavaMethodFlag::NONE,
                 ),
             ],
-            fields: vec![JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE)],
+            fields: vec![
+                JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("m_w", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("m_h", "I", JavaFieldAccessFlag::NONE),
+            ],
         }
     }
 
@@ -69,6 +73,13 @@ impl Display {
 
         let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1)?;
         context.put_field(&this.cast(), "cards", cards.ptr_instance)?;
+
+        let screen_canvas = context.backend().screen_canvas_mut();
+        let (width, height) = (screen_canvas.width(), screen_canvas.height());
+        core::mem::drop(screen_canvas);
+
+        context.put_field(&this.cast(), "m_w", width)?;
+        context.put_field(&this.cast(), "m_h", height)?;
 
         Ok(())
     }
