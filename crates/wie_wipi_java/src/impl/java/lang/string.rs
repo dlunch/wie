@@ -18,6 +18,7 @@ impl String {
                 JavaMethodProto::new("<init>", "([C)V", Self::init_with_char_array, JavaMethodFlag::NONE),
                 JavaMethodProto::new("<init>", "([CII)V", Self::init_with_partial_char_array, JavaMethodFlag::NONE),
                 JavaMethodProto::new("<init>", "([BII)V", Self::init_with_partial_byte_array, JavaMethodFlag::NONE),
+                JavaMethodProto::new("charAt", "(I)C", Self::char_at, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodFlag::NONE),
                 JavaMethodProto::new("length", "()I", Self::length, JavaMethodFlag::NONE),
             ],
@@ -79,6 +80,14 @@ impl String {
         context.store_array(&array, 0, &data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
+    }
+
+    async fn char_at(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, index: u32) -> JavaResult<u32> {
+        log::trace!("java.lang.String::charAt({:#x}, {})", this.ptr_instance, index);
+
+        let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
+
+        Ok(context.load_array(&value, index, 1)?[0])
     }
 
     async fn get_bytes(context: &mut dyn JavaContext, this: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Array>> {
