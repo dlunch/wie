@@ -1,6 +1,10 @@
 use alloc::vec;
 
-use crate::base::JavaClassProto;
+use crate::{
+    base::{JavaClassProto, JavaMethodProto},
+    r#impl::org::kwis::msp::media::Clip,
+    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+};
 
 // class org.kwis.msp.media.Player
 pub struct Player {}
@@ -10,8 +14,23 @@ impl Player {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![],
+            methods: vec![
+                JavaMethodProto::new("play", "(Lorg/kwis/msp/media/Clip;Z)Z", Self::play, JavaMethodFlag::STATIC),
+                JavaMethodProto::new("stop", "(Lorg/kwis/msp/media/Clip;)Z", Self::stop, JavaMethodFlag::STATIC),
+            ],
             fields: vec![],
         }
+    }
+
+    async fn play(_: &mut dyn JavaContext, clip: JavaObjectProxy<Clip>, repeat: u32) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.media.Player::play({:#x}, {})", clip.ptr_instance, repeat);
+
+        Ok(())
+    }
+
+    async fn stop(_: &mut dyn JavaContext, clip: JavaObjectProxy<Clip>) -> JavaResult<()> {
+        log::warn!("stub org.kwis.msp.media.Player::stop({:#x})", clip.ptr_instance,);
+
+        Ok(())
     }
 }
