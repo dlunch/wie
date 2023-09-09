@@ -90,7 +90,10 @@ impl Image {
     }
 
     async fn get_graphics(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<JavaObjectProxy<Graphics>> {
-        log::warn!("stub org.kwis.msp.lcdui.Image::getGraphics({:#x})", this.ptr_instance);
+        log::trace!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", this.ptr_instance);
+
+        let width = context.get_field(&this.cast(), "w")?;
+        let height = context.get_field(&this.cast(), "h")?;
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?.cast();
         context
@@ -98,7 +101,7 @@ impl Image {
                 &instance.cast(),
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                &[this.ptr_instance, 0, 0, 0, 0],
+                &[this.ptr_instance, 0, 0, width, height],
             )
             .await?;
 
