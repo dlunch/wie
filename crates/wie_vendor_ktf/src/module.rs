@@ -87,7 +87,21 @@ impl KtfWipiModule {
             .call_method(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
             .await?;
 
+        let image = JavaObjectProxy::new(java_context.get_field(&graphics, "img")?);
         java_context.destroy(graphics)?;
+
+        if image.ptr_instance != 0 {
+            let data = JavaObjectProxy::new(java_context.get_field(&image, "img_data")?);
+            let size = java_context.array_length(&data)?;
+            let buffer = java_context.load_array(&data, 0, size)?;
+
+            java_context.destroy(data.cast())?;
+            java_context.destroy(image)?;
+
+            let mut canvas = backend.screen_canvas_mut();
+            let (width, height) = (canvas.width(), canvas.height());
+            canvas.draw(0, 0, width, height, &buffer, 0, 0, width);
+        }
 
         Ok(())
     }
