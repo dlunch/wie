@@ -65,30 +65,26 @@ impl KtfWipiModule {
     }
 
     async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<()> {
-        let screen_canvas = backend.screen_canvas();
-
         let mut java_context = KtfJavaContext::new(core, backend);
 
-        let display = java_context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
-        if display == 0 {
+        let display = JavaObjectProxy::new(java_context.get_static_field("org/kwis/msp/lcdui/Jlet", "dis")?);
+        if display.ptr_instance == 0 {
             return Ok(());
         }
 
-        let card = java_context.get_field(&JavaObjectProxy::new(display), "card")?;
-        if card == 0 {
+        let cards = JavaObjectProxy::new(java_context.get_field(&display, "cards")?);
+        let card = JavaObjectProxy::new(java_context.load_array(&cards, 0, 1)?[0]);
+        if card.ptr_instance == 0 {
             return Ok(());
         }
 
         let graphics = java_context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
-        java_context.call_method(&graphics, "<init>", "(I)V", &[screen_canvas]).await?;
+        java_context
+            .call_method(&graphics, "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", &[display.ptr_instance])
+            .await?;
 
         java_context
-            .call_method(
-                &JavaObjectProxy::new(card),
-                "paint",
-                "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                &[graphics.ptr_instance],
-            )
+            .call_method(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
             .await?;
 
         java_context.destroy(graphics)?;

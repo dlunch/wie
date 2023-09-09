@@ -4,8 +4,8 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     r#impl::{
-        java::lang::String,
-        org::kwis::msp::lcdui::{Card, JletEventListener},
+        java::lang::{Object, String},
+        org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
     },
 };
 
@@ -18,7 +18,12 @@ impl Display {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
+                    Self::init,
+                    JavaMethodFlag::NONE,
+                ),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
@@ -45,15 +50,25 @@ impl Display {
                     JavaMethodFlag::NONE,
                 ),
             ],
-            fields: vec![
-                JavaFieldProto::new("card", "Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::STATIC),
-            ],
+            fields: vec![JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE)],
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Display>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::<init>({:#x})", this.ptr_instance);
+    async fn init(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<Display>,
+        jlet: JavaObjectProxy<Jlet>,
+        display_proxy: JavaObjectProxy<Object>,
+    ) -> JavaResult<()> {
+        log::trace!(
+            "org.kwis.msp.lcdui.Display::<init>({:#x}, {:#x}, {:#x})",
+            this.ptr_instance,
+            jlet.ptr_instance,
+            display_proxy.ptr_instance
+        );
+
+        let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1)?;
+        context.put_field(&this.cast(), "cards", cards.ptr_instance)?;
 
         Ok(())
     }
@@ -61,21 +76,11 @@ impl Display {
     async fn get_display(context: &mut dyn JavaContext, str: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Display>> {
         log::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", str.ptr_instance);
 
-        let display = context.get_static_field("org/kwis/msp/lcdui/Display", "display")?;
-        if display == 0 {
-            let instance = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?.cast();
-            context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
-
-            context.put_static_field("org/kwis/msp/lcdui/Display", "display", instance.ptr_instance)?;
-
-            Ok(instance)
-        } else {
-            Ok(JavaObjectProxy::new(display))
-        }
+        Ok(JavaObjectProxy::new(context.get_static_field("org/kwis/msp/lcdui/Jlet", "dis")?))
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
+        log::trace!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let ptr_instance = context
             .call_static_method(
@@ -96,15 +101,13 @@ impl Display {
     }
 
     async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy<Display>, c: JavaObjectProxy<Card>) -> JavaResult<()> {
-        log::warn!(
-            "stub org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})",
-            this.ptr_instance,
-            c.ptr_instance
-        );
+        log::trace!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
 
-        let card = context.get_field(&this.cast(), "card")?;
+        let cards = JavaObjectProxy::new(context.get_field(&this.cast(), "cards")?);
+        let card = context.load_array(&cards, 0, 1)?[0];
+
         if card == 0 {
-            context.put_field(&this.cast(), "card", c.ptr_instance)?;
+            context.store_array(&cards, 0, &[c.ptr_instance])?;
         }
 
         Ok(())
