@@ -1,4 +1,8 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
+
+use bytemuck::cast_slice;
+
+use wie_backend::Canvas;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -26,23 +30,35 @@ impl Image {
                 ),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, JavaMethodFlag::NONE),
             ],
-            fields: vec![JavaFieldProto::new("imgData", "[B", JavaFieldAccessFlag::NONE)],
+            fields: vec![
+                JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("imgData", "[B", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("bpl", "I", JavaFieldAccessFlag::NONE),
+            ],
         }
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Image::<init>({:#x})", this.ptr_instance);
+        log::trace!("org.kwis.msp.lcdui.Image::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn create_image(context: &mut dyn JavaContext, width: u32, height: u32) -> JavaResult<JavaObjectProxy<Image>> {
-        log::warn!("stub org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
+        log::trace!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?.cast();
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        Ok(instance)
+        let data = context.instantiate_array("B", width * height * 4)?;
+
+        context.put_field(&instance, "w", width)?;
+        context.put_field(&instance, "h", height)?;
+        context.put_field(&instance, "imgData", data.ptr_instance)?;
+        context.put_field(&instance, "bpl", width * 4)?;
+
+        Ok(instance.cast())
     }
 
     async fn create_image_from_bytes(
@@ -51,17 +67,26 @@ impl Image {
         offset: u32,
         length: u32,
     ) -> JavaResult<JavaObjectProxy<Image>> {
-        log::warn!(
-            "stub org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})",
-            data.ptr_instance,
-            offset,
-            length
-        );
+        log::trace!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?.cast();
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        Ok(instance)
+        let image_data = context.load_array(&data, offset, length)?;
+        let image_data_u8 = image_data.into_iter().map(|x| x as u8).collect::<Vec<_>>();
+        let canvas = Canvas::from_image(&image_data_u8)?;
+
+        let data = context.instantiate_array("B", canvas.width() * canvas.height() * 4)?;
+        let buffer: &[u8] = cast_slice(canvas.buffer());
+        let buffer_u32 = buffer.iter().map(|&x| x as u32).collect::<Vec<_>>();
+        context.store_array(&data, 0, &buffer_u32)?;
+
+        context.put_field(&instance, "w", canvas.width())?;
+        context.put_field(&instance, "h", canvas.height())?;
+        context.put_field(&instance, "imgData", data.ptr_instance)?;
+        context.put_field(&instance, "bpl", canvas.width() * 4)?;
+
+        Ok(instance.cast())
     }
 
     async fn get_graphics(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<JavaObjectProxy<Graphics>> {
