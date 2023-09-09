@@ -46,7 +46,7 @@ impl Allocator {
     pub fn alloc(core: &mut ArmCore, size: u32) -> anyhow::Result<u32> {
         let alloc_size = round_up(size as usize + size_of::<AllocationHeader>(), 4) as u32;
 
-        let address = Self::find_address(core, alloc_size).ok_or_else(|| anyhow::anyhow!("Failed to allocate"))?;
+        let address = Self::find_address(core, alloc_size).ok_or_else(|| anyhow::anyhow!("Failed to allocate {} bytes", size))?;
 
         let previous_header: AllocationHeader = read_generic(core, address)?;
 
@@ -67,7 +67,7 @@ impl Allocator {
     pub fn free(core: &mut ArmCore, address: u32) -> anyhow::Result<()> {
         let base_address = address - size_of::<AllocationHeader>() as u32;
 
-        log::trace!("Freeing {:#x}", base_address);
+        log::trace!("Freeing {:#x}", address);
 
         let header: AllocationHeader = read_generic(core, base_address)?;
         assert!(header.in_use());
