@@ -151,7 +151,7 @@ async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, inde
     log::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
 
     let mut context = KtfJavaContext::new(core, backend);
-    context.store_array(&JavaObjectProxy::new(array), index, &[value])?;
+    context.store_array_u32(&JavaObjectProxy::new(array), index, &[value])?;
 
     Ok(0)
 }

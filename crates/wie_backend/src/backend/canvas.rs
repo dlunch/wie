@@ -25,7 +25,7 @@ impl Canvas {
         let image = ImageReader::new(Cursor::new(image)).with_guessed_format()?.decode()?;
         let rgba = image.into_rgba8();
 
-        let pixels = rgba.pixels().map(|x| u32::from_be_bytes(x.0)).collect::<Vec<_>>();
+        let pixels = Self::bytes_to_pixels(&rgba);
 
         Ok(Self {
             width: rgba.width(),
@@ -57,5 +57,10 @@ impl Canvas {
                 self.buf[(i + j * self.width) as usize] = buf[((i - dx + sx) + (j - dy + sy) * line_size) as usize];
             }
         }
+    }
+
+    pub fn bytes_to_pixels(bytes: &[u8]) -> Vec<u32> {
+        bytes.chunks(4).map(|x| u32::from_be_bytes(x.try_into().unwrap())).collect::<Vec<_>>()
+        // TODO can we change internal representation to u8?
     }
 }

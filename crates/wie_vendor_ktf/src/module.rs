@@ -2,7 +2,7 @@ use alloc::string::String;
 
 use futures::{future::LocalBoxFuture, FutureExt};
 
-use wie_backend::Backend;
+use wie_backend::{Backend, Canvas};
 use wie_base::{util::ByteWrite, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::{JavaContext, JavaObjectProxy};
@@ -73,7 +73,7 @@ impl KtfWipiModule {
         }
 
         let cards = JavaObjectProxy::new(java_context.get_field(&display, "cards")?);
-        let card = JavaObjectProxy::new(java_context.load_array(&cards, 0, 1)?[0]);
+        let card = JavaObjectProxy::new(java_context.load_array_u32(&cards, 0, 1)?[0]);
         if card.ptr_instance == 0 {
             return Ok(());
         }
@@ -93,14 +93,15 @@ impl KtfWipiModule {
         if image.ptr_instance != 0 {
             let data = JavaObjectProxy::new(java_context.get_field(&image, "imgData")?);
             let size = java_context.array_length(&data)?;
-            let buffer = java_context.load_array(&data, 0, size)?;
+            let buffer = java_context.load_array_u8(&data, 0, size)?;
+            let pixels = Canvas::bytes_to_pixels(&buffer);
 
             java_context.destroy(data.cast())?;
             java_context.destroy(image)?;
 
             let mut canvas = backend.screen_canvas_mut();
             let (width, height) = (canvas.width(), canvas.height());
-            canvas.draw(0, 0, width, height, &buffer, 0, 0, width);
+            canvas.draw(0, 0, width, height, &pixels, 0, 0, width);
         }
 
         Ok(())

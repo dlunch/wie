@@ -57,8 +57,18 @@ impl System {
             length
         );
 
-        let src_data = context.load_array(&src.cast(), src_pos, length)?;
-        context.store_array(&dest.cast(), dest_pos, &src_data)?;
+        let element_size = context.array_element_size(&src)?;
+        match element_size {
+            1 => {
+                let src_data = context.load_array_u8(&src.cast(), src_pos, length)?;
+                context.store_array_u8(&dest.cast(), dest_pos, &src_data)?;
+            }
+            4 => {
+                let src_data = context.load_array_u32(&src.cast(), src_pos, length)?;
+                context.store_array_u32(&dest.cast(), dest_pos, &src_data)?;
+            }
+            _ => unimplemented!(),
+        }
 
         Ok(())
     }

@@ -1,4 +1,4 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
@@ -50,10 +50,10 @@ impl Class {
 
         let resource = context.backend().resource().id(normalized_name);
         if let Some(x) = resource {
-            let data_u32 = context.backend().resource().data(x).iter().map(|x| *x as u32).collect::<Vec<_>>();
+            let data = context.backend().resource().data(x).to_vec(); // TODO can we avoid to_vec?
 
-            let array = context.instantiate_array("B", data_u32.len() as u32)?;
-            context.store_array(&array, 0, &data_u32)?;
+            let array = context.instantiate_array("B", data.len() as u32)?;
+            context.store_array_u8(&array, 0, &data)?;
 
             let result = context.instantiate("Ljava/io/ByteArrayInputStream;")?.cast();
             context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;

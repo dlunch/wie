@@ -107,8 +107,11 @@ pub trait JavaContext {
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()>; // putfield
     fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32>; // getstatic
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()>; // putstatic
-    fn store_array(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u32]) -> JavaResult<()>; // *astore
-    fn load_array(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>>; // *aload
+    fn store_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u32]) -> JavaResult<()>; // iastore
+    fn load_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>>; // iaload
+    fn store_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u8]) -> JavaResult<()>; // bastore
+    fn load_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>>; // baload
+    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<usize>;
     fn array_length(&mut self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>; // arraylength
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;

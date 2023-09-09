@@ -73,14 +73,12 @@ impl Image {
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        let image_data = context.load_array(&data, offset, length)?;
-        let image_data_u8 = image_data.into_iter().map(|x| x as u8).collect::<Vec<_>>();
-        let canvas = Canvas::from_image(&image_data_u8)?;
+        let image_data = context.load_array_u8(&data, offset, length)?;
+        let canvas = Canvas::from_image(&image_data)?;
 
         let data = context.instantiate_array("B", canvas.width() * canvas.height() * 4)?;
-        let buffer: &[u8] = cast_slice(canvas.buffer());
-        let buffer_u32 = buffer.iter().map(|&x| x as u32).collect::<Vec<_>>();
-        context.store_array(&data, 0, &buffer_u32)?;
+        let buffer = cast_slice(canvas.buffer());
+        context.store_array_u8(&data, 0, &buffer)?;
 
         context.put_field(&instance, "w", canvas.width())?;
         context.put_field(&instance, "h", canvas.height())?;
@@ -113,11 +111,8 @@ impl Image {
         let java_img_data = JavaObjectProxy::new(context.get_field(&this.cast(), "imgData")?);
         let img_data_len = context.array_length(&java_img_data)?;
 
-        let img_data = context.load_array(&java_img_data.cast(), 0, img_data_len)?;
-        let result = img_data
-            .chunks(4)
-            .map(|x| u32::from_le_bytes([x[0] as u8, x[1] as u8, x[2] as u8, x[3] as u8]))
-            .collect::<Vec<_>>();
+        let img_data = context.load_array_u8(&java_img_data.cast(), 0, img_data_len)?;
+        let result = img_data.chunks(4).map(|x| u32::from_le_bytes(x.try_into().unwrap())).collect::<Vec<_>>();
 
         Ok(result)
     }
@@ -149,8 +144,7 @@ impl Drop for ImageCanvas<'_> {
         let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
 
         let buffer: &[u8] = cast_slice(self.canvas.buffer());
-        let buffer_u32 = buffer.iter().map(|&x| x as u32).collect::<Vec<_>>();
-        self.context.store_array(&data, 0, &buffer_u32).unwrap();
+        self.context.store_array_u8(&data, 0, &buffer).unwrap();
     }
 }
 
