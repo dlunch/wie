@@ -327,7 +327,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let ptr_class = self.find_ptr_class(name)?;
+        let ptr_class = self.get_ptr_class(name)?;
 
         write_generic(self.core, ptr_target, ptr_class)?;
 
@@ -404,7 +404,7 @@ impl<'a> KtfJavaContext<'a> {
         Ok(index as u32)
     }
 
-    fn find_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
+    fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let context_data = self.read_context_data()?;
         let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
         for ptr_class in ptr_classes {
@@ -706,7 +706,7 @@ impl JavaContext for KtfJavaContext<'_> {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let ptr_class = self.find_ptr_class(class_name)?;
+        let ptr_class = self.get_ptr_class(class_name)?;
 
         let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
 
@@ -719,7 +719,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class_array = self.find_ptr_class(&array_type)?;
+        let ptr_class_array = self.get_ptr_class(&array_type)?;
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
@@ -752,7 +752,7 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         log::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let ptr_class = self.find_ptr_class(class_name)?;
+        let ptr_class = self.get_ptr_class(class_name)?;
 
         self.call_method_inner(ptr_class, method_name, signature, args).await
     }
@@ -786,7 +786,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32> {
-        let ptr_class = self.find_ptr_class(class_name)?;
+        let ptr_class = self.get_ptr_class(class_name)?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -796,7 +796,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()> {
-        let ptr_class = self.find_ptr_class(class_name)?;
+        let ptr_class = self.get_ptr_class(class_name)?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let mut field: JavaField = read_generic(self.core, ptr_field)?;
 
