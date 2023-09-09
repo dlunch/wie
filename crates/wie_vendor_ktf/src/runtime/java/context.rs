@@ -804,6 +804,8 @@ impl JavaContext for KtfJavaContext<'_> {
     fn destroy(&mut self, proxy: JavaObjectProxy<Object>) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
+        log::trace!("Destroying {:#x}", proxy.ptr_instance);
+
         Allocator::free(self.core, instance.ptr_fields)?;
         Allocator::free(self.core, proxy.ptr_instance)?;
 
