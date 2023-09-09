@@ -154,10 +154,6 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     })
 }
 
-pub fn get_array_proto() -> JavaClassProto {
-    Array::as_proto()
-}
-
 impl TypeConverter<u32> for u32 {
     fn to_rust(_: &mut dyn JavaContext, raw: u32) -> u32 {
         raw
