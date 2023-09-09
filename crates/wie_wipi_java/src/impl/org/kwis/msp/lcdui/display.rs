@@ -115,10 +115,10 @@ impl Display {
         log::trace!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
 
         let cards = JavaObjectProxy::new(context.get_field(&this.cast(), "cards")?);
-        let card = context.load_array(&cards, 0, 1)?[0];
+        let card = context.load_array_u32(&cards, 0, 1)?[0];
 
         if card == 0 {
-            context.store_array(&cards, 0, &[c.ptr_instance])?;
+            context.store_array_u32(&cards, 0, &[c.ptr_instance])?;
         }
 
         Ok(())

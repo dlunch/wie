@@ -56,12 +56,12 @@ impl StringBuffer {
 
         let java_value_to_add_array = JavaObjectProxy::new(context.get_field(&string.cast(), "value")?);
         let count_to_add = context.call_method(&string.cast(), "length", "()I", &[]).await?;
-        let value_to_add = context.load_array(&java_value_to_add_array, 0, count_to_add)?;
+        let value_to_add = context.load_array_u8(&java_value_to_add_array, 0, count_to_add)?; // should be u16
 
         StringBuffer::ensure_capacity(context, &this, current_count + count_to_add)?;
 
         let java_value_aray = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
-        context.store_array(&java_value_aray, current_count, &value_to_add)?;
+        context.store_array_u8(&java_value_aray, current_count, &value_to_add)?;
         context.put_field(&this.cast(), "count", current_count + count_to_add)?;
 
         Ok(this)
@@ -86,12 +86,12 @@ impl StringBuffer {
         let current_capacity = context.array_length(&java_value_array)?;
 
         if current_capacity < capacity {
-            let old_values = context.load_array(&java_value_array, 0, current_capacity)?;
+            let old_values = context.load_array_u8(&java_value_array, 0, current_capacity)?;
             let new_capacity = capacity * 2;
 
             let java_new_value_array = context.instantiate_array("C", new_capacity)?;
             context.put_field(&this.cast(), "value", java_new_value_array.ptr_instance)?;
-            context.store_array(&java_new_value_array, 0, &old_values)?;
+            context.store_array_u8(&java_new_value_array, 0, &old_values)?;
             context.destroy(java_value_array.cast())?;
         }
 
