@@ -507,13 +507,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let ptr_parent_class = proto
-            .parent_class
-            .map(|x| {
-                let parent_proto = get_class_proto(x).ok_or_else(|| anyhow::anyhow!("No such class {}", x))?;
-                self.load_class_into_vm(x, parent_proto)
-            })
-            .transpose()?;
+        let ptr_parent_class = proto.parent_class.map(|x| self.get_ptr_class(x)).transpose()?;
         let mut vtable_builder = JavaVtableBuilder::new(self, ptr_parent_class)?;
 
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
