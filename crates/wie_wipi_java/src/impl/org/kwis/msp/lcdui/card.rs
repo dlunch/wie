@@ -1,8 +1,9 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
+    JavaFieldAccessFlag,
 };
 
 // class org.kwis.msp.lcdui.Card
@@ -21,7 +22,7 @@ impl Card {
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, JavaMethodFlag::NONE),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, JavaMethodFlag::NONE),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::NONE)],
         }
     }
 
