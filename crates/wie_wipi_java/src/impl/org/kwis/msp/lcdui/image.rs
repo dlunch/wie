@@ -38,11 +38,18 @@ impl Image {
         Ok(instance)
     }
 
-    async fn get_graphics(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Graphics>> {
-        log::warn!("stub org.kwis.msp.lcdui.Image::get_graphics");
+    async fn get_graphics(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<JavaObjectProxy<Graphics>> {
+        log::warn!("stub org.kwis.msp.lcdui.Image::get_graphics({:#x})", this.ptr_instance);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?.cast();
-        context.call_method(&instance.cast(), "<init>", "(I)V", &[0]).await?;
+        context
+            .call_method(
+                &instance.cast(),
+                "<init>",
+                "(Lorg/kwis/msp/lcdui/Image;IIII)V",
+                &[this.ptr_instance, 0, 0, 0, 0],
+            )
+            .await?;
 
         Ok(instance)
     }

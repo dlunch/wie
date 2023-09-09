@@ -1,11 +1,9 @@
 use alloc::vec;
 
-use wie_backend::CanvasHandle;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
-    r#impl::org::kwis::msp::lcdui::{Font, Image},
+    r#impl::org::kwis::msp::lcdui::{Display, Font, Image},
 };
 
 // class org.kwis.msp.lcdui.Graphics
@@ -17,7 +15,8 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Image;IIII)V", Self::init_with_image, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodFlag::NONE),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
@@ -31,8 +30,34 @@ impl Graphics {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, canvas_handle: CanvasHandle) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Graphics::<init>({:#x}, {})", this.ptr_instance, canvas_handle);
+    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, display: JavaObjectProxy<Display>) -> JavaResult<()> {
+        log::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x})",
+            this.ptr_instance,
+            display.ptr_instance
+        );
+
+        Ok(())
+    }
+
+    async fn init_with_image(
+        _: &mut dyn JavaContext,
+        this: JavaObjectProxy<Graphics>,
+        image: JavaObjectProxy<Image>,
+        a0: u32,
+        a1: u32,
+        a2: u32,
+        a3: u32,
+    ) -> JavaResult<()> {
+        log::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
+            this.ptr_instance,
+            image.ptr_instance,
+            a0,
+            a1,
+            a2,
+            a3
+        );
 
         Ok(())
     }
