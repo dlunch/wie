@@ -339,7 +339,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
-        log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        log::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -349,7 +349,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
-        log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        log::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -785,7 +785,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
-        log::debug!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        log::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -796,7 +796,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
-        log::debug!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
+        log::trace!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
 
         Ok(proxy)
     }
