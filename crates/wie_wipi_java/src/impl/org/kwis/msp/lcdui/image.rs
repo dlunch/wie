@@ -122,7 +122,7 @@ impl Image {
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
-        let image = wie_backend::Image::from_raw(width, height, buf.to_vec());
+        let image = wie_backend::Image::from_raw(width, height, buf);
 
         Ok(image)
     }
@@ -133,7 +133,7 @@ impl Image {
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
-        let canvas = Canvas::from_raw(width, height, buf.to_vec());
+        let canvas = Canvas::from_raw(width, height, buf);
 
         Ok(ImageCanvas {
             image: this,
