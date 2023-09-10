@@ -24,7 +24,7 @@ jobs:
           path: target
           key: ${{ runner.os }}-{{ matrix.rust }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
 
