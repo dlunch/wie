@@ -12,7 +12,7 @@ use crate::{
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Timer {
+pub struct WIPICTimer {
     unk1: u32,
     unk2: u32,
     unk3: u32,
@@ -38,7 +38,7 @@ async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
 async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32) -> CResult<()> {
     log::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
-    let timer = Timer {
+    let timer = WIPICTimer {
         unk1: 0,
         unk2: 0,
         unk3: 0,
@@ -56,10 +56,10 @@ async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32)
 async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32, timeout_high: u32, param: u32) -> CResult<()> {
     log::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_high, timeout_low, param);
 
-    let timer: Timer = read_generic(context, ptr_timer)?;
+    let timer: WIPICTimer = read_generic(context, ptr_timer)?;
 
     struct TimerCallback {
-        timer: Timer,
+        timer: WIPICTimer,
         timeout: u64,
         param: u32,
     }
