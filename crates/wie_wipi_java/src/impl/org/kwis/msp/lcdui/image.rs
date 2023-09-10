@@ -107,7 +107,7 @@ impl Image {
         Ok(instance)
     }
 
-    pub fn get_buf(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u8>> {
+    pub fn buf(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u8>> {
         let java_img_data = JavaObjectProxy::new(context.get_field(&this.cast(), "imgData")?);
         let img_data_len = context.array_length(&java_img_data)?;
 
@@ -116,8 +116,8 @@ impl Image {
         Ok(img_data)
     }
 
-    pub fn get_image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<wie_backend::Image> {
-        let buf = Self::get_buf(context, this)?;
+    pub fn image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<wie_backend::Image> {
+        let buf = Self::buf(context, this)?;
 
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
@@ -127,8 +127,8 @@ impl Image {
         Ok(image)
     }
 
-    pub fn get_canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
-        let buf = Self::get_buf(context, this)?;
+    pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
+        let buf = Self::buf(context, this)?;
 
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
