@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::{Deref, DerefMut};
 
-use bytemuck::{cast_slice, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable};
 
 use wie_backend::Canvas;
 
@@ -48,9 +48,7 @@ impl Framebuffer {
     pub fn from_canvas(context: &mut dyn CContext, canvas: &Canvas) -> anyhow::Result<Self> {
         let buf = context.alloc(canvas.width() * canvas.height() * canvas.bytes_per_pixel())?;
 
-        let canvas_buf = canvas.buffer().to_vec();
-        let data = cast_slice(&canvas_buf);
-        context.write_bytes(context.data_ptr(buf)?, data)?;
+        context.write_bytes(context.data_ptr(buf)?, canvas.buffer())?;
 
         Ok(Self {
             width: canvas.width(),
@@ -81,9 +79,7 @@ impl Framebuffer {
         })
     }
 
-    pub fn write(&self, context: &mut dyn CContext, data: &[u32]) -> anyhow::Result<()> {
-        let data = cast_slice(data);
-
+    pub fn write(&self, context: &mut dyn CContext, data: &[u8]) -> anyhow::Result<()> {
         context.write_bytes(context.data_ptr(self.buf)?, data)
     }
 }

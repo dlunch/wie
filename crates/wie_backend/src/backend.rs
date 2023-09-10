@@ -74,7 +74,12 @@ impl Backend {
                 Backend::run_task(&mut executor, &self.time(), move |module| module.render())?;
 
                 let canvas = self.screen_canvas_mut();
-                buffer.copy_from_slice(canvas.buffer());
+                let bgra = canvas
+                    .buffer()
+                    .chunks(4)
+                    .map(|x| u32::from_be_bytes(x.try_into().unwrap()))
+                    .collect::<Vec<_>>();
+                buffer.copy_from_slice(&bgra); // TODO is it better to introduce new vec?
 
                 Ok(())
             },
