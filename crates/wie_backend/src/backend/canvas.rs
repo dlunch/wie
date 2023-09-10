@@ -51,10 +51,12 @@ impl Canvas {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, buf: &[u32], sx: u32, sy: u32, line_size: u32) {
+    pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &Canvas, sx: u32, sy: u32) {
+        let line_size = src.width();
+
         for j in dy..(dy + h) {
             for i in dx..(dx + w) {
-                self.buf[(i + j * self.width) as usize] = buf[((i - dx + sx) + (j - dy + sy) * line_size) as usize];
+                self.buf[(i + j * self.width) as usize] = src.buf[((i - dx + sx) + (j - dy + sy) * line_size) as usize];
             }
         }
     }

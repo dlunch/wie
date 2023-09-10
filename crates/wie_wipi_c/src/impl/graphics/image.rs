@@ -43,11 +43,15 @@ impl Image {
         })
     }
 
-    pub fn image_width(&self) -> u32 {
+    pub fn width(&self) -> u32 {
         self.img.width
     }
 
-    pub fn image_data(&self, context: &mut dyn CContext) -> anyhow::Result<Vec<u32>> {
+    pub fn height(&self) -> u32 {
+        self.img.height
+    }
+
+    pub fn data(&self, context: &mut dyn CContext) -> anyhow::Result<Vec<u32>> {
         self.img.data(context)
     }
 }
