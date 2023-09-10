@@ -143,10 +143,10 @@ impl Graphics {
             anchor
         );
 
-        let src_canvas = Image::get_image(context, &img)?;
+        let src_canvas = Image::image(context, &img)?;
 
-        let image = Self::get_image(context, &this).await?;
-        let mut canvas = Image::get_canvas(context, &image)?;
+        let image = Self::image(context, &this).await?;
+        let mut canvas = Image::canvas(context, &image)?;
 
         canvas.draw(x, y, src_canvas.width(), src_canvas.height(), &src_canvas, 0, 0);
 
@@ -177,7 +177,7 @@ impl Graphics {
         Ok(0)
     }
 
-    async fn get_image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {
+    async fn image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {
         let image = JavaObjectProxy::new(context.get_field(&this.cast(), "img")?);
 
         if image.ptr_instance != 0 {
