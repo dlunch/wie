@@ -4,6 +4,9 @@ pub mod task;
 mod time;
 
 pub use self::{
-    backend::{canvas::Canvas, Backend},
+    backend::{
+        canvas::{Canvas, CanvasMut},
+        Backend,
+    },
     executor::{AsyncCallable, Executor},
 };

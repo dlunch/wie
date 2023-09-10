@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::Canvas;
+use wie_backend::{Canvas, CanvasMut};
 
 use crate::base::{CContext, CMemoryId};
 
@@ -70,7 +70,7 @@ impl Framebuffer {
     }
 
     pub fn canvas_mut<'a>(&'a self, context: &'a mut dyn CContext) -> anyhow::Result<FramebufferCanvas<'a>> {
-        let canvas = Canvas::from_raw(self.width, self.height, self.data(context)?);
+        let canvas = CanvasMut::from_raw(self.width, self.height, self.data(context)?);
 
         Ok(FramebufferCanvas {
             framebuffer: self,
@@ -87,7 +87,7 @@ impl Framebuffer {
 pub struct FramebufferCanvas<'a> {
     framebuffer: &'a Framebuffer,
     context: &'a mut dyn CContext,
-    canvas: Canvas,
+    canvas: CanvasMut,
 }
 
 impl Drop for FramebufferCanvas<'_> {
@@ -97,7 +97,7 @@ impl Drop for FramebufferCanvas<'_> {
 }
 
 impl Deref for FramebufferCanvas<'_> {
-    type Target = Canvas;
+    type Target = CanvasMut;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas

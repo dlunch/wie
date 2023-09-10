@@ -13,12 +13,12 @@ use wie_base::Module;
 
 use crate::{executor::Executor, time::Time};
 
-use self::{canvas::Canvas, window::Window};
+use self::{canvas::CanvasMut, window::Window};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
-    screen_canvas: Rc<RefCell<Canvas>>,
+    screen_canvas: Rc<RefCell<CanvasMut>>,
 }
 
 impl Default for Backend {
@@ -29,7 +29,7 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let screen_canvas = Canvas::from_size(240, 320); // TODO hardcoded size
+        let screen_canvas = CanvasMut::from_size(240, 320); // TODO hardcoded size
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
@@ -50,7 +50,7 @@ impl Backend {
         (*self.time).borrow()
     }
 
-    pub fn screen_canvas_mut(&self) -> RefMut<'_, Canvas> {
+    pub fn screen_canvas_mut(&self) -> RefMut<'_, CanvasMut> {
         (*self.screen_canvas).borrow_mut()
     }
 

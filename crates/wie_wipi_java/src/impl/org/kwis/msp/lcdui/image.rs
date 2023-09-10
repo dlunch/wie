@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::cast_slice;
 
-use wie_backend::Canvas;
+use wie_backend::{Canvas, CanvasMut};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -133,7 +133,7 @@ impl Image {
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
-        let canvas = Canvas::from_raw(width, height, buf.to_vec());
+        let canvas = CanvasMut::from_raw(width, height, buf.to_vec());
 
         Ok(ImageCanvas {
             image: this,
@@ -146,7 +146,7 @@ impl Image {
 pub struct ImageCanvas<'a> {
     image: &'a JavaObjectProxy<Image>,
     context: &'a mut dyn JavaContext,
-    canvas: Canvas,
+    canvas: CanvasMut,
 }
 
 impl Drop for ImageCanvas<'_> {
@@ -159,7 +159,7 @@ impl Drop for ImageCanvas<'_> {
 }
 
 impl Deref for ImageCanvas<'_> {
-    type Target = Canvas;
+    type Target = CanvasMut;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas
