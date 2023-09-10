@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
-use core::iter;
+use core::{cell::Ref, iter};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -139,7 +139,8 @@ async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_s
         return Ok(-1);
     }
 
-    let data = context.backend().clone().resource().data(id).to_vec(); // TODO: can we avoid to_vec()?
+    let backend1 = context.backend().clone();
+    let data = Ref::map(backend1.resource(), |x| x.data(id));
 
     context.write_bytes(context.data_ptr(buf)?, &data)?;
 

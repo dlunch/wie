@@ -1,3 +1,5 @@
+use core::cell::Ref;
+
 use alloc::vec;
 
 use crate::{
@@ -33,6 +35,7 @@ impl Class {
         Ok(())
     }
 
+    #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref https://github.com/rust-lang/rust-clippy/issues/6353
     async fn get_resource_as_stream(
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<Class>,
@@ -43,12 +46,14 @@ impl Class {
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-        let resource = context.backend().resource().id(normalized_name);
-        if let Some(x) = resource {
-            let data = context.backend().resource().data(x).to_vec(); // TODO can we avoid to_vec?
+        let id = context.backend().resource().id(normalized_name);
+        if let Some(id) = id {
+            let backend1 = context.backend().clone();
+            let data = Ref::map(backend1.resource(), |x| x.data(id));
 
             let array = context.instantiate_array("B", data.len() as u32)?;
             context.store_array_u8(&array, 0, &data)?;
+            core::mem::drop(data);
 
             let result = context.instantiate("Ljava/io/ByteArrayInputStream;")?.cast();
             context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;
