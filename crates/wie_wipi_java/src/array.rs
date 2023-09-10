@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use crate::base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult};
+use crate::base::JavaClassProto;
 
 pub struct Array {}
 
@@ -9,14 +9,8 @@ impl Array {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE)],
+            methods: vec![],
             fields: vec![],
         }
-    }
-
-    async fn init(_: &mut dyn JavaContext) -> JavaResult<()> {
-        log::trace!("Array::<init>");
-
-        Ok(())
     }
 }
