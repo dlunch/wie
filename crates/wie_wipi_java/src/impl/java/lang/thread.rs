@@ -45,6 +45,7 @@ impl Thread {
 
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for ThreadStartProxy {
+            #[tracing::instrument(name="thread", fields(this = self.runnable.ptr_instance), skip_all)]
             async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
                 tracing::trace!("Thread start");
 
