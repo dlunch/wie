@@ -64,7 +64,7 @@ impl Display {
         jlet: JavaObjectProxy<Jlet>,
         display_proxy: JavaObjectProxy<Object>,
     ) -> JavaResult<()> {
-        log::trace!(
+        log::debug!(
             "org.kwis.msp.lcdui.Display::<init>({:#x}, {:#x}, {:#x})",
             this.ptr_instance,
             jlet.ptr_instance,
@@ -91,7 +91,7 @@ impl Display {
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
-        log::trace!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
+        log::debug!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let ptr_instance = context
             .call_static_method(
@@ -112,7 +112,7 @@ impl Display {
     }
 
     async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy<Display>, c: JavaObjectProxy<Card>) -> JavaResult<()> {
-        log::trace!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
+        log::debug!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
 
         let cards = JavaObjectProxy::new(context.get_field(&this.cast(), "cards")?);
         let card = context.load_array_u32(&cards, 0, 1)?[0];

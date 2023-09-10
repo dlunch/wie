@@ -30,13 +30,13 @@ fn gen_stub(id: u32) -> CMethodBody {
 }
 
 async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
-    log::trace!("MC_knlCurrentTime()");
+    log::debug!("MC_knlCurrentTime()");
 
     Ok(context.backend().time().now().raw() as u32)
 }
 
 async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32) -> CResult<()> {
-    log::trace!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
+    log::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
     let timer = Timer {
         unk1: 0,
@@ -54,7 +54,7 @@ async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32)
 }
 
 async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32, timeout_high: u32, param: u32) -> CResult<()> {
-    log::trace!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_high, timeout_low, param);
+    log::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_high, timeout_low, param);
 
     let timer: Timer = read_generic(context, ptr_timer)?;
 
@@ -91,13 +91,13 @@ async fn unset_timer(_: &mut dyn CContext, a0: u32) -> CResult<()> {
 }
 
 async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
-    log::trace!("MC_knlAlloc({:#x})", size);
+    log::debug!("MC_knlAlloc({:#x})", size);
 
     context.alloc(size)
 }
 
 async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
-    log::trace!("MC_knlCalloc({:#x})", size);
+    log::debug!("MC_knlCalloc({:#x})", size);
 
     let memory = context.alloc(size)?;
 
@@ -108,7 +108,7 @@ async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
 }
 
 async fn free(context: &mut dyn CContext, memory: CMemoryId) -> CResult<CMemoryId> {
-    log::trace!("MC_knlFree({:#x})", memory.0);
+    log::debug!("MC_knlFree({:#x})", memory.0);
 
     context.free(memory)?;
 
@@ -116,7 +116,7 @@ async fn free(context: &mut dyn CContext, memory: CMemoryId) -> CResult<CMemoryI
 }
 
 async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
-    log::trace!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
+    log::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
 
     let id = context.backend().resource().id(&name);
     if id.is_none() {
@@ -131,7 +131,7 @@ async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32
 }
 
 async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_size: u32) -> CResult<i32> {
-    log::trace!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
+    log::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
     let size = context.backend().resource().size(id);
 
