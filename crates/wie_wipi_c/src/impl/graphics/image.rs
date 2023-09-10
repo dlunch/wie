@@ -2,15 +2,17 @@ use alloc::vec::Vec;
 
 use bytemuck::{Pod, Zeroable};
 
+use wie_backend::Image;
+
 use crate::base::{CContext, CMemoryId};
 
-use super::Framebuffer;
+use super::WIPICFramebuffer;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Image {
-    img: Framebuffer,
-    mask: Framebuffer,
+pub struct WIPICImage {
+    img: WIPICFramebuffer,
+    mask: WIPICFramebuffer,
     loop_count: u32,
     delay: u32,
     animated: u32,
@@ -20,14 +22,14 @@ pub struct Image {
     len: u32,
 }
 
-impl Image {
+impl WIPICImage {
     pub fn new(context: &mut dyn CContext, buf: CMemoryId, offset: u32, len: u32) -> anyhow::Result<Self> {
         let ptr_image_data = context.data_ptr(buf)?;
         let data = context.read_bytes(ptr_image_data + offset, len)?;
-        let image = wie_backend::Image::from_image(&data)?;
+        let image = Image::from_image(&data)?;
 
-        let img_framebuffer = Framebuffer::from_image(context, &image)?;
-        let mask_framebuffer = Framebuffer::empty();
+        let img_framebuffer = WIPICFramebuffer::from_image(context, &image)?;
+        let mask_framebuffer = WIPICFramebuffer::empty();
 
         Ok(Self {
             img: img_framebuffer,

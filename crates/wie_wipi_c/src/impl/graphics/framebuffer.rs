@@ -9,7 +9,7 @@ use crate::base::{CContext, CMemoryId};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Framebuffer {
+pub struct WIPICFramebuffer {
     pub width: u32,
     pub height: u32,
     bpl: u32,
@@ -17,7 +17,7 @@ pub struct Framebuffer {
     buf: CMemoryId,
 }
 
-impl Framebuffer {
+impl WIPICFramebuffer {
     pub fn empty() -> Self {
         Self {
             width: 0,
@@ -85,7 +85,7 @@ impl Framebuffer {
 }
 
 pub struct FramebufferCanvas<'a> {
-    framebuffer: &'a Framebuffer,
+    framebuffer: &'a WIPICFramebuffer,
     context: &'a mut dyn CContext,
     canvas: Canvas,
 }

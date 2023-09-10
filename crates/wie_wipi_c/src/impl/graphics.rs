@@ -4,6 +4,7 @@ mod image;
 use alloc::{vec, vec::Vec};
 use core::mem::size_of;
 
+use wie_backend::Image;
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
     method::MethodImpl,
 };
 
-use self::{framebuffer::Framebuffer, image::Image};
+use self::{framebuffer::WIPICFramebuffer, image::WIPICImage};
 
 fn gen_stub(id: u32) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented graphics{}", id)) };
@@ -22,9 +23,9 @@ fn gen_stub(id: u32) -> CMethodBody {
 async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
     log::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
-    let framebuffer = Framebuffer::from_screen_canvas(context)?;
+    let framebuffer = WIPICFramebuffer::from_screen_canvas(context)?;
 
-    let memory = context.alloc(size_of::<Framebuffer>() as u32)?;
+    let memory = context.alloc(size_of::<WIPICFramebuffer>() as u32)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
 
     Ok(memory)
@@ -33,9 +34,9 @@ async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<
 async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
     log::debug!("MC_grpCreateImage({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
 
-    let image = Image::new(context, image_data, offset, len)?;
+    let image = WIPICImage::new(context, image_data, offset, len)?;
 
-    let memory = context.alloc(size_of::<Image>() as u32)?;
+    let memory = context.alloc(size_of::<WIPICImage>() as u32)?;
     write_generic(context, ptr_image, memory)?;
     write_generic(context, context.data_ptr(memory)?, image)?;
 
@@ -68,10 +69,10 @@ async fn draw_image(
         graphics_context
     );
 
-    let framebuffer: Framebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
-    let image: Image = read_generic(context, context.data_ptr(image)?)?;
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+    let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
 
-    let src_image = wie_backend::Image::from_raw(image.width(), image.height(), image.data(context)?);
+    let src_image = Image::from_raw(image.width(), image.height(), image.data(context)?);
     let mut canvas = framebuffer.canvas(context)?;
 
     canvas.draw(dx, dy, w, h, &src_image, sx, sy);
@@ -90,7 +91,7 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
         a5
     );
 
-    let framebuffer: Framebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
 
     let src_canvas = framebuffer.image(context)?;
 
