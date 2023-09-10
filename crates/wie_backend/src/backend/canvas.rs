@@ -1,70 +1,55 @@
 use std::io::Cursor;
 
-use image::io::Reader as ImageReader;
+use image::{io::Reader as ImageReader, RgbaImage};
 
 pub struct Canvas {
-    width: u32,
-    height: u32,
-    buf: Vec<u32>,
+    image: RgbaImage,
 }
 
 impl Canvas {
     pub fn from_raw(width: u32, height: u32, buf: Vec<u8>) -> Self {
-        let buf = Self::bytes_to_pixels(&buf);
+        let image = RgbaImage::from_raw(width, height, buf).unwrap();
 
-        Self { width, height, buf }
+        Self { image }
     }
 
     pub fn from_size(width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            buf: vec![0; (width * height) as usize],
-        }
+        let image = RgbaImage::new(width, height);
+
+        Self { image }
     }
 
     pub fn from_image(image: &[u8]) -> anyhow::Result<Self> {
         let image = ImageReader::new(Cursor::new(image)).with_guessed_format()?.decode()?;
-        let rgba = image.into_rgba8();
 
-        let pixels = Self::bytes_to_pixels(&rgba);
-
-        Ok(Self {
-            width: rgba.width(),
-            height: rgba.height(),
-            buf: pixels,
-        })
+        Ok(Self { image: image.into_rgba8() })
     }
 
     pub fn width(&self) -> u32 {
-        self.width
+        self.image.width()
     }
 
     pub fn height(&self) -> u32 {
-        self.height
+        self.image.height()
     }
 
     pub fn bytes_per_pixel(&self) -> u32 {
         4
     }
 
-    pub fn buffer(&self) -> &[u32] {
-        &self.buf
+    pub fn buffer(&self) -> &[u8] {
+        self.image.as_raw()
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &Canvas, sx: u32, sy: u32) {
-        let line_size = src.width();
-
         for j in dy..(dy + h) {
             for i in dx..(dx + w) {
-                self.buf[(i + j * self.width) as usize] = src.buf[((i - dx + sx) + (j - dy + sy) * line_size) as usize];
+                if i >= self.width() || j >= self.height() {
+                    continue; // TODO remove this
+                }
+                self.image.put_pixel(i, j, *src.image.get_pixel(i - dx + sx, j - dy + sy));
             }
         }
-    }
-
-    fn bytes_to_pixels(bytes: &[u8]) -> Vec<u32> {
-        bytes.chunks(4).map(|x| u32::from_be_bytes(x.try_into().unwrap())).collect::<Vec<_>>()
-        // TODO can we change internal representation to u8?
     }
 }

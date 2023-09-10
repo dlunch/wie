@@ -107,14 +107,13 @@ impl Image {
         Ok(instance)
     }
 
-    pub fn get_buf(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u32>> {
+    pub fn get_buf(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u8>> {
         let java_img_data = JavaObjectProxy::new(context.get_field(&this.cast(), "imgData")?);
         let img_data_len = context.array_length(&java_img_data)?;
 
         let img_data = context.load_array_u8(&java_img_data.cast(), 0, img_data_len)?;
-        let result = img_data.chunks(4).map(|x| u32::from_le_bytes(x.try_into().unwrap())).collect::<Vec<_>>();
 
-        Ok(result)
+        Ok(img_data)
     }
 
     pub fn get_canvas(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Canvas> {
@@ -123,7 +122,7 @@ impl Image {
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
-        let canvas = Canvas::from_raw(width, height, cast_slice(&buf).to_vec());
+        let canvas = Canvas::from_raw(width, height, buf.to_vec());
 
         Ok(canvas)
     }
@@ -134,7 +133,7 @@ impl Image {
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
-        let canvas = Canvas::from_raw(width, height, cast_slice(&buf).to_vec());
+        let canvas = Canvas::from_raw(width, height, buf.to_vec());
 
         Ok(ImageCanvas {
             image: this,
