@@ -51,7 +51,7 @@ impl Image {
         self.img.height
     }
 
-    pub fn data(&self, context: &mut dyn CContext) -> anyhow::Result<Vec<u32>> {
+    pub fn data(&self, context: &mut dyn CContext) -> anyhow::Result<Vec<u8>> {
         self.img.data(context)
     }
 }

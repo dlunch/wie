@@ -9,7 +9,9 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn from_raw(width: u32, height: u32, buf: Vec<u32>) -> Self {
+    pub fn from_raw(width: u32, height: u32, buf: Vec<u8>) -> Self {
+        let buf = Self::bytes_to_pixels(&buf);
+
         Self { width, height, buf }
     }
 
@@ -61,7 +63,7 @@ impl Canvas {
         }
     }
 
-    pub fn bytes_to_pixels(bytes: &[u8]) -> Vec<u32> {
+    fn bytes_to_pixels(bytes: &[u8]) -> Vec<u32> {
         bytes.chunks(4).map(|x| u32::from_be_bytes(x.try_into().unwrap())).collect::<Vec<_>>()
         // TODO can we change internal representation to u8?
     }
