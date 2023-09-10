@@ -103,16 +103,16 @@ pub trait JavaContext {
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
     async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokespecial/invokevirtual
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokestatic
-    fn get_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32>; // getfield
+    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32>; // getfield
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()>; // putfield
-    fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32>; // getstatic
+    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<u32>; // getstatic
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()>; // putstatic
     fn store_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u32]) -> JavaResult<()>; // iastore
-    fn load_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>>; // iaload
+    fn load_array_u32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>>; // iaload
     fn store_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u8]) -> JavaResult<()>; // bastore
-    fn load_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>>; // baload
+    fn load_array_u8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>>; // baload
     fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<usize>;
-    fn array_length(&mut self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>; // arraylength
+    fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>; // arraylength
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;

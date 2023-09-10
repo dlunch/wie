@@ -328,7 +328,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let ptr_class = self.get_ptr_class(name)?;
+        let ptr_class = self.get_or_load_ptr_class(name)?;
 
         write_generic(self.core, ptr_target, ptr_class)?;
 
@@ -423,31 +423,41 @@ impl<'a> KtfJavaContext<'a> {
         Ok(index as u32)
     }
 
-    fn get_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
+    fn get_or_load_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
+        let ptr_class = self.get_ptr_class(name)?;
+
+        if let Some(ptr_class) = ptr_class {
+            Ok(ptr_class)
+        } else {
+            // array class is created dynamically
+            if name.as_bytes()[0] == b'[' {
+                let ptr_class = self.load_array_class_into_vm(name)?;
+
+                Ok(ptr_class)
+            } else {
+                let proto = get_class_proto(name).ok_or_else(|| anyhow::anyhow!("No such class {}", name))?;
+
+                self.load_class_into_vm(name, proto)
+            }
+        }
+    }
+
+    fn get_ptr_class(&self, name: &str) -> JavaResult<Option<u32>> {
         let context_data = self.read_context_data()?;
         let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
         for ptr_class in ptr_classes {
             let (_, _, class_name) = self.read_ptr_class(ptr_class)?;
 
             if class_name == name {
-                return Ok(ptr_class);
+                return Ok(Some(ptr_class));
             }
         }
 
-        // array class is created dynamically
-        if name.as_bytes()[0] == b'[' {
-            let ptr_class = self.load_array_class_into_vm(name)?;
-
-            Ok(ptr_class)
-        } else {
-            let proto = get_class_proto(name).ok_or_else(|| anyhow::anyhow!("No such class {}", name))?;
-
-            self.load_class_into_vm(name, proto)
-        }
+        Ok(None)
     }
 
     fn load_array_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
-        let ptr_parent_class = self.get_ptr_class("java/lang/Object")?;
+        let ptr_parent_class = self.get_or_load_ptr_class("java/lang/Object")?;
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
 
         /* TODO we need load class from client.bin
@@ -508,7 +518,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let ptr_parent_class = proto.parent_class.map(|x| self.get_ptr_class(x)).transpose()?;
+        let ptr_parent_class = proto.parent_class.map(|x| self.get_or_load_ptr_class(x)).transpose()?;
         let mut vtable_builder = JavaVtableBuilder::new(self, ptr_parent_class)?;
 
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
@@ -819,7 +829,7 @@ impl JavaContext for KtfJavaContext<'_> {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let ptr_class = self.get_ptr_class(class_name)?;
+        let ptr_class = self.get_or_load_ptr_class(class_name)?;
 
         let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
 
@@ -832,7 +842,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class_array = self.get_ptr_class(&array_type)?;
+        let ptr_class_array = self.get_or_load_ptr_class(&array_type)?;
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
@@ -867,7 +877,7 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         log::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let ptr_class = self.get_ptr_class(class_name)?;
+        let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
 
         self.call_method_inner(ptr_class, method_name, signature, args).await
     }
@@ -876,7 +886,7 @@ impl JavaContext for KtfJavaContext<'_> {
         self.backend
     }
 
-    fn get_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32> {
+    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
@@ -900,8 +910,8 @@ impl JavaContext for KtfJavaContext<'_> {
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
 
-    fn get_static_field(&mut self, class_name: &str, field_name: &str) -> JavaResult<u32> {
-        let ptr_class = self.get_ptr_class(class_name)?;
+    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<u32> {
+        let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -911,7 +921,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()> {
-        let ptr_class = self.get_ptr_class(class_name)?;
+        let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let mut field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -928,7 +938,7 @@ impl JavaContext for KtfJavaContext<'_> {
         self.store_array(array, index, values)
     }
 
-    fn load_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
+    fn load_array_u32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
         self.load_array(array, offset, count)
     }
 
@@ -936,7 +946,7 @@ impl JavaContext for KtfJavaContext<'_> {
         self.store_array(array, index, values)
     }
 
-    fn load_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>> {
+    fn load_array_u8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>> {
         self.load_array(array, offset, count)
     }
 
@@ -946,7 +956,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(self.get_array_element_size(instance.ptr_class)? as usize)
     }
 
-    fn array_length(&mut self, array: &JavaObjectProxy<Array>) -> JavaResult<u32> {
+    fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
 
         read_generic(self.core, instance.ptr_fields + 4)
