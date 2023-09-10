@@ -47,11 +47,7 @@ impl StringBuffer {
         this: JavaObjectProxy<StringBuffer>,
         string: JavaObjectProxy<String>,
     ) -> JavaResult<JavaObjectProxy<StringBuffer>> {
-        log::debug!(
-            "stub java.lang.StringBuffer::append({:#x}, {:#x})",
-            this.ptr_instance,
-            string.ptr_instance
-        );
+        log::debug!("java.lang.StringBuffer::append({:#x}, {:#x})", this.ptr_instance, string.ptr_instance);
         let current_count = context.get_field(&this.cast(), "count")?;
 
         let java_value_to_add_array = JavaObjectProxy::new(context.get_field(&string.cast(), "value")?);
