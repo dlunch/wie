@@ -43,30 +43,22 @@ impl Image {
 }
 
 pub struct Canvas {
-    canvas: Image,
+    image: Image,
 }
 
 impl Canvas {
-    pub fn from_raw(width: u32, height: u32, buf: Vec<u8>) -> Self {
-        Self {
-            canvas: Image::from_raw(width, height, buf),
-        }
-    }
-
-    pub fn from_size(width: u32, height: u32) -> Self {
-        Self {
-            canvas: Image::from_size(width, height),
-        }
+    pub fn from_image(image: Image) -> Self {
+        Self { image }
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &Image, sx: u32, sy: u32) {
         for j in dy..(dy + h) {
             for i in dx..(dx + w) {
-                if i >= self.canvas.width() || j >= self.canvas.height() {
+                if i >= self.image.width() || j >= self.image.height() {
                     continue; // TODO remove this
                 }
-                self.canvas.image.put_pixel(i, j, *src.image.get_pixel(i - dx + sx, j - dy + sy));
+                self.image.image.put_pixel(i, j, *src.image.get_pixel(i - dx + sx, j - dy + sy));
             }
         }
     }
@@ -76,6 +68,6 @@ impl Deref for Canvas {
     type Target = Image;
 
     fn deref(&self) -> &Self::Target {
-        &self.canvas
+        &self.image
     }
 }

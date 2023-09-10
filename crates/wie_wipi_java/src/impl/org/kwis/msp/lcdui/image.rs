@@ -128,12 +128,7 @@ impl Image {
     }
 
     pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
-        let buf = Self::buf(context, this)?;
-
-        let width = context.get_field(&this.cast(), "w")?;
-        let height = context.get_field(&this.cast(), "h")?;
-
-        let canvas = Canvas::from_raw(width, height, buf);
+        let canvas = Canvas::from_image(Self::image(context, this)?);
 
         Ok(ImageCanvas {
             image: this,
