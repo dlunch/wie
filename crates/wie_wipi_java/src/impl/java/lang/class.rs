@@ -38,14 +38,9 @@ impl Class {
         this: JavaObjectProxy<Class>,
         name: JavaObjectProxy<String>,
     ) -> JavaResult<JavaObjectProxy<InputStream>> {
-        log::warn!(
-            "stub java.lang.Class::getResourceAsStream({:#x}, {:#x})",
-            this.ptr_instance,
-            name.ptr_instance
-        );
-
         let name = String::to_rust_string(context, &name)?;
-        log::debug!("getResourceAsStream name: {}", name);
+        log::debug!("java.lang.Class::getResourceAsStream({:#x}, {})", this.ptr_instance, name);
+
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
         let resource = context.backend().resource().id(normalized_name);
