@@ -13,12 +13,12 @@ use wie_base::Module;
 
 use crate::{executor::Executor, time::Time};
 
-use self::{canvas::CanvasMut, window::Window};
+use self::{canvas::Canvas, window::Window};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
-    screen_canvas: Rc<RefCell<CanvasMut>>,
+    screen_canvas: Rc<RefCell<Canvas>>,
 }
 
 impl Default for Backend {
@@ -29,7 +29,7 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let screen_canvas = CanvasMut::from_size(240, 320); // TODO hardcoded size
+        let screen_canvas = Canvas::from_size(240, 320); // TODO hardcoded size
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
@@ -50,7 +50,7 @@ impl Backend {
         (*self.time).borrow()
     }
 
-    pub fn screen_canvas_mut(&self) -> RefMut<'_, CanvasMut> {
+    pub fn screen_canvas(&self) -> RefMut<'_, Canvas> {
         (*self.screen_canvas).borrow_mut()
     }
 
@@ -62,7 +62,7 @@ impl Backend {
 
         Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
-        let screen_canvas = self.screen_canvas_mut();
+        let screen_canvas = self.screen_canvas();
         let window = Window::new(screen_canvas.width(), screen_canvas.height());
         core::mem::drop(screen_canvas);
 
@@ -73,7 +73,7 @@ impl Backend {
 
                 Backend::run_task(&mut executor, &self.time(), move |module| module.render())?;
 
-                let canvas = self.screen_canvas_mut();
+                let canvas = self.screen_canvas();
                 let bgra = canvas
                     .buffer()
                     .chunks(4)

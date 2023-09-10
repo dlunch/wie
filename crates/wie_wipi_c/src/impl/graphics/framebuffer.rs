@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::{Canvas, CanvasMut};
+use wie_backend::{Canvas, Image};
 
 use crate::base::{CContext, CMemoryId};
 
@@ -29,7 +29,7 @@ impl Framebuffer {
     }
 
     pub fn from_screen_canvas(context: &mut dyn CContext) -> anyhow::Result<Self> {
-        let canvas = context.backend().screen_canvas_mut();
+        let canvas = context.backend().screen_canvas();
 
         let (width, height, bytes_per_pixel) = (canvas.width(), canvas.height(), canvas.bytes_per_pixel());
         core::mem::drop(canvas);
@@ -45,16 +45,16 @@ impl Framebuffer {
         })
     }
 
-    pub fn from_canvas(context: &mut dyn CContext, canvas: &Canvas) -> anyhow::Result<Self> {
-        let buf = context.alloc(canvas.width() * canvas.height() * canvas.bytes_per_pixel())?;
+    pub fn from_image(context: &mut dyn CContext, image: &Image) -> anyhow::Result<Self> {
+        let buf = context.alloc(image.width() * image.height() * image.bytes_per_pixel())?;
 
-        context.write_bytes(context.data_ptr(buf)?, canvas.buffer())?;
+        context.write_bytes(context.data_ptr(buf)?, image.buffer())?;
 
         Ok(Self {
-            width: canvas.width(),
-            height: canvas.height(),
-            bpl: canvas.width() * canvas.bytes_per_pixel(),
-            bpp: canvas.bytes_per_pixel() * 8,
+            width: image.width(),
+            height: image.height(),
+            bpl: image.width() * image.bytes_per_pixel(),
+            bpp: image.bytes_per_pixel() * 8,
             buf,
         })
     }
@@ -65,12 +65,12 @@ impl Framebuffer {
         Ok(data)
     }
 
-    pub fn canvas(&self, context: &mut dyn CContext) -> anyhow::Result<Canvas> {
-        Ok(Canvas::from_raw(self.width, self.height, self.data(context)?))
+    pub fn image(&self, context: &mut dyn CContext) -> anyhow::Result<Image> {
+        Ok(Image::from_raw(self.width, self.height, self.data(context)?))
     }
 
-    pub fn canvas_mut<'a>(&'a self, context: &'a mut dyn CContext) -> anyhow::Result<FramebufferCanvas<'a>> {
-        let canvas = CanvasMut::from_raw(self.width, self.height, self.data(context)?);
+    pub fn canvas<'a>(&'a self, context: &'a mut dyn CContext) -> anyhow::Result<FramebufferCanvas<'a>> {
+        let canvas = Canvas::from_raw(self.width, self.height, self.data(context)?);
 
         Ok(FramebufferCanvas {
             framebuffer: self,
@@ -87,7 +87,7 @@ impl Framebuffer {
 pub struct FramebufferCanvas<'a> {
     framebuffer: &'a Framebuffer,
     context: &'a mut dyn CContext,
-    canvas: CanvasMut,
+    canvas: Canvas,
 }
 
 impl Drop for FramebufferCanvas<'_> {
@@ -97,7 +97,7 @@ impl Drop for FramebufferCanvas<'_> {
 }
 
 impl Deref for FramebufferCanvas<'_> {
-    type Target = CanvasMut;
+    type Target = Canvas;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas

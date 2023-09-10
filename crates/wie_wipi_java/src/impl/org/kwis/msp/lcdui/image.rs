@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::cast_slice;
 
-use wie_backend::{Canvas, CanvasMut};
+use wie_backend::Canvas;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -74,16 +74,16 @@ impl Image {
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         let image_data = context.load_array_u8(&data, offset, length)?;
-        let canvas = Canvas::from_image(&image_data)?;
+        let image = wie_backend::Image::from_image(&image_data)?;
 
-        let data = context.instantiate_array("B", canvas.width() * canvas.height() * 4)?;
-        let buffer = cast_slice(canvas.buffer());
+        let data = context.instantiate_array("B", image.width() * image.height() * 4)?;
+        let buffer = cast_slice(image.buffer());
         context.store_array_u8(&data, 0, buffer)?;
 
-        context.put_field(&instance, "w", canvas.width())?;
-        context.put_field(&instance, "h", canvas.height())?;
+        context.put_field(&instance, "w", image.width())?;
+        context.put_field(&instance, "h", image.height())?;
         context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", canvas.width() * 4)?;
+        context.put_field(&instance, "bpl", image.width() * 4)?;
 
         Ok(instance.cast())
     }
@@ -116,24 +116,24 @@ impl Image {
         Ok(img_data)
     }
 
-    pub fn get_canvas(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Canvas> {
+    pub fn get_image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<wie_backend::Image> {
+        let buf = Self::get_buf(context, this)?;
+
+        let width = context.get_field(&this.cast(), "w")?;
+        let height = context.get_field(&this.cast(), "h")?;
+
+        let image = wie_backend::Image::from_raw(width, height, buf.to_vec());
+
+        Ok(image)
+    }
+
+    pub fn get_canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
         let buf = Self::get_buf(context, this)?;
 
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
         let canvas = Canvas::from_raw(width, height, buf.to_vec());
-
-        Ok(canvas)
-    }
-
-    pub fn get_canvas_mut<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
-        let buf = Self::get_buf(context, this)?;
-
-        let width = context.get_field(&this.cast(), "w")?;
-        let height = context.get_field(&this.cast(), "h")?;
-
-        let canvas = CanvasMut::from_raw(width, height, buf.to_vec());
 
         Ok(ImageCanvas {
             image: this,
@@ -146,7 +146,7 @@ impl Image {
 pub struct ImageCanvas<'a> {
     image: &'a JavaObjectProxy<Image>,
     context: &'a mut dyn JavaContext,
-    canvas: CanvasMut,
+    canvas: Canvas,
 }
 
 impl Drop for ImageCanvas<'_> {
@@ -159,7 +159,7 @@ impl Drop for ImageCanvas<'_> {
 }
 
 impl Deref for ImageCanvas<'_> {
-    type Target = CanvasMut;
+    type Target = Canvas;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas
