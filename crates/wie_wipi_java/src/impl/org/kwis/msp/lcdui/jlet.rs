@@ -19,7 +19,7 @@ impl Jlet {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<()> {
-        log::warn!("org.kwis.msp.lcdui.Jlet::<init>");
+        tracing::warn!("org.kwis.msp.lcdui.Jlet::<init>");
 
         let display = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
         context

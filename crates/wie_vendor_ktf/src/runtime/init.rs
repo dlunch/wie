@@ -131,7 +131,7 @@ pub struct ModuleInfo {
 pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
     let wipi_exe = core.run_function(base_address + 1, &[bss_size]).await?;
 
-    log::debug!("Got wipi_exe {:#x}", wipi_exe);
+    tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
@@ -210,7 +210,7 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
     let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
-    log::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
+    tracing::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core
         .run_function::<u32>(
             exe_interface_functions.fn_init,
@@ -228,13 +228,13 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_
 }
 
 async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: String) -> anyhow::Result<u32> {
-    log::trace!("get_interface({})", r#struct);
+    tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, backend),
         "WIPI_JBInterface" => get_wipi_jb_interface(core, backend),
         _ => {
-            log::warn!("Unknown {}", r#struct);
+            tracing::warn!("Unknown {}", r#struct);
 
             Ok(0)
         }
@@ -242,7 +242,7 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
 }
 
 async fn alloc(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
-    log::trace!("alloc({})", a0);
+    tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)
 }

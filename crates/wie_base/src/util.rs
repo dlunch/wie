@@ -53,7 +53,7 @@ where
         result.push(item[0]);
     }
 
-    // log::trace!("Read address: {:#x}, data: {:02x?}", address, result);
+    // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, result);
 
     Ok(String::from_utf8(result)?)
 }
@@ -67,7 +67,7 @@ where
     writer.write_bytes(address, bytes)?;
     writer.write_bytes(address + bytes.len() as u32, &[0])?;
 
-    // log::trace!("Write address: {:#x}, data: {:02x?}", address, bytes);
+    // tracing::trace!("Write address: {:#x}, data: {:02x?}", address, bytes);
 
     Ok(())
 }

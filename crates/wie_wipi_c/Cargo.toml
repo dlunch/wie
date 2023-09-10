@@ -8,7 +8,7 @@ license = "MIT"
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
 
 wie_base = { path = "../wie_base" }
 wie_backend = { path = "../wie_backend" }

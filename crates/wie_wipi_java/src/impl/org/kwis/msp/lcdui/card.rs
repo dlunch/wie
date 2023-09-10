@@ -27,19 +27,19 @@ impl Card {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn init_1(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: u32) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", this.ptr_instance, a0);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", this.ptr_instance, a0);
 
         Ok(())
     }
 
     async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<u32> {
-        log::debug!("org.kwis.msp.lcdui.Card::getWidth({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:#x})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas();
 
@@ -47,7 +47,7 @@ impl Card {
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<u32> {
-        log::debug!("org.kwis.msp.lcdui.Card::getHeight({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:#x})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas();
 
@@ -55,7 +55,7 @@ impl Card {
     }
 
     async fn repaint(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: u32, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
-        log::warn!(
+        tracing::warn!(
             "stub org.kwis.msp.lcdui.Card::repaint({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
             a0,
@@ -68,7 +68,7 @@ impl Card {
     }
 
     async fn service_repaints(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:#x})", this.ptr_instance);
 
         Ok(())
     }

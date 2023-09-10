@@ -135,13 +135,13 @@ impl ArmCore {
         inner.functions.insert(address as u32, Rc::new(Box::new(callback)));
         inner.functions_count += 1;
 
-        log::trace!("Register function at {:#x}", address);
+        tracing::trace!("Register function at {:#x}", address);
 
         Ok(address as u32 + 1)
     }
 
     pub fn map(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
-        log::trace!("Map address: {:#x}, size: {:#x}", address, size);
+        tracing::trace!("Map address: {:#x}, size: {:#x}", address, size);
 
         let mut inner = self.inner.borrow_mut();
 
@@ -305,7 +305,7 @@ impl ArmCore {
             .collect::<Vec<_>>()
             .join("\n");
 
-        log::trace!("{}\n{}", insn_str, Self::dump_regs_inner(uc).unwrap());
+        tracing::trace!("{}\n{}", insn_str, Self::dump_regs_inner(uc).unwrap());
     }
 
     #[allow(unknown_lints)]
@@ -331,7 +331,7 @@ impl ArmCore {
                 }
             };
 
-            log::trace!(
+            tracing::trace!(
                 "pc: {:#x} lr: {:#x} mem_type: {:?} address: {:#x} size: {:#x} value: {}",
                 pc,
                 lr,
@@ -343,7 +343,7 @@ impl ArmCore {
 
             true
         } else {
-            log::error!(
+            tracing::error!(
                 "Invalid Memory Access\n\
                 mem_type: {:?} address: {:#x} size: {:#x} value: {:#x}\n{}",
                 mem_type,
@@ -447,7 +447,7 @@ impl ByteRead for ArmCore {
 
         let data = inner.uc.mem_read_as_vec(address as u64, size as usize).map_err(UnicornError)?;
 
-        // log::trace!("Read address: {:#x}, data: {:02x?}", address, data);
+        // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, data);
 
         Ok(data)
     }
@@ -455,7 +455,7 @@ impl ByteRead for ArmCore {
 
 impl ByteWrite for ArmCore {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
-        // log::trace!("Write address: {:#x}, data: {:02x?}", address, data);
+        // tracing::trace!("Write address: {:#x}, data: {:02x?}", address, data);
         let mut inner = self.inner.borrow_mut();
 
         inner.uc.mem_write(address as u64, data).map_err(UnicornError)?;

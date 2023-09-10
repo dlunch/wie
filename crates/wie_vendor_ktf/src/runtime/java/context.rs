@@ -340,7 +340,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
-        log::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -350,7 +350,7 @@ impl<'a> KtfJavaContext<'a> {
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
-        log::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -367,7 +367,7 @@ impl<'a> KtfJavaContext<'a> {
         write_generic(self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         write_generic(self.core, ptr_fields, (vtable_index * 4) << 5)?;
 
-        log::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
+        tracing::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
         Ok(JavaObjectProxy::<Object>::new(ptr_instance))
     }
@@ -402,7 +402,7 @@ impl<'a> KtfJavaContext<'a> {
     fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let (class, _, class_name) = self.read_ptr_class(ptr_class)?;
 
-        log::trace!("get_vtable_index {} {:#x} {:#x}", class_name, ptr_class, class.ptr_vtable);
+        tracing::trace!("get_vtable_index {} {:#x} {:#x}", class_name, ptr_class, class.ptr_vtable);
 
         let context_data = self.read_context_data()?;
         let ptr_vtables = self.read_null_terminated_table(context_data.ptr_vtables_base)?;
@@ -835,7 +835,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32)?;
 
-        log::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -846,7 +846,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count)?;
 
-        log::trace!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
+        tracing::trace!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
 
         Ok(proxy)
     }
@@ -854,7 +854,7 @@ impl JavaContext for KtfJavaContext<'_> {
     fn destroy(&mut self, proxy: JavaObjectProxy<Object>) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
 
-        log::trace!("Destroying {:#x}", proxy.ptr_instance);
+        tracing::trace!("Destroying {:#x}", proxy.ptr_instance);
 
         Allocator::free(self.core, instance.ptr_fields)?;
         Allocator::free(self.core, proxy.ptr_instance)?;
@@ -866,7 +866,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
-        log::trace!("Call {}::{}({})", class_name, name, signature);
+        tracing::trace!("Call {}::{}({})", class_name, name, signature);
 
         let mut params = vec![instance_proxy.ptr_instance];
         params.extend(args);
@@ -875,7 +875,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        log::trace!("Call {}::{}({})", class_name, method_name, signature);
+        tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
         let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
 

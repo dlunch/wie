@@ -25,13 +25,13 @@ impl InputStream {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<InputStream>) -> JavaResult<()> {
-        log::warn!("stub java.lang.InputStream::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.InputStream::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn read(context: &mut dyn JavaContext, this: JavaObjectProxy<InputStream>, b: JavaObjectProxy<Array>) -> JavaResult<u32> {
-        log::debug!("java.lang.InputStream::read({:#x}, {:#x})", this.ptr_instance, b.ptr_instance);
+        tracing::debug!("java.lang.InputStream::read({:#x}, {:#x})", this.ptr_instance, b.ptr_instance);
 
         let array_length = context.array_length(&b)?;
 

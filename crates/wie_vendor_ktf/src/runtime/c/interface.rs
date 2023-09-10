@@ -52,7 +52,7 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore, backend: &mut Backend) -> any
 }
 
 async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32> {
-    log::trace!("get_wipic_interfaces");
+    tracing::trace!("get_wipic_interfaces");
 
     let graphics_methods = get_graphics_method_table();
     let interface_2 = write_methods(context, graphics_methods)?;

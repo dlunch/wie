@@ -55,50 +55,50 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
 }
 
 pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
-    log::trace!("load_java_class({:#x}, {})", ptr_target, name);
+    tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
     let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name);
 
     if result.is_ok() {
         Ok(0)
     } else {
-        log::error!("load_java_class failed: {}", result.err().unwrap());
+        tracing::error!("load_java_class failed: {}", result.err().unwrap());
 
         Ok(1)
     }
 }
 
 pub async fn java_throw(_: &mut ArmCore, _: &mut Backend, error: String, a1: u32) -> anyhow::Result<u32> {
-    log::error!("java_throw({}, {})", error, a1);
+    tracing::error!("java_throw({}, {})", error, a1);
 
     Err(anyhow::anyhow!("Java Exception thrown {}, {:#x}", error, a1))
 }
 
 async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
     let fullname = JavaFullName::from_ptr(core, ptr_fullname)?;
-    log::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
+    tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
 
-    log::trace!("get_java_method result {:#x}", ptr_method);
+    tracing::trace!("get_java_method result {:#x}", ptr_method);
 
     Ok(ptr_method)
 }
 
 async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
-    log::trace!("java_jump_1({:#x}, {:#x})", arg1, address);
+    tracing::trace!("java_jump_1({:#x}, {:#x})", arg1, address);
 
     core.run_function::<u32>(address, &[arg1]).await
 }
 
 async fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    log::warn!("stub jb_unk2({:#x}, {:#x})", a0, a1);
+    tracing::warn!("stub jb_unk2({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
 async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset: u32, length: u32) -> anyhow::Result<u32> {
-    log::trace!("register_java_string({:#x}, {:#x})", offset, length);
+    tracing::trace!("register_java_string({:#x}, {:#x})", offset, length);
 
     let mut cursor = offset;
     let length = if length == 0xffff_ffff {
@@ -119,19 +119,19 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    log::warn!("stub jb_unk4({:#x}, {:#x})", a0, a1);
+    tracing::warn!("stub jb_unk4({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
 async fn jb_unk5(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    log::warn!("stub jb_unk5({:#x}, {:#x})", a0, a1);
+    tracing::warn!("stub jb_unk5({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
 async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
-    log::trace!("java_jump_native({:#x}, {:#x})", address, ptr_data);
+    tracing::trace!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
     let result = core.run_function::<u32>(address, &[ptr_data]).await?;
 
@@ -142,13 +142,13 @@ async fn call_native(core: &mut ArmCore, _: &mut Backend, address: u32, ptr_data
 }
 
 async fn java_jump_2(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
-    log::trace!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+    tracing::trace!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     core.run_function::<u32>(address, &[arg1, arg2]).await
 }
 
 async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, index: u32, value: u32) -> anyhow::Result<u32> {
-    log::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
+    tracing::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
 
     let mut context = KtfJavaContext::new(core, backend);
     context.store_array_u32(&JavaObjectProxy::new(array), index, &[value])?;
@@ -157,7 +157,7 @@ async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, inde
 }
 
 pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<u32> {
-    log::trace!("java_new({:#x})", ptr_class);
+    tracing::trace!("java_new({:#x})", ptr_class);
 
     let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
 
@@ -165,7 +165,7 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
 }
 
 pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
-    log::trace!("java_array_new({:#x}, {:#x})", element_type, count);
+    tracing::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
     let mut java_context = KtfJavaContext::new(core, backend);
 

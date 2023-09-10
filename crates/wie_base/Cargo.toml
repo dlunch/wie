@@ -8,4 +8,4 @@ license = "MIT"
 anyhow = { workspace = true }
 bytemuck = { workspace = true }
 futures = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
