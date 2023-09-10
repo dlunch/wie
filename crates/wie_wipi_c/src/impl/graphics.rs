@@ -21,7 +21,7 @@ fn gen_stub(id: u32) -> CMethodBody {
 }
 
 async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
-    log::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
+    tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let framebuffer = WIPICFramebuffer::from_screen_canvas(context)?;
 
@@ -32,7 +32,7 @@ async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<
 }
 
 async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
-    log::debug!("MC_grpCreateImage({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
+    tracing::debug!("MC_grpCreateImage({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
 
     let image = WIPICImage::new(context, image_data, offset, len)?;
 
@@ -56,7 +56,7 @@ async fn draw_image(
     sy: u32,
     graphics_context: u32,
 ) -> CResult<u32> {
-    log::debug!(
+    tracing::debug!(
         "MC_grpDrawImage({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         framebuffer.0,
         dx,
@@ -81,7 +81,7 @@ async fn draw_image(
 }
 
 async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
-    log::debug!(
+    tracing::debug!(
         "MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         a0,
         framebuffer.0,

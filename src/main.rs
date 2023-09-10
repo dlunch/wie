@@ -63,13 +63,13 @@ impl ArchiveVendor {
 
             MidletManifest::parse(str::from_utf8(&manifest)?)
         };
-        log::info!("Manifest {:?}", manifest);
+        tracing::info!("Manifest {:?}", manifest);
 
         let file_names = archive.file_names();
 
         for file_name in file_names {
             if file_name.starts_with("client.bin") {
-                log::info!("Found ktf archive, module {}", file_name);
+                tracing::info!("Found ktf archive, module {}", file_name);
 
                 let main_class_name = manifest.main_class.unwrap_or("Clet".into());
 
@@ -85,10 +85,10 @@ impl ArchiveVendor {
 }
 
 fn main() -> anyhow::Result<()> {
-    pretty_env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let path = env::args().nth(1).ok_or_else(|| anyhow::anyhow!("No filename argument"))?;
-    log::info!("Loading {}", &path);
+    tracing::info!("Loading {}", &path);
 
     let file = File::open(path)?;
     let mut archive = ZipArchive::new(file)?;
@@ -105,7 +105,7 @@ fn main() -> anyhow::Result<()> {
         backend.resource_mut().add(file.name(), data);
     }
 
-    log::info!("Starting module");
+    tracing::info!("Starting module");
     let module = match vendor {
         Some(ArchiveVendor::Ktf {
             module_file_name,

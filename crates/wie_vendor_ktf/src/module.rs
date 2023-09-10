@@ -54,7 +54,7 @@ impl KtfWipiModule {
         let instance = java_context.instantiate_from_ptr_class(ptr_main_class)?;
         java_context.call_method(&instance, "<init>", "()V", &[]).await?;
 
-        log::debug!("Main class instance: {:#x}", instance.ptr_instance);
+        tracing::debug!("Main class instance: {:#x}", instance.ptr_instance);
 
         let arg = java_context.instantiate_array("Ljava/lang/String;", 0)?;
         java_context
@@ -112,7 +112,7 @@ impl KtfWipiModule {
     async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class_name: &str) -> anyhow::Result<u32> {
         let module = crate::runtime::init(core, backend, base_address, bss_size).await?;
 
-        log::debug!("Call wipi init at {:#x}", module.fn_init);
+        tracing::debug!("Call wipi init at {:#x}", module.fn_init);
         let result = core.run_function::<u32>(module.fn_init, &[]).await?;
         if result != 0 {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
@@ -121,14 +121,14 @@ impl KtfWipiModule {
         let ptr_main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
         core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
-        log::debug!("Call class getter at {:#x}", module.fn_get_class);
+        tracing::debug!("Call class getter at {:#x}", module.fn_get_class);
         let ptr_main_class = core.run_function(module.fn_get_class, &[ptr_main_class_name]).await?;
         if ptr_main_class == 0 {
             return Err(anyhow::anyhow!("Failed to get main class"));
         }
         Allocator::free(core, ptr_main_class_name)?;
 
-        log::debug!("Got main class: {:#x}", ptr_main_class);
+        tracing::debug!("Got main class: {:#x}", ptr_main_class);
 
         Ok(ptr_main_class)
     }
@@ -139,7 +139,7 @@ impl KtfWipiModule {
 
         let base_address = core.load(data, data.len() + bss_size as usize)?;
 
-        log::debug!("Loaded at {:#x}, size {:#x}, bss {:#x}", base_address, data.len(), bss_size);
+        tracing::debug!("Loaded at {:#x}, size {:#x}, bss {:#x}", base_address, data.len(), bss_size);
 
         Ok((base_address, bss_size))
     }

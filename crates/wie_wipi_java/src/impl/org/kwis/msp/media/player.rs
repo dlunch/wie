@@ -23,13 +23,13 @@ impl Player {
     }
 
     async fn play(_: &mut dyn JavaContext, clip: JavaObjectProxy<Clip>, repeat: u32) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.media.Player::play({:#x}, {})", clip.ptr_instance, repeat);
+        tracing::warn!("stub org.kwis.msp.media.Player::play({:#x}, {})", clip.ptr_instance, repeat);
 
         Ok(())
     }
 
     async fn stop(_: &mut dyn JavaContext, clip: JavaObjectProxy<Clip>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.media.Player::stop({:#x})", clip.ptr_instance,);
+        tracing::warn!("stub org.kwis.msp.media.Player::stop({:#x})", clip.ptr_instance,);
 
         Ok(())
     }

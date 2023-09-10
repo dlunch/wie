@@ -31,7 +31,7 @@ impl DataBase {
         }
     }
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.db.DataBase::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
@@ -42,7 +42,7 @@ impl DataBase {
         record_size: u32,
         create: u32,
     ) -> JavaResult<JavaObjectProxy<DataBase>> {
-        log::warn!(
+        tracing::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})",
             data_base_name.ptr_instance,
             record_size,
@@ -56,13 +56,13 @@ impl DataBase {
     }
 
     async fn get_number_of_records(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<u32> {
-        log::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
     async fn close_data_base(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<()> {
-        log::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", this.ptr_instance);
 
         Ok(())
     }
@@ -74,7 +74,7 @@ impl DataBase {
         offset: u32,
         num_bytes: u32,
     ) -> JavaResult<u32> {
-        log::warn!(
+        tracing::warn!(
             "stub org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
             this.ptr_instance,
             data.ptr_instance,

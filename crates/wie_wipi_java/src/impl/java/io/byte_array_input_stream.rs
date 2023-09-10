@@ -27,7 +27,7 @@ impl ByteArrayInputStream {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>, data: JavaObjectProxy<Array>) -> JavaResult<()> {
-        log::debug!(
+        tracing::debug!(
             "java.lang.ByteArrayInputStream::<init>({:#x}, {:#x})",
             this.ptr_instance,
             data.ptr_instance
@@ -40,7 +40,7 @@ impl ByteArrayInputStream {
     }
 
     async fn available(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<u32> {
-        log::debug!("java.lang.ByteArrayInputStream::available({:#x})", this.ptr_instance);
+        tracing::debug!("java.lang.ByteArrayInputStream::available({:#x})", this.ptr_instance);
 
         let buf = JavaObjectProxy::new(context.get_field(&this.cast(), "buf")?);
         let pos = context.get_field(&this.cast(), "pos")?;
@@ -56,7 +56,7 @@ impl ByteArrayInputStream {
         off: u32,
         len: u32,
     ) -> JavaResult<u32> {
-        log::debug!(
+        tracing::debug!(
             "java.lang.ByteArrayInputStream::read({:#x}, {:#x}, {}, {})",
             this.ptr_instance,
             b.ptr_instance,
@@ -89,7 +89,7 @@ impl ByteArrayInputStream {
     }
 
     async fn close(_: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<()> {
-        log::debug!("java.lang.ByteArrayInputStream::close({:#x})", this.ptr_instance);
+        tracing::debug!("java.lang.ByteArrayInputStream::close({:#x})", this.ptr_instance);
 
         Ok(())
     }

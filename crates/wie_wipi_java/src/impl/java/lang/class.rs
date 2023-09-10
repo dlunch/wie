@@ -30,7 +30,7 @@ impl Class {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Class>) -> JavaResult<()> {
-        log::warn!("stub java.lang.Class::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Class::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
@@ -42,7 +42,7 @@ impl Class {
         name: JavaObjectProxy<String>,
     ) -> JavaResult<JavaObjectProxy<InputStream>> {
         let name = String::to_rust_string(context, &name)?;
-        log::debug!("java.lang.Class::getResourceAsStream({:#x}, {})", this.ptr_instance, name);
+        tracing::debug!("java.lang.Class::getResourceAsStream({:#x}, {})", this.ptr_instance, name);
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 

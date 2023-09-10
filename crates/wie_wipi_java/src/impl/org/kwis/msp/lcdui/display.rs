@@ -64,7 +64,7 @@ impl Display {
         jlet: JavaObjectProxy<Jlet>,
         display_proxy: JavaObjectProxy<Object>,
     ) -> JavaResult<()> {
-        log::debug!(
+        tracing::debug!(
             "org.kwis.msp.lcdui.Display::<init>({:#x}, {:#x}, {:#x})",
             this.ptr_instance,
             jlet.ptr_instance,
@@ -85,13 +85,13 @@ impl Display {
     }
 
     async fn get_display(context: &mut dyn JavaContext, str: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Display>> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", str.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", str.ptr_instance);
 
         Ok(JavaObjectProxy::new(context.get_static_field("org/kwis/msp/lcdui/Jlet", "dis")?))
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
-        log::debug!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
+        tracing::debug!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let ptr_instance = context
             .call_static_method(
@@ -106,13 +106,13 @@ impl Display {
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Card>> {
-        log::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
+        tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
         Ok(JavaObjectProxy::new(0))
     }
 
     async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy<Display>, c: JavaObjectProxy<Card>) -> JavaResult<()> {
-        log::debug!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
 
         let cards = JavaObjectProxy::new(context.get_field(&this.cast(), "cards")?);
         let card = context.load_array_u32(&cards, 0, 1)?[0];
@@ -129,7 +129,7 @@ impl Display {
         this: JavaObjectProxy<Display>,
         qel: JavaObjectProxy<JletEventListener>,
     ) -> JavaResult<()> {
-        log::warn!(
+        tracing::warn!(
             "stub org.kwis.msp.lcdui.Display::addJletEventListener({:#x}, {:#x})",
             this.ptr_instance,
             qel.ptr_instance

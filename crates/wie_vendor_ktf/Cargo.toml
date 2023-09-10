@@ -10,8 +10,8 @@ async-trait = { workspace = true }
 bitflags = { version = "^2.3", default-features = false }
 bytemuck = { workspace = true }
 futures = { workspace = true }
-log = { workspace = true }
 num-traits = { version = "^0.2" }
+tracing = { workspace = true }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }

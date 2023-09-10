@@ -23,13 +23,13 @@ impl Object {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<()> {
-        log::warn!("stub java.lang.Object::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Object::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn get_class(context: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<JavaObjectProxy<Class>> {
-        log::warn!("stub java.lang.Object::get_class({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Object::get_class({:#x})", this.ptr_instance);
 
         let result = context.instantiate("Ljava/lang/Class;")?.cast();
         context.call_method(&result.cast(), "<init>", "()V", &[]).await?;
