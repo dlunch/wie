@@ -101,7 +101,10 @@ impl KtfWipiModule {
 
             let mut canvas = backend.screen_canvas_mut();
             let (width, height) = (canvas.width(), canvas.height());
-            canvas.draw(0, 0, width, height, &pixels, 0, 0, width);
+
+            let src_canvas = Canvas::from_raw(width, height, pixels);
+
+            canvas.draw(0, 0, width, height, &src_canvas, 0, 0);
         }
 
         Ok(())
