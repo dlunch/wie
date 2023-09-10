@@ -2081,6 +2081,7 @@ dependencies = [
  "bytemuck",
  "futures",
  "log",
+ "num-traits",
  "wie_backend",
  "wie_base",
  "wie_core_arm",

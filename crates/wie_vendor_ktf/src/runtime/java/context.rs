@@ -1,7 +1,8 @@
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{fmt::Display, iter, mem::size_of};
 
-use bytemuck::{cast_slice, Pod, Zeroable};
+use bytemuck::{cast_slice, cast_vec, Pod, Zeroable};
+use num_traits::FromBytes;
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -773,6 +774,42 @@ impl<'a> KtfJavaContext<'a> {
 
         read_generic(self.core, peb.ptr_java_context_data)
     }
+
+    fn load_array<T, const B: usize>(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<T>>
+    where
+        T: FromBytes<Bytes = [u8; B]> + Pod,
+    {
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let items_offset = instance.ptr_fields + 8;
+
+        let element_size = self.get_array_element_size(instance.ptr_class)?;
+        assert!(element_size == core::mem::size_of::<T>() as u32, "Incorrect element size");
+
+        let values_raw = self.core.read_bytes(items_offset + element_size * offset, count * element_size)?;
+        if B != 1 {
+            Ok(values_raw
+                .chunks(element_size as usize)
+                .map(|x| T::from_le_bytes(x.try_into().unwrap()))
+                .collect::<Vec<_>>())
+        } else {
+            Ok(cast_vec(values_raw))
+        }
+    }
+
+    fn store_array<T>(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[T]) -> JavaResult<()>
+    where
+        T: Pod,
+    {
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let items_offset = instance.ptr_fields + 8;
+
+        let element_size = self.get_array_element_size(instance.ptr_class)?;
+        assert!(element_size == core::mem::size_of::<T>() as u32, "Incorrect element size");
+
+        let values_u8 = cast_slice(values);
+
+        self.core.write_bytes(items_offset + element_size * index, values_u8)
+    }
 }
 
 #[async_trait::async_trait(?Send)]
@@ -888,52 +925,19 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn store_array_u32(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[u32]) -> JavaResult<()> {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
-        let items_offset = instance.ptr_fields + 8;
-
-        let element_size = self.get_array_element_size(instance.ptr_class)?;
-        assert!(element_size == 4, "Incorrect element size");
-
-        let values_u8 = cast_slice(values);
-
-        self.core.write_bytes(items_offset + element_size * index, values_u8)
+        self.store_array(array, index, values)
     }
 
     fn load_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
-        let items_offset = instance.ptr_fields + 8;
-
-        let element_size = self.get_array_element_size(instance.ptr_class)?;
-        assert!(element_size == 4, "Incorrect element size");
-
-        let values_raw = self.core.read_bytes(items_offset + element_size * offset, count * element_size)?;
-        let values = values_raw
-            .chunks(4)
-            .map(|x| u32::from_le_bytes(x.try_into().unwrap()))
-            .collect::<Vec<_>>();
-
-        Ok(values)
+        self.load_array(array, offset, count)
     }
 
     fn store_array_u8(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[u8]) -> JavaResult<()> {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
-        let items_offset = instance.ptr_fields + 8;
-
-        let element_size = self.get_array_element_size(instance.ptr_class)?;
-        assert!(element_size == 1, "Incorrect element size");
-
-        self.core.write_bytes(items_offset + element_size * index, values)
+        self.store_array(array, index, values)
     }
 
     fn load_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>> {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
-        let items_offset = instance.ptr_fields + 8;
-
-        let element_size = self.get_array_element_size(instance.ptr_class)?;
-        assert!(element_size == 1, "Incorrect element size");
-
-        let values = self.core.read_bytes(items_offset + element_size * offset, count * element_size)?;
-        Ok(values)
+        self.load_array(array, offset, count)
     }
 
     fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<usize> {
