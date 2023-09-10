@@ -13,7 +13,10 @@ use wie_base::Module;
 
 use crate::{executor::Executor, time::Time};
 
-use self::{canvas::Canvas, window::Window};
+use self::{
+    canvas::{Canvas, Image},
+    window::Window,
+};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
@@ -29,7 +32,7 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let screen_canvas = Canvas::from_size(240, 320); // TODO hardcoded size
+        let screen_canvas = Canvas::from_image(Image::from_size(240, 320)); // TODO hardcoded size
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),

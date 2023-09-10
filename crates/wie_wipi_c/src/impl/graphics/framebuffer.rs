@@ -70,7 +70,7 @@ impl WIPICFramebuffer {
     }
 
     pub fn canvas<'a>(&'a self, context: &'a mut dyn CContext) -> anyhow::Result<FramebufferCanvas<'a>> {
-        let canvas = Canvas::from_raw(self.width, self.height, self.data(context)?);
+        let canvas = Canvas::from_image(self.image(context)?);
 
         Ok(FramebufferCanvas {
             framebuffer: self,
