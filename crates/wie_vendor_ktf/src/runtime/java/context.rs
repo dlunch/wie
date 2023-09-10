@@ -87,9 +87,9 @@ struct JavaClassDescriptor {
 struct JavaMethod {
     fn_body: u32,
     ptr_class: u32,
-    fn_body_native: u32,
+    fn_body_native_or_exception_table: u32,
     ptr_name: u32,
-    unk2: u16,
+    exception_table_count: u16,
     unk3: u16,
     index_in_vtable: u16,
     flag: JavaMethodFlagBit,
@@ -542,9 +542,9 @@ impl<'a> KtfJavaContext<'a> {
                 JavaMethod {
                     fn_body,
                     ptr_class,
-                    fn_body_native,
+                    fn_body_native_or_exception_table: fn_body_native,
                     ptr_name,
-                    unk2: 0,
+                    exception_table_count: 0,
                     unk3: 0,
                     index_in_vtable,
                     flag,
@@ -752,7 +752,10 @@ impl<'a> KtfJavaContext<'a> {
                 write_generic(self.core, arg_container + (i * 4) as u32, *arg)?;
             }
 
-            let result = self.core.run_function(method.fn_body_native, &[0, arg_container]).await;
+            let result = self
+                .core
+                .run_function(method.fn_body_native_or_exception_table, &[0, arg_container])
+                .await;
 
             Allocator::free(self.core, arg_container)?;
 
