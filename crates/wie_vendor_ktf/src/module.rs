@@ -46,6 +46,7 @@ impl KtfWipiModule {
         })
     }
 
+    #[tracing::instrument(name = "main", skip_all)]
     async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
         let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?;
 
@@ -64,6 +65,7 @@ impl KtfWipiModule {
         Ok(())
     }
 
+    #[tracing::instrument(name = "render", skip_all)]
     async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<()> {
         let mut java_context = KtfJavaContext::new(core, backend);
 
