@@ -78,7 +78,7 @@ impl Image {
 
         let data = context.instantiate_array("B", canvas.width() * canvas.height() * 4)?;
         let buffer = cast_slice(canvas.buffer());
-        context.store_array_u8(&data, 0, &buffer)?;
+        context.store_array_u8(&data, 0, buffer)?;
 
         context.put_field(&instance, "w", canvas.width())?;
         context.put_field(&instance, "h", canvas.height())?;
@@ -144,7 +144,7 @@ impl Drop for ImageCanvas<'_> {
         let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
 
         let buffer: &[u8] = cast_slice(self.canvas.buffer());
-        self.context.store_array_u8(&data, 0, &buffer).unwrap();
+        self.context.store_array_u8(&data, 0, buffer).unwrap();
     }
 }
 
