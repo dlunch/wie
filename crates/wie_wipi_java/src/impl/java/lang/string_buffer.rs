@@ -33,7 +33,7 @@ impl StringBuffer {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<StringBuffer>) -> JavaResult<()> {
-        log::trace!("java.lang.StringBuffer::<init>({:#x})", this.ptr_instance);
+        log::debug!("java.lang.StringBuffer::<init>({:#x})", this.ptr_instance);
 
         let java_value_array = context.instantiate_array("C", 16)?;
         context.put_field(&this.cast(), "value", java_value_array.ptr_instance)?;
@@ -47,7 +47,7 @@ impl StringBuffer {
         this: JavaObjectProxy<StringBuffer>,
         string: JavaObjectProxy<String>,
     ) -> JavaResult<JavaObjectProxy<StringBuffer>> {
-        log::trace!(
+        log::debug!(
             "stub java.lang.StringBuffer::append({:#x}, {:#x})",
             this.ptr_instance,
             string.ptr_instance
@@ -68,7 +68,7 @@ impl StringBuffer {
     }
 
     async fn to_string(context: &mut dyn JavaContext, this: JavaObjectProxy<StringBuffer>) -> JavaResult<JavaObjectProxy<String>> {
-        log::trace!("java.lang.StringBuffer::toString({:#x})", this.ptr_instance);
+        log::debug!("java.lang.StringBuffer::toString({:#x})", this.ptr_instance);
 
         let java_value = JavaObjectProxy::<Array>::new(context.get_field(&this.cast(), "value")?);
         let count = context.get_field(&this.cast(), "count")?;

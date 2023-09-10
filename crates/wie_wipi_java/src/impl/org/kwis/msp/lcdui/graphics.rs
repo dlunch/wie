@@ -38,7 +38,7 @@ impl Graphics {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, display: JavaObjectProxy<Display>) -> JavaResult<()> {
-        log::trace!(
+        log::debug!(
             "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x})",
             this.ptr_instance,
             display.ptr_instance
@@ -62,7 +62,7 @@ impl Graphics {
         width: u32,
         height: u32,
     ) -> JavaResult<()> {
-        log::trace!(
+        log::debug!(
             "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
             this.ptr_instance,
             image.ptr_instance,
@@ -134,7 +134,7 @@ impl Graphics {
         y: u32,
         anchor: u32,
     ) -> JavaResult<()> {
-        log::trace!(
+        log::debug!(
             "org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
             img.ptr_instance,

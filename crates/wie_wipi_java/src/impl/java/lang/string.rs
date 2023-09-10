@@ -27,7 +27,7 @@ impl String {
     }
 
     async fn init_with_char_array(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, value: JavaObjectProxy<Array>) -> JavaResult<()> {
-        log::trace!("java.lang.String::<init>({:#x}, {:#x})", this.ptr_instance, value.ptr_instance,);
+        log::debug!("java.lang.String::<init>({:#x}, {:#x})", this.ptr_instance, value.ptr_instance,);
 
         context.put_field(&this.cast(), "value", value.ptr_instance)?;
 
@@ -41,7 +41,7 @@ impl String {
         offset: u32,
         count: u32,
     ) -> JavaResult<()> {
-        log::trace!(
+        log::debug!(
             "java.lang.String::<init>({:#x}, {:#x}, {}, {})",
             this.ptr_instance,
             value.ptr_instance,
@@ -65,7 +65,7 @@ impl String {
         offset: u32,
         count: u32,
     ) -> JavaResult<()> {
-        log::trace!(
+        log::debug!(
             "java.lang.String::<init>({:#x}, {:#x}, {}, {})",
             this.ptr_instance,
             value.ptr_instance,
@@ -83,7 +83,7 @@ impl String {
     }
 
     async fn char_at(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, index: u32) -> JavaResult<u32> {
-        log::trace!("java.lang.String::charAt({:#x}, {})", this.ptr_instance, index);
+        log::debug!("java.lang.String::charAt({:#x}, {})", this.ptr_instance, index);
 
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 
@@ -91,7 +91,7 @@ impl String {
     }
 
     async fn get_bytes(context: &mut dyn JavaContext, this: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Array>> {
-        log::trace!("java.lang.String::getBytes({:#x})", this.ptr_instance);
+        log::debug!("java.lang.String::getBytes({:#x})", this.ptr_instance);
 
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?); // TODO convert to bytes..
 
@@ -99,7 +99,7 @@ impl String {
     }
 
     async fn length(context: &mut dyn JavaContext, this: JavaObjectProxy<String>) -> JavaResult<u32> {
-        log::trace!("java.lang.String::length({:#x})", this.ptr_instance);
+        log::debug!("java.lang.String::length({:#x})", this.ptr_instance);
 
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 

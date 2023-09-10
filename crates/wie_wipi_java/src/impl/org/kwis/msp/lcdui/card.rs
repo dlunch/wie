@@ -39,7 +39,7 @@ impl Card {
     }
 
     async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<u32> {
-        log::trace!("org.kwis.msp.lcdui.Card::getWidth({:#x})", this.ptr_instance);
+        log::debug!("org.kwis.msp.lcdui.Card::getWidth({:#x})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas_mut();
 
@@ -47,7 +47,7 @@ impl Card {
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<u32> {
-        log::trace!("org.kwis.msp.lcdui.Card::getHeight({:#x})", this.ptr_instance);
+        log::debug!("org.kwis.msp.lcdui.Card::getHeight({:#x})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas_mut();
 

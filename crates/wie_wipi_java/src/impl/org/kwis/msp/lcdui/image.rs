@@ -41,13 +41,13 @@ impl Image {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<()> {
-        log::trace!("org.kwis.msp.lcdui.Image::<init>({:#x})", this.ptr_instance);
+        log::debug!("org.kwis.msp.lcdui.Image::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn create_image(context: &mut dyn JavaContext, width: u32, height: u32) -> JavaResult<JavaObjectProxy<Image>> {
-        log::trace!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
+        log::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
@@ -68,7 +68,7 @@ impl Image {
         offset: u32,
         length: u32,
     ) -> JavaResult<JavaObjectProxy<Image>> {
-        log::trace!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
+        log::debug!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
@@ -89,7 +89,7 @@ impl Image {
     }
 
     async fn get_graphics(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<JavaObjectProxy<Graphics>> {
-        log::trace!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", this.ptr_instance);
+        log::debug!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", this.ptr_instance);
 
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
