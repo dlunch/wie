@@ -1,12 +1,16 @@
 # WIPI Emulator
 
-Run WIPI Application on your PC.
+WIP Emulator for WIPI platform.
 
 ## Status
 
-Currently, only jar file extracted from ktf phone is supported right now. And almost all of application will raise error due to missing api implementations.
+WIPI JAR file extracted from ktf phones can be loaded and executed.
 
 ![](https://github.com/dlunch/wie/blob/main/docs/images/Something%20on%20the%20screen.png)
+
+## TODO
+
+See [TODO.md](TODO.md).
 
 ## Executing app with detailed log
 
