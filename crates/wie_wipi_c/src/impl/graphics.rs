@@ -4,7 +4,6 @@ mod image;
 use alloc::{vec, vec::Vec};
 use core::mem::size_of;
 
-use wie_backend::Canvas;
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
@@ -72,10 +71,10 @@ async fn draw_image(
     let framebuffer: Framebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
     let image: Image = read_generic(context, context.data_ptr(image)?)?;
 
-    let src_canvas = Canvas::from_raw(image.width(), image.height(), image.data(context)?);
-    let mut canvas = framebuffer.canvas_mut(context)?;
+    let src_image = wie_backend::Image::from_raw(image.width(), image.height(), image.data(context)?);
+    let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx, dy, w, h, &src_canvas, sx, sy);
+    canvas.draw(dx, dy, w, h, &src_image, sx, sy);
 
     Ok(0)
 }
@@ -93,9 +92,9 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
 
     let framebuffer: Framebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
 
-    let src_canvas = framebuffer.canvas(context)?;
+    let src_canvas = framebuffer.image(context)?;
 
-    let mut screen_canvas = context.backend().screen_canvas_mut();
+    let mut screen_canvas = context.backend().screen_canvas();
 
     screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &src_canvas, 0, 0);
 

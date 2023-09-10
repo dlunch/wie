@@ -5,7 +5,7 @@ mod time;
 
 pub use self::{
     backend::{
-        canvas::{Canvas, CanvasMut},
+        canvas::{Canvas, Image},
         Backend,
     },
     executor::{AsyncCallable, Executor},

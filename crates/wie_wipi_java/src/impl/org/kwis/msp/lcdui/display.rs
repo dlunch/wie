@@ -74,7 +74,7 @@ impl Display {
         let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1)?;
         context.put_field(&this.cast(), "cards", cards.ptr_instance)?;
 
-        let screen_canvas = context.backend().screen_canvas_mut();
+        let screen_canvas = context.backend().screen_canvas();
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         core::mem::drop(screen_canvas);
 

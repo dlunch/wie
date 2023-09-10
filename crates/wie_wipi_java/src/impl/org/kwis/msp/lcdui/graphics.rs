@@ -143,10 +143,10 @@ impl Graphics {
             anchor
         );
 
-        let src_canvas = Image::get_canvas(context, &img)?;
+        let src_canvas = Image::get_image(context, &img)?;
 
         let image = Self::get_image(context, &this).await?;
-        let mut canvas = Image::get_canvas_mut(context, &image)?;
+        let mut canvas = Image::get_canvas(context, &image)?;
 
         canvas.draw(x, y, src_canvas.width(), src_canvas.height(), &src_canvas, 0, 0);
 

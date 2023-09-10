@@ -2,7 +2,7 @@ use alloc::string::String;
 
 use futures::{future::LocalBoxFuture, FutureExt};
 
-use wie_backend::{Backend, Canvas};
+use wie_backend::{Backend, Image};
 use wie_base::{util::ByteWrite, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::{JavaContext, JavaObjectProxy};
@@ -98,10 +98,10 @@ impl KtfWipiModule {
             java_context.destroy(data.cast())?;
             java_context.destroy(image)?;
 
-            let mut canvas = backend.screen_canvas_mut();
+            let mut canvas = backend.screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());
 
-            let src_canvas = Canvas::from_raw(width, height, buffer);
+            let src_canvas = Image::from_raw(width, height, buffer);
 
             canvas.draw(0, 0, width, height, &src_canvas, 0, 0);
         }
