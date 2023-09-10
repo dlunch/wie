@@ -94,7 +94,6 @@ impl KtfWipiModule {
             let data = JavaObjectProxy::new(java_context.get_field(&image, "imgData")?);
             let size = java_context.array_length(&data)?;
             let buffer = java_context.load_array_u8(&data, 0, size)?;
-            let pixels = Canvas::bytes_to_pixels(&buffer);
 
             java_context.destroy(data.cast())?;
             java_context.destroy(image)?;
@@ -102,7 +101,7 @@ impl KtfWipiModule {
             let mut canvas = backend.screen_canvas_mut();
             let (width, height) = (canvas.width(), canvas.height());
 
-            let src_canvas = Canvas::from_raw(width, height, pixels);
+            let src_canvas = Canvas::from_raw(width, height, buffer);
 
             canvas.draw(0, 0, width, height, &src_canvas, 0, 0);
         }
