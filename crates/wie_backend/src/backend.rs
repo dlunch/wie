@@ -77,12 +77,15 @@ impl Backend {
                 Backend::run_task(&mut executor, &self.time(), move |module| module.render())?;
 
                 let canvas = self.screen_canvas();
-                let bgra = canvas
+                let rgb32 = canvas
                     .buffer()
                     .chunks(4)
-                    .map(|x| u32::from_be_bytes(x.try_into().unwrap()))
+                    .map(|rgba8888| {
+                        let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());
+                        rgba32 >> 8
+                    })
                     .collect::<Vec<_>>();
-                buffer.copy_from_slice(&bgra); // TODO is it better to introduce new vec?
+                buffer.copy_from_slice(&rgb32); // TODO is it better to introduce new vec?
 
                 Ok(())
             },
