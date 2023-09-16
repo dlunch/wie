@@ -1,6 +1,6 @@
 use std::{io::Cursor, ops::Deref};
 
-use image::{io::Reader as ImageReader, RgbaImage};
+use image::{imageops, io::Reader as ImageReader, GenericImageView, RgbaImage};
 
 pub struct Image {
     image: RgbaImage,
@@ -53,19 +53,9 @@ impl Canvas {
 
     #[allow(clippy::too_many_arguments)]
     pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &Image, sx: u32, sy: u32) {
-        for j in dy..(dy + h) {
-            for i in dx..(dx + w) {
-                if i >= self.image.width() || j >= self.image.height() {
-                    continue; // TODO remove this
-                }
-                let pixel = src.image.get_pixel(i - dx + sx, j - dy + sy);
-                if pixel[3] == 0 {
-                    // TODO we need alpha blending..
-                    continue;
-                }
-                self.image.image.put_pixel(i, j, *pixel);
-            }
-        }
+        let src_view = src.image.view(sx, sy, w, h).to_image();
+
+        imageops::overlay(&mut self.image.image, &src_view, dx as i64, dy as i64);
     }
 }
 
