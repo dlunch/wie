@@ -91,7 +91,7 @@ impl Display {
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
-        tracing::debug!("stub org.kwis.msp.lcdui.Display::getDefaultDisplay");
+        tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let ptr_instance = context
             .call_static_method(
