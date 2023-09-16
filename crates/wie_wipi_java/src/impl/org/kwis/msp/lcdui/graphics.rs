@@ -2,10 +2,33 @@ use alloc::{format, vec};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    method::TypeConverter,
     proxy::JavaObjectProxy,
     r#impl::org::kwis::msp::lcdui::{Display, Font, Image},
     JavaFieldAccessFlag,
 };
+
+bitflags::bitflags! {
+    struct Anchor: u32 {
+        const TOP = 0;
+        const HCENTER = 1;
+        const VCENTER = 2;
+        const LEFT = 4;
+        const RIGHT = 8;
+        const BOTTOM = 32;
+        const BASELINE = 64;
+    }
+}
+
+impl TypeConverter<Anchor> for Anchor {
+    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> Anchor {
+        Anchor::from_bits_retain(raw)
+    }
+
+    fn from_rust(_: &mut dyn JavaContext, rust: Anchor) -> u32 {
+        rust.bits()
+    }
+}
 
 // class org.kwis.msp.lcdui.Graphics
 pub struct Graphics {}
@@ -132,7 +155,7 @@ impl Graphics {
         img: JavaObjectProxy<Image>,
         x: u32,
         y: u32,
-        anchor: u32,
+        anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
@@ -140,7 +163,7 @@ impl Graphics {
             img.ptr_instance,
             x,
             y,
-            anchor
+            anchor.0
         );
 
         let src_canvas = Image::image(context, &img)?;
@@ -148,7 +171,31 @@ impl Graphics {
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
 
-        canvas.draw(x, y, src_canvas.width(), src_canvas.height(), &src_canvas, 0, 0);
+        let x_delta = if anchor.contains(Anchor::HCENTER) {
+            -((src_canvas.width() / 2) as i32)
+        } else if anchor.contains(Anchor::RIGHT) {
+            -(src_canvas.width() as i32)
+        } else {
+            0
+        };
+
+        let y_delta = if anchor.contains(Anchor::VCENTER) {
+            -((src_canvas.height() / 2) as i32)
+        } else if anchor.contains(Anchor::BOTTOM) {
+            -(src_canvas.height() as i32)
+        } else {
+            0
+        };
+
+        canvas.draw(
+            (x as i32 + x_delta) as u32,
+            (y as i32 + y_delta) as u32,
+            src_canvas.width(),
+            src_canvas.height(),
+            &src_canvas,
+            0,
+            0,
+        );
 
         Ok(())
     }
