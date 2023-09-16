@@ -1,7 +1,9 @@
 use alloc::{vec, vec::Vec};
+use alloc::string::String;
 
 use crate::{
     base::{CContext, CMethodBody},
+    CResult,
     method::MethodImpl,
 };
 
@@ -11,12 +13,27 @@ fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
     body.into_body()
 }
 
+async fn open_database(_context: &mut dyn CContext, name: String, record_size: u32, create: u32, mode: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
+    Ok(0)
+}
+
+async fn close_database(_context: &mut dyn CContext, db_id: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_dbCloseDataBase({})", db_id);
+    Ok(0)
+}
+
+async fn insert_record(_context: &mut dyn CContext, db_id: u32, buf_ptr: u32, buf_len: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_dbInsertRecord({}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    Ok(0)
+}
+
 pub fn get_database_method_table() -> Vec<CMethodBody> {
     vec![
-        gen_stub(0, "MC_dbOpenDataBase"),
-        gen_stub(1, "MC_dbCloseDataBase"),
+        open_database.into_body(),
+        close_database.into_body(),
         gen_stub(2, "MC_dbDeleteDataBase"),
-        gen_stub(3, "MC_dbInsertRecord"),
+        insert_record.into_body(),
         gen_stub(4, "MC_dbSelectRecord"),
         gen_stub(5, "MC_dbUpdateRecord"),
         gen_stub(6, "MC_dbDeleteRecord"),
