@@ -128,11 +128,11 @@ pub struct ModuleInfo {
     pub fn_get_class: u32,
 }
 
-pub async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32) -> anyhow::Result<ModuleInfo> {
-    let wipi_exe = core.run_function(base_address + 1, &[bss_size]).await?;
+pub async fn start(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Result<u32> {
+    core.run_function(base_address + 1, &[bss_size]).await
+}
 
-    tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
-
+pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyhow::Result<ModuleInfo> {
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 

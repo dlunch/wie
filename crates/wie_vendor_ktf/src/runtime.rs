@@ -3,6 +3,8 @@ mod init;
 mod java;
 
 pub use self::{
-    init::{init, KtfPeb},
+    init::{
+        KtfPeb, {init, start},
+    },
     java::context::KtfJavaContext,
 };
