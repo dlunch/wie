@@ -168,6 +168,16 @@ impl TypeConverter<u32> for u32 {
     }
 }
 
+impl TypeConverter<i32> for i32 {
+    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> i32 {
+        i32::from_le_bytes(raw.to_le_bytes())
+    }
+
+    fn from_rust(_: &mut dyn JavaContext, rust: i32) -> u32 {
+        u32::from_le_bytes(rust.to_le_bytes())
+    }
+}
+
 impl TypeConverter<()> for () {
     fn to_rust(_: &mut dyn JavaContext, _: u32) {}
 
