@@ -232,14 +232,11 @@ impl JavaVtableBuilder {
     }
 
     fn build_vtable(context: &KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<Vec<JavaVtableMethod>> {
-        let mut class_hierarchy = Self::read_class_hierarchy(context, ptr_class)?;
-        class_hierarchy.reverse();
+        let class_hierarchy = context.read_class_hierarchy(ptr_class)?.into_iter().rev();
 
         let mut vtable: Vec<JavaVtableMethod> = Vec::new();
 
-        for ptr_class in class_hierarchy {
-            let (_, class_descriptor, _) = context.read_ptr_class(ptr_class)?;
-
+        for class_descriptor in class_hierarchy {
             let ptr_methods = context.read_null_terminated_table(class_descriptor.ptr_methods)?;
 
             let items = ptr_methods
@@ -262,25 +259,6 @@ impl JavaVtableBuilder {
         }
 
         Ok(vtable)
-    }
-
-    fn read_class_hierarchy(context: &KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<Vec<u32>> {
-        let mut result = vec![ptr_class];
-
-        let mut current_class = ptr_class;
-        loop {
-            let (_, class_descriptor, _) = context.read_ptr_class(current_class)?;
-
-            if class_descriptor.ptr_parent_class != 0 {
-                result.push(class_descriptor.ptr_parent_class);
-
-                current_class = class_descriptor.ptr_parent_class;
-            } else {
-                break;
-            }
-        }
-
-        Ok(result)
     }
 }
 
@@ -763,7 +741,12 @@ impl<'a> KtfJavaContext<'a> {
             }
         }
 
-        Err(anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
+        if class_descriptor.ptr_parent_class != 0 {
+            self.get_ptr_field(class_descriptor.ptr_parent_class, field_name)
+                .map_err(|_| anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
+        } else {
+            Err(anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
+        }
     }
 
     async fn call_method_inner(&mut self, ptr_method: u32, args: &[u32]) -> JavaResult<u32> {
@@ -831,6 +814,26 @@ impl<'a> KtfJavaContext<'a> {
         let values_u8 = cast_slice(values);
 
         self.core.write_bytes(items_offset + element_size * index, values_u8)
+    }
+
+    fn read_class_hierarchy(&self, ptr_class: u32) -> JavaResult<Vec<JavaClassDescriptor>> {
+        let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
+        let mut result = vec![class_descriptor];
+
+        let mut current_class = ptr_class;
+        loop {
+            let (_, class_descriptor, _) = self.read_ptr_class(current_class)?;
+
+            if class_descriptor.ptr_parent_class != 0 {
+                result.push(class_descriptor);
+
+                current_class = class_descriptor.ptr_parent_class;
+            } else {
+                break;
+            }
+        }
+
+        Ok(result)
     }
 }
 
