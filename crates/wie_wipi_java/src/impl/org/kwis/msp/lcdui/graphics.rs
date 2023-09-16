@@ -107,7 +107,7 @@ impl Graphics {
     async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:#x})", this.ptr_instance);
 
-        let font = context.instantiate("Lorg/kwis/msp/lcdui/Font;")?.cast();
+        let font = context.instantiate("Lorg/kwis/msp/lcdui/Font;").await?.cast();
         context.call_method(&font.cast(), "<init>", "()V", &[]).await?;
 
         Ok(font)

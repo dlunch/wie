@@ -159,7 +159,7 @@ async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, inde
 pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class)?;
+    let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class).await?;
 
     Ok(instance.ptr_instance)
 }
@@ -171,10 +171,10 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
 
     // HACK: we don't have element type class
     let instance = if element_type > 0x100 {
-        java_context.instantiate_array_from_ptr_class(element_type, count)?
+        java_context.instantiate_array_from_ptr_class(element_type, count).await?
     } else {
         let element_type_name = (element_type as u8 as char).to_string();
-        java_context.instantiate_array(&element_type_name, count)?
+        java_context.instantiate_array(&element_type_name, count).await?
     };
 
     Ok(instance.ptr_instance)

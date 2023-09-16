@@ -49,10 +49,10 @@ impl Image {
     async fn create_image(context: &mut dyn JavaContext, width: u32, height: u32) -> JavaResult<JavaObjectProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        let data = context.instantiate_array("B", width * height * 4)?;
+        let data = context.instantiate_array("B", width * height * 4).await?;
 
         context.put_field(&instance, "w", width)?;
         context.put_field(&instance, "h", height)?;
@@ -70,13 +70,13 @@ impl Image {
     ) -> JavaResult<JavaObjectProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;")?;
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         let image_data = context.load_array_u8(&data, offset, length)?;
         let image = wie_backend::Image::from_image(&image_data)?;
 
-        let data = context.instantiate_array("B", image.width() * image.height() * 4)?;
+        let data = context.instantiate_array("B", image.width() * image.height() * 4).await?;
         let buffer = cast_slice(image.raw_rgba());
         context.store_array_u8(&data, 0, buffer)?;
 
@@ -94,7 +94,7 @@ impl Image {
         let width = context.get_field(&this.cast(), "w")?;
         let height = context.get_field(&this.cast(), "h")?;
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?.cast();
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?.cast();
         context
             .call_method(
                 &instance.cast(),

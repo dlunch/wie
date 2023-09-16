@@ -98,10 +98,10 @@ impl JavaMethodProto {
 
 #[async_trait::async_trait(?Send)]
 pub trait JavaContext {
-    fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
-    fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>>; // newarray
+    async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
+    async fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>>; // newarray
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
-    async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokespecial/invokevirtual
+    async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokespecial/invokevirtual
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokestatic
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32>; // getfield
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()>; // putfield

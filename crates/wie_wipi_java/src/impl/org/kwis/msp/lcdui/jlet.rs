@@ -21,7 +21,7 @@ impl Jlet {
     async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>");
 
-        let display = context.instantiate("Lorg/kwis/msp/lcdui/Display;")?;
+        let display = context.instantiate("Lorg/kwis/msp/lcdui/Display;").await?;
         context
             .call_method(
                 &display.cast(),
