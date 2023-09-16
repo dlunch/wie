@@ -53,9 +53,9 @@ impl Canvas {
 
     #[allow(clippy::too_many_arguments)]
     pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &Image, sx: u32, sy: u32) {
-        let src_view = src.image.view(sx, sy, w, h).to_image();
+        let src_view = src.image.view(sx, sy, w, h);
 
-        imageops::overlay(&mut self.image.image, &src_view, dx as i64, dy as i64);
+        imageops::overlay(&mut self.image.image, src_view.deref(), dx as i64, dy as i64);
     }
 }
 
