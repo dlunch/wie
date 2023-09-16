@@ -112,7 +112,10 @@ impl KtfWipiModule {
     }
 
     async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class_name: &str) -> anyhow::Result<u32> {
-        let module = crate::runtime::init(core, backend, base_address, bss_size).await?;
+        let wipi_exe = crate::runtime::start(core, base_address, bss_size).await?;
+        tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
+
+        let module = crate::runtime::init(core, backend, wipi_exe).await?;
 
         tracing::debug!("Call wipi init at {:#x}", module.fn_init);
         let result = core.run_function::<u32>(module.fn_init, &[]).await?;
