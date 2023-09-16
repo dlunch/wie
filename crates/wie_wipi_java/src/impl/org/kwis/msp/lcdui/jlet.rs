@@ -13,8 +13,19 @@ impl Jlet {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE)],
-            fields: vec![JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::STATIC)],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new(
+                    "getActiveJlet",
+                    "()Lorg/kwis/msp/lcdui/Jlet;",
+                    Self::get_active_jlet,
+                    JavaMethodFlag::NONE,
+                ),
+            ],
+            fields: vec![
+                JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", JavaFieldAccessFlag::STATIC),
+            ],
         }
     }
 
@@ -31,8 +42,17 @@ impl Jlet {
             )
             .await?;
 
-        context.put_static_field("org/kwis/msp/lcdui/Jlet", "dis", display.ptr_instance)?;
+        context.put_field(&this.cast(), "dis", display.ptr_instance)?;
+
+        context.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", this.ptr_instance)?;
 
         Ok(())
+    }
+
+    async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Jlet>> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
+
+        let jlet = JavaObjectProxy::new(context.get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive")?);
+        Ok(jlet)
     }
 }

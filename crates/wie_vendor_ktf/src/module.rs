@@ -69,7 +69,13 @@ impl KtfWipiModule {
     async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<()> {
         let mut java_context = KtfJavaContext::new(core, backend);
 
-        let display = JavaObjectProxy::new(java_context.get_static_field("org/kwis/msp/lcdui/Jlet", "dis")?);
+        let jlet = JavaObjectProxy::new(
+            java_context
+                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+                .await?,
+        );
+
+        let display = JavaObjectProxy::new(java_context.get_field(&jlet, "dis")?);
         if display.ptr_instance == 0 {
             return Ok(());
         }
