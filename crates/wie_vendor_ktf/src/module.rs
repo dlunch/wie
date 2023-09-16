@@ -126,7 +126,7 @@ impl KtfWipiModule {
         tracing::debug!("Call class getter at {:#x}", module.fn_get_class);
         let ptr_main_class = core.run_function(module.fn_get_class, &[ptr_main_class_name]).await?;
         if ptr_main_class == 0 {
-            return Err(anyhow::anyhow!("Failed to get main class"));
+            return Err(anyhow::anyhow!("Failed to get main class {}", main_class_name));
         }
         Allocator::free(core, ptr_main_class_name)?;
 

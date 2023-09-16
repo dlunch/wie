@@ -1,5 +1,6 @@
-use std::{env, fs::File, io::Read, str};
+use std::{fs::File, io::Read, str};
 
+use clap::Parser;
 use zip::ZipArchive;
 
 use wie_backend::Backend;
@@ -84,13 +85,18 @@ impl ArchiveVendor {
     }
 }
 
+#[derive(Parser)]
+struct Args {
+    filename: String,
+    main_class_name: Option<String>,
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let path = env::args().nth(1).ok_or_else(|| anyhow::anyhow!("No filename argument"))?;
-    tracing::info!("Loading {}", &path);
+    let args = Args::parse();
 
-    let file = File::open(path)?;
+    let file = File::open(args.filename)?;
     let mut archive = ZipArchive::new(file)?;
 
     let vendor = ArchiveVendor::from_archive(&mut archive)?;
@@ -110,7 +116,10 @@ fn main() -> anyhow::Result<()> {
         Some(ArchiveVendor::Ktf {
             module_file_name,
             main_class_name,
-        }) => KtfWipiModule::new(&module_file_name, &main_class_name, &backend)?,
+        }) => {
+            let main_class_name = if let Some(x) = args.main_class_name { x } else { main_class_name };
+            KtfWipiModule::new(&module_file_name, &main_class_name, &backend)?
+        }
         None => return Err(anyhow::anyhow!("Unknown vendor")),
     };
 
