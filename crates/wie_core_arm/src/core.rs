@@ -171,14 +171,13 @@ impl ArmCore {
         format!("{:#x}: {}\n", address, description)
     }
 
-    pub fn dump_stack(&self) -> ArmCoreResult<String> {
+    pub fn dump_call_stack(&self) -> ArmCoreResult<String> {
         let inner = self.inner.borrow();
 
         let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
         let pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)?;
         let lr = inner.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?;
 
-        let mut result = String::new();
         let mut call_stack = Self::format_callstack_address(pc as u32);
         if lr as u32 != RUN_FUNCTION_LR {
             call_stack += &Self::format_callstack_address((lr - 5) as u32);
@@ -189,10 +188,6 @@ impl ArmCore {
             let value = inner.uc.mem_read_as_vec(address, 4).map_err(UnicornError)?;
             let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
 
-            if i < 16 {
-                result += &format!("SP+{:#x}: {:#x}\n", i * 4, value_u32);
-            }
-
             if value_u32 % 2 == 1 {
                 // TODO image size temp
                 if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&value_u32) {
@@ -201,7 +196,24 @@ impl ArmCore {
             }
         }
 
-        Ok(format!("Possible call stack:\n{}\n\nStack:\n{}", call_stack, result))
+        Ok(call_stack)
+    }
+
+    pub fn dump_stack(&self) -> ArmCoreResult<String> {
+        let inner = self.inner.borrow();
+
+        let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
+
+        let mut result = String::new();
+        for i in 0..16 {
+            let address = sp + (i * 4);
+            let value = inner.uc.mem_read_as_vec(address, 4).map_err(UnicornError)?;
+            let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
+
+            result += &format!("SP+{:#x}: {:#x}\n", i * 4, value_u32);
+        }
+
+        Ok(result)
     }
 
     pub fn from_core_mut(core: &mut dyn Core) -> Option<&mut Self> {
@@ -437,7 +449,12 @@ impl Core for ArmCore {
     }
 
     fn dump_reg_stack(&self) -> String {
-        self.dump_regs().unwrap() + "\n" + &self.dump_stack().unwrap()
+        format!(
+            "{}\nPossible call stack:\n{}\nStack:\n{}",
+            self.dump_regs().unwrap(),
+            self.dump_call_stack().unwrap(),
+            self.dump_stack().unwrap()
+        )
     }
 }
 
