@@ -1,4 +1,5 @@
 use alloc::{format, vec};
+use wie_backend::Color;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -56,6 +57,7 @@ impl Graphics {
                 JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", JavaFieldAccessFlag::NONE),
                 JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
                 JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("rgb", "I", JavaFieldAccessFlag::NONE),
             ],
         }
     }
@@ -111,8 +113,10 @@ impl Graphics {
         Ok(font)
     }
 
-    async fn set_color(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a1: u32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, a1);
+    async fn set_color(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, rgb: u32) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, rgb);
+
+        context.put_field(&this.cast(), "rgb", rgb)?;
 
         Ok(())
     }
@@ -136,15 +140,26 @@ impl Graphics {
         Ok(())
     }
 
-    async fn fill_rect(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: u32, y: u32, width: u32, height: u32) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {:#x}, {}, {}, {})",
+    async fn fill_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: u32, y: u32, width: u32, height: u32) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
             x,
             y,
             width,
             height
         );
+
+        let rgb = context.get_field(&this.cast(), "rgb")?;
+
+        let image = Self::image(context, &this).await?;
+        let mut canvas = Image::canvas(context, &image)?;
+
+        let r = ((rgb >> 16) & 0xff) as u8;
+        let g = ((rgb >> 8) & 0xff) as u8;
+        let b = (rgb & 0xff) as u8;
+
+        canvas.draw_rect(x, y, width, height, Color::new(r, g, b, 255));
 
         Ok(())
     }

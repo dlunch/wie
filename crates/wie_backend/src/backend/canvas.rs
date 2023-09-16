@@ -1,6 +1,20 @@
 use std::{io::Cursor, ops::Deref};
 
 use image::{imageops, io::Reader as ImageReader, GenericImageView, RgbaImage};
+use imageproc::{drawing::draw_filled_rect_mut, rect::Rect};
+
+pub struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+impl Color {
+    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+}
 
 pub struct Image {
     image: RgbaImage,
@@ -56,6 +70,13 @@ impl Canvas {
         let src_view = src.image.view(sx, sy, w, h);
 
         imageops::overlay(&mut self.image.image, src_view.deref(), dx as i64, dy as i64);
+    }
+
+    pub fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+        let rect = Rect::at(x as i32, y as i32).of_size(w, h);
+        let color = image::Rgba([color.r, color.g, color.b, color.a]);
+
+        draw_filled_rect_mut(&mut self.image.image, rect, color);
     }
 }
 
