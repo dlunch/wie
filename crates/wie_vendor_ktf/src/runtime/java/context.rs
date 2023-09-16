@@ -314,9 +314,12 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub async fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy<Object>> {
-        let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
+        let (_, _, class_name) = self.read_ptr_class(ptr_class)?;
 
-        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32).await?;
+        let class_hierarchy = self.read_class_hierarchy(ptr_class)?;
+        let fields_size = class_hierarchy.into_iter().map(|x| x.fields_size as u32).sum();
+
+        let proxy = self.instantiate_inner(ptr_class, fields_size).await?;
 
         tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
 
@@ -848,13 +851,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = self.get_or_load_ptr_class(class_name)?;
 
-        let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
-
-        let proxy = self.instantiate_inner(ptr_class, class_descriptor.fields_size as u32).await?;
-
-        tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
-
-        Ok(proxy)
+        self.instantiate_from_ptr_class(ptr_class).await
     }
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
