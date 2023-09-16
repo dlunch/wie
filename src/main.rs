@@ -40,7 +40,7 @@ impl MidletManifest {
                 "MIDlet-Vendor" => result.vendor = Some(value.into()),
                 "MIDlet-1" => {
                     let midlet_split = value.split(',').collect::<Vec<_>>();
-                    result.main_class = Some(midlet_split[2].into());
+                    result.main_class = Some(midlet_split[2].trim().into());
                 }
                 _ => {}
             }
