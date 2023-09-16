@@ -64,7 +64,7 @@ impl Thread {
 
     async fn sleep(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
         tracing::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
-        context.sleep(a1 as u64).await;
+        context.sleep(a0 as u64).await;
 
         Ok(0)
     }
