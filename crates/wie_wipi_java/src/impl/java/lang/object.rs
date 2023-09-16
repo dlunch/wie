@@ -23,7 +23,7 @@ impl Object {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Object::<init>({:#x})", this.ptr_instance);
+        tracing::debug!("java.lang.Object::<init>({:#x})", this.ptr_instance);
 
         Ok(())
     }
