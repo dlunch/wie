@@ -87,7 +87,15 @@ impl Display {
     async fn get_display(context: &mut dyn JavaContext, str: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Display>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", str.ptr_instance);
 
-        Ok(JavaObjectProxy::new(context.get_static_field("org/kwis/msp/lcdui/Jlet", "dis")?))
+        let jlet = JavaObjectProxy::new(
+            context
+                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+                .await?,
+        );
+
+        let display = JavaObjectProxy::new(context.get_field(&jlet, "dis")?);
+
+        Ok(display)
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
