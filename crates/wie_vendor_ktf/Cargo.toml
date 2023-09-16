@@ -7,7 +7,7 @@ license = "MIT"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-bitflags = { version = "^2.3", default-features = false }
+bitflags = { workspace = true }
 bytemuck = { workspace = true }
 futures = { workspace = true }
 num-traits = { version = "^0.2" }
