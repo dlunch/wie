@@ -153,6 +153,8 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "org/kwis/msp/lwc/Component" => crate::r#impl::org::kwis::msp::lwc::Component::as_proto(),
         "org/kwis/msp/lwc/ContainerComponent" => crate::r#impl::org::kwis::msp::lwc::ContainerComponent::as_proto(),
         "org/kwis/msp/lwc/ShellComponent" => crate::r#impl::org::kwis::msp::lwc::ShellComponent::as_proto(),
+        "org/kwis/msp/lwc/TextComponent" => crate::r#impl::org::kwis::msp::lwc::TextComponent::as_proto(),
+        "org/kwis/msp/lwc/TextFieldComponent" => crate::r#impl::org::kwis::msp::lwc::TextFieldComponent::as_proto(),
         "org/kwis/msp/media/Clip" => crate::r#impl::org::kwis::msp::media::Clip::as_proto(),
         "org/kwis/msp/media/Player" => crate::r#impl::org::kwis::msp::media::Player::as_proto(),
         "org/kwis/msp/media/PlayListener" => crate::r#impl::org::kwis::msp::media::PlayListener::as_proto(),
