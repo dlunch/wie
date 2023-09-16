@@ -77,7 +77,7 @@ impl Image {
         let image = wie_backend::Image::from_image(&image_data)?;
 
         let data = context.instantiate_array("B", image.width() * image.height() * 4)?;
-        let buffer = cast_slice(image.buffer());
+        let buffer = cast_slice(image.raw_rgba());
         context.store_array_u8(&data, 0, buffer)?;
 
         context.put_field(&instance, "w", image.width())?;
@@ -148,7 +148,7 @@ impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
 
-        let buffer: &[u8] = cast_slice(self.canvas.buffer());
+        let buffer: &[u8] = cast_slice(self.canvas.raw_rgba());
         self.context.store_array_u8(&data, 0, buffer).unwrap();
     }
 }

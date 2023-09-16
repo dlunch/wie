@@ -78,7 +78,7 @@ impl Backend {
 
                 let canvas = self.screen_canvas();
                 let rgb32 = canvas
-                    .buffer()
+                    .raw_rgba()
                     .chunks(4)
                     .map(|rgba8888| {
                         let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());

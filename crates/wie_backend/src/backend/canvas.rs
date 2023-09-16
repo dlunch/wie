@@ -37,7 +37,7 @@ impl Image {
         4
     }
 
-    pub fn buffer(&self) -> &[u8] {
+    pub fn raw_rgba(&self) -> &[u8] {
         self.image.as_raw()
     }
 }
