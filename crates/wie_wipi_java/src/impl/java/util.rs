@@ -1,3 +1,4 @@
+mod hashtable;
 mod random;
 
-pub use self::random::Random;
+pub use self::{hashtable::Hashtable, random::Random};
