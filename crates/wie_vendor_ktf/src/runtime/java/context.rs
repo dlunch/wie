@@ -383,6 +383,8 @@ impl<'a> KtfJavaContext<'a> {
     fn get_array_element_size(&self, ptr_class_array: u32) -> JavaResult<u32> {
         let (_, _, class_name) = self.read_ptr_class(ptr_class_array)?;
 
+        assert!(class_name.starts_with('['), "Not an array class {}", class_name);
+
         if class_name.starts_with("[L") {
             Ok(4)
         } else {
