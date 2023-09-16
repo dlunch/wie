@@ -1,16 +1,21 @@
 mod framebuffer;
 mod image;
+mod grp_context;
 
 use alloc::{vec, vec::Vec};
 use core::mem::size_of;
+use bytemuck::Zeroable;
 
-use wie_backend::Image;
+use wie_backend::{Color, Image};
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
     base::{CContext, CMemoryId, CMethodBody, CResult},
     method::MethodImpl,
 };
+use crate::method::TypeConverter;
+use crate::r#impl::graphics::framebuffer::WIPICDisplayInfo;
+use crate::r#impl::graphics::grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx};
 
 use self::{framebuffer::WIPICFramebuffer, image::WIPICImage};
 
@@ -29,6 +34,78 @@ async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
 
     Ok(memory)
+}
+
+async fn init_context(context: &mut dyn CContext, p_grp_ctx: u32) -> CResult<()> {
+    tracing::trace!("MC_grpInitContext({:#x})", p_grp_ctx);
+    let grp_ctx: WIPICGraphicsContext = WIPICGraphicsContext::zeroed();
+    write_generic(context, p_grp_ctx, grp_ctx)?;
+    Ok(())
+}
+
+async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op_val: u32, pv: u32) -> CResult<()> {
+    let op = WIPICGraphicsContextIdx::to_rust(context, op_val);
+    tracing::trace!("MC_grpSetContext({:#x}, {:#x}({:?}), {:#x})", p_grp_ctx, op_val, op, pv);
+    let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
+    match op {
+        WIPICGraphicsContextIdx::ClipIdx => {
+            grp_ctx.clip = read_generic(context, pv)?;
+        }
+        WIPICGraphicsContextIdx::FgPixelIdx => {
+            grp_ctx.fgpxl = pv;
+        }
+        WIPICGraphicsContextIdx::BgPixelIdx => {
+            grp_ctx.bgpxl = pv;
+        }
+        WIPICGraphicsContextIdx::TransPixelIdx => {
+            grp_ctx.transpxl = pv;
+        }
+        WIPICGraphicsContextIdx::AlphaIdx => {
+            grp_ctx.alpha = pv;
+            // grp_ctx.pixel_op_func_ptr = todo!();
+            // grp_ctx.param1 = todo!();
+        }
+        WIPICGraphicsContextIdx::PixelopIdx => {
+            grp_ctx.pixel_op_func_ptr = pv;
+        }
+        WIPICGraphicsContextIdx::PixelParam1Idx => {
+            grp_ctx.param1 = pv;
+        }
+        WIPICGraphicsContextIdx::FontIdx => {
+            grp_ctx.font = pv;
+        }
+        WIPICGraphicsContextIdx::StyleIdx => {
+            grp_ctx.style = pv;
+        }
+        WIPICGraphicsContextIdx::OffsetIdx => {
+            grp_ctx.offset = read_generic(context, pv)?;
+        }
+        _ => {
+            tracing::warn!("MC_grpSetContext({:#x}, {:#x}, {:#x}): ignoring invalid op", p_grp_ctx, op_val, pv);
+        }
+    }
+    write_generic(context, p_grp_ctx, grp_ctx)?;
+
+    Ok(())
+}
+
+async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32, p_gctx: u32) -> CResult<()> {
+    tracing::trace!("MC_grpPutPixel({:#x}, {:#x}, {:#x}, {:?})", dst_fb.0, x, y, p_gctx);
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
+    let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
+
+    let mut canvas = framebuffer.canvas(context)?;
+    canvas.put_pixel(x, y, Color::from_argb32(gctx.fgpxl));
+    Ok(())
+}
+
+async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32, w: u32, h: u32, p_gctx: u32) -> CResult<()> {
+    tracing::trace!("MC_grpFillRect({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
+    let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
+    let mut canvas = framebuffer.canvas(context)?;
+    canvas.draw_rect(x, y, w, h, Color::from_argb32(gctx.fgpxl));
+    Ok(())
 }
 
 async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CMemoryId, offset: u32, len: u32) -> CResult<u32> {
@@ -102,6 +179,48 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
     Ok(0)
 }
 
+async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32) -> CResult<u32> {
+    tracing::trace!(
+        "MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})",
+        r, g, b,
+    );
+    if (r > 0xff) || (g > 0xff) | (b > 0xff) {
+        tracing::debug!(
+            "MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits",
+            r, g, b,
+        );
+    }
+
+    let rgb32 = Color::new(r as u8, g as u8, b as u8, 0).to_argb32();
+    Ok(rgb32)
+}
+
+async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u32) -> CResult<u32> {
+    tracing::debug!(
+        "MC_grpGetDisplayInfo({:#x}, {:#x})",
+        reserved,
+        out_ptr,
+    );
+
+    assert_eq!(reserved, 0);
+    let canvas = context.backend().screen_canvas();
+    assert_eq!(canvas.bytes_per_pixel(), 4);
+    let info = WIPICDisplayInfo {
+        bpp: canvas.bytes_per_pixel() * 8,
+        depth: 8,
+        width: canvas.width(),
+        height: canvas.height(),
+        bpl: canvas.bytes_per_pixel() * canvas.width(),
+        color_type: 1, // 1==MC_GRP_DIRECT_COLOR_TYPE
+        red_mask: 0xff0000,
+        blue_mask: 0xff00,
+        green_mask: 0xff,
+    };
+    drop(canvas);
+    write_generic(context, out_ptr, info)?;
+    Ok(1)
+}
+
 pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
         gen_stub(0, "MC_grpGetImageProperty"),
@@ -109,13 +228,13 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         get_screen_framebuffer.into_body(),
         gen_stub(3, "MC_grpDestroyOffScreenFrameBuffer"),
         gen_stub(4, "MC_grpCreateOffScreenFrameBuffer"),
-        gen_stub(5, "MC_grpInitContext"),
-        gen_stub(6, "MC_grpSetContext"),
+        init_context.into_body(),
+        set_context.into_body(),
         gen_stub(7, "MC_grpGetContext"),
-        gen_stub(8, "MC_grpPutPixel"),
+        put_pixel.into_body(),
         gen_stub(9, "MC_grpDrawLine"),
         gen_stub(10, "MC_grpDrawRect"),
-        gen_stub(11, "MC_grpFillRect"),
+        fill_rect.into_body(),
         gen_stub(12, "MC_grpCopyFrameBuffer"),
         draw_image.into_body(),
         gen_stub(14, "MC_grpCopyArea"),
@@ -126,9 +245,9 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         gen_stub(19, "MC_grpGetRGBPixels"),
         gen_stub(20, "MC_grpSetRGBPixels"),
         flush.into_body(),
-        gen_stub(22, "MC_grpGetPixelFromRGB"),
+        get_pixel_from_rgb.into_body(),
         gen_stub(23, "MC_grpGetRGBFromPixel"),
-        gen_stub(24, "MC_grpGetDisplayInfo"),
+        get_display_info.into_body(),
         gen_stub(25, "MC_grpRepaint"),
         gen_stub(26, "MC_grpGetFont"),
         gen_stub(27, "MC_grpGetFontHeight"),

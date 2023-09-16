@@ -7,6 +7,22 @@ use wie_backend::{Canvas, Image};
 
 use crate::base::{CContext, CMemoryId};
 
+
+/// MC_GrpDisplayInfo
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct WIPICDisplayInfo {
+    pub bpp: u32,
+    pub depth: u32,
+    pub width: u32,
+    pub height: u32,
+    pub bpl: u32,
+    pub color_type: u32,
+    pub red_mask: u32,
+    pub blue_mask: u32,
+    pub green_mask: u32,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICFramebuffer {
