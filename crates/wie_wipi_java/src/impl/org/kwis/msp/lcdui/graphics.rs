@@ -153,8 +153,8 @@ impl Graphics {
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<Graphics>,
         img: JavaObjectProxy<Image>,
-        x: u32,
-        y: u32,
+        x: i32,
+        y: i32,
         anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::debug!(
@@ -187,15 +187,10 @@ impl Graphics {
             0
         };
 
-        canvas.draw(
-            (x as i32 + x_delta) as u32,
-            (y as i32 + y_delta) as u32,
-            src_canvas.width(),
-            src_canvas.height(),
-            &src_canvas,
-            0,
-            0,
-        );
+        let x = (x + x_delta).max(0);
+        let y = (y + y_delta).max(0);
+
+        canvas.draw(x as u32, y as u32, src_canvas.width(), src_canvas.height(), &src_canvas, 0, 0);
 
         Ok(())
     }
