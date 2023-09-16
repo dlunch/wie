@@ -179,3 +179,9 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
 
     Ok(instance.ptr_instance)
 }
+
+pub async fn java_check_cast(_: &mut ArmCore, _: &mut Backend, ptr_class: u32, ptr_instance: u32) -> anyhow::Result<u32> {
+    tracing::warn!("stub java_check_cast({:#x}, {:#x})", ptr_class, ptr_instance);
+
+    Ok(1)
+}
