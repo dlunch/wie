@@ -58,7 +58,12 @@ impl Canvas {
                 if i >= self.image.width() || j >= self.image.height() {
                     continue; // TODO remove this
                 }
-                self.image.image.put_pixel(i, j, *src.image.get_pixel(i - dx + sx, j - dy + sy));
+                let pixel = src.image.get_pixel(i - dx + sx, j - dy + sy);
+                if pixel[3] == 0 {
+                    // TODO we need alpha blending..
+                    continue;
+                }
+                self.image.image.put_pixel(i, j, *pixel);
             }
         }
     }
