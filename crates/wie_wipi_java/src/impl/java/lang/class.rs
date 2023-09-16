@@ -51,11 +51,11 @@ impl Class {
             let backend1 = context.backend().clone();
             let data = Ref::map(backend1.resource(), |x| x.data(id));
 
-            let array = context.instantiate_array("B", data.len() as u32)?;
+            let array = context.instantiate_array("B", data.len() as u32).await?;
             context.store_array_u8(&array, 0, &data)?;
             core::mem::drop(data);
 
-            let result = context.instantiate("Ljava/io/ByteArrayInputStream;")?.cast();
+            let result = context.instantiate("Ljava/io/ByteArrayInputStream;").await?.cast();
             context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;
 
             Ok(result)

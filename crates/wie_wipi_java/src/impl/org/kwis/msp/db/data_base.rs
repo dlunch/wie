@@ -49,7 +49,7 @@ impl DataBase {
             create
         );
 
-        let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;")?.cast();
+        let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;").await?.cast();
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         Ok(instance)

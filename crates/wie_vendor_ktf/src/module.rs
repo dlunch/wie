@@ -52,12 +52,12 @@ impl KtfWipiModule {
 
         let mut java_context = KtfJavaContext::new(core, backend);
 
-        let instance = java_context.instantiate_from_ptr_class(ptr_main_class)?;
+        let instance = java_context.instantiate_from_ptr_class(ptr_main_class).await?;
         java_context.call_method(&instance, "<init>", "()V", &[]).await?;
 
         tracing::debug!("Main class instance: {:#x}", instance.ptr_instance);
 
-        let arg = java_context.instantiate_array("Ljava/lang/String;", 0)?;
+        let arg = java_context.instantiate_array("Ljava/lang/String;", 0).await?;
         java_context
             .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
             .await?;
@@ -80,7 +80,7 @@ impl KtfWipiModule {
             return Ok(());
         }
 
-        let graphics = java_context.instantiate("Lorg/kwis/msp/lcdui/Graphics;")?;
+        let graphics = java_context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?;
         java_context
             .call_method(&graphics, "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", &[display.ptr_instance])
             .await?;

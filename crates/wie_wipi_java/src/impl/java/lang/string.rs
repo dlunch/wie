@@ -49,7 +49,7 @@ impl String {
             count
         );
 
-        let array = context.instantiate_array("C", count)?;
+        let array = context.instantiate_array("C", count).await?;
         context.put_field(&this.cast(), "value", array.ptr_instance)?;
 
         let data = context.load_array_u8(&value.cast(), offset, count)?;
@@ -73,7 +73,7 @@ impl String {
             count
         );
 
-        let array = context.instantiate_array("C", count)?;
+        let array = context.instantiate_array("C", count).await?;
         context.put_field(&this.cast(), "value", array.ptr_instance)?;
 
         let data = context.load_array_u8(&value.cast(), offset, count)?; // TODO convert to char
@@ -116,10 +116,10 @@ impl String {
 
     pub async fn to_java_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JavaObjectProxy<String>> {
         let bytes = string.bytes().collect::<Vec<_>>();
-        let java_value = context.instantiate_array("C", bytes.len() as u32)?;
+        let java_value = context.instantiate_array("C", bytes.len() as u32).await?;
         context.store_array_u8(&java_value, 0, &bytes)?;
 
-        let instance = context.instantiate("Ljava/lang/String;")?.cast();
+        let instance = context.instantiate("Ljava/lang/String;").await?.cast();
         context
             .call_method(&instance.cast(), "<init>", "([C)V", &[java_value.ptr_instance])
             .await?;

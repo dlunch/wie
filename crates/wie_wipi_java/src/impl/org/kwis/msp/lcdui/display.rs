@@ -71,7 +71,7 @@ impl Display {
             display_proxy.ptr_instance
         );
 
-        let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1)?;
+        let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
         context.put_field(&this.cast(), "cards", cards.ptr_instance)?;
 
         let screen_canvas = context.backend().screen_canvas();
