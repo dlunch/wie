@@ -179,7 +179,7 @@ impl ArmCore {
         let lr = inner.uc.reg_read(RegisterARM::LR).map_err(UnicornError)?;
 
         let mut call_stack = Self::format_callstack_address(pc as u32);
-        if lr as u32 != RUN_FUNCTION_LR {
+        if lr as u32 != RUN_FUNCTION_LR && lr != 0 {
             call_stack += &Self::format_callstack_address((lr - 5) as u32);
         }
 
