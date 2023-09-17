@@ -1,8 +1,7 @@
-use alloc::{boxed::Box, vec};
+use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaError, JavaMethodFlag, JavaMethodProto, JavaResult},
-    method::MethodBody,
+    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
     Array,
 };
@@ -49,25 +48,5 @@ impl Main {
             context.call_method(&event_queue, "getNextEvent", "([I)V", &[event.ptr_instance]).await?;
             context.call_method(&event_queue, "dispatchEvent", "([I)V", &[event.ptr_instance]).await?;
         }
-    }
-
-    pub async fn start(context: &mut dyn JavaContext) -> JavaResult<()> {
-        struct StartProxy {}
-
-        #[async_trait::async_trait(?Send)]
-        impl MethodBody<JavaError> for StartProxy {
-            #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
-                context
-                    .call_static_method("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", &[])
-                    .await?;
-
-                Ok(0)
-            }
-        }
-
-        context.spawn(Box::new(StartProxy {}))?;
-
-        Ok(())
     }
 }

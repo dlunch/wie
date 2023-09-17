@@ -1,7 +1,8 @@
-use alloc::vec;
+use alloc::{boxed::Box, format, vec};
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    method::MethodBody,
     r#impl::org::kwis::msp::lcdui::EventQueue,
     JavaFieldAccessFlag, JavaObjectProxy,
 };
@@ -76,5 +77,35 @@ impl Jlet {
         let eq = JavaObjectProxy::new(context.get_field(&this.cast(), "eq")?);
 
         Ok(eq)
+    }
+
+    pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
+        let ptr_main_class = context.instantiate(&format!("L{};", main_class_name)).await?;
+        context.call_method(&ptr_main_class, "<init>", "()V", &[]).await?;
+
+        tracing::debug!("Main class instance: {:#x}", ptr_main_class.ptr_instance);
+
+        let arg = context.instantiate_array("Ljava/lang/String;", 0).await?;
+        context
+            .call_method(&ptr_main_class, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
+            .await?;
+
+        struct StartProxy {}
+
+        #[async_trait::async_trait(?Send)]
+        impl MethodBody<JavaError> for StartProxy {
+            #[tracing::instrument(name = "main", skip_all)]
+            async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+                context
+                    .call_static_method("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", &[])
+                    .await?;
+
+                Ok(0)
+            }
+        }
+
+        context.spawn(Box::new(StartProxy {}))?;
+
+        Ok(())
     }
 }
