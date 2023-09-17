@@ -36,7 +36,6 @@ impl EventQueue {
         Ok(())
     }
 
-    #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
     async fn get_next_event(context: &mut dyn JavaContext, this: JavaObjectProxy<EventQueue>, event: JavaObjectProxy<Array>) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.EventQueue::getNextEvent({:#x}, {:#x})",
@@ -45,11 +44,9 @@ impl EventQueue {
         );
 
         loop {
-            let mut events = context.backend().events();
-            let result = events.pop();
-            drop(events);
+            let maybe_event = context.backend().events().pop();
 
-            if result.is_some() {
+            if maybe_event.is_some() {
                 context.store_array_u32(&event, 0, &[41])?; // TODO correct event conversion, 41: REPAINT_EVENT
 
                 break;
