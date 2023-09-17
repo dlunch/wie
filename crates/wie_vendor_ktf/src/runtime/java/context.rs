@@ -302,7 +302,14 @@ impl<'a> KtfJavaContext<'a> {
             }
         }
 
-        Err(anyhow::anyhow!("Can't find function {} from {}", fullname, class_name))
+        if class_descriptor.ptr_parent_class != 0 {
+            let name_copy = fullname.clone(); // TODO remove clone
+
+            self.get_method(class_descriptor.ptr_parent_class, fullname)
+                .map_err(|_| anyhow::anyhow!("Cannot find function {} from {}", name_copy, class_name))
+        } else {
+            Err(anyhow::anyhow!("Can't find function {} from {}", fullname, class_name))
+        }
     }
 
     pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
