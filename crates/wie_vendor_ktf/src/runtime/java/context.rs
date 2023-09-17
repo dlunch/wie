@@ -822,16 +822,14 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     fn read_class_hierarchy(&self, ptr_class: u32) -> JavaResult<Vec<JavaClassDescriptor>> {
-        let (_, class_descriptor, _) = self.read_ptr_class(ptr_class)?;
-        let mut result = vec![class_descriptor];
+        let mut result = vec![];
 
         let mut current_class = ptr_class;
         loop {
             let (_, class_descriptor, _) = self.read_ptr_class(current_class)?;
+            result.push(class_descriptor);
 
             if class_descriptor.ptr_parent_class != 0 {
-                result.push(class_descriptor);
-
                 current_class = class_descriptor.ptr_parent_class;
             } else {
                 break;
