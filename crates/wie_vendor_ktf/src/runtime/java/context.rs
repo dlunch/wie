@@ -1,5 +1,9 @@
+mod class_loader;
+mod name;
+mod vtable_builder;
+
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
-use core::{fmt::Display, iter, mem::size_of};
+use core::{iter, mem::size_of};
 
 use bytemuck::{cast_slice, cast_vec, Pod, Zeroable};
 use num_traits::FromBytes;
@@ -8,14 +12,16 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend, Executor,
 };
-use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, ByteRead, ByteWrite};
-use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
+use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
+use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 use wie_wipi_java::{
-    get_class_proto, r#impl::java::lang::Object, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag,
-    JavaObjectProxy, JavaResult,
+    r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
 use crate::runtime::KtfPeb;
+
+use self::class_loader::ClassLoader;
+pub use self::name::JavaFullName;
 
 bitflags::bitflags! {
     struct JavaFieldAccessFlagBit: u32 {
@@ -128,13 +134,6 @@ struct JavaContextData {
     pub fn_get_class: u32,
 }
 
-#[derive(Clone)]
-pub struct JavaFullName {
-    pub tag: u8,
-    pub name: String,
-    pub signature: String,
-}
-
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaExceptionHandler {
@@ -145,122 +144,6 @@ struct JavaExceptionHandler {
     unk3: u32,
     ptr_functions: u32, // function table to restore context and unk
     context: [u32; 11], // r4-lr
-}
-
-impl JavaFullName {
-    pub fn from_ptr(core: &ArmCore, ptr: u32) -> JavaResult<Self> {
-        let tag = read_generic(core, ptr)?;
-
-        let value = read_null_terminated_string(core, ptr + 1)?;
-        let value = value.split('+').collect::<Vec<_>>();
-
-        Ok(JavaFullName {
-            tag,
-            name: value[1].into(),
-            signature: value[0].into(),
-        })
-    }
-
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-
-        bytes.push(self.tag);
-        bytes.extend_from_slice(self.signature.as_bytes());
-        bytes.push(b'+');
-        bytes.extend_from_slice(self.name.as_bytes());
-        bytes.push(0);
-
-        bytes
-    }
-}
-
-impl Display for JavaFullName {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.name.fmt(f)?;
-        self.signature.fmt(f)?;
-        write!(f, "@{}", self.tag)?;
-
-        Ok(())
-    }
-}
-
-impl PartialEq for JavaFullName {
-    fn eq(&self, other: &Self) -> bool {
-        self.signature == other.signature && self.name == other.name
-    }
-}
-
-struct JavaVtableMethod {
-    ptr_method: u32,
-    name: JavaFullName,
-}
-
-struct JavaVtableBuilder {
-    items: Vec<JavaVtableMethod>,
-}
-
-impl JavaVtableBuilder {
-    pub fn new(context: &KtfJavaContext<'_>, ptr_parent_class: Option<u32>) -> JavaResult<Self> {
-        let items = if let Some(x) = ptr_parent_class {
-            Self::build_vtable(context, x)?
-        } else {
-            Vec::new()
-        };
-
-        Ok(Self { items })
-    }
-
-    pub fn add(&mut self, ptr_method: u32, name: &JavaFullName) -> usize {
-        if let Some(index) = self.items.iter().position(|x| x.name == *name) {
-            self.items[index] = JavaVtableMethod {
-                ptr_method,
-                name: name.to_owned(),
-            };
-
-            index
-        } else {
-            self.items.push(JavaVtableMethod {
-                ptr_method,
-                name: name.to_owned(),
-            });
-
-            self.items.len() - 1
-        }
-    }
-
-    pub fn serialize(&self) -> Vec<u32> {
-        self.items.iter().map(|x| x.ptr_method).collect()
-    }
-
-    fn build_vtable(context: &KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<Vec<JavaVtableMethod>> {
-        let class_hierarchy = context.read_class_hierarchy(ptr_class)?.into_iter().rev();
-
-        let mut vtable: Vec<JavaVtableMethod> = Vec::new();
-
-        for class_descriptor in class_hierarchy {
-            let ptr_methods = context.read_null_terminated_table(class_descriptor.ptr_methods)?;
-
-            let items = ptr_methods
-                .into_iter()
-                .map(|x| {
-                    let method: JavaMethod = read_generic(context.core, x)?;
-                    let name = JavaFullName::from_ptr(context.core, method.ptr_name)?;
-
-                    Ok::<_, JavaError>(JavaVtableMethod { ptr_method: x, name })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-
-            for item in items {
-                if let Some(index) = vtable.iter().position(|x| x.name == item.name) {
-                    vtable[index] = item;
-                } else {
-                    vtable.push(item);
-                }
-            }
-        }
-
-        Ok(vtable)
-    }
 }
 
 pub struct KtfJavaContext<'a> {
@@ -314,7 +197,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub async fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let ptr_class = self.get_or_load_ptr_class(name).await?;
+        let ptr_class = ClassLoader::get_or_load_ptr_class(self, name).await?;
 
         write_generic(self.core, ptr_target, ptr_class)?;
 
@@ -432,301 +315,6 @@ impl<'a> KtfJavaContext<'a> {
         )?;
 
         Ok((true, index as u32))
-    }
-
-    #[async_recursion::async_recursion(?Send)]
-    async fn get_or_load_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
-        let ptr_class = self.get_ptr_class(name)?;
-
-        if let Some(ptr_class) = ptr_class {
-            Ok(ptr_class)
-        } else {
-            // array class is created dynamically
-            if name.as_bytes()[0] == b'[' {
-                let ptr_class = self.load_array_class_into_vm(name).await?;
-
-                Ok(ptr_class)
-            } else {
-                let proto = get_class_proto(name);
-                if let Some(x) = proto {
-                    self.load_class_into_vm(name, x).await
-                } else {
-                    // find from client.bin
-                    let fn_get_class = self.read_context_data()?.fn_get_class;
-
-                    let ptr_name = Allocator::alloc(self.core, 50)?; // TODO size fix
-                    write_null_terminated_string(self.core, ptr_name, name)?;
-
-                    let ptr_class = self.core.run_function(fn_get_class, &[ptr_name]).await?;
-                    Allocator::free(self.core, ptr_name)?;
-
-                    if ptr_class != 0 {
-                        self.write_loaded_class(ptr_class)?;
-                        Ok(ptr_class)
-                    } else {
-                        Err(anyhow::anyhow!("Cannot find class {}", name))
-                    }
-                }
-            }
-        }
-    }
-
-    fn get_ptr_class(&self, name: &str) -> JavaResult<Option<u32>> {
-        let context_data = self.read_context_data()?;
-        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
-        for ptr_class in ptr_classes {
-            let (_, _, class_name) = self.read_ptr_class(ptr_class)?;
-
-            if class_name == name {
-                return Ok(Some(ptr_class));
-            }
-        }
-
-        Ok(None)
-    }
-
-    async fn load_array_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
-        let ptr_parent_class = self.get_or_load_ptr_class("java/lang/Object").await?;
-        let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
-
-        let element_type_name = &name[1..];
-        let element_type = if element_type_name.starts_with('L') {
-            self.get_or_load_ptr_class(&element_type_name[1..element_type_name.len() - 1]).await?
-        } else {
-            0
-        };
-
-        let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(self.core, ptr_name, name)?;
-
-        let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
-        write_generic(
-            self.core,
-            ptr_descriptor,
-            JavaClassDescriptor {
-                ptr_name,
-                unk1: 0,
-                ptr_parent_class,
-                ptr_methods: 0,
-                ptr_interfaces: 0,
-                ptr_fields_or_element_type: element_type,
-                method_count: 0,
-                fields_size: 0,
-                access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
-                unk6: 0,
-                unk7: 0,
-                unk8: 0,
-            },
-        )?;
-
-        write_generic(
-            self.core,
-            ptr_class,
-            JavaClass {
-                ptr_next: ptr_class + 4,
-                unk1: 0,
-                ptr_descriptor,
-                ptr_vtable: 0,
-                vtable_count: 0,
-                unk_flag: 8,
-            },
-        )?;
-
-        let context_data = self.read_context_data()?;
-        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
-        write_generic(
-            self.core,
-            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
-            ptr_class,
-        )?;
-
-        Ok(ptr_class)
-    }
-
-    async fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let ptr_parent_class = if let Some(x) = proto.parent_class {
-            Some(self.get_or_load_ptr_class(x).await?)
-        } else {
-            None
-        };
-
-        let mut vtable_builder = JavaVtableBuilder::new(self, ptr_parent_class)?;
-
-        let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
-
-        let mut methods = Vec::new();
-        for method in proto.methods.into_iter() {
-            let full_name = JavaFullName {
-                tag: 0,
-                name: method.name,
-                signature: method.signature,
-            };
-            let full_name_bytes = full_name.as_bytes();
-
-            let ptr_name = Allocator::alloc(self.core, full_name_bytes.len() as u32)?;
-            self.core.write_bytes(ptr_name, &full_name_bytes)?;
-
-            let fn_method = self.register_java_method(method.body, method.flag == JavaMethodFlag::NATIVE)?;
-            let (fn_body, fn_body_native) = if method.flag == JavaMethodFlag::NATIVE {
-                (0, fn_method)
-            } else {
-                (fn_method, 0)
-            };
-
-            let ptr_method = Allocator::alloc(self.core, size_of::<JavaMethod>() as u32)?;
-            let index_in_vtable = vtable_builder.add(ptr_method, &full_name) as u16;
-
-            let flag = JavaMethodFlagBit::from_flag(method.flag);
-
-            write_generic(
-                self.core,
-                ptr_method,
-                JavaMethod {
-                    fn_body,
-                    ptr_class,
-                    fn_body_native_or_exception_table: fn_body_native,
-                    ptr_name,
-                    exception_table_count: 0,
-                    unk3: 0,
-                    index_in_vtable,
-                    flag,
-                    unk6: 0,
-                },
-            )?;
-
-            methods.push(ptr_method);
-        }
-        let ptr_methods = self.write_null_terminated_table(&methods)?;
-
-        let mut fields = Vec::new();
-        for (index, field) in proto.fields.into_iter().enumerate() {
-            let full_name = (JavaFullName {
-                tag: 0,
-                name: field.name,
-                signature: field.signature,
-            })
-            .as_bytes();
-
-            let ptr_name = Allocator::alloc(self.core, full_name.len() as u32)?;
-            self.core.write_bytes(ptr_name, &full_name)?;
-
-            let ptr_field = Allocator::alloc(self.core, size_of::<JavaField>() as u32)?;
-            let offset_or_value = if field.access_flag == JavaFieldAccessFlag::STATIC {
-                0
-            } else {
-                (index as u32) * 4
-            };
-
-            write_generic(
-                self.core,
-                ptr_field,
-                JavaField {
-                    access_flag: JavaFieldAccessFlagBit::from_access_flag(field.access_flag).bits(),
-                    ptr_class,
-                    ptr_name,
-                    offset_or_value,
-                },
-            )?;
-
-            fields.push(ptr_field);
-        }
-        let ptr_fields = self.write_null_terminated_table(&fields)?;
-
-        let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(self.core, ptr_name, name)?;
-
-        let ptr_descriptor = Allocator::alloc(self.core, size_of::<JavaClassDescriptor>() as u32)?;
-        write_generic(
-            self.core,
-            ptr_descriptor,
-            JavaClassDescriptor {
-                ptr_name,
-                unk1: 0,
-                ptr_parent_class: ptr_parent_class.unwrap_or(0),
-                ptr_methods,
-                ptr_interfaces: 0,
-                ptr_fields_or_element_type: ptr_fields,
-                method_count: methods.len() as u16,
-                fields_size: (fields.len() * 4) as u16,
-                access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
-                unk6: 0,
-                unk7: 0,
-                unk8: 0,
-            },
-        )?;
-
-        let vtable = vtable_builder.serialize();
-        let ptr_vtable = self.write_null_terminated_table(&vtable)?;
-
-        write_generic(
-            self.core,
-            ptr_class,
-            JavaClass {
-                ptr_next: ptr_class + 4,
-                unk1: 0,
-                ptr_descriptor,
-                ptr_vtable,
-                vtable_count: vtable.len() as u16,
-                unk_flag: 8,
-            },
-        )?;
-
-        self.write_loaded_class(ptr_class)?;
-
-        Ok(ptr_class)
-    }
-
-    fn write_loaded_class(&mut self, ptr_class: u32) -> JavaResult<()> {
-        let context_data = self.read_context_data()?;
-        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
-        write_generic(
-            self.core,
-            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
-            ptr_class,
-        )?;
-
-        Ok(())
-    }
-
-    fn register_java_method(&mut self, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
-        struct JavaMethodProxy {
-            body: JavaMethodBody,
-            native: bool,
-        }
-
-        impl JavaMethodProxy {
-            pub fn new(body: JavaMethodBody, native: bool) -> Self {
-                Self { body, native }
-            }
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMethodProxy {
-            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
-                let a1 = u32::get(core, 1);
-                let a2 = u32::get(core, 2);
-                let a3 = u32::get(core, 3);
-                let a4 = u32::get(core, 4);
-                let a5 = u32::get(core, 5);
-                let a6 = u32::get(core, 6);
-
-                let args = if self.native {
-                    (0..6).map(|x| read_generic(core, a1 + x * 4)).collect::<JavaResult<Vec<u32>>>()?
-                } else {
-                    vec![a1, a2, a3, a4, a5, a6]
-                };
-
-                let mut context = KtfJavaContext::new(core, backend);
-
-                let result = self.body.call(&mut context, &args).await?; // TODO do we need arg proxy?
-
-                Ok(result)
-            }
-        }
-
-        let proxy = JavaMethodProxy::new(body, native);
-
-        self.core.register_function(proxy, self.backend)
     }
 
     fn read_ptr_class(&self, ptr_class: u32) -> JavaResult<(JavaClass, JavaClassDescriptor, String)> {
@@ -881,14 +469,14 @@ impl JavaContext for KtfJavaContext<'_> {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let ptr_class = self.get_or_load_ptr_class(class_name).await?;
+        let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
 
         self.instantiate_from_ptr_class(ptr_class).await
     }
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class_array = self.get_or_load_ptr_class(&array_type).await?;
+        let ptr_class_array = ClassLoader::get_or_load_ptr_class(self, &array_type).await?;
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count).await?;
 
@@ -932,7 +520,7 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let ptr_class = self.get_or_load_ptr_class(class_name).await?;
+        let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
 
         let ptr_method = self.get_method(
             ptr_class,
@@ -975,7 +563,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<u32> {
-        let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
+        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -985,7 +573,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()> {
-        let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
+        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let mut field: JavaField = read_generic(self.core, ptr_field)?;
 
