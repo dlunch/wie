@@ -1,10 +1,10 @@
-use alloc::{vec, vec::Vec};
 use alloc::string::String;
+use alloc::{vec, vec::Vec};
 
 use crate::{
     base::{CContext, CMethodBody},
-    CResult,
     method::MethodImpl,
+    CResult,
 };
 
 fn gen_stub(id: u32, name: &'static str) -> CMethodBody {

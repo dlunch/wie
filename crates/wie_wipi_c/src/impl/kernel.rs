@@ -37,10 +37,16 @@ async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
 
 async fn get_system_property(context: &mut dyn CContext, p_id: u32, p_out: u32, buf_size: u32) -> CResult<i32> {
     let value = format!("prop{}\x00", p_id);
-    tracing::warn!("stub MC_knlGetSystemProperty({:#x}, {:#x}, {}) - returning {}", p_id, p_out, buf_size, &value);
+    tracing::warn!(
+        "stub MC_knlGetSystemProperty({:#x}, {:#x}, {}) - returning {}",
+        p_id,
+        p_out,
+        buf_size,
+        &value,
+    );
 
     if (buf_size as i64) < (value.len() as i64) {
-        return Ok(-18) // M_E_SHORTBUF
+        return Ok(-18); // M_E_SHORTBUF
     }
     context.write_bytes(p_out, value.as_bytes())?;
 

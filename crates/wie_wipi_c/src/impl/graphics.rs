@@ -1,10 +1,10 @@
 mod framebuffer;
-mod image;
 mod grp_context;
+mod image;
 
 use alloc::{vec, vec::Vec};
-use core::mem::size_of;
 use bytemuck::Zeroable;
+use core::mem::size_of;
 
 use wie_backend::{Color, Image};
 use wie_base::util::{read_generic, write_generic};
@@ -12,10 +12,10 @@ use wie_base::util::{read_generic, write_generic};
 use crate::{
     base::{CContext, CMemoryId, CMethodBody, CResult},
     method::MethodImpl,
+    method::TypeConverter,
+    r#impl::graphics::framebuffer::WIPICDisplayInfo,
+    r#impl::graphics::grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
 };
-use crate::method::TypeConverter;
-use crate::r#impl::graphics::framebuffer::WIPICDisplayInfo;
-use crate::r#impl::graphics::grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx};
 
 use self::{framebuffer::WIPICFramebuffer, image::WIPICImage};
 
@@ -180,15 +180,9 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
 }
 
 async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32) -> CResult<u32> {
-    tracing::trace!(
-        "MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})",
-        r, g, b,
-    );
+    tracing::trace!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})", r, g, b);
     if (r > 0xff) || (g > 0xff) | (b > 0xff) {
-        tracing::debug!(
-            "MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits",
-            r, g, b,
-        );
+        tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
     }
 
     let rgb32 = Color::new(r as u8, g as u8, b as u8, 0).to_argb32();
@@ -196,11 +190,7 @@ async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32)
 }
 
 async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u32) -> CResult<u32> {
-    tracing::debug!(
-        "MC_grpGetDisplayInfo({:#x}, {:#x})",
-        reserved,
-        out_ptr,
-    );
+    tracing::debug!("MC_grpGetDisplayInfo({:#x}, {:#x})", reserved, out_ptr);
 
     assert_eq!(reserved, 0);
     let canvas = context.backend().screen_canvas();

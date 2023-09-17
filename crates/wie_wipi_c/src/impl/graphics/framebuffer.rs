@@ -7,7 +7,6 @@ use wie_backend::{Canvas, Image};
 
 use crate::base::{CContext, CMemoryId};
 
-
 /// MC_GrpDisplayInfo
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
