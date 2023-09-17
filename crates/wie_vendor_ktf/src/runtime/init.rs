@@ -123,16 +123,11 @@ pub struct KtfPeb {
     pub ptr_current_java_exception_handler: u32,
 }
 
-pub struct ModuleInfo {
-    pub fn_init: u32,
-    pub fn_get_class: u32,
-}
-
 pub async fn start(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Result<u32> {
     core.run_function(base_address + 1, &[bss_size]).await
 }
 
-pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyhow::Result<ModuleInfo> {
+pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyhow::Result<u32> {
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
@@ -222,10 +217,7 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyho
         return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
     }
 
-    Ok(ModuleInfo {
-        fn_init: wipi_exe.fn_init,
-        fn_get_class: exe_interface_functions.fn_get_class,
-    })
+    Ok(wipi_exe.fn_init)
 }
 
 async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: String) -> anyhow::Result<u32> {

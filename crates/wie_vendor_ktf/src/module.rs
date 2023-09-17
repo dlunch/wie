@@ -5,7 +5,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use wie_backend::Backend;
 use wie_base::{util::ByteWrite, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::{r#impl::org::kwis::msp::lcdui::Main, JavaContext};
+use wie_wipi_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
 use crate::runtime::KtfJavaContext;
 
@@ -45,50 +45,22 @@ impl KtfWipiModule {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
-        let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?;
-
-        let mut java_context = KtfJavaContext::new(core, backend);
-
-        let instance = java_context.instantiate_from_ptr_class(ptr_main_class).await?;
-        java_context.call_method(&instance, "<init>", "()V", &[]).await?;
-
-        tracing::debug!("Main class instance: {:#x}", instance.ptr_instance);
-
-        let arg = java_context.instantiate_array("Ljava/lang/String;", 0).await?;
-        java_context
-            .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
-            .await?;
-
-        Main::start(&mut java_context).await?;
-
-        Ok(())
-    }
-
-    async fn init(core: &mut ArmCore, backend: &Backend, base_address: u32, bss_size: u32, main_class_name: &str) -> anyhow::Result<u32> {
         let wipi_exe = crate::runtime::start(core, base_address, bss_size).await?;
         tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 
-        let module = crate::runtime::init(core, backend, wipi_exe).await?;
+        let fn_init = crate::runtime::init(core, backend, wipi_exe).await?;
+        tracing::debug!("Call wipi init at {:#x}", fn_init);
 
-        tracing::debug!("Call wipi init at {:#x}", module.fn_init);
-        let result = core.run_function::<u32>(module.fn_init, &[]).await?;
+        let result = core.run_function::<u32>(fn_init, &[]).await?;
         if result != 0 {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let ptr_main_class_name = Allocator::alloc(core, 20)?; // TODO size fix
-        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
+        let mut java_context = KtfJavaContext::new(core, backend);
 
-        tracing::debug!("Call class getter at {:#x}", module.fn_get_class);
-        let ptr_main_class = core.run_function(module.fn_get_class, &[ptr_main_class_name]).await?;
-        if ptr_main_class == 0 {
-            return Err(anyhow::anyhow!("Failed to get main class {}", main_class_name));
-        }
-        Allocator::free(core, ptr_main_class_name)?;
+        Jlet::start(&mut java_context, &main_class_name).await?;
 
-        tracing::debug!("Got main class: {:#x}", ptr_main_class);
-
-        Ok(ptr_main_class)
+        Ok(())
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {

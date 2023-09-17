@@ -460,7 +460,12 @@ impl<'a> KtfJavaContext<'a> {
                     let ptr_class = self.core.run_function(fn_get_class, &[ptr_name]).await?;
                     Allocator::free(self.core, ptr_name)?;
 
-                    Ok(ptr_class)
+                    if ptr_class != 0 {
+                        self.write_loaded_class(ptr_class)?;
+                        Ok(ptr_class)
+                    } else {
+                        Err(anyhow::anyhow!("Cannot find class {}", name))
+                    }
                 }
             }
         }
