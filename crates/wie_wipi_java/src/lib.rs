@@ -5,7 +5,7 @@ extern crate alloc;
 
 mod array;
 mod base;
-mod r#impl;
+pub mod r#impl;
 mod method;
 mod proxy;
 
@@ -13,5 +13,4 @@ pub use self::{
     array::Array,
     base::{get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult},
     proxy::JavaObjectProxy,
-    r#impl::java::lang::{Object, String},
 };

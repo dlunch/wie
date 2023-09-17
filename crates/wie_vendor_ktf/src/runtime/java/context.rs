@@ -11,8 +11,8 @@ use wie_backend::{
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam, PEB_BASE};
 use wie_wipi_java::{
-    get_class_proto, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult,
-    Object,
+    get_class_proto, r#impl::java::lang::Object, Array, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag,
+    JavaObjectProxy, JavaResult,
 };
 
 use crate::runtime::KtfPeb;

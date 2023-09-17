@@ -9,7 +9,7 @@ use std::{
     vec::Vec,
 };
 
-use wie_base::Module;
+use wie_base::{Event, Module};
 
 use crate::{executor::Executor, time::Time};
 
@@ -22,6 +22,7 @@ pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Canvas>>,
+    events: Rc<RefCell<Vec<Event>>>,
 }
 
 impl Default for Backend {
@@ -38,6 +39,7 @@ impl Backend {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(screen_canvas)),
+            events: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -57,6 +59,10 @@ impl Backend {
         (*self.screen_canvas).borrow_mut()
     }
 
+    pub fn events(&self) -> RefMut<'_, Vec<Event>> {
+        (*self.events).borrow_mut()
+    }
+
     pub fn run<M>(self, module: M) -> anyhow::Result<()>
     where
         M: Module + 'static,
@@ -74,7 +80,7 @@ impl Backend {
             move |buffer| {
                 executor.tick(&self.time())?;
 
-                Backend::run_task(&mut executor, &self.time(), move |module| module.render())?;
+                self.events().push(Event::Redraw);
 
                 let canvas = self.screen_canvas();
                 let rgb32 = canvas
@@ -112,6 +118,7 @@ impl Clone for Backend {
             resource: self.resource.clone(),
             time: self.time.clone(),
             screen_canvas: self.screen_canvas.clone(),
+            events: self.events.clone(),
         }
     }
 }

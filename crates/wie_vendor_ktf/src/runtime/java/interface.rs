@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::{JavaContext, JavaObjectProxy};
+use wie_wipi_java::{r#impl::java::lang::String as JavaString, JavaContext, JavaObjectProxy};
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 
@@ -113,7 +113,7 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     let str = String::from_utf16(&bytes_u16)?;
 
     let mut context = KtfJavaContext::new(core, backend);
-    let instance = wie_wipi_java::String::to_java_string(&mut context, &str).await?;
+    let instance = JavaString::to_java_string(&mut context, &str).await?;
 
     Ok(instance.ptr_instance)
 }
