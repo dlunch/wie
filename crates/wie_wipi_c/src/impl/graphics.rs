@@ -3,8 +3,9 @@ mod grp_context;
 mod image;
 
 use alloc::{vec, vec::Vec};
-use bytemuck::Zeroable;
 use core::mem::size_of;
+
+use bytemuck::Zeroable;
 
 use wie_backend::{Color, Image};
 use wie_base::util::{read_generic, write_generic};
