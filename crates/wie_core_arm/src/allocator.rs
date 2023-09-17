@@ -30,6 +30,7 @@ impl AllocationHeader {
     }
 }
 
+// crude, slow allocator.. we need to refactor it to faster one
 pub struct Allocator {}
 
 impl Allocator {
