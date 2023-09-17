@@ -28,9 +28,25 @@ impl Main {
         Ok(())
     }
 
-    async fn main(_: &mut dyn JavaContext, this: JavaObjectProxy<Main>, args: JavaObjectProxy<Array>) -> JavaResult<()> {
+    async fn main(context: &mut dyn JavaContext, this: JavaObjectProxy<Main>, args: JavaObjectProxy<Array>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:#x}, {:#x})", this.ptr_instance, args.ptr_instance);
 
-        Ok(())
+        let jlet = JavaObjectProxy::new(
+            context
+                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+                .await?,
+        );
+        let event_queue = JavaObjectProxy::new(
+            context
+                .call_method(&jlet, "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", &[])
+                .await?,
+        );
+
+        let event = context.instantiate_array("I", 4).await?;
+
+        loop {
+            context.call_method(&event_queue, "getNextEvent", "([I)V", &[event.ptr_instance]).await?;
+            context.call_method(&event_queue, "dispatchEvent", "([I)V", &[event.ptr_instance]).await?;
+        }
     }
 }
