@@ -197,7 +197,12 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyho
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
     write_generic(core, ptr_param_4, param_4)?;
 
-    let ptr_java_context_data = KtfJavaContext::init(core, ptr_param_2)?;
+    let wipi_exe: WipiExe = read_generic(core, wipi_exe)?;
+    let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
+    let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
+
+    let ptr_vtables_base = ptr_param_2 + 12;
+    let ptr_java_context_data = KtfJavaContext::init(core, ptr_vtables_base, exe_interface_functions.fn_get_class)?;
     init_peb(
         core,
         KtfPeb {
@@ -205,10 +210,6 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyho
             ptr_current_java_exception_handler: ptr_unk_struct + 32,
         },
     )?;
-
-    let wipi_exe: WipiExe = read_generic(core, wipi_exe)?;
-    let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
-    let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
     tracing::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core

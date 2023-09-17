@@ -57,7 +57,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
 pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name);
+    let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name).await;
 
     if result.is_ok() {
         Ok(0)
