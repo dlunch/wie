@@ -125,6 +125,7 @@ struct JavaClassInstanceFields {
 struct JavaContextData {
     pub classes_base: u32,
     pub ptr_vtables_base: u32,
+    pub fn_get_class: u32,
 }
 
 #[derive(Clone)]
@@ -268,8 +269,7 @@ pub struct KtfJavaContext<'a> {
 }
 
 impl<'a> KtfJavaContext<'a> {
-    pub fn init(core: &mut ArmCore, ptr_param_2: u32) -> JavaResult<u32> {
-        let ptr_vtables_base = ptr_param_2 + 12;
+    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JavaResult<u32> {
         let classes_base = Allocator::alloc(core, 0x1000)?;
 
         let ptr_java_context_data = Allocator::alloc(core, size_of::<JavaContextData>() as u32)?;
@@ -279,6 +279,7 @@ impl<'a> KtfJavaContext<'a> {
             JavaContextData {
                 classes_base,
                 ptr_vtables_base,
+                fn_get_class,
             },
         )?;
 
@@ -312,8 +313,8 @@ impl<'a> KtfJavaContext<'a> {
         }
     }
 
-    pub fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let ptr_class = self.get_or_load_ptr_class(name)?;
+    pub async fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
+        let ptr_class = self.get_or_load_ptr_class(name).await?;
 
         write_generic(self.core, ptr_target, ptr_class)?;
 
@@ -433,7 +434,8 @@ impl<'a> KtfJavaContext<'a> {
         Ok((true, index as u32))
     }
 
-    fn get_or_load_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
+    #[async_recursion::async_recursion(?Send)]
+    async fn get_or_load_ptr_class(&mut self, name: &str) -> JavaResult<u32> {
         let ptr_class = self.get_ptr_class(name)?;
 
         if let Some(ptr_class) = ptr_class {
@@ -441,13 +443,25 @@ impl<'a> KtfJavaContext<'a> {
         } else {
             // array class is created dynamically
             if name.as_bytes()[0] == b'[' {
-                let ptr_class = self.load_array_class_into_vm(name)?;
+                let ptr_class = self.load_array_class_into_vm(name).await?;
 
                 Ok(ptr_class)
             } else {
-                let proto = get_class_proto(name).ok_or_else(|| anyhow::anyhow!("No such class {}", name))?;
+                let proto = get_class_proto(name);
+                if let Some(x) = proto {
+                    self.load_class_into_vm(name, x).await
+                } else {
+                    // find from client.bin
+                    let fn_get_class = self.read_context_data()?.fn_get_class;
 
-                self.load_class_into_vm(name, proto)
+                    let ptr_name = Allocator::alloc(self.core, 50)?; // TODO size fix
+                    write_null_terminated_string(self.core, ptr_name, name)?;
+
+                    let ptr_class = self.core.run_function(fn_get_class, &[ptr_name]).await?;
+                    Allocator::free(self.core, ptr_name)?;
+
+                    Ok(ptr_class)
+                }
             }
         }
     }
@@ -466,8 +480,8 @@ impl<'a> KtfJavaContext<'a> {
         Ok(None)
     }
 
-    fn load_array_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
-        let ptr_parent_class = self.get_or_load_ptr_class("java/lang/Object")?;
+    async fn load_array_class_into_vm(&mut self, name: &str) -> JavaResult<u32> {
+        let ptr_parent_class = self.get_or_load_ptr_class("java/lang/Object").await?;
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
 
         /* TODO we need load class from client.bin
@@ -527,8 +541,13 @@ impl<'a> KtfJavaContext<'a> {
         Ok(ptr_class)
     }
 
-    fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
-        let ptr_parent_class = proto.parent_class.map(|x| self.get_or_load_ptr_class(x)).transpose()?;
+    async fn load_class_into_vm(&mut self, name: &str, proto: JavaClassProto) -> JavaResult<u32> {
+        let ptr_parent_class = if let Some(x) = proto.parent_class {
+            Some(self.get_or_load_ptr_class(x).await?)
+        } else {
+            None
+        };
+
         let mut vtable_builder = JavaVtableBuilder::new(self, ptr_parent_class)?;
 
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
@@ -650,6 +669,12 @@ impl<'a> KtfJavaContext<'a> {
             },
         )?;
 
+        self.write_loaded_class(ptr_class)?;
+
+        Ok(ptr_class)
+    }
+
+    fn write_loaded_class(&mut self, ptr_class: u32) -> JavaResult<()> {
         let context_data = self.read_context_data()?;
         let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
         write_generic(
@@ -658,7 +683,7 @@ impl<'a> KtfJavaContext<'a> {
             ptr_class,
         )?;
 
-        Ok(ptr_class)
+        Ok(())
     }
 
     fn register_java_method(&mut self, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
@@ -854,14 +879,14 @@ impl JavaContext for KtfJavaContext<'_> {
             return Err(anyhow::anyhow!("Array class should not be instantiated here"));
         }
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let ptr_class = self.get_or_load_ptr_class(class_name)?;
+        let ptr_class = self.get_or_load_ptr_class(class_name).await?;
 
         self.instantiate_from_ptr_class(ptr_class).await
     }
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class_array = self.get_or_load_ptr_class(&array_type)?;
+        let ptr_class_array = self.get_or_load_ptr_class(&array_type).await?;
 
         let proxy = self.instantiate_array_inner(ptr_class_array, count).await?;
 
@@ -905,7 +930,7 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let ptr_class = self.get_or_load_ptr_class(class_name)?;
+        let ptr_class = self.get_or_load_ptr_class(class_name).await?;
 
         let ptr_method = self.get_method(
             ptr_class,

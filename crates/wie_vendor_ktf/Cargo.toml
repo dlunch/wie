@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 anyhow = { workspace = true }
+async-recursion = { version = "^1.0" }
 async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
