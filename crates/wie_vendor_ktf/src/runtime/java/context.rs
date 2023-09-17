@@ -898,7 +898,7 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let ptr_class = self.get_ptr_class(class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
+        let ptr_class = self.get_or_load_ptr_class(class_name)?;
 
         let ptr_method = self.get_method(
             ptr_class,
