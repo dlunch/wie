@@ -484,15 +484,12 @@ impl<'a> KtfJavaContext<'a> {
         let ptr_parent_class = self.get_or_load_ptr_class("java/lang/Object").await?;
         let ptr_class = Allocator::alloc(self.core, size_of::<JavaClass>() as u32)?;
 
-        /* TODO we need load class from client.bin
         let element_type_name = &name[1..];
         let element_type = if element_type_name.starts_with('L') {
-            self.get_ptr_class(&element_type_name[1..element_type_name.len() - 1])?
+            self.get_or_load_ptr_class(&element_type_name[1..element_type_name.len() - 1]).await?
         } else {
             0
         };
-        */
-        let element_type = 0;
 
         let ptr_name = Allocator::alloc(self.core, (name.len() + 1) as u32)?;
         write_null_terminated_string(self.core, ptr_name, name)?;
