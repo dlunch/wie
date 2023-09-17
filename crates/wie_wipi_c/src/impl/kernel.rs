@@ -84,6 +84,7 @@ async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32,
 
     #[async_trait::async_trait(?Send)]
     impl MethodBody<CError> for TimerCallback {
+        #[tracing::instrument(name = "timer", skip_all)]
         async fn call(&self, context: &mut dyn CContext, _: &[u32]) -> Result<u32, CError> {
             context.sleep(self.timeout).await;
 
