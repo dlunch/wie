@@ -2,6 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    r#impl::org::kwis::msp::lcdui::EventQueue,
     JavaFieldAccessFlag, JavaObjectProxy,
 };
 
@@ -19,6 +20,12 @@ impl Jlet {
                     "getActiveJlet",
                     "()Lorg/kwis/msp/lcdui/Jlet;",
                     Self::get_active_jlet,
+                    JavaMethodFlag::NONE,
+                ),
+                JavaMethodProto::new(
+                    "getEventQueue",
+                    "()Lorg/kwis/msp/lcdui/EventQueue;",
+                    Self::get_event_queue,
                     JavaMethodFlag::NONE,
                 ),
             ],
@@ -61,5 +68,13 @@ impl Jlet {
 
         let jlet = JavaObjectProxy::new(context.get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive")?);
         Ok(jlet)
+    }
+
+    async fn get_event_queue(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<JavaObjectProxy<EventQueue>> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue");
+
+        let eq = JavaObjectProxy::new(context.get_field(&this.cast(), "eq")?);
+
+        Ok(eq)
     }
 }
