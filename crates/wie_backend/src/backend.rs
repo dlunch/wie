@@ -75,12 +75,11 @@ impl Backend {
         let window = Window::new(screen_canvas.width(), screen_canvas.height());
         core::mem::drop(screen_canvas);
 
+        self.events().push(Event::Redraw);
         window.run(
             || Ok::<_, anyhow::Error>(()),
             move |buffer| {
                 executor.tick(&self.time())?;
-
-                self.events().push(Event::Redraw);
 
                 let canvas = self.screen_canvas();
                 let rgb32 = canvas

@@ -1,5 +1,7 @@
 use alloc::vec;
 
+use wie_base::Event;
+
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
@@ -54,7 +56,7 @@ impl Card {
         Ok(screen_canvas.height())
     }
 
-    async fn repaint(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: u32, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
+    async fn repaint(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: u32, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Card::repaint({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
@@ -64,11 +66,15 @@ impl Card {
             a3
         );
 
+        context.backend().events().push(Event::Redraw);
+
         Ok(())
     }
 
-    async fn service_repaints(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
+    async fn service_repaints(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:#x})", this.ptr_instance);
+
+        context.backend().events().push(Event::Redraw);
 
         Ok(())
     }
