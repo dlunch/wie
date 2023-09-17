@@ -13,11 +13,13 @@ use wie_base::util::{read_generic, write_generic};
 use crate::{
     base::{CContext, CMemoryId, CMethodBody, CResult},
     method::MethodImpl,
-    r#impl::graphics::framebuffer::WIPICDisplayInfo,
-    r#impl::graphics::grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
 };
 
-use self::{framebuffer::WIPICFramebuffer, image::WIPICImage};
+use self::{
+    framebuffer::{WIPICDisplayInfo, WIPICFramebuffer},
+    grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
+    image::WIPICImage,
+};
 
 fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented graphics{}: {}", id, name)) };
