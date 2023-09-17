@@ -12,7 +12,6 @@ use wie_base::util::{read_generic, write_generic};
 use crate::{
     base::{CContext, CMemoryId, CMethodBody, CResult},
     method::MethodImpl,
-    method::TypeConverter,
     r#impl::graphics::framebuffer::WIPICDisplayInfo,
     r#impl::graphics::grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
 };
@@ -43,9 +42,8 @@ async fn init_context(context: &mut dyn CContext, p_grp_ctx: u32) -> CResult<()>
     Ok(())
 }
 
-async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op_val: u32, pv: u32) -> CResult<()> {
-    let op = WIPICGraphicsContextIdx::to_rust(context, op_val);
-    tracing::trace!("MC_grpSetContext({:#x}, {:#x}({:?}), {:#x})", p_grp_ctx, op_val, op, pv);
+async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op: WIPICGraphicsContextIdx, pv: u32) -> CResult<()> {
+    tracing::trace!("MC_grpSetContext({:#x}, {:?}, {:#x})", p_grp_ctx, op, pv);
     let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
     match op {
         WIPICGraphicsContextIdx::ClipIdx => {
@@ -81,7 +79,7 @@ async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op_val: u32, pv
             grp_ctx.offset = read_generic(context, pv)?;
         }
         _ => {
-            tracing::warn!("MC_grpSetContext({:#x}, {:#x}, {:#x}): ignoring invalid op", p_grp_ctx, op_val, pv);
+            tracing::warn!("MC_grpSetContext({:#x}, {:?}, {:#x}): ignoring invalid op", p_grp_ctx, op, pv);
         }
     }
     write_generic(context, p_grp_ctx, grp_ctx)?;

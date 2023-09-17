@@ -40,7 +40,8 @@ pub enum WIPICGraphicsContextIdx {
     OffsetIdx = 10,
     OutlineIdx = 11,
 
-    /// Just for debugging - this field doesn't exist in WIPI.
+    /// Unknown values are mapped to this enum value.
+    /// Note that this field doesn't exist in WIPI and the choice of this ordinal is arbitrary.
     Invalid = 0xff,
 }
 
