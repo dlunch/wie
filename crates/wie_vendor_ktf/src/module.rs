@@ -2,10 +2,10 @@ use alloc::string::String;
 
 use futures::{future::LocalBoxFuture, FutureExt};
 
-use wie_backend::{Backend, Image};
+use wie_backend::Backend;
 use wie_base::{util::ByteWrite, Core, Module};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::{JavaContext, JavaObjectProxy};
+use wie_wipi_java::{r#impl::org::kwis::msp::lcdui::Main, JavaContext};
 
 use crate::runtime::KtfJavaContext;
 
@@ -13,7 +13,6 @@ use crate::runtime::KtfJavaContext;
 pub struct KtfWipiModule {
     core: ArmCore,
     entry: u32,
-    render: u32,
     base_address: u32,
     bss_size: u32,
     ptr_main_class_name: u32,
@@ -34,19 +33,17 @@ impl KtfWipiModule {
         core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
 
         let entry = core.register_function(Self::do_start, backend)?;
-        let render = core.register_function(Self::do_render, backend)?;
 
         Ok(Self {
             core,
             entry,
-            render,
             base_address,
             bss_size,
             ptr_main_class_name,
         })
     }
 
-    #[tracing::instrument(name = "main", skip_all)]
+    #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
         let ptr_main_class = Self::init(core, backend, base_address, bss_size, &main_class_name).await?;
 
@@ -62,57 +59,7 @@ impl KtfWipiModule {
             .call_method(&instance, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
             .await?;
 
-        Ok(())
-    }
-
-    #[tracing::instrument(name = "render", skip_all)]
-    async fn do_render(core: &mut ArmCore, backend: &mut Backend) -> anyhow::Result<()> {
-        let mut java_context = KtfJavaContext::new(core, backend);
-
-        let jlet = JavaObjectProxy::new(
-            java_context
-                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
-                .await?,
-        );
-
-        let display = JavaObjectProxy::new(java_context.get_field(&jlet, "dis")?);
-        if display.ptr_instance == 0 {
-            return Ok(());
-        }
-
-        let cards = JavaObjectProxy::new(java_context.get_field(&display, "cards")?);
-        let card = JavaObjectProxy::new(java_context.load_array_u32(&cards, 0, 1)?[0]);
-        if card.ptr_instance == 0 {
-            return Ok(());
-        }
-
-        let graphics = java_context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?;
-        java_context
-            .call_method(&graphics, "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", &[display.ptr_instance])
-            .await?;
-
-        java_context
-            .call_method(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
-            .await?;
-
-        let image = JavaObjectProxy::new(java_context.get_field(&graphics, "img")?);
-        java_context.destroy(graphics)?;
-
-        if image.ptr_instance != 0 {
-            let data = JavaObjectProxy::new(java_context.get_field(&image, "imgData")?);
-            let size = java_context.array_length(&data)?;
-            let buffer = java_context.load_array_u8(&data, 0, size)?;
-
-            java_context.destroy(data.cast())?;
-            java_context.destroy(image)?;
-
-            let mut canvas = backend.screen_canvas();
-            let (width, height) = (canvas.width(), canvas.height());
-
-            let src_canvas = Image::from_raw(width, height, buffer);
-
-            canvas.draw(0, 0, width, height, &src_canvas, 0, 0);
-        }
+        Main::start(&mut java_context).await?;
 
         Ok(())
     }
@@ -165,9 +112,5 @@ impl Module for KtfWipiModule {
         self.core
             .run_function::<()>(self.entry, &[self.base_address, self.bss_size, self.ptr_main_class_name])
             .boxed_local()
-    }
-
-    fn render(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>> {
-        self.core.run_function::<()>(self.render, &[]).boxed_local()
     }
 }
