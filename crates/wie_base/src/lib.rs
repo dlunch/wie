@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+pub mod methods;
 pub mod util;
 
 use alloc::{boxed::Box, string::String};
