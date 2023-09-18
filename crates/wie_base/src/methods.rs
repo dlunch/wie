@@ -8,7 +8,7 @@ macro_rules! __impl_fn_helper {
             $($arg: TypeConverter<$arg> + 'a),*
         {
             type Output = Fut;
-            #[allow(unused_assignments, non_snake_case)]
+            #[allow(unused_assignments, non_snake_case, unused_mut)]
             fn do_call(&self, context: &'a mut dyn $context, args: &[u32]) -> Fut {
                 let mut index = 0;
                 $(
