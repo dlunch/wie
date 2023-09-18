@@ -1,18 +1,5 @@
 #[macro_export]
 macro_rules! __impl_fn_helper {
-    ($context: ident,) => {
-        impl<'a, E, R, F, Fut> FnHelper<'a, E, R, ()> for F
-        where
-            F: Fn(&'a mut dyn $context) -> Fut,
-            Fut: Future<Output = Result<R, E>> + 'a,
-        {
-            type Output = Fut;
-            fn do_call(&self, context: &'a mut dyn $context, _args: &[u32]) -> Fut {
-                self(context)
-            }
-        }
-    };
-
     ($context: ident, $($arg: ident),*) => {
         impl<'a, E, R, F, Fut, $($arg),*> FnHelper<'a, E, R, ($($arg,)*)> for F
         where
