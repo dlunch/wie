@@ -39,14 +39,16 @@ async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<
 }
 
 async fn init_context(context: &mut dyn CContext, p_grp_ctx: u32) -> CResult<()> {
-    tracing::trace!("MC_grpInitContext({:#x})", p_grp_ctx);
+    tracing::debug!("MC_grpInitContext({:#x})", p_grp_ctx);
+
     let grp_ctx: WIPICGraphicsContext = WIPICGraphicsContext::zeroed();
     write_generic(context, p_grp_ctx, grp_ctx)?;
     Ok(())
 }
 
 async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op: WIPICGraphicsContextIdx, pv: u32) -> CResult<()> {
-    tracing::trace!("MC_grpSetContext({:#x}, {:?}, {:#x})", p_grp_ctx, op, pv);
+    tracing::debug!("MC_grpSetContext({:#x}, {:?}, {:#x})", p_grp_ctx, op, pv);
+
     let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
     match op {
         WIPICGraphicsContextIdx::ClipIdx => {
@@ -91,7 +93,8 @@ async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op: WIPICGraphi
 }
 
 async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32, p_gctx: u32) -> CResult<()> {
-    tracing::trace!("MC_grpPutPixel({:#x}, {:#x}, {:#x}, {:?})", dst_fb.0, x, y, p_gctx);
+    tracing::debug!("MC_grpPutPixel({:#x}, {:#x}, {:#x}, {:?})", dst_fb.0, x, y, p_gctx);
+
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
@@ -101,7 +104,8 @@ async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32
 }
 
 async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32, w: u32, h: u32, p_gctx: u32) -> CResult<()> {
-    tracing::trace!("MC_grpFillRect({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
+    tracing::debug!("MC_grpFillRect({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
+
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
@@ -184,7 +188,7 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
 }
 
 async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32) -> CResult<u32> {
-    tracing::trace!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})", r, g, b);
+    tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})", r, g, b);
     if (r > 0xff) || (g > 0xff) | (b > 0xff) {
         tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
     }
