@@ -1,11 +1,10 @@
+use alloc::boxed::Box;
 use core::{
     future::Future,
     marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
-
-use futures::{future::LocalBoxFuture, FutureExt};
 
 use wie_backend::AsyncCallable;
 
@@ -15,7 +14,7 @@ pub struct SpawnFuture<C, R, E> {
     core: ArmCore,
     context: ArmCoreContext,
     stack_base: u32,
-    callable_fut: LocalBoxFuture<'static, Result<R, E>>,
+    callable_fut: Pin<Box<dyn Future<Output = Result<R, E>>>>,
     _phantom: PhantomData<C>,
 }
 
@@ -28,7 +27,7 @@ where
     pub fn new(mut core: ArmCore, callable: C) -> Self {
         let stack_base = Allocator::alloc(&mut core, 0x1000).unwrap();
         let context = ArmCoreContext::new(stack_base);
-        let callable_fut = callable.call().boxed_local();
+        let callable_fut = Pin::new(Box::new(callable.call()));
 
         Self {
             core,

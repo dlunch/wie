@@ -15,7 +15,6 @@ anyhow = { version = "^1.0", default-features = false }
 async-trait = { version = "^0.1", default-features = false }
 bitflags = { version = "^2.3", default-features = false }
 bytemuck = { version = "^1.13", default-features = false, features = ["derive"] }
-futures = { version = "^0.3", features = ["alloc"], default-features = false }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 
 [package]

@@ -5,12 +5,10 @@ use std::{
     future::Future,
     pin::Pin,
     rc::Rc,
-    task::{Context, Poll},
+    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
     thread::sleep,
     time::Duration,
 };
-
-use futures::task::noop_waker;
 
 use crate::time::{Instant, Time};
 
@@ -164,7 +162,7 @@ impl Executor {
                 }
             }
 
-            let waker = noop_waker();
+            let waker = self.create_waker();
             let mut context = Context::from_waker(&waker);
             self.inner.borrow_mut().current_task_id = Some(task_id);
 
@@ -188,6 +186,22 @@ impl Executor {
 
     pub(crate) fn sleep(&mut self, task_id: usize, until: Instant) {
         self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
+    }
+
+    fn create_waker(&self) -> Waker {
+        unsafe fn noop_clone(_data: *const ()) -> RawWaker {
+            noop_raw_waker()
+        }
+
+        unsafe fn noop(_data: *const ()) {}
+
+        const NOOP_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(noop_clone, noop, noop, noop);
+
+        const fn noop_raw_waker() -> RawWaker {
+            RawWaker::new(core::ptr::null(), &NOOP_WAKER_VTABLE)
+        }
+
+        unsafe { Waker::from_raw(noop_raw_waker()) }
     }
 }
 

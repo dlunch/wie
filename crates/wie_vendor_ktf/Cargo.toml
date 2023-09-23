@@ -10,7 +10,6 @@ async-recursion = { version = "^1.0" }
 async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
-futures = { workspace = true }
 num-traits = { version = "^0.2" }
 tracing = { workspace = true }
 
