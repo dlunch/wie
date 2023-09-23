@@ -176,6 +176,9 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
     let mut screen_canvas = context.backend().screen_canvas();
 
     screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &src_canvas, 0, 0);
+    drop(screen_canvas);
+
+    context.backend().repaint();
 
     Ok(0)
 }
