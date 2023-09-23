@@ -89,7 +89,7 @@ impl Backend {
     {
         let mut executor = Executor::new();
 
-        module.start();
+        executor.run(module.start())?;
 
         Window::run(self.window.clone(), move |event| {
             match event {

@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     future::Future,
-    pin::Pin,
+    pin::{pin, Pin},
     rc::Rc,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
     thread::sleep,
@@ -127,23 +127,20 @@ impl Executor {
         Ok(())
     }
 
-    pub fn run<C, R, E>(&mut self, time: &Time, callable: C) -> anyhow::Result<()>
+    pub fn run<F>(&mut self, future: F) -> F::Output
     where
-        C: AsyncCallable<R, E> + 'static,
-        E: Debug,
+        F: Future,
     {
-        let task_id = self.spawn(callable);
+        let waker = self.create_waker();
+        let mut context = Context::from_waker(&waker);
+
+        let mut future = pin!(future);
 
         loop {
-            let now = time.now();
-            self.step(now)?;
-
-            if !self.inner.borrow().tasks.contains_key(&task_id) {
-                break;
+            if let Poll::Ready(x) = future.as_mut().poll(&mut context) {
+                return x;
             }
         }
-
-        Ok(())
     }
 
     fn step(&mut self, now: Instant) -> anyhow::Result<()> {
