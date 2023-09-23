@@ -61,12 +61,12 @@ impl Backend {
         (*self.screen_canvas).borrow_mut()
     }
 
-    pub fn events(&self) -> RefMut<'_, Vec<Event>> {
-        (*self.events).borrow_mut()
-    }
-
     pub fn window(&self) -> RefMut<'_, Window> {
         (*self.window).borrow_mut()
+    }
+
+    pub fn pop_event(&self) -> Option<Event> {
+        (*self.events).borrow_mut().pop()
     }
 
     pub fn repaint(&self) {
@@ -101,7 +101,7 @@ impl Backend {
         Window::run(self.window.clone(), move |event| {
             match event {
                 Event::Redraw => {
-                    self.events().push(Event::Redraw);
+                    self.events.borrow_mut().push(Event::Redraw);
                 }
                 Event::Update => executor.tick(&self.time())?,
             }
