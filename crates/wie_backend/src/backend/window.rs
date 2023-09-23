@@ -1,10 +1,4 @@
-use std::{
-    cell::RefCell,
-    fmt::Debug,
-    num::NonZeroU32,
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::{cell::RefCell, fmt::Debug, num::NonZeroU32, rc::Rc};
 
 use softbuffer::{Context, Surface};
 use winit::{
@@ -57,8 +51,6 @@ impl Window {
         C: FnMut(wie_base::Event) -> Result<(), E> + 'static,
         E: Debug,
     {
-        let mut last_redraw = Instant::now();
-
         let event_loop = self_.borrow_mut().event_loop.take().unwrap();
 
         event_loop.run(move |event, _, control_flow| match event {
@@ -82,19 +74,8 @@ impl Window {
                     *control_flow = ControlFlow::Exit;
                 }
             }
-            Event::RedrawEventsCleared => {
-                let now = Instant::now();
-                let next_frame_time = last_redraw + Duration::from_millis(16); // TODO hardcoded
 
-                if now < next_frame_time {
-                    *control_flow = ControlFlow::WaitUntil(next_frame_time)
-                } else {
-                    self_.borrow().window.request_redraw();
-                    last_redraw = now;
-                }
-            }
-
-            _ => *control_flow = ControlFlow::Wait,
+            _ => *control_flow = ControlFlow::Poll,
         })
     }
 }
