@@ -13,8 +13,9 @@ pub trait Module {
     fn crash_dump(&self) -> alloc::string::String;
 }
 
+#[derive(Debug)]
 pub enum Event {
     Update,
     Redraw,
-    Keyboard(u32),
+    Keydown(u32),
 }
