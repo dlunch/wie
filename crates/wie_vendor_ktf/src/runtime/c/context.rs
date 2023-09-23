@@ -110,7 +110,7 @@ impl CContext for KtfCContext<'_> {
 
         let backend = self.backend.clone();
 
-        task::spawn(SpawnProxy { backend, callback });
+        self.core.spawn(SpawnProxy { backend, callback });
 
         Ok(())
     }
