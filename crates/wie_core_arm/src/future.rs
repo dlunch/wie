@@ -13,7 +13,7 @@ use wie_base::util::ByteWrite;
 use crate::{
     context::ArmCoreContext,
     core::{ArmCoreResult, RUN_FUNCTION_LR},
-    ArmCore,
+    Allocator, ArmCore,
 };
 
 pub struct RunFunctionFuture<R> {
@@ -125,7 +125,8 @@ impl RunFunctionResult<()> for () {
 
 pub struct SpawnFuture<C, R, E> {
     core: ArmCore,
-    context: Option<ArmCoreContext>,
+    context: ArmCoreContext,
+    stack_base: u32,
     callable_fut: LocalBoxFuture<'static, Result<R, E>>,
     _phantom: PhantomData<C>,
 }
@@ -137,12 +138,14 @@ where
     E: core::fmt::Debug + 'static,
 {
     pub fn new(mut core: ArmCore, callable: C) -> Self {
-        let context = core.new_context();
+        let stack_base = Allocator::alloc(&mut core, 0x1000).unwrap();
+        let context = ArmCoreContext::new(stack_base);
         let callable_fut = callable.call().boxed_local();
 
         Self {
             core,
-            context: Some(context),
+            context,
+            stack_base,
             callable_fut,
             _phantom: PhantomData,
         }
@@ -155,14 +158,14 @@ impl<C, R, E> Future for SpawnFuture<C, R, E> {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let previous_context = self.core.save_context();
 
-        self.core.clone().restore_context(self.context.as_ref().unwrap()); // XXX clone is added to satisfy borrow checker
+        self.core.clone().restore_context(&self.context); // XXX clone is added to satisfy borrow checker
         let result = self.callable_fut.as_mut().poll(cx);
-        self.context = Some(self.core.save_context());
+        self.context = self.core.save_context();
         self.core.restore_context(&previous_context);
 
         if let Poll::Ready(x) = result {
-            let context = self.context.take().unwrap();
-            self.core.free_context(context);
+            let stack_base = self.stack_base;
+            Allocator::free(&mut self.core, stack_base).unwrap();
 
             Poll::Ready(x)
         } else {
