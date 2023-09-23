@@ -91,9 +91,6 @@ impl Backend {
 
         module.start();
 
-        let screen_canvas = self.screen_canvas();
-        core::mem::drop(screen_canvas);
-
         Window::run(self.window.clone(), move |event| {
             match event {
                 Event::Redraw => {
