@@ -44,7 +44,7 @@ impl EventQueue {
         );
 
         loop {
-            let maybe_event = context.backend().events().pop();
+            let maybe_event = context.backend().pop_event();
 
             if maybe_event.is_some() {
                 context.store_array_u32(&event, 0, &[41])?; // TODO correct event conversion, 41: REPAINT_EVENT
