@@ -6,6 +6,8 @@ use std::{
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
+    thread::sleep,
+    time::Duration,
 };
 
 use futures::task::noop_waker;
@@ -97,12 +99,12 @@ impl Executor {
     pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
         let _guard = ExecutorGuard::new(self.inner.clone());
 
-        let start = time.now();
+        let end = time.now() + 8; // TODO hardcoded
         loop {
             let now = time.now();
 
             // TODO hardcode
-            if now - start > 8 {
+            if now > end {
                 break;
             }
 
@@ -115,6 +117,11 @@ impl Executor {
             }
 
             self.step(now)?;
+        }
+
+        let now = time.now();
+        if now < end {
+            sleep(Duration::from_millis(end - now));
         }
 
         Ok(())
