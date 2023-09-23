@@ -1,8 +1,8 @@
 use alloc::{boxed::Box, string::String};
 
 use wie_backend::Backend;
-use wie_base::Module;
-use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
+use wie_base::{util::ByteWrite, Module};
+use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
 use crate::runtime::KtfJavaContext;
@@ -10,10 +10,10 @@ use crate::runtime::KtfJavaContext;
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
-    backend: Backend,
+    entry: u32,
     base_address: u32,
     bss_size: u32,
-    main_class_name: String,
+    ptr_main_class_name: u32,
 }
 
 impl KtfWipiModule {
@@ -27,31 +27,36 @@ impl KtfWipiModule {
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
+        let ptr_main_class_name = Allocator::alloc(&mut core, 20)?; // TODO size fix
+        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
+
+        let entry = core.register_function(Self::do_start, backend)?;
+
         Ok(Self {
             core,
-            backend: backend.clone(),
+            entry,
             base_address,
             bss_size,
-            main_class_name: main_class_name.into(),
+            ptr_main_class_name,
         })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(&mut self) -> anyhow::Result<()> {
-        let wipi_exe = crate::runtime::start(&mut self.core, self.base_address, self.bss_size).await?;
+    async fn do_start(core: &mut ArmCore, backend: &mut Backend, base_address: u32, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
+        let wipi_exe = crate::runtime::start(core, base_address, bss_size).await?;
         tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 
-        let fn_init = crate::runtime::init(&mut self.core, &self.backend, wipi_exe).await?;
+        let fn_init = crate::runtime::init(core, backend, wipi_exe).await?;
         tracing::debug!("Call wipi init at {:#x}", fn_init);
 
-        let result = self.core.run_function::<u32>(fn_init, &[]).await?;
+        let result = core.run_function::<u32>(fn_init, &[]).await?;
         if result != 0 {
             return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
         }
 
-        let mut java_context = KtfJavaContext::new(&mut self.core, &mut self.backend);
+        let mut java_context = KtfJavaContext::new(core, backend);
 
-        Jlet::start(&mut java_context, &self.main_class_name).await?;
+        Jlet::start(&mut java_context, &main_class_name).await?;
 
         Ok(())
     }
@@ -71,13 +76,12 @@ impl KtfWipiModule {
 #[async_trait::async_trait(?Send)]
 impl Module for KtfWipiModule {
     async fn start(&mut self) -> anyhow::Result<()> {
-        let stack_base = Allocator::alloc(&mut self.core, 0x1000).unwrap();
-        let context = ArmCoreContext::new(stack_base);
-        self.core.restore_context(&context);
+        let entry = self.entry;
+        let args = [self.base_address, self.bss_size, self.ptr_main_class_name];
 
-        self.do_start().await?;
+        let mut core = self.core.clone();
 
-        Allocator::free(&mut self.core, stack_base)?;
+        self.core.spawn(move || async move { core.run_function::<()>(entry, &args).await });
 
         Ok(())
     }
