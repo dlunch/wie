@@ -22,6 +22,7 @@ pub struct Backend {
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Canvas>>,
     events: Rc<RefCell<Vec<Event>>>,
+    window: Rc<RefCell<Window>>,
 }
 
 impl Default for Backend {
@@ -33,12 +34,14 @@ impl Default for Backend {
 impl Backend {
     pub fn new() -> Self {
         let screen_canvas = Canvas::from_image(Image::from_size(240, 320)); // TODO hardcoded size
+        let window = Window::new(screen_canvas.width(), screen_canvas.height());
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(screen_canvas)),
             events: Rc::new(RefCell::new(Vec::new())),
+            window: Rc::new(RefCell::new(window)),
         }
     }
 
@@ -75,12 +78,10 @@ impl Backend {
         });
 
         let screen_canvas = self.screen_canvas();
-        let width = screen_canvas.width();
-        let height = screen_canvas.height();
         core::mem::drop(screen_canvas);
 
         self.events().push(Event::Redraw);
-        Window::run(width, height, move |window, event| {
+        Window::run(self.window.clone(), move |event| {
             match event {
                 Event::Redraw => {
                     let canvas = self.screen_canvas();
@@ -93,7 +94,7 @@ impl Backend {
                         })
                         .collect::<Vec<_>>();
 
-                    window.paint(&rgb32);
+                    self.window.borrow_mut().paint(&rgb32);
                 }
                 Event::Update => executor.tick(&self.time())?,
             }
@@ -110,6 +111,7 @@ impl Clone for Backend {
             time: self.time.clone(),
             screen_canvas: self.screen_canvas.clone(),
             events: self.events.clone(),
+            window: self.window.clone(),
         }
     }
 }
