@@ -8,10 +8,7 @@ use unicorn_engine::{
 };
 
 use wie_backend::{task, AsyncCallable};
-use wie_base::{
-    util::{read_generic, round_up, ByteRead, ByteWrite},
-    Core, CoreContext,
-};
+use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
     context::ArmCoreContext,
@@ -227,10 +224,6 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn from_core_mut(core: &mut dyn Core) -> Option<&mut Self> {
-        core.as_any_mut().downcast_mut::<ArmCore>()
-    }
-
     pub(crate) fn read_pc_lr(&self) -> ArmCoreResult<(u32, u32)> {
         let inner = self.inner.borrow();
 
@@ -379,13 +372,11 @@ impl ArmCore {
             false
         }
     }
-}
 
-impl Core for ArmCore {
-    fn new_context(&mut self) -> Box<dyn CoreContext> {
+    pub fn new_context(&mut self) -> ArmCoreContext {
         let sp = Allocator::alloc(self, 0x1000).unwrap();
 
-        Box::new(ArmCoreContext {
+        ArmCoreContext {
             r0: 0,
             r1: 0,
             r2: 0,
@@ -403,18 +394,15 @@ impl Core for ArmCore {
             lr: 0,
             pc: 0,
             apsr: 0,
-        })
+        }
     }
 
-    fn free_context(&mut self, context: Box<dyn CoreContext>) {
-        let context = ArmCoreContext::from_context_ref(&*context).unwrap();
-
+    pub fn free_context(&mut self, context: ArmCoreContext) {
         Allocator::free(self, context.sp - 0x1000).unwrap();
     }
 
-    fn restore_context(&mut self, context: &dyn CoreContext) {
+    pub fn restore_context(&mut self, context: &ArmCoreContext) {
         let mut inner = self.inner.borrow_mut();
-        let context = ArmCoreContext::from_context_ref(context).unwrap();
 
         inner.uc.reg_write(RegisterARM::R0, context.r0 as u64).unwrap();
         inner.uc.reg_write(RegisterARM::R1, context.r1 as u64).unwrap();
@@ -435,10 +423,10 @@ impl Core for ArmCore {
         inner.uc.reg_write(RegisterARM::APSR, context.apsr as u64).unwrap();
     }
 
-    fn save_context(&self) -> Box<dyn CoreContext> {
+    pub fn save_context(&self) -> ArmCoreContext {
         let inner = self.inner.borrow();
 
-        Box::new(ArmCoreContext {
+        ArmCoreContext {
             r0: inner.uc.reg_read(RegisterARM::R0).unwrap() as u32,
             r1: inner.uc.reg_read(RegisterARM::R1).unwrap() as u32,
             r2: inner.uc.reg_read(RegisterARM::R2).unwrap() as u32,
@@ -456,10 +444,10 @@ impl Core for ArmCore {
             lr: inner.uc.reg_read(RegisterARM::LR).unwrap() as u32,
             pc: inner.uc.reg_read(RegisterARM::PC).unwrap() as u32,
             apsr: inner.uc.reg_read(RegisterARM::APSR).unwrap() as u32,
-        })
+        }
     }
 
-    fn dump_reg_stack(&self) -> String {
+    pub fn dump_reg_stack(&self) -> String {
         format!(
             "{}\nPossible call stack:\n{}\nStack:\n{}",
             self.dump_regs().unwrap(),
