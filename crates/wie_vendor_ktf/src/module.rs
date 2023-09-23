@@ -84,4 +84,8 @@ impl Module for KtfWipiModule {
 
         self.core.spawn(move || core.run_function::<()>(entry, &args).boxed_local())
     }
+
+    fn crash_dump(&self) -> String {
+        self.core.dump_reg_stack()
+    }
 }
