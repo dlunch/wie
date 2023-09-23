@@ -22,6 +22,7 @@ impl EventQueueEvent {
 }
 
 #[repr(u32)]
+#[derive(Debug)]
 #[allow(dead_code, clippy::enum_variant_names)]
 enum KeyboardEventType {
     KeyPressed = 1,
@@ -109,6 +110,7 @@ impl EventQueue {
                 let event_type = KeyboardEventType::from_raw(event[1]);
                 let code = event[2];
 
+                tracing::debug!("KeyEvent {:?} {}", event_type, code);
                 Self::key_event(context, event_type, code).await?;
             }
         }
