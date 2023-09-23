@@ -219,6 +219,13 @@ async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u3
     Ok(1)
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn copy_area(_context: &mut dyn CContext, dst: u32, dx: u32, dy: u32, w: u32, h: u32, x: u32, y: u32, pgc: u32) -> CResult<()> {
+    tracing::warn!("stub MC_grpCopyArea({:#x}, {}, {}, {}, {}, {}, {}, {:#x})", dst, dx, dy, w, h, x, y, pgc);
+
+    Ok(())
+}
+
 pub fn get_graphics_method_table() -> Vec<CMethodBody> {
     vec![
         gen_stub(0, "MC_grpGetImageProperty"),
@@ -235,7 +242,7 @@ pub fn get_graphics_method_table() -> Vec<CMethodBody> {
         fill_rect.into_body(),
         gen_stub(12, "MC_grpCopyFrameBuffer"),
         draw_image.into_body(),
-        gen_stub(14, "MC_grpCopyArea"),
+        copy_area.into_body(),
         gen_stub(15, "MC_grpDrawArc"),
         gen_stub(16, "MC_grpFillArc"),
         gen_stub(17, "MC_grpDrawString"),
