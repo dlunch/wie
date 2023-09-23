@@ -80,28 +80,26 @@ impl Backend {
         core::mem::drop(screen_canvas);
 
         self.events().push(Event::Redraw);
-        Window::run(
-            width,
-            height,
-            || Ok::<_, anyhow::Error>(()),
-            move |window| {
-                executor.tick(&self.time())?;
+        Window::run(width, height, move |window, event| {
+            match event {
+                Event::Redraw => {
+                    let canvas = self.screen_canvas();
+                    let rgb32 = canvas
+                        .raw_rgba()
+                        .chunks(4)
+                        .map(|rgba8888| {
+                            let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());
+                            rgba32 >> 8
+                        })
+                        .collect::<Vec<_>>();
 
-                let canvas = self.screen_canvas();
-                let rgb32 = canvas
-                    .raw_rgba()
-                    .chunks(4)
-                    .map(|rgba8888| {
-                        let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());
-                        rgba32 >> 8
-                    })
-                    .collect::<Vec<_>>();
+                    window.paint(&rgb32);
+                }
+                Event::Update => executor.tick(&self.time())?,
+            }
 
-                window.paint(&rgb32);
-
-                Ok(())
-            },
-        )
+            Ok::<_, anyhow::Error>(())
+        })
     }
 }
 
