@@ -99,7 +99,11 @@ impl Backend {
                 Event::Redraw => {
                     self.events.borrow_mut().push(Event::Redraw);
                 }
-                Event::Update => executor.tick(&self.time())?,
+                Event::Update => executor.tick(&self.time()).map_err(|x| {
+                    let dump = module.crash_dump();
+
+                    anyhow::anyhow!("{}\n{}", x, dump)
+                })?,
             }
 
             Ok::<_, anyhow::Error>(())
