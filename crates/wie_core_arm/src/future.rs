@@ -1,4 +1,6 @@
+use alloc::boxed::Box;
 use core::{
+    clone::Clone,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -7,8 +9,8 @@ use core::{
 
 use futures::{future::LocalBoxFuture, FutureExt};
 
-use wie_backend::Executor;
-use wie_base::{util::ByteWrite, Core};
+use wie_backend::{AsyncCallable, Executor};
+use wie_base::{util::ByteWrite, Core, CoreContext};
 
 use crate::{
     context::ArmCoreContext,
@@ -29,7 +31,7 @@ where
     pub fn new(core: &mut ArmCore, address: u32, params: &[u32]) -> Self {
         let previous_context = ArmCoreContext::from_context(core.save_context()).unwrap();
 
-        let mut context = previous_context.clone();
+        let mut context = Clone::clone(&previous_context);
         Self::set_context(core, &mut context, address, params);
         core.restore_context(&context);
 
@@ -123,3 +125,53 @@ impl RunFunctionResult<u32> for u32 {
 impl RunFunctionResult<()> for () {
     fn get(_: &ArmCore) {}
 }
+
+pub struct SpawnFuture<C, R, E> {
+    core: ArmCore,
+    context: Option<Box<dyn CoreContext>>,
+    callable_fut: LocalBoxFuture<'static, Result<R, E>>,
+    _phantom: PhantomData<C>,
+}
+
+impl<C, R, E> SpawnFuture<C, R, E>
+where
+    C: AsyncCallable<R, E> + 'static,
+    R: 'static,
+    E: core::fmt::Debug + 'static,
+{
+    pub fn new(mut core: ArmCore, callable: C) -> Self {
+        let context = core.new_context();
+        let callable_fut = callable.call().boxed_local();
+
+        Self {
+            core,
+            context: Some(context),
+            callable_fut,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<C, R, E> Future for SpawnFuture<C, R, E> {
+    type Output = Result<R, E>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let previous_context = self.core.save_context();
+        let context = &**self.context.as_ref().unwrap();
+
+        self.core.clone().restore_context(context); // XXX clone is added to satisfy borrow checker
+        let result = self.callable_fut.as_mut().poll(cx);
+        self.core.restore_context(&*previous_context);
+
+        if let Poll::Ready(x) = result {
+            let context = self.context.take().unwrap();
+            self.core.free_context(context);
+
+            Poll::Ready(x)
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl<C, R, E> Unpin for SpawnFuture<C, R, E> {}

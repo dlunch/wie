@@ -10,7 +10,7 @@ use std::{
 
 use futures::task::noop_waker;
 
-use wie_base::{CoreContext, Module};
+use wie_base::Module;
 
 use crate::time::{Instant, Time};
 
@@ -73,12 +73,8 @@ impl Executor {
         C: AsyncCallable<R, E> + 'static,
         E: Debug,
     {
-        let context = self.inner.borrow_mut().module.core_mut().new_context();
-
-        let context1 = context.clone();
         let fut = async move {
             callable.call().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
-            Executor::current().module_mut().core_mut().free_context(context1);
 
             Ok::<(), anyhow::Error>(())
         };
@@ -89,7 +85,7 @@ impl Executor {
             inner.last_task_id
         };
 
-        self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut), context });
+        self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut) });
 
         task_id
     }
@@ -176,7 +172,6 @@ impl Executor {
             let mut context = Context::from_waker(&waker);
             self.inner.borrow_mut().current_task_id = Some(task_id);
 
-            self.inner.borrow_mut().module.core_mut().restore_context(&*task.context);
             match task.fut.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
                     if x.is_err() {
@@ -190,7 +185,6 @@ impl Executor {
                     }
                 }
                 Poll::Pending => {
-                    task.context = self.inner.borrow_mut().module.core_mut().save_context();
                     next_tasks.insert(task_id, task);
                 }
             }
@@ -211,7 +205,6 @@ impl Executor {
 
 struct Task {
     fut: Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
-    context: Box<dyn CoreContext>,
 }
 
 struct ExecutorGuard {}

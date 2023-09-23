@@ -7,6 +7,7 @@ use unicorn_engine::{
     RegisterARM, Unicorn,
 };
 
+use wie_backend::{task, AsyncCallable};
 use wie_base::{
     util::{read_generic, round_up, ByteRead, ByteWrite},
     Core, CoreContext,
@@ -15,7 +16,7 @@ use wie_base::{
 use crate::{
     context::ArmCoreContext,
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
-    future::{RunFunctionFuture, RunFunctionResult},
+    future::{RunFunctionFuture, RunFunctionResult, SpawnFuture},
     Allocator,
 };
 
@@ -113,6 +114,16 @@ impl ArmCore {
         R: RunFunctionResult<R>,
     {
         RunFunctionFuture::new(self, address, params)
+    }
+
+    pub fn spawn<C, R, E>(&mut self, callable: C)
+    where
+        C: AsyncCallable<R, E> + 'static,
+        R: 'static,
+        E: Debug + 'static,
+    {
+        let self_cloned = self.clone();
+        task::spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
     pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
