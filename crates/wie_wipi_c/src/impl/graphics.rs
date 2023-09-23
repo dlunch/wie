@@ -122,7 +122,7 @@ async fn create_image(context: &mut dyn CContext, ptr_image: u32, image_data: CM
     write_generic(context, ptr_image, memory)?;
     write_generic(context, context.data_ptr(memory)?, image)?;
 
-    Ok(0)
+    Ok(1) // MC_GRP_IMAGE_DONE
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -137,7 +137,7 @@ async fn draw_image(
     sx: u32,
     sy: u32,
     graphics_context: u32,
-) -> CResult<u32> {
+) -> CResult<()> {
     tracing::debug!(
         "MC_grpDrawImage({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         framebuffer.0,
@@ -159,10 +159,10 @@ async fn draw_image(
 
     canvas.draw(dx, dy, w, h, &src_image, sx, sy);
 
-    Ok(0)
+    Ok(())
 }
 
-async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<u32> {
+async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: u32, a3: u32, a4: u32, a5: u32) -> CResult<()> {
     tracing::debug!(
         "MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         a0,
@@ -184,7 +184,7 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
 
     context.backend().repaint();
 
-    Ok(0)
+    Ok(())
 }
 
 async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32) -> CResult<u32> {
