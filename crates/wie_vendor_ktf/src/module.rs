@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String};
+use alloc::string::String;
 
 use wie_backend::Backend;
 use wie_base::{util::ByteWrite, Module};
@@ -73,9 +73,8 @@ impl KtfWipiModule {
     }
 }
 
-#[async_trait::async_trait(?Send)]
 impl Module for KtfWipiModule {
-    async fn start(&mut self) -> anyhow::Result<()> {
+    fn start(&mut self) -> anyhow::Result<()> {
         let entry = self.entry;
         let args = [self.base_address, self.bss_size, self.ptr_main_class_name];
 

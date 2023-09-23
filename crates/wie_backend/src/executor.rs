@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     future::Future,
-    pin::{pin, Pin},
+    pin::Pin,
     rc::Rc,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
     thread::sleep,
@@ -121,22 +121,6 @@ impl Executor {
         }
 
         Ok(())
-    }
-
-    pub fn run<F>(&mut self, future: F) -> F::Output
-    where
-        F: Future,
-    {
-        let waker = self.create_waker();
-        let mut context = Context::from_waker(&waker);
-
-        let mut future = pin!(future);
-
-        loop {
-            if let Poll::Ready(x) = future.as_mut().poll(&mut context) {
-                return x;
-            }
-        }
     }
 
     fn step(&mut self, now: Instant) -> anyhow::Result<()> {

@@ -2528,7 +2528,6 @@ name = "wie_base"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "async-trait",
  "bytemuck",
  "tracing",
 ]
