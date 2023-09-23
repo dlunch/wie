@@ -47,4 +47,5 @@ pub trait CoreContext: AsAny {
 
 pub enum Event {
     Redraw,
+    Update,
 }

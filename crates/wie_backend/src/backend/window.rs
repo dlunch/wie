@@ -25,10 +25,9 @@ impl Window {
         buffer.present().unwrap();
     }
 
-    pub fn run<U, R, E>(width: u32, height: u32, mut update: U, mut render: R) -> !
+    pub fn run<C, E>(width: u32, height: u32, mut callback: C) -> !
     where
-        U: FnMut() -> Result<(), E> + 'static,
-        R: FnMut(&mut Window) -> Result<(), E> + 'static,
+        C: FnMut(&mut Window, wie_base::Event) -> Result<(), E> + 'static,
         E: Debug,
     {
         let mut last_redraw = Instant::now();
@@ -51,7 +50,7 @@ impl Window {
                 ..
             } => *control_flow = ControlFlow::Exit,
             Event::MainEventsCleared => {
-                let result = update();
+                let result = callback(&mut window, wie_base::Event::Update);
                 if let Err(x) = result {
                     tracing::error!(target: "wie", "{:?}", x);
 
@@ -59,7 +58,7 @@ impl Window {
                 }
             }
             Event::RedrawRequested(_) => {
-                let result = render(&mut window);
+                let result = callback(&mut window, wie_base::Event::Redraw);
                 if let Err(x) = result {
                     tracing::error!(target: "wie", "{:?}", x);
 
