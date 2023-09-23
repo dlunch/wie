@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use wie_base::Event;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
@@ -66,7 +64,7 @@ impl Card {
             a3
         );
 
-        context.backend().events().push(Event::Redraw);
+        context.backend().window().request_redraw();
 
         Ok(())
     }
@@ -74,7 +72,7 @@ impl Card {
     async fn service_repaints(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:#x})", this.ptr_instance);
 
-        context.backend().events().push(Event::Redraw);
+        context.backend().window().request_redraw();
 
         Ok(())
     }
