@@ -220,8 +220,15 @@ async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u3
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn copy_area(_context: &mut dyn CContext, dst: u32, dx: u32, dy: u32, w: u32, h: u32, x: u32, y: u32, pgc: u32) -> CResult<()> {
-    tracing::warn!("stub MC_grpCopyArea({:#x}, {}, {}, {}, {}, {}, {}, {:#x})", dst, dx, dy, w, h, x, y, pgc);
+async fn copy_area(context: &mut dyn CContext, dst: CMemoryId, dx: u32, dy: u32, w: u32, h: u32, x: u32, y: u32, pgc: u32) -> CResult<()> {
+    tracing::debug!("MC_grpCopyArea({:#x}, {}, {}, {}, {}, {}, {}, {:#x})", dst.0, dx, dy, w, h, x, y, pgc);
+
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+
+    let image = framebuffer.image(context)?;
+    let mut canvas = framebuffer.canvas(context)?;
+
+    canvas.draw(dx, dy, w, h, &image, x, y);
 
     Ok(())
 }
