@@ -35,20 +35,38 @@ async fn clip_get_info(_context: &mut dyn CContext, clip: u32, command: u32, buf
     Ok(0)
 }
 
+async fn clip_put_data(_context: &mut dyn CContext, clip: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaClipPutData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
+
+    Ok(0)
+}
+
+async fn clip_get_data(_context: &mut dyn CContext, clip: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaClipGetData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
+
+    Ok(0)
+}
+
+async fn clip_set_position(_context: &mut dyn CContext, clip: u32, ms: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaClipSetPosition({:#x}, {:#x})", clip, ms);
+
+    Ok(0)
+}
+
 pub fn get_media_method_table() -> Vec<CMethodBody> {
     vec![
         clip_create.into_body(),
         gen_stub(1, "MC_mdaClipFree"),
         gen_stub(2, "MC_mdaSetWaterMark"),
         clip_get_type.into_body(),
-        gen_stub(4, "MC_mdaClipPutData"),
+        clip_put_data.into_body(),
         gen_stub(5, "MC_mdaClipPutDataByFile"),
         gen_stub(6, "MC_mdaClipPutToneData"),
         gen_stub(7, "MC_mdaClipPutFreqToneData"),
-        gen_stub(8, "MC_mdaClipGetData"),
+        clip_get_data.into_body(),
         gen_stub(9, "MC_mdaClipAvailableDataSize"),
         gen_stub(10, "MC_mdaClipClearData"),
-        gen_stub(11, "MC_mdaClipSetPosition"),
+        clip_set_position.into_body(),
         gen_stub(12, "MC_mdaClipGetVolume"),
         gen_stub(13, "MC_mdaClipSetVolume"),
         gen_stub(14, "MC_mdaPlay"),
