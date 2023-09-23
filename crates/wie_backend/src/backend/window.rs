@@ -75,7 +75,7 @@ impl Window {
                 }
             }
 
-            _ => *control_flow = ControlFlow::Poll,
+            _ => {}
         })
     }
 }
