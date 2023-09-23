@@ -89,11 +89,7 @@ impl Backend {
     {
         let mut executor = Executor::new();
 
-        executor.spawn(move || async move {
-            module.start();
-
-            Ok::<_, anyhow::Error>(())
-        });
+        module.start();
 
         let screen_canvas = self.screen_canvas();
         core::mem::drop(screen_canvas);

@@ -51,16 +51,20 @@ pub struct Executor {
 
 impl Executor {
     pub(crate) fn new() -> Self {
-        let inner: ExecutorInner = ExecutorInner {
+        let inner = Rc::new(RefCell::new(ExecutorInner {
             current_task_id: None,
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
             last_task_id: 0,
-        };
+        }));
 
-        Self {
-            inner: Rc::new(RefCell::new(inner)),
-        }
+        let inner1 = inner.clone();
+
+        EXECUTOR_INNER.with(|f| {
+            f.borrow_mut().replace(inner1);
+        });
+
+        Self { inner }
     }
 
     pub fn spawn<C, R, E>(&mut self, callable: C) -> usize
@@ -97,8 +101,6 @@ impl Executor {
     }
 
     pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
-        let _guard = ExecutorGuard::new(self.inner.clone());
-
         let end = time.now() + 8; // TODO hardcoded
         loop {
             let now = time.now();
@@ -132,8 +134,6 @@ impl Executor {
         C: AsyncCallable<R, E> + 'static,
         E: Debug,
     {
-        let _guard = ExecutorGuard::new(self.inner.clone());
-
         let task_id = self.spawn(callable);
 
         loop {
@@ -193,24 +193,4 @@ impl Executor {
 
 struct Task {
     fut: Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
-}
-
-struct ExecutorGuard {}
-
-impl ExecutorGuard {
-    pub fn new(inner: Rc<RefCell<ExecutorInner>>) -> Self {
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().replace(inner);
-        });
-
-        Self {}
-    }
-}
-
-impl Drop for ExecutorGuard {
-    fn drop(&mut self) {
-        EXECUTOR_INNER.with(|f| {
-            f.borrow_mut().take();
-        });
-    }
 }
