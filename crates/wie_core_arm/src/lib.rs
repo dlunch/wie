@@ -9,6 +9,7 @@ mod future;
 
 pub use self::{
     allocator::Allocator,
+    context::ArmCoreContext,
     core::{ArmCore, ArmCoreError, PEB_BASE},
     function::{EmulatedFunction, EmulatedFunctionParam},
 };
