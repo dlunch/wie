@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, Backend, Executor,
+    AsyncCallable, Backend,
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
@@ -87,6 +87,7 @@ impl CContext for KtfCContext<'_> {
 
     fn spawn(&mut self, callback: CMethodBody) -> CResult<()> {
         struct SpawnProxy {
+            core: ArmCore,
             backend: Backend,
             callback: CMethodBody,
         }
@@ -94,15 +95,8 @@ impl CContext for KtfCContext<'_> {
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, CError> for SpawnProxy {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-            async fn call(self) -> Result<u32, CError> {
-                let executor: Executor = Executor::current();
-                let mut module = executor.module_mut();
-                let mut core = ArmCore::from_core_mut(module.core_mut()).unwrap().clone();
-
-                core::mem::drop(module);
-
-                let mut backend = self.backend.clone();
-                let mut context = KtfCContext::new(&mut core, &mut backend);
+            async fn call(mut self) -> Result<u32, CError> {
+                let mut context = KtfCContext::new(&mut self.core, &mut self.backend);
 
                 self.callback.call(&mut context, &[]).await
             }
@@ -110,7 +104,11 @@ impl CContext for KtfCContext<'_> {
 
         let backend = self.backend.clone();
 
-        self.core.spawn(SpawnProxy { backend, callback });
+        self.core.spawn(SpawnProxy {
+            core: self.core.clone(),
+            backend,
+            callback,
+        });
 
         Ok(())
     }

@@ -10,7 +10,7 @@ use num_traits::FromBytes;
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, Backend, Executor,
+    AsyncCallable, Backend,
 };
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
@@ -616,6 +616,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         struct SpawnProxy {
+            core: ArmCore,
             backend: Backend,
             callback: JavaMethodBody,
         }
@@ -623,15 +624,8 @@ impl JavaContext for KtfJavaContext<'_> {
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, JavaError> for SpawnProxy {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-            async fn call(self) -> Result<u32, JavaError> {
-                let executor: Executor = Executor::current();
-                let mut module = executor.module_mut();
-                let mut core = ArmCore::from_core_mut(module.core_mut()).unwrap().clone();
-
-                core::mem::drop(module);
-
-                let mut backend = self.backend.clone();
-                let mut context = KtfJavaContext::new(&mut core, &mut backend);
+            async fn call(mut self) -> Result<u32, JavaError> {
+                let mut context = KtfJavaContext::new(&mut self.core, &mut self.backend);
 
                 self.callback.call(&mut context, &[]).await
             }
@@ -639,7 +633,11 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let backend = self.backend.clone();
 
-        self.core.spawn(SpawnProxy { backend, callback });
+        self.core.spawn(SpawnProxy {
+            core: self.core.clone(),
+            backend,
+            callback,
+        });
 
         Ok(())
     }

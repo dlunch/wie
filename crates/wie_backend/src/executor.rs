@@ -1,5 +1,5 @@
 use std::{
-    cell::{RefCell, RefMut},
+    cell::RefCell,
     collections::HashMap,
     fmt::Debug,
     future::Future,
@@ -10,8 +10,6 @@ use std::{
 
 use futures::task::noop_waker;
 
-use wie_base::Module;
-
 use crate::time::{Instant, Time};
 
 thread_local! {
@@ -20,7 +18,6 @@ thread_local! {
 }
 
 pub struct ExecutorInner {
-    module: Box<dyn Module>,
     current_task_id: Option<usize>,
     tasks: HashMap<usize, Task>,
     sleeping_tasks: HashMap<usize, Instant>,
@@ -51,12 +48,8 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub(crate) fn new<M>(module: M) -> Self
-    where
-        M: Module + 'static,
-    {
+    pub(crate) fn new() -> Self {
         let inner: ExecutorInner = ExecutorInner {
-            module: Box::new(module),
             current_task_id: None,
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
@@ -99,10 +92,6 @@ impl Executor {
 
     pub fn current_task_id() -> Option<usize> {
         EXECUTOR_INNER.with(|f| f.borrow().as_ref().unwrap().borrow().current_task_id)
-    }
-
-    pub fn module_mut(&self) -> RefMut<'_, Box<dyn Module>> {
-        RefMut::map(self.inner.borrow_mut(), |x| &mut x.module)
     }
 
     pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
@@ -174,15 +163,7 @@ impl Executor {
 
             match task.fut.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
-                    if x.is_err() {
-                        return Err(x
-                            .map_err(|x| {
-                                let reg_stack = self.inner.borrow_mut().module.core_mut().dump_reg_stack();
-
-                                anyhow::anyhow!("{}\n{}", x, reg_stack)
-                            })
-                            .unwrap_err());
-                    }
+                    x?;
                 }
                 Poll::Pending => {
                     next_tasks.insert(task_id, task);
