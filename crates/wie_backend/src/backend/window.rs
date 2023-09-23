@@ -46,6 +46,19 @@ impl Window {
         self.window.request_redraw();
     }
 
+    fn callback<C, E>(event: wie_base::Event, control_flow: &mut ControlFlow, callback: &mut C)
+    where
+        C: FnMut(wie_base::Event) -> Result<(), E> + 'static,
+        E: Debug,
+    {
+        let result = callback(event);
+        if let Err(x) = result {
+            tracing::error!(target: "wie", "{:?}", x);
+
+            *control_flow = ControlFlow::Exit;
+        }
+    }
+
     pub fn run<C, E>(self_: Rc<RefCell<Self>>, mut callback: C) -> !
     where
         C: FnMut(wie_base::Event) -> Result<(), E> + 'static,
@@ -54,25 +67,20 @@ impl Window {
         let event_loop = self_.borrow_mut().event_loop.take().unwrap();
 
         event_loop.run(move |event, _, control_flow| match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            Event::MainEventsCleared => {
-                let result = callback(wie_base::Event::Update);
-                if let Err(x) = result {
-                    tracing::error!(target: "wie", "{:?}", x);
-
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
                 }
+                WindowEvent::KeyboardInput { input, .. } => {
+                    Self::callback(wie_base::Event::Keyboard(input.scancode), control_flow, &mut callback);
+                }
+                _ => {}
+            },
+            Event::MainEventsCleared => {
+                Self::callback(wie_base::Event::Update, control_flow, &mut callback);
             }
             Event::RedrawRequested(_) => {
-                let result = callback(wie_base::Event::Redraw);
-                if let Err(x) = result {
-                    tracing::error!(target: "wie", "{:?}", x);
-
-                    *control_flow = ControlFlow::Exit;
-                }
+                Self::callback(wie_base::Event::Redraw, control_flow, &mut callback);
             }
 
             _ => {}
