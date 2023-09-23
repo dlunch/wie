@@ -9,7 +9,7 @@ use core::{
 
 use futures::{future::LocalBoxFuture, FutureExt};
 
-use wie_backend::{AsyncCallable, Executor};
+use wie_backend::AsyncCallable;
 use wie_base::{util::ByteWrite, Core, CoreContext};
 
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
 };
 
 pub struct RunFunctionFuture<R> {
+    core: ArmCore,
     waiting_fut: Option<LocalBoxFuture<'static, ArmCoreResult<()>>>,
     previous_context: ArmCoreContext,
     _phantom: PhantomData<R>,
@@ -36,6 +37,7 @@ where
         core.restore_context(&context);
 
         Self {
+            core: core.clone(),
             waiting_fut: None,
             previous_context,
             _phantom: PhantomData,
@@ -75,8 +77,6 @@ where
     type Output = ArmCoreResult<R>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let executor = Executor::current();
-
         if let Some(fut) = &mut self.waiting_fut {
             let poll = fut.as_mut().poll(cx);
 
@@ -91,18 +91,17 @@ where
             }
         }
 
-        let mut module = executor.module_mut();
-        let core = ArmCore::from_core_mut(module.core_mut()).unwrap();
-
-        let (pc, _) = core.read_pc_lr().unwrap();
+        let (pc, _) = self.core.read_pc_lr().unwrap();
 
         if pc == RUN_FUNCTION_LR {
-            let result = R::get(core);
-            core.restore_context(&self.previous_context);
+            let result = R::get(&self.core);
+
+            let previous_context = Clone::clone(&self.previous_context);
+            self.core.restore_context(&previous_context);
 
             Poll::Ready(Ok(result))
         } else {
-            let fut = core.clone().run();
+            let fut = self.core.clone().run();
             self.waiting_fut = Some(fut.boxed_local());
 
             Poll::Pending

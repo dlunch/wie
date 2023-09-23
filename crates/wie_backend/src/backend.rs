@@ -62,13 +62,17 @@ impl Backend {
         (*self.events).borrow_mut()
     }
 
-    pub fn run<M>(self, module: M) -> anyhow::Result<()>
+    pub fn run<M>(self, mut module: M) -> anyhow::Result<()>
     where
         M: Module + 'static,
     {
-        let mut executor = Executor::new(module);
+        let mut executor = Executor::new();
 
-        executor.module_mut().start();
+        executor.spawn(move || async move {
+            module.start();
+
+            Ok::<_, anyhow::Error>(())
+        });
 
         let screen_canvas = self.screen_canvas();
         let width = screen_canvas.width();
