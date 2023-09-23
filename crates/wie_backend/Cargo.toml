@@ -7,7 +7,6 @@ license = "MIT"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-futures = { workspace = true }
 tracing = { workspace = true }
 
 image = { version = "^0.24" }
