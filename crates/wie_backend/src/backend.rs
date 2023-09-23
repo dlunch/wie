@@ -3,9 +3,9 @@ mod window;
 
 use std::{
     cell::{Ref, RefCell, RefMut},
+    collections::VecDeque,
     rc::Rc,
     string::String,
-    vec::Vec,
 };
 
 use wie_base::{Event, Module};
@@ -21,7 +21,7 @@ pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Canvas>>,
-    events: Rc<RefCell<Vec<Event>>>,
+    events: Rc<RefCell<VecDeque<Event>>>,
     window: Rc<RefCell<Window>>,
 }
 
@@ -40,7 +40,7 @@ impl Backend {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(screen_canvas)),
-            events: Rc::new(RefCell::new(Vec::new())),
+            events: Rc::new(RefCell::new(VecDeque::new())),
             window: Rc::new(RefCell::new(window)),
         }
     }
@@ -62,7 +62,7 @@ impl Backend {
     }
 
     pub fn pop_event(&self) -> Option<Event> {
-        (*self.events).borrow_mut().pop()
+        (*self.events).borrow_mut().pop_front()
     }
 
     pub fn add_resource(&self, path: &str, data: Vec<u8>) {
@@ -98,7 +98,7 @@ impl Backend {
 
                     anyhow::anyhow!("{}\n{}", x, dump)
                 })?,
-                _ => self.events.borrow_mut().push(event),
+                _ => self.events.borrow_mut().push_back(event),
             }
 
             Ok::<_, anyhow::Error>(())
