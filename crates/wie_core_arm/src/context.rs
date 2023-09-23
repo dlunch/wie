@@ -1,7 +1,4 @@
-use alloc::boxed::Box;
 use core::clone::Clone;
-
-use wie_base::CoreContext;
 
 #[derive(Clone)]
 pub struct ArmCoreContext {
@@ -22,23 +19,4 @@ pub struct ArmCoreContext {
     pub lr: u32,
     pub pc: u32,
     pub apsr: u32,
-}
-
-impl ArmCoreContext {
-    pub fn from_context<T>(context: Box<T>) -> Option<Self>
-    where
-        T: CoreContext + ?Sized,
-    {
-        context.into_any().downcast::<ArmCoreContext>().ok().map(|x| *x)
-    }
-
-    pub fn from_context_ref(context: &dyn CoreContext) -> Option<&Self> {
-        context.as_any().downcast_ref::<ArmCoreContext>()
-    }
-}
-
-impl CoreContext for ArmCoreContext {
-    fn clone(&self) -> Box<dyn CoreContext> {
-        Box::new(Clone::clone(self))
-    }
 }

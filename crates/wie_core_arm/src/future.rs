@@ -1,6 +1,4 @@
-use alloc::boxed::Box;
 use core::{
-    clone::Clone,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -10,7 +8,7 @@ use core::{
 use futures::{future::LocalBoxFuture, FutureExt};
 
 use wie_backend::AsyncCallable;
-use wie_base::{util::ByteWrite, Core, CoreContext};
+use wie_base::util::ByteWrite;
 
 use crate::{
     context::ArmCoreContext,
@@ -30,9 +28,9 @@ where
     R: RunFunctionResult<R>,
 {
     pub fn new(core: &mut ArmCore, address: u32, params: &[u32]) -> Self {
-        let previous_context = ArmCoreContext::from_context(core.save_context()).unwrap();
+        let previous_context = core.save_context();
 
-        let mut context = Clone::clone(&previous_context);
+        let mut context = previous_context.clone();
         Self::set_context(core, &mut context, address, params);
         core.restore_context(&context);
 
@@ -96,7 +94,7 @@ where
         if pc == RUN_FUNCTION_LR {
             let result = R::get(&self.core);
 
-            let previous_context = Clone::clone(&self.previous_context);
+            let previous_context = self.previous_context.clone();
             self.core.restore_context(&previous_context);
 
             Poll::Ready(Ok(result))
@@ -127,7 +125,7 @@ impl RunFunctionResult<()> for () {
 
 pub struct SpawnFuture<C, R, E> {
     core: ArmCore,
-    context: Option<Box<dyn CoreContext>>,
+    context: Option<ArmCoreContext>,
     callable_fut: LocalBoxFuture<'static, Result<R, E>>,
     _phantom: PhantomData<C>,
 }
@@ -156,12 +154,11 @@ impl<C, R, E> Future for SpawnFuture<C, R, E> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let previous_context = self.core.save_context();
-        let context = &**self.context.as_ref().unwrap();
 
-        self.core.clone().restore_context(context); // XXX clone is added to satisfy borrow checker
+        self.core.clone().restore_context(self.context.as_ref().unwrap()); // XXX clone is added to satisfy borrow checker
         let result = self.callable_fut.as_mut().poll(cx);
         self.context = Some(self.core.save_context());
-        self.core.restore_context(&*previous_context);
+        self.core.restore_context(&previous_context);
 
         if let Poll::Ready(x) = result {
             let context = self.context.take().unwrap();

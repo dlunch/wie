@@ -3,7 +3,7 @@ use alloc::string::String;
 use futures::FutureExt;
 
 use wie_backend::Backend;
-use wie_base::{util::ByteWrite, Core, Module};
+use wie_base::{util::ByteWrite, Module};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
@@ -76,10 +76,6 @@ impl KtfWipiModule {
 }
 
 impl Module for KtfWipiModule {
-    fn core_mut(&mut self) -> &mut dyn Core {
-        &mut self.core
-    }
-
     fn start(&mut self) {
         let entry = self.entry;
         let args = [self.base_address, self.bss_size, self.ptr_main_class_name];
