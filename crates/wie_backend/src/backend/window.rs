@@ -48,6 +48,10 @@ impl Window {
         buffer.present().unwrap();
     }
 
+    pub fn request_redraw(&self) {
+        self.window.request_redraw();
+    }
+
     pub fn run<C, E>(self_: Rc<RefCell<Self>>, mut callback: C) -> !
     where
         C: FnMut(wie_base::Event) -> Result<(), E> + 'static,

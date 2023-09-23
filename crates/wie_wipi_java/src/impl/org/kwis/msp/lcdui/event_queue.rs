@@ -123,6 +123,9 @@ impl EventQueue {
             let src_canvas = Image::from_raw(width, height, buffer);
 
             canvas.draw(0, 0, width, height, &src_canvas, 0, 0);
+            drop(canvas);
+
+            context.backend().repaint();
         }
 
         Ok(())

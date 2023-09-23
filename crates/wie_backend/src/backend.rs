@@ -65,6 +65,24 @@ impl Backend {
         (*self.events).borrow_mut()
     }
 
+    pub fn window(&self) -> RefMut<'_, Window> {
+        (*self.window).borrow_mut()
+    }
+
+    pub fn repaint(&self) {
+        let canvas = self.screen_canvas();
+        let rgb32 = canvas
+            .raw_rgba()
+            .chunks(4)
+            .map(|rgba8888| {
+                let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());
+                rgba32 >> 8
+            })
+            .collect::<Vec<_>>();
+
+        self.window().paint(&rgb32);
+    }
+
     pub fn run<M>(self, mut module: M) -> anyhow::Result<()>
     where
         M: Module + 'static,
@@ -80,21 +98,10 @@ impl Backend {
         let screen_canvas = self.screen_canvas();
         core::mem::drop(screen_canvas);
 
-        self.events().push(Event::Redraw);
         Window::run(self.window.clone(), move |event| {
             match event {
                 Event::Redraw => {
-                    let canvas = self.screen_canvas();
-                    let rgb32 = canvas
-                        .raw_rgba()
-                        .chunks(4)
-                        .map(|rgba8888| {
-                            let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());
-                            rgba32 >> 8
-                        })
-                        .collect::<Vec<_>>();
-
-                    self.window.borrow_mut().paint(&rgb32);
+                    self.events().push(Event::Redraw);
                 }
                 Event::Update => executor.tick(&self.time())?,
             }
