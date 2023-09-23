@@ -94,10 +94,6 @@ impl Executor {
         })
     }
 
-    pub fn current_task_id() -> Option<usize> {
-        EXECUTOR_INNER.with(|f| f.borrow().as_ref().unwrap().borrow().current_task_id)
-    }
-
     pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
         let end = time.now() + 8; // TODO hardcoded
         loop {
@@ -181,7 +177,9 @@ impl Executor {
         Ok(())
     }
 
-    pub(crate) fn sleep(&mut self, task_id: usize, until: Instant) {
+    pub(crate) fn sleep(&mut self, until: Instant) {
+        let task_id = self.inner.borrow().current_task_id.unwrap();
+
         self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
     }
 
