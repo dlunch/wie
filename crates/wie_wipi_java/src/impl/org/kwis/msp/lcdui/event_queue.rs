@@ -77,6 +77,7 @@ impl EventQueue {
                 let event_data = match x {
                     wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as u32, 0, 0, 0],
                     wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as u32, KeyboardEventType::KeyPressed as u32, x, 0],
+                    wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as u32, KeyboardEventType::KeyReleased as u32, x, 0],
                     _ => unimplemented!("unhandled event {:?}", x),
                 };
 
