@@ -156,12 +156,9 @@ impl<C, R, E> Future for SpawnFuture<C, R, E> {
     type Output = Result<R, E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let previous_context = self.core.save_context();
-
         self.core.clone().restore_context(&self.context); // XXX clone is added to satisfy borrow checker
         let result = self.callable_fut.as_mut().poll(cx);
         self.context = self.core.save_context();
-        self.core.restore_context(&previous_context);
 
         if let Poll::Ready(x) = result {
             let stack_base = self.stack_base;
