@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt::Debug, num::NonZeroU32, rc::Rc};
 use softbuffer::{Context, Surface};
 use winit::{
     dpi::PhysicalSize,
-    event::{Event, WindowEvent},
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -71,8 +71,27 @@ impl Window {
                 WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
                 }
-                WindowEvent::KeyboardInput { input, .. } => {
-                    Self::callback(wie_base::Event::Keydown(input.scancode), control_flow, &mut callback);
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            scancode,
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                } => {
+                    Self::callback(wie_base::Event::Keydown(scancode), control_flow, &mut callback);
+                }
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            scancode,
+                            state: ElementState::Released,
+                            ..
+                        },
+                    ..
+                } => {
+                    Self::callback(wie_base::Event::Keyup(scancode), control_flow, &mut callback);
                 }
                 _ => {}
             },
