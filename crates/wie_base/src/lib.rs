@@ -14,6 +14,7 @@ pub trait Module {
 }
 
 pub enum Event {
-    Redraw,
     Update,
+    Redraw,
+    Keyboard(u32),
 }
