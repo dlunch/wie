@@ -72,7 +72,7 @@ impl Window {
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::KeyboardInput { input, .. } => {
-                    Self::callback(wie_base::Event::Keyboard(input.scancode), control_flow, &mut callback);
+                    Self::callback(wie_base::Event::Keydown(input.scancode), control_flow, &mut callback);
                 }
                 _ => {}
             },
