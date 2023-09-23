@@ -160,6 +160,7 @@ impl<C, R, E> Future for SpawnFuture<C, R, E> {
 
         self.core.clone().restore_context(context); // XXX clone is added to satisfy borrow checker
         let result = self.callable_fut.as_mut().poll(cx);
+        self.context = Some(self.core.save_context());
         self.core.restore_context(&*previous_context);
 
         if let Poll::Ready(x) = result {
