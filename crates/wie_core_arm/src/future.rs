@@ -27,7 +27,7 @@ where
     pub fn new(mut core: ArmCore, callable: C) -> Self {
         let stack_base = Allocator::alloc(&mut core, 0x1000).unwrap();
         let context = ArmCoreContext::new(stack_base);
-        let callable_fut = Pin::new(Box::new(callable.call()));
+        let callable_fut = Box::pin(callable.call());
 
         Self {
             core,
