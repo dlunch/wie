@@ -20,3 +20,27 @@ pub struct ArmCoreContext {
     pub pc: u32,
     pub apsr: u32,
 }
+
+impl ArmCoreContext {
+    pub fn new(stack_base: u32) -> Self {
+        Self {
+            r0: 0,
+            r1: 0,
+            r2: 0,
+            r3: 0,
+            r4: 0,
+            r5: 0,
+            r6: 0,
+            r7: 0,
+            r8: 0,
+            sb: 0,
+            sl: 0,
+            fp: 0,
+            ip: 0,
+            sp: stack_base + 0x1000,
+            lr: 0,
+            pc: 0,
+            apsr: 0,
+        }
+    }
+}

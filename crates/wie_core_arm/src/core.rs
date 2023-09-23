@@ -14,7 +14,6 @@ use crate::{
     context::ArmCoreContext,
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
     future::{RunFunctionFuture, RunFunctionResult, SpawnFuture},
-    Allocator,
 };
 
 const IMAGE_BASE: u32 = 0x100000;
@@ -371,34 +370,6 @@ impl ArmCore {
 
             false
         }
-    }
-
-    pub fn new_context(&mut self) -> ArmCoreContext {
-        let sp = Allocator::alloc(self, 0x1000).unwrap();
-
-        ArmCoreContext {
-            r0: 0,
-            r1: 0,
-            r2: 0,
-            r3: 0,
-            r4: 0,
-            r5: 0,
-            r6: 0,
-            r7: 0,
-            r8: 0,
-            sb: 0,
-            sl: 0,
-            fp: 0,
-            ip: 0,
-            sp: sp + 0x1000,
-            lr: 0,
-            pc: 0,
-            apsr: 0,
-        }
-    }
-
-    pub fn free_context(&mut self, context: ArmCoreContext) {
-        Allocator::free(self, context.sp - 0x1000).unwrap();
     }
 
     pub fn restore_context(&mut self, context: &ArmCoreContext) {
