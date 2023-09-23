@@ -32,9 +32,9 @@ pub trait AsyncCallable<R, E> {
 #[async_trait::async_trait(?Send)]
 impl<F, R, E, Fut> AsyncCallable<R, E> for F
 where
-    F: FnOnce() -> Fut + 'static,
+    F: FnOnce() -> Fut,
     E: Debug,
-    Fut: Future<Output = Result<R, E>> + 'static,
+    Fut: Future<Output = Result<R, E>>,
 {
     async fn call(self) -> Result<R, E> {
         self().await
