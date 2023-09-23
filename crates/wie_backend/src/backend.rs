@@ -3,7 +3,6 @@ mod window;
 
 use std::{
     cell::{Ref, RefCell, RefMut},
-    future::Future,
     rc::Rc,
     string::String,
     vec::Vec,
@@ -69,7 +68,7 @@ impl Backend {
     {
         let mut executor = Executor::new(module);
 
-        Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
+        executor.module_mut().start();
 
         let screen_canvas = self.screen_canvas();
         let width = screen_canvas.width();
@@ -99,19 +98,6 @@ impl Backend {
                 Ok(())
             },
         )
-    }
-
-    fn run_task<F, Fut>(executor: &mut Executor, time: &Time, f: F) -> anyhow::Result<()>
-    where
-        F: FnOnce(&mut dyn Module) -> Fut + 'static,
-        Fut: Future<Output = anyhow::Result<()>> + 'static,
-    {
-        executor.run(time, || {
-            let executor = Executor::current();
-            let mut module = executor.module_mut();
-
-            f(module.as_mut())
-        })
     }
 }
 

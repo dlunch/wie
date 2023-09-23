@@ -1,6 +1,6 @@
 use alloc::string::String;
 
-use futures::{future::LocalBoxFuture, FutureExt};
+use futures::FutureExt;
 
 use wie_backend::Backend;
 use wie_base::{util::ByteWrite, Core, Module};
@@ -80,9 +80,12 @@ impl Module for KtfWipiModule {
         &mut self.core
     }
 
-    fn start(&mut self) -> LocalBoxFuture<'static, anyhow::Result<()>> {
-        self.core
-            .run_function::<()>(self.entry, &[self.base_address, self.bss_size, self.ptr_main_class_name])
-            .boxed_local()
+    fn start(&mut self) {
+        let entry = self.entry;
+        let args = [self.base_address, self.bss_size, self.ptr_main_class_name];
+
+        let mut core = self.core.clone();
+
+        self.core.spawn(move || core.run_function::<()>(entry, &args).boxed_local())
     }
 }
