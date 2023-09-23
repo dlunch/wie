@@ -53,8 +53,7 @@ impl Future for SleepFuture {
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         if !self.registered {
-            let task_id = Executor::current_task_id().unwrap();
-            Executor::current().sleep(task_id, self.until);
+            Executor::current().sleep(self.until);
 
             self.registered = true;
 
