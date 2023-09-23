@@ -201,7 +201,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn dump_regs(&self) -> ArmCoreResult<String> {
+    fn dump_regs(&self) -> ArmCoreResult<String> {
         let inner = self.inner.borrow();
 
         Self::dump_regs_inner(&inner.uc)
@@ -219,7 +219,7 @@ impl ArmCore {
         format!("{:#x}: {}\n", address, description)
     }
 
-    pub fn dump_call_stack(&self) -> ArmCoreResult<String> {
+    fn dump_call_stack(&self) -> ArmCoreResult<String> {
         let inner = self.inner.borrow();
 
         let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
@@ -247,7 +247,7 @@ impl ArmCore {
         Ok(call_stack)
     }
 
-    pub fn dump_stack(&self) -> ArmCoreResult<String> {
+    fn dump_stack(&self) -> ArmCoreResult<String> {
         let inner = self.inner.borrow();
 
         let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)?;
