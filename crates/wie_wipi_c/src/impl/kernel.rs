@@ -166,12 +166,18 @@ async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_s
     Ok(0)
 }
 
+async fn printk(_context: &mut dyn CContext, format: u32) -> CResult<()> {
+    tracing::warn!("stub MC_knlPrintk({:#x})", format);
+
+    Ok(())
+}
+
 pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<CMethodBody>
 where
     M: MethodImpl<F, R, CError, P>,
 {
     vec![
-        gen_stub(0, "MC_knlPrintk"),
+        printk.into_body(),
         gen_stub(1, "MC_knlSprintk"),
         gen_stub(2, "MC_knlGetExecNames"),
         gen_stub(3, "MC_knlExecute"),
