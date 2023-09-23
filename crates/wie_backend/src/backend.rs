@@ -49,10 +49,6 @@ impl Backend {
         (*self.resource).borrow()
     }
 
-    pub fn resource_mut(&self) -> RefMut<'_, Resource> {
-        (*self.resource).borrow_mut()
-    }
-
     pub fn time(&self) -> Ref<'_, Time> {
         (*self.time).borrow()
     }
@@ -67,6 +63,10 @@ impl Backend {
 
     pub fn pop_event(&self) -> Option<Event> {
         (*self.events).borrow_mut().pop()
+    }
+
+    pub fn add_resource(&self, path: &str, data: Vec<u8>) {
+        (*self.resource).borrow_mut().add(path, data)
     }
 
     pub fn repaint(&self) {

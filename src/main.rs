@@ -111,7 +111,7 @@ fn main() -> anyhow::Result<()> {
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
 
-        backend.resource_mut().add(file.name(), data);
+        backend.add_resource(file.name(), data);
     }
 
     tracing::info!("Starting module");
