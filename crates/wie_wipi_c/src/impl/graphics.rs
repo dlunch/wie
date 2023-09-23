@@ -55,7 +55,7 @@ async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op: WIPICGraphi
             grp_ctx.clip = read_generic(context, pv)?;
         }
         WIPICGraphicsContextIdx::FgPixelIdx => {
-            grp_ctx.fgpxl = pv;
+            grp_ctx.fgpxl = 0xff000000 | pv;
         }
         WIPICGraphicsContextIdx::BgPixelIdx => {
             grp_ctx.bgpxl = pv;
