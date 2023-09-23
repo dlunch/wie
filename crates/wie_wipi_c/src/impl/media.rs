@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{CContext, CMethodBody},
+    base::{CContext, CMethodBody, CResult},
     method::MethodImpl,
 };
 
@@ -11,12 +11,36 @@ fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
     body.into_body()
 }
 
+async fn clip_create(_context: &mut dyn CContext, r#type: u32, buf_size: u32, callback: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaClipCreate({:#x}, {:#x}, {:#x})", r#type, buf_size, callback);
+
+    Ok(0)
+}
+
+async fn clip_get_type(_context: &mut dyn CContext, clip: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaClipGetType({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
+
+    Ok(0)
+}
+
+async fn get_mute_state(_context: &mut dyn CContext, source: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaGetMuteState({:#x})", source);
+
+    Ok(0)
+}
+
+async fn clip_get_info(_context: &mut dyn CContext, clip: u32, command: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+    tracing::warn!("stub OEMC_mdaClipGetInfo({:#x}, {:#x}, {:#x}, {:#x})", clip, command, buf, buf_size);
+
+    Ok(0)
+}
+
 pub fn get_media_method_table() -> Vec<CMethodBody> {
     vec![
-        gen_stub(0, "MC_mdaClipCreate"),
+        clip_create.into_body(),
         gen_stub(1, "MC_mdaClipFree"),
         gen_stub(2, "MC_mdaSetWaterMark"),
-        gen_stub(3, "MC_mdaClipGetType"),
+        clip_get_type.into_body(),
         gen_stub(4, "MC_mdaClipPutData"),
         gen_stub(5, "MC_mdaClipPutDataByFile"),
         gen_stub(6, "MC_mdaClipPutToneData"),
@@ -38,8 +62,8 @@ pub fn get_media_method_table() -> Vec<CMethodBody> {
         gen_stub(22, "MC_mdaReserved1"),
         gen_stub(23, "MC_mdaReserved2"),
         gen_stub(24, "MC_mdaSetMuteState"),
-        gen_stub(25, "MC_mdaGetMuteState"),
-        gen_stub(26, "OEMC_mdaClipGetInfo"),
+        get_mute_state.into_body(),
+        clip_get_info.into_body(),
         // gen_stub(27, "OEMC_mdaClipControl"),
         // gen_stub(28, "OEMC_mdaSetClipArea"),
         // gen_stub(29, "OEMC_mdaReleaseClipArea"),
