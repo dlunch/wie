@@ -1,7 +1,5 @@
 use alloc::string::String;
 
-use futures::FutureExt;
-
 use wie_backend::Backend;
 use wie_base::{util::ByteWrite, Module};
 use wie_core_arm::{Allocator, ArmCore};
@@ -82,7 +80,7 @@ impl Module for KtfWipiModule {
 
         let mut core = self.core.clone();
 
-        self.core.spawn(move || core.run_function::<()>(entry, &args).boxed_local())
+        self.core.spawn(move || async move { core.run_function::<()>(entry, &args).await })
     }
 
     fn crash_dump(&self) -> String {

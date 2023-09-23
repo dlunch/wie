@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
-use core::{cell::RefCell, fmt::Debug, future::Future};
+use core::{cell::RefCell, fmt::Debug};
 
 use capstone::{arch::BuildsCapstone, Capstone};
 use unicorn_engine::{
@@ -13,7 +13,7 @@ use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 use crate::{
     context::ArmCoreContext,
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
-    future::{RunFunctionFuture, RunFunctionResult, SpawnFuture},
+    future::SpawnFuture,
 };
 
 const IMAGE_BASE: u32 = 0x100000;
@@ -84,7 +84,7 @@ impl ArmCore {
     }
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-    pub async fn run(self) -> ArmCoreResult<()> {
+    async fn run_some(&mut self) -> ArmCoreResult<()> {
         let mut inner = self.inner.borrow_mut();
 
         let pc = inner.uc.reg_read(RegisterARM::PC).map_err(UnicornError)? as u32 + 1;
@@ -105,11 +105,52 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn run_function<R>(&mut self, address: u32, params: &[u32]) -> impl Future<Output = ArmCoreResult<R>>
+    #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
+    pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<R>
     where
         R: RunFunctionResult<R>,
     {
-        RunFunctionFuture::new(self, address, params)
+        let previous_context = self.save_context(); // do we have to save context?
+        let mut inner = self.inner.borrow_mut();
+
+        if !params.is_empty() {
+            inner.uc.reg_write(RegisterARM::R0, params[0] as u64).map_err(UnicornError)?;
+        }
+        if params.len() > 1 {
+            inner.uc.reg_write(RegisterARM::R1, params[1] as u64).map_err(UnicornError)?;
+        }
+        if params.len() > 2 {
+            inner.uc.reg_write(RegisterARM::R2, params[2] as u64).map_err(UnicornError)?;
+        }
+        if params.len() > 3 {
+            inner.uc.reg_write(RegisterARM::R3, params[3] as u64).map_err(UnicornError)?;
+        }
+        if params.len() > 4 {
+            for param in params[4..].iter() {
+                let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)? as u32 - 4;
+                inner.uc.mem_write(sp as u64, &param.to_le_bytes()).map_err(UnicornError)?;
+                inner.uc.reg_write(RegisterARM::SP, sp as u64).map_err(UnicornError)?;
+            }
+        }
+
+        inner.uc.reg_write(RegisterARM::PC, address as u64).map_err(UnicornError)?;
+        inner.uc.reg_write(RegisterARM::LR, RUN_FUNCTION_LR as u64).map_err(UnicornError)?;
+        drop(inner);
+
+        loop {
+            let (pc, _) = self.read_pc_lr().unwrap();
+            if pc == RUN_FUNCTION_LR {
+                break;
+            }
+
+            self.run_some().await?;
+        }
+
+        let result = R::get(self);
+
+        self.restore_context(&previous_context);
+
+        Ok(result)
     }
 
     pub fn spawn<C, R, E>(&mut self, callable: C)
@@ -449,4 +490,18 @@ impl ByteWrite for ArmCore {
 
         Ok(())
     }
+}
+
+pub trait RunFunctionResult<R> {
+    fn get(core: &ArmCore) -> R;
+}
+
+impl RunFunctionResult<u32> for u32 {
+    fn get(core: &ArmCore) -> u32 {
+        core.read_param(0).unwrap()
+    }
+}
+
+impl RunFunctionResult<()> for () {
+    fn get(_: &ArmCore) {}
 }
