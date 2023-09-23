@@ -222,16 +222,20 @@ impl Graphics {
         Ok(0)
     }
 
-    async fn get_clip_width(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
+    async fn get_clip_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:#x})", this.ptr_instance);
 
-        Ok(0)
+        let w = context.get_field(&this.cast(), "w")?;
+
+        Ok(w)
     }
 
-    async fn get_clip_height(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
+    async fn get_clip_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})", this.ptr_instance);
 
-        Ok(0)
+        let h = context.get_field(&this.cast(), "h")?;
+
+        Ok(h)
     }
 
     async fn image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {
