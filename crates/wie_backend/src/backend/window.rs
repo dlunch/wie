@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use softbuffer::{Buffer, Context, Surface};
+use softbuffer::{Context, Surface};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -14,36 +14,38 @@ use winit::{
 
 pub struct Window {
     window: winit::window::Window,
-    event_loop: EventLoop<()>,
+    surface: Surface,
 }
 
 impl Window {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn paint(&mut self, data: &[u32]) {
+        let mut buffer = self.surface.buffer_mut().unwrap();
+        buffer.copy_from_slice(data);
+
+        buffer.present().unwrap();
+    }
+
+    pub fn run<U, R, E>(width: u32, height: u32, mut update: U, mut render: R) -> !
+    where
+        U: FnMut() -> Result<(), E> + 'static,
+        R: FnMut(&mut Window) -> Result<(), E> + 'static,
+        E: Debug,
+    {
+        let mut last_redraw = Instant::now();
         let event_loop = EventLoop::new();
+
         let size = PhysicalSize::new(width, height);
 
         let window = WindowBuilder::new().with_inner_size(size).with_title("WIPI").build(&event_loop).unwrap();
-
-        Self { window, event_loop }
-    }
-
-    pub fn run<U, R, E>(self, mut update: U, mut render: R) -> !
-    where
-        U: FnMut() -> Result<(), E> + 'static,
-        R: FnMut(&mut Buffer) -> Result<(), E> + 'static,
-        E: Debug,
-    {
-        let context = unsafe { Context::new(&self.window) }.unwrap();
-        let mut surface = unsafe { Surface::new(&context, &self.window) }.unwrap();
-
-        let size = self.window.inner_size();
+        let context = unsafe { Context::new(&window) }.unwrap();
+        let mut surface = unsafe { Surface::new(&context, &window) }.unwrap();
 
         surface
             .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
             .unwrap();
 
-        let mut last_redraw = Instant::now();
-        self.event_loop.run(move |event, _, control_flow| match event {
+        let mut window = Window { window, surface };
+        event_loop.run(move |event, _, control_flow| match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
@@ -57,14 +59,12 @@ impl Window {
                 }
             }
             Event::RedrawRequested(_) => {
-                let mut buffer = surface.buffer_mut().unwrap();
-                let result = render(&mut buffer);
+                let result = render(&mut window);
                 if let Err(x) = result {
                     tracing::error!(target: "wie", "{:?}", x);
 
                     *control_flow = ControlFlow::Exit;
                 }
-                buffer.present().unwrap();
             }
             Event::RedrawEventsCleared => {
                 let now = Instant::now();
@@ -73,7 +73,7 @@ impl Window {
                 if now < next_frame_time {
                     *control_flow = ControlFlow::WaitUntil(next_frame_time)
                 } else {
-                    self.window.request_redraw();
+                    window.window.request_redraw();
                     last_redraw = now;
                 }
             }

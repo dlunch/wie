@@ -72,13 +72,16 @@ impl Backend {
         Backend::run_task(&mut executor, &self.time(), |module| module.start())?;
 
         let screen_canvas = self.screen_canvas();
-        let window = Window::new(screen_canvas.width(), screen_canvas.height());
+        let width = screen_canvas.width();
+        let height = screen_canvas.height();
         core::mem::drop(screen_canvas);
 
         self.events().push(Event::Redraw);
-        window.run(
+        Window::run(
+            width,
+            height,
             || Ok::<_, anyhow::Error>(()),
-            move |buffer| {
+            move |window| {
                 executor.tick(&self.time())?;
 
                 let canvas = self.screen_canvas();
@@ -90,7 +93,8 @@ impl Backend {
                         rgba32 >> 8
                     })
                     .collect::<Vec<_>>();
-                buffer.copy_from_slice(&rgb32); // TODO is it better to introduce new vec?
+
+                window.paint(&rgb32);
 
                 Ok(())
             },
