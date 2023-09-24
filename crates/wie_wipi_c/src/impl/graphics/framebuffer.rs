@@ -47,7 +47,7 @@ impl WIPICFramebuffer {
         let canvas = context.backend().screen_canvas();
 
         let (width, height, bytes_per_pixel) = (canvas.width(), canvas.height(), canvas.bytes_per_pixel());
-        core::mem::drop(canvas);
+        drop(canvas);
 
         let buf = context.alloc(width * height * bytes_per_pixel)?;
 

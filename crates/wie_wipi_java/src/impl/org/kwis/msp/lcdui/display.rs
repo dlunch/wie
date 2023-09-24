@@ -76,7 +76,7 @@ impl Display {
 
         let screen_canvas = context.backend().screen_canvas();
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
-        core::mem::drop(screen_canvas);
+        drop(screen_canvas);
 
         context.put_field(&this.cast(), "m_w", width)?;
         context.put_field(&this.cast(), "m_h", height)?;

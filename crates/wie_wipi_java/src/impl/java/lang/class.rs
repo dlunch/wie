@@ -53,7 +53,7 @@ impl Class {
 
             let array = context.instantiate_array("B", data.len() as u32).await?;
             context.store_array_u8(&array, 0, &data)?;
-            core::mem::drop(data);
+            drop(data);
 
             let result = context.instantiate("Ljava/io/ByteArrayInputStream;").await?.cast();
             context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;
