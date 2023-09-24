@@ -14,7 +14,7 @@ use crate::time::{Instant, Time};
 
 thread_local! {
     #[allow(clippy::type_complexity)]
-    pub static EXECUTOR_INNER: RefCell<Option<Rc<RefCell<ExecutorInner>>>> = RefCell::new(None);
+    pub static GLOBAL_EXECUTOR: RefCell<Option<Rc<RefCell<ExecutorInner>>>> = RefCell::new(None);
 }
 
 pub struct ExecutorInner {
@@ -49,6 +49,8 @@ pub struct Executor {
 
 impl Executor {
     pub(crate) fn new() -> Self {
+        assert!(GLOBAL_EXECUTOR.with(|f| f.borrow().is_none()));
+
         let inner = Rc::new(RefCell::new(ExecutorInner {
             current_task_id: None,
             tasks: HashMap::new(),
@@ -58,7 +60,7 @@ impl Executor {
 
         let inner1 = inner.clone();
 
-        EXECUTOR_INNER.with(|f| {
+        GLOBAL_EXECUTOR.with(|f| {
             f.borrow_mut().replace(inner1);
         });
 
@@ -88,7 +90,7 @@ impl Executor {
     }
 
     pub(crate) fn current() -> Executor {
-        EXECUTOR_INNER.with(|f| {
+        GLOBAL_EXECUTOR.with(|f| {
             let inner = f.borrow().as_ref().unwrap().clone();
             Self { inner }
         })
