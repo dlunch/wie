@@ -55,7 +55,7 @@ async fn set_context(context: &mut dyn CContext, p_grp_ctx: u32, op: WIPICGraphi
             grp_ctx.clip = read_generic(context, pv)?;
         }
         WIPICGraphicsContextIdx::FgPixelIdx => {
-            grp_ctx.fgpxl = 0xff000000 | pv;
+            grp_ctx.fgpxl = pv;
         }
         WIPICGraphicsContextIdx::BgPixelIdx => {
             grp_ctx.bgpxl = pv;
@@ -99,7 +99,7 @@ async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.put_pixel(x, y, Color::from_argb32(gctx.fgpxl));
+    canvas.put_pixel(x, y, Color::from_rgb32(gctx.fgpxl, 255));
     Ok(())
 }
 
@@ -109,7 +109,7 @@ async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.draw_rect(x, y, w, h, Color::from_argb32(gctx.fgpxl));
+    canvas.draw_rect(x, y, w, h, Color::from_rgb32(gctx.fgpxl, 255));
     Ok(())
 }
 
@@ -193,7 +193,7 @@ async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32)
         tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
     }
 
-    let rgb32 = Color::new(r as u8, g as u8, b as u8, 0).to_argb32();
+    let rgb32 = Color::new(r as u8, g as u8, b as u8, 0).to_rgb32();
     Ok(rgb32)
 }
 

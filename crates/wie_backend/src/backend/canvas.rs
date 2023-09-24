@@ -17,12 +17,12 @@ impl Color {
         Self { r, g, b, a }
     }
 
-    pub fn to_argb32(self) -> u32 {
-        ((self.a as u32) << 24) | ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
+    pub fn to_rgb32(self) -> u32 {
+        ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
     }
 
-    pub fn from_argb32(v: u32) -> Self {
-        let a = ((v >> 24) & 0xff) as u8;
+    pub fn from_rgb32(v: u32, alpha: u8) -> Self {
+        let a: u8 = alpha;
         let r = ((v >> 16) & 0xff) as u8;
         let g = ((v >> 8) & 0xff) as u8;
         let b = (v & 0xff) as u8;
