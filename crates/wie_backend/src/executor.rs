@@ -101,7 +101,6 @@ impl Executor {
         loop {
             let now = time.now();
 
-            // TODO hardcode
             if now > end {
                 break;
             }
