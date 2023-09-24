@@ -97,7 +97,7 @@ impl ArmCore {
 
             let function = inner.functions.get(&cur_pc).unwrap().clone();
 
-            core::mem::drop(inner);
+            drop(inner);
 
             function.call(&mut self1).await?;
         }
@@ -296,7 +296,7 @@ impl ArmCore {
         } else {
             let sp = inner.uc.reg_read(RegisterARM::SP).map_err(UnicornError)? as u32;
 
-            core::mem::drop(inner);
+            drop(inner);
 
             read_generic(self, sp + 4 * (pos as u32 - 4))?
         };
