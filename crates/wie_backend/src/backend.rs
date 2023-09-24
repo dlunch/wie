@@ -1,12 +1,8 @@
 pub mod canvas;
 mod window;
 
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    collections::VecDeque,
-    rc::Rc,
-    string::String,
-};
+use alloc::{collections::VecDeque, rc::Rc, string::String};
+use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::{Event, Module};
 

@@ -1,14 +1,13 @@
-use std::{
+use alloc::rc::Rc;
+use core::{
     cell::RefCell,
-    collections::HashMap,
     fmt::Debug,
     future::Future,
     pin::Pin,
-    rc::Rc,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
-    thread::sleep,
     time::Duration,
 };
+use std::{collections::HashMap, thread::sleep};
 
 use crate::time::{Instant, Time};
 

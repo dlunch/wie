@@ -1,4 +1,5 @@
-use std::{io::Cursor, ops::Deref};
+use core::ops::Deref;
+use std::io::Cursor;
 
 use image::{imageops, io::Reader as ImageReader, GenericImageView, Rgba, RgbaImage};
 use imageproc::{drawing::draw_filled_rect_mut, rect::Rect};
