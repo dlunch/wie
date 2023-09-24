@@ -41,8 +41,7 @@ where
     }
 }
 
-// We abuse rust async to implement generator.
-// CoreExecutor polls future even it's pending state, to make generator future to be able to continue.
+// Executor polling every future until it is ready to implement generator using async ecosystem
 pub struct Executor {
     inner: Rc<RefCell<ExecutorInner>>,
 }
