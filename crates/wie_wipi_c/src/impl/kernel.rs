@@ -60,7 +60,7 @@ async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32)
 }
 
 async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32, timeout_high: u32, param: u32) -> CResult<()> {
-    tracing::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_high, timeout_low, param);
+    tracing::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_low, timeout_high, param);
 
     let timer: WIPICTimer = read_generic(context, ptr_timer)?;
 
