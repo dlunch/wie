@@ -1,7 +1,7 @@
 use alloc::string::String;
 
 use wie_backend::Backend;
-use wie_base::{util::ByteWrite, Module};
+use wie_base::Module;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
@@ -10,10 +10,10 @@ use crate::runtime::KtfJavaContext;
 // client.bin from jar, extracted from ktf phone
 pub struct KtfWipiModule {
     core: ArmCore,
-    entry: u32,
+    backend: Backend,
     base_address: u32,
     bss_size: u32,
-    ptr_main_class_name: u32,
+    main_class_name: String,
 }
 
 impl KtfWipiModule {
@@ -27,17 +27,12 @@ impl KtfWipiModule {
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let ptr_main_class_name = Allocator::alloc(&mut core, 20)?; // TODO size fix
-        core.write_bytes(ptr_main_class_name, main_class_name.as_bytes())?;
-
-        let entry = core.register_function(Self::do_start, backend)?;
-
         Ok(Self {
             core,
-            entry,
+            backend: backend.clone(),
             base_address,
             bss_size,
-            ptr_main_class_name,
+            main_class_name: main_class_name.into(),
         })
     }
 
@@ -75,12 +70,14 @@ impl KtfWipiModule {
 
 impl Module for KtfWipiModule {
     fn start(&mut self) -> anyhow::Result<()> {
-        let entry = self.entry;
-        let args = [self.base_address, self.bss_size, self.ptr_main_class_name];
-
         let mut core = self.core.clone();
+        let mut backend = self.backend.clone();
+        let base_address = self.base_address;
+        let bss_size = self.bss_size;
+        let main_class_name = self.main_class_name.clone();
 
-        self.core.spawn(move || async move { core.run_function::<()>(entry, &args).await });
+        self.core
+            .spawn(move || async move { Self::do_start(&mut core, &mut backend, base_address, bss_size, main_class_name).await });
 
         Ok(())
     }
