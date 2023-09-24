@@ -211,8 +211,8 @@ async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u3
         bpl: canvas.bytes_per_pixel() * canvas.width(),
         color_type: 1, // 1==MC_GRP_DIRECT_COLOR_TYPE
         red_mask: 0xff0000,
-        blue_mask: 0xff00,
-        green_mask: 0xff,
+        green_mask: 0xff00,
+        blue_mask: 0xff,
     };
     drop(canvas);
     write_generic(context, out_ptr, info)?;
