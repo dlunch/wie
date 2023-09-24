@@ -1,7 +1,5 @@
-use std::{
-    ops::{Add, Sub},
-    time::SystemTime,
-};
+use core::ops::{Add, Sub};
+use std::time::SystemTime;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {

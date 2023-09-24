@@ -1,3 +1,5 @@
+extern crate alloc;
+
 mod backend;
 mod executor;
 pub mod task;

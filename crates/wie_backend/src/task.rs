@@ -1,4 +1,4 @@
-use std::{
+use core::{
     fmt::Debug,
     future::Future,
     pin::Pin,

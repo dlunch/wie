@@ -1,4 +1,5 @@
-use std::{cell::RefCell, fmt::Debug, num::NonZeroU32, rc::Rc};
+use alloc::rc::Rc;
+use core::{cell::RefCell, fmt::Debug, num::NonZeroU32};
 
 use softbuffer::{Context, Surface};
 use winit::{

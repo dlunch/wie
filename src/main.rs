@@ -1,4 +1,10 @@
-use std::{fs::File, io::Read, str};
+extern crate alloc;
+
+use alloc::str;
+use std::{
+    fs::File,
+    io::{stderr, Read},
+};
 
 use clap::Parser;
 use zip::ZipArchive;
@@ -93,7 +99,7 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
+        .with_writer(stderr)
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
