@@ -1,7 +1,8 @@
-use crate::method::TypeConverter;
-use crate::CContext;
-use bytemuck::{Pod, Zeroable};
 use core::mem;
+
+use bytemuck::{Pod, Zeroable};
+
+use crate::{method::TypeConverter, CContext};
 
 /// _MC_GrpContext
 #[repr(C)]
