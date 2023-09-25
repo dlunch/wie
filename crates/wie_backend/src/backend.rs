@@ -66,14 +66,7 @@ impl Backend {
     }
 
     pub fn repaint(&self) {
-        let canvas = self.screen_canvas();
-        let data = canvas
-            .colors()
-            .iter()
-            .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
-            .collect::<Vec<_>>();
-
-        self.window().paint(&data);
+        self.window().paint(&**self.screen_canvas());
     }
 
     pub fn run<M>(self, mut module: M) -> anyhow::Result<()>
