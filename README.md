@@ -6,7 +6,7 @@ WIP Emulator for WIPI platform.
 
 WIPI JAR file extracted from ktf phones can be loaded and executed.
 
-![](https://github.com/dlunch/wie/blob/main/docs/images/Something%20on%20the%20screen.png)
+![](https://github.com/dlunch/wie/blob/main/docs/images/Trivial%20games%20playable.png)
 
 ## TODO
 
