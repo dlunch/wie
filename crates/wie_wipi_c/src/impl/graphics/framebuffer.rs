@@ -1,9 +1,9 @@
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::{Canvas, Image};
+use wie_backend::canvas::{create_canvas, Canvas, Image};
 
 use crate::base::{CContext, CMemoryId};
 
@@ -27,9 +27,9 @@ pub struct WIPICDisplayInfo {
 pub struct WIPICFramebuffer {
     pub width: u32,
     pub height: u32,
-    bpl: u32,
-    bpp: u32,
-    buf: CMemoryId,
+    pub bpl: u32,
+    pub bpp: u32,
+    pub buf: CMemoryId,
 }
 
 impl WIPICFramebuffer {
@@ -43,11 +43,8 @@ impl WIPICFramebuffer {
         }
     }
 
-    pub fn from_screen_canvas(context: &mut dyn CContext) -> anyhow::Result<Self> {
-        let canvas = context.backend().screen_canvas();
-
-        let (width, height, bytes_per_pixel) = (canvas.width(), canvas.height(), canvas.bytes_per_pixel());
-        drop(canvas);
+    pub fn new(context: &mut dyn CContext, width: u32, height: u32, bpp: u32) -> anyhow::Result<Self> {
+        let bytes_per_pixel = bpp / 8;
 
         let buf = context.alloc(width * height * bytes_per_pixel)?;
 
@@ -60,10 +57,10 @@ impl WIPICFramebuffer {
         })
     }
 
-    pub fn from_image(context: &mut dyn CContext, image: &Image) -> anyhow::Result<Self> {
+    pub fn from_image(context: &mut dyn CContext, image: &dyn Image) -> anyhow::Result<Self> {
         let buf = context.alloc(image.width() * image.height() * image.bytes_per_pixel())?;
 
-        context.write_bytes(context.data_ptr(buf)?, image.raw_rgba())?;
+        context.write_bytes(context.data_ptr(buf)?, image.raw())?;
 
         Ok(Self {
             width: image.width(),
@@ -80,12 +77,16 @@ impl WIPICFramebuffer {
         Ok(data)
     }
 
-    pub fn image(&self, context: &mut dyn CContext) -> anyhow::Result<Image> {
-        Ok(Image::from_raw(self.width, self.height, self.data(context)?))
+    pub fn image(&self, context: &mut dyn CContext) -> anyhow::Result<Box<dyn Image>> {
+        let data = self.data(context)?;
+
+        Ok(create_canvas(self.width, self.height, self.bpp, &data)?.image())
     }
 
     pub fn canvas<'a>(&'a self, context: &'a mut dyn CContext) -> anyhow::Result<FramebufferCanvas<'a>> {
-        let canvas = Canvas::from_image(self.image(context)?);
+        let data = self.data(context)?;
+
+        let canvas = create_canvas(self.width, self.height, self.bpp, &data)?;
 
         Ok(FramebufferCanvas {
             framebuffer: self,
@@ -102,17 +103,17 @@ impl WIPICFramebuffer {
 pub struct FramebufferCanvas<'a> {
     framebuffer: &'a WIPICFramebuffer,
     context: &'a mut dyn CContext,
-    canvas: Canvas,
+    canvas: Box<dyn Canvas>,
 }
 
 impl Drop for FramebufferCanvas<'_> {
     fn drop(&mut self) {
-        self.framebuffer.write(self.context, self.canvas.raw_rgba()).unwrap()
+        self.framebuffer.write(self.context, self.canvas.raw()).unwrap()
     }
 }
 
 impl Deref for FramebufferCanvas<'_> {
-    type Target = Canvas;
+    type Target = Box<dyn Canvas>;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas

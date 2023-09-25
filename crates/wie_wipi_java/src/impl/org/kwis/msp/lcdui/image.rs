@@ -1,9 +1,7 @@
-use alloc::{vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use bytemuck::cast_slice;
-
-use wie_backend::Canvas;
+use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -52,12 +50,14 @@ impl Image {
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        let data = context.instantiate_array("B", width * height * 4).await?;
+        let bytes_per_pixel = 4;
+
+        let data = context.instantiate_array("B", width * height * bytes_per_pixel).await?;
 
         context.put_field(&instance, "w", width)?;
         context.put_field(&instance, "h", height)?;
         context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", width * 4)?;
+        context.put_field(&instance, "bpl", width * bytes_per_pixel)?;
 
         Ok(instance.cast())
     }
@@ -74,16 +74,17 @@ impl Image {
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         let image_data = context.load_array_u8(&data, offset, length)?;
-        let image = wie_backend::Image::from_image(&image_data)?;
+        let image = decode_image(&image_data)?;
 
-        let data = context.instantiate_array("B", image.width() * image.height() * 4).await?;
-        let buffer = cast_slice(image.raw_rgba());
-        context.store_array_u8(&data, 0, buffer)?;
+        let bytes_per_pixel = image.bytes_per_pixel();
+
+        let data = context.instantiate_array("B", image.width() * image.height() * bytes_per_pixel).await?;
+        context.store_array_u8(&data, 0, image.raw())?;
 
         context.put_field(&instance, "w", image.width())?;
         context.put_field(&instance, "h", image.height())?;
         context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", image.width() * 4)?;
+        context.put_field(&instance, "bpl", image.width() * bytes_per_pixel)?;
 
         Ok(instance.cast())
     }
@@ -116,19 +117,12 @@ impl Image {
         Ok(img_data)
     }
 
-    pub fn image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<wie_backend::Image> {
-        let buf = Self::buf(context, this)?;
-
-        let width = context.get_field(&this.cast(), "w")?;
-        let height = context.get_field(&this.cast(), "h")?;
-
-        let image = wie_backend::Image::from_raw(width, height, buf);
-
-        Ok(image)
+    pub fn image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Box<dyn BackendImage>> {
+        Ok(Self::create_canvas(context, this)?.image())
     }
 
     pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
-        let canvas = Canvas::from_image(Self::image(context, this)?);
+        let canvas = Self::create_canvas(context, this)?;
 
         Ok(ImageCanvas {
             image: this,
@@ -136,25 +130,36 @@ impl Image {
             canvas,
         })
     }
+
+    fn create_canvas(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Box<dyn Canvas>> {
+        let buf = Self::buf(context, this)?;
+
+        let width = context.get_field(&this.cast(), "w")?;
+        let height = context.get_field(&this.cast(), "h")?;
+        let bpl = context.get_field(&this.cast(), "bpl")?;
+
+        let bytes_per_pixel = bpl / width;
+
+        create_canvas(width, height, bytes_per_pixel * 8, &buf)
+    }
 }
 
 pub struct ImageCanvas<'a> {
     image: &'a JavaObjectProxy<Image>,
     context: &'a mut dyn JavaContext,
-    canvas: Canvas,
+    canvas: Box<dyn Canvas>,
 }
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
 
-        let buffer: &[u8] = cast_slice(self.canvas.raw_rgba());
-        self.context.store_array_u8(&data, 0, buffer).unwrap();
+        self.context.store_array_u8(&data, 0, self.canvas.raw()).unwrap();
     }
 }
 
 impl Deref for ImageCanvas<'_> {
-    type Target = Canvas;
+    type Target = Box<dyn Canvas>;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas

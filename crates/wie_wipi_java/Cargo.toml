@@ -7,7 +7,6 @@ license = "MIT"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-bytemuck = { workspace = true }
 bitflags = { workspace = true }
 tracing = { workspace = true }
 

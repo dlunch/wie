@@ -7,10 +7,10 @@ license = "MIT"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 image = { version = "^0.24" }
-imageproc = { version = "^0.23" }
 softbuffer = { version = "^0.3" }
 winit = { version = "0.28.0", features = ["wayland"] }
 
