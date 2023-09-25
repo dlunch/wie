@@ -9,6 +9,8 @@ use winit::{
     window::WindowBuilder,
 };
 
+use crate::canvas::Canvas;
+
 pub struct Window {
     window: winit::window::Window,
     event_loop: Option<EventLoop<()>>,
@@ -36,9 +38,15 @@ impl Window {
         }
     }
 
-    pub fn paint(&mut self, data: &[u32]) {
+    pub fn paint(&mut self, canvas: &dyn Canvas) {
+        let data = canvas
+            .colors()
+            .iter()
+            .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
+            .collect::<Vec<_>>();
+
         let mut buffer = self.surface.buffer_mut().unwrap();
-        buffer.copy_from_slice(data);
+        buffer.copy_from_slice(&data);
 
         buffer.present().unwrap();
     }
