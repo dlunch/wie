@@ -7,7 +7,7 @@ use core::mem::size_of;
 
 use bytemuck::Zeroable;
 
-use wie_backend::{Color, Image};
+use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
@@ -30,7 +30,11 @@ fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
 async fn get_screen_framebuffer(context: &mut dyn CContext, a0: u32) -> CResult<CMemoryId> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
-    let framebuffer = WIPICFramebuffer::from_screen_canvas(context)?;
+    let screen_canvas = context.backend().screen_canvas();
+    let (width, height) = (screen_canvas.width(), screen_canvas.height());
+    drop(screen_canvas);
+
+    let framebuffer = WIPICFramebuffer::new(context, width, height, 16)?; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 
     let memory = context.alloc(size_of::<WIPICFramebuffer>() as u32)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
@@ -99,7 +103,7 @@ async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.put_pixel(x, y, Color::from_rgb32(gctx.fgpxl, 255));
+    canvas.put_pixel(x, y, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 
@@ -109,7 +113,7 @@ async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: u32, y: u32
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.draw_rect(x, y, w, h, Color::from_rgb32(gctx.fgpxl, 255));
+    canvas.draw_rect(x, y, w, h, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 
@@ -154,10 +158,10 @@ async fn draw_image(
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
     let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
 
-    let src_image = Image::from_raw(image.width(), image.height(), image.data(context)?);
+    let src_image = image.img.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx, dy, w, h, &src_image, sx, sy);
+    canvas.draw(dx, dy, w, h, &*src_image, sx, sy);
 
     Ok(())
 }
@@ -179,7 +183,7 @@ async fn flush(context: &mut dyn CContext, a0: u32, framebuffer: CMemoryId, a2: 
 
     let mut screen_canvas = context.backend().screen_canvas();
 
-    screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &src_canvas, 0, 0);
+    screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &*src_canvas, 0, 0);
     drop(screen_canvas);
 
     context.backend().repaint();
@@ -193,8 +197,14 @@ async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: u32, g: u32, b: u32)
         tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
     }
 
-    let rgb32 = Color::new(r as u8, g as u8, b as u8, 0).to_rgb32();
-    Ok(rgb32)
+    let color = Rgb8Pixel::from_color(Color {
+        a: 0xff,
+        r: r as u8,
+        g: g as u8,
+        b: b as u8,
+    }); // TODO do we need to return in screen format?
+
+    Ok(color)
 }
 
 async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u32) -> CResult<u32> {
@@ -202,19 +212,20 @@ async fn get_display_info(context: &mut dyn CContext, reserved: u32, out_ptr: u3
 
     assert_eq!(reserved, 0);
     let canvas = context.backend().screen_canvas();
-    assert_eq!(canvas.bytes_per_pixel(), 4);
+
     let info = WIPICDisplayInfo {
-        bpp: canvas.bytes_per_pixel() * 8,
-        depth: 8,
+        bpp: 16, // XXX hardcoded to 16bpp
+        depth: 16,
         width: canvas.width(),
         height: canvas.height(),
-        bpl: canvas.bytes_per_pixel() * canvas.width(),
+        bpl: 2 * canvas.width(),
         color_type: 1, // 1==MC_GRP_DIRECT_COLOR_TYPE
-        red_mask: 0xff0000,
-        green_mask: 0xff00,
-        blue_mask: 0xff,
+        red_mask: 0xf800,
+        green_mask: 0x7e0,
+        blue_mask: 0x1f,
     };
     drop(canvas);
+
     write_generic(context, out_ptr, info)?;
     Ok(1)
 }
@@ -228,7 +239,7 @@ async fn copy_area(context: &mut dyn CContext, dst: CMemoryId, dx: u32, dy: u32,
     let image = framebuffer.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx, dy, w, h, &image, x, y);
+    canvas.draw(dx, dy, w, h, &*image, x, y);
 
     Ok(())
 }

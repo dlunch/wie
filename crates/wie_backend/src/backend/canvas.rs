@@ -1,114 +1,233 @@
-use core::ops::Deref;
+use core::mem::size_of;
 use std::io::Cursor;
 
-use image::{imageops, io::Reader as ImageReader, GenericImageView, Rgba, RgbaImage};
-use imageproc::{drawing::draw_filled_rect_mut, rect::Rect};
+use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
+use image::io::Reader as ImageReader;
 
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+    pub a: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
-impl Color {
-    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self { r, g, b, a }
-    }
-
-    pub fn to_rgb32(self) -> u32 {
-        ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
-    }
-
-    pub fn from_rgb32(v: u32, alpha: u8) -> Self {
-        let a: u8 = alpha;
-        let r = ((v >> 16) & 0xff) as u8;
-        let g = ((v >> 8) & 0xff) as u8;
-        let b = (v & 0xff) as u8;
-        Self::new(r, g, b, a)
-    }
+pub trait Image {
+    fn width(&self) -> u32;
+    fn height(&self) -> u32;
+    fn bytes_per_pixel(&self) -> u32;
+    fn get_pixel(&self, x: u32, y: u32) -> Color;
+    fn raw(&self) -> &[u8];
+    fn colors(&self) -> Vec<Color>;
 }
 
-impl From<Color> for Rgba<u8> {
-    fn from(c: Color) -> Self {
-        Self([c.r, c.g, c.b, c.a])
-    }
-}
-
-pub struct Image {
-    image: RgbaImage,
-}
-
-impl Image {
-    pub fn from_raw(width: u32, height: u32, buf: Vec<u8>) -> Self {
-        let image = RgbaImage::from_raw(width, height, buf).unwrap();
-
-        Self { image }
-    }
-
-    pub fn from_size(width: u32, height: u32) -> Self {
-        let image = RgbaImage::new(width, height);
-
-        Self { image }
-    }
-
-    pub fn from_image(image: &[u8]) -> anyhow::Result<Self> {
-        let image = ImageReader::new(Cursor::new(image)).with_guessed_format()?.decode()?;
-
-        Ok(Self { image: image.into_rgba8() })
-    }
-
-    pub fn width(&self) -> u32 {
-        self.image.width()
-    }
-
-    pub fn height(&self) -> u32 {
-        self.image.height()
-    }
-
-    pub fn bytes_per_pixel(&self) -> u32 {
-        4
-    }
-
-    pub fn raw_rgba(&self) -> &[u8] {
-        self.image.as_raw()
-    }
-}
-
-pub struct Canvas {
-    image: Image,
-}
-
-impl Canvas {
-    pub fn from_image(image: Image) -> Self {
-        Self { image }
-    }
-
+pub trait Canvas: Image {
     #[allow(clippy::too_many_arguments)]
-    pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &Image, sx: u32, sy: u32) {
-        let src_view = src.image.view(sx, sy, w, h);
+    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
+    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
+    fn put_pixel(&mut self, x: u32, y: u32, color: Color);
+    fn image(self: Box<Self>) -> Box<dyn Image>;
+}
 
-        imageops::overlay(&mut self.image.image, src_view.deref(), dx as i64, dy as i64);
+pub trait PixelType {
+    type DataType: Copy + Pod;
+    fn from_color(color: Color) -> Self::DataType;
+    fn to_color(raw: Self::DataType) -> Color;
+    fn default() -> Self::DataType;
+}
+
+pub struct Rgb565Pixel {}
+
+impl PixelType for Rgb565Pixel {
+    type DataType = u16;
+
+    fn from_color(color: Color) -> Self::DataType {
+        let r = (color.r as u16) >> 3;
+        let g = (color.g as u16) >> 2;
+        let b = (color.b as u16) >> 3;
+
+        (r << 11) | (g << 5) | b
     }
 
-    pub fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
-        let rect = Rect::at(x as i32, y as i32).of_size(w, h);
-        let color = image::Rgba([color.r, color.g, color.b, color.a]);
+    fn to_color(raw: Self::DataType) -> Color {
+        let r = ((raw >> 11) & 0x1f) as u8;
+        let g = ((raw >> 5) & 0x3f) as u8;
+        let b = (raw & 0x1f) as u8;
 
-        draw_filled_rect_mut(&mut self.image.image, rect, color);
+        let r = ((r as u32 * 255 + 15) / 31) as u8;
+        let g = ((g as u32 * 255 + 31) / 63) as u8;
+        let b = ((b as u32 * 255 + 15) / 31) as u8;
+
+        Color { a: 0xff, r, g, b }
     }
 
-    pub fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
-        self.image.image.put_pixel(x, y, color.into());
+    fn default() -> Self::DataType {
+        0
     }
 }
 
-impl Deref for Canvas {
-    type Target = Image;
+pub struct Rgb8Pixel {}
 
-    fn deref(&self) -> &Self::Target {
-        &self.image
+impl PixelType for Rgb8Pixel {
+    type DataType = u32;
+
+    fn from_color(color: Color) -> Self::DataType {
+        (color.r as u32) << 16 | (color.g as u32) << 8 | color.b as u32
     }
+
+    fn to_color(raw: Self::DataType) -> Color {
+        let r = ((raw >> 16) & 0xff) as u8;
+        let g = ((raw >> 8) & 0xff) as u8;
+        let b = (raw & 0xff) as u8;
+
+        Color { a: 0xff, r, g, b }
+    }
+
+    fn default() -> Self::DataType {
+        0
+    }
+}
+
+pub struct ArgbPixel {}
+
+impl PixelType for ArgbPixel {
+    type DataType = u32;
+
+    fn from_color(color: Color) -> Self::DataType {
+        (color.a as u32) << 24 | (color.r as u32) << 16 | (color.g as u32) << 8 | color.b as u32
+    }
+
+    fn to_color(raw: Self::DataType) -> Color {
+        let a = ((raw >> 24) & 0xff) as u8;
+        let r = ((raw >> 16) & 0xff) as u8;
+        let g = ((raw >> 8) & 0xff) as u8;
+        let b = (raw & 0xff) as u8;
+
+        Color { a, r, g, b }
+    }
+
+    fn default() -> Self::DataType {
+        0
+    }
+}
+
+pub struct ImageBuffer<T>
+where
+    T: PixelType,
+{
+    width: u32,
+    height: u32,
+    data: Vec<T::DataType>,
+}
+
+impl<T> ImageBuffer<T>
+where
+    T: PixelType,
+{
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            data: vec![T::default(); (width * height) as usize],
+        }
+    }
+
+    pub fn from_raw(width: u32, height: u32, raw: Vec<T::DataType>) -> Self {
+        Self { width, height, data: raw }
+    }
+}
+
+impl<T> Image for ImageBuffer<T>
+where
+    T: PixelType + 'static,
+{
+    fn width(&self) -> u32 {
+        self.width
+    }
+
+    fn height(&self) -> u32 {
+        self.height
+    }
+
+    fn bytes_per_pixel(&self) -> u32 {
+        size_of::<T::DataType>() as u32
+    }
+
+    fn get_pixel(&self, x: u32, y: u32) -> Color {
+        let raw = self.data[(y * self.width + x) as usize];
+
+        T::to_color(raw)
+    }
+
+    fn raw(&self) -> &[u8] {
+        cast_slice(&self.data)
+    }
+
+    fn colors(&self) -> Vec<Color> {
+        self.data.iter().map(|&x| T::to_color(x)).collect()
+    }
+}
+
+impl<T> Canvas for ImageBuffer<T>
+where
+    T: PixelType + 'static,
+{
+    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32) {
+        for y in 0..h {
+            for x in 0..w {
+                if sx + x >= src.width() || sy + y >= src.height() {
+                    continue;
+                }
+                if dx + x >= self.width || dy + y >= self.height {
+                    continue;
+                }
+
+                let color = src.get_pixel(sx + x, sy + y);
+
+                if color.a == 0 {
+                    continue; // TODO alpha blending
+                }
+
+                self.put_pixel(dx + x, dy + y, color);
+            }
+        }
+    }
+
+    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+        for y in y..y + h {
+            for x in x..x + w {
+                if x >= self.width || y >= self.height {
+                    continue;
+                }
+                self.put_pixel(x, y, color);
+            }
+        }
+    }
+
+    fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
+        let raw = T::from_color(color);
+
+        self.data[(y * self.width + x) as usize] = raw;
+    }
+
+    fn image(self: Box<Self>) -> Box<dyn Image> {
+        self
+    }
+}
+
+pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
+    let image = ImageReader::new(Cursor::new(&data)).with_guessed_format()?.decode()?;
+    let rgba = image.into_rgba8();
+
+    let data = rgba.pixels().flat_map(|x| [x.0[2], x.0[1], x.0[0], x.0[3]]).collect::<Vec<_>>();
+
+    Ok(create_canvas(rgba.width(), rgba.height(), 32, &data)?.image())
+}
+
+pub fn create_canvas(width: u32, height: u32, bpp: u32, data: &[u8]) -> anyhow::Result<Box<dyn Canvas>> {
+    Ok(match bpp {
+        16 => Box::new(ImageBuffer::<Rgb565Pixel>::from_raw(width, height, pod_collect_to_vec(data))),
+        32 => Box::new(ImageBuffer::<ArgbPixel>::from_raw(width, height, pod_collect_to_vec(data))), // TODO we can remove copy
+        _ => anyhow::bail!("Unsupported bpp {}", bpp),
+    })
 }

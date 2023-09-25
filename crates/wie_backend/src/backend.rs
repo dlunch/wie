@@ -9,14 +9,14 @@ use wie_base::{Event, Module};
 use crate::{executor::Executor, time::Time};
 
 use self::{
-    canvas::{Canvas, Image},
+    canvas::{ArgbPixel, Canvas, Image, ImageBuffer},
     window::Window,
 };
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
-    screen_canvas: Rc<RefCell<Canvas>>,
+    screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
     window: Rc<RefCell<Window>>,
 }
@@ -29,13 +29,13 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let screen_canvas = Canvas::from_image(Image::from_size(240, 320)); // TODO hardcoded size
-        let window = Window::new(screen_canvas.width(), screen_canvas.height());
+        let canvas = ImageBuffer::<ArgbPixel>::new(240, 320); // TODO hardcoded size
+        let window = Window::new(canvas.width(), canvas.height());
 
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
-            screen_canvas: Rc::new(RefCell::new(screen_canvas)),
+            screen_canvas: Rc::new(RefCell::new(Box::new(canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
             window: Rc::new(RefCell::new(window)),
         }
@@ -49,7 +49,7 @@ impl Backend {
         (*self.time).borrow()
     }
 
-    pub fn screen_canvas(&self) -> RefMut<'_, Canvas> {
+    pub fn screen_canvas(&self) -> RefMut<'_, Box<dyn Canvas>> {
         (*self.screen_canvas).borrow_mut()
     }
 
@@ -67,16 +67,13 @@ impl Backend {
 
     pub fn repaint(&self) {
         let canvas = self.screen_canvas();
-        let rgb32 = canvas
-            .raw_rgba()
-            .chunks(4)
-            .map(|rgba8888| {
-                let rgba32 = u32::from_be_bytes(rgba8888.try_into().unwrap());
-                rgba32 >> 8
-            })
+        let data = canvas
+            .colors()
+            .iter()
+            .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
             .collect::<Vec<_>>();
 
-        self.window().paint(&rgb32);
+        self.window().paint(&data);
     }
 
     pub fn run<M>(self, mut module: M) -> anyhow::Result<()>

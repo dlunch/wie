@@ -1,5 +1,6 @@
 use alloc::{format, vec};
-use wie_backend::Color;
+
+use wie_backend::canvas::{PixelType, Rgb8Pixel};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -155,11 +156,7 @@ impl Graphics {
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
 
-        let r = ((rgb >> 16) & 0xff) as u8;
-        let g = ((rgb >> 8) & 0xff) as u8;
-        let b = (rgb & 0xff) as u8;
-
-        canvas.draw_rect(x, y, width, height, Color::new(r, g, b, 255));
+        canvas.draw_rect(x, y, width, height, Rgb8Pixel::to_color(rgb));
 
         Ok(())
     }
@@ -205,7 +202,7 @@ impl Graphics {
         let x = (x + x_delta).max(0);
         let y = (y + y_delta).max(0);
 
-        canvas.draw(x as u32, y as u32, src_canvas.width(), src_canvas.height(), &src_canvas, 0, 0);
+        canvas.draw(x as u32, y as u32, src_canvas.width(), src_canvas.height(), &*src_canvas, 0, 0);
 
         Ok(())
     }

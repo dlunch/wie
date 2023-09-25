@@ -1,11 +1,9 @@
 use alloc::vec;
 
-use wie_backend::Image;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
-    r#impl::org::kwis::msp::lcdui::Jlet,
+    r#impl::org::kwis::msp::lcdui::{Image as JavaImage, Jlet},
     Array,
 };
 
@@ -172,19 +170,12 @@ impl EventQueue {
         context.destroy(graphics)?;
 
         if image.ptr_instance != 0 {
-            let data = JavaObjectProxy::new(context.get_field(&image, "imgData")?);
-            let size = context.array_length(&data)?;
-            let buffer = context.load_array_u8(&data, 0, size)?;
-
-            context.destroy(data.cast())?;
-            context.destroy(image)?;
+            let image = JavaImage::image(context, &image)?;
 
             let mut canvas = context.backend().screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());
 
-            let src_canvas = Image::from_raw(width, height, buffer);
-
-            canvas.draw(0, 0, width, height, &src_canvas, 0, 0);
+            canvas.draw(0, 0, width, height, &*image, 0, 0);
             drop(canvas);
 
             context.backend().repaint();
