@@ -1,16 +1,15 @@
 pub mod canvas;
-mod window;
+pub mod window;
 
 use alloc::{collections::VecDeque, rc::Rc, string::String};
 use core::cell::{Ref, RefCell, RefMut};
 use std::io::{Cursor, Read};
 
-use anyhow::Context;
 use zip::ZipArchive;
 
-use wie_base::{App, Event};
+use wie_base::Event;
 
-use crate::{executor::Executor, time::Time};
+use crate::time::Time;
 
 use self::{
     canvas::{ArgbPixel, Canvas, Image, ImageBuffer},
@@ -65,27 +64,16 @@ impl Backend {
         (*self.events).borrow_mut().pop_front()
     }
 
+    pub fn push_event(&self, event: Event) {
+        (*self.events).borrow_mut().push_back(event);
+    }
+
     pub fn repaint(&self) {
         self.window().paint(&**self.screen_canvas());
     }
 
     pub fn add_resources_from_zip(&self, zip: &[u8]) -> anyhow::Result<()> {
         (*self.resource).borrow_mut().add_from_zip(zip)
-    }
-
-    pub fn run(self, mut app: Box<dyn App>) -> anyhow::Result<()> {
-        let mut executor = Executor::new();
-
-        app.start()?;
-
-        Window::run(self.window.clone(), move |event| {
-            match event {
-                Event::Update => executor.tick(&self.time()).with_context(|| app.crash_dump())?,
-                _ => self.events.borrow_mut().push_back(event),
-            }
-
-            anyhow::Ok(())
-        })
     }
 }
 

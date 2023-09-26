@@ -6,6 +6,6 @@ pub mod task;
 mod time;
 
 pub use self::{
-    backend::{canvas, Backend},
+    backend::{canvas, window::Window, Backend},
     executor::{AsyncCallable, Executor},
 };
