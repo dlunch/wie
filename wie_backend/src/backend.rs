@@ -8,10 +8,10 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
-use self::{resource::Resource, time::Time};
-
 use self::{
     canvas::{ArgbPixel, Canvas, Image, ImageBuffer},
+    resource::Resource,
+    time::Time,
     window::Window,
 };
 
