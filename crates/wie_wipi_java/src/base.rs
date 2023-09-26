@@ -80,7 +80,7 @@ impl JavaMethodProto {
         impl MethodBody<JavaError> for AbstractCall {
             async fn call(&self, _: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
                 // TODO throw java.lang.AbstractMethodError
-                Err(anyhow::anyhow!("Call to abstract function {}{}", self.name, self.signature))
+                anyhow::bail!("Call to abstract function {}{}", self.name, self.signature)
             }
         }
 

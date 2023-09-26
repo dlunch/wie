@@ -4,6 +4,8 @@ mod window;
 use alloc::{collections::VecDeque, rc::Rc, string::String};
 use core::cell::{Ref, RefCell, RefMut};
 
+use anyhow::Context;
+
 use wie_base::{Event, Module};
 
 use crate::{executor::Executor, time::Time};
@@ -79,15 +81,11 @@ impl Backend {
 
         Window::run(self.window.clone(), move |event| {
             match event {
-                Event::Update => executor.tick(&self.time()).map_err(|x| {
-                    let dump = module.crash_dump();
-
-                    anyhow::anyhow!("{}\n{}", x, dump)
-                })?,
+                Event::Update => executor.tick(&self.time()).with_context(|| module.crash_dump())?,
                 _ => self.events.borrow_mut().push_back(event),
             }
 
-            Ok::<_, anyhow::Error>(())
+            anyhow::Ok(())
         })
     }
 }

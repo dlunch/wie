@@ -1,5 +1,7 @@
+use alloc::format;
 use core::mem::size_of;
 
+use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
 use wie_base::util::{read_generic, round_up, write_generic};
@@ -47,7 +49,7 @@ impl Allocator {
     pub fn alloc(core: &mut ArmCore, size: u32) -> anyhow::Result<u32> {
         let alloc_size = round_up(size as usize + size_of::<AllocationHeader>(), 4) as u32;
 
-        let address = Self::find_address(core, alloc_size).ok_or_else(|| anyhow::anyhow!("Failed to allocate {} bytes", size))?;
+        let address = Self::find_address(core, alloc_size).with_context(|| format!("Failed to allocate {} bytes", size))?;
 
         let previous_header: AllocationHeader = read_generic(core, address)?;
 

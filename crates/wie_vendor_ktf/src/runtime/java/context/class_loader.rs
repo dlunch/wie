@@ -44,7 +44,7 @@ impl ClassLoader {
                         Self::write_loaded_class(context, ptr_class)?;
                         Ok(ptr_class)
                     } else {
-                        Err(anyhow::anyhow!("Cannot find class {}", name))
+                        anyhow::bail!("Cannot find class {}", name);
                     }
                 }
             }
