@@ -466,7 +466,7 @@ impl<'a> KtfJavaContext<'a> {
 #[async_trait::async_trait(?Send)]
 impl JavaContext for KtfJavaContext<'_> {
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>> {
-        anyhow::ensure!(type_name.as_bytes()[0] == b'[', "Array class should not be instantiated here");
+        anyhow::ensure!(type_name.as_bytes()[0] != b'[', "Array class should not be instantiated here");
 
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
