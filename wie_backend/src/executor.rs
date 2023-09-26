@@ -16,6 +16,8 @@ thread_local! {
     pub static GLOBAL_EXECUTOR: RefCell<Option<Rc<RefCell<ExecutorInner>>>> = RefCell::new(None);
 }
 
+type Task = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
+
 pub struct ExecutorInner {
     current_task_id: Option<usize>,
     tasks: HashMap<usize, Task>,
@@ -82,7 +84,7 @@ impl Executor {
             inner.last_task_id
         };
 
-        self.inner.borrow_mut().tasks.insert(task_id, Task { fut: Box::pin(fut) });
+        self.inner.borrow_mut().tasks.insert(task_id, Box::pin(fut));
 
         task_id
     }
@@ -142,7 +144,7 @@ impl Executor {
             let mut context = Context::from_waker(&waker);
             self.inner.borrow_mut().current_task_id = Some(task_id);
 
-            match task.fut.as_mut().poll(&mut context) {
+            match task.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
                     x?;
                 }
@@ -187,8 +189,4 @@ impl Default for Executor {
     fn default() -> Self {
         Self::new()
     }
-}
-
-struct Task {
-    fut: Pin<Box<dyn Future<Output = anyhow::Result<()>>>>,
 }
