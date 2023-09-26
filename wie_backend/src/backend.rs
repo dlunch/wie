@@ -3,8 +3,10 @@ mod window;
 
 use alloc::{collections::VecDeque, rc::Rc, string::String};
 use core::cell::{Ref, RefCell, RefMut};
+use std::io::{Cursor, Read};
 
 use anyhow::Context;
+use zip::ZipArchive;
 
 use wie_base::{App, Event};
 
@@ -63,12 +65,12 @@ impl Backend {
         (*self.events).borrow_mut().pop_front()
     }
 
-    pub fn add_resource(&self, path: &str, data: Vec<u8>) {
-        (*self.resource).borrow_mut().add(path, data)
-    }
-
     pub fn repaint(&self) {
         self.window().paint(&**self.screen_canvas());
+    }
+
+    pub fn add_resources_from_zip(&self, zip: &[u8]) -> anyhow::Result<()> {
+        (*self.resource).borrow_mut().add_from_zip(zip)
     }
 
     pub fn run(self, mut app: Box<dyn App>) -> anyhow::Result<()> {
@@ -144,5 +146,20 @@ impl Resource {
 
     pub fn files(&self) -> impl Iterator<Item = &str> {
         self.files.iter().map(|file| file.0.as_ref())
+    }
+
+    pub fn add_from_zip(&mut self, zip: &[u8]) -> anyhow::Result<()> {
+        let mut archive = ZipArchive::new(Cursor::new(zip))?;
+
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index)?;
+
+            let mut data = Vec::new();
+            file.read_to_end(&mut data)?;
+
+            self.add(file.name(), data);
+        }
+
+        Ok(())
     }
 }

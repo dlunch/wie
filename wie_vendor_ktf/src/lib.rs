@@ -4,6 +4,7 @@
 extern crate alloc;
 
 mod app;
+mod loader;
 mod runtime;
 
-pub use self::app::KtfWipiApp;
+pub use loader::{is_ktf_archive_loaded, load_ktf_archive};
