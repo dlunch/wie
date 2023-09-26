@@ -46,7 +46,7 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         assert!(GLOBAL_EXECUTOR.with(|f| f.borrow().is_none()));
 
         let inner = Rc::new(RefCell::new(ExecutorInner {
@@ -180,6 +180,12 @@ impl Executor {
         }
 
         unsafe { Waker::from_raw(noop_raw_waker()) }
+    }
+}
+
+impl Default for Executor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

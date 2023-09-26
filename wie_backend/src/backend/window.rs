@@ -1,5 +1,4 @@
-use alloc::rc::Rc;
-use core::{cell::RefCell, fmt::Debug, num::NonZeroU32};
+use core::{fmt::Debug, num::NonZeroU32};
 
 use softbuffer::{Context, Surface};
 use winit::{
@@ -68,13 +67,15 @@ impl Window {
         }
     }
 
-    pub fn run<C, E>(self_: Rc<RefCell<Self>>, mut callback: C) -> !
+    pub fn event_loop(&mut self) -> EventLoop<()> {
+        self.event_loop.take().unwrap()
+    }
+
+    pub fn run<C, E>(event_loop: EventLoop<()>, mut callback: C) -> !
     where
         C: FnMut(wie_base::Event) -> Result<(), E> + 'static,
         E: Debug,
     {
-        let event_loop = self_.borrow_mut().event_loop.take().unwrap();
-
         event_loop.run(move |event, _, control_flow| match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
