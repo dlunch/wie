@@ -1,9 +1,8 @@
-use alloc::{boxed::Box, format, string::String};
+use alloc::{format, string::String};
 
 use anyhow::Context;
 
 use wie_backend::Backend;
-use wie_base::App;
 
 use crate::app::KtfWipiApp;
 
@@ -37,7 +36,7 @@ pub fn is_ktf_archive_loaded(backend: &mut Backend) -> bool {
     backend.resource().id("__adf__").is_some()
 }
 
-pub fn load_ktf_archive(backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
+pub fn load_ktf_archive(backend: &mut Backend) -> anyhow::Result<KtfWipiApp> {
     let resource = backend.resource();
     let adf = resource.data(resource.id("__adf__").context("Invalid format")?);
 
@@ -51,5 +50,5 @@ pub fn load_ktf_archive(backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
 
     backend.add_resources_from_zip(&jar)?;
 
-    Ok(Box::new(KtfWipiApp::new(&adf.mclass, backend)?))
+    KtfWipiApp::new(&adf.mclass, backend)
 }
