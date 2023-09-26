@@ -5,7 +5,7 @@ extern crate alloc;
 pub mod methods;
 pub mod util;
 
-pub trait Module {
+pub trait App {
     fn start(&mut self) -> anyhow::Result<()>;
     fn crash_dump(&self) -> alloc::string::String;
 }

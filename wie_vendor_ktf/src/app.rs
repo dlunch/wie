@@ -3,14 +3,13 @@ use alloc::string::String;
 use anyhow::Context;
 
 use wie_backend::Backend;
-use wie_base::Module;
+use wie_base::App;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_wipi_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
 use crate::runtime::KtfJavaContext;
 
-// client.bin from jar, extracted from ktf phone
-pub struct KtfWipiModule {
+pub struct KtfWipiApp {
     core: ArmCore,
     backend: Backend,
     base_address: u32,
@@ -18,13 +17,14 @@ pub struct KtfWipiModule {
     main_class_name: String,
 }
 
-impl KtfWipiModule {
-    pub fn new(filename: &str, main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
+impl KtfWipiApp {
+    pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
         Allocator::init(&mut core)?;
 
         let resource = backend.resource();
+        let filename = resource.files().find(|x| x.starts_with("client.bin")).context("Invalid archive")?;
         let data = resource.data(resource.id(filename).context("Resource not found")?);
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
@@ -68,7 +68,7 @@ impl KtfWipiModule {
     }
 }
 
-impl Module for KtfWipiModule {
+impl App for KtfWipiApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
         let mut backend = self.backend.clone();

@@ -8,7 +8,6 @@ use clap::Parser;
 #[derive(Parser)]
 struct Args {
     filename: String,
-    main_class_name: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -21,10 +20,10 @@ fn main() -> anyhow::Result<()> {
 
     let mut file = File::open(args.filename)?;
 
-    let mut buf = vec![0; file.metadata()?.len() as usize];
+    let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
 
-    wie::start(&buf, args.main_class_name)?;
+    wie::start(&buf)?;
 
     Ok(())
 }

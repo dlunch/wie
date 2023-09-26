@@ -2159,6 +2159,7 @@ dependencies = [
  "anyhow",
  "tracing",
  "wie_backend",
+ "wie_base",
  "wie_vendor_ktf",
  "zip",
 ]
