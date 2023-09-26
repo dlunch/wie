@@ -62,7 +62,7 @@ pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_targ
     if result.is_ok() {
         Ok(0)
     } else {
-        tracing::error!("load_java_class failed: {}", result.err().unwrap());
+        tracing::error!("load_java_class({}) failed: {}", name, result.err().unwrap());
 
         Ok(1)
     }
