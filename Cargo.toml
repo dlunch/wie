@@ -2,12 +2,14 @@
 resolver = "2"
 
 members = [
+    "crates/wie",
     "crates/wie_backend",
     "crates/wie_base",
     "crates/wie_core_arm",
     "crates/wie_vendor_ktf",
     "crates/wie_wipi_c",
     "crates/wie_wipi_java",
+    "frontend/cli",
 ]
 
 [workspace.dependencies]
@@ -16,19 +18,3 @@ async-trait = { version = "^0.1", default-features = false }
 bitflags = { version = "^2.3", default-features = false }
 bytemuck = { version = "^1.13", default-features = false, features = ["derive"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
-
-[package]
-name = "wie"
-version = "0.0.1"
-edition = "2021"
-license = "MIT"
-
-[dependencies]
-anyhow = { version = "^1.0", features = ["backtrace"] }
-clap = { version =  "^4.4", features = ["derive"] }
-tracing = { workspace = true }
-tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
-zip = { version = "^0.6" }
-
-wie_backend = { path = "crates/wie_backend" }
-wie_vendor_ktf = { path = "crates/wie_vendor_ktf" }
