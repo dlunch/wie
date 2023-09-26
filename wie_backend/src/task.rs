@@ -6,8 +6,8 @@ use core::{
 };
 
 use crate::{
+    backend::time::Instant,
     executor::{AsyncCallable, Executor},
-    time::Instant,
 };
 
 pub fn sleep(until: Instant) -> SleepFuture {

@@ -1,5 +1,6 @@
 pub mod canvas;
 mod resource;
+pub mod time;
 pub mod window;
 
 use alloc::{collections::VecDeque, rc::Rc};
@@ -7,8 +8,7 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
-use self::resource::Resource;
-use crate::time::Time;
+use self::{resource::Resource, time::Time};
 
 use self::{
     canvas::{ArgbPixel, Canvas, Image, ImageBuffer},

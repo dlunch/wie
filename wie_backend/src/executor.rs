@@ -9,7 +9,7 @@ use core::{
 };
 use std::{collections::HashMap, thread::sleep};
 
-use crate::time::{Instant, Time};
+use crate::backend::time::{Instant, Time};
 
 thread_local! {
     #[allow(clippy::type_complexity)]
