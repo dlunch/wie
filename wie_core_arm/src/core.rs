@@ -461,7 +461,7 @@ impl ArmCore {
 
     pub fn dump_reg_stack(&self) -> String {
         format!(
-            "{}\nPossible call stack:\n{}\nStack:\n{}",
+            "\n{}\nPossible call stack:\n{}\nStack:\n{}",
             self.dump_regs().unwrap(),
             self.dump_call_stack().unwrap(),
             self.dump_stack().unwrap()
