@@ -8,8 +8,6 @@ license.workspace = true
 anyhow = { workspace = true }
 tracing = { workspace = true }
 
-zip = { version = "^0.6" }
-
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 wie_vendor_ktf = { path = "../wie_vendor_ktf" }
