@@ -29,7 +29,7 @@ impl KtfWipiApp {
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
-        let main_class_name = main_class_name.clone().replace('.', "/");
+        let main_class_name = main_class_name.replace('.', "/");
 
         Ok(Self {
             core,
