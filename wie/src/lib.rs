@@ -12,10 +12,10 @@ fn load_archive(file: &[u8], backend: &mut Backend) -> anyhow::Result<Box<dyn Ap
     backend.add_resources_from_zip(file)?;
 
     if is_ktf_archive_loaded(backend) {
-        return load_ktf_archive(backend);
+        Ok(Box::new(load_ktf_archive(backend)?))
+    } else {
+        anyhow::bail!("Unknown vendor")
     }
-
-    anyhow::bail!("Unknown vendor")
 }
 
 pub fn start(file: &[u8]) -> anyhow::Result<()> {
