@@ -12,6 +12,11 @@ members = [
     "wie_wipi_java",
 ]
 
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
 [workspace.dependencies]
 anyhow = { version = "^1.0", default-features = false }
 async-trait = { version = "^0.1", default-features = false }
