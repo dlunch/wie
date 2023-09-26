@@ -129,7 +129,7 @@ fn main() -> anyhow::Result<()> {
             let main_class_name = if let Some(x) = args.main_class_name { x } else { main_class_name };
             KtfWipiModule::new(&module_file_name, &main_class_name, &backend)?
         }
-        None => return Err(anyhow::anyhow!("Unknown vendor")),
+        None => anyhow::bail!("Unknown vendor"),
     };
 
     backend.run(module)?;

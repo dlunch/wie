@@ -1,5 +1,7 @@
 use alloc::string::String;
 
+use anyhow::Context;
+
 use wie_backend::Backend;
 use wie_base::Module;
 use wie_core_arm::{Allocator, ArmCore};
@@ -23,7 +25,7 @@ impl KtfWipiModule {
         Allocator::init(&mut core)?;
 
         let resource = backend.resource();
-        let data = resource.data(resource.id(filename).ok_or(anyhow::anyhow!("Resource not found"))?);
+        let data = resource.data(resource.id(filename).context("Resource not found")?);
 
         let (base_address, bss_size) = Self::load(&mut core, data, filename)?;
 
@@ -45,9 +47,7 @@ impl KtfWipiModule {
         tracing::debug!("Call wipi init at {:#x}", fn_init);
 
         let result = core.run_function::<u32>(fn_init, &[]).await?;
-        if result != 0 {
-            return Err(anyhow::anyhow!("wipi init failed with code {:#x}", result));
-        }
+        anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
 
         let mut java_context = KtfJavaContext::new(core, backend);
 
@@ -57,7 +57,7 @@ impl KtfWipiModule {
     }
 
     fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<(u32, u32)> {
-        let bss_start = filename.find("client.bin").ok_or_else(|| anyhow::anyhow!("Incorrect filename"))? + 10;
+        let bss_start = filename.find("client.bin").context("Incorrect filename")? + 10;
         let bss_size = filename[bss_start..].parse::<u32>()?;
 
         let base_address = core.load(data, data.len() + bss_size as usize)?;

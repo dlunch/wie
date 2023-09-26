@@ -5,6 +5,7 @@ mod vtable_builder;
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{iter, mem::size_of};
 
+use anyhow::Context;
 use bytemuck::{cast_slice, cast_vec, Pod, Zeroable};
 use num_traits::FromBytes;
 
@@ -190,9 +191,9 @@ impl<'a> KtfJavaContext<'a> {
             let name_copy = fullname.clone(); // TODO remove clone
 
             self.get_method(class_descriptor.ptr_parent_class, fullname)
-                .map_err(|_| anyhow::anyhow!("Cannot find function {} from {}", name_copy, class_name))
+                .with_context(|| format!("Cannot find function {} from {}", name_copy, class_name))
         } else {
-            Err(anyhow::anyhow!("Can't find function {} from {}", fullname, class_name))
+            anyhow::bail!("Cannot find function {} from {}", fullname, class_name)
         }
     }
 
@@ -370,9 +371,9 @@ impl<'a> KtfJavaContext<'a> {
 
         if class_descriptor.ptr_parent_class != 0 {
             self.get_ptr_field(class_descriptor.ptr_parent_class, field_name)
-                .map_err(|_| anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
+                .with_context(|| format!("Cannot find field {} from {}", field_name, class_name))
         } else {
-            Err(anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
+            anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
         }
     }
 
@@ -465,9 +466,8 @@ impl<'a> KtfJavaContext<'a> {
 #[async_trait::async_trait(?Send)]
 impl JavaContext for KtfJavaContext<'_> {
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>> {
-        if type_name.as_bytes()[0] == b'[' {
-            return Err(anyhow::anyhow!("Array class should not be instantiated here"));
-        }
+        anyhow::ensure!(type_name.as_bytes()[0] == b'[', "Array class should not be instantiated here");
+
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
 
@@ -563,7 +563,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<u32> {
-        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
+        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -573,7 +573,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()> {
-        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.ok_or(anyhow::anyhow!("No such class {}", class_name))?;
+        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let mut field: JavaField = read_generic(self.core, ptr_field)?;
 

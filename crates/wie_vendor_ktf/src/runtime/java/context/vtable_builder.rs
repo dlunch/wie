@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, vec::Vec};
 
 use wie_base::util::read_generic;
-use wie_wipi_java::{JavaError, JavaResult};
+use wie_wipi_java::JavaResult;
 
 use super::{name::JavaFullName, JavaMethod, KtfJavaContext};
 
@@ -61,7 +61,7 @@ impl JavaVtableBuilder {
                     let method: JavaMethod = read_generic(context.core, x)?;
                     let name = JavaFullName::from_ptr(context.core, method.ptr_name)?;
 
-                    Ok::<_, JavaError>(JavaVtableMethod { ptr_method: x, name })
+                    anyhow::Ok(JavaVtableMethod { ptr_method: x, name })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 

@@ -213,9 +213,7 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyho
             &[ptr_param_0, ptr_param_1, ptr_param_2, ptr_param_3, ptr_param_4],
         )
         .await?;
-    if result != 0 {
-        return Err(anyhow::anyhow!("Init failed with code {:#x}", result));
-    }
+    anyhow::ensure!(result == 0, "Init failed with code {:#x}", result);
 
     Ok(wipi_exe.fn_init)
 }

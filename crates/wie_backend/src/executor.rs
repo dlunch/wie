@@ -73,7 +73,7 @@ impl Executor {
         let fut = async move {
             callable.call().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
 
-            Ok::<(), anyhow::Error>(())
+            anyhow::Ok(())
         };
 
         let task_id = {
