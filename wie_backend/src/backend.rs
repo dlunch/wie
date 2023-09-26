@@ -6,7 +6,7 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use anyhow::Context;
 
-use wie_base::{Event, Module};
+use wie_base::{App, Event};
 
 use crate::{executor::Executor, time::Time};
 
@@ -71,17 +71,14 @@ impl Backend {
         self.window().paint(&**self.screen_canvas());
     }
 
-    pub fn run<M>(self, mut module: M) -> anyhow::Result<()>
-    where
-        M: Module + 'static,
-    {
+    pub fn run(self, mut app: Box<dyn App>) -> anyhow::Result<()> {
         let mut executor = Executor::new();
 
-        module.start()?;
+        app.start()?;
 
         Window::run(self.window.clone(), move |event| {
             match event {
-                Event::Update => executor.tick(&self.time()).with_context(|| module.crash_dump())?,
+                Event::Update => executor.tick(&self.time()).with_context(|| app.crash_dump())?,
                 _ => self.events.borrow_mut().push_back(event),
             }
 
@@ -143,5 +140,9 @@ impl Resource {
 
     pub fn data(&self, id: u32) -> &[u8] {
         &self.files[id as usize].1
+    }
+
+    pub fn files(&self) -> impl Iterator<Item = &str> {
+        self.files.iter().map(|file| file.0.as_ref())
     }
 }
