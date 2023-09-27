@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_wipi_c::{
     r#impl::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
-        stub::get_stub_method_table, unk12::get_unk12_method_table,
+        stub::get_stub_method_table, misc::get_misc_method_table, unk12::get_unk12_method_table,
     },
     CContext, CMethodBody,
 };
@@ -65,7 +65,7 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
     tracing::trace!("get_wipic_interfaces");
 
     let interface_0 = write_methods(context, get_stub_method_table(0))?;
-    let interface_1 = write_methods(context, get_stub_method_table(1))?;
+    let interface_1 = write_methods(context, get_misc_method_table())?;
 
     let graphics_methods = get_graphics_method_table();
     let interface_2 = write_methods(context, graphics_methods)?;
