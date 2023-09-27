@@ -10,6 +10,11 @@ use winit::{
 
 use crate::canvas::Canvas;
 
+pub enum WindowCallbackEvent {
+    Update,
+    Event(wie_base::Event),
+}
+
 pub struct Window {
     window: winit::window::Window,
     event_loop: Option<EventLoop<()>>,
@@ -54,9 +59,9 @@ impl Window {
         self.window.request_redraw();
     }
 
-    fn callback<C, E>(event: wie_base::Event, control_flow: &mut ControlFlow, callback: &mut C)
+    fn callback<C, E>(event: WindowCallbackEvent, control_flow: &mut ControlFlow, callback: &mut C)
     where
-        C: FnMut(wie_base::Event) -> Result<(), E> + 'static,
+        C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
     {
         let result = callback(event);
@@ -73,7 +78,7 @@ impl Window {
 
     pub fn run<C, E>(event_loop: EventLoop<()>, mut callback: C) -> !
     where
-        C: FnMut(wie_base::Event) -> Result<(), E> + 'static,
+        C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
     {
         event_loop.run(move |event, _, control_flow| match event {
@@ -90,7 +95,11 @@ impl Window {
                         },
                     ..
                 } => {
-                    Self::callback(wie_base::Event::Keydown(scancode), control_flow, &mut callback);
+                    Self::callback(
+                        WindowCallbackEvent::Event(wie_base::Event::Keydown(scancode)),
+                        control_flow,
+                        &mut callback,
+                    );
                 }
                 WindowEvent::KeyboardInput {
                     input:
@@ -101,15 +110,15 @@ impl Window {
                         },
                     ..
                 } => {
-                    Self::callback(wie_base::Event::Keyup(scancode), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Event(wie_base::Event::Keyup(scancode)), control_flow, &mut callback);
                 }
                 _ => {}
             },
             Event::MainEventsCleared => {
-                Self::callback(wie_base::Event::Update, control_flow, &mut callback);
+                Self::callback(WindowCallbackEvent::Update, control_flow, &mut callback);
             }
             Event::RedrawRequested(_) => {
-                Self::callback(wie_base::Event::Redraw, control_flow, &mut callback);
+                Self::callback(WindowCallbackEvent::Event(wie_base::Event::Redraw), control_flow, &mut callback);
             }
 
             _ => {}

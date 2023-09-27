@@ -77,7 +77,6 @@ impl EventQueue {
                     wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as u32, 0, 0, 0],
                     wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as u32, KeyboardEventType::KeyPressed as u32, x, 0],
                     wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as u32, KeyboardEventType::KeyReleased as u32, x, 0],
-                    _ => unimplemented!("unhandled event {:?}", x),
                 };
 
                 context.store_array_u32(&event, 0, &event_data)?;
