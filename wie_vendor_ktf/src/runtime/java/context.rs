@@ -174,7 +174,7 @@ impl<'a> KtfJavaContext<'a> {
         Self { core, backend }
     }
 
-    pub fn get_method(&mut self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<u32> {
+    pub fn get_ptr_method(&self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<u32> {
         let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
         let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
@@ -190,10 +190,31 @@ impl<'a> KtfJavaContext<'a> {
         if class_descriptor.ptr_parent_class != 0 {
             let name_copy = fullname.clone(); // TODO remove clone
 
-            self.get_method(class_descriptor.ptr_parent_class, fullname)
+            self.get_ptr_method(class_descriptor.ptr_parent_class, fullname)
                 .with_context(|| format!("Cannot find function {} from {}", name_copy, class_name))
         } else {
             anyhow::bail!("Cannot find function {} from {}", fullname, class_name)
+        }
+    }
+
+    pub fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
+        let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
+
+        let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields_or_element_type)?;
+        for ptr_field in ptr_fields {
+            let field: JavaField = read_generic(self.core, ptr_field)?;
+
+            let fullname = JavaFullName::from_ptr(self.core, field.ptr_name)?;
+            if fullname.name == field_name {
+                return Ok(ptr_field);
+            }
+        }
+
+        if class_descriptor.ptr_parent_class != 0 {
+            self.get_ptr_field(class_descriptor.ptr_parent_class, field_name)
+                .with_context(|| format!("Cannot find field {} from {}", field_name, class_name))
+        } else {
+            anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
         }
     }
 
@@ -245,7 +266,7 @@ impl<'a> KtfJavaContext<'a> {
         let instance = JavaObjectProxy::<Object>::new(ptr_instance);
 
         if added {
-            let clinit = self.get_method(
+            let clinit = self.get_ptr_method(
                 ptr_class,
                 JavaFullName {
                     tag: 0,
@@ -354,27 +375,6 @@ impl<'a> KtfJavaContext<'a> {
         write_generic(self.core, cursor, 0u32)?;
 
         Ok(base_address)
-    }
-
-    fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
-        let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
-
-        let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields_or_element_type)?;
-        for ptr_field in ptr_fields {
-            let field: JavaField = read_generic(self.core, ptr_field)?;
-
-            let fullname = JavaFullName::from_ptr(self.core, field.ptr_name)?;
-            if fullname.name == field_name {
-                return Ok(ptr_field);
-            }
-        }
-
-        if class_descriptor.ptr_parent_class != 0 {
-            self.get_ptr_field(class_descriptor.ptr_parent_class, field_name)
-                .with_context(|| format!("Cannot find field {} from {}", field_name, class_name))
-        } else {
-            anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
-        }
     }
 
     async fn call_method_inner(&mut self, ptr_method: u32, args: &[u32]) -> JavaResult<u32> {
@@ -505,7 +505,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let mut params = vec![instance_proxy.ptr_instance];
         params.extend(args);
 
-        let ptr_method = self.get_method(
+        let ptr_method = self.get_ptr_method(
             instance.ptr_class,
             JavaFullName {
                 tag: 0,
@@ -522,7 +522,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
 
-        let ptr_method = self.get_method(
+        let ptr_method = self.get_ptr_method(
             ptr_class,
             JavaFullName {
                 tag: 0,
