@@ -8,38 +8,24 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
-use self::{
-    canvas::{ArgbPixel, Canvas, Image, ImageBuffer},
-    resource::Resource,
-    time::Time,
-    window::Window,
-};
+use self::{canvas::Canvas, resource::Resource, time::Time, window::WindowProxy};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
-    window: Rc<RefCell<Window>>,
-}
-
-impl Default for Backend {
-    fn default() -> Self {
-        Self::new()
-    }
+    window: Rc<RefCell<WindowProxy>>,
 }
 
 impl Backend {
-    pub fn new() -> Self {
-        let canvas = ImageBuffer::<ArgbPixel>::new(240, 320); // TODO hardcoded size
-        let window = Window::new(canvas.width(), canvas.height());
-
+    pub fn new(screen_canvas: Box<dyn Canvas>, window_proxy: WindowProxy) -> Self {
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
-            screen_canvas: Rc::new(RefCell::new(Box::new(canvas))),
+            screen_canvas: Rc::new(RefCell::new(screen_canvas)),
             events: Rc::new(RefCell::new(VecDeque::new())),
-            window: Rc::new(RefCell::new(window)),
+            window: Rc::new(RefCell::new(window_proxy)),
         }
     }
 
@@ -55,7 +41,7 @@ impl Backend {
         (*self.screen_canvas).borrow_mut()
     }
 
-    pub fn window(&self) -> RefMut<'_, Window> {
+    pub fn window(&self) -> RefMut<'_, WindowProxy> {
         (*self.window).borrow_mut()
     }
 
@@ -67,8 +53,8 @@ impl Backend {
         (*self.events).borrow_mut().push_back(event);
     }
 
-    pub fn repaint(&self) {
-        self.window().paint(&**self.screen_canvas());
+    pub fn repaint(&self) -> anyhow::Result<()> {
+        self.window().repaint(&**self.screen_canvas())
     }
 
     pub fn add_resource(&self, path: &str, data: Vec<u8>) {

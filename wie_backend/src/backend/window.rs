@@ -4,7 +4,7 @@ use softbuffer::{Context, Surface};
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
     window::WindowBuilder,
 };
 
@@ -15,15 +15,47 @@ pub enum WindowCallbackEvent {
     Event(wie_base::Event),
 }
 
+#[derive(Debug)]
+enum WindowInternalEvent {
+    RequestRedraw,
+    Paint(Vec<u32>),
+}
+
+pub struct WindowProxy {
+    event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
+}
+
+impl WindowProxy {
+    pub fn request_redraw(&self) -> anyhow::Result<()> {
+        self.send_event(WindowInternalEvent::RequestRedraw)
+    }
+
+    pub fn repaint(&self, canvas: &dyn Canvas) -> anyhow::Result<()> {
+        let data = canvas
+            .colors()
+            .iter()
+            .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
+            .collect::<Vec<_>>();
+
+        self.send_event(WindowInternalEvent::Paint(data))
+    }
+
+    fn send_event(&self, event: WindowInternalEvent) -> anyhow::Result<()> {
+        self.event_loop_proxy.send_event(event)?;
+
+        Ok(())
+    }
+}
+
 pub struct Window {
     window: winit::window::Window,
-    event_loop: Option<EventLoop<()>>,
+    event_loop: EventLoop<WindowInternalEvent>,
     surface: Surface,
 }
 
 impl Window {
     pub fn new(width: u32, height: u32) -> Self {
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoopBuilder::<WindowInternalEvent>::with_user_event().build();
 
         let size = PhysicalSize::new(width, height);
 
@@ -35,28 +67,13 @@ impl Window {
             .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
             .unwrap();
 
-        Self {
-            window,
-            event_loop: Some(event_loop),
-            surface,
+        Self { window, event_loop, surface }
+    }
+
+    pub fn proxy(&self) -> WindowProxy {
+        WindowProxy {
+            event_loop_proxy: self.event_loop.create_proxy(),
         }
-    }
-
-    pub fn paint(&mut self, canvas: &dyn Canvas) {
-        let data = canvas
-            .colors()
-            .iter()
-            .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
-            .collect::<Vec<_>>();
-
-        let mut buffer = self.surface.buffer_mut().unwrap();
-        buffer.copy_from_slice(&data);
-
-        buffer.present().unwrap();
-    }
-
-    pub fn request_redraw(&self) {
-        self.window.request_redraw();
     }
 
     fn callback<C, E>(event: WindowCallbackEvent, control_flow: &mut ControlFlow, callback: &mut C)
@@ -72,16 +89,24 @@ impl Window {
         }
     }
 
-    pub fn event_loop(&mut self) -> EventLoop<()> {
-        self.event_loop.take().unwrap()
-    }
-
-    pub fn run<C, E>(event_loop: EventLoop<()>, mut callback: C) -> !
+    pub fn run<C, E>(mut self, mut callback: C) -> !
     where
         C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
     {
-        event_loop.run(move |event, _, control_flow| match event {
+        self.event_loop.run(move |event, _, control_flow| match event {
+            Event::UserEvent(x) => match x {
+                WindowInternalEvent::RequestRedraw => {
+                    self.window.request_redraw();
+                }
+                WindowInternalEvent::Paint(data) => {
+                    let mut buffer = self.surface.buffer_mut().unwrap();
+                    buffer.copy_from_slice(&data);
+
+                    buffer.present().unwrap();
+                }
+            },
+
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;

@@ -64,7 +64,7 @@ impl Card {
             a3
         );
 
-        context.backend().window().request_redraw();
+        context.backend().window().request_redraw()?;
 
         Ok(())
     }
@@ -72,7 +72,7 @@ impl Card {
     async fn service_repaints(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:#x})", this.ptr_instance);
 
-        context.backend().window().request_redraw();
+        context.backend().window().request_redraw()?;
 
         Ok(())
     }
