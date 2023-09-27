@@ -53,8 +53,32 @@ async fn clip_set_position(_context: &mut dyn CContext, clip: u32, ms: u32) -> C
     Ok(0)
 }
 
+async fn play(_context: &mut dyn CContext, clip: u32, repeat: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaPlay({:#x}, {})", clip, repeat);
+
+    Ok(0)
+}
+
+async fn pause(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaPause({:#x})", clip);
+
+    Ok(0)
+}
+
+async fn resume(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaResume({:#x})", clip);
+
+    Ok(0)
+}
+
 async fn stop(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
     tracing::warn!("stub MC_mdaStop({:#x})", clip);
+
+    Ok(0)
+}
+
+async fn record(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaRecord({:#x})", clip);
 
     Ok(0)
 }
@@ -75,11 +99,11 @@ pub fn get_media_method_table() -> Vec<CMethodBody> {
         clip_set_position.into_body(),
         gen_stub(12, "MC_mdaClipGetVolume"),
         gen_stub(13, "MC_mdaClipSetVolume"),
-        gen_stub(14, "MC_mdaPlay"),
-        gen_stub(15, "MC_mdaPause"),
-        gen_stub(16, "MC_mdaResume"),
+        play.into_body(),
+        pause.into_body(),
+        resume.into_body(),
         stop.into_body(),
-        gen_stub(18, "MC_mdaRecord"),
+        record.into_body(),
         gen_stub(19, "MC_mdaGetVolume"),
         gen_stub(20, "MC_mdaSetVolume"),
         gen_stub(21, "MC_mdaVibrator"),
