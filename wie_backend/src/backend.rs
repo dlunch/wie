@@ -71,8 +71,8 @@ impl Backend {
         self.window().paint(&**self.screen_canvas());
     }
 
-    pub fn add_resources_from_zip(&self, zip: &[u8]) -> anyhow::Result<()> {
-        (*self.resource).borrow_mut().add_from_zip(zip)
+    pub fn add_resource(&self, path: &str, data: Vec<u8>) {
+        (*self.resource).borrow_mut().add(path, data);
     }
 }
 
