@@ -5,6 +5,8 @@ use std::{
 
 use clap::Parser;
 
+use wie::Wie;
+use wie_backend::{Window, WindowCallbackEvent};
 use wie_vendor_ktf::KtfArchive;
 
 #[derive(Parser)]
@@ -27,7 +29,16 @@ fn main() -> anyhow::Result<()> {
 
     let archive = KtfArchive::from_zip(&buf)?;
 
-    wie::start(Box::new(archive))?;
+    let window = Window::new(240, 320); // TODO hardcoded size
 
-    Ok(())
+    let mut wie = Wie::new(Box::new(archive), window.proxy())?;
+
+    window.run(move |event| {
+        match event {
+            WindowCallbackEvent::Update => wie.tick()?,
+            WindowCallbackEvent::Event(x) => wie.send_event(x),
+        }
+
+        anyhow::Ok(())
+    })
 }

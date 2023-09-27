@@ -4,30 +4,38 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use wie_backend::{
-    canvas::{ArgbPixel, Image, ImageBuffer},
-    Archive, Backend, Executor, Window, WindowCallbackEvent,
+    canvas::{ArgbPixel, ImageBuffer},
+    App, Archive, Backend, Executor, WindowProxy,
 };
 
-pub fn start(archive: Box<dyn Archive>) -> anyhow::Result<()> {
-    let canvas = ImageBuffer::<ArgbPixel>::new(240, 320); // TODO hardcoded size
-    let window = Window::new(canvas.width(), canvas.height());
+pub struct Wie {
+    app: Box<dyn App>,
+    backend: Backend,
+    executor: Executor,
+}
 
-    let mut backend = Backend::new(Box::new(canvas), window.proxy());
+impl Wie {
+    pub fn new(archive: Box<dyn Archive>, window_proxy: WindowProxy) -> anyhow::Result<Self> {
+        let canvas = ImageBuffer::<ArgbPixel>::new(window_proxy.width(), window_proxy.height());
 
-    let mut app = archive.load_app(&mut backend)?;
+        let mut backend = Backend::new(Box::new(canvas), window_proxy);
 
-    let mut executor = Executor::new();
+        let mut app = archive.load_app(&mut backend)?;
 
-    app.start()?;
+        let executor = Executor::new();
 
-    window.run(move |event| {
-        match event {
-            WindowCallbackEvent::Update => executor
-                .tick(&backend.time())
-                .map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
-            WindowCallbackEvent::Event(x) => backend.push_event(x),
-        }
+        app.start()?;
 
-        anyhow::Ok(())
-    });
+        Ok(Self { app, backend, executor })
+    }
+
+    pub fn tick(&mut self) -> anyhow::Result<()> {
+        self.executor
+            .tick(&self.backend.time())
+            .map_err(|x| anyhow::anyhow!("{}\n{}", x, self.app.crash_dump()))
+    }
+
+    pub fn send_event(&mut self, event: wie_base::Event) {
+        self.backend.push_event(event)
+    }
 }

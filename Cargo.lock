@@ -2194,6 +2194,7 @@ dependencies = [
  "clap",
  "tracing-subscriber",
  "wie",
+ "wie_backend",
  "wie_vendor_ktf",
 ]
 
