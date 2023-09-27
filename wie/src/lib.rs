@@ -3,8 +3,6 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 
-use anyhow::Context;
-
 use wie_backend::{
     canvas::{ArgbPixel, Image, ImageBuffer},
     Archive, Backend, Executor, Window, WindowCallbackEvent,
@@ -24,7 +22,9 @@ pub fn start(archive: Box<dyn Archive>) -> anyhow::Result<()> {
 
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => executor.tick(&backend.time()).with_context(|| app.crash_dump())?,
+            WindowCallbackEvent::Update => executor
+                .tick(&backend.time())
+                .map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
             WindowCallbackEvent::Event(x) => backend.push_event(x),
         }
 
