@@ -21,7 +21,7 @@ struct WIPIJBInterface {
     fn_java_jump_2: u32,
     fn_store_array: u32,
     fn_get_java_method: u32,
-    fn_unk3: u32,
+    fn_get_static_field: u32,
     fn_unk4: u32,
     fn_unk5: u32,
     unk7: u32,
@@ -38,7 +38,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         fn_java_jump_2: core.register_function(java_jump_2, backend)?,
         fn_store_array: core.register_function(store_array, backend)?,
         fn_get_java_method: core.register_function(get_java_method, backend)?,
-        fn_unk3: core.register_function(jb_unk3, backend)?,
+        fn_get_static_field: core.register_function(get_static_field, backend)?,
         fn_unk4: core.register_function(jb_unk4, backend)?,
         fn_unk5: core.register_function(jb_unk5, backend)?,
         unk7: 0,
@@ -78,7 +78,7 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
     let fullname = JavaFullName::from_ptr(core, ptr_fullname)?;
     tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJavaContext::new(core, backend).get_method(ptr_class, fullname)?;
+    let ptr_method = KtfJavaContext::new(core, backend).get_ptr_method(ptr_class, fullname)?;
 
     tracing::trace!("get_java_method result {:#x}", ptr_method);
 
@@ -118,10 +118,15 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     Ok(instance.ptr_instance)
 }
 
-async fn jb_unk3(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    tracing::warn!("stub jb_unk3({:#x}, {:#x})", a0, a1);
+async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, field_name: u32) -> anyhow::Result<u32> {
+    tracing::warn!("stub get_static_field({:#x}, {:#x})", ptr_class, field_name);
 
-    Ok(0)
+    let field_name = JavaFullName::from_ptr(core, field_name)?;
+    let context = KtfJavaContext::new(core, backend);
+
+    let ptr_field = context.get_ptr_field(ptr_class, &field_name.name)?;
+
+    Ok(ptr_field)
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
