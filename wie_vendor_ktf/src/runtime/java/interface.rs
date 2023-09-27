@@ -21,7 +21,7 @@ struct WIPIJBInterface {
     fn_java_jump_2: u32,
     fn_store_array: u32,
     fn_get_java_method: u32,
-    unk4: u32,
+    fn_unk3: u32,
     fn_unk4: u32,
     fn_unk5: u32,
     unk7: u32,
@@ -38,7 +38,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         fn_java_jump_2: core.register_function(java_jump_2, backend)?,
         fn_store_array: core.register_function(store_array, backend)?,
         fn_get_java_method: core.register_function(get_java_method, backend)?,
-        unk4: 0,
+        fn_unk3: core.register_function(jb_unk3, backend)?,
         fn_unk4: core.register_function(jb_unk4, backend)?,
         fn_unk5: core.register_function(jb_unk5, backend)?,
         unk7: 0,
@@ -116,6 +116,12 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     let instance = JavaString::to_java_string(&mut context, &str).await?;
 
     Ok(instance.ptr_instance)
+}
+
+async fn jb_unk3(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
+    tracing::warn!("stub jb_unk3({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
