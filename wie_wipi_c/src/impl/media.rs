@@ -53,6 +53,12 @@ async fn clip_set_position(_context: &mut dyn CContext, clip: u32, ms: u32) -> C
     Ok(0)
 }
 
+async fn stop(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+    tracing::warn!("stub MC_mdaStop({:#x})", clip);
+
+    Ok(0)
+}
+
 pub fn get_media_method_table() -> Vec<CMethodBody> {
     vec![
         clip_create.into_body(),
@@ -72,7 +78,7 @@ pub fn get_media_method_table() -> Vec<CMethodBody> {
         gen_stub(14, "MC_mdaPlay"),
         gen_stub(15, "MC_mdaPause"),
         gen_stub(16, "MC_mdaResume"),
-        gen_stub(17, "MC_mdaStop"),
+        stop.into_body(),
         gen_stub(18, "MC_mdaRecord"),
         gen_stub(19, "MC_mdaGetVolume"),
         gen_stub(20, "MC_mdaSetVolume"),
