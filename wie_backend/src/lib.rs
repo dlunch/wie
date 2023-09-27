@@ -7,7 +7,7 @@ pub mod task;
 pub use self::{
     backend::{
         canvas,
-        window::{Window, WindowCallbackEvent},
+        window::{Window, WindowCallbackEvent, WindowProxy},
         Backend,
     },
     executor::{AsyncCallable, Executor},

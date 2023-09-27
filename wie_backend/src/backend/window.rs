@@ -1,3 +1,4 @@
+use alloc::rc::Rc;
 use core::{fmt::Debug, num::NonZeroU32};
 
 use softbuffer::{Context, Surface};
@@ -22,6 +23,7 @@ enum WindowInternalEvent {
 }
 
 pub struct WindowProxy {
+    window: Rc<winit::window::Window>,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
@@ -40,6 +42,14 @@ impl WindowProxy {
         self.send_event(WindowInternalEvent::Paint(data))
     }
 
+    pub fn width(&self) -> u32 {
+        self.window.inner_size().width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.window.inner_size().height
+    }
+
     fn send_event(&self, event: WindowInternalEvent) -> anyhow::Result<()> {
         self.event_loop_proxy.send_event(event)?;
 
@@ -48,7 +58,7 @@ impl WindowProxy {
 }
 
 pub struct Window {
-    window: winit::window::Window,
+    window: Rc<winit::window::Window>,
     event_loop: EventLoop<WindowInternalEvent>,
     surface: Surface,
 }
@@ -67,11 +77,16 @@ impl Window {
             .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
             .unwrap();
 
-        Self { window, event_loop, surface }
+        Self {
+            window: Rc::new(window),
+            event_loop,
+            surface,
+        }
     }
 
     pub fn proxy(&self) -> WindowProxy {
         WindowProxy {
+            window: self.window.clone(),
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
