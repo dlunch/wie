@@ -7,8 +7,11 @@ use wie_backend::Backend;
 use wie_base::util::write_generic;
 use wie_core_arm::ArmCore;
 use wie_wipi_c::{
-    get_database_method_table, get_graphics_method_table, get_kernel_method_table, get_media_method_table, get_stub_method_table, CContext,
-    CMethodBody,
+    r#impl::{
+        database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
+        stub::get_stub_method_table, unk12::get_unk12_method_table,
+    },
+    CContext, CMethodBody,
 };
 
 use crate::runtime::c::context::KtfCContext;
@@ -82,7 +85,7 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
 
     let interface_10 = write_methods(context, get_stub_method_table(10))?;
     let interface_11 = write_methods(context, get_stub_method_table(11))?;
-    let interface_12 = write_methods(context, get_stub_method_table(12))?;
+    let interface_12 = write_methods(context, get_unk12_method_table())?;
     let interface_13 = write_methods(context, get_stub_method_table(13))?;
     let interface_14 = write_methods(context, get_stub_method_table(14))?;
     let interface_15 = write_methods(context, get_stub_method_table(15))?;
