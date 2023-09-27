@@ -177,7 +177,7 @@ impl EventQueue {
             canvas.draw(0, 0, width, height, &*image, 0, 0);
             drop(canvas);
 
-            context.backend().repaint();
+            context.backend().repaint()?;
         }
 
         Ok(())
