@@ -16,7 +16,7 @@ impl Resource {
     }
 
     pub fn add(&mut self, path: &str, data: Vec<u8>) {
-        tracing::debug!("Adding resource {}, {}b", path, data.len());
+        tracing::trace!("Adding resource {}, {}b", path, data.len());
 
         self.files.push((path.to_string(), data));
     }
