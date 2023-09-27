@@ -5,6 +5,8 @@ use std::{
 
 use clap::Parser;
 
+use wie_vendor_ktf::KtfArchive;
+
 #[derive(Parser)]
 struct Args {
     filename: String,
@@ -23,7 +25,9 @@ fn main() -> anyhow::Result<()> {
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
 
-    wie::start(&buf)?;
+    let archive = KtfArchive::from_zip(&buf)?;
+
+    wie::start(Box::new(archive))?;
 
     Ok(())
 }

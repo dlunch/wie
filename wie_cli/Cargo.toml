@@ -10,3 +10,4 @@ clap = { version = "^4.4", features = ["derive"] }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
 
 wie = { path = "../wie" }
+wie_vendor_ktf = { path = "../wie_vendor_ktf" }

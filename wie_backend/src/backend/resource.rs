@@ -1,7 +1,4 @@
 use alloc::string::String;
-use std::io::{Cursor, Read};
-
-use zip::ZipArchive;
 
 pub struct Resource {
     files: Vec<(String, Vec<u8>)>,
@@ -48,20 +45,5 @@ impl Resource {
 
     pub fn files(&self) -> impl Iterator<Item = &str> {
         self.files.iter().map(|file| file.0.as_ref())
-    }
-
-    pub fn add_from_zip(&mut self, zip: &[u8]) -> anyhow::Result<()> {
-        let mut archive = ZipArchive::new(Cursor::new(zip))?;
-
-        for index in 0..archive.len() {
-            let mut file = archive.by_index(index)?;
-
-            let mut data = Vec::new();
-            file.read_to_end(&mut data)?;
-
-            self.add(file.name(), data);
-        }
-
-        Ok(())
     }
 }

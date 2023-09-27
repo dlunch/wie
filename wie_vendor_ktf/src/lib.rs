@@ -4,7 +4,7 @@
 extern crate alloc;
 
 mod app;
-mod loader;
+mod archive;
 mod runtime;
 
-pub use loader::{is_ktf_archive_loaded, load_ktf_archive};
+pub use archive::KtfArchive;

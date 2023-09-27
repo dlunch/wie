@@ -10,4 +10,3 @@ tracing = { workspace = true }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
-wie_vendor_ktf = { path = "../wie_vendor_ktf" }

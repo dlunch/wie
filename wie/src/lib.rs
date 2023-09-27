@@ -5,24 +5,13 @@ use alloc::boxed::Box;
 
 use anyhow::Context;
 
-use wie_backend::{Backend, Executor, Window};
-use wie_base::{App, Event};
-use wie_vendor_ktf::{is_ktf_archive_loaded, load_ktf_archive};
+use wie_backend::{Archive, Backend, Executor, Window};
+use wie_base::Event;
 
-fn load_archive(file: &[u8], backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
-    backend.add_resources_from_zip(file)?;
-
-    if is_ktf_archive_loaded(backend) {
-        Ok(Box::new(load_ktf_archive(backend)?))
-    } else {
-        anyhow::bail!("Unknown vendor")
-    }
-}
-
-pub fn start(file: &[u8]) -> anyhow::Result<()> {
+pub fn start(archive: Box<dyn Archive>) -> anyhow::Result<()> {
     let mut backend = Backend::new();
 
-    let mut app = load_archive(file, &mut backend)?;
+    let mut app = archive.load_app(&mut backend)?;
 
     let mut executor = Executor::new();
 
