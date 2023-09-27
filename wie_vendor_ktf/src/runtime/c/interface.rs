@@ -29,6 +29,10 @@ struct WIPICInterface {
     interface_10: u32,
     interface_11: u32,
     interface_12: u32,
+    interface_13: u32,
+    interface_14: u32,
+    interface_15: u32,
+    interface_16: u32,
 }
 
 fn write_methods(context: &mut dyn CContext, methods: Vec<CMethodBody>) -> anyhow::Result<u32> {
@@ -79,6 +83,10 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
     let interface_10 = write_methods(context, get_stub_method_table(10))?;
     let interface_11 = write_methods(context, get_stub_method_table(11))?;
     let interface_12 = write_methods(context, get_stub_method_table(12))?;
+    let interface_13 = write_methods(context, get_stub_method_table(13))?;
+    let interface_14 = write_methods(context, get_stub_method_table(14))?;
+    let interface_15 = write_methods(context, get_stub_method_table(15))?;
+    let interface_16 = write_methods(context, get_stub_method_table(16))?;
 
     let interface = WIPICInterface {
         interface_0,
@@ -94,6 +102,10 @@ async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32>
         interface_10,
         interface_11,
         interface_12,
+        interface_13,
+        interface_14,
+        interface_15,
+        interface_16,
     };
 
     let address = context.alloc_raw(size_of::<WIPICInterface>() as u32)?;
