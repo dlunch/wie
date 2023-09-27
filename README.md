@@ -4,7 +4,7 @@ WIP Emulator for WIPI platform.
 
 ## Status
 
-WIPI JAR file extracted from ktf phones can be loaded and executed.
+WIPI archive extracted from ktf phones can be loaded and executed.
 
 ![](https://github.com/dlunch/wie/blob/main/docs/images/Trivial%20games%20playable.png)
 
@@ -14,7 +14,7 @@ See [TODO.md](TODO.md).
 
 ## Executing app with detailed log
 
-`env RUST_LOG=trace cargo run -- <path to wipi jar>`
+`env RUST_LOG=trace cargo run -- <path to archive>`
 
 ## References
 
