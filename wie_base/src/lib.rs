@@ -7,7 +7,6 @@ pub mod util;
 
 #[derive(Debug)]
 pub enum Event {
-    Update,
     Redraw,
     Keydown(u32),
     Keyup(u32),
