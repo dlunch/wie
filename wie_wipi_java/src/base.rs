@@ -140,6 +140,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/util/Random" => crate::r#impl::java::util::Random::as_proto(),
         "java/util/Vector" => crate::r#impl::java::util::Vector::as_proto(),
         "org/kwis/msp/db/DataBase" => crate::r#impl::org::kwis::msp::db::DataBase::as_proto(),
+        "org/kwis/msp/db/DataBaseException" => crate::r#impl::org::kwis::msp::db::DataBaseException::as_proto(),
         "org/kwis/msp/db/DataBaseRecordException" => crate::r#impl::org::kwis::msp::db::DataBaseRecordException::as_proto(),
         "org/kwis/msp/handset/BackLight" => crate::r#impl::org::kwis::msp::handset::BackLight::as_proto(),
         "org/kwis/msp/handset/HandsetProperty" => crate::r#impl::org::kwis::msp::handset::HandsetProperty::as_proto(),
