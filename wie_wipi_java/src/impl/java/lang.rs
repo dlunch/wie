@@ -5,6 +5,7 @@ mod interrupted_exception;
 mod object;
 mod runnable;
 mod runtime;
+mod runtime_exception;
 mod string;
 mod string_buffer;
 mod system;
@@ -13,6 +14,6 @@ mod throwable;
 
 pub use self::{
     class::Class, exception::Exception, illegal_argument_exception::IllegalArgumentException, interrupted_exception::InterruptedException,
-    object::Object, runnable::Runnable, runtime::Runtime, string::String, string_buffer::StringBuffer, system::System, thread::Thread,
-    throwable::Throwable,
+    object::Object, runnable::Runnable, runtime::Runtime, runtime_exception::RuntimeException, string::String, string_buffer::StringBuffer,
+    system::System, thread::Thread, throwable::Throwable,
 };

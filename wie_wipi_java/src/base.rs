@@ -130,6 +130,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/Object" => crate::r#impl::java::lang::Object::as_proto(),
         "java/lang/Runnable" => crate::r#impl::java::lang::Runnable::as_proto(),
         "java/lang/Runtime" => crate::r#impl::java::lang::Runtime::as_proto(),
+        "java/lang/RuntimeException" => crate::r#impl::java::lang::RuntimeException::as_proto(),
         "java/lang/String" => crate::r#impl::java::lang::String::as_proto(),
         "java/lang/StringBuffer" => crate::r#impl::java::lang::StringBuffer::as_proto(),
         "java/lang/System" => crate::r#impl::java::lang::System::as_proto(),
