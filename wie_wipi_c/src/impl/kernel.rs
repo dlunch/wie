@@ -163,6 +163,18 @@ async fn printk(_context: &mut dyn CContext, format: CWord) -> CResult<()> {
     Ok(())
 }
 
+async fn get_total_memory(_context: &mut dyn CContext) -> CResult<i32> {
+    tracing::warn!("stub MC_knlGetTotalMemory()");
+
+    Ok(0x100000) // TODO hardcoded
+}
+
+async fn get_free_memory(_context: &mut dyn CContext) -> CResult<i32> {
+    tracing::warn!("stub MC_knlGetFreeMemory()");
+
+    Ok(0x100000) // TODO hardcoded
+}
+
 pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<CMethodBody>
 where
     M: MethodImpl<F, R, CError, P>,
@@ -191,8 +203,8 @@ where
         alloc.into_body(),
         calloc.into_body(),
         free.into_body(),
-        gen_stub(23, "MC_knlGetTotalMemory"),
-        gen_stub(24, "MC_knlGetFreeMemory"),
+        get_total_memory.into_body(),
+        get_free_memory.into_body(),
         def_timer.into_body(),
         set_timer.into_body(),
         unset_timer.into_body(),
