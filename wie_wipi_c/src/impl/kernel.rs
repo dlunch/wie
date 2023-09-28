@@ -94,7 +94,7 @@ async fn set_timer(context: &mut dyn CContext, ptr_timer: CWord, timeout_low: CW
 async fn unset_timer(_: &mut dyn CContext, a0: CWord) -> CResult<()> {
     tracing::warn!("stub MC_knlUnsetTimer({:#x})", a0);
 
-    todo!();
+    Ok(())
 }
 
 async fn alloc(context: &mut dyn CContext, size: CWord) -> CResult<CMemoryId> {
