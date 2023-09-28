@@ -292,7 +292,7 @@ impl<'a> KtfJavaContext<'a> {
         let proxy = self.instantiate_inner(ptr_class_array, count * element_size + 4).await?;
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance as _)?;
 
-        write_generic(self.core, instance.ptr_fields + 4, count)?;
+        write_generic(self.core, instance.ptr_fields + 4, count as u32)?;
 
         Ok(proxy.cast())
     }
@@ -556,7 +556,9 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let offset = field.offset_or_value;
 
-        read_generic(self.core, instance.ptr_fields + offset + 4)
+        let value: u32 = read_generic(self.core, instance.ptr_fields + offset + 4)?;
+
+        Ok(value as _)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
@@ -568,7 +570,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let offset = field.offset_or_value;
 
-        write_generic(self.core, instance.ptr_fields + offset + 4, value)
+        write_generic(self.core, instance.ptr_fields + offset + 4, value as u32)
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
@@ -620,7 +622,9 @@ impl JavaContext for KtfJavaContext<'_> {
     fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as _)?;
 
-        read_generic(self.core, instance.ptr_fields + 4)
+        let result: u32 = read_generic(self.core, instance.ptr_fields + 4)?;
+
+        Ok(result as _)
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
