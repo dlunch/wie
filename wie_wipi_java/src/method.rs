@@ -5,4 +5,4 @@ use wie_base::methods;
 
 use crate::JavaContext;
 
-methods!(JavaContext);
+methods!(JavaContext, u32);
