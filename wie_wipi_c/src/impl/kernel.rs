@@ -6,42 +6,42 @@ use bytemuck::{Pod, Zeroable};
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
-    base::{CContext, CError, CMemoryId, CMethodBody, CResult},
+    base::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord},
     method::{MethodBody, MethodImpl},
 };
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICTimer {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
+    unk1: CWord,
+    unk2: CWord,
+    unk3: CWord,
     time: u64,
 
-    param: u32,
-    unk4: u32,
-    fn_callback: u32,
+    param: CWord,
+    unk4: CWord,
+    fn_callback: CWord,
 }
 
-fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
+fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented kernel{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn current_time(context: &mut dyn CContext) -> CResult<u32> {
+async fn current_time(context: &mut dyn CContext) -> CResult<CWord> {
     tracing::debug!("MC_knlCurrentTime()");
 
-    Ok(context.backend().time().now().raw() as u32)
+    Ok(context.backend().time().now().raw() as CWord)
 }
 
-async fn get_system_property(_context: &mut dyn CContext, p_id: u32, p_out: u32, buf_size: u32) -> CResult<i32> {
+async fn get_system_property(_context: &mut dyn CContext, p_id: CWord, p_out: CWord, buf_size: CWord) -> CResult<i32> {
     tracing::warn!("stub MC_knlGetSystemProperty({:#x}, {:#x}, {})", p_id, p_out, buf_size);
 
     Ok(0)
 }
 
-async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32) -> CResult<()> {
+async fn def_timer(context: &mut dyn CContext, ptr_timer: CWord, fn_callback: CWord) -> CResult<()> {
     tracing::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
     let timer = WIPICTimer {
@@ -59,7 +59,7 @@ async fn def_timer(context: &mut dyn CContext, ptr_timer: u32, fn_callback: u32)
     Ok(())
 }
 
-async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32, timeout_high: u32, param: u32) -> CResult<()> {
+async fn set_timer(context: &mut dyn CContext, ptr_timer: CWord, timeout_low: CWord, timeout_high: CWord, param: CWord) -> CResult<()> {
     tracing::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_low, timeout_high, param);
 
     let timer: WIPICTimer = read_generic(context, ptr_timer)?;
@@ -67,13 +67,13 @@ async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32,
     struct TimerCallback {
         timer: WIPICTimer,
         timeout: u64,
-        param: u32,
+        param: CWord,
     }
 
     #[async_trait::async_trait(?Send)]
     impl MethodBody<CError> for TimerCallback {
         #[tracing::instrument(name = "timer", skip_all)]
-        async fn call(&self, context: &mut dyn CContext, _: &[u32]) -> Result<u32, CError> {
+        async fn call(&self, context: &mut dyn CContext, _: &[CWord]) -> Result<CWord, CError> {
             context.sleep(self.timeout).await;
 
             context.call_method(self.timer.fn_callback, &[self.param]).await?;
@@ -91,19 +91,19 @@ async fn set_timer(context: &mut dyn CContext, ptr_timer: u32, timeout_low: u32,
     Ok(())
 }
 
-async fn unset_timer(_: &mut dyn CContext, a0: u32) -> CResult<()> {
+async fn unset_timer(_: &mut dyn CContext, a0: CWord) -> CResult<()> {
     tracing::warn!("stub MC_knlUnsetTimer({:#x})", a0);
 
     todo!();
 }
 
-async fn alloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
+async fn alloc(context: &mut dyn CContext, size: CWord) -> CResult<CMemoryId> {
     tracing::debug!("MC_knlAlloc({:#x})", size);
 
     context.alloc(size)
 }
 
-async fn calloc(context: &mut dyn CContext, size: u32) -> CResult<CMemoryId> {
+async fn calloc(context: &mut dyn CContext, size: CWord) -> CResult<CMemoryId> {
     tracing::debug!("MC_knlCalloc({:#x})", size);
 
     let memory = context.alloc(size)?;
@@ -122,7 +122,7 @@ async fn free(context: &mut dyn CContext, memory: CMemoryId) -> CResult<CMemoryI
     Ok(memory)
 }
 
-async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32) -> CResult<i32> {
+async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: CWord) -> CResult<i32> {
     tracing::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
 
     let id = context.backend().resource().id(&name);
@@ -137,7 +137,7 @@ async fn get_resource_id(context: &mut dyn CContext, name: String, ptr_size: u32
     Ok(id as _)
 }
 
-async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_size: u32) -> CResult<i32> {
+async fn get_resource(context: &mut dyn CContext, id: CWord, buf: CMemoryId, buf_size: CWord) -> CResult<i32> {
     tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
     let size = context.backend().resource().size(id);
@@ -154,7 +154,7 @@ async fn get_resource(context: &mut dyn CContext, id: u32, buf: CMemoryId, buf_s
     Ok(0)
 }
 
-async fn printk(_context: &mut dyn CContext, format: u32) -> CResult<()> {
+async fn printk(_context: &mut dyn CContext, format: CWord) -> CResult<()> {
     tracing::warn!("stub MC_knlPrintk({:#x})", format);
 
     Ok(())

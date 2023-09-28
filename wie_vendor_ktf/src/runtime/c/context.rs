@@ -6,7 +6,7 @@ use wie_backend::{
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
-use wie_wipi_c::{CContext, CError, CMemoryId, CMethodBody, CResult};
+use wie_wipi_c::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord};
 
 pub struct KtfCContext<'a> {
     core: &'a mut ArmCore,
@@ -21,11 +21,11 @@ impl<'a> KtfCContext<'a> {
 
 #[async_trait::async_trait(?Send)]
 impl CContext for KtfCContext<'_> {
-    fn alloc_raw(&mut self, size: u32) -> CResult<u32> {
+    fn alloc_raw(&mut self, size: CWord) -> CResult<CWord> {
         Allocator::alloc(self.core, size)
     }
 
-    fn alloc(&mut self, size: u32) -> CResult<CMemoryId> {
+    fn alloc(&mut self, size: CWord) -> CResult<CMemoryId> {
         let ptr = Allocator::alloc(self.core, size + 12)?; // all allocation has indirect pointer
         write_generic(self.core, ptr, ptr + 4)?;
 
@@ -36,13 +36,13 @@ impl CContext for KtfCContext<'_> {
         Allocator::free(self.core, memory.0)
     }
 
-    fn data_ptr(&self, memory: CMemoryId) -> CResult<u32> {
-        let base: u32 = read_generic(self.core, memory.0)?;
+    fn data_ptr(&self, memory: CMemoryId) -> CResult<CWord> {
+        let base: CWord = read_generic(self.core, memory.0)?;
 
         Ok(base + 8) // all data has offset of 8 bytes
     }
 
-    fn register_function(&mut self, body: CMethodBody) -> CResult<u32> {
+    fn register_function(&mut self, body: CMethodBody) -> CResult<CWord> {
         struct CMethodProxy {
             body: CMethodBody,
         }
@@ -81,7 +81,7 @@ impl CContext for KtfCContext<'_> {
         self.backend
     }
 
-    async fn call_method(&mut self, address: u32, args: &[u32]) -> CResult<u32> {
+    async fn call_method(&mut self, address: CWord, args: &[CWord]) -> CResult<CWord> {
         self.core.run_function(address, args).await
     }
 
@@ -93,9 +93,9 @@ impl CContext for KtfCContext<'_> {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, CError> for SpawnProxy {
+        impl AsyncCallable<CWord, CError> for SpawnProxy {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-            async fn call(mut self) -> Result<u32, CError> {
+            async fn call(mut self) -> Result<CWord, CError> {
                 let mut context = KtfCContext::new(&mut self.core, &mut self.backend);
 
                 self.callback.call(&mut context, &[]).await
@@ -121,13 +121,13 @@ impl CContext for KtfCContext<'_> {
 }
 
 impl ByteRead for KtfCContext<'_> {
-    fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
+    fn read_bytes(&self, address: CWord, size: CWord) -> anyhow::Result<Vec<u8>> {
         self.core.read_bytes(address, size)
     }
 }
 
 impl ByteWrite for KtfCContext<'_> {
-    fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+    fn write_bytes(&mut self, address: CWord, data: &[u8]) -> anyhow::Result<()> {
         self.core.write_bytes(address, data)
     }
 }

@@ -2,26 +2,26 @@ use core::mem;
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::{method::TypeConverter, CContext};
+use crate::{method::TypeConverter, CContext, CWord};
 
 /// _MC_GrpContext
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICGraphicsContext {
-    pub mask: u32,
+    pub mask: CWord,
     /// top-left x, y, bottom-right x, y
-    pub clip: [u32; 4],
-    pub fgpxl: u32,
-    pub bgpxl: u32,
-    pub transpxl: u32,
-    pub alpha: u32,
+    pub clip: [CWord; 4],
+    pub fgpxl: CWord,
+    pub bgpxl: CWord,
+    pub transpxl: CWord,
+    pub alpha: CWord,
     /// x, y
-    pub offset: [u32; 2],
-    pub pixel_op_func_ptr: u32, // MC_GrpPixelOpProc
-    pub param1: u32,
-    pub reserved: u32,
-    pub font: u32,
-    pub style: u32,
+    pub offset: [CWord; 2],
+    pub pixel_op_func_ptr: CWord, // MC_GrpPixelOpProc
+    pub param1: CWord,
+    pub reserved: CWord,
+    pub font: CWord,
+    pub style: CWord,
 }
 
 #[repr(u32)]
@@ -47,9 +47,9 @@ pub enum WIPICGraphicsContextIdx {
 }
 
 impl TypeConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
-    fn to_rust(_context: &mut dyn CContext, raw: u32) -> WIPICGraphicsContextIdx {
-        if raw >= (Self::ClipIdx as u32) && raw <= (Self::OutlineIdx as u32) {
-            // SAFETY: WIPICGraphicsContextIdx has u32 repr and is unit only.
+    fn to_rust(_context: &mut dyn CContext, raw: CWord) -> WIPICGraphicsContextIdx {
+        if raw >= (Self::ClipIdx as CWord) && raw <= (Self::OutlineIdx as CWord) {
+            // SAFETY: WIPICGraphicsContextIdx has CWord repr and is unit only.
             let x: Self = unsafe { mem::transmute(raw) };
             x
         } else {
@@ -57,7 +57,7 @@ impl TypeConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
         }
     }
 
-    fn from_rust(_context: &mut dyn CContext, rust: WIPICGraphicsContextIdx) -> u32 {
-        rust as u32
+    fn from_rust(_context: &mut dyn CContext, rust: WIPICGraphicsContextIdx) -> CWord {
+        rust as CWord
     }
 }

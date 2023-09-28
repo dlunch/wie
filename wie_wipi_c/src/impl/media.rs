@@ -1,83 +1,83 @@
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{CContext, CMethodBody, CResult},
+    base::{CContext, CMethodBody, CResult, CWord},
     method::MethodImpl,
 };
 
-fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
+fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented media{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn clip_create(_context: &mut dyn CContext, r#type: u32, buf_size: u32, callback: u32) -> CResult<u32> {
+async fn clip_create(_context: &mut dyn CContext, r#type: CWord, buf_size: CWord, callback: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaClipCreate({:#x}, {:#x}, {:#x})", r#type, buf_size, callback);
 
     Ok(0)
 }
 
-async fn clip_get_type(_context: &mut dyn CContext, clip: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+async fn clip_get_type(_context: &mut dyn CContext, clip: CWord, buf: CWord, buf_size: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaClipGetType({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
 
     Ok(0)
 }
 
-async fn get_mute_state(_context: &mut dyn CContext, source: u32) -> CResult<u32> {
+async fn get_mute_state(_context: &mut dyn CContext, source: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaGetMuteState({:#x})", source);
 
     Ok(0)
 }
 
-async fn clip_get_info(_context: &mut dyn CContext, clip: u32, command: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+async fn clip_get_info(_context: &mut dyn CContext, clip: CWord, command: CWord, buf: CWord, buf_size: CWord) -> CResult<CWord> {
     tracing::warn!("stub OEMC_mdaClipGetInfo({:#x}, {:#x}, {:#x}, {:#x})", clip, command, buf, buf_size);
 
     Ok(0)
 }
 
-async fn clip_put_data(_context: &mut dyn CContext, clip: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+async fn clip_put_data(_context: &mut dyn CContext, clip: CWord, buf: CWord, buf_size: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaClipPutData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
 
     Ok(0)
 }
 
-async fn clip_get_data(_context: &mut dyn CContext, clip: u32, buf: u32, buf_size: u32) -> CResult<u32> {
+async fn clip_get_data(_context: &mut dyn CContext, clip: CWord, buf: CWord, buf_size: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaClipGetData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
 
     Ok(0)
 }
 
-async fn clip_set_position(_context: &mut dyn CContext, clip: u32, ms: u32) -> CResult<u32> {
+async fn clip_set_position(_context: &mut dyn CContext, clip: CWord, ms: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaClipSetPosition({:#x}, {:#x})", clip, ms);
 
     Ok(0)
 }
 
-async fn play(_context: &mut dyn CContext, clip: u32, repeat: u32) -> CResult<u32> {
+async fn play(_context: &mut dyn CContext, clip: CWord, repeat: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaPlay({:#x}, {})", clip, repeat);
 
     Ok(0)
 }
 
-async fn pause(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+async fn pause(_context: &mut dyn CContext, clip: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaPause({:#x})", clip);
 
     Ok(0)
 }
 
-async fn resume(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+async fn resume(_context: &mut dyn CContext, clip: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaResume({:#x})", clip);
 
     Ok(0)
 }
 
-async fn stop(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+async fn stop(_context: &mut dyn CContext, clip: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaStop({:#x})", clip);
 
     Ok(0)
 }
 
-async fn record(_context: &mut dyn CContext, clip: u32) -> CResult<u32> {
+async fn record(_context: &mut dyn CContext, clip: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_mdaRecord({:#x})", clip);
 
     Ok(0)

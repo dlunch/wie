@@ -3,6 +3,6 @@ use core::{future::Future, marker::PhantomData};
 
 use wie_base::methods;
 
-use crate::CContext;
+use crate::{CContext, CWord};
 
-methods!(CContext, u32);
+methods!(CContext, CWord);
