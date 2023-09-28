@@ -6,7 +6,7 @@ use crate::{
 };
 
 fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
-    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented graphics{}: {}", id, name)) };
+    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented misc{}: {}", id, name)) };
 
     body.into_body()
 }
