@@ -78,8 +78,8 @@ impl Display {
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 
-        context.put_field(&this.cast(), "m_w", width as i32)?;
-        context.put_field(&this.cast(), "m_h", height as i32)?;
+        context.put_field(&this.cast(), "m_w", width as _)?;
+        context.put_field(&this.cast(), "m_h", height as _)?;
 
         Ok(())
     }
@@ -126,7 +126,7 @@ impl Display {
         let card = context.load_array_i32(&cards, 0, 1)?[0];
 
         if card == 0 {
-            context.store_array_i32(&cards, 0, &[c.ptr_instance])?;
+            context.store_array_i32(&cards, 0, &[c.ptr_instance as _])?; // TODO store_array_reference
         }
 
         Ok(())

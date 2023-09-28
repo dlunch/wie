@@ -53,7 +53,7 @@ impl Class {
             let backend1 = context.backend().clone();
             let data = Ref::map(backend1.resource(), |x| x.data(id));
 
-            let array = context.instantiate_array("B", data.len() as u32).await?;
+            let array = context.instantiate_array("B", data.len() as _).await?;
             context.store_array_i8(&array, 0, cast_slice(&data))?;
             drop(data);
 

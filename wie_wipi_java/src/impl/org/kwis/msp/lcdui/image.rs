@@ -54,12 +54,12 @@ impl Image {
 
         let bytes_per_pixel = 4;
 
-        let data = context.instantiate_array("B", (width * height * bytes_per_pixel) as u32).await?;
+        let data = context.instantiate_array("B", (width * height * bytes_per_pixel) as _).await?;
 
-        context.put_field(&instance, "w", width)?;
-        context.put_field(&instance, "h", height)?;
+        context.put_field(&instance, "w", width as _)?;
+        context.put_field(&instance, "h", height as _)?;
         context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", width * bytes_per_pixel)?;
+        context.put_field(&instance, "bpl", (width * bytes_per_pixel) as _)?;
 
         Ok(instance.cast())
     }
@@ -75,18 +75,20 @@ impl Image {
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        let image_data = context.load_array_i8(&data, offset as u32, length as u32)?;
+        let image_data = context.load_array_i8(&data, offset as _, length as _)?;
         let image = decode_image(cast_slice(&image_data))?;
 
         let bytes_per_pixel = image.bytes_per_pixel();
 
-        let data = context.instantiate_array("B", image.width() * image.height() * bytes_per_pixel).await?;
+        let data = context
+            .instantiate_array("B", (image.width() * image.height() * bytes_per_pixel) as _)
+            .await?;
         context.store_array_i8(&data, 0, cast_slice(image.raw()))?;
 
-        context.put_field(&instance, "w", image.width() as i32)?;
-        context.put_field(&instance, "h", image.height() as i32)?;
+        context.put_field(&instance, "w", image.width() as _)?;
+        context.put_field(&instance, "h", image.height() as _)?;
         context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", image.width() as i32 * bytes_per_pixel as i32)?;
+        context.put_field(&instance, "bpl", (image.width() * bytes_per_pixel) as _)?;
 
         Ok(instance.cast())
     }
@@ -142,7 +144,7 @@ impl Image {
 
         let bytes_per_pixel = bpl / width;
 
-        create_canvas(width as u32, height as u32, bytes_per_pixel as u32 * 8, &buf)
+        create_canvas(width as _, height as _, (bytes_per_pixel * 8) as _, &buf)
     }
 }
 

@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
+    base::{JavaClassProto, JavaFieldProto, JavaMethodProto, JavaWord},
     Array, JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
@@ -46,7 +46,7 @@ impl ByteArrayInputStream {
         let pos = context.get_field(&this.cast(), "pos")?;
         let buf_length = context.array_length(&buf)?;
 
-        Ok(buf_length as i32 - pos)
+        Ok((buf_length - pos) as _)
     }
 
     async fn read(
@@ -68,7 +68,7 @@ impl ByteArrayInputStream {
         let buf_length = context.array_length(&buf)?;
         let pos = context.get_field(&this.cast(), "pos")?;
 
-        let available = buf_length as i32 - pos;
+        let available = (buf_length - pos) as _;
         let len_to_read = if len > available { available } else { len };
         if len_to_read == 0 {
             return Ok(0);
@@ -79,11 +79,11 @@ impl ByteArrayInputStream {
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
-                &[buf.ptr_instance, pos, b.ptr_instance, off, len_to_read],
+                &[buf.ptr_instance, pos, b.ptr_instance, off as _, len_to_read as _],
             )
             .await?;
 
-        context.put_field(&this.cast(), "pos", pos + len)?;
+        context.put_field(&this.cast(), "pos", pos + len as JavaWord)?;
 
         Ok(len)
     }

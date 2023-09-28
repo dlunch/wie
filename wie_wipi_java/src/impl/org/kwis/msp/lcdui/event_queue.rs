@@ -74,9 +74,9 @@ impl EventQueue {
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
-                    wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as i32, 0, 0, 0],
-                    wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as i32, KeyboardEventType::KeyPressed as i32, x as i32, 0],
-                    wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as i32, KeyboardEventType::KeyReleased as i32, x as i32, 0],
+                    wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
+                    wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as _, KeyboardEventType::KeyPressed as _, x as _, 0],
+                    wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as _, KeyboardEventType::KeyReleased as _, x as _, 0],
                 };
 
                 context.store_array_i32(&event, 0, &event_data)?;
@@ -128,12 +128,12 @@ impl EventQueue {
         }
 
         let cards = JavaObjectProxy::new(context.get_field(&display, "cards")?);
-        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0]);
+        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0] as _);
         if card.ptr_instance == 0 {
             return Ok(());
         }
 
-        context.call_method(&card, "keyNotify", "(II)Z", &[event_type as i32, code]).await?;
+        context.call_method(&card, "keyNotify", "(II)Z", &[event_type as _, code as _]).await?;
 
         Ok(())
     }
@@ -151,7 +151,7 @@ impl EventQueue {
         }
 
         let cards = JavaObjectProxy::new(context.get_field(&display, "cards")?);
-        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0]);
+        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0] as _);
         if card.ptr_instance == 0 {
             return Ok(());
         }

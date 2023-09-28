@@ -3,6 +3,6 @@ use core::{future::Future, marker::PhantomData};
 
 use wie_base::methods;
 
-use crate::JavaContext;
+use crate::{JavaContext, JavaWord};
 
-methods!(JavaContext, u32);
+methods!(JavaContext, JavaWord);

@@ -3,7 +3,7 @@ use alloc::{format, vec};
 use wie_backend::canvas::{PixelType, Rgb8Pixel};
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::TypeConverter,
     proxy::JavaObjectProxy,
     r#impl::org::kwis::msp::lcdui::{Display, Font, Image},
@@ -23,12 +23,12 @@ bitflags::bitflags! {
 }
 
 impl TypeConverter<Anchor> for Anchor {
-    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> Anchor {
-        Anchor::from_bits_retain(raw as i32)
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaWord) -> Anchor {
+        Anchor::from_bits_retain(raw as _)
     }
 
-    fn from_rust(_: &mut dyn JavaContext, rust: Anchor) -> u32 {
-        rust.bits() as u32
+    fn from_rust(_: &mut dyn JavaContext, rust: Anchor) -> JavaWord {
+        rust.bits() as _
     }
 }
 
@@ -99,8 +99,8 @@ impl Graphics {
         );
 
         context.put_field(&this.cast(), "img", image.ptr_instance)?;
-        context.put_field(&this.cast(), "w", width)?;
-        context.put_field(&this.cast(), "h", height)?;
+        context.put_field(&this.cast(), "w", width as _)?;
+        context.put_field(&this.cast(), "h", height as _)?;
 
         Ok(())
     }
@@ -117,7 +117,7 @@ impl Graphics {
     async fn set_color(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, rgb: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, rgb);
 
-        context.put_field(&this.cast(), "rgb", rgb)?;
+        context.put_field(&this.cast(), "rgb", rgb as _)?;
 
         Ok(())
     }
@@ -156,7 +156,7 @@ impl Graphics {
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
 
-        canvas.draw_rect(x as u32, y as u32, width as u32, height as u32, Rgb8Pixel::to_color(rgb as u32));
+        canvas.draw_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
 
         Ok(())
     }
@@ -202,7 +202,7 @@ impl Graphics {
         let x = (x + x_delta).max(0);
         let y = (y + y_delta).max(0);
 
-        canvas.draw(x as u32, y as u32, src_canvas.width(), src_canvas.height(), &*src_canvas, 0, 0);
+        canvas.draw(x as _, y as _, src_canvas.width(), src_canvas.height(), &*src_canvas, 0, 0);
 
         Ok(())
     }
@@ -224,7 +224,7 @@ impl Graphics {
 
         let w = context.get_field(&this.cast(), "w")?;
 
-        Ok(w)
+        Ok(w as _)
     }
 
     async fn get_clip_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
@@ -232,7 +232,7 @@ impl Graphics {
 
         let h = context.get_field(&this.cast(), "h")?;
 
-        Ok(h)
+        Ok(h as _)
     }
 
     async fn image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {

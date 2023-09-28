@@ -1,6 +1,8 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem::size_of;
 
+use bytemuck::cast_slice;
+
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, write_null_terminated_string, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
@@ -298,9 +300,9 @@ impl ClassLoader {
 
                 let mut context = KtfJavaContext::new(core, backend);
 
-                let result = self.body.call(&mut context, &args).await?; // TODO do we need arg proxy?
+                let result = self.body.call(&mut context, cast_slice(&args)).await?; // TODO do we need arg proxy?
 
-                Ok(result)
+                Ok(result as _)
             }
         }
 

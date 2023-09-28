@@ -3,7 +3,7 @@ use alloc::{boxed::Box, vec};
 use wie_backend::task;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::MethodBody,
     proxy::JavaObjectProxy,
     r#impl::java::lang::Runnable,
@@ -46,7 +46,7 @@ impl Thread {
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for ThreadStartProxy {
             #[tracing::instrument(name = "thread", fields(thread = self.runnable.ptr_instance), skip_all)]
-            async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+            async fn call(&self, context: &mut dyn JavaContext, _: &[JavaWord]) -> Result<JavaWord, JavaError> {
                 tracing::trace!("Thread start");
 
                 context.call_method(&self.runnable.cast(), "run", "()V", &[]).await?;
