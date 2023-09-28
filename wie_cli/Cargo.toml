@@ -7,8 +7,10 @@ license.workspace = true
 [dependencies]
 anyhow = { version = "^1.0", features = ["backtrace"] }
 clap = { version = "^4.4", features = ["derive"] }
+phf = { version = "^0.11", features = ["macros"] }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
 
 wie = { path = "../wie" }
 wie_backend = { path = "../wie_backend" }
+wie_base = { path = "../wie_base" }
 wie_vendor_ktf = { path = "../wie_vendor_ktf" }

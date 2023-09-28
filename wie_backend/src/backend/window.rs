@@ -13,7 +13,9 @@ use crate::canvas::Canvas;
 
 pub enum WindowCallbackEvent {
     Update,
-    Event(wie_base::Event),
+    Redraw,
+    Keydown(u32),
+    Keyup(u32),
 }
 
 #[derive(Debug)]
@@ -135,11 +137,7 @@ impl Window {
                         },
                     ..
                 } => {
-                    Self::callback(
-                        WindowCallbackEvent::Event(wie_base::Event::Keydown(scancode)),
-                        control_flow,
-                        &mut callback,
-                    );
+                    Self::callback(WindowCallbackEvent::Keydown(scancode), control_flow, &mut callback);
                 }
                 WindowEvent::KeyboardInput {
                     input:
@@ -150,7 +148,7 @@ impl Window {
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Event(wie_base::Event::Keyup(scancode)), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keyup(scancode), control_flow, &mut callback);
                 }
                 _ => {}
             },
@@ -158,7 +156,7 @@ impl Window {
                 Self::callback(WindowCallbackEvent::Update, control_flow, &mut callback);
             }
             Event::RedrawRequested(_) => {
-                Self::callback(WindowCallbackEvent::Event(wie_base::Event::Redraw), control_flow, &mut callback);
+                Self::callback(WindowCallbackEvent::Redraw, control_flow, &mut callback);
             }
 
             _ => {}
