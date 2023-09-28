@@ -316,7 +316,7 @@ impl<'a> KtfJavaContext<'a> {
 
         assert!(class_name.starts_with('['), "Not an array class {}", class_name);
 
-        if class_name.starts_with("[L") {
+        if class_name.starts_with("[L") || class_name.starts_with("[[") {
             Ok(4)
         } else {
             let element = class_name.as_bytes()[1];
