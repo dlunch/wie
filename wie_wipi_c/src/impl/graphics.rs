@@ -96,29 +96,29 @@ async fn set_context(context: &mut dyn CContext, p_grp_ctx: CWord, op: WIPICGrap
     Ok(())
 }
 
-async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: CWord, y: CWord, p_gctx: CWord) -> CResult<()> {
-    tracing::debug!("MC_grpPutPixel({:#x}, {:#x}, {:#x}, {:?})", dst_fb.0, x, y, p_gctx);
+async fn put_pixel(context: &mut dyn CContext, dst_fb: CMemoryId, x: i32, y: i32, p_gctx: CWord) -> CResult<()> {
+    tracing::debug!("MC_grpPutPixel({:#x}, {}, {}, {:?})", dst_fb.0, x, y, p_gctx);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.put_pixel(x, y, Rgb8Pixel::to_color(gctx.fgpxl));
+    canvas.put_pixel(x as _, y as _, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 
-async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: CWord, y: CWord, w: CWord, h: CWord, p_gctx: CWord) -> CResult<()> {
-    tracing::debug!("MC_grpFillRect({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
+async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: i32, y: i32, w: i32, h: i32, p_gctx: CWord) -> CResult<()> {
+    tracing::debug!("MC_grpFillRect({:#x}, {}, {}, {}, {}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.draw_rect(x, y, w, h, Rgb8Pixel::to_color(gctx.fgpxl));
+    canvas.draw_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 
-async fn create_image(context: &mut dyn CContext, ptr_image: CWord, image_data: CMemoryId, offset: CWord, len: CWord) -> CResult<CWord> {
-    tracing::debug!("MC_grpCreateImage({:#x}, {:#x}, {:#x}, {:#x})", ptr_image, image_data.0, offset, len);
+async fn create_image(context: &mut dyn CContext, ptr_image: CWord, image_data: CMemoryId, offset: u32, len: u32) -> CResult<CWord> {
+    tracing::debug!("MC_grpCreateImage({:#x}, {:#x}, {}, {})", ptr_image, image_data.0, offset, len);
 
     let image = WIPICImage::new(context, image_data, offset, len)?;
 
@@ -133,17 +133,17 @@ async fn create_image(context: &mut dyn CContext, ptr_image: CWord, image_data: 
 async fn draw_image(
     context: &mut dyn CContext,
     framebuffer: CMemoryId,
-    dx: CWord,
-    dy: CWord,
-    w: CWord,
-    h: CWord,
+    dx: i32,
+    dy: i32,
+    w: i32,
+    h: i32,
     image: CMemoryId,
-    sx: CWord,
-    sy: CWord,
+    sx: i32,
+    sy: i32,
     graphics_context: CWord,
 ) -> CResult<()> {
     tracing::debug!(
-        "MC_grpDrawImage({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+        "MC_grpDrawImage({:#x}, {}, {}, {}, {}, {:#x}, {}, {}, {:#x})",
         framebuffer.0,
         dx,
         dy,
@@ -161,7 +161,7 @@ async fn draw_image(
     let src_image = image.img.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx, dy, w, h, &*src_image, sx, sy);
+    canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _);
 
     Ok(())
 }
@@ -191,7 +191,7 @@ async fn flush(context: &mut dyn CContext, a0: CWord, framebuffer: CMemoryId, a2
     Ok(())
 }
 
-async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: CWord, g: CWord, b: CWord) -> CResult<CWord> {
+async fn get_pixel_from_rgb(_context: &mut dyn CContext, r: i32, g: i32, b: i32) -> CResult<CWord> {
     tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})", r, g, b);
     if (r > 0xff) || (g > 0xff) | (b > 0xff) {
         tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
@@ -231,7 +231,7 @@ async fn get_display_info(context: &mut dyn CContext, reserved: CWord, out_ptr: 
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn copy_area(context: &mut dyn CContext, dst: CMemoryId, dx: CWord, dy: CWord, w: i32, h: i32, x: CWord, y: CWord, pgc: CWord) -> CResult<()> {
+async fn copy_area(context: &mut dyn CContext, dst: CMemoryId, dx: i32, dy: i32, w: i32, h: i32, x: i32, y: i32, pgc: CWord) -> CResult<()> {
     tracing::debug!("MC_grpCopyArea({:#x}, {}, {}, {}, {}, {}, {}, {:#x})", dst.0, dx, dy, w, h, x, y, pgc);
 
     if w < 0 || h < 0 {
@@ -245,7 +245,7 @@ async fn copy_area(context: &mut dyn CContext, dst: CMemoryId, dx: CWord, dy: CW
     let image = framebuffer.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx, dy, w as CWord, h as CWord, &*image, x, y);
+    canvas.draw(dx as _, dy as _, w as _, h as _, &*image, x as _, y as _);
 
     Ok(())
 }
