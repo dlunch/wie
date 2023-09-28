@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::{r#impl::java::lang::String as JavaString, JavaContext, JavaObjectProxy};
+use wie_wipi_java::{r#impl::java::lang::String as JavaString, JavaContext};
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 
@@ -19,7 +19,7 @@ struct WIPIJBInterface {
     unk1: u32,
     fn_java_jump_1: u32,
     fn_java_jump_2: u32,
-    fn_store_array: u32,
+    fn_java_jump_3: u32,
     fn_get_java_method: u32,
     fn_get_static_field: u32,
     fn_unk4: u32,
@@ -36,7 +36,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         unk1: 0,
         fn_java_jump_1: core.register_function(java_jump_1, backend)?,
         fn_java_jump_2: core.register_function(java_jump_2, backend)?,
-        fn_store_array: core.register_function(store_array, backend)?,
+        fn_java_jump_3: core.register_function(java_jump_3, backend)?,
         fn_get_java_method: core.register_function(get_java_method, backend)?,
         fn_get_static_field: core.register_function(get_static_field, backend)?,
         fn_unk4: core.register_function(jb_unk4, backend)?,
@@ -160,13 +160,10 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, 
     core.run_function::<u32>(address, &[arg1, arg2]).await
 }
 
-async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, index: u32, value: u32) -> anyhow::Result<u32> {
-    tracing::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
+async fn java_jump_3(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, arg3: u32, address: u32) -> anyhow::Result<u32> {
+    tracing::trace!("java_jump_3({:#x}, {:#x}, {:#x}, {:#x})", arg1, arg2, arg3, address);
 
-    let mut context = KtfJavaContext::new(core, backend);
-    context.store_array_i32(&JavaObjectProxy::new(array as _), index as _, &[value as i32])?;
-
-    Ok(0)
+    core.run_function::<u32>(address, &[arg1, arg2, arg3]).await
 }
 
 pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<u32> {
