@@ -41,7 +41,8 @@ impl ClassLoader {
                     Allocator::free(context.core, ptr_name)?;
 
                     if ptr_class != 0 {
-                        Self::write_loaded_class(context, ptr_class)?;
+                        context.register_class(ptr_class).await?;
+
                         Ok(ptr_class)
                     } else {
                         anyhow::bail!("Cannot find class {}", name);
@@ -251,21 +252,9 @@ impl ClassLoader {
             },
         )?;
 
-        Self::write_loaded_class(context, ptr_class)?;
+        context.register_class(ptr_class).await?;
 
         Ok(ptr_class)
-    }
-
-    fn write_loaded_class(context: &mut KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<()> {
-        let context_data = context.read_context_data()?;
-        let ptr_classes = context.read_null_terminated_table(context_data.classes_base)?;
-        write_generic(
-            context.core,
-            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
-            ptr_class,
-        )?;
-
-        Ok(())
     }
 
     fn register_java_method(context: &mut KtfJavaContext<'_>, body: JavaMethodBody, native: bool) -> JavaResult<u32> {

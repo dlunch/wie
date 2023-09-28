@@ -219,7 +219,7 @@ impl<'a> KtfJavaContext<'a> {
         }
     }
 
-    pub async fn load_class(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
+    pub async fn load_class_by_name(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
         let ptr_class = ClassLoader::get_or_load_ptr_class(self, name).await?;
 
         write_generic(self.core, ptr_target, ptr_class)?;
@@ -250,6 +250,38 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy)
     }
 
+    pub async fn register_class(&mut self, ptr_class: u32) -> JavaResult<()> {
+        let context_data = self.read_context_data()?;
+        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
+        if ptr_classes.contains(&ptr_class) {
+            return Ok(());
+        }
+
+        write_generic(
+            self.core,
+            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
+            ptr_class,
+        )?;
+
+        let clinit = self.get_ptr_method(
+            ptr_class,
+            JavaFullName {
+                tag: 0,
+                name: "<clinit>".into(),
+                signature: "()V".into(),
+            },
+        );
+        // TODO change get_method to return optional
+
+        if let Ok(x) = clinit {
+            tracing::trace!("Call <clinit>");
+
+            self.call_method_inner(x, &[]).await?;
+        }
+
+        Ok(())
+    }
+
     async fn instantiate_inner(&mut self, ptr_class: u32, fields_size: JavaWord) -> JavaResult<JavaObjectProxy<Object>> {
         let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as _)?;
         let ptr_fields = Allocator::alloc(self.core, (fields_size + 4) as _)?;
@@ -257,7 +289,7 @@ impl<'a> KtfJavaContext<'a> {
         let zero = iter::repeat(0).take((fields_size + 4) as _).collect::<Vec<_>>();
         self.core.write_bytes(ptr_fields, &zero)?;
 
-        let (added, vtable_index) = self.get_vtable_index(ptr_class)?;
+        let vtable_index = self.get_vtable_index(ptr_class)?;
 
         write_generic(self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
         write_generic(self.core, ptr_fields, (vtable_index * 4) << 5)?;
@@ -265,24 +297,6 @@ impl<'a> KtfJavaContext<'a> {
         tracing::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
         let instance = JavaObjectProxy::<Object>::new(ptr_instance as _);
-
-        if added {
-            let clinit = self.get_ptr_method(
-                ptr_class,
-                JavaFullName {
-                    tag: 0,
-                    name: "<clinit>".into(),
-                    signature: "()V".into(),
-                },
-            );
-            // TODO change get_method to return optional
-
-            if let Ok(x) = clinit {
-                tracing::trace!("Call <clinit>");
-
-                self.call_method_inner(x, &[]).await?;
-            }
-        }
 
         Ok(instance)
     }
@@ -316,7 +330,7 @@ impl<'a> KtfJavaContext<'a> {
         }
     }
 
-    fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<(bool, u32)> {
+    fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
         let (class, _, class_name) = self.read_ptr_class(ptr_class)?;
 
         tracing::trace!("get_vtable_index {} {:#x} {:#x}", class_name, ptr_class, class.ptr_vtable);
@@ -326,7 +340,7 @@ impl<'a> KtfJavaContext<'a> {
 
         for (index, &ptr_vtable) in ptr_vtables.iter().enumerate() {
             if ptr_vtable == class.ptr_vtable {
-                return Ok((false, index as _));
+                return Ok(index as _);
             }
         }
 
@@ -337,7 +351,7 @@ impl<'a> KtfJavaContext<'a> {
             class.ptr_vtable,
         )?;
 
-        Ok((true, index as _))
+        Ok(index as _)
     }
 
     fn read_ptr_class(&self, ptr_class: u32) -> JavaResult<(JavaClass, JavaClassDescriptor, String)> {
