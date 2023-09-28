@@ -2249,6 +2249,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bitflags 2.4.0",
+ "bytemuck",
  "tracing",
  "wie_backend",
  "wie_base",

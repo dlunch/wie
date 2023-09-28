@@ -115,7 +115,7 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     let mut context = KtfJavaContext::new(core, backend);
     let instance = JavaString::to_java_string(&mut context, &str).await?;
 
-    Ok(instance.ptr_instance)
+    Ok(instance.ptr_instance as u32)
 }
 
 async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, field_name: u32) -> anyhow::Result<u32> {
@@ -162,7 +162,7 @@ async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, inde
     tracing::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
 
     let mut context = KtfJavaContext::new(core, backend);
-    context.store_array_u32(&JavaObjectProxy::new(array), index, &[value])?;
+    context.store_array_i32(&JavaObjectProxy::new(array as i32), index, &[value as i32])?;
 
     Ok(0)
 }
@@ -172,7 +172,7 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
 
     let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class).await?;
 
-    Ok(instance.ptr_instance)
+    Ok(instance.ptr_instance as u32)
 }
 
 pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
@@ -188,7 +188,7 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
         java_context.instantiate_array(&element_type_name, count).await?
     };
 
-    Ok(instance.ptr_instance)
+    Ok(instance.ptr_instance as u32)
 }
 
 pub async fn java_check_cast(_: &mut ArmCore, _: &mut Backend, ptr_class: u32, ptr_instance: u32) -> anyhow::Result<u32> {

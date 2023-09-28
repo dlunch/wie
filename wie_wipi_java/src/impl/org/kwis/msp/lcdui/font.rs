@@ -27,7 +27,7 @@ impl Font {
         Ok(())
     }
 
-    async fn get_height(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn get_height(_: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::get_height");
 
         Ok(12) // TODO: hardcoded

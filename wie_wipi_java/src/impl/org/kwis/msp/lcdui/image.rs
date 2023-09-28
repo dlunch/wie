@@ -1,6 +1,8 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
+use bytemuck::{cast_slice, cast_vec};
+
 use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage};
 
 use crate::{
@@ -44,7 +46,7 @@ impl Image {
         Ok(())
     }
 
-    async fn create_image(context: &mut dyn JavaContext, width: u32, height: u32) -> JavaResult<JavaObjectProxy<Image>> {
+    async fn create_image(context: &mut dyn JavaContext, width: i32, height: i32) -> JavaResult<JavaObjectProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
@@ -52,7 +54,7 @@ impl Image {
 
         let bytes_per_pixel = 4;
 
-        let data = context.instantiate_array("B", width * height * bytes_per_pixel).await?;
+        let data = context.instantiate_array("B", (width * height * bytes_per_pixel) as u32).await?;
 
         context.put_field(&instance, "w", width)?;
         context.put_field(&instance, "h", height)?;
@@ -65,26 +67,26 @@ impl Image {
     async fn create_image_from_bytes(
         context: &mut dyn JavaContext,
         data: JavaObjectProxy<Array>,
-        offset: u32,
-        length: u32,
+        offset: i32,
+        length: i32,
     ) -> JavaResult<JavaObjectProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
-        let image_data = context.load_array_u8(&data, offset, length)?;
-        let image = decode_image(&image_data)?;
+        let image_data = context.load_array_i8(&data, offset as u32, length as u32)?;
+        let image = decode_image(cast_slice(&image_data))?;
 
         let bytes_per_pixel = image.bytes_per_pixel();
 
         let data = context.instantiate_array("B", image.width() * image.height() * bytes_per_pixel).await?;
-        context.store_array_u8(&data, 0, image.raw())?;
+        context.store_array_i8(&data, 0, cast_slice(image.raw()))?;
 
-        context.put_field(&instance, "w", image.width())?;
-        context.put_field(&instance, "h", image.height())?;
+        context.put_field(&instance, "w", image.width() as i32)?;
+        context.put_field(&instance, "h", image.height() as i32)?;
         context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", image.width() * bytes_per_pixel)?;
+        context.put_field(&instance, "bpl", image.width() as i32 * bytes_per_pixel as i32)?;
 
         Ok(instance.cast())
     }
@@ -112,9 +114,9 @@ impl Image {
         let java_img_data = JavaObjectProxy::new(context.get_field(&this.cast(), "imgData")?);
         let img_data_len = context.array_length(&java_img_data)?;
 
-        let img_data = context.load_array_u8(&java_img_data.cast(), 0, img_data_len)?;
+        let img_data = context.load_array_i8(&java_img_data.cast(), 0, img_data_len)?;
 
-        Ok(img_data)
+        Ok(cast_vec(img_data))
     }
 
     pub fn image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Box<dyn BackendImage>> {
@@ -140,7 +142,7 @@ impl Image {
 
         let bytes_per_pixel = bpl / width;
 
-        create_canvas(width, height, bytes_per_pixel * 8, &buf)
+        create_canvas(width as u32, height as u32, bytes_per_pixel as u32 * 8, &buf)
     }
 }
 
@@ -154,7 +156,7 @@ impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
 
-        self.context.store_array_u8(&data, 0, self.canvas.raw()).unwrap();
+        self.context.store_array_i8(&data, 0, cast_slice(self.canvas.raw())).unwrap();
     }
 }
 

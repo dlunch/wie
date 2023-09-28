@@ -101,17 +101,17 @@ pub trait JavaContext {
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
     async fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>>; // newarray
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
-    async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokespecial/invokevirtual
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32>; // invokestatic
-    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32>; // getfield
-    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()>; // putfield
-    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<u32>; // getstatic
-    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()>; // putstatic
-    fn store_array_u32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u32]) -> JavaResult<()>; // iastore
-    fn load_array_u32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>>; // iaload
-    fn store_array_u8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[u8]) -> JavaResult<()>; // bastore
-    fn load_array_u8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>>; // baload
-    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<usize>;
+    async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[i32]) -> JavaResult<i32>; // invokespecial/invokevirtual
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[i32]) -> JavaResult<i32>; // invokestatic
+    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<i32>; // getfield
+    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: i32) -> JavaResult<()>; // putfield
+    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<i32>; // getstatic
+    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: i32) -> JavaResult<()>; // putstatic
+    fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[i32]) -> JavaResult<()>; // iastore
+    fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<i32>>; // iaload
+    fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[i8]) -> JavaResult<()>; // bastore
+    fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<i8>>; // baload
+    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>;
     fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>; // arraylength
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
@@ -170,16 +170,6 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
 
         _ => return None,
     })
-}
-
-impl TypeConverter<u32> for u32 {
-    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> u32 {
-        raw
-    }
-
-    fn from_rust(_: &mut dyn JavaContext, rust: u32) -> u32 {
-        rust
-    }
 }
 
 impl TypeConverter<i32> for i32 {

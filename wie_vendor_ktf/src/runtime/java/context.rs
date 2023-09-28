@@ -263,7 +263,7 @@ impl<'a> KtfJavaContext<'a> {
 
         tracing::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
 
-        let instance = JavaObjectProxy::<Object>::new(ptr_instance);
+        let instance = JavaObjectProxy::<Object>::new(ptr_instance as i32);
 
         if added {
             let clinit = self.get_ptr_method(
@@ -289,7 +289,7 @@ impl<'a> KtfJavaContext<'a> {
     async fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: u32) -> JavaResult<JavaObjectProxy<Array>> {
         let element_size = self.get_array_element_size(ptr_class_array)?;
         let proxy = self.instantiate_inner(ptr_class_array, count * element_size + 4).await?;
-        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance as u32)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count)?;
 
@@ -412,7 +412,7 @@ impl<'a> KtfJavaContext<'a> {
     where
         T: FromBytes<Bytes = [u8; B]> + Pod,
     {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as u32)?;
         let items_offset = instance.ptr_fields + 8;
 
         let element_size = self.get_array_element_size(instance.ptr_class)?;
@@ -433,7 +433,7 @@ impl<'a> KtfJavaContext<'a> {
     where
         T: Pod,
     {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as u32)?;
         let items_offset = instance.ptr_fields + 8;
 
         let element_size = self.get_array_element_size(instance.ptr_class)?;
@@ -486,18 +486,18 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn destroy(&mut self, proxy: JavaObjectProxy<Object>) -> JavaResult<()> {
-        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance as u32)?;
 
         tracing::trace!("Destroying {:#x}", proxy.ptr_instance);
 
         Allocator::free(self.core, instance.ptr_fields)?;
-        Allocator::free(self.core, proxy.ptr_instance)?;
+        Allocator::free(self.core, proxy.ptr_instance as u32)?;
 
         Ok(())
     }
 
-    async fn call_method(&mut self, instance_proxy: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
-        let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance)?;
+    async fn call_method(&mut self, instance_proxy: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[i32]) -> JavaResult<i32> {
+        let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance as u32)?;
         let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
 
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
@@ -514,10 +514,10 @@ impl JavaContext for KtfJavaContext<'_> {
             },
         )?;
 
-        self.call_method_inner(ptr_method, &params).await
+        Ok(self.call_method_inner(ptr_method, cast_slice(&params)).await? as i32)
     }
 
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[u32]) -> JavaResult<u32> {
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[i32]) -> JavaResult<i32> {
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
         let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
@@ -531,15 +531,15 @@ impl JavaContext for KtfJavaContext<'_> {
             },
         )?;
 
-        self.call_method_inner(ptr_method, args).await
+        Ok(self.call_method_inner(ptr_method, cast_slice(args)).await? as i32)
     }
 
     fn backend(&mut self) -> &mut Backend {
         self.backend
     }
 
-    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<u32> {
-        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
+    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<i32> {
+        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as u32)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -550,8 +550,8 @@ impl JavaContext for KtfJavaContext<'_> {
         read_generic(self.core, instance.ptr_fields + offset + 4)
     }
 
-    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: u32) -> JavaResult<()> {
-        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance)?;
+    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: i32) -> JavaResult<()> {
+        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as u32)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
@@ -562,54 +562,54 @@ impl JavaContext for KtfJavaContext<'_> {
         write_generic(self.core, instance.ptr_fields + offset + 4, value)
     }
 
-    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<u32> {
+    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<i32> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let field: JavaField = read_generic(self.core, ptr_field)?;
 
         assert!(field.access_flag & 0x0008 != 0, "Field is not static");
 
-        Ok(field.offset_or_value)
+        Ok(field.offset_or_value as i32)
     }
 
-    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: u32) -> JavaResult<()> {
+    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: i32) -> JavaResult<()> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
         let mut field: JavaField = read_generic(self.core, ptr_field)?;
 
         assert!(field.access_flag & 0x0008 != 0, "Field is not static");
 
-        field.offset_or_value = value;
+        field.offset_or_value = value as u32;
 
         write_generic(self.core, ptr_field, field)?;
 
         Ok(())
     }
 
-    fn store_array_u32(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[u32]) -> JavaResult<()> {
+    fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[i32]) -> JavaResult<()> {
         self.store_array(array, index, values)
     }
 
-    fn load_array_u32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u32>> {
+    fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<i32>> {
         self.load_array(array, offset, count)
     }
 
-    fn store_array_u8(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[u8]) -> JavaResult<()> {
+    fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, index: u32, values: &[i8]) -> JavaResult<()> {
         self.store_array(array, index, values)
     }
 
-    fn load_array_u8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<u8>> {
+    fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<i8>> {
         self.load_array(array, offset, count)
     }
 
-    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<usize> {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32> {
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as u32)?;
 
-        Ok(self.get_array_element_size(instance.ptr_class)? as usize)
+        self.get_array_element_size(instance.ptr_class)
     }
 
     fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32> {
-        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance)?;
+        let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as u32)?;
 
         read_generic(self.core, instance.ptr_fields + 4)
     }

@@ -8,6 +8,7 @@ license.workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bitflags = { workspace = true }
+bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 wie_base = { path = "../wie_base" }

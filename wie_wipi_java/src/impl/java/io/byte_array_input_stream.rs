@@ -39,23 +39,23 @@ impl ByteArrayInputStream {
         Ok(())
     }
 
-    async fn available(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<u32> {
+    async fn available(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::available({:#x})", this.ptr_instance);
 
         let buf = JavaObjectProxy::new(context.get_field(&this.cast(), "buf")?);
         let pos = context.get_field(&this.cast(), "pos")?;
         let buf_length = context.array_length(&buf)?;
 
-        Ok(buf_length - pos)
+        Ok(buf_length as i32 - pos)
     }
 
     async fn read(
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<ByteArrayInputStream>,
         b: JavaObjectProxy<Array>,
-        off: u32,
-        len: u32,
-    ) -> JavaResult<u32> {
+        off: i32,
+        len: i32,
+    ) -> JavaResult<i32> {
         tracing::debug!(
             "java.lang.ByteArrayInputStream::read({:#x}, {:#x}, {}, {})",
             this.ptr_instance,
@@ -68,7 +68,7 @@ impl ByteArrayInputStream {
         let buf_length = context.array_length(&buf)?;
         let pos = context.get_field(&this.cast(), "pos")?;
 
-        let available = buf_length - pos;
+        let available = buf_length as i32 - pos;
         let len_to_read = if len > available { available } else { len };
         if len_to_read == 0 {
             return Ok(0);

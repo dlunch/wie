@@ -7,19 +7,19 @@ use crate::{
     Array,
 };
 
-#[repr(u32)]
+#[repr(i32)]
 enum EventQueueEvent {
     KeyEvent = 1,
     RepaintEvent = 41,
 }
 
 impl EventQueueEvent {
-    fn from_raw(raw: u32) -> Self {
+    fn from_raw(raw: i32) -> Self {
         unsafe { core::mem::transmute(raw) }
     }
 }
 
-#[repr(u32)]
+#[repr(i32)]
 #[derive(Debug)]
 #[allow(dead_code, clippy::enum_variant_names)]
 enum KeyboardEventType {
@@ -30,7 +30,7 @@ enum KeyboardEventType {
 }
 
 impl KeyboardEventType {
-    fn from_raw(raw: u32) -> Self {
+    fn from_raw(raw: i32) -> Self {
         unsafe { core::mem::transmute(raw) }
     }
 }
@@ -74,12 +74,12 @@ impl EventQueue {
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
-                    wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as u32, 0, 0, 0],
-                    wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as u32, KeyboardEventType::KeyPressed as u32, x, 0],
-                    wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as u32, KeyboardEventType::KeyReleased as u32, x, 0],
+                    wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as i32, 0, 0, 0],
+                    wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as i32, KeyboardEventType::KeyPressed as i32, x as i32, 0],
+                    wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as i32, KeyboardEventType::KeyReleased as i32, x as i32, 0],
                 };
 
-                context.store_array_u32(&event, 0, &event_data)?;
+                context.store_array_i32(&event, 0, &event_data)?;
 
                 break;
             } else {
@@ -97,7 +97,7 @@ impl EventQueue {
             event.ptr_instance
         );
 
-        let event = context.load_array_u32(&event, 0, 4)?;
+        let event = context.load_array_i32(&event, 0, 4)?;
 
         match EventQueueEvent::from_raw(event[0]) {
             EventQueueEvent::RepaintEvent => {
@@ -115,7 +115,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: u32) -> JavaResult<()> {
+    async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
         let jlet = JavaObjectProxy::new(
             context
                 .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
@@ -128,12 +128,12 @@ impl EventQueue {
         }
 
         let cards = JavaObjectProxy::new(context.get_field(&display, "cards")?);
-        let card = JavaObjectProxy::new(context.load_array_u32(&cards, 0, 1)?[0]);
+        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0]);
         if card.ptr_instance == 0 {
             return Ok(());
         }
 
-        context.call_method(&card, "keyNotify", "(II)Z", &[event_type as u32, code]).await?;
+        context.call_method(&card, "keyNotify", "(II)Z", &[event_type as i32, code]).await?;
 
         Ok(())
     }
@@ -151,7 +151,7 @@ impl EventQueue {
         }
 
         let cards = JavaObjectProxy::new(context.get_field(&display, "cards")?);
-        let card = JavaObjectProxy::new(context.load_array_u32(&cards, 0, 1)?[0]);
+        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0]);
         if card.ptr_instance == 0 {
             return Ok(());
         }

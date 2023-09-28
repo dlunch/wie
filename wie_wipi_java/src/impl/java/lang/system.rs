@@ -28,13 +28,13 @@ impl System {
         }
     }
 
-    async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::debug!("java.lang.System::currentTimeMillis()");
 
-        Ok(context.backend().time().now().raw() as u32)
+        Ok(context.backend().time().now().raw() as i32)
     }
 
-    async fn gc(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn gc(_: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::debug!("java.lang.System::gc()");
 
         Ok(0)
@@ -43,10 +43,10 @@ impl System {
     async fn arraycopy(
         context: &mut dyn JavaContext,
         src: JavaObjectProxy<Array>,
-        src_pos: u32,
+        src_pos: i32,
         dest: JavaObjectProxy<Array>,
-        dest_pos: u32,
-        length: u32,
+        dest_pos: i32,
+        length: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
             "java.lang.System::arraycopy({:#x}, {}, {:#x}, {}, {})",
@@ -60,12 +60,12 @@ impl System {
         let element_size = context.array_element_size(&src)?;
         match element_size {
             1 => {
-                let src_data = context.load_array_u8(&src.cast(), src_pos, length)?;
-                context.store_array_u8(&dest.cast(), dest_pos, &src_data)?;
+                let src_data = context.load_array_i8(&src.cast(), src_pos as u32, length as u32)?;
+                context.store_array_i8(&dest.cast(), dest_pos as u32, &src_data)?;
             }
             4 => {
-                let src_data = context.load_array_u32(&src.cast(), src_pos, length)?;
-                context.store_array_u32(&dest.cast(), dest_pos, &src_data)?;
+                let src_data = context.load_array_i32(&src.cast(), src_pos as u32, length as u32)?;
+                context.store_array_i32(&dest.cast(), dest_pos as u32, &src_data)?;
             }
             _ => unimplemented!(),
         }
