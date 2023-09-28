@@ -325,6 +325,7 @@ impl<'a> KtfJavaContext<'a> {
                 b'C' => 1, // TODO it's 16bits in java
                 b'I' => 4,
                 b'Z' => 1,
+                b'S' => 2,
                 _ => unimplemented!("get_array_element_size {}", class_name),
             })
         }
