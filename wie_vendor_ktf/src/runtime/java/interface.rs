@@ -26,7 +26,7 @@ struct WIPIJBInterface {
     fn_unk5: u32,
     unk7: u32,
     unk8: u32,
-    fn_unk2: u32,
+    fn_register_class: u32,
     fn_register_java_string: u32,
     fn_call_native: u32,
 }
@@ -43,7 +43,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         fn_unk5: core.register_function(jb_unk5, backend)?,
         unk7: 0,
         unk8: 0,
-        fn_unk2: core.register_function(jb_unk2, backend)?,
+        fn_register_class: core.register_function(register_class, backend)?,
         fn_register_java_string: core.register_function(register_java_string, backend)?,
         fn_call_native: core.register_function(call_native, backend)?,
     };
@@ -57,7 +57,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
 pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let result = KtfJavaContext::new(core, backend).load_class(ptr_target, &name).await;
+    let result = KtfJavaContext::new(core, backend).load_class_by_name(ptr_target, &name).await;
 
     if result.is_ok() {
         Ok(0)
@@ -91,10 +91,12 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u3
     core.run_function::<u32>(address, &[arg1]).await
 }
 
-async fn jb_unk2(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
-    tracing::warn!("stub jb_unk2({:#x}, {:#x})", a0, a1);
+async fn register_class(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<()> {
+    tracing::trace!("register_class({:#x})", ptr_class);
 
-    Ok(0)
+    KtfJavaContext::new(core, backend).register_class(ptr_class).await?;
+
+    Ok(())
 }
 
 async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset: u32, length: u32) -> anyhow::Result<u32> {
