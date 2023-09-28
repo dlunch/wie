@@ -95,7 +95,7 @@ impl Jlet {
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for StartProxy {
             #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, context: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+            async fn call(&self, context: &mut dyn JavaContext, _: &[usize]) -> Result<usize, JavaError> {
                 context
                     .call_static_method("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", &[])
                     .await?;

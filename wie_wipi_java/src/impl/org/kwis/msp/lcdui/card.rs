@@ -43,7 +43,7 @@ impl Card {
 
         let screen_canvas = context.backend().screen_canvas();
 
-        Ok(screen_canvas.width() as i32)
+        Ok(screen_canvas.width() as _)
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<i32> {
@@ -51,7 +51,7 @@ impl Card {
 
         let screen_canvas = context.backend().screen_canvas();
 
-        Ok(screen_canvas.height() as i32)
+        Ok(screen_canvas.height() as _)
     }
 
     async fn repaint(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: i32, a1: i32, a2: i32, a3: i32) -> JavaResult<()> {

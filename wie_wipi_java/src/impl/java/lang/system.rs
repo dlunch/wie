@@ -31,7 +31,7 @@ impl System {
     async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::debug!("java.lang.System::currentTimeMillis()");
 
-        Ok(context.backend().time().now().raw() as i32)
+        Ok(context.backend().time().now().raw() as _)
     }
 
     async fn gc(_: &mut dyn JavaContext) -> JavaResult<i32> {
@@ -60,12 +60,12 @@ impl System {
         let element_size = context.array_element_size(&src)?;
         match element_size {
             1 => {
-                let src_data = context.load_array_i8(&src.cast(), src_pos as u32, length as u32)?;
-                context.store_array_i8(&dest.cast(), dest_pos as u32, &src_data)?;
+                let src_data = context.load_array_i8(&src.cast(), src_pos as _, length as _)?;
+                context.store_array_i8(&dest.cast(), dest_pos as _, &src_data)?;
             }
             4 => {
-                let src_data = context.load_array_i32(&src.cast(), src_pos as u32, length as u32)?;
-                context.store_array_i32(&dest.cast(), dest_pos as u32, &src_data)?;
+                let src_data = context.load_array_i32(&src.cast(), src_pos as _, length as _)?;
+                context.store_array_i32(&dest.cast(), dest_pos as _, &src_data)?;
             }
             _ => unimplemented!(),
         }

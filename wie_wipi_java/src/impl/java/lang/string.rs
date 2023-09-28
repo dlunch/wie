@@ -51,10 +51,10 @@ impl String {
             count
         );
 
-        let array = context.instantiate_array("C", count as u32).await?;
+        let array = context.instantiate_array("C", count as _).await?;
         context.put_field(&this.cast(), "value", array.ptr_instance)?;
 
-        let data = context.load_array_i8(&value.cast(), offset as u32, count as u32)?;
+        let data = context.load_array_i8(&value.cast(), offset as _, count as _)?;
         context.store_array_i8(&array, 0, &data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
@@ -75,10 +75,10 @@ impl String {
             count
         );
 
-        let array = context.instantiate_array("C", count as u32).await?;
+        let array = context.instantiate_array("C", count as _).await?;
         context.put_field(&this.cast(), "value", array.ptr_instance)?;
 
-        let data = context.load_array_i8(&value.cast(), offset as u32, count as u32)?; // TODO convert to char
+        let data = context.load_array_i8(&value.cast(), offset as _, count as _)?; // TODO convert to char
         context.store_array_i8(&array, 0, &data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
@@ -89,7 +89,7 @@ impl String {
 
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 
-        Ok(context.load_array_i8(&value, index as u32, 1)?[0] as i32) // should be u16
+        Ok(context.load_array_i8(&value, index as _, 1)?[0] as _) // should be u16
     }
 
     async fn get_bytes(context: &mut dyn JavaContext, this: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Array>> {
@@ -105,7 +105,7 @@ impl String {
 
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 
-        Ok(context.array_length(&value)? as i32)
+        Ok(context.array_length(&value)? as _)
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
@@ -118,7 +118,7 @@ impl String {
 
     pub async fn to_java_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JavaObjectProxy<String>> {
         let bytes = string.bytes().collect::<Vec<_>>();
-        let java_value = context.instantiate_array("C", bytes.len() as u32).await?;
+        let java_value = context.instantiate_array("C", bytes.len()).await?;
         context.store_array_i8(&java_value, 0, cast_slice(&bytes))?;
 
         let instance = context.instantiate("Ljava/lang/String;").await?.cast();

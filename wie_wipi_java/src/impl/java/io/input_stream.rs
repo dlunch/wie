@@ -35,8 +35,8 @@ impl InputStream {
 
         let array_length = context.array_length(&b)?;
 
-        context
-            .call_method(&this.cast(), "read", "([BII)I", &[b.ptr_instance, 0, array_length as i32])
-            .await
+        Ok(context
+            .call_method(&this.cast(), "read", "([BII)I", &[b.ptr_instance, 0, array_length as _])
+            .await? as _)
     }
 }

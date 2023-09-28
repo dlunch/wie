@@ -18,6 +18,7 @@ pub struct JavaClassProto {
 
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
+pub type JavaWord = usize;
 
 #[derive(Eq, PartialEq)]
 pub enum JavaMethodFlag {
@@ -78,7 +79,7 @@ impl JavaMethodProto {
 
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for AbstractCall {
-            async fn call(&self, _: &mut dyn JavaContext, _: &[u32]) -> Result<u32, JavaError> {
+            async fn call(&self, _: &mut dyn JavaContext, _: &[JavaWord]) -> Result<JavaWord, JavaError> {
                 // TODO throw java.lang.AbstractMethodError
                 anyhow::bail!("Call to abstract function {}{}", self.name, self.signature)
             }
@@ -99,20 +100,26 @@ impl JavaMethodProto {
 #[async_trait::async_trait(?Send)]
 pub trait JavaContext {
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
-    async fn instantiate_array(&mut self, element_type_name: &str, count: u32) -> JavaResult<JavaObjectProxy<Array>>; // newarray
+    async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>>; // newarray
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
-    async fn call_method(&mut self, instance: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[i32]) -> JavaResult<i32>; // invokespecial/invokevirtual
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[i32]) -> JavaResult<i32>; // invokestatic
-    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<i32>; // getfield
-    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: i32) -> JavaResult<()>; // putfield
-    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<i32>; // getstatic
-    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: i32) -> JavaResult<()>; // putstatic
-    fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[i32]) -> JavaResult<()>; // iastore
-    fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<i32>>; // iaload
-    fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, offset: u32, values: &[i8]) -> JavaResult<()>; // bastore
-    fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: u32, count: u32) -> JavaResult<Vec<i8>>; // baload
-    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>;
-    fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<u32>; // arraylength
+    async fn call_method(
+        &mut self,
+        instance: &JavaObjectProxy<Object>,
+        method_name: &str,
+        signature: &str,
+        args: &[JavaWord],
+    ) -> JavaResult<JavaWord>; // invokespecial/invokevirtual
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
+    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord>; // getfield
+    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()>; // putfield
+    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord>; // getstatic
+    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()>; // putstatic
+    fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()>; // iastore
+    fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>>; // iaload
+    fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i8]) -> JavaResult<()>; // bastore
+    fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i8>>; // baload
+    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord>;
+    fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord>; // arraylength
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
@@ -173,19 +180,19 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
 }
 
 impl TypeConverter<i32> for i32 {
-    fn to_rust(_: &mut dyn JavaContext, raw: u32) -> i32 {
-        i32::from_le_bytes(raw.to_le_bytes())
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaWord) -> i32 {
+        raw as i32
     }
 
-    fn from_rust(_: &mut dyn JavaContext, rust: i32) -> u32 {
-        u32::from_le_bytes(rust.to_le_bytes())
+    fn from_rust(_: &mut dyn JavaContext, rust: i32) -> JavaWord {
+        rust as JavaWord
     }
 }
 
 impl TypeConverter<()> for () {
-    fn to_rust(_: &mut dyn JavaContext, _: u32) {}
+    fn to_rust(_: &mut dyn JavaContext, _: JavaWord) {}
 
-    fn from_rust(_: &mut dyn JavaContext, _: ()) -> u32 {
+    fn from_rust(_: &mut dyn JavaContext, _: ()) -> JavaWord {
         0
     }
 }

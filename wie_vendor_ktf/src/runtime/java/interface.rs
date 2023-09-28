@@ -162,7 +162,7 @@ async fn store_array(core: &mut ArmCore, backend: &mut Backend, array: u32, inde
     tracing::trace!("store_array({:#x}, {:#x}, {:#x})", array, index, value);
 
     let mut context = KtfJavaContext::new(core, backend);
-    context.store_array_i32(&JavaObjectProxy::new(array as i32), index, &[value as i32])?;
+    context.store_array_i32(&JavaObjectProxy::new(array as _), index as _, &[value as i32])?;
 
     Ok(0)
 }
@@ -182,10 +182,10 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
 
     // HACK: we don't have element type class
     let instance = if element_type > 0x100 {
-        java_context.instantiate_array_from_ptr_class(element_type, count).await?
+        java_context.instantiate_array_from_ptr_class(element_type, count as _).await?
     } else {
         let element_type_name = (element_type as u8 as char).to_string();
-        java_context.instantiate_array(&element_type_name, count).await?
+        java_context.instantiate_array(&element_type_name, count as _).await?
     };
 
     Ok(instance.ptr_instance as u32)
