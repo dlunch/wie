@@ -62,14 +62,14 @@ impl Thread {
         Ok(())
     }
 
-    async fn sleep(context: &mut dyn JavaContext, a0: u32, a1: u32) -> JavaResult<u32> {
+    async fn sleep(context: &mut dyn JavaContext, a0: i32, a1: i32) -> JavaResult<i32> {
         tracing::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
         context.sleep(a0 as u64).await;
 
         Ok(0)
     }
 
-    async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::debug!("Thread::yield()");
         task::yield_now().await;
 

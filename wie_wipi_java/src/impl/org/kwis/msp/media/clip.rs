@@ -38,7 +38,7 @@ impl Clip {
         Ok(())
     }
 
-    async fn set_volume(_: &mut dyn JavaContext, this: JavaObjectProxy<Clip>, level: u32) -> JavaResult<()> {
+    async fn set_volume(_: &mut dyn JavaContext, this: JavaObjectProxy<Clip>, level: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:#x}, {})", this.ptr_instance, level);
 
         Ok(())

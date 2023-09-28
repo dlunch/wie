@@ -11,7 +11,7 @@ use crate::{
 };
 
 bitflags::bitflags! {
-    struct Anchor: u32 {
+    struct Anchor: i32 {
         const TOP = 0;
         const HCENTER = 1;
         const VCENTER = 2;
@@ -24,11 +24,11 @@ bitflags::bitflags! {
 
 impl TypeConverter<Anchor> for Anchor {
     fn to_rust(_: &mut dyn JavaContext, raw: u32) -> Anchor {
-        Anchor::from_bits_retain(raw)
+        Anchor::from_bits_retain(raw as i32)
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: Anchor) -> u32 {
-        rust.bits()
+        rust.bits() as u32
     }
 }
 
@@ -83,10 +83,10 @@ impl Graphics {
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<Graphics>,
         image: JavaObjectProxy<Image>,
-        a0: u32,
-        a1: u32,
-        width: u32,
-        height: u32,
+        a0: i32,
+        a1: i32,
+        width: i32,
+        height: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
@@ -114,7 +114,7 @@ impl Graphics {
         Ok(font)
     }
 
-    async fn set_color(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, rgb: u32) -> JavaResult<()> {
+    async fn set_color(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, rgb: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, rgb);
 
         context.put_field(&this.cast(), "rgb", rgb)?;
@@ -122,13 +122,13 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_alpha(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a1: u32) -> JavaResult<()> {
+    async fn set_alpha(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a1: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:#x}, {})", this.ptr_instance, a1);
 
         Ok(())
     }
 
-    async fn set_clip(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a0: u32, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
+    async fn set_clip(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a0: i32, a1: i32, a2: i32, a3: i32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Graphics::setClip({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
@@ -141,7 +141,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn fill_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: u32, y: u32, width: u32, height: u32) -> JavaResult<()> {
+    async fn fill_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
@@ -156,7 +156,7 @@ impl Graphics {
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
 
-        canvas.draw_rect(x, y, width, height, Rgb8Pixel::to_color(rgb));
+        canvas.draw_rect(x as u32, y as u32, width as u32, height as u32, Rgb8Pixel::to_color(rgb as u32));
 
         Ok(())
     }
@@ -207,19 +207,19 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_clip_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
+    async fn get_clip_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn get_clip_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
+    async fn get_clip_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:#x})", this.ptr_instance);
 
         Ok(0)
     }
 
-    async fn get_clip_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
+    async fn get_clip_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:#x})", this.ptr_instance);
 
         let w = context.get_field(&this.cast(), "w")?;
@@ -227,7 +227,7 @@ impl Graphics {
         Ok(w)
     }
 
-    async fn get_clip_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<u32> {
+    async fn get_clip_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})", this.ptr_instance);
 
         let h = context.get_field(&this.cast(), "h")?;

@@ -30,13 +30,13 @@ impl InputStream {
         Ok(())
     }
 
-    async fn read(context: &mut dyn JavaContext, this: JavaObjectProxy<InputStream>, b: JavaObjectProxy<Array>) -> JavaResult<u32> {
+    async fn read(context: &mut dyn JavaContext, this: JavaObjectProxy<InputStream>, b: JavaObjectProxy<Array>) -> JavaResult<i32> {
         tracing::debug!("java.lang.InputStream::read({:#x}, {:#x})", this.ptr_instance, b.ptr_instance);
 
         let array_length = context.array_length(&b)?;
 
         context
-            .call_method(&this.cast(), "read", "([BII)I", &[b.ptr_instance, 0, array_length])
+            .call_method(&this.cast(), "read", "([BII)I", &[b.ptr_instance, 0, array_length as i32])
             .await
     }
 }

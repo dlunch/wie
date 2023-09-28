@@ -37,7 +37,7 @@ impl Runtime {
         Ok(instance)
     }
 
-    async fn total_memory(_: &mut dyn JavaContext) -> JavaResult<u32> {
+    async fn total_memory(_: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::warn!("stub java.lang.Runtime::total_memory");
 
         Ok(0x100000) // TODO: hardcoded

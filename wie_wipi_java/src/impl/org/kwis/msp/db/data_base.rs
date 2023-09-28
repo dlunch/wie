@@ -39,8 +39,8 @@ impl DataBase {
     async fn open_data_base(
         context: &mut dyn JavaContext,
         data_base_name: JavaObjectProxy<String>,
-        record_size: u32,
-        create: u32,
+        record_size: i32,
+        create: i32,
     ) -> JavaResult<JavaObjectProxy<DataBase>> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})",
@@ -55,7 +55,7 @@ impl DataBase {
         Ok(instance)
     }
 
-    async fn get_number_of_records(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<u32> {
+    async fn get_number_of_records(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", this.ptr_instance);
 
         Ok(0)
@@ -71,9 +71,9 @@ impl DataBase {
         _: &mut dyn JavaContext,
         this: JavaObjectProxy<DataBase>,
         data: JavaObjectProxy<Array>,
-        offset: u32,
-        num_bytes: u32,
-    ) -> JavaResult<u32> {
+        offset: i32,
+        num_bytes: i32,
+    ) -> JavaResult<i32> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
             this.ptr_instance,

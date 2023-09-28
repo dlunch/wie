@@ -32,29 +32,29 @@ impl Card {
         Ok(())
     }
 
-    async fn init_1(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: u32) -> JavaResult<()> {
+    async fn init_1(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", this.ptr_instance, a0);
 
         Ok(())
     }
 
-    async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<u32> {
+    async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:#x})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas();
 
-        Ok(screen_canvas.width())
+        Ok(screen_canvas.width() as i32)
     }
 
-    async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<u32> {
+    async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:#x})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas();
 
-        Ok(screen_canvas.height())
+        Ok(screen_canvas.height() as i32)
     }
 
-    async fn repaint(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: u32, a1: u32, a2: u32, a3: u32) -> JavaResult<()> {
+    async fn repaint(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: i32, a1: i32, a2: i32, a3: i32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Card::repaint({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
