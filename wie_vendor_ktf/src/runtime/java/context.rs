@@ -378,13 +378,13 @@ impl<'a> KtfJavaContext<'a> {
         Ok(base_address)
     }
 
-    async fn call_method_inner(&mut self, ptr_method: u32, args: &[u32]) -> JavaResult<u32> {
+    async fn call_method_inner(&mut self, ptr_method: u32, args: &[JavaWord]) -> JavaResult<u32> {
         let method: JavaMethod = read_generic(self.core, ptr_method)?;
 
         if method.flag.contains(JavaMethodFlagBit::NATIVE) {
             let arg_container = Allocator::alloc(self.core, (args.len() as u32) * 4)?;
             for (i, arg) in args.iter().enumerate() {
-                write_generic(self.core, arg_container + (i * 4) as u32, *arg)?;
+                write_generic(self.core, arg_container + (i * 4) as u32, *arg as u32)?;
             }
 
             let result = self
@@ -397,7 +397,7 @@ impl<'a> KtfJavaContext<'a> {
             result
         } else {
             let mut params = vec![0];
-            params.extend(args);
+            params.extend(args.iter().map(|&x| x as u32));
 
             self.core.run_function(method.fn_body, &params).await
         }
@@ -523,7 +523,7 @@ impl JavaContext for KtfJavaContext<'_> {
             },
         )?;
 
-        Ok(self.call_method_inner(ptr_method, cast_slice(&params)).await? as _)
+        Ok(self.call_method_inner(ptr_method, &params).await? as _)
     }
 
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
@@ -540,7 +540,7 @@ impl JavaContext for KtfJavaContext<'_> {
             },
         )?;
 
-        Ok(self.call_method_inner(ptr_method, cast_slice(args)).await? as _)
+        Ok(self.call_method_inner(ptr_method, args).await? as _)
     }
 
     fn backend(&mut self) -> &mut Backend {
