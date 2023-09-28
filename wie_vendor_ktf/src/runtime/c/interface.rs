@@ -9,7 +9,8 @@ use wie_core_arm::ArmCore;
 use wie_wipi_c::{
     r#impl::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
-        misc::get_misc_method_table, stub::get_stub_method_table, unk12::get_unk12_method_table,
+        misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, unk12::get_unk12_method_table,
+        util::get_util_method_table,
     },
     CContext, CMethodBody,
 };
@@ -64,26 +65,17 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore, backend: &mut Backend) -> any
 async fn get_wipic_interfaces(context: &mut dyn CContext) -> anyhow::Result<u32> {
     tracing::trace!("get_wipic_interfaces");
 
-    let interface_0 = write_methods(context, get_stub_method_table(0))?;
+    let interface_0 = write_methods(context, get_util_method_table())?;
     let interface_1 = write_methods(context, get_misc_method_table())?;
-
-    let graphics_methods = get_graphics_method_table();
-    let interface_2 = write_methods(context, graphics_methods)?;
-
+    let interface_2 = write_methods(context, get_graphics_method_table())?;
     let interface_3 = write_methods(context, get_stub_method_table(3))?;
     let interface_4 = write_methods(context, get_stub_method_table(4))?;
     let interface_5 = write_methods(context, get_stub_method_table(5))?;
-
-    let database_methods = get_database_method_table();
-    let interface_6 = write_methods(context, database_methods)?;
-
+    let interface_6 = write_methods(context, get_database_method_table())?;
     let interface_7 = write_methods(context, get_stub_method_table(7))?;
     let interface_8 = write_methods(context, get_stub_method_table(8))?; // uic
-
-    let media_methods = get_media_method_table();
-    let interface_9 = write_methods(context, media_methods)?;
-
-    let interface_10 = write_methods(context, get_stub_method_table(10))?;
+    let interface_9 = write_methods(context, get_media_method_table())?;
+    let interface_10 = write_methods(context, get_net_method_table())?;
     let interface_11 = write_methods(context, get_stub_method_table(11))?;
     let interface_12 = write_methods(context, get_unk12_method_table())?;
     let interface_13 = write_methods(context, get_stub_method_table(13))?;
