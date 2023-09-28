@@ -5,4 +5,4 @@ use wie_base::methods;
 
 use crate::CContext;
 
-methods!(CContext);
+methods!(CContext, u32);
