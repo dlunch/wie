@@ -1,12 +1,10 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem::size_of;
 
-use bytemuck::cast_slice;
-
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, write_null_terminated_string, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
-use wie_wipi_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult};
+use wie_wipi_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult, JavaWord};
 
 use super::{
     name::JavaFullName, vtable_builder::JavaVtableBuilder, JavaClass, JavaClassDescriptor, JavaField, JavaFieldAccessFlagBit, JavaMethod,
@@ -300,7 +298,9 @@ impl ClassLoader {
 
                 let mut context = KtfJavaContext::new(core, backend);
 
-                let result = self.body.call(&mut context, cast_slice(&args)).await?; // TODO do we need arg proxy?
+                let args = args.into_iter().map(|x| x as JavaWord).collect::<Vec<_>>();
+
+                let result = self.body.call(&mut context, &args).await?; // TODO do we need arg proxy?
 
                 Ok(result as _)
             }
