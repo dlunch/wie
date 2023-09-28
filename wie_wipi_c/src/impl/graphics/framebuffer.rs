@@ -5,30 +5,30 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_backend::canvas::{create_canvas, Canvas, Image};
 
-use crate::base::{CContext, CMemoryId};
+use crate::base::{CContext, CMemoryId, CWord};
 
 /// MC_GrpDisplayInfo
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICDisplayInfo {
-    pub bpp: u32,
-    pub depth: u32,
-    pub width: u32,
-    pub height: u32,
-    pub bpl: u32,
-    pub color_type: u32,
-    pub red_mask: u32,
-    pub blue_mask: u32,
-    pub green_mask: u32,
+    pub bpp: CWord,
+    pub depth: CWord,
+    pub width: CWord,
+    pub height: CWord,
+    pub bpl: CWord,
+    pub color_type: CWord,
+    pub red_mask: CWord,
+    pub blue_mask: CWord,
+    pub green_mask: CWord,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICFramebuffer {
-    pub width: u32,
-    pub height: u32,
-    pub bpl: u32,
-    pub bpp: u32,
+    pub width: CWord,
+    pub height: CWord,
+    pub bpl: CWord,
+    pub bpp: CWord,
     pub buf: CMemoryId,
 }
 
@@ -43,7 +43,7 @@ impl WIPICFramebuffer {
         }
     }
 
-    pub fn new(context: &mut dyn CContext, width: u32, height: u32, bpp: u32) -> anyhow::Result<Self> {
+    pub fn new(context: &mut dyn CContext, width: CWord, height: CWord, bpp: CWord) -> anyhow::Result<Self> {
         let bytes_per_pixel = bpp / 8;
 
         let buf = context.alloc(width * height * bytes_per_pixel)?;

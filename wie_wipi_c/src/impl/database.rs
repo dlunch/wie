@@ -2,34 +2,34 @@ use alloc::string::String;
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{CContext, CMethodBody},
+    base::{CContext, CMethodBody, CWord},
     method::MethodImpl,
     CResult,
 };
 
-fn gen_stub(id: u32, name: &'static str) -> CMethodBody {
+fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
     let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented database{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn open_database(_context: &mut dyn CContext, name: String, record_size: u32, create: u32, mode: u32) -> CResult<u32> {
+async fn open_database(_context: &mut dyn CContext, name: String, record_size: CWord, create: CWord, mode: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
     Ok(0)
 }
 
-async fn close_database(_context: &mut dyn CContext, db_id: u32) -> CResult<u32> {
+async fn close_database(_context: &mut dyn CContext, db_id: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_dbCloseDataBase({})", db_id);
     Ok(0)
 }
 
-async fn delete_database(_context: &mut dyn CContext, name: u32, mode: u32) -> CResult<u32> {
+async fn delete_database(_context: &mut dyn CContext, name: CWord, mode: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_dbCloseDataBase({:#x}, {})", name, mode);
 
     Ok(0)
 }
 
-async fn insert_record(_context: &mut dyn CContext, db_id: u32, buf_ptr: u32, buf_len: u32) -> CResult<u32> {
+async fn insert_record(_context: &mut dyn CContext, db_id: CWord, buf_ptr: CWord, buf_len: CWord) -> CResult<CWord> {
     tracing::warn!("stub MC_dbInsertRecord({}, {:#x}, {})", db_id, buf_ptr, buf_len);
     Ok(0)
 }
