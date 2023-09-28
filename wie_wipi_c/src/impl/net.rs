@@ -17,10 +17,16 @@ async fn connect(_context: &mut dyn CContext, cb: CWord, param: CWord) -> CResul
     Ok(-1) // M_E_ERROR
 }
 
+async fn close(_context: &mut dyn CContext) -> CResult<()> {
+    tracing::warn!("stub MC_netClose()");
+
+    Ok(())
+}
+
 pub fn get_net_method_table() -> Vec<CMethodBody> {
     vec![
         connect.into_body(),
-        gen_stub(1, "MC_netClose"),
+        close.into_body(),
         gen_stub(2, "MC_netSocket"),
         gen_stub(3, "MC_netSocketConnect"),
         gen_stub(4, "MC_netSocketWrite"),
