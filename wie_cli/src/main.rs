@@ -29,10 +29,10 @@ static KEY_MAP: phf::Map<u32, WIPIKey> = phf::phf_map! {
     45u32 => WIPIKey::NUM0, // X
     46u32 => WIPIKey::STAR, // C
     57u32 => WIPIKey::FIRE, // Space
-    72u32 => WIPIKey::UP,
-    80u32 => WIPIKey::DOWN,
-    75u32 => WIPIKey::LEFT,
-    77u32 => WIPIKey::RIGHT,
+    103u32 => WIPIKey::UP,
+    108u32 => WIPIKey::DOWN,
+    105u32 => WIPIKey::LEFT,
+    106u32 => WIPIKey::RIGHT,
 };
 
 fn main() -> anyhow::Result<()> {
