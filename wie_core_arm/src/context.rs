@@ -40,7 +40,7 @@ impl ArmCoreContext {
             sp: stack_base + 0x1000,
             lr: 0,
             pc: 0,
-            cpsr: 0,
+            cpsr: 0x10, // USR32
         }
     }
 }
