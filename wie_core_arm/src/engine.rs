@@ -16,7 +16,7 @@ pub trait ArmEngine {
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
     fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmEngineResult<()>;
-    fn mem_read(&self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>>;
+    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>>;
 }
 
 #[allow(clippy::enum_variant_names)]

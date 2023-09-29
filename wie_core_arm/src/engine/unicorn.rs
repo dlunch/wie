@@ -147,7 +147,7 @@ impl ArmEngine for UnicornEngine {
         Ok(())
     }
 
-    fn mem_read(&self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>> {
+    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>> {
         Ok(self.uc.mem_read_as_vec(address as u64, size).map_err(UnicornError)?)
     }
 }

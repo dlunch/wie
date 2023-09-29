@@ -9,7 +9,6 @@ pub struct Armv4tEmuEngine {
     mem: ExampleMem,
 }
 
-#[allow(dead_code)]
 impl Armv4tEmuEngine {
     pub fn new() -> Self {
         Self {
@@ -62,15 +61,12 @@ impl ArmEngine for Armv4tEmuEngine {
         Ok(())
     }
 
-    fn mem_read(&self, address: u32, size: usize) -> ArmEngineResult<alloc::vec::Vec<u8>> {
+    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<alloc::vec::Vec<u8>> {
         // TODO change to block read
-
-        #[allow(mutable_transmutes)]
-        let mem: &mut ExampleMem = unsafe { core::mem::transmute(&self.mem) }; // why read is mutable??
 
         let mut result = Vec::new();
         for i in 0..size {
-            result.push(mem.r8(address + i as u32));
+            result.push(self.mem.r8(address + i as u32));
         }
 
         Ok(result)
