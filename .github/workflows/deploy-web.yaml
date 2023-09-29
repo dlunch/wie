@@ -1,5 +1,7 @@
 on:
-  - push
+  push:
+    branches:
+      - main
 name: Deploy Web
 
 jobs:
