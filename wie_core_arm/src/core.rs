@@ -314,7 +314,7 @@ impl ArmCore {
     }
 
     fn dump_call_stack(&self) -> ArmEngineResult<String> {
-        let inner = self.inner.borrow();
+        let mut inner = self.inner.borrow_mut();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);
         let pc = inner.engine.reg_read(ArmRegister::PC);
@@ -342,7 +342,7 @@ impl ArmCore {
     }
 
     fn dump_stack(&self) -> ArmEngineResult<String> {
-        let inner = self.inner.borrow();
+        let mut inner = self.inner.borrow_mut();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);
 
@@ -361,7 +361,7 @@ impl ArmCore {
 
 impl ByteRead for ArmCore {
     fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
-        let inner = self.inner.borrow();
+        let mut inner = self.inner.borrow_mut();
 
         let data = inner.engine.mem_read(address, size as usize)?;
 
