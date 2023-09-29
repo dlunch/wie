@@ -54,21 +54,13 @@ impl ArmEngine for Armv4tEmuEngine {
     }
 
     fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmEngineResult<()> {
-        // TODO change to block write
-        for (i, byte) in data.iter().enumerate() {
-            self.mem.w8(address + i as u32, *byte);
-        }
+        self.mem.write_range(address, data);
 
         Ok(())
     }
 
-    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<alloc::vec::Vec<u8>> {
-        // TODO change to block read
-
-        let mut result = Vec::new();
-        for i in 0..size {
-            result.push(self.mem.r8(address + i as u32));
-        }
+    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>> {
+        let result = self.mem.read_range(address, size);
 
         Ok(result)
     }
@@ -115,6 +107,41 @@ impl Armv4tEmuMemory {
 
         for page in (page_start..page_end).step_by(0x10000) {
             self.data.entry(page).or_insert_with(|| vec![0; 0x10000]);
+        }
+    }
+
+    fn read_range(&self, address: u32, size: usize) -> Vec<u8> {
+        let mut result = Vec::with_capacity(size);
+        let mut remaining_size = size;
+        let mut current_address = address;
+
+        while remaining_size > 0 {
+            let page_address = current_address & !0xffff;
+            let page_data = self.data.get(&page_address).unwrap();
+            let offset = (current_address - page_address) as usize;
+            let available_bytes = (0x10000 - offset).min(remaining_size);
+
+            result.extend_from_slice(&page_data[offset..offset + available_bytes]);
+            remaining_size -= available_bytes;
+            current_address += available_bytes as u32;
+        }
+
+        result
+    }
+
+    fn write_range(&mut self, address: u32, data: &[u8]) {
+        let mut current_address = address;
+        let mut data_index = 0;
+
+        while data_index < data.len() {
+            let page_address = current_address & !0xffff;
+            let page_data = self.data.get_mut(&page_address).unwrap();
+            let offset = (current_address - page_address) as usize;
+            let available_bytes = (0x10000 - offset).min(data.len() - data_index);
+
+            page_data[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
+            data_index += available_bytes;
+            current_address += available_bytes as u32;
         }
     }
 }
