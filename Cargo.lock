@@ -135,6 +135,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "armv4t_emu"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5df73307140e36ebb0c4298da3c3abf1d90b78b3232d50f091b3b2f46a05689f"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2262,6 +2271,7 @@ name = "wie_core_arm"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "armv4t_emu",
  "async-trait",
  "bytemuck",
  "capstone",
