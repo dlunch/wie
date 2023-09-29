@@ -1,4 +1,5 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
+use core::ops::Range;
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
 
@@ -20,7 +21,7 @@ impl Armv4tEmuEngine {
 }
 
 impl ArmEngine for Armv4tEmuEngine {
-    fn run(&mut self, end: u32, hook: core::ops::Range<u32>) -> ArmEngineResult<()> {
+    fn run(&mut self, end: u32, hook: Range<u32>) -> ArmEngineResult<()> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
             if pc == end || hook.contains(&pc) {
