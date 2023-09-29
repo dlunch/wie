@@ -33,6 +33,7 @@ impl ArmCore {
         let mut engine = Box::new(UnicornEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
+        engine.reg_write(ArmRegister::Cpsr, 0x10); // USR32
 
         let inner = ArmCoreInner {
             engine,
@@ -106,13 +107,7 @@ impl ArmCore {
             }
         }
 
-        if address % 2 == 1 {
-            inner.engine.reg_write(ArmRegister::PC, address - 1);
-            let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
-            inner.engine.reg_write(ArmRegister::Cpsr, cpsr | (1 << 5)); // T bit
-        } else {
-            inner.engine.reg_write(ArmRegister::PC, address);
-        }
+        inner.engine.reg_write(ArmRegister::PC, address);
         inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
         drop(inner);
 

@@ -1,8 +1,10 @@
+mod armv4t_emu;
 mod unicorn;
 
 use alloc::vec::Vec;
 use core::ops::Range;
 
+pub use armv4t_emu::Armv4tEmuEngine;
 pub use unicorn::UnicornEngine;
 
 pub type ArmEngineResult<T> = anyhow::Result<T>;
@@ -24,6 +26,7 @@ pub enum MemoryPermission {
     ReadWriteExecute = 7,
 }
 
+#[derive(Eq, PartialEq)]
 pub enum ArmRegister {
     R0,
     R1,
