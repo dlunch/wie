@@ -192,7 +192,7 @@ impl<'a> KtfJavaContext<'a> {
             let name_copy = fullname.clone(); // TODO remove clone
 
             self.get_ptr_method(class_descriptor.ptr_parent_class, fullname)
-                .with_context(|| format!("Cannot find function {} from {}", name_copy, class_name))
+                .map_err(|_| anyhow::anyhow!("Cannot find function {} from {}", name_copy, class_name))
         } else {
             anyhow::bail!("Cannot find function {} from {}", fullname, class_name)
         }
@@ -213,7 +213,7 @@ impl<'a> KtfJavaContext<'a> {
 
         if class_descriptor.ptr_parent_class != 0 {
             self.get_ptr_field(class_descriptor.ptr_parent_class, field_name)
-                .with_context(|| format!("Cannot find field {} from {}", field_name, class_name))
+                .map_err(|_| anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
         } else {
             anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
         }
