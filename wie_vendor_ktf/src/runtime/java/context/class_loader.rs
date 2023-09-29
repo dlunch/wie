@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, write_null_terminated_string, ByteWrite};
-use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
+use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 use wie_wipi_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult, JavaWord};
 
 use super::{
@@ -270,8 +270,8 @@ impl ClassLoader {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for JavaMethodProxy {
-            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
+        impl EmulatedFunction<(u32, u32, u32), ArmEngineError, Backend, u32> for JavaMethodProxy {
+            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmEngineError> {
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
                 let a3 = u32::get(core, 3);

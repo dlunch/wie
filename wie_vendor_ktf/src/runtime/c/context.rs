@@ -5,7 +5,7 @@ use wie_backend::{
     AsyncCallable, Backend,
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
-use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
+use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 use wie_wipi_c::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord};
 
 pub struct KtfCContext<'a> {
@@ -54,8 +54,8 @@ impl CContext for KtfCContext<'_> {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl EmulatedFunction<(u32, u32, u32), ArmCoreError, Backend, u32> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmCoreError> {
+        impl EmulatedFunction<(u32, u32, u32), ArmEngineError, Backend, u32> for CMethodProxy {
+            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmEngineError> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);

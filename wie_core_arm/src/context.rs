@@ -18,7 +18,7 @@ pub struct ArmCoreContext {
     pub sp: u32,
     pub lr: u32,
     pub pc: u32,
-    pub apsr: u32,
+    pub cpsr: u32,
 }
 
 impl ArmCoreContext {
@@ -40,7 +40,7 @@ impl ArmCoreContext {
             sp: stack_base + 0x1000,
             lr: 0,
             pc: 0,
-            apsr: 0,
+            cpsr: 0,
         }
     }
 }

@@ -3,11 +3,11 @@ use core::{fmt::Debug, future::Future, marker::PhantomData};
 
 use wie_base::util::read_null_terminated_string;
 
-use crate::{core::ArmCoreResult, ArmCore};
+use crate::{engine::ArmEngineResult, ArmCore};
 
 #[async_trait::async_trait(?Send)]
 pub trait RegisteredFunction {
-    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()>;
+    async fn call(&self, core: &mut ArmCore) -> ArmEngineResult<()>;
 }
 
 pub struct RegisteredFunctionHolder<F, P, E, C, R>
@@ -46,7 +46,7 @@ where
     C: Clone + 'static,
     R: ResultWriter<R>,
 {
-    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
+    async fn call(&self, core: &mut ArmCore) -> ArmEngineResult<()> {
         let (pc, lr) = core.read_pc_lr()?;
 
         tracing::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
