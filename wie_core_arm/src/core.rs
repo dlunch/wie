@@ -6,7 +6,7 @@ use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
     context::ArmCoreContext,
-    engine::{ArmEngine, ArmEngineResult, ArmRegister, MemoryPermission, UnicornEngine},
+    engine::{ArmEngine, ArmEngineResult, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
     future::SpawnFuture,
 };
@@ -30,7 +30,10 @@ pub struct ArmCore {
 
 impl ArmCore {
     pub fn new() -> ArmEngineResult<Self> {
-        let mut engine = Box::new(UnicornEngine::new());
+        #[cfg(target_arch = "wasm32")]
+        let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut engine = Box::new(crate::engine::UnicornEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
         engine.reg_write(ArmRegister::Cpsr, 0x10); // USR32

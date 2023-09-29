@@ -1,10 +1,12 @@
 mod armv4t_emu;
+#[cfg(not(target_arch = "wasm32"))]
 mod unicorn;
 
 use alloc::vec::Vec;
 use core::ops::Range;
 
 pub use armv4t_emu::Armv4tEmuEngine;
+#[cfg(not(target_arch = "wasm32"))]
 pub use unicorn::UnicornEngine;
 
 pub type ArmEngineResult<T> = anyhow::Result<T>;
