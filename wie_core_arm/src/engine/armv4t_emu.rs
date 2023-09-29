@@ -10,6 +10,7 @@ pub struct Armv4tEmuEngine {
 }
 
 impl Armv4tEmuEngine {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             cpu: Cpu::new(),
@@ -103,6 +104,7 @@ struct Armv4tEmuMemory {
 }
 
 impl Armv4tEmuMemory {
+    #[allow(dead_code)]
     fn new() -> Self {
         Self { data: BTreeMap::new() }
     }
