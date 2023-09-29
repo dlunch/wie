@@ -8,6 +8,7 @@ members = [
     "wie_base",
     "wie_core_arm",
     "wie_vendor_ktf",
+    "wie_web",
     "wie_wipi_c",
     "wie_wipi_java",
 ]
@@ -18,7 +19,7 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-anyhow = { version = "^1.0", default-features = false }
+anyhow = { version = "^1.0" }
 async-trait = { version = "^0.1", default-features = false }
 bitflags = { version = "^2.3", default-features = false }
 bytemuck = { version = "^1.13", default-features = false, features = ["derive"] }

@@ -1,0 +1,13 @@
+[package]
+name = "wie_web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+
+wie = { path = "../wie" }
+wie_backend = { path = "../wie_backend" }
+wie_base = { path = "../wie_base" }
+wie_vendor_ktf = { path = "../wie_vendor_ktf" }

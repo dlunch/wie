@@ -11,8 +11,10 @@ bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 armv4t_emu = { version = "^0.1" }
-unicorn-engine = { version = "^2.0" }
-capstone = { version = "^0.11" }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+unicorn-engine = { version = "^2.0" }
+capstone = { version = "^0.11" }
