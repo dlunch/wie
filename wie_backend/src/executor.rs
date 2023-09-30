@@ -116,11 +116,6 @@ impl Executor {
             self.step(now)?;
         }
 
-        let now = time.now();
-        if now < end {
-            sleep(Duration::from_millis(end - now));
-        }
-
         Ok(())
     }
 

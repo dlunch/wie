@@ -1,5 +1,6 @@
 use core::ops::{Add, Sub};
-use std::time::SystemTime;
+
+use time::OffsetDateTime;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -7,11 +8,9 @@ pub struct Instant {
 }
 
 impl Instant {
-    pub fn from_systemtime(now: SystemTime) -> Self {
-        let epoch = now.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        Self {
-            value: epoch.as_millis() as u64,
-        }
+    pub fn from_systemtime(now: OffsetDateTime) -> Self {
+        let epoch = now.unix_timestamp_nanos() / 1000000; // to millis
+        Self { value: epoch as u64 }
     }
 
     pub fn raw(&self) -> u64 {
@@ -44,7 +43,7 @@ impl Time {
     }
 
     pub fn now(&self) -> Instant {
-        let now = SystemTime::now();
+        let now = OffsetDateTime::now_utc();
 
         Instant::from_systemtime(now)
     }
