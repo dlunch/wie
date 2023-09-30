@@ -17,6 +17,7 @@ const main = () => {
           start(new Uint8Array(data));
         } catch (e) {
           if (!e.message.startsWith("Using exceptions for control flow")) {
+            alert(e.message);
             throw e;
           }
         }
