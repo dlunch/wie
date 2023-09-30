@@ -71,7 +71,21 @@ impl Window {
 
         let size = PhysicalSize::new(width, height);
 
-        let window = WindowBuilder::new().with_inner_size(size).with_title("WIPI").build(&event_loop)?;
+        let builder = WindowBuilder::new().with_inner_size(size).with_title("WIPI");
+
+        cfg_if::cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                use winit::platform::web::WindowBuilderExtWebSys;
+                use wasm_bindgen::JsCast;
+
+                let document = web_sys::window().unwrap().document().unwrap();
+                let canvas = document.get_element_by_id("canvas").map(|x| x.dyn_into().unwrap());
+
+                let builder = builder.with_canvas(canvas);
+            }
+        }
+
+        let window = builder.build(&event_loop)?;
         let context = unsafe { Context::new(&window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
         let mut surface = unsafe { Surface::new(&context, &window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
 
