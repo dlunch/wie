@@ -65,11 +65,12 @@ jobs:
           version: "latest"
 
       - name: npm install
+        working-directory: ./wie_web
         run: npm install
 
       - name: Build
-        run: |
-          cd wie_web;npm run build
+        working-directory: ./wie_web
+        run: npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v3
