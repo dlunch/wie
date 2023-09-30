@@ -12,7 +12,8 @@ path = "src/rust/main.rs"
 anyhow = { workspace = true }
 
 console_error_panic_hook = { version = "^0.1" }
-tracing-subscriber = { version = "^0.3" }
+time = { version = "^0.3", features = ["wasm-bindgen"] }
+tracing-subscriber = { version = "^0.3", features = ["time"] }
 tracing-web = { version = "^0.1" }
 wasm-bindgen = { version = "^0.2" }
 

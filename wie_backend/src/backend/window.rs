@@ -66,24 +66,24 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32) -> anyhow::Result<Self> {
         let event_loop = EventLoopBuilder::<WindowInternalEvent>::with_user_event().build();
 
         let size = PhysicalSize::new(width, height);
 
-        let window = WindowBuilder::new().with_inner_size(size).with_title("WIPI").build(&event_loop).unwrap();
-        let context = unsafe { Context::new(&window) }.unwrap();
-        let mut surface = unsafe { Surface::new(&context, &window) }.unwrap();
+        let window = WindowBuilder::new().with_inner_size(size).with_title("WIPI").build(&event_loop)?;
+        let context = unsafe { Context::new(&window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+        let mut surface = unsafe { Surface::new(&context, &window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
 
         surface
             .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
-            .unwrap();
+            .map_err(|x| anyhow::anyhow!("{:?}", x))?;
 
-        Self {
+        Ok(Self {
             window: Rc::new(window),
             event_loop,
             surface,
-        }
+        })
     }
 
     pub fn proxy(&self) -> WindowProxy {
