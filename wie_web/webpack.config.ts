@@ -22,6 +22,15 @@ const config: webpack.Configuration = {
       }),
     ],
   },
+  devServer: {
+    static: path.join(__dirname, "dist"),
+    watchFiles: {
+      paths: ["src/**/*.*"],
+      options: {
+        usePolling: true,
+      },
+    },
+  },
   module: {
     rules: [
       {
@@ -62,6 +71,7 @@ const config: webpack.Configuration = {
     new WasmPackPlugin({
       crateDirectory: ".",
       outDir: "./src/ts/pkg",
+      forceWatch: false,
     }),
   ],
 };
