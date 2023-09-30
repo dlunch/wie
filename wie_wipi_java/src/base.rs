@@ -149,6 +149,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/Throwable" => crate::r#impl::java::lang::Throwable::as_proto(),
         "java/util/Hashtable" => crate::r#impl::java::util::Hashtable::as_proto(),
         "java/util/Random" => crate::r#impl::java::util::Random::as_proto(),
+        "java/util/Timer" => crate::r#impl::java::util::Timer::as_proto(),
         "java/util/TimerTask" => crate::r#impl::java::util::TimerTask::as_proto(),
         "java/util/Vector" => crate::r#impl::java::util::Vector::as_proto(),
         "org/kwis/msp/db/DataBase" => crate::r#impl::org::kwis::msp::db::DataBase::as_proto(),
