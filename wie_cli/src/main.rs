@@ -50,7 +50,7 @@ fn main() -> anyhow::Result<()> {
 
     let archive = KtfArchive::from_zip(&buf)?;
 
-    let window = Window::new(240, 320); // TODO hardcoded size
+    let window = Window::new(240, 320)?; // TODO hardcoded size
 
     let mut wie = Wie::new(Box::new(archive), window.proxy())?;
 
