@@ -115,6 +115,8 @@ impl Window {
         let result = callback(event);
         if let Err(x) = result {
             tracing::error!(target: "wie", "{:?}", x);
+            #[cfg(target_arch = "wasm32")]
+            web_sys::window().unwrap().alert_with_message(&format!("{:?}", x)).unwrap();
 
             *control_flow = ControlFlow::Exit;
         }
