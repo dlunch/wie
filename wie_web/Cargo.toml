@@ -11,6 +11,9 @@ path = "src/rust/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 
+console_error_panic_hook = { version = "^0.1" }
+tracing-subscriber = { version = "^0.3" }
+tracing-web = { version = "^0.1" }
 wasm-bindgen = { version = "^0.2" }
 
 wie = { path = "../wie" }
