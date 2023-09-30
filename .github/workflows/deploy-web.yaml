@@ -48,6 +48,13 @@ jobs:
           key: ${{ runner.os }}-build-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-build-target-
 
+      - name: Cache .npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -56,6 +63,9 @@ jobs:
       - uses: jetli/trunk-action@v0.4.0
         with:
           version: "latest"
+
+      - name: npm install
+        run: npm install
 
       - name: Build
         run: |
