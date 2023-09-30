@@ -14,6 +14,9 @@ const config: webpack.Configuration = {
     path: path.resolve(__dirname, "dist"),
     clean: true,
   },
+  ignoreWarnings: [
+    /"global" has been used, it will be undefined in next major version./,
+  ],
   resolve: {
     extensions: [".ts", ".js"],
     plugins: [
