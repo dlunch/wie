@@ -13,7 +13,7 @@ tracing = { workspace = true }
 cfg-if = { version = "^1.0" }
 image = { version = "^0.24" }
 softbuffer = { version = "^0.3" }
-winit = { version = "0.28.0", features = ["wayland"] }
+winit = { version = "0.28.7", features = ["wayland"] }
 zip = { version = "^0.6", features = ["deflate"], default-features = false }
 time = { version = "^0.3" }
 
