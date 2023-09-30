@@ -10,10 +10,14 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
-
+cfg-if = { version = "^1.0" }
 image = { version = "^0.24" }
 softbuffer = { version = "^0.3" }
 winit = { version = "0.28.0", features = ["wayland"] }
 zip = { version = "^0.6", features = ["deflate"], default-features = false }
 
 wie_base = { path = "../wie_base" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "^0.2" }
+web-sys = { version = "^0.3" }
