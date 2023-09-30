@@ -13,7 +13,13 @@ const main = () => {
       reader.onload = (e) => {
         let data = e.target?.result as ArrayBuffer;
 
-        start(new Uint8Array(data));
+        try {
+          start(new Uint8Array(data));
+        } catch (e) {
+          if (!e.message.startsWith("Using exceptions for control flow")) {
+            throw e;
+          }
+        }
       };
 
       reader.readAsArrayBuffer(selected_file);
