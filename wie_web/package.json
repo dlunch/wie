@@ -1,0 +1,26 @@
+{
+  "name": "wie_web",
+  "version": "0.1.0",
+  "description": "",
+  "scripts": {
+    "build": "webpack"
+  },
+  "author": "",
+  "devDependencies": {
+    "@types/node": "^20.7.2",
+    "@types/webpack": "^5.28.3",
+    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
+    "css-loader": "^6.8.1",
+    "html-bundler-webpack-plugin": "^2.14.2",
+    "sass": "^1.68.0",
+    "sass-loader": "^13.3.2",
+    "ts-loader": "^9.4.4",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths-webpack-plugin": "^4.1.0",
+    "typescript": "^5.2.2",
+    "wasm-pack": "^0.12.1",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
+  }
+}

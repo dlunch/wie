@@ -4,8 +4,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+crate-type = ["cdylib"]
+path = "src/rust/main.rs"
+
 [dependencies]
 anyhow = { workspace = true }
+
+wasm-bindgen = { version = "^0.2" }
 
 wie = { path = "../wie" }
 wie_backend = { path = "../wie_backend" }

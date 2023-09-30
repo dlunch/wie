@@ -1,16 +1,17 @@
+use wasm_bindgen::prelude::*;
+
 use wie::Wie;
 use wie_backend::{Window, WindowCallbackEvent};
 use wie_base::Event;
 use wie_vendor_ktf::KtfArchive;
 
-fn main() -> anyhow::Result<()> {
-    let buf = Vec::new();
-
-    let archive = KtfArchive::from_zip(&buf)?;
+#[wasm_bindgen]
+pub fn start(buf: &[u8]) {
+    let archive = KtfArchive::from_zip(buf).unwrap();
 
     let window = Window::new(240, 320); // TODO hardcoded size
 
-    let mut wie = Wie::new(Box::new(archive), window.proxy())?;
+    let mut wie = Wie::new(Box::new(archive), window.proxy()).unwrap();
 
     window.run(move |event| {
         match event {

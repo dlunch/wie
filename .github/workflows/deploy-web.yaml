@@ -59,7 +59,7 @@ jobs:
 
       - name: Build
         run: |
-          cd wie_web;trunk build --release
+          cd wie_web;npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v3

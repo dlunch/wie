@@ -2083,6 +2083,7 @@ name = "wie_web"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "wasm-bindgen",
  "wie",
  "wie_backend",
  "wie_base",
