@@ -72,6 +72,7 @@ const config: webpack.Configuration = {
       },
     }),
     new WasmPackPlugin({
+      forceMode: "production",
       crateDirectory: ".",
       outDir: "./src/ts/pkg",
       forceWatch: false,
