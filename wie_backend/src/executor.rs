@@ -5,9 +5,8 @@ use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
-    time::Duration,
 };
-use std::{collections::HashMap, thread::sleep};
+use std::collections::HashMap;
 
 use crate::backend::time::{Instant, Time};
 
