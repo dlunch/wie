@@ -48,12 +48,10 @@ jobs:
           key: ${{ runner.os }}-build-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-build-target-
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-          override: true
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - uses: jetli/trunk-action@v0.4.0
         with:
@@ -65,10 +63,12 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v3
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
           path: "./wie_web/dist"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
