@@ -35,7 +35,7 @@ impl System {
     }
 
     async fn gc(_: &mut dyn JavaContext) -> JavaResult<i32> {
-        tracing::debug!("java.lang.System::gc()");
+        tracing::warn!("stub java.lang.System::gc()");
 
         Ok(0)
     }
