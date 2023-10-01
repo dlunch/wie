@@ -190,8 +190,8 @@ impl Graphics {
         _context: &mut dyn JavaContext,
         this: JavaObjectProxy<Graphics>,
         string: JavaObjectProxy<String>,
-        x: u32,
-        y: u32,
+        x: i32,
+        y: i32,
         anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::warn!(
