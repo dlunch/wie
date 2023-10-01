@@ -143,7 +143,7 @@ impl Graphics {
 
     async fn fill_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {:#x}, {}, {}, {})",
+            "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
             x,
             y,
