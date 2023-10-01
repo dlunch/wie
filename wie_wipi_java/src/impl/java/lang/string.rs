@@ -23,6 +23,7 @@ impl String {
                 JavaMethodProto::new("charAt", "(I)C", Self::char_at, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodFlag::NONE),
                 JavaMethodProto::new("length", "()I", Self::length, JavaMethodFlag::NONE),
+                JavaMethodProto::new("substring", "(II)Ljava/lang/String;", Self::substring, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE)],
         }
@@ -106,6 +107,21 @@ impl String {
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 
         Ok(context.array_length(&value)? as _)
+    }
+
+    async fn substring(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<String>,
+        begin_index: i32,
+        end_index: i32,
+    ) -> JavaResult<JavaObjectProxy<String>> {
+        tracing::debug!("java.lang.String::substring({:#x}, {}, {})", this.ptr_instance, begin_index, end_index);
+
+        let string = Self::to_rust_string(context, &this)?;
+
+        let substr = &string[begin_index as usize..end_index as usize]; // TODO buffer sahring
+
+        Self::to_java_string(context, substr).await
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
