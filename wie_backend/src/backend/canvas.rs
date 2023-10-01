@@ -24,6 +24,7 @@ pub trait Image {
 pub trait Canvas: Image {
     #[allow(clippy::too_many_arguments)]
     fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
+    fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
     fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
@@ -191,6 +192,30 @@ where
 
                 self.put_pixel(dx + x, dy + y, color);
             }
+        }
+    }
+
+    // TODO change it to bresenham's or something..
+    fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
+        let dx = (x2 as f32) - (x1 as f32);
+        let dy = (y2 as f32) - (y1 as f32);
+
+        let mut x = x1 as f32;
+        let mut y = y1 as f32;
+
+        let step = dx.abs().max(dy.abs());
+
+        let dx = dx / step;
+        let dy = dy / step;
+
+        for _ in 0..step as u32 {
+            if x >= self.width as f32 || y >= self.height as f32 {
+                continue;
+            }
+            self.put_pixel(x as u32, y as u32, color);
+
+            x += dx;
+            y += dy;
         }
     }
 
