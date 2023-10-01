@@ -25,6 +25,7 @@ pub trait Canvas: Image {
     #[allow(clippy::too_many_arguments)]
     fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
+    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
     fn image(self: Box<Self>) -> Box<dyn Image>;
 }
@@ -194,6 +195,23 @@ where
     }
 
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+        for x in x..x + w {
+            if x >= self.width {
+                continue;
+            }
+            self.put_pixel(x, y, color);
+            self.put_pixel(x, y + h - 1, color);
+        }
+        for y in y..y + h {
+            if y >= self.height {
+                continue;
+            }
+            self.put_pixel(x, y, color);
+            self.put_pixel(x + w - 1, y, color);
+        }
+    }
+
+    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
         for y in y..y + h {
             for x in x..x + w {
                 if x >= self.width || y >= self.height {
