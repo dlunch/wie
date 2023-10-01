@@ -1,4 +1,6 @@
-use alloc::vec;
+use alloc::{string::ToString, vec};
+
+use bytemuck::cast_slice;
 
 use crate::{
     array::Array,
@@ -23,6 +25,7 @@ impl StringBuffer {
                     Self::append_string,
                     JavaMethodFlag::NONE,
                 ),
+                JavaMethodProto::new("append", "(I)Ljava/lang/StringBuffer;", Self::append_integer, JavaMethodFlag::NONE),
                 JavaMethodProto::new("toString", "()Ljava/lang/String;", Self::to_string, JavaMethodFlag::NONE),
             ],
             fields: vec![
@@ -48,17 +51,24 @@ impl StringBuffer {
         string: JavaObjectProxy<String>,
     ) -> JavaResult<JavaObjectProxy<StringBuffer>> {
         tracing::debug!("java.lang.StringBuffer::append({:#x}, {:#x})", this.ptr_instance, string.ptr_instance);
-        let current_count = context.get_field(&this.cast(), "count")?;
 
-        let java_value_to_add_array = JavaObjectProxy::new(context.get_field(&string.cast(), "value")?);
-        let count_to_add = context.call_method(&string.cast(), "length", "()I", &[]).await?;
-        let value_to_add = context.load_array_i8(&java_value_to_add_array, 0, count_to_add as _)?; // should be u16 as char is u16 on java
+        let string = String::to_rust_string(context, &string)?;
 
-        StringBuffer::ensure_capacity(context, &this, current_count + count_to_add).await?;
+        Self::append(context, &this, &string).await?;
 
-        let java_value_aray = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
-        context.store_array_i8(&java_value_aray, current_count, &value_to_add)?;
-        context.put_field(&this.cast(), "count", current_count + count_to_add)?;
+        Ok(this)
+    }
+
+    async fn append_integer(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<StringBuffer>,
+        value: i32,
+    ) -> JavaResult<JavaObjectProxy<StringBuffer>> {
+        tracing::debug!("java.lang.StringBuffer::append({:#x}, {:#x})", this.ptr_instance, value);
+
+        let digits = value.to_string();
+
+        Self::append(context, &this, &digits).await?;
 
         Ok(this)
     }
@@ -90,6 +100,21 @@ impl StringBuffer {
             context.store_array_i8(&java_new_value_array, 0, &old_values)?;
             context.destroy(java_value_array.cast())?;
         }
+
+        Ok(())
+    }
+
+    async fn append(context: &mut dyn JavaContext, this: &JavaObjectProxy<StringBuffer>, string: &str) -> JavaResult<()> {
+        let current_count = context.get_field(&this.cast(), "count")?;
+
+        let value_to_add = string.as_bytes();
+        let count_to_add = string.len();
+
+        StringBuffer::ensure_capacity(context, this, current_count + count_to_add).await?;
+
+        let java_value_aray = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
+        context.store_array_i8(&java_value_aray, current_count, cast_slice(value_to_add))?;
+        context.put_field(&this.cast(), "count", current_count + count_to_add)?;
 
         Ok(())
     }
