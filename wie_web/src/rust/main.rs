@@ -1,3 +1,8 @@
+#![no_std]
+extern crate alloc;
+
+use alloc::{boxed::Box, string::ToString};
+
 use tracing_subscriber::{filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_web::{performance_layer, MakeConsoleWriter};
 use wasm_bindgen::{prelude::*, JsError};
