@@ -165,11 +165,15 @@ impl EventQueue {
             .call_method(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
             .await?;
 
-        let image = JavaObjectProxy::new(context.get_field(&graphics, "img")?);
+        let java_image = JavaObjectProxy::new(context.get_field(&graphics, "img")?);
         context.destroy(graphics)?;
 
-        if image.ptr_instance != 0 {
-            let image = JavaImage::image(context, &image)?;
+        if java_image.ptr_instance != 0 {
+            let image = JavaImage::image(context, &java_image)?;
+
+            // TODO temporary until we have correct gc
+            let image_data = JavaObjectProxy::new(context.get_field(&java_image.cast(), "imgData")?);
+            context.destroy(image_data)?;
 
             let mut canvas = context.backend().screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());
