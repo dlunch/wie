@@ -218,15 +218,22 @@ impl Graphics {
         Ok(())
     }
 
-    async fn draw_line(_context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::drawLine({:#x}, {}, {}, {}, {})",
+    async fn draw_line(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawLine({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
             x1,
             y1,
             x2,
             y2
         );
+
+        let rgb = context.get_field(&this.cast(), "rgb")?;
+
+        let image = Self::image(context, &this).await?;
+        let mut canvas = Image::canvas(context, &image)?;
+
+        canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(rgb as _));
 
         Ok(())
     }
