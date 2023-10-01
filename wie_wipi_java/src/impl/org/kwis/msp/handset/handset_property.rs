@@ -28,7 +28,7 @@ impl HandsetProperty {
         let name = String::to_rust_string(context, &name)?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
-        let result = String::to_java_string(context, "").await?;
+        let result = String::from_rust_string(context, "").await?;
         Ok(result)
     }
 }
