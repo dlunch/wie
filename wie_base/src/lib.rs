@@ -9,7 +9,7 @@ pub mod util;
 #[derive(Debug, Copy, Clone)]
 pub enum WIPIKey {
     UP = -1,
-    DOWN = -6,
+    DOWN = -4,
     LEFT = -2,
     RIGHT = -5,
     FIRE = -8, // Ok
