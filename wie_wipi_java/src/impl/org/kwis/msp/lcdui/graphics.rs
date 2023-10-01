@@ -48,8 +48,10 @@ impl Graphics {
                 JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Image;IIII)V", Self::init_with_image, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodFlag::NONE),
+                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, JavaMethodFlag::NONE),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
+                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, JavaMethodFlag::NONE),
@@ -121,6 +123,16 @@ impl Graphics {
 
     async fn set_color(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, rgb: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, rgb);
+
+        context.put_field(&this.cast(), "rgb", rgb as _)?;
+
+        Ok(())
+    }
+
+    async fn set_color_by_rgb(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, r: i32, g: i32, b: i32) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {}, {}, {})", this.ptr_instance, r, g, b);
+
+        let rgb = (r << 16) | (g << 8) | b;
 
         context.put_field(&this.cast(), "rgb", rgb as _)?;
 
@@ -201,6 +213,19 @@ impl Graphics {
             x,
             y,
             anchor.0
+        );
+
+        Ok(())
+    }
+
+    async fn draw_line(_context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::drawLine({:#x}, {}, {}, {}, {})",
+            this.ptr_instance,
+            x1,
+            y1,
+            x2,
+            y2
         );
 
         Ok(())
