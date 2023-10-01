@@ -6,7 +6,10 @@ use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::TypeConverter,
     proxy::JavaObjectProxy,
-    r#impl::org::kwis::msp::lcdui::{Display, Font, Image},
+    r#impl::{
+        java::lang::String,
+        org::kwis::msp::lcdui::{Display, Font, Image},
+    },
     JavaFieldAccessFlag,
 };
 
@@ -48,6 +51,7 @@ impl Graphics {
                 JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, JavaMethodFlag::NONE),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, JavaMethodFlag::NONE),
+                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodFlag::NONE),
@@ -178,6 +182,26 @@ impl Graphics {
         let mut canvas = Image::canvas(context, &image)?;
 
         canvas.draw_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+
+        Ok(())
+    }
+
+    async fn draw_string(
+        _context: &mut dyn JavaContext,
+        this: JavaObjectProxy<Graphics>,
+        string: JavaObjectProxy<String>,
+        x: u32,
+        y: u32,
+        anchor: Anchor,
+    ) -> JavaResult<()> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::drawString({:#x}, {:#x}, {}, {}, {})",
+            this.ptr_instance,
+            string.ptr_instance,
+            x,
+            y,
+            anchor.0
+        );
 
         Ok(())
     }
