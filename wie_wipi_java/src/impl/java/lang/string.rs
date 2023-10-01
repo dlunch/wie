@@ -115,9 +115,9 @@ impl String {
 
         let string = Self::to_rust_string(context, &this)?;
 
-        let substr = &string[begin_index as usize..]; // TODO buffer sahring
+        let substr = string.chars().skip(begin_index as usize).collect::<RustString>(); // TODO buffer sharing
 
-        Self::to_java_string(context, substr).await
+        Self::to_java_string(context, &substr).await
     }
 
     async fn substring_with_end(
@@ -130,9 +130,13 @@ impl String {
 
         let string = Self::to_rust_string(context, &this)?;
 
-        let substr = &string[begin_index as usize..end_index as usize]; // TODO buffer sahring
+        let substr = string
+            .chars()
+            .skip(begin_index as usize)
+            .take(end_index as usize - begin_index as usize)
+            .collect::<RustString>(); // TODO buffer sharing
 
-        Self::to_java_string(context, substr).await
+        Self::to_java_string(context, &substr).await
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
