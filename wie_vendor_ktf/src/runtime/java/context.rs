@@ -322,7 +322,7 @@ impl<'a> KtfJavaContext<'a> {
             let element = class_name.as_bytes()[1];
             Ok(match element {
                 b'B' => 1,
-                b'C' => 1, // TODO it's 16bits in java
+                b'C' => 2,
                 b'I' => 4,
                 b'Z' => 1,
                 b'S' => 2,
@@ -617,6 +617,14 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>> {
+        self.load_array(array, offset, count)
+    }
+
+    fn store_array_i16(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i16]) -> JavaResult<()> {
+        self.store_array(array, offset, values)
+    }
+
+    fn load_array_i16(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i16>> {
         self.load_array(array, offset, count)
     }
 

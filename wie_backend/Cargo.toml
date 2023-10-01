@@ -10,6 +10,7 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
+encoding_rs = { version = "^0.8" }
 cfg-if = { version = "^1.0" }
 image = { version = "^0.24" }
 softbuffer = { version = "^0.3" }

@@ -112,10 +112,9 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     };
     let bytes = core.read_bytes(cursor, (length * 2) as _)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
-    let str = String::from_utf16(&bytes_u16)?;
 
     let mut context = KtfJavaContext::new(core, backend);
-    let instance = JavaString::to_java_string(&mut context, &str).await?;
+    let instance = JavaString::from_utf16(&mut context, &bytes_u16).await?;
 
     Ok(instance.ptr_instance as u32)
 }

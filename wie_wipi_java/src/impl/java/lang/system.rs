@@ -63,6 +63,10 @@ impl System {
                 let src_data = context.load_array_i8(&src.cast(), src_pos as _, length as _)?;
                 context.store_array_i8(&dest.cast(), dest_pos as _, &src_data)?;
             }
+            2 => {
+                let src_data = context.load_array_i16(&src.cast(), src_pos as _, length as _)?;
+                context.store_array_i16(&dest.cast(), dest_pos as _, &src_data)?;
+            }
             4 => {
                 let src_data = context.load_array_i32(&src.cast(), src_pos as _, length as _)?;
                 context.store_array_i32(&dest.cast(), dest_pos as _, &src_data)?;
