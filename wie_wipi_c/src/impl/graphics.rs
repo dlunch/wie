@@ -113,7 +113,7 @@ async fn fill_rect(context: &mut dyn CContext, dst_fb: CMemoryId, x: i32, y: i32
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.draw_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl));
+    canvas.fill_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 

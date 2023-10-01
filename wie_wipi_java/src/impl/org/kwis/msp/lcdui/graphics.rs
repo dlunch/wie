@@ -47,6 +47,7 @@ impl Graphics {
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, JavaMethodFlag::NONE),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
+                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodFlag::NONE),
@@ -144,6 +145,26 @@ impl Graphics {
     async fn fill_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {}, {}, {}, {})",
+            this.ptr_instance,
+            x,
+            y,
+            width,
+            height
+        );
+
+        let rgb = context.get_field(&this.cast(), "rgb")?;
+
+        let image = Self::image(context, &this).await?;
+        let mut canvas = Image::canvas(context, &image)?;
+
+        canvas.fill_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+
+        Ok(())
+    }
+
+    async fn draw_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawRect({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
             x,
             y,
