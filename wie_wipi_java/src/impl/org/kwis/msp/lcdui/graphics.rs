@@ -215,6 +215,9 @@ impl Graphics {
             anchor.0
         );
 
+        let rust_string = String::to_rust_string(_context, &string)?;
+        tracing::warn!("rust_string: {}", rust_string);
+
         Ok(())
     }
 
