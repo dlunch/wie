@@ -12,6 +12,7 @@ tracing = { workspace = true }
 
 encoding_rs = { version = "^0.8" }
 image = { version = "^0.24" }
+num-traits = { version = "^0.2" }
 zip = { version = "^0.6", features = ["deflate"], default-features = false }
 time = { version = "^0.3" }
 

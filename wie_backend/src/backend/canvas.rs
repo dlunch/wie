@@ -3,6 +3,7 @@ use std::io::Cursor;
 
 use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
 use image::io::Reader as ImageReader;
+use num_traits::{Num, Zero};
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -32,10 +33,9 @@ pub trait Canvas: Image {
 }
 
 pub trait PixelType {
-    type DataType: Copy + Pod;
+    type DataType: Copy + Pod + Num;
     fn from_color(color: Color) -> Self::DataType;
     fn to_color(raw: Self::DataType) -> Color;
-    fn default() -> Self::DataType;
 }
 
 pub struct Rgb565Pixel {}
@@ -62,10 +62,6 @@ impl PixelType for Rgb565Pixel {
 
         Color { a: 0xff, r, g, b }
     }
-
-    fn default() -> Self::DataType {
-        0
-    }
 }
 
 pub struct Rgb8Pixel {}
@@ -83,10 +79,6 @@ impl PixelType for Rgb8Pixel {
         let b = (raw & 0xff) as u8;
 
         Color { a: 0xff, r, g, b }
-    }
-
-    fn default() -> Self::DataType {
-        0
     }
 }
 
@@ -107,10 +99,6 @@ impl PixelType for ArgbPixel {
 
         Color { a, r, g, b }
     }
-
-    fn default() -> Self::DataType {
-        0
-    }
 }
 
 pub struct ImageBuffer<T>
@@ -130,7 +118,7 @@ where
         Self {
             width,
             height,
-            data: vec![T::default(); (width * height) as usize],
+            data: vec![T::DataType::zero(); (width * height) as usize],
         }
     }
 
