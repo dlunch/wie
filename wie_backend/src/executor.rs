@@ -187,8 +187,10 @@ impl Default for Executor {
 
 impl Drop for Executor {
     fn drop(&mut self) {
-        GLOBAL_EXECUTOR.with(|f| {
-            f.borrow_mut().take();
-        });
+        if Rc::strong_count(&self.inner) == 2 {
+            GLOBAL_EXECUTOR.with(|f| {
+                f.borrow_mut().take();
+            });
+        }
     }
 }
