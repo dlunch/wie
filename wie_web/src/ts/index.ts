@@ -29,6 +29,7 @@ const main = () => {
             try {
               wie_web.update();
             } catch (e) {
+              wie_web.free();
               alert(e.message);
               throw e;
             }
