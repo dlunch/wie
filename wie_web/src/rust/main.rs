@@ -64,6 +64,15 @@ impl WieWeb {
             JsError::new(&error_str)
         })
     }
+
+    pub fn send_key(&mut self, key: i32) -> Result<(), JsError> {
+        let key = unsafe { core::mem::transmute(key) }; // TODO
+
+        self.backend.push_event(Event::Keydown(key));
+        self.backend.push_event(Event::Keyup(key));
+
+        Ok(())
+    }
 }
 
 #[wasm_bindgen(start)]

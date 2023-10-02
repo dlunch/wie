@@ -17,6 +17,14 @@ const main = () => {
           const canvas = document.getElementById("canvas") as HTMLCanvasElement;
           const wie_web = new WieWeb(new Uint8Array(data), canvas);
 
+          for (const button of document.querySelectorAll(
+            "button[data-wipi-key]"
+          )) {
+            button.addEventListener("click", (e) => {
+              const key = (e.target as HTMLButtonElement).dataset.wipiKey;
+              wie_web.send_key(Number(key));
+            });
+          }
           let update = () => {
             try {
               wie_web.update();
