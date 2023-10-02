@@ -184,3 +184,11 @@ impl Default for Executor {
         Self::new()
     }
 }
+
+impl Drop for Executor {
+    fn drop(&mut self) {
+        GLOBAL_EXECUTOR.with(|f| {
+            f.borrow_mut().take();
+        });
+    }
+}
