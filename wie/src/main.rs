@@ -9,10 +9,7 @@ use std::{
 
 use clap::Parser;
 
-use wie_backend::{
-    canvas::{ArgbPixel, ImageBuffer},
-    Archive, Backend, Executor, Window,
-};
+use wie_backend::{Archive, Backend, Executor};
 use wie_base::{Event, WIPIKey};
 use wie_vendor_ktf::KtfArchive;
 
@@ -70,7 +67,9 @@ fn main() -> anyhow::Result<()> {
 
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => executor.tick(&backend.time())?,
+            WindowCallbackEvent::Update => executor
+                .tick(&backend.time())
+                .map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
             WindowCallbackEvent::Redraw => backend.push_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(entry) = KEY_MAP.get_entry(&x) {

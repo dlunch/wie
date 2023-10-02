@@ -18,7 +18,12 @@ const main = () => {
           const wie_web = new WieWeb(new Uint8Array(data), canvas);
 
           let update = () => {
-            wie_web.update();
+            try {
+              wie_web.update();
+            } catch (e) {
+              alert(e.message);
+              throw e;
+            }
 
             requestAnimationFrame(update);
           };
