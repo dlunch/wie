@@ -3,7 +3,7 @@ extern crate alloc;
 
 mod window;
 
-use alloc::{boxed::Box, rc::Rc, string::ToString};
+use alloc::{boxed::Box, format, rc::Rc, string::ToString};
 use core::cell::Cell;
 
 use tracing_subscriber::{filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt, Layer};
@@ -11,7 +11,7 @@ use tracing_web::{performance_layer, MakeConsoleWriter};
 use wasm_bindgen::{prelude::*, JsError};
 use web_sys::HtmlCanvasElement;
 
-use wie_backend::{Archive, Backend, Executor};
+use wie_backend::{App, Archive, Backend, Executor};
 use wie_base::Event;
 use wie_vendor_ktf::KtfArchive;
 
@@ -19,6 +19,7 @@ use self::window::WindowImpl;
 
 #[wasm_bindgen]
 pub struct WieWeb {
+    app: Box<dyn App>,
     executor: Executor,
     backend: Backend,
     should_redraw: Rc<Cell<bool>>,
@@ -42,6 +43,7 @@ impl WieWeb {
             app.start()?;
 
             anyhow::Ok(Self {
+                app,
                 executor,
                 backend,
                 should_redraw,
@@ -56,7 +58,11 @@ impl WieWeb {
             self.should_redraw.set(false);
         }
 
-        self.executor.tick(&self.backend.time()).map_err(|e| JsError::new(&e.to_string()))
+        self.executor.tick(&self.backend.time()).map_err(|e| {
+            let error_str = format!("{}\n{}", e, self.app.crash_dump());
+
+            JsError::new(&error_str)
+        })
     }
 }
 
