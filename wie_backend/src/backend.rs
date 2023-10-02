@@ -8,7 +8,12 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
-use self::{canvas::Canvas, resource::Resource, time::Time, window::Window};
+use self::{
+    canvas::{ArgbPixel, Canvas, ImageBuffer},
+    resource::Resource,
+    time::Time,
+    window::Window,
+};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
@@ -19,11 +24,13 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new(screen_canvas: Box<dyn Canvas>, window: Box<dyn Window>) -> Self {
+    pub fn new(window: Box<dyn Window>) -> Self {
+        let screen_canvas = ImageBuffer::<ArgbPixel>::new(window.width(), window.height());
+
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
-            screen_canvas: Rc::new(RefCell::new(screen_canvas)),
+            screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
             window: Rc::new(RefCell::new(window)),
         }

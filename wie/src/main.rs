@@ -61,9 +61,8 @@ fn main() -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320)?; // TODO hardcoded size
 
     let window_proxy = window.proxy();
-    let canvas = ImageBuffer::<ArgbPixel>::new(window_proxy.width(), window_proxy.height());
 
-    let mut backend = Backend::new(Box::new(canvas), Box::new(window_proxy));
+    let mut backend = Backend::new(Box::new(window_proxy));
     let mut app = archive.load_app(&mut backend)?;
 
     let mut executor = Executor::new();
