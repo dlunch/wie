@@ -5,11 +5,7 @@ mod executor;
 pub mod task;
 
 pub use self::{
-    backend::{
-        canvas,
-        window::{Window, WindowCallbackEvent, WindowProxy},
-        Backend,
-    },
+    backend::{canvas, window::Window, Backend},
     executor::{AsyncCallable, Executor},
 };
 

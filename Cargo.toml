@@ -3,7 +3,6 @@ resolver = "2"
 
 members = [
     "wie",
-    "wie_cli",
     "wie_backend",
     "wie_base",
     "wie_core_arm",
@@ -13,7 +12,7 @@ members = [
     "wie_wipi_java",
 ]
 
-default-members = ["wie_cli"]
+default-members = ["wie"]
 
 [workspace.package]
 version = "0.0.1"

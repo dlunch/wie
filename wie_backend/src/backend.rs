@@ -8,24 +8,24 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
-use self::{canvas::Canvas, resource::Resource, time::Time, window::WindowProxy};
+use self::{canvas::Canvas, resource::Resource, time::Time, window::Window};
 
 pub struct Backend {
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
-    window: Rc<RefCell<WindowProxy>>,
+    window: Rc<RefCell<Box<dyn Window>>>,
 }
 
 impl Backend {
-    pub fn new(screen_canvas: Box<dyn Canvas>, window_proxy: WindowProxy) -> Self {
+    pub fn new(screen_canvas: Box<dyn Canvas>, window: Box<dyn Window>) -> Self {
         Self {
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(screen_canvas)),
             events: Rc::new(RefCell::new(VecDeque::new())),
-            window: Rc::new(RefCell::new(window_proxy)),
+            window: Rc::new(RefCell::new(window)),
         }
     }
 
@@ -41,7 +41,7 @@ impl Backend {
         (*self.screen_canvas).borrow_mut()
     }
 
-    pub fn window(&self) -> RefMut<'_, WindowProxy> {
+    pub fn window(&self) -> RefMut<'_, Box<dyn Window>> {
         (*self.window).borrow_mut()
     }
 

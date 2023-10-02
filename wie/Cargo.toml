@@ -5,8 +5,15 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
 tracing = { workspace = true }
+
+anyhow = { version = "^1.0", features = ["backtrace"] }
+clap = { version = "^4.4", features = ["derive"] }
+phf = { version = "^0.11", features = ["macros"] }
+softbuffer = { version = "^0.3" }
+tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
+winit = { version = "0.28.0", features = ["wayland"] }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
+wie_vendor_ktf = { path = "../wie_vendor_ktf" }

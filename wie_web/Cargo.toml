@@ -17,7 +17,6 @@ tracing-subscriber = { version = "^0.3", features = ["time"] }
 tracing-web = { version = "^0.1" }
 wasm-bindgen = { version = "^0.2" }
 
-wie = { path = "../wie" }
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 wie_vendor_ktf = { path = "../wie_vendor_ktf" }
