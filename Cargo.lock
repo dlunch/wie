@@ -2174,6 +2174,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-web",
  "wasm-bindgen",
+ "web-sys",
  "wie_backend",
  "wie_base",
  "wie_vendor_ktf",

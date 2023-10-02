@@ -1,38 +1,63 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, string::ToString};
+mod window;
+
+use alloc::{boxed::Box, rc::Rc, string::ToString};
+use core::cell::Cell;
 
 use tracing_subscriber::{filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_web::{performance_layer, MakeConsoleWriter};
 use wasm_bindgen::{prelude::*, JsError};
+use web_sys::HtmlCanvasElement;
 
-use wie::Wie;
-use wie_backend::{Window, WindowCallbackEvent};
+use wie_backend::{Archive, Backend, Executor};
 use wie_base::Event;
 use wie_vendor_ktf::KtfArchive;
 
-fn do_start(buf: &[u8]) -> anyhow::Result<()> {
-    let archive = KtfArchive::from_zip(buf)?;
+use self::window::WindowImpl;
 
-    let window = Window::new(240, 320)?; // TODO hardcoded size
-
-    let mut wie = Wie::new(Box::new(archive), window.proxy())?;
-
-    window.run(move |event| {
-        match event {
-            WindowCallbackEvent::Update => wie.tick()?,
-            WindowCallbackEvent::Redraw => wie.send_event(Event::Redraw),
-            _ => {}
-        }
-
-        anyhow::Ok(())
-    })
+#[wasm_bindgen]
+pub struct WieWeb {
+    executor: Executor,
+    backend: Backend,
+    should_redraw: Rc<Cell<bool>>,
 }
 
 #[wasm_bindgen]
-pub fn start(buf: &[u8]) -> Result<(), JsError> {
-    do_start(buf).map_err(|e| JsError::new(&e.to_string()))
+impl WieWeb {
+    #[wasm_bindgen(constructor)]
+    pub fn new(buf: &[u8], canvas: HtmlCanvasElement) -> Result<WieWeb, JsError> {
+        (move || {
+            let archive = KtfArchive::from_zip(buf)?;
+
+            let should_redraw = Rc::new(Cell::new(true));
+            let window = WindowImpl::new(canvas, should_redraw.clone());
+
+            let mut backend = Backend::new(Box::new(window));
+
+            let mut app = archive.load_app(&mut backend)?;
+            let executor = Executor::new();
+
+            app.start()?;
+
+            anyhow::Ok(Self {
+                executor,
+                backend,
+                should_redraw,
+            })
+        })()
+        .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    pub fn update(&mut self) -> Result<(), JsError> {
+        if self.should_redraw.get() {
+            self.backend.push_event(Event::Redraw);
+            self.should_redraw.set(false);
+        }
+
+        self.executor.tick(&self.backend.time()).map_err(|e| JsError::new(&e.to_string()))
+    }
 }
 
 #[wasm_bindgen(start)]

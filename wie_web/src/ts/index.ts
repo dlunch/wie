@@ -1,4 +1,4 @@
-import { start } from "./pkg";
+import { WieWeb } from "./pkg";
 
 const main = () => {
   const file = document.getElementById("file") as HTMLInputElement;
@@ -14,12 +14,19 @@ const main = () => {
         let data = e.target?.result as ArrayBuffer;
 
         try {
-          start(new Uint8Array(data));
+          const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+          const wie_web = new WieWeb(new Uint8Array(data), canvas);
+
+          let update = () => {
+            wie_web.update();
+
+            requestAnimationFrame(update);
+          };
+
+          requestAnimationFrame(update);
         } catch (e) {
-          if (!e.message.startsWith("Using exceptions for control flow")) {
-            alert(e.message);
-            throw e;
-          }
+          alert(e.message);
+          throw e;
         }
       };
 

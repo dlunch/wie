@@ -16,6 +16,11 @@ time = { version = "^0.3", features = ["wasm-bindgen"] }
 tracing-subscriber = { version = "^0.3", features = ["time"] }
 tracing-web = { version = "^0.1" }
 wasm-bindgen = { version = "^0.2" }
+web-sys = { version = "^0.3", features = [
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "ImageData",
+] }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
