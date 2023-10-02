@@ -1,3 +1,7 @@
+extern crate alloc;
+
+mod window;
+
 use std::{
     fs::File,
     io::{stderr, Read},
@@ -5,10 +9,14 @@ use std::{
 
 use clap::Parser;
 
-use wie::Wie;
-use wie_backend::{Window, WindowCallbackEvent};
+use wie_backend::{
+    canvas::{ArgbPixel, ImageBuffer},
+    Archive, Backend, Executor, Window,
+};
 use wie_base::{Event, WIPIKey};
 use wie_vendor_ktf::KtfArchive;
+
+use self::window::{WindowCallbackEvent, WindowImpl};
 
 #[derive(Parser)]
 struct Args {
@@ -50,22 +58,29 @@ fn main() -> anyhow::Result<()> {
 
     let archive = KtfArchive::from_zip(&buf)?;
 
-    let window = Window::new(240, 320)?; // TODO hardcoded size
+    let window = WindowImpl::new(240, 320)?; // TODO hardcoded size
 
-    let mut wie = Wie::new(Box::new(archive), window.proxy())?;
+    let window_proxy = window.proxy();
+    let canvas = ImageBuffer::<ArgbPixel>::new(window_proxy.width(), window_proxy.height());
+
+    let mut backend = Backend::new(Box::new(canvas), Box::new(window_proxy));
+    let mut app = archive.load_app(&mut backend)?;
+
+    let mut executor = Executor::new();
+    app.start()?;
 
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => wie.tick()?,
-            WindowCallbackEvent::Redraw => wie.send_event(Event::Redraw),
+            WindowCallbackEvent::Update => executor.tick(&backend.time())?,
+            WindowCallbackEvent::Redraw => backend.push_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(entry) = KEY_MAP.get_entry(&x) {
-                    wie.send_event(Event::Keydown(*entry.1));
+                    backend.push_event(Event::Keydown(*entry.1));
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(entry) = KEY_MAP.get_entry(&x) {
-                    wie.send_event(Event::Keyup(*entry.1));
+                    backend.push_event(Event::Keyup(*entry.1));
                 }
             }
         }
