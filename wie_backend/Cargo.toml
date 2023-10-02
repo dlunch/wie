@@ -11,7 +11,6 @@ bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 encoding_rs = { version = "^0.8" }
-cfg-if = { version = "^1.0" }
 image = { version = "^0.24" }
 zip = { version = "^0.6", features = ["deflate"], default-features = false }
 time = { version = "^0.3" }
