@@ -2113,7 +2113,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytemuck",
- "cfg-if",
  "encoding_rs",
  "image",
  "time",
