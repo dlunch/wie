@@ -2115,6 +2115,7 @@ dependencies = [
  "bytemuck",
  "encoding_rs",
  "image",
+ "num-traits",
  "time",
  "tracing",
  "wie_base",
