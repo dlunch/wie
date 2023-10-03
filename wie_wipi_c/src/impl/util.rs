@@ -12,7 +12,7 @@ fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
 }
 
 async fn htons(_context: &mut dyn CContext, val: CWord) -> CResult<CWord> {
-    tracing::warn!("stub MC_utilHtons({})", val);
+    tracing::debug!("MC_utilHtons({})", val);
 
     Ok((val as u16).to_be() as _) // XXX we're always on little endian
 }
