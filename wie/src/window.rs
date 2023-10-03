@@ -77,6 +77,7 @@ impl WindowImpl {
         let builder = WindowBuilder::new().with_inner_size(size).with_title("WIPI");
 
         let window = builder.build(&event_loop)?;
+        // TODO we need to render to gtk window instead of whole wayland window to make decoration work on linux
         let context = unsafe { Context::new(&window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
         let mut surface = unsafe { Surface::new(&context, &window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
 
