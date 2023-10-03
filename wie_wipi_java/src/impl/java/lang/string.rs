@@ -26,6 +26,7 @@ impl String {
                 JavaMethodProto::new("charAt", "(I)C", Self::char_at, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodFlag::NONE),
                 JavaMethodProto::new("length", "()I", Self::length, JavaMethodFlag::NONE),
+                JavaMethodProto::new("concat", "(Ljava/lang/String;)Ljava/lang/String;", Self::concat, JavaMethodFlag::NONE),
                 JavaMethodProto::new("substring", "(I)Ljava/lang/String;", Self::substring, JavaMethodFlag::NONE),
                 JavaMethodProto::new("substring", "(II)Ljava/lang/String;", Self::substring_with_end, JavaMethodFlag::NONE),
             ],
@@ -115,6 +116,21 @@ impl String {
         let value = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
 
         Ok(context.load_array_i16(&value, index as _, 1)?[0] as _)
+    }
+
+    async fn concat(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<String>,
+        other: JavaObjectProxy<String>,
+    ) -> JavaResult<JavaObjectProxy<String>> {
+        tracing::debug!("java.lang.String::concat({:#x}, {:#x})", this.ptr_instance, other.ptr_instance);
+
+        let this_string = Self::to_rust_string(context, &this)?;
+        let other_string = Self::to_rust_string(context, &other)?;
+
+        let concat = this_string + &other_string;
+
+        Self::from_rust_string(context, &concat).await
     }
 
     async fn get_bytes(context: &mut dyn JavaContext, this: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Array>> {
