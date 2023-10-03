@@ -30,9 +30,9 @@ pub struct ArmCore {
 
 impl ArmCore {
     pub fn new() -> ArmEngineResult<Self> {
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(any(target_arch = "wasm32", target_os = "linux"))]
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))]
         let mut engine = Box::new(crate::engine::UnicornEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
