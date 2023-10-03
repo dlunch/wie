@@ -248,6 +248,7 @@ where
         context.draw_text(&text_layout, (0.0, 0.0));
 
         context.finish().unwrap();
+        drop(context);
 
         let image_buf = bitmap_target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
 
