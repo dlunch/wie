@@ -94,7 +94,8 @@ impl Display {
                 .await?,
         );
 
-        let display = JavaObjectProxy::new(context.get_field(&jlet, "dis")?);
+        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = JavaObjectProxy::new(context.get_field_by_id(&jlet, field_id)?);
 
         Ok(display)
     }

@@ -110,6 +110,9 @@ pub trait JavaContext {
         args: &[JavaWord],
     ) -> JavaResult<JavaWord>; // invokespecial/invokevirtual
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
+    fn get_field_id(&self, class_name: &str, field_name: &str, signature: &str) -> JavaResult<JavaWord>;
+    fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord>;
+    fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()>;
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord>; // getfield
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()>; // putfield
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord>; // getstatic
