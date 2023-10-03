@@ -54,10 +54,11 @@ impl StringBuffer {
     async fn init_with_string(context: &mut dyn JavaContext, this: JavaObjectProxy<StringBuffer>, string: JavaObjectProxy<String>) -> JavaResult<()> {
         tracing::debug!("java.lang.StringBuffer::<init>({:#x}, {:#x})", this.ptr_instance, string.ptr_instance);
 
-        let value_array = JavaObjectProxy::<Array>::new(context.get_field(&string.cast(), "value")?);
+        let value_array = JavaObjectProxy::new(context.get_field(&string.cast(), "value")?);
+        let length = context.array_length(&value_array)?;
 
         context.put_field(&this.cast(), "value", value_array.ptr_instance)?;
-        context.put_field(&this.cast(), "count", 0)?;
+        context.put_field(&this.cast(), "count", length)?;
 
         Ok(())
     }
@@ -143,8 +144,8 @@ impl StringBuffer {
 
         StringBuffer::ensure_capacity(context, this, current_count + count_to_add).await?;
 
-        let java_value_aray = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
-        context.store_array_i16(&java_value_aray, current_count, cast_slice(&value_to_add))?;
+        let java_value_array = JavaObjectProxy::new(context.get_field(&this.cast(), "value")?);
+        context.store_array_i16(&java_value_array, current_count, cast_slice(&value_to_add))?;
         context.put_field(&this.cast(), "count", current_count + count_to_add)?;
 
         Ok(())
