@@ -235,6 +235,7 @@ where
     }
 
     fn draw_text(&mut self, string: &str, x: u32, y: u32) {
+        // TODO can we draw directly on canvas? without it AA blending looks horrible..
         use piet::{ImageFormat, RenderContext, Text, TextLayout, TextLayoutBuilder};
         use piet_common::Device;
 
