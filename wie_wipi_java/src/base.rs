@@ -177,6 +177,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "org/kwis/msp/media/Clip" => crate::r#impl::org::kwis::msp::media::Clip::as_proto(),
         "org/kwis/msp/media/Player" => crate::r#impl::org::kwis::msp::media::Player::as_proto(),
         "org/kwis/msp/media/PlayListener" => crate::r#impl::org::kwis::msp::media::PlayListener::as_proto(),
+        "org/kwis/msp/media/Vibrator" => crate::r#impl::org::kwis::msp::media::Vibrator::as_proto(),
 
         _ => return None,
     })
