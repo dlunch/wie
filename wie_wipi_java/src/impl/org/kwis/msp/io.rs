@@ -1,3 +1,4 @@
-pub mod file;
+mod file;
+mod file_system;
 
-pub use file::File;
+pub use {file::File, file_system::FileSystem};
