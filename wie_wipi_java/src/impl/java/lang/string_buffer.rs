@@ -57,7 +57,11 @@ impl StringBuffer {
         let value_array = JavaObjectProxy::new(context.get_field(&string.cast(), "value")?);
         let length = context.array_length(&value_array)?;
 
-        context.put_field(&this.cast(), "value", value_array.ptr_instance)?;
+        let java_value_array = context.instantiate_array("C", length).await?;
+        let src = context.load_array_i16(&value_array, 0, length)?;
+        context.store_array_i16(&java_value_array, 0, &src)?;
+
+        context.put_field(&this.cast(), "value", java_value_array.ptr_instance)?;
         context.put_field(&this.cast(), "count", length)?;
 
         Ok(())
