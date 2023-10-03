@@ -211,12 +211,7 @@ impl<'a> KtfJavaContext<'a> {
             }
         }
 
-        if class_descriptor.ptr_parent_class != 0 {
-            self.get_ptr_field(class_descriptor.ptr_parent_class, field_name)
-                .map_err(|_| anyhow::anyhow!("Cannot find field {} from {}", field_name, class_name))
-        } else {
-            anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
-        }
+        anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
     }
 
     pub async fn load_class_by_name(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
@@ -560,6 +555,40 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn backend(&mut self) -> &mut Backend {
         self.backend
+    }
+
+    fn get_field_id(&self, class_name: &str, field_name: &str, _signature: &str) -> JavaResult<JavaWord> {
+        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.context("No such class")?;
+
+        let field = self.get_ptr_field(ptr_class, field_name)?;
+
+        // TODO signature comparison
+
+        Ok(field as _)
+    }
+
+    fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord> {
+        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
+        let field: JavaField = read_generic(self.core, id as _)?;
+
+        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+
+        let offset = field.offset_or_value;
+
+        let value: u32 = read_generic(self.core, instance.ptr_fields + offset + 4)?;
+
+        Ok(value as _)
+    }
+
+    fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()> {
+        let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
+        let field: JavaField = read_generic(self.core, id as _)?;
+
+        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+
+        let offset = field.offset_or_value;
+
+        write_generic(self.core, instance.ptr_fields + offset + 4, value as u32)
     }
 
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {

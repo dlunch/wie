@@ -51,13 +51,16 @@ impl Jlet {
             )
             .await?;
 
-        context.put_field(&this.cast(), "dis", display.ptr_instance)?;
+        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        context.put_field_by_id(&this.cast(), field_id, display.ptr_instance)?;
 
         let event_queue = context.instantiate("Lorg/kwis/msp/lcdui/EventQueue;").await?;
         context
             .call_method(&event_queue.cast(), "<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", &[this.ptr_instance])
             .await?;
-        context.put_field(&this.cast(), "eq", event_queue.ptr_instance)?;
+
+        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
+        context.put_field_by_id(&this.cast(), field_id, event_queue.ptr_instance)?;
 
         context.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", this.ptr_instance)?;
 
@@ -74,7 +77,8 @@ impl Jlet {
     async fn get_event_queue(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<JavaObjectProxy<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue");
 
-        let eq = JavaObjectProxy::new(context.get_field(&this.cast(), "eq")?);
+        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
+        let eq = JavaObjectProxy::new(context.get_field_by_id(&this.cast(), field_id)?);
 
         Ok(eq)
     }
