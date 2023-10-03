@@ -13,7 +13,10 @@ impl Component {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, JavaMethodFlag::NONE)],
+            methods: vec![
+                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, JavaMethodFlag::NONE),
+                JavaMethodProto::new("setFocus", "()V", Self::set_focus, JavaMethodFlag::NONE),
+            ],
             fields: vec![],
         }
     }
@@ -27,5 +30,11 @@ impl Component {
         );
 
         Ok(1)
+    }
+
+    async fn set_focus(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::set_focus({:#x})", this.ptr_instance,);
+
+        Ok(())
     }
 }
