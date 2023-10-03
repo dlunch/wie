@@ -1,4 +1,9 @@
-use alloc::{str, string::String as RustString, vec, vec::Vec};
+use alloc::{
+    str,
+    string::{String as RustString, ToString},
+    vec,
+    vec::Vec,
+};
 
 use bytemuck::cast_slice;
 
@@ -29,6 +34,7 @@ impl String {
                 JavaMethodProto::new("concat", "(Ljava/lang/String;)Ljava/lang/String;", Self::concat, JavaMethodFlag::NONE),
                 JavaMethodProto::new("substring", "(I)Ljava/lang/String;", Self::substring, JavaMethodFlag::NONE),
                 JavaMethodProto::new("substring", "(II)Ljava/lang/String;", Self::substring_with_end, JavaMethodFlag::NONE),
+                JavaMethodProto::new("valueOf", "(I)Ljava/lang/String;", Self::value_of_integer, JavaMethodFlag::STATIC),
             ],
             fields: vec![JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE)],
         }
@@ -184,6 +190,14 @@ impl String {
             .collect::<RustString>(); // TODO buffer sharing
 
         Self::from_rust_string(context, &substr).await
+    }
+
+    async fn value_of_integer(context: &mut dyn JavaContext, value: i32) -> JavaResult<JavaObjectProxy<String>> {
+        tracing::debug!("java.lang.String::valueOf({})", value);
+
+        let string = value.to_string();
+
+        Self::from_rust_string(context, &string).await
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
