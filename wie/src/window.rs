@@ -2,11 +2,12 @@ use alloc::rc::Rc;
 use core::{fmt::Debug, num::NonZeroU32};
 
 use softbuffer::{Context, Surface};
-use winit::{
+use tao::{
     dpi::PhysicalSize,
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
-    window::WindowBuilder,
+    keyboard::KeyCode,
+    window::{Window as TaoWindow, WindowBuilder},
 };
 
 use wie_backend::{canvas::Canvas, Window};
@@ -20,12 +21,12 @@ pub enum WindowInternalEvent {
 pub enum WindowCallbackEvent {
     Update,
     Redraw,
-    Keydown(u32),
-    Keyup(u32),
+    Keydown(KeyCode),
+    Keyup(KeyCode),
 }
 
 pub struct WindowProxy {
-    window: Rc<winit::window::Window>,
+    window: Rc<TaoWindow>,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
@@ -62,7 +63,7 @@ impl Window for WindowProxy {
 }
 
 pub struct WindowImpl {
-    window: Rc<winit::window::Window>,
+    window: Rc<TaoWindow>,
     event_loop: EventLoop<WindowInternalEvent>,
     surface: Surface,
 }
@@ -133,26 +134,26 @@ impl WindowImpl {
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            scancode,
+                    event:
+                        KeyEvent {
+                            physical_key,
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Keydown(scancode), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keydown(physical_key), control_flow, &mut callback);
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            scancode,
+                    event:
+                        KeyEvent {
+                            physical_key,
                             state: ElementState::Released,
                             ..
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Keyup(scancode), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keyup(physical_key), control_flow, &mut callback);
                 }
                 _ => {}
             },
