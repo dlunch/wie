@@ -24,8 +24,8 @@ struct WIPIJBInterface {
     fn_get_static_field: u32,
     fn_unk4: u32,
     fn_unk5: u32,
-    unk7: u32,
-    unk8: u32,
+    fn_unk7: u32,
+    fn_unk8: u32,
     fn_register_class: u32,
     fn_register_java_string: u32,
     fn_call_native: u32,
@@ -41,8 +41,8 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::R
         fn_get_static_field: core.register_function(get_static_field, backend)?,
         fn_unk4: core.register_function(jb_unk4, backend)?,
         fn_unk5: core.register_function(jb_unk5, backend)?,
-        unk7: 0,
-        unk8: 0,
+        fn_unk7: core.register_function(jb_unk7, backend)?,
+        fn_unk8: core.register_function(jb_unk8, backend)?,
         fn_register_class: core.register_function(register_class, backend)?,
         fn_register_java_string: core.register_function(register_java_string, backend)?,
         fn_call_native: core.register_function(call_native, backend)?,
@@ -138,6 +138,18 @@ async fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::
 
 async fn jb_unk5(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {
     tracing::warn!("stub jb_unk5({:#x}, {:#x})", a0, a1);
+
+    Ok(0)
+}
+
+async fn jb_unk7(_: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
+    tracing::warn!("stub jb_unk7({:#x})", a0);
+
+    Ok(0)
+}
+
+async fn jb_unk8(_: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
+    tracing::warn!("stub jb_unk8({:#x})", a0);
 
     Ok(0)
 }
