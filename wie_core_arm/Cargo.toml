@@ -15,6 +15,6 @@ armv4t_emu = { version = "^0.1" }
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))'.dependencies]
 unicorn-engine = { version = "^2.0" }
 capstone = { version = "^0.11" }
