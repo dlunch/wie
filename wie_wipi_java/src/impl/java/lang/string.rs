@@ -12,6 +12,7 @@ use wie_backend::{decode_str, encode_str};
 use crate::{
     array::Array,
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
+    r#impl::java::lang::Object,
     JavaContext, JavaFieldAccessFlag, JavaObjectProxy, JavaResult,
 };
 
@@ -35,6 +36,12 @@ impl String {
                 JavaMethodProto::new("substring", "(I)Ljava/lang/String;", Self::substring, JavaMethodFlag::NONE),
                 JavaMethodProto::new("substring", "(II)Ljava/lang/String;", Self::substring_with_end, JavaMethodFlag::NONE),
                 JavaMethodProto::new("valueOf", "(I)Ljava/lang/String;", Self::value_of_integer, JavaMethodFlag::STATIC),
+                JavaMethodProto::new(
+                    "valueOf",
+                    "(Ljava/lang/Object;)Ljava/lang/String;",
+                    Self::value_of_object,
+                    JavaMethodFlag::STATIC,
+                ),
             ],
             fields: vec![JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE)],
         }
@@ -198,6 +205,14 @@ impl String {
         let string = value.to_string();
 
         Self::from_rust_string(context, &string).await
+    }
+
+    async fn value_of_object(context: &mut dyn JavaContext, value: JavaObjectProxy<Object>) -> JavaResult<JavaObjectProxy<String>> {
+        tracing::warn!("stub java.lang.String::valueOf({:#x})", value.ptr_instance);
+
+        // TODO Object.toString()
+
+        Self::from_rust_string(context, "").await
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
