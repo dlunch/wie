@@ -104,7 +104,7 @@ impl String {
         let array = context.instantiate_array("C", utf16.len()).await?;
         context.store_array_i16(&array, 0, cast_slice(&utf16))?;
 
-        context.put_field(&this.cast(), "value", array.ptr_instance)?;
+        context.call_method(&this.cast(), "<init>", "([C)V", &[array.ptr_instance]).await?;
 
         Ok(())
     }
