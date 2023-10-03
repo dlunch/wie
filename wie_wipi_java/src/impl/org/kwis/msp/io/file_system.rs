@@ -24,7 +24,7 @@ impl FileSystem {
         }
     }
 
-    pub async fn is_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>, flag: i32) -> JavaResult<i32> {
+    async fn is_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>, flag: i32) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:#x}, {:#x})", name.ptr_instance, flag);
 
         Ok(0)
