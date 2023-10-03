@@ -27,6 +27,7 @@ pub trait Canvas: Image {
     fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
+    fn draw_text(&mut self, string: &str, x: u32, y: u32);
     fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
     fn image(self: Box<Self>) -> Box<dyn Image>;
@@ -99,6 +100,32 @@ impl PixelType for ArgbPixel {
 
         Color { a, r, g, b }
     }
+}
+
+pub struct AbgrPixel {}
+
+impl PixelType for AbgrPixel {
+    type DataType = u32;
+
+    fn from_color(color: Color) -> Self::DataType {
+        (color.a as u32) << 24 | (color.b as u32) << 16 | (color.g as u32) << 8 | color.r as u32
+    }
+
+    fn to_color(raw: Self::DataType) -> Color {
+        let a = ((raw >> 24) & 0xff) as u8;
+        let b = ((raw >> 16) & 0xff) as u8;
+        let g = ((raw >> 8) & 0xff) as u8;
+        let r = (raw & 0xff) as u8;
+
+        Color { a, r, g, b }
+    }
+}
+
+pub enum PixelFormat {
+    Rgb565,
+    Rgb8,
+    Argb,
+    Abgr,
 }
 
 pub struct ImageBuffer<T>
@@ -207,6 +234,28 @@ where
         }
     }
 
+    fn draw_text(&mut self, string: &str, x: u32, y: u32) {
+        use piet::{ImageFormat, RenderContext, Text, TextLayout, TextLayoutBuilder};
+        use piet_common::Device;
+
+        let mut device = Device::new().unwrap();
+        let mut bitmap_target = device.bitmap_target(self.width as _, self.height as _, 1.0).unwrap();
+        let mut context = bitmap_target.render_context();
+
+        let text_layout = context.text().new_text_layout(string.to_owned()).build().unwrap();
+        let bound = text_layout.image_bounds();
+
+        context.draw_text(&text_layout, (0.0, 0.0));
+
+        context.finish().unwrap();
+
+        let image_buf = bitmap_target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
+
+        let canvas = create_canvas(image_buf.width() as _, image_buf.height() as _, PixelFormat::Abgr, image_buf.raw_pixels()).unwrap();
+
+        self.draw(x, y, bound.width() as _, bound.height() as _, &*canvas.image(), 0, 0);
+    }
+
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
         for x in x..x + w {
             if x >= self.width {
@@ -252,13 +301,15 @@ pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
 
     let data = rgba.pixels().flat_map(|x| [x.0[2], x.0[1], x.0[0], x.0[3]]).collect::<Vec<_>>();
 
-    Ok(create_canvas(rgba.width(), rgba.height(), 32, &data)?.image())
+    Ok(create_canvas(rgba.width(), rgba.height(), PixelFormat::Argb, &data)?.image())
 }
 
-pub fn create_canvas(width: u32, height: u32, bpp: u32, data: &[u8]) -> anyhow::Result<Box<dyn Canvas>> {
-    Ok(match bpp {
-        16 => Box::new(ImageBuffer::<Rgb565Pixel>::from_raw(width, height, pod_collect_to_vec(data))),
-        32 => Box::new(ImageBuffer::<ArgbPixel>::from_raw(width, height, pod_collect_to_vec(data))), // TODO we can remove copy
-        _ => anyhow::bail!("Unsupported bpp {}", bpp),
+pub fn create_canvas(width: u32, height: u32, format: PixelFormat, data: &[u8]) -> anyhow::Result<Box<dyn Canvas>> {
+    // TODO we can remove copy
+    Ok(match format {
+        PixelFormat::Rgb565 => Box::new(ImageBuffer::<Rgb565Pixel>::from_raw(width, height, pod_collect_to_vec(data))),
+        PixelFormat::Rgb8 => Box::new(ImageBuffer::<Rgb8Pixel>::from_raw(width, height, pod_collect_to_vec(data))),
+        PixelFormat::Argb => Box::new(ImageBuffer::<ArgbPixel>::from_raw(width, height, pod_collect_to_vec(data))),
+        PixelFormat::Abgr => Box::new(ImageBuffer::<AbgrPixel>::from_raw(width, height, pod_collect_to_vec(data))),
     })
 }

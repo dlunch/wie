@@ -199,15 +199,15 @@ impl Graphics {
     }
 
     async fn draw_string(
-        _context: &mut dyn JavaContext,
+        context: &mut dyn JavaContext,
         this: JavaObjectProxy<Graphics>,
         string: JavaObjectProxy<String>,
         x: i32,
         y: i32,
         anchor: Anchor,
     ) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::drawString({:#x}, {:#x}, {}, {}, {})",
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawString({:#x}, {:#x}, {}, {}, {})",
             this.ptr_instance,
             string.ptr_instance,
             x,
@@ -215,8 +215,12 @@ impl Graphics {
             anchor.0
         );
 
-        let rust_string = String::to_rust_string(_context, &string)?;
-        tracing::warn!("rust_string: {}", rust_string);
+        let rust_string = String::to_rust_string(context, &string)?;
+
+        let image = Self::image(context, &this).await?;
+        let mut canvas = Image::canvas(context, &image)?;
+
+        canvas.draw_text(&rust_string, x as _, y as _);
 
         Ok(())
     }

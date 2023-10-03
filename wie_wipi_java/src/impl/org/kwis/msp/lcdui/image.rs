@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::{cast_slice, cast_vec};
 
-use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage};
+use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -144,7 +144,13 @@ impl Image {
 
         let bytes_per_pixel = bpl / width;
 
-        create_canvas(width as _, height as _, (bytes_per_pixel * 8) as _, &buf)
+        let pixel_format = match bytes_per_pixel {
+            2 => PixelFormat::Rgb565,
+            4 => PixelFormat::Argb,
+            _ => panic!("Unsupported pixel format: {}", bytes_per_pixel),
+        };
+
+        create_canvas(width as _, height as _, pixel_format, &buf)
     }
 }
 
