@@ -168,7 +168,6 @@ impl EventQueue {
             .await?;
 
         let java_image = JavaObjectProxy::new(context.get_field(&graphics, "img")?);
-        context.destroy(graphics)?;
 
         if java_image.ptr_instance != 0 {
             let image = JavaImage::image(context, &java_image)?;
