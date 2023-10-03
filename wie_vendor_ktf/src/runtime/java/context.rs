@@ -423,6 +423,11 @@ impl<'a> KtfJavaContext<'a> {
     where
         T: FromBytes<Bytes = [u8; B]> + Pod,
     {
+        let array_length = self.array_length(array)?;
+        if offset + count > array_length {
+            anyhow::bail!("Array index out of bounds");
+        }
+
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as _)?;
         let items_offset = instance.ptr_fields + 8;
 
@@ -446,6 +451,11 @@ impl<'a> KtfJavaContext<'a> {
     where
         T: Pod,
     {
+        let array_length = self.array_length(array)?;
+        if offset + values.len() as JavaWord > array_length {
+            anyhow::bail!("Array index out of bounds");
+        }
+
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as _)?;
         let items_offset = instance.ptr_fields + 8;
 
