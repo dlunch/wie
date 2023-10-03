@@ -97,7 +97,6 @@ impl String {
         );
 
         let bytes = context.load_array_i8(&value.cast(), offset as _, count as _)?;
-        tracing::debug!("bytes: {:?}", cast_slice::<i8, u8>(&bytes));
         let string = decode_str(cast_slice(&bytes));
 
         let utf16 = string.encode_utf16().collect::<Vec<_>>();
