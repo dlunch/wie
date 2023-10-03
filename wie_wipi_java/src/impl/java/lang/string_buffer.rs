@@ -1,4 +1,8 @@
-use alloc::{string::ToString, vec, vec::Vec};
+use alloc::{
+    string::{String as RustString, ToString},
+    vec,
+    vec::Vec,
+};
 
 use bytemuck::cast_slice;
 
@@ -19,6 +23,7 @@ impl StringBuffer {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init_with_string, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "append",
                     "(Ljava/lang/String;)Ljava/lang/StringBuffer;",
@@ -26,6 +31,7 @@ impl StringBuffer {
                     JavaMethodFlag::NONE,
                 ),
                 JavaMethodProto::new("append", "(I)Ljava/lang/StringBuffer;", Self::append_integer, JavaMethodFlag::NONE),
+                JavaMethodProto::new("append", "(C)Ljava/lang/StringBuffer;", Self::append_character, JavaMethodFlag::NONE),
                 JavaMethodProto::new("toString", "()Ljava/lang/String;", Self::to_string, JavaMethodFlag::NONE),
             ],
             fields: vec![
@@ -40,6 +46,17 @@ impl StringBuffer {
 
         let java_value_array = context.instantiate_array("C", 16).await?;
         context.put_field(&this.cast(), "value", java_value_array.ptr_instance)?;
+        context.put_field(&this.cast(), "count", 0)?;
+
+        Ok(())
+    }
+
+    async fn init_with_string(context: &mut dyn JavaContext, this: JavaObjectProxy<StringBuffer>, string: JavaObjectProxy<String>) -> JavaResult<()> {
+        tracing::debug!("java.lang.StringBuffer::<init>({:#x}, {:#x})", this.ptr_instance, string.ptr_instance);
+
+        let value_array = JavaObjectProxy::<Array>::new(context.get_field(&string.cast(), "value")?);
+
+        context.put_field(&this.cast(), "value", value_array.ptr_instance)?;
         context.put_field(&this.cast(), "count", 0)?;
 
         Ok(())
@@ -69,6 +86,20 @@ impl StringBuffer {
         let digits = value.to_string();
 
         Self::append(context, &this, &digits).await?;
+
+        Ok(this)
+    }
+
+    async fn append_character(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<StringBuffer>,
+        value: i32,
+    ) -> JavaResult<JavaObjectProxy<StringBuffer>> {
+        tracing::debug!("java.lang.StringBuffer::append({:#x}, {:#x})", this.ptr_instance, value);
+
+        let value = RustString::from_utf16(&[value as u16])?;
+
+        Self::append(context, &this, &value).await?;
 
         Ok(this)
     }
