@@ -43,6 +43,7 @@ impl Display {
                     JavaMethodFlag::NONE,
                 ),
                 JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, JavaMethodFlag::NONE),
+                JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "addJletEventListener",
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
@@ -128,6 +129,12 @@ impl Display {
         if card == 0 {
             context.store_array_i32(&cards, 0, &[c.ptr_instance as _])?; // TODO store_array_reference
         }
+
+        Ok(())
+    }
+
+    async fn remove_all_cards(_: &mut dyn JavaContext) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Display::removeAllCards");
 
         Ok(())
     }
