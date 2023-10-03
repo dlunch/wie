@@ -14,19 +14,23 @@ impl FileSystem {
         JavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "isFile",
-                "(Ljava/lang/String;)Z",
-                Self::is_file,
-                JavaMethodFlag::STATIC,
-            )],
+            methods: vec![
+                JavaMethodProto::new("isFile", "(Ljava/lang/String;)Z", Self::is_file, JavaMethodFlag::STATIC),
+                JavaMethodProto::new("isDirectory", "(Ljava/lang/String;I)Z", Self::is_directory, JavaMethodFlag::STATIC),
+            ],
             fields: vec![],
         }
     }
 
-    async fn is_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>, flag: i32) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:#x}, {:#x})", name.ptr_instance, flag);
+    async fn is_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:#x})", name.ptr_instance);
 
         Ok(0)
+    }
+
+    async fn is_directory(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>, flag: i32) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:#x}, {:#x})", name.ptr_instance, flag);
+
+        Ok(1)
     }
 }
