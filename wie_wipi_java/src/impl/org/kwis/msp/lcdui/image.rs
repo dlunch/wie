@@ -8,7 +8,7 @@ use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendI
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
-    r#impl::org::kwis::msp::lcdui::Graphics,
+    r#impl::{java::lang::String, org::kwis::msp::lcdui::Graphics},
     Array, JavaFieldAccessFlag,
 };
 
@@ -23,6 +23,12 @@ impl Image {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("createImage", "(II)Lorg/kwis/msp/lcdui/Image;", Self::create_image, JavaMethodFlag::NONE),
+                JavaMethodProto::new(
+                    "createImage",
+                    "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Image;",
+                    Self::create_image_from_file,
+                    JavaMethodFlag::NONE,
+                ),
                 JavaMethodProto::new(
                     "createImage",
                     "([BII)Lorg/kwis/msp/lcdui/Image;",
@@ -62,6 +68,12 @@ impl Image {
         context.put_field(&instance, "bpl", (width * bytes_per_pixel) as _)?;
 
         Ok(instance.cast())
+    }
+
+    async fn create_image_from_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Image>> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Image::createImage({:#x})", name.ptr_instance);
+
+        Ok(JavaObjectProxy::new(0))
     }
 
     async fn create_image_from_bytes(
