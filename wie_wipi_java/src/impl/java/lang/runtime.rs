@@ -38,14 +38,14 @@ impl Runtime {
         Ok(instance)
     }
 
-    async fn total_memory(_: &mut dyn JavaContext) -> JavaResult<i32> {
-        tracing::warn!("stub java.lang.Runtime::total_memory");
+    async fn total_memory(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<i32> {
+        tracing::warn!("stub java.lang.Runtime::total_memory({:#x})", this.ptr_instance);
 
         Ok(0x100000) // TODO: hardcoded
     }
 
-    async fn gc(_: &mut dyn JavaContext) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Runtime::gc()");
+    async fn gc(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.Runtime::gc({:#x})", this.ptr_instance);
 
         Ok(())
     }
