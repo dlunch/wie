@@ -17,6 +17,7 @@ impl Runtime {
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime, JavaMethodFlag::NONE),
                 JavaMethodProto::new("totalMemory", "()J", Self::total_memory, JavaMethodFlag::NONE),
+                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }
@@ -41,5 +42,11 @@ impl Runtime {
         tracing::warn!("stub java.lang.Runtime::total_memory");
 
         Ok(0x100000) // TODO: hardcoded
+    }
+
+    async fn gc(_: &mut dyn JavaContext) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.Runtime::gc()");
+
+        Ok(())
     }
 }
