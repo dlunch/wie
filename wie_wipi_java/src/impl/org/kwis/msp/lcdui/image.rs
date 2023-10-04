@@ -39,6 +39,8 @@ impl Image {
                     JavaMethodFlag::NONE,
                 ),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
@@ -151,6 +153,18 @@ impl Image {
             .await?;
 
         Ok(instance)
+    }
+
+    async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:#x})", this.ptr_instance);
+
+        Ok(context.get_field(&this.cast(), "w")? as _)
+    }
+
+    async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:#x})", this.ptr_instance);
+
+        Ok(context.get_field(&this.cast(), "h")? as _)
     }
 
     pub fn buf(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u8>> {
