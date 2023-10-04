@@ -65,22 +65,19 @@ impl Image {
 
         let bytes_per_pixel = 4;
 
-        let data = context.instantiate_array("B", (width * height * bytes_per_pixel) as _).await?;
-
-        context.put_field(&instance, "w", width as _)?;
-        context.put_field(&instance, "h", height as _)?;
-        context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", (width * bytes_per_pixel) as _)?;
-
-        Ok(instance.cast())
+        Self::create_image_instance(
+            context,
+            width as _,
+            height as _,
+            &vec![0; (width * height * bytes_per_pixel) as usize],
+            bytes_per_pixel as _,
+        )
+        .await
     }
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn create_image_from_file(context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x})", name.ptr_instance);
-
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
-        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         let name = String::to_rust_string(context, &name)?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
@@ -92,19 +89,7 @@ impl Image {
         let image = decode_image(&image_data)?;
         drop(image_data);
 
-        let bytes_per_pixel = image.bytes_per_pixel();
-
-        let data = context
-            .instantiate_array("B", (image.width() * image.height() * bytes_per_pixel) as _)
-            .await?;
-        context.store_array_i8(&data, 0, cast_slice(image.raw()))?;
-
-        context.put_field(&instance, "w", image.width() as _)?;
-        context.put_field(&instance, "h", image.height() as _)?;
-        context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", (image.width() * bytes_per_pixel) as _)?;
-
-        Ok(instance.cast())
+        Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
     async fn create_image_from_bytes(
@@ -115,25 +100,10 @@ impl Image {
     ) -> JavaResult<JavaObjectProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
-        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
-
         let image_data = context.load_array_i8(&data, offset as _, length as _)?;
         let image = decode_image(cast_slice(&image_data))?;
 
-        let bytes_per_pixel = image.bytes_per_pixel();
-
-        let data = context
-            .instantiate_array("B", (image.width() * image.height() * bytes_per_pixel) as _)
-            .await?;
-        context.store_array_i8(&data, 0, cast_slice(image.raw()))?;
-
-        context.put_field(&instance, "w", image.width() as _)?;
-        context.put_field(&instance, "h", image.height() as _)?;
-        context.put_field(&instance, "imgData", data.ptr_instance)?;
-        context.put_field(&instance, "bpl", (image.width() * bytes_per_pixel) as _)?;
-
-        Ok(instance.cast())
+        Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
     async fn get_graphics(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<JavaObjectProxy<Graphics>> {
@@ -206,6 +176,27 @@ impl Image {
         };
 
         create_canvas(width as _, height as _, pixel_format, &buf)
+    }
+
+    async fn create_image_instance(
+        context: &mut dyn JavaContext,
+        width: u32,
+        height: u32,
+        data: &[u8],
+        bytes_per_pixel: u32,
+    ) -> JavaResult<JavaObjectProxy<Image>> {
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
+        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
+
+        let data_array = context.instantiate_array("B", data.len() as _).await?;
+        context.store_array_i8(&data_array, 0, cast_slice(data))?;
+
+        context.put_field(&instance, "w", width as _)?;
+        context.put_field(&instance, "h", height as _)?;
+        context.put_field(&instance, "imgData", data_array.ptr_instance)?;
+        context.put_field(&instance, "bpl", (width * bytes_per_pixel) as _)?;
+
+        Ok(instance.cast())
     }
 }
 
