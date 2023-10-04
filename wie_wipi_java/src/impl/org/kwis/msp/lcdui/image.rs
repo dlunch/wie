@@ -1,5 +1,8 @@
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::ops::{Deref, DerefMut};
+use core::{
+    cell::Ref,
+    ops::{Deref, DerefMut},
+};
 
 use bytemuck::{cast_slice, cast_vec};
 
@@ -70,10 +73,36 @@ impl Image {
         Ok(instance.cast())
     }
 
-    async fn create_image_from_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Image>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Image::createImage({:#x})", name.ptr_instance);
+    #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
+    async fn create_image_from_file(context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Image>> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x})", name.ptr_instance);
 
-        Ok(JavaObjectProxy::new(0))
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
+        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
+
+        let name = String::to_rust_string(context, &name)?;
+        let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
+
+        let id = context.backend().resource().id(normalized_name).unwrap();
+        let backend1 = context.backend().clone();
+        let image_data = Ref::map(backend1.resource(), |x| x.data(id));
+
+        let image = decode_image(&image_data)?;
+        drop(image_data);
+
+        let bytes_per_pixel = image.bytes_per_pixel();
+
+        let data = context
+            .instantiate_array("B", (image.width() * image.height() * bytes_per_pixel) as _)
+            .await?;
+        context.store_array_i8(&data, 0, cast_slice(image.raw()))?;
+
+        context.put_field(&instance, "w", image.width() as _)?;
+        context.put_field(&instance, "h", image.height() as _)?;
+        context.put_field(&instance, "imgData", data.ptr_instance)?;
+        context.put_field(&instance, "bpl", (image.width() * bytes_per_pixel) as _)?;
+
+        Ok(instance.cast())
     }
 
     async fn create_image_from_bytes(
