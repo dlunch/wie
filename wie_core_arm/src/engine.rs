@@ -13,7 +13,7 @@ pub type ArmEngineResult<T> = anyhow::Result<T>;
 pub type ArmEngineError = anyhow::Error;
 
 pub trait ArmEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>) -> ArmEngineResult<()>;
+    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> ArmEngineResult<()>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);

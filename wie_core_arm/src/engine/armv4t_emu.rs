@@ -21,14 +21,15 @@ impl Armv4tEmuEngine {
 }
 
 impl ArmEngine for Armv4tEmuEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>) -> ArmEngineResult<()> {
+    fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> ArmEngineResult<()> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
-            if pc == end || hook.contains(&pc) {
+            if pc == end || hook.contains(&pc) || count == 0 {
                 break;
             }
 
             self.cpu.step(&mut self.mem);
+            count -= 1;
         }
 
         Ok(())

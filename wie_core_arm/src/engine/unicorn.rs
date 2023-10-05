@@ -108,7 +108,7 @@ impl UnicornEngine {
 }
 
 impl ArmEngine for UnicornEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>) -> ArmEngineResult<()> {
+    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> ArmEngineResult<()> {
         let hook = self
             .uc
             .add_code_hook(hook.start as u64, hook.end as u64, |uc, _, _| uc.emu_stop().unwrap())
@@ -123,7 +123,7 @@ impl ArmEngine for UnicornEngine {
             self.uc.reg_read(RegisterARM::PC).unwrap()
         };
 
-        self.uc.emu_start(pc, end as u64, 0, 0).map_err(UnicornError)?;
+        self.uc.emu_start(pc, end as u64, 0, count as _).map_err(UnicornError)?;
         self.uc.remove_hook(hook).unwrap();
 
         Ok(())

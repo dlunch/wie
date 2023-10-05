@@ -64,7 +64,7 @@ impl ArmCore {
     async fn run_some(&mut self) -> ArmEngineResult<()> {
         let mut inner = self.inner.borrow_mut();
 
-        inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000)?;
+        inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 10000)?;
 
         let cur_pc = inner.engine.reg_read(ArmRegister::PC);
 
