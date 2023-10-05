@@ -7,7 +7,7 @@ use alloc::{boxed::Box, format, rc::Rc, string::ToString};
 use core::cell::Cell;
 
 use tracing_subscriber::{filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt, Layer};
-use tracing_web::{performance_layer, MakeConsoleWriter};
+use tracing_web::MakeConsoleWriter;
 use wasm_bindgen::{prelude::*, JsError};
 use web_sys::HtmlCanvasElement;
 
@@ -84,7 +84,6 @@ pub fn start() {
         .with_timer(UtcTime::rfc_3339())
         .with_writer(MakeConsoleWriter)
         .with_filter(LevelFilter::DEBUG);
-    let perf_layer = performance_layer().with_details_from_fields(tracing_subscriber::fmt::format::Pretty::default());
 
-    tracing_subscriber::registry().with(fmt_layer).with(perf_layer).init();
+    tracing_subscriber::registry().with(fmt_layer).init();
 }
