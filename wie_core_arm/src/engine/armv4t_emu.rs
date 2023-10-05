@@ -1,5 +1,5 @@
-use alloc::{collections::BTreeMap, vec, vec::Vec};
-use core::ops::Range;
+use alloc::{boxed::Box, vec::Vec};
+use core::{array, ops::Range};
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
 
@@ -91,15 +91,16 @@ impl ArmRegister {
     }
 }
 
-// TODO we can optimize it..
 struct Armv4tEmuMemory {
-    data: BTreeMap<u32, Vec<u8>>,
+    pages: [Option<Box<[u8; 0x10000]>>; 0x10000],
 }
 
 impl Armv4tEmuMemory {
     #[allow(dead_code)]
     fn new() -> Self {
-        Self { data: BTreeMap::new() }
+        Self {
+            pages: array::from_fn(|_| None),
+        }
     }
 
     fn map(&mut self, address: u32, size: usize) {
@@ -107,7 +108,10 @@ impl Armv4tEmuMemory {
         let page_end = (address + size as u32 + 0xffff) & !0xffff;
 
         for page in (page_start..page_end).step_by(0x10000) {
-            self.data.entry(page).or_insert_with(|| vec![0; 0x10000]);
+            let page_data = &mut self.pages[page as usize / 0x10000];
+            if page_data.is_none() {
+                *page_data = Some(Box::new([0; 0x10000]));
+            }
         }
     }
 
@@ -118,7 +122,7 @@ impl Armv4tEmuMemory {
 
         while remaining_size > 0 {
             let page_address = current_address & !0xffff;
-            let page_data = self.data.get(&page_address).unwrap();
+            let page_data = self.pages[page_address as usize / 0x10000].as_ref().unwrap();
             let offset = (current_address - page_address) as usize;
             let available_bytes = (0x10000 - offset).min(remaining_size);
 
@@ -136,7 +140,7 @@ impl Armv4tEmuMemory {
 
         while data_index < data.len() {
             let page_address = current_address & !0xffff;
-            let page_data = self.data.get_mut(&page_address).unwrap();
+            let page_data = self.pages[page_address as usize / 0x10000].as_mut().unwrap();
             let offset = (current_address - page_address) as usize;
             let available_bytes = (0x10000 - offset).min(data.len() - data_index);
 
@@ -152,14 +156,16 @@ impl Memory for Armv4tEmuMemory {
         let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        self.data.get(&page).unwrap()[offset as usize]
+        let data = self.pages[page as usize / 0x10000].as_ref().unwrap();
+
+        data[offset as usize]
     }
 
     fn r16(&mut self, addr: u32) -> u16 {
         let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.data.get(&page).unwrap();
+        let data = self.pages[page as usize / 0x10000].as_ref().unwrap();
 
         (data[offset as usize] as u16) | ((data[offset as usize + 1] as u16) << 8)
     }
@@ -168,7 +174,7 @@ impl Memory for Armv4tEmuMemory {
         let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.data.get(&page).unwrap();
+        let data = self.pages[page as usize / 0x10000].as_ref().unwrap();
 
         (data[offset as usize] as u32)
             | ((data[offset as usize + 1] as u32) << 8)
@@ -180,14 +186,16 @@ impl Memory for Armv4tEmuMemory {
         let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        self.data.get_mut(&page).unwrap()[offset as usize] = val;
+        let data = self.pages[page as usize / 0x10000].as_mut().unwrap();
+
+        data[offset as usize] = val;
     }
 
     fn w16(&mut self, addr: u32, val: u16) {
         let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.data.get_mut(&page).unwrap();
+        let data = self.pages[page as usize / 0x10000].as_mut().unwrap();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
@@ -197,7 +205,7 @@ impl Memory for Armv4tEmuMemory {
         let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.data.get_mut(&page).unwrap();
+        let data = self.pages[page as usize / 0x10000].as_mut().unwrap();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
