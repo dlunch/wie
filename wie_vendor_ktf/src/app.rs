@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use wie_backend::{App, Backend};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::r#impl::org::kwis::msp::lcdui::Jlet;
+use wie_impl_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
 use crate::runtime::KtfJavaContext;
 

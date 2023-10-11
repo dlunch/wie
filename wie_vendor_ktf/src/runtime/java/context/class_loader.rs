@@ -4,7 +4,7 @@ use core::mem::size_of;
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, write_null_terminated_string, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
-use wie_wipi_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult, JavaWord};
+use wie_impl_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult, JavaWord};
 
 use super::{
     name::JavaFullName, vtable_builder::JavaVtableBuilder, JavaClass, JavaClassDescriptor, JavaField, JavaFieldAccessFlagBit, JavaMethod,

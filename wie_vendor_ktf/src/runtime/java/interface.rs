@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::{r#impl::java::lang::String as JavaString, JavaContext};
+use wie_impl_java::{r#impl::java::lang::String as JavaString, JavaContext};
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 

@@ -1,5 +1,5 @@
 [package]
-name = "wie_wipi_java"
+name = "wie_impl_java"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

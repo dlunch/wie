@@ -15,7 +15,7 @@ use wie_backend::{
 };
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-use wie_wipi_java::{
+use wie_impl_java::{
     r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult,
     JavaWord,
 };
