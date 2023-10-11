@@ -87,6 +87,7 @@ impl App for LgtWipiApp {
 
         Ok(())
     }
+
     fn crash_dump(&self) -> String {
         self.core.dump_reg_stack(0)
     }
