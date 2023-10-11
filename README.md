@@ -1,10 +1,11 @@
-# WIPI Emulator
+# WIE
 
-WIP Emulator for WIPI platform.
+Emulator for old korean mobile apps(WIPI/SKVM/...).
 
 ## Status
 
-WIPI archive extracted from ktf phones can be loaded and executed.
+KTF apps - Some apps are usable.
+SKT, LGT apps - Not working.
 
 ![](https://github.com/dlunch/wie/blob/main/docs/images/Trivial%20games%20playable.png)
 
