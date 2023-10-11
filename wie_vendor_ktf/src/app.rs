@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::string::{String, ToString};
 
 use anyhow::Context;
 
@@ -29,14 +29,11 @@ impl KtfWipiApp {
 
         let bss_size = Self::load(&mut core, data, filename)?;
 
-        let main_class_name = main_class_name.replace('.', "/");
-
         Ok(Self {
             core,
             backend: backend.clone(),
-
             bss_size,
-            main_class_name,
+            main_class_name: main_class_name.to_string(),
         })
     }
 
