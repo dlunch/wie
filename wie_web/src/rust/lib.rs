@@ -11,9 +11,11 @@ use tracing_web::MakeConsoleWriter;
 use wasm_bindgen::{prelude::*, JsError};
 use web_sys::HtmlCanvasElement;
 
-use wie_backend::{App, Archive, Backend, Executor};
+use wie_backend::{extract_zip, App, Archive, Backend, Executor};
 use wie_base::Event;
 use wie_vendor_ktf::KtfArchive;
+use wie_vendor_lgt::LgtArchive;
+use wie_vendor_skt::SktArchive;
 
 use self::window::WindowImpl;
 
@@ -30,7 +32,17 @@ impl WieWeb {
     #[wasm_bindgen(constructor)]
     pub fn new(buf: &[u8], canvas: HtmlCanvasElement) -> Result<WieWeb, JsError> {
         (move || {
-            let archive = KtfArchive::from_zip(buf)?;
+            let files = extract_zip(buf)?;
+
+            let archive: Box<dyn Archive> = if KtfArchive::is_ktf_archive(&files) {
+                Box::new(KtfArchive::from_zip(files)?)
+            } else if LgtArchive::is_lgt_archive(&files) {
+                Box::new(LgtArchive::from_zip(files)?)
+            } else if SktArchive::is_skt_archive(&files) {
+                Box::new(SktArchive::from_zip(files)?)
+            } else {
+                anyhow::bail!("Unknown archive format");
+            };
 
             let should_redraw = Rc::new(Cell::new(true));
             let window = WindowImpl::new(canvas, should_redraw.clone());

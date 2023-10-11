@@ -25,3 +25,5 @@ web-sys = { version = "^0.3", features = [
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 wie_vendor_ktf = { path = "../wie_vendor_ktf" }
+wie_vendor_lgt = { path = "../wie_vendor_lgt" }
+wie_vendor_skt = { path = "../wie_vendor_skt" }

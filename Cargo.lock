@@ -3204,6 +3204,8 @@ dependencies = [
  "wie_backend",
  "wie_base",
  "wie_vendor_ktf",
+ "wie_vendor_lgt",
+ "wie_vendor_skt",
 ]
 
 [[package]]
