@@ -10,5 +10,7 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
+cafebabe = { version = "^0.6" }
+
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
