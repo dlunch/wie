@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, vec::Vec};
 
 use wie_base::util::read_generic;
-use wie_wipi_java::JavaResult;
+use wie_impl_java::JavaResult;
 
 use super::{name::JavaFullName, JavaMethod, KtfJavaContext};
 

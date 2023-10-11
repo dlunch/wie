@@ -6,7 +6,7 @@ use wie_backend::{
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
-use wie_wipi_c::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord};
+use wie_impl_c::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord};
 
 pub struct KtfCContext<'a> {
     core: &'a mut ArmCore,
