@@ -11,7 +11,6 @@ use crate::{
     future::SpawnFuture,
 };
 
-const IMAGE_BASE: u32 = 0x100000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
@@ -49,15 +48,15 @@ impl ArmCore {
         })
     }
 
-    pub fn load(&mut self, data: &[u8], map_size: usize) -> ArmEngineResult<u32> {
+    pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> ArmEngineResult<()> {
         let mut inner = self.inner.borrow_mut();
 
         inner
             .engine
-            .mem_map(IMAGE_BASE, round_up(map_size, 0x1000), MemoryPermission::ReadWriteExecute);
-        inner.engine.mem_write(IMAGE_BASE, data)?;
+            .mem_map(address, round_up(map_size, 0x1000), MemoryPermission::ReadWriteExecute);
+        inner.engine.mem_write(address, data)?;
 
-        Ok(IMAGE_BASE)
+        Ok(())
     }
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
@@ -175,11 +174,11 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn dump_reg_stack(&self) -> String {
+    pub fn dump_reg_stack(&self, image_base: u32) -> String {
         format!(
             "\n{}\nPossible call stack:\n{}\nStack:\n{}",
             self.dump_regs(),
-            self.dump_call_stack().unwrap(),
+            self.dump_call_stack(image_base).unwrap(),
             self.dump_stack().unwrap()
         )
     }
@@ -304,9 +303,9 @@ impl ArmCore {
         Self::dump_regs_inner(&*inner.engine)
     }
 
-    fn format_callstack_address(address: u32) -> String {
-        let description = if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&address) {
-            format!("client.bin+{:#x}", address - IMAGE_BASE)
+    fn format_callstack_address(address: u32, image_base: u32) -> String {
+        let description = if (image_base..image_base + 0x100000).contains(&address) {
+            format!("client.bin+{:#x}", address - image_base)
         } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address) {
             "<Native function>".to_owned()
         } else {
@@ -316,16 +315,16 @@ impl ArmCore {
         format!("{:#x}: {}\n", address, description)
     }
 
-    fn dump_call_stack(&self) -> ArmEngineResult<String> {
+    fn dump_call_stack(&self, image_base: u32) -> ArmEngineResult<String> {
         let mut inner = self.inner.borrow_mut();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);
         let pc = inner.engine.reg_read(ArmRegister::PC);
         let lr = inner.engine.reg_read(ArmRegister::LR);
 
-        let mut call_stack = Self::format_callstack_address(pc);
+        let mut call_stack = Self::format_callstack_address(pc, image_base);
         if lr != RUN_FUNCTION_LR && lr != 0 {
-            call_stack += &Self::format_callstack_address(lr - 5);
+            call_stack += &Self::format_callstack_address(lr - 5, image_base);
         }
 
         for i in 0..128 {
@@ -335,8 +334,8 @@ impl ArmCore {
 
             if value_u32 % 2 == 1 {
                 // TODO image size temp
-                if (IMAGE_BASE..IMAGE_BASE + 0x100000).contains(&value_u32) {
-                    call_stack += &Self::format_callstack_address(value_u32 - 5);
+                if (image_base..image_base + 0x100000).contains(&value_u32) {
+                    call_stack += &Self::format_callstack_address(value_u32 - 5, image_base);
                 }
             }
         }

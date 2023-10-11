@@ -123,8 +123,8 @@ pub struct KtfPeb {
     pub ptr_current_java_exception_handler: u32,
 }
 
-pub async fn start(core: &mut ArmCore, base_address: u32, bss_size: u32) -> anyhow::Result<u32> {
-    core.run_function(base_address + 1, &[bss_size]).await
+pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> anyhow::Result<u32> {
+    core.run_function(image_base + 1, &[bss_size]).await
 }
 
 pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyhow::Result<u32> {
