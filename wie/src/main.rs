@@ -8,10 +8,10 @@ use std::{
 };
 
 use clap::Parser;
-use tao::keyboard::KeyCode;
+use tao::keyboard::KeyCode as TAOKeyCode;
 
 use wie_backend::{extract_zip, Archive, Backend, Executor};
-use wie_base::{Event, WIPIKey};
+use wie_base::{Event, KeyCode};
 use wie_vendor_ktf::KtfArchive;
 use wie_vendor_lgt::LgtArchive;
 use wie_vendor_skt::SktArchive;
@@ -80,25 +80,25 @@ fn main() -> anyhow::Result<()> {
     })
 }
 
-fn convert_key(key_code: KeyCode) -> Option<WIPIKey> {
+fn convert_key(key_code: TAOKeyCode) -> Option<KeyCode> {
     match key_code {
-        KeyCode::Digit1 => Some(WIPIKey::NUM1),
-        KeyCode::Digit2 => Some(WIPIKey::NUM2),
-        KeyCode::Digit3 => Some(WIPIKey::NUM3),
-        KeyCode::KeyQ => Some(WIPIKey::NUM4),
-        KeyCode::KeyW => Some(WIPIKey::NUM5),
-        KeyCode::KeyE => Some(WIPIKey::NUM6),
-        KeyCode::KeyA => Some(WIPIKey::NUM7),
-        KeyCode::KeyS => Some(WIPIKey::NUM8),
-        KeyCode::KeyD => Some(WIPIKey::NUM9),
-        KeyCode::KeyZ => Some(WIPIKey::STAR),
-        KeyCode::KeyX => Some(WIPIKey::NUM0),
-        KeyCode::KeyC => Some(WIPIKey::HASH),
-        KeyCode::Space => Some(WIPIKey::FIRE),
-        KeyCode::ArrowUp => Some(WIPIKey::UP),
-        KeyCode::ArrowDown => Some(WIPIKey::DOWN),
-        KeyCode::ArrowLeft => Some(WIPIKey::LEFT),
-        KeyCode::ArrowRight => Some(WIPIKey::RIGHT),
+        TAOKeyCode::Digit1 => Some(KeyCode::NUM1),
+        TAOKeyCode::Digit2 => Some(KeyCode::NUM2),
+        TAOKeyCode::Digit3 => Some(KeyCode::NUM3),
+        TAOKeyCode::KeyQ => Some(KeyCode::NUM4),
+        TAOKeyCode::KeyW => Some(KeyCode::NUM5),
+        TAOKeyCode::KeyE => Some(KeyCode::NUM6),
+        TAOKeyCode::KeyA => Some(KeyCode::NUM7),
+        TAOKeyCode::KeyS => Some(KeyCode::NUM8),
+        TAOKeyCode::KeyD => Some(KeyCode::NUM9),
+        TAOKeyCode::KeyZ => Some(KeyCode::STAR),
+        TAOKeyCode::KeyX => Some(KeyCode::NUM0),
+        TAOKeyCode::KeyC => Some(KeyCode::HASH),
+        TAOKeyCode::Space => Some(KeyCode::OK),
+        TAOKeyCode::ArrowUp => Some(KeyCode::UP),
+        TAOKeyCode::ArrowDown => Some(KeyCode::DOWN),
+        TAOKeyCode::ArrowLeft => Some(KeyCode::LEFT),
+        TAOKeyCode::ArrowRight => Some(KeyCode::RIGHT),
         _ => None,
     }
 }

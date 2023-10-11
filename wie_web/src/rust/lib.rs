@@ -3,7 +3,12 @@ extern crate alloc;
 
 mod window;
 
-use alloc::{boxed::Box, format, rc::Rc, string::ToString};
+use alloc::{
+    boxed::Box,
+    format,
+    rc::Rc,
+    string::{String, ToString},
+};
 use core::cell::Cell;
 
 use tracing_subscriber::{filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt, Layer};
@@ -12,7 +17,7 @@ use wasm_bindgen::{prelude::*, JsError};
 use web_sys::HtmlCanvasElement;
 
 use wie_backend::{extract_zip, App, Archive, Backend, Executor};
-use wie_base::Event;
+use wie_base::{Event, KeyCode};
 use wie_vendor_ktf::KtfArchive;
 use wie_vendor_lgt::LgtArchive;
 use wie_vendor_skt::SktArchive;
@@ -77,8 +82,8 @@ impl WieWeb {
         })
     }
 
-    pub fn send_key(&mut self, key: i32) -> Result<(), JsError> {
-        let key = unsafe { core::mem::transmute(key) }; // TODO
+    pub fn send_key(&mut self, key: String) -> Result<(), JsError> {
+        let key = KeyCode::parse(&key);
 
         self.backend.push_event(Event::Keydown(key));
         self.backend.push_event(Event::Keyup(key));
