@@ -10,9 +10,10 @@ use std::{
 use clap::Parser;
 use tao::keyboard::KeyCode;
 
-use wie_backend::{Archive, Backend, Executor};
+use wie_backend::{extract_zip, Archive, Backend, Executor};
 use wie_base::{Event, WIPIKey};
 use wie_vendor_ktf::KtfArchive;
+use wie_vendor_lgt::LgtArchive;
 
 use self::window::{WindowCallbackEvent, WindowImpl};
 
@@ -34,7 +35,15 @@ fn main() -> anyhow::Result<()> {
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
 
-    let archive = KtfArchive::from_zip(&buf)?;
+    let files = extract_zip(&buf)?;
+
+    let archive: Box<dyn Archive> = if KtfArchive::is_ktf_archive(&files) {
+        Box::new(KtfArchive::from_zip(files)?)
+    } else if LgtArchive::is_lgt_archive(&files) {
+        Box::new(LgtArchive::from_zip(files)?)
+    } else {
+        anyhow::bail!("Unknown archive format");
+    };
 
     let window = WindowImpl::new(240, 320)?; // TODO hardcoded size
 

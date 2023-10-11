@@ -3097,6 +3097,7 @@ dependencies = [
  "wie_backend",
  "wie_base",
  "wie_vendor_ktf",
+ "wie_vendor_lgt",
 ]
 
 [[package]]
@@ -3151,6 +3152,21 @@ dependencies = [
  "bitflags 2.4.0",
  "bytemuck",
  "num-traits",
+ "tracing",
+ "wie_backend",
+ "wie_base",
+ "wie_core_arm",
+ "wie_wipi_c",
+ "wie_wipi_java",
+]
+
+[[package]]
+name = "wie_vendor_lgt"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytemuck",
  "tracing",
  "wie_backend",
  "wie_base",
