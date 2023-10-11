@@ -35,6 +35,14 @@ impl LgtWipiApp {
         })
     }
 
+    #[tracing::instrument(name = "start", skip_all)]
+    #[allow(unused_variables)]
+    async fn do_start(core: &mut ArmCore, backend: &mut Backend, entrypoint: u32, main_class_name: String) -> anyhow::Result<()> {
+        core.run_function(entrypoint + 1, &[]).await?;
+
+        todo!()
+    }
+
     fn load(core: &mut ArmCore, data: &[u8]) -> anyhow::Result<u32> {
         let elf = ElfBytes::<AnyEndian>::minimal_parse(data)?;
 
@@ -61,15 +69,25 @@ impl LgtWipiApp {
             }
         }
 
+        tracing::debug!("Entrypoint: {:#x}", elf.ehdr.e_entry);
+
         Ok(elf.ehdr.e_entry as u32)
     }
 }
 
 impl App for LgtWipiApp {
     fn start(&mut self) -> anyhow::Result<()> {
-        todo!()
-    }
+        let mut core = self.core.clone();
+        let mut backend = self.backend.clone();
 
+        let entrypoint = self.entrypoint;
+        let main_class_name = self.main_class_name.clone();
+
+        self.core
+            .spawn(move || async move { Self::do_start(&mut core, &mut backend, entrypoint, main_class_name).await });
+
+        Ok(())
+    }
     fn crash_dump(&self) -> String {
         self.core.dump_reg_stack(0)
     }
