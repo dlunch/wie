@@ -65,13 +65,13 @@ fn main() -> anyhow::Result<()> {
                 .map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
             WindowCallbackEvent::Redraw => backend.push_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
-                if let Some(wipi_key) = convert_key(x) {
-                    backend.push_event(Event::Keydown(wipi_key));
+                if let Some(keycode) = convert_key(x) {
+                    backend.push_event(Event::Keydown(keycode));
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
-                if let Some(wipi_key) = convert_key(x) {
-                    backend.push_event(Event::Keyup(wipi_key));
+                if let Some(keycode) = convert_key(x) {
+                    backend.push_event(Event::Keyup(keycode));
                 }
             }
         }
