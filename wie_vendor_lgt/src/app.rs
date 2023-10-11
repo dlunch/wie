@@ -6,7 +6,6 @@ use elf::{endian::AnyEndian, ElfBytes};
 use wie_backend::{App, Backend};
 use wie_core_arm::{Allocator, ArmCore};
 
-#[allow(dead_code)]
 pub struct LgtWipiApp {
     core: ArmCore,
     backend: Backend,
