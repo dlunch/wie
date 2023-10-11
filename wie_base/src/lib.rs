@@ -5,7 +5,7 @@ extern crate alloc;
 pub mod methods;
 pub mod util;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum KeyCode {
     UP,
     DOWN,
