@@ -10,6 +10,8 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
+elf = { version = "^0.7" }
+
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 wie_core_arm = { path = "../wie_core_arm" }
