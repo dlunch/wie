@@ -10,14 +10,14 @@ use crate::runtime::KtfJavaContext;
 
 const IMAGE_BASE: u32 = 0x100000;
 
-pub struct KtfWipiApp {
+pub struct KtfApp {
     core: ArmCore,
     backend: Backend,
     bss_size: u32,
     main_class_name: String,
 }
 
-impl KtfWipiApp {
+impl KtfApp {
     pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
@@ -67,7 +67,7 @@ impl KtfWipiApp {
     }
 }
 
-impl App for KtfWipiApp {
+impl App for KtfApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
         let mut backend = self.backend.clone();

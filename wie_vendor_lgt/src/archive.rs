@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use wie_backend::{extract_zip, App, Archive, Backend};
 
-use crate::app::LgtWipiApp;
+use crate::app::LgtApp;
 
 pub struct LgtArchive {
     jar: Vec<u8>,
@@ -43,7 +43,7 @@ impl Archive for LgtArchive {
             backend.add_resource(&filename, data);
         }
 
-        Ok(Box::new(LgtWipiApp::new(&self.main_class_name, backend)?))
+        Ok(Box::new(LgtApp::new(&self.main_class_name, backend)?))
     }
 }
 

@@ -3,13 +3,13 @@ use alloc::string::{String, ToString};
 use wie_backend::{App, Backend};
 use wie_core_jvm::JvmCore;
 
-pub struct SktWipiApp {
+pub struct SktApp {
     core: JvmCore,
     backend: Backend,
     main_class_name: String,
 }
 
-impl SktWipiApp {
+impl SktApp {
     pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
         let core = JvmCore::new();
 
@@ -29,7 +29,7 @@ impl SktWipiApp {
     }
 }
 
-impl App for SktWipiApp {
+impl App for SktApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
         let mut backend = self.backend.clone();
