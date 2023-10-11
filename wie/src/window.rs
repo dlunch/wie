@@ -74,7 +74,7 @@ impl WindowImpl {
 
         let size = PhysicalSize::new(width, height);
 
-        let builder = WindowBuilder::new().with_inner_size(size).with_title("WIPI");
+        let builder = WindowBuilder::new().with_inner_size(size).with_title("WIE");
 
         let window = builder.build(&event_loop)?;
         // TODO we need to render to gtk window instead of whole wayland window to make decoration work on linux
