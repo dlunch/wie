@@ -84,6 +84,7 @@ impl Jlet {
     }
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
+        let main_class_name = main_class_name.replace('.', "/");
         let ptr_main_class = context.instantiate(&format!("L{};", main_class_name)).await?;
         context.call_method(&ptr_main_class, "<init>", "()V", &[]).await?;
 
