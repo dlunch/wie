@@ -38,7 +38,7 @@ pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
         .collect::<anyhow::Result<_>>()
 }
 
-// assume wipi system encoding is euc-kr
+// assume system encoding is euc-kr
 pub fn encode_str(string: &str) -> Vec<u8> {
     use encoding_rs::EUC_KR;
 
