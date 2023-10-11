@@ -1,6 +1,7 @@
 #![no_std]
 extern crate alloc;
 
+mod app;
 mod archive;
 
 pub use archive::LgtArchive;
