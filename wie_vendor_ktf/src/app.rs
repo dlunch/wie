@@ -87,3 +87,4 @@ impl App for KtfWipiApp {
         self.core.dump_reg_stack()
     }
 }
+

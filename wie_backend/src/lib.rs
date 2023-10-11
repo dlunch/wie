@@ -9,8 +9,7 @@ pub use self::{
     executor::{AsyncCallable, Executor},
 };
 
-use alloc::{boxed::Box, string::String};
-use std::collections::HashMap;
+use alloc::{boxed::Box, collections::BTreeMap, string::String};
 
 pub trait App {
     fn start(&mut self) -> anyhow::Result<()>;
@@ -21,7 +20,7 @@ pub trait Archive {
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>>;
 }
 
-pub fn extract_zip(zip: &[u8]) -> anyhow::Result<HashMap<String, Vec<u8>>> {
+pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
     use std::io::{Cursor, Read};
     use zip::ZipArchive;
 

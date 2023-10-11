@@ -4,29 +4,25 @@ use anyhow::Context;
 
 use wie_backend::{extract_zip, App, Archive, Backend};
 
-use crate::app::KtfWipiApp;
-
-pub struct KtfArchive {
+pub struct LgtArchive {
     jar: Vec<u8>,
     main_class_name: String,
 }
 
-impl KtfArchive {
-    pub fn is_ktf_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
-        files.contains_key("__adf__")
+impl LgtArchive {
+    pub fn is_lgt_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
+        files.contains_key("app_info")
     }
 
     pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
-        let adf = files.get("__adf__").context("Invalid format")?;
-        let adf = KtfAdf::parse(adf);
+        let app_info = files.get("app_info").context("Invalid format")?;
+        let app_info = LgtAppInfo::parse(app_info);
 
-        tracing::info!("Loading app {}, mclass {}", adf.aid, adf.mclass);
+        tracing::info!("Loading app {}, mclass {}", app_info.aid, app_info.mclass);
 
-        let jar = files.remove(&format!("{}.jar", adf.aid)).context("Invalid format")?;
+        let jar = files.remove(&format!("{}.jar", app_info.aid)).context("Invalid format")?;
 
-        // TODO load resource on P directory
-
-        Ok(Self::from_jar(jar, &adf.mclass))
+        Ok(Self::from_jar(jar, &app_info.mclass))
     }
 
     pub fn from_jar(data: Vec<u8>, main_class_name: &str) -> Self {
@@ -37,7 +33,7 @@ impl KtfArchive {
     }
 }
 
-impl Archive for KtfArchive {
+impl Archive for LgtArchive {
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
         let jar_data = extract_zip(&self.jar)?;
 
@@ -45,16 +41,17 @@ impl Archive for KtfArchive {
             backend.add_resource(&filename, data);
         }
 
-        Ok(Box::new(KtfWipiApp::new(&self.main_class_name, backend)?))
+        todo!("load app {}", self.main_class_name)
     }
 }
 
-struct KtfAdf {
+// almost similar to KtfAdf.. can we merge these?
+struct LgtAppInfo {
     aid: String,
     mclass: String,
 }
 
-impl KtfAdf {
+impl LgtAppInfo {
     pub fn parse(data: &[u8]) -> Self {
         let mut aid = String::new();
         let mut mclass = String::new();
