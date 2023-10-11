@@ -3,6 +3,8 @@ extern crate alloc;
 
 use alloc::{fmt::Debug, format};
 
+use cafebabe::parse_class;
+
 use wie_backend::{task, AsyncCallable, Backend};
 
 #[derive(Clone, Default)]
@@ -32,8 +34,12 @@ impl JvmCore {
 
         let resource = backend.resource();
         let resource_id = resource.id(&path).unwrap();
-        let resource = resource.data(resource_id);
+        let class_data = resource.data(resource_id);
 
-        todo!("TODO load class {:?}", resource)
+        let class = parse_class(class_data)?;
+
+        tracing::info!("Loaded class {:?}", class);
+
+        todo!("")
     }
 }
