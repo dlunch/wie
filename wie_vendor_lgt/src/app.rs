@@ -6,14 +6,14 @@ use elf::{endian::AnyEndian, ElfBytes};
 use wie_backend::{App, Backend};
 use wie_core_arm::{Allocator, ArmCore};
 
-pub struct LgtWipiApp {
+pub struct LgtApp {
     core: ArmCore,
     backend: Backend,
     entrypoint: u32,
     main_class_name: String,
 }
 
-impl LgtWipiApp {
+impl LgtApp {
     pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
 
@@ -74,7 +74,7 @@ impl LgtWipiApp {
     }
 }
 
-impl App for LgtWipiApp {
+impl App for LgtApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
         let mut backend = self.backend.clone();

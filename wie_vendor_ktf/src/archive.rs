@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use wie_backend::{extract_zip, App, Archive, Backend};
 
-use crate::app::KtfWipiApp;
+use crate::app::KtfApp;
 
 pub struct KtfArchive {
     jar: Vec<u8>,
@@ -45,7 +45,7 @@ impl Archive for KtfArchive {
             backend.add_resource(&filename, data);
         }
 
-        Ok(Box::new(KtfWipiApp::new(&self.main_class_name, backend)?))
+        Ok(Box::new(KtfApp::new(&self.main_class_name, backend)?))
     }
 }
 
