@@ -35,9 +35,13 @@ impl LgtWipiApp {
         })
     }
 
-    #[allow(unused_variables)]
     fn load(core: &mut ArmCore, data: &[u8]) -> anyhow::Result<u32> {
         let elf = ElfBytes::<AnyEndian>::minimal_parse(data)?;
+
+        anyhow::ensure!(elf.ehdr.e_machine == elf::abi::EM_ARM, "Invalid machine type");
+        anyhow::ensure!(elf.ehdr.e_type == elf::abi::ET_EXEC, "Invalid file type");
+        anyhow::ensure!(elf.ehdr.class == elf::file::Class::ELF32, "Invalid file type");
+        anyhow::ensure!(elf.ehdr.e_phnum == 0, "Invalid file type");
 
         let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab()?;
         let (shdrs, strtab) = (
@@ -50,10 +54,14 @@ impl LgtWipiApp {
 
             if shdr.sh_addr != 0 {
                 tracing::debug!("Section {} at {:x}", section_name, shdr.sh_addr);
+
+                let data = elf.section_data(&shdr)?.0;
+
+                core.load(data, shdr.sh_addr as u32, shdr.sh_size as usize)?;
             }
         }
 
-        todo!()
+        Ok(elf.ehdr.e_entry as u32)
     }
 }
 
