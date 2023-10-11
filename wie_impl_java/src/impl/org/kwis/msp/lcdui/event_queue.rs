@@ -1,5 +1,7 @@
 use alloc::vec;
 
+use wie_base::KeyCode;
+
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
@@ -32,6 +34,52 @@ enum KeyboardEventType {
 impl KeyboardEventType {
     fn from_raw(raw: i32) -> Self {
         unsafe { core::mem::transmute(raw) }
+    }
+}
+
+#[repr(i32)]
+enum WIPIKeyCode {
+    UP = -1,
+    DOWN = -4,
+    LEFT = -2,
+    RIGHT = -5,
+    FIRE = -8, // Ok
+
+    NUM0 = 48,
+    NUM1 = 49,
+    NUM2 = 50,
+    NUM3 = 51,
+    NUM4 = 52,
+    NUM5 = 53,
+    NUM6 = 54,
+    NUM7 = 55,
+    NUM8 = 56,
+    NUM9 = 57,
+    HASH = 35, // #
+    STAR = 42, // *
+}
+
+impl WIPIKeyCode {
+    fn from_key_code(keycode: KeyCode) -> Self {
+        match keycode {
+            KeyCode::UP => Self::UP,
+            KeyCode::DOWN => Self::DOWN,
+            KeyCode::LEFT => Self::LEFT,
+            KeyCode::RIGHT => Self::RIGHT,
+            KeyCode::OK => Self::FIRE,
+            KeyCode::NUM0 => Self::NUM0,
+            KeyCode::NUM1 => Self::NUM1,
+            KeyCode::NUM2 => Self::NUM2,
+            KeyCode::NUM3 => Self::NUM3,
+            KeyCode::NUM4 => Self::NUM4,
+            KeyCode::NUM5 => Self::NUM5,
+            KeyCode::NUM6 => Self::NUM6,
+            KeyCode::NUM7 => Self::NUM7,
+            KeyCode::NUM8 => Self::NUM8,
+            KeyCode::NUM9 => Self::NUM9,
+            KeyCode::HASH => Self::HASH,
+            KeyCode::STAR => Self::STAR,
+        }
     }
 }
 
@@ -75,8 +123,18 @@ impl EventQueue {
             if let Some(x) = maybe_event {
                 let event_data = match x {
                     wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
-                    wie_base::Event::Keydown(x) => vec![EventQueueEvent::KeyEvent as _, KeyboardEventType::KeyPressed as _, x as _, 0],
-                    wie_base::Event::Keyup(x) => vec![EventQueueEvent::KeyEvent as _, KeyboardEventType::KeyReleased as _, x as _, 0],
+                    wie_base::Event::Keydown(x) => vec![
+                        EventQueueEvent::KeyEvent as _,
+                        KeyboardEventType::KeyPressed as _,
+                        WIPIKeyCode::from_key_code(x) as _,
+                        0,
+                    ],
+                    wie_base::Event::Keyup(x) => vec![
+                        EventQueueEvent::KeyEvent as _,
+                        KeyboardEventType::KeyReleased as _,
+                        WIPIKeyCode::from_key_code(x) as _,
+                        0,
+                    ],
                 };
 
                 context.store_array_i32(&event, 0, &event_data)?;
