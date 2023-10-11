@@ -1,0 +1,16 @@
+[package]
+name = "wie_vendor_skt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+bytemuck = { workspace = true }
+tracing = { workspace = true }
+
+wie_backend = { path = "../wie_backend" }
+wie_base = { path = "../wie_base" }
+wie_wipi_c = { path = "../wie_wipi_c" }
+wie_wipi_java = { path = "../wie_wipi_java" }
