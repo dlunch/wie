@@ -297,6 +297,12 @@ impl ArmCore {
         .join("\n")
     }
 
+    fn is_code_address(address: u32, image_base: u32) -> bool {
+        // TODO image size temp
+
+        address % 2 == 1 && ((image_base..image_base + 0x100000).contains(&address) || (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address))
+    }
+
     fn dump_regs(&self) -> String {
         let inner = self.inner.borrow();
 
@@ -332,11 +338,8 @@ impl ArmCore {
             let value = inner.engine.mem_read(address, size_of::<u32>())?;
             let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
 
-            if value_u32 % 2 == 1 {
-                // TODO image size temp
-                if (image_base..image_base + 0x100000).contains(&value_u32) {
-                    call_stack += &Self::format_callstack_address(value_u32 - 5, image_base);
-                }
+            if Self::is_code_address(value_u32, image_base) {
+                call_stack += &Self::format_callstack_address(value_u32 - 5, image_base);
             }
         }
 
