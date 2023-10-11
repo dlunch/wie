@@ -38,6 +38,7 @@ impl KeyboardEventType {
 }
 
 #[repr(i32)]
+#[allow(clippy::upper_case_acronyms)]
 enum WIPIKeyCode {
     UP = -1,
     DOWN = -4,
