@@ -14,6 +14,7 @@ use wie_backend::{extract_zip, Archive, Backend, Executor};
 use wie_base::{Event, WIPIKey};
 use wie_vendor_ktf::KtfArchive;
 use wie_vendor_lgt::LgtArchive;
+use wie_vendor_skt::SktArchive;
 
 use self::window::{WindowCallbackEvent, WindowImpl};
 
@@ -41,6 +42,8 @@ fn main() -> anyhow::Result<()> {
         Box::new(KtfArchive::from_zip(files)?)
     } else if LgtArchive::is_lgt_archive(&files) {
         Box::new(LgtArchive::from_zip(files)?)
+    } else if SktArchive::is_skt_archive(&files) {
+        Box::new(SktArchive::from_zip(files)?)
     } else {
         anyhow::bail!("Unknown archive format");
     };
