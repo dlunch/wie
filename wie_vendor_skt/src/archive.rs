@@ -10,6 +10,8 @@ use anyhow::Context;
 
 use wie_backend::{extract_zip, App, Archive, Backend};
 
+use crate::app::SktWipiApp;
+
 pub struct SktArchive {
     jar: Vec<u8>,
     main_class_name: String,
@@ -48,7 +50,7 @@ impl Archive for SktArchive {
             backend.add_resource(&filename, data);
         }
 
-        todo!("load app {}", self.main_class_name)
+        Ok(Box::new(SktWipiApp::new(&self.main_class_name, backend)?))
     }
 }
 

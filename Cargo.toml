@@ -6,6 +6,7 @@ members = [
     "wie_backend",
     "wie_base",
     "wie_core_arm",
+    "wie_core_jvm",
     "wie_vendor_ktf",
     "wie_vendor_lgt",
     "wie_vendor_skt",
