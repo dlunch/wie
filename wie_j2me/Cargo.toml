@@ -1,5 +1,5 @@
 [package]
-name = "wie_vendor_ktf"
+name = "wie_j2me"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,15 +7,11 @@ license.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-bitflags = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
-async-recursion = { version = "^1.0" }
-num-traits = { version = "^0.2" }
-
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
-wie_core_arm = { path = "../wie_core_arm" }
+wie_core_jvm = { path = "../wie_core_jvm" }
 wie_impl_c = { path = "../wie_impl_c" }
 wie_impl_java = { path = "../wie_impl_java" }

@@ -18,9 +18,9 @@ use web_sys::HtmlCanvasElement;
 
 use wie_backend::{extract_zip, App, Archive, Backend, Executor};
 use wie_base::{Event, KeyCode};
-use wie_vendor_ktf::KtfArchive;
-use wie_vendor_lgt::LgtArchive;
-use wie_vendor_skt::SktArchive;
+use wie_ktf::KtfArchive;
+use wie_lgt::LgtArchive;
+use wie_skt::SktArchive;
 
 use self::window::WindowImpl;
 

@@ -7,12 +7,13 @@ members = [
     "wie_base",
     "wie_core_arm",
     "wie_core_jvm",
-    "wie_vendor_ktf",
-    "wie_vendor_lgt",
-    "wie_vendor_skt",
-    "wie_web",
     "wie_impl_c",
     "wie_impl_java",
+    "wie_j2me",
+    "wie_ktf",
+    "wie_lgt",
+    "wie_skt",
+    "wie_web",
 ]
 
 default-members = ["wie"]
@@ -26,5 +27,9 @@ license = "MIT"
 anyhow = { version = "^1.0" }
 async-trait = { version = "^0.1", default-features = false }
 bitflags = { version = "^2.3", default-features = false }
-bytemuck = { version = "^1.13", default-features = false, features = ["derive"] }
-tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
+bytemuck = { version = "^1.13", default-features = false, features = [
+    "derive",
+] }
+tracing = { version = "^0.1", default-features = false, features = [
+    "attributes",
+] }

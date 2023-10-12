@@ -1,5 +1,5 @@
 [package]
-name = "wie_vendor_lgt"
+name = "wie_lgt"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
