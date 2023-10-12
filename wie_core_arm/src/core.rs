@@ -338,7 +338,7 @@ impl ArmCore {
             let value = inner.engine.mem_read(address, size_of::<u32>())?;
             let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
 
-            if Self::is_code_address(value_u32, image_base) {
+            if value_u32 > 5 && Self::is_code_address(value_u32 - 5, image_base) {
                 call_stack += &Self::format_callstack_address(value_u32 - 5, image_base);
             }
         }
