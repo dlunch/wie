@@ -3173,11 +3173,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_impl_c"
+name = "wie_impl_java"
 version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bitflags 2.4.0",
  "bytemuck",
  "tracing",
  "wie_backend",
@@ -3185,12 +3186,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_impl_java"
+name = "wie_impl_wipi_c"
 version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "bitflags 2.4.0",
  "bytemuck",
  "tracing",
  "wie_backend",
@@ -3208,8 +3208,8 @@ dependencies = [
  "wie_backend",
  "wie_base",
  "wie_core_jvm",
- "wie_impl_c",
  "wie_impl_java",
+ "wie_impl_wipi_c",
 ]
 
 [[package]]
@@ -3226,8 +3226,8 @@ dependencies = [
  "wie_backend",
  "wie_base",
  "wie_core_arm",
- "wie_impl_c",
  "wie_impl_java",
+ "wie_impl_wipi_c",
 ]
 
 [[package]]
@@ -3242,8 +3242,8 @@ dependencies = [
  "wie_backend",
  "wie_base",
  "wie_core_arm",
- "wie_impl_c",
  "wie_impl_java",
+ "wie_impl_wipi_c",
 ]
 
 [[package]]
@@ -3257,8 +3257,8 @@ dependencies = [
  "wie_backend",
  "wie_base",
  "wie_core_jvm",
- "wie_impl_c",
  "wie_impl_java",
+ "wie_impl_wipi_c",
 ]
 
 [[package]]

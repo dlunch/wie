@@ -3,6 +3,6 @@ use core::{future::Future, marker::PhantomData};
 
 use wie_base::methods;
 
-use crate::{CContext, CWord};
+use crate::{WIPICContext, WIPICWord};
 
-methods!(CContext, CWord);
+methods!(WIPICContext, WIPICWord);

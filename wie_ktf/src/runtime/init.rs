@@ -8,9 +8,9 @@ use wie_base::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 
 use crate::runtime::{
-    c::interface::get_wipic_knl_interface,
     java::context::KtfJavaContext,
     java::interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
+    wipi_c::interface::get_wipic_knl_interface,
 };
 
 #[repr(C)]

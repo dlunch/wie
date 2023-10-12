@@ -6,49 +6,49 @@ use wie_backend::{
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
-use wie_impl_c::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord};
+use wie_impl_wipi_c::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
-pub struct KtfCContext<'a> {
+pub struct KtfWIPICContext<'a> {
     core: &'a mut ArmCore,
     backend: &'a mut Backend,
 }
 
-impl<'a> KtfCContext<'a> {
+impl<'a> KtfWIPICContext<'a> {
     pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
         Self { core, backend }
     }
 }
 
 #[async_trait::async_trait(?Send)]
-impl CContext for KtfCContext<'_> {
-    fn alloc_raw(&mut self, size: CWord) -> CResult<CWord> {
+impl WIPICContext for KtfWIPICContext<'_> {
+    fn alloc_raw(&mut self, size: WIPICWord) -> WIPICResult<WIPICWord> {
         Allocator::alloc(self.core, size)
     }
 
-    fn alloc(&mut self, size: CWord) -> CResult<CMemoryId> {
+    fn alloc(&mut self, size: WIPICWord) -> WIPICResult<WIPICMemoryId> {
         let ptr = Allocator::alloc(self.core, size + 12)?; // all allocation has indirect pointer
         write_generic(self.core, ptr, ptr + 4)?;
 
-        Ok(CMemoryId(ptr))
+        Ok(WIPICMemoryId(ptr))
     }
 
-    fn free(&mut self, memory: CMemoryId) -> CResult<()> {
+    fn free(&mut self, memory: WIPICMemoryId) -> WIPICResult<()> {
         Allocator::free(self.core, memory.0)
     }
 
-    fn data_ptr(&self, memory: CMemoryId) -> CResult<CWord> {
-        let base: CWord = read_generic(self.core, memory.0)?;
+    fn data_ptr(&self, memory: WIPICMemoryId) -> WIPICResult<WIPICWord> {
+        let base: WIPICWord = read_generic(self.core, memory.0)?;
 
         Ok(base + 8) // all data has offset of 8 bytes
     }
 
-    fn register_function(&mut self, body: CMethodBody) -> CResult<CWord> {
+    fn register_function(&mut self, body: WIPICMethodBody) -> WIPICResult<WIPICWord> {
         struct CMethodProxy {
-            body: CMethodBody,
+            body: WIPICMethodBody,
         }
 
         impl CMethodProxy {
-            pub fn new(body: CMethodBody) -> Self {
+            pub fn new(body: WIPICMethodBody) -> Self {
                 Self { body }
             }
         }
@@ -66,7 +66,7 @@ impl CContext for KtfCContext<'_> {
                 let a7 = u32::get(core, 7);
                 let a8 = u32::get(core, 8); // TODO create arg proxy
 
-                let mut context = KtfCContext::new(core, backend);
+                let mut context = KtfWIPICContext::new(core, backend);
 
                 self.body.call(&mut context, &[a0, a1, a2, a3, a4, a5, a6, a7, a8]).await
             }
@@ -81,22 +81,22 @@ impl CContext for KtfCContext<'_> {
         self.backend
     }
 
-    async fn call_method(&mut self, address: CWord, args: &[CWord]) -> CResult<CWord> {
+    async fn call_method(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord> {
         self.core.run_function(address, args).await
     }
 
-    fn spawn(&mut self, callback: CMethodBody) -> CResult<()> {
+    fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()> {
         struct SpawnProxy {
             core: ArmCore,
             backend: Backend,
-            callback: CMethodBody,
+            callback: WIPICMethodBody,
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<CWord, CError> for SpawnProxy {
+        impl AsyncCallable<WIPICWord, WIPICError> for SpawnProxy {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-            async fn call(mut self) -> Result<CWord, CError> {
-                let mut context = KtfCContext::new(&mut self.core, &mut self.backend);
+            async fn call(mut self) -> Result<WIPICWord, WIPICError> {
+                let mut context = KtfWIPICContext::new(&mut self.core, &mut self.backend);
 
                 self.callback.call(&mut context, &[]).await
             }
@@ -120,14 +120,14 @@ impl CContext for KtfCContext<'_> {
     }
 }
 
-impl ByteRead for KtfCContext<'_> {
-    fn read_bytes(&self, address: CWord, size: CWord) -> anyhow::Result<Vec<u8>> {
+impl ByteRead for KtfWIPICContext<'_> {
+    fn read_bytes(&self, address: WIPICWord, size: WIPICWord) -> anyhow::Result<Vec<u8>> {
         self.core.read_bytes(address, size)
     }
 }
 
-impl ByteWrite for KtfCContext<'_> {
-    fn write_bytes(&mut self, address: CWord, data: &[u8]) -> anyhow::Result<()> {
+impl ByteWrite for KtfWIPICContext<'_> {
+    fn write_bytes(&mut self, address: WIPICWord, data: &[u8]) -> anyhow::Result<()> {
         self.core.write_bytes(address, data)
     }
 }

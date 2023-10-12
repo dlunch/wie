@@ -1,29 +1,29 @@
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{CContext, CMethodBody, CResult, CWord},
+    base::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
     method::MethodImpl,
 };
 
-fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
-    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented net{}: {}", id, name)) };
+fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented net{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn connect(_context: &mut dyn CContext, cb: CWord, param: CWord) -> CResult<i32> {
+async fn connect(_context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPICWord) -> WIPICResult<i32> {
     tracing::warn!("stub MC_netConnect({:#x}, {:#x})", cb, param);
 
     Ok(-1) // M_E_ERROR
 }
 
-async fn close(_context: &mut dyn CContext) -> CResult<()> {
+async fn close(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
     tracing::warn!("stub MC_netClose()");
 
     Ok(())
 }
 
-pub fn get_net_method_table() -> Vec<CMethodBody> {
+pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
     vec![
         connect.into_body(),
         close.into_body(),
