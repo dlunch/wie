@@ -6,8 +6,8 @@ Emulator for old mobile apps based on WIPI, SKVM or J2ME.
 
 ### WIPI
 
-KTF apps - Some apps are working.
-LGT apps - Not working.
+- KTF apps: Some apps are working.
+- LGT apps: Not working.
 
 ### SKVM, J2ME
 
