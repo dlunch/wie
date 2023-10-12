@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, vec::Vec};
 
-use wie_backend::{extract_zip, App, Archive, Backend};
+use wie_backend::{App, Archive, Backend};
 
 use crate::app::J2MEApp;
 
@@ -16,11 +16,7 @@ impl J2MEArchive {
 
 impl Archive for J2MEArchive {
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
-        let jar_data = extract_zip(&self.jar)?;
-
-        for (filename, data) in jar_data {
-            backend.add_resource(&filename, data);
-        }
+        backend.mount_zip(&self.jar)?;
 
         Ok(Box::new(J2MEApp::new("", backend)?))
     }

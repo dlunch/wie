@@ -8,6 +8,8 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
+use crate::extract_zip;
+
 use self::{
     canvas::{ArgbPixel, Canvas, ImageBuffer},
     resource::Resource,
@@ -64,8 +66,15 @@ impl Backend {
         self.window().repaint(&**self.screen_canvas())
     }
 
-    pub fn add_resource(&self, path: &str, data: Vec<u8>) {
-        (*self.resource).borrow_mut().add(path, data);
+    pub fn mount_zip(&self, zip: &[u8]) -> anyhow::Result<()> {
+        let files = extract_zip(zip)?;
+
+        let mut resource = (*self.resource).borrow_mut();
+        for (path, data) in files {
+            resource.add(&path, data);
+        }
+
+        Ok(())
     }
 }
 

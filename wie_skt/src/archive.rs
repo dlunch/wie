@@ -8,7 +8,7 @@ use alloc::{
 
 use anyhow::Context;
 
-use wie_backend::{extract_zip, App, Archive, Backend};
+use wie_backend::{App, Archive, Backend};
 
 use crate::app::SktApp;
 
@@ -44,11 +44,7 @@ impl SktArchive {
 
 impl Archive for SktArchive {
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
-        let jar_data = extract_zip(&self.jar)?;
-
-        for (filename, data) in jar_data {
-            backend.add_resource(&filename, data);
-        }
+        backend.mount_zip(&self.jar)?;
 
         Ok(Box::new(SktApp::new(&self.main_class_name, backend)?))
     }
