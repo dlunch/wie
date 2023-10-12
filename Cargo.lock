@@ -3112,9 +3112,9 @@ dependencies = [
  "tracing-subscriber",
  "wie_backend",
  "wie_base",
- "wie_vendor_ktf",
- "wie_vendor_lgt",
- "wie_vendor_skt",
+ "wie_ktf",
+ "wie_lgt",
+ "wie_skt",
 ]
 
 [[package]]
@@ -3198,7 +3198,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_vendor_ktf"
+name = "wie_j2me"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytemuck",
+ "tracing",
+ "wie_backend",
+ "wie_base",
+ "wie_core_jvm",
+ "wie_impl_c",
+ "wie_impl_java",
+]
+
+[[package]]
+name = "wie_ktf"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -3216,7 +3231,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_vendor_lgt"
+name = "wie_lgt"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -3232,7 +3247,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_vendor_skt"
+name = "wie_skt"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -3259,9 +3274,9 @@ dependencies = [
  "web-sys",
  "wie_backend",
  "wie_base",
- "wie_vendor_ktf",
- "wie_vendor_lgt",
- "wie_vendor_skt",
+ "wie_ktf",
+ "wie_lgt",
+ "wie_skt",
 ]
 
 [[package]]

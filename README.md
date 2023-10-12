@@ -1,6 +1,6 @@
 # WIE
 
-Emulator for old korean mobile apps(WIPI/SKVM/...).
+Emulator for old korean mobile apps(WIPI/SKVM/J2ME/...).
 
 ## Status
 
