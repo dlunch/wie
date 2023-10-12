@@ -1,6 +1,6 @@
-mod c;
 mod init;
 mod java;
+mod wipi_c;
 
 pub use self::{
     init::{

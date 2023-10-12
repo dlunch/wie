@@ -17,5 +17,5 @@ num-traits = { version = "^0.2" }
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 wie_core_arm = { path = "../wie_core_arm" }
-wie_impl_c = { path = "../wie_impl_c" }
+wie_impl_wipi_c = { path = "../wie_impl_wipi_c" }
 wie_impl_java = { path = "../wie_impl_java" }

@@ -2,26 +2,26 @@ use core::mem;
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::{method::TypeConverter, CContext, CWord};
+use crate::{method::TypeConverter, WIPICContext, WIPICWord};
 
 /// _MC_GrpContext
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICGraphicsContext {
-    pub mask: CWord,
+    pub mask: WIPICWord,
     /// top-left x, y, bottom-right x, y
-    pub clip: [CWord; 4],
-    pub fgpxl: CWord,
-    pub bgpxl: CWord,
-    pub transpxl: CWord,
-    pub alpha: CWord,
+    pub clip: [WIPICWord; 4],
+    pub fgpxl: WIPICWord,
+    pub bgpxl: WIPICWord,
+    pub transpxl: WIPICWord,
+    pub alpha: WIPICWord,
     /// x, y
-    pub offset: [CWord; 2],
-    pub pixel_op_func_ptr: CWord, // MC_GrpPixelOpProc
-    pub param1: CWord,
-    pub reserved: CWord,
-    pub font: CWord,
-    pub style: CWord,
+    pub offset: [WIPICWord; 2],
+    pub pixel_op_func_ptr: WIPICWord, // MC_GrpPixelOpProc
+    pub param1: WIPICWord,
+    pub reserved: WIPICWord,
+    pub font: WIPICWord,
+    pub style: WIPICWord,
 }
 
 #[repr(u32)]
@@ -47,8 +47,8 @@ pub enum WIPICGraphicsContextIdx {
 }
 
 impl TypeConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
-    fn to_rust(_context: &mut dyn CContext, raw: CWord) -> WIPICGraphicsContextIdx {
-        if raw >= (Self::ClipIdx as CWord) && raw <= (Self::OutlineIdx as CWord) {
+    fn to_rust(_context: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICGraphicsContextIdx {
+        if raw >= (Self::ClipIdx as WIPICWord) && raw <= (Self::OutlineIdx as WIPICWord) {
             // SAFETY: WIPICGraphicsContextIdx has CWord repr and is unit only.
             let x: Self = unsafe { mem::transmute(raw) };
             x
@@ -57,7 +57,7 @@ impl TypeConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
         }
     }
 
-    fn from_rust(_context: &mut dyn CContext, rust: WIPICGraphicsContextIdx) -> CWord {
-        rust as CWord
+    fn from_rust(_context: &mut dyn WIPICContext, rust: WIPICGraphicsContextIdx) -> WIPICWord {
+        rust as WIPICWord
     }
 }

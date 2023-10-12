@@ -1,23 +1,23 @@
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{CContext, CMethodBody, CResult, CWord},
+    base::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
     method::MethodImpl,
 };
 
-fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
-    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented util{}: {}", id, name)) };
+fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented util{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn htons(_context: &mut dyn CContext, val: CWord) -> CResult<CWord> {
+async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> WIPICResult<WIPICWord> {
     tracing::debug!("MC_utilHtons({})", val);
 
     Ok((val as u16).to_be() as _) // XXX we're always on little endian
 }
 
-pub fn get_util_method_table() -> Vec<CMethodBody> {
+pub fn get_util_method_table() -> Vec<WIPICMethodBody> {
     vec![
         gen_stub(0, "MC_utilHtonl"),
         htons.into_body(),

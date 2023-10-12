@@ -7,4 +7,4 @@ mod base;
 pub mod r#impl;
 mod method;
 
-pub use self::base::{CContext, CError, CMemoryId, CMethodBody, CResult, CWord};
+pub use self::base::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};

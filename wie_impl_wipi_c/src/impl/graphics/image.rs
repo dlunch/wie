@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_backend::canvas::decode_image;
 
-use crate::base::{CContext, CMemoryId, CWord};
+use crate::base::{WIPICContext, WIPICMemoryId, WIPICWord};
 
 use super::WIPICFramebuffer;
 
@@ -11,17 +11,17 @@ use super::WIPICFramebuffer;
 pub struct WIPICImage {
     pub img: WIPICFramebuffer,
     pub mask: WIPICFramebuffer,
-    pub loop_count: CWord,
-    pub delay: CWord,
-    pub animated: CWord,
-    pub buf: CMemoryId,
-    pub offset: CWord,
-    pub current: CWord,
-    pub len: CWord,
+    pub loop_count: WIPICWord,
+    pub delay: WIPICWord,
+    pub animated: WIPICWord,
+    pub buf: WIPICMemoryId,
+    pub offset: WIPICWord,
+    pub current: WIPICWord,
+    pub len: WIPICWord,
 }
 
 impl WIPICImage {
-    pub fn new(context: &mut dyn CContext, buf: CMemoryId, offset: CWord, len: CWord) -> anyhow::Result<Self> {
+    pub fn new(context: &mut dyn WIPICContext, buf: WIPICMemoryId, offset: WIPICWord, len: WIPICWord) -> anyhow::Result<Self> {
         let ptr_image_data = context.data_ptr(buf)?;
         let data = context.read_bytes(ptr_image_data + offset, len)?;
         let image = decode_image(&data)?;

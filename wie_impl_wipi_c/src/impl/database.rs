@@ -2,46 +2,46 @@ use alloc::string::String;
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{CContext, CMethodBody, CWord},
+    base::{WIPICContext, WIPICMethodBody, WIPICWord},
     method::MethodImpl,
-    CResult,
+    WIPICResult,
 };
 
-fn gen_stub(id: CWord, name: &'static str) -> CMethodBody {
-    let body = move |_: &mut dyn CContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented database{}: {}", id, name)) };
+fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented database{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn open_database(_context: &mut dyn CContext, name: String, record_size: i32, create: i32, mode: i32) -> CResult<i32> {
+async fn open_database(_context: &mut dyn WIPICContext, name: String, record_size: i32, create: i32, mode: i32) -> WIPICResult<i32> {
     tracing::warn!("stub MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
     Ok(0)
 }
 
-async fn close_database(_context: &mut dyn CContext, db_id: i32) -> CResult<i32> {
+async fn close_database(_context: &mut dyn WIPICContext, db_id: i32) -> WIPICResult<i32> {
     tracing::warn!("stub MC_dbCloseDataBase({})", db_id);
     Ok(0)
 }
 
-async fn delete_database(_context: &mut dyn CContext, name: CWord, mode: i32) -> CResult<i32> {
+async fn delete_database(_context: &mut dyn WIPICContext, name: WIPICWord, mode: i32) -> WIPICResult<i32> {
     tracing::warn!("stub MC_dbCloseDataBase({:#x}, {})", name, mode);
 
     Ok(0)
 }
 
-async fn insert_record(_context: &mut dyn CContext, db_id: i32, buf_ptr: CWord, buf_len: CWord) -> CResult<i32> {
+async fn insert_record(_context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
     tracing::warn!("stub MC_dbInsertRecord({}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     Ok(0)
 }
 
-async fn delete_record(_context: &mut dyn CContext, db_id: i32, rec_id: i32) -> CResult<i32> {
+async fn delete_record(_context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> WIPICResult<i32> {
     tracing::warn!("stub MC_dbDeleteRecord({}, {})", db_id, rec_id);
 
     Ok(0)
 }
 
-pub fn get_database_method_table() -> Vec<CMethodBody> {
+pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
     vec![
         open_database.into_body(),
         close_database.into_body(),
