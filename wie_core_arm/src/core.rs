@@ -311,7 +311,7 @@ impl ArmCore {
 
     fn format_callstack_address(address: u32, image_base: u32) -> String {
         let description = if (image_base..image_base + 0x100000).contains(&address) {
-            format!("client.bin+{:#x}", address - image_base)
+            format!("<Base>+{:#x}", address - image_base)
         } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address) {
             "<Native function>".to_owned()
         } else {
