@@ -1,11 +1,19 @@
 # WIE
 
-Emulator for old korean mobile apps(WIPI/SKVM/J2ME/...).
+Emulator for old mobile apps based on WIPI, SKVM or J2ME.
 
 ## Status
 
-KTF apps - Some apps are usable.
-SKT, LGT apps - Not working.
+### WIPI
+
+KTF apps - Some apps are working.
+LGT apps - Not working.
+
+### SKVM, J2ME
+
+Can load app, but not working.
+
+## Screenshot
 
 ![](https://github.com/dlunch/wie/blob/main/docs/images/Trivial%20games%20playable.png)
 
