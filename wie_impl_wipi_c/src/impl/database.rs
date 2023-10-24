@@ -41,6 +41,12 @@ async fn delete_record(_context: &mut dyn WIPICContext, db_id: i32, rec_id: i32)
     Ok(0)
 }
 
+async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
+    tracing::warn!("stub MC_dbUnk16()");
+
+    Ok(())
+}
+
 pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
     vec![
         open_database.into_body(),
@@ -57,5 +63,8 @@ pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(11, "MC_dbGetRecordSize"),
         gen_stub(12, "MC_dbListDataBases"),
         gen_stub(13, ""),
+        gen_stub(14, ""),
+        gen_stub(15, ""),
+        unk16.into_body(),
     ]
 }
