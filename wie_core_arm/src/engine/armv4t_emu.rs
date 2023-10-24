@@ -150,33 +150,40 @@ impl Armv4tEmuMemory {
             current_address += available_bytes as u32;
         }
     }
+
+    fn get_page(&mut self, addr: u32) -> &mut [u8; 0x10000] {
+        let page_address = addr & !0xffff;
+        let page_data = self.pages[page_address as usize / 0x10000].as_mut();
+
+        if let Some(x) = page_data {
+            x
+        } else {
+            panic!("Access to unmapped address {:#x}", addr); // TODO can we propagate error?
+        }
+    }
 }
 
 impl Memory for Armv4tEmuMemory {
     fn r8(&mut self, addr: u32) -> u8 {
-        let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.pages[page as usize / 0x10000].as_ref().unwrap();
+        let data = self.get_page(addr);
 
         data[offset as usize]
     }
 
     fn r16(&mut self, addr: u32) -> u16 {
-        let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.pages[page as usize / 0x10000].as_ref().unwrap();
+        let data = self.get_page(addr);
 
         (data[offset as usize] as u16) | ((data[offset as usize + 1] as u16) << 8)
     }
 
     fn r32(&mut self, addr: u32) -> u32 {
-        let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.pages[page as usize / 0x10000].as_ref().unwrap();
-
+        let data = self.get_page(addr);
         (data[offset as usize] as u32)
             | ((data[offset as usize + 1] as u32) << 8)
             | ((data[offset as usize + 2] as u32) << 16)
@@ -184,29 +191,26 @@ impl Memory for Armv4tEmuMemory {
     }
 
     fn w8(&mut self, addr: u32, val: u8) {
-        let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.pages[page as usize / 0x10000].as_mut().unwrap();
+        let data = self.get_page(addr);
 
         data[offset as usize] = val;
     }
 
     fn w16(&mut self, addr: u32, val: u16) {
-        let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.pages[page as usize / 0x10000].as_mut().unwrap();
+        let data = self.get_page(addr);
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
     }
 
     fn w32(&mut self, addr: u32, val: u32) {
-        let page = addr & !0xffff;
         let offset = addr & 0xffff;
 
-        let data = self.pages[page as usize / 0x10000].as_mut().unwrap();
+        let data = self.get_page(addr);
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
