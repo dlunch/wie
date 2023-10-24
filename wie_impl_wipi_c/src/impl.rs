@@ -6,4 +6,5 @@ pub mod misc;
 pub mod net;
 pub mod stub;
 pub mod unk12;
+pub mod unk3;
 pub mod util;
