@@ -21,6 +21,8 @@ use self::{
     image::WIPICImage,
 };
 
+const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
+
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
     let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented graphics{}: {}", id, name)) };
 
@@ -34,7 +36,7 @@ async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -
     let (width, height) = (screen_canvas.width(), screen_canvas.height());
     drop(screen_canvas);
 
-    let framebuffer = WIPICFramebuffer::new(context, width, height, 16)?; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
+    let framebuffer = WIPICFramebuffer::new(context, width, height, FRAMEBUFFER_DEPTH)?;
 
     let memory = context.alloc(size_of::<WIPICFramebuffer>() as WIPICWord)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
@@ -228,7 +230,7 @@ async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, o
     let canvas = context.backend().screen_canvas();
 
     let info = WIPICDisplayInfo {
-        bpp: 16, // XXX hardcoded to 16bpp
+        bpp: FRAMEBUFFER_DEPTH,
         depth: 16,
         width: canvas.width(),
         height: canvas.height(),
@@ -274,13 +276,24 @@ async fn copy_area(
     Ok(())
 }
 
+async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> WIPICResult<WIPICMemoryId> {
+    tracing::debug!("MC_grpCreateOffScreenFrameBuffer({}, {})", w, h);
+
+    let framebuffer = WIPICFramebuffer::new(context, w as _, h as _, FRAMEBUFFER_DEPTH)?;
+
+    let memory = context.alloc(size_of::<WIPICFramebuffer>() as WIPICWord)?;
+    write_generic(context, context.data_ptr(memory)?, framebuffer)?;
+
+    Ok(memory)
+}
+
 pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
     vec![
         gen_stub(0, "MC_grpGetImageProperty"),
         gen_stub(1, "MC_grpGetImageFrameBuffer"),
         get_screen_framebuffer.into_body(),
         gen_stub(3, "MC_grpDestroyOffScreenFrameBuffer"),
-        gen_stub(4, "MC_grpCreateOffScreenFrameBuffer"),
+        create_offscreen_framebuffer.into_body(),
         init_context.into_body(),
         set_context.into_body(),
         gen_stub(7, "MC_grpGetContext"),
