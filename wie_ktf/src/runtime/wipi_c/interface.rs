@@ -9,8 +9,8 @@ use wie_core_arm::ArmCore;
 use wie_impl_wipi_c::{
     r#impl::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
-        misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, unk12::get_unk12_method_table,
-        unk3::get_unk3_method_table, util::get_util_method_table,
+        misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, uic::get_uic_method_table,
+        unk12::get_unk12_method_table, unk3::get_unk3_method_table, util::get_util_method_table,
     },
     WIPICContext, WIPICMethodBody,
 };
@@ -73,7 +73,7 @@ async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> anyhow::Result<
     let interface_5 = write_methods(context, get_stub_method_table(5))?;
     let interface_6 = write_methods(context, get_database_method_table())?;
     let interface_7 = write_methods(context, get_stub_method_table(7))?;
-    let interface_8 = write_methods(context, get_stub_method_table(8))?; // uic
+    let interface_8 = write_methods(context, get_uic_method_table())?; // uic
     let interface_9 = write_methods(context, get_media_method_table())?;
     let interface_10 = write_methods(context, get_net_method_table())?;
     let interface_11 = write_methods(context, get_stub_method_table(11))?;
