@@ -68,10 +68,8 @@ async fn set_timer(
 ) -> WIPICResult<()> {
     tracing::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_low, timeout_high, param);
 
-    let timer: WIPICTimer = read_generic(context, ptr_timer)?;
-
     struct TimerCallback {
-        timer: WIPICTimer,
+        ptr_timer: u32,
         timeout: u64,
         param: WIPICWord,
     }
@@ -80,16 +78,17 @@ async fn set_timer(
     impl MethodBody<WIPICError> for TimerCallback {
         #[tracing::instrument(name = "timer", skip_all)]
         async fn call(&self, context: &mut dyn WIPICContext, _: &[WIPICWord]) -> Result<WIPICWord, WIPICError> {
+            let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
             context.sleep(self.timeout).await;
 
-            context.call_method(self.timer.fn_callback, &[self.param]).await?;
+            context.call_method(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
 
             Ok(0)
         }
     }
 
     context.spawn(Box::new(TimerCallback {
-        timer,
+        ptr_timer,
         timeout: ((timeout_high as u64) << 32) | (timeout_low as u64),
         param,
     }))?;
