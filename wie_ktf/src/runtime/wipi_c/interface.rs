@@ -10,7 +10,7 @@ use wie_impl_wipi_c::{
     r#impl::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
         misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, unk12::get_unk12_method_table,
-        util::get_util_method_table,
+        unk3::get_unk3_method_table, util::get_util_method_table,
     },
     WIPICContext, WIPICMethodBody,
 };
@@ -68,7 +68,7 @@ async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> anyhow::Result<
     let interface_0 = write_methods(context, get_util_method_table())?;
     let interface_1 = write_methods(context, get_misc_method_table())?;
     let interface_2 = write_methods(context, get_graphics_method_table())?;
-    let interface_3 = write_methods(context, get_stub_method_table(3))?;
+    let interface_3 = write_methods(context, get_unk3_method_table())?;
     let interface_4 = write_methods(context, get_stub_method_table(4))?;
     let interface_5 = write_methods(context, get_stub_method_table(5))?;
     let interface_6 = write_methods(context, get_database_method_table())?;
