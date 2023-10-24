@@ -23,6 +23,12 @@ async fn close(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
     Ok(())
 }
 
+async fn socket_close(_context: &mut dyn WIPICContext, fd: i32) -> WIPICResult<i32> {
+    tracing::warn!("stub MC_netSocketClose({})", fd);
+
+    Ok(-1) // M_E_ERROR
+}
+
 pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
     vec![
         connect.into_body(),
@@ -31,7 +37,7 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(3, "MC_netSocketConnect"),
         gen_stub(4, "MC_netSocketWrite"),
         gen_stub(5, "MC_netSocketRead"),
-        gen_stub(6, "MC_netSocketClose"),
+        socket_close.into_body(),
         gen_stub(7, "MC_netSocketBind"),
         gen_stub(8, "MC_netGetMaxPacketLength"),
         gen_stub(9, "MC_netSocketSendTo"),
