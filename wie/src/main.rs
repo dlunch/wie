@@ -52,7 +52,7 @@ fn main() -> anyhow::Result<()> {
 
     let window_proxy = window.proxy();
 
-    let mut backend = Backend::new(Box::new(window_proxy));
+    let mut backend = Backend::new(&archive.id(), Box::new(window_proxy));
     let mut app = archive.load_app(&mut backend)?;
 
     let mut executor = Executor::new();

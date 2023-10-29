@@ -17,6 +17,7 @@ pub trait App {
 }
 
 pub trait Archive {
+    fn id(&self) -> String;
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>>;
 }
 

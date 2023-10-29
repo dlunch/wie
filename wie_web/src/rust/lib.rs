@@ -52,7 +52,7 @@ impl WieWeb {
             let should_redraw = Rc::new(Cell::new(true));
             let window = WindowImpl::new(canvas, should_redraw.clone());
 
-            let mut backend = Backend::new(Box::new(window));
+            let mut backend = Backend::new(&archive.id(), Box::new(window));
 
             let mut app = archive.load_app(&mut backend)?;
             let executor = Executor::new();

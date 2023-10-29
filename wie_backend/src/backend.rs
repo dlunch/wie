@@ -1,4 +1,5 @@
 pub mod canvas;
+mod database;
 mod resource;
 pub mod time;
 pub mod window;
@@ -12,12 +13,15 @@ use crate::extract_zip;
 
 use self::{
     canvas::{ArgbPixel, Canvas, ImageBuffer},
+    database::DatabaseRepository,
     resource::Resource,
     time::Time,
     window::Window,
 };
 
+#[derive(Clone)]
 pub struct Backend {
+    database: Rc<RefCell<DatabaseRepository>>,
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
@@ -26,16 +30,21 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new(window: Box<dyn Window>) -> Self {
+    pub fn new(app_id: &str, window: Box<dyn Window>) -> Self {
         let screen_canvas = ImageBuffer::<ArgbPixel>::new(window.width(), window.height());
 
         Self {
+            database: Rc::new(RefCell::new(DatabaseRepository::new(app_id))),
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
             window: Rc::new(RefCell::new(window)),
         }
+    }
+
+    pub fn database(&self) -> RefMut<'_, DatabaseRepository> {
+        (*self.database).borrow_mut()
     }
 
     pub fn resource(&self) -> Ref<'_, Resource> {
@@ -75,17 +84,5 @@ impl Backend {
         }
 
         Ok(())
-    }
-}
-
-impl Clone for Backend {
-    fn clone(&self) -> Self {
-        Self {
-            resource: self.resource.clone(),
-            time: self.time.clone(),
-            screen_canvas: self.screen_canvas.clone(),
-            events: self.events.clone(),
-            window: self.window.clone(),
-        }
     }
 }
