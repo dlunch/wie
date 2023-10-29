@@ -26,12 +26,11 @@ impl SktArchive {
 
     pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
         let msd = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
-        let app_id = msd.0.strip_suffix(".msd").unwrap();
         let msd = SktMsd::parse(msd.1);
 
-        tracing::info!("Loading app {}, mclass {}", app_id, msd.main_class);
+        tracing::info!("Loading app {}, mclass {}", msd.id, msd.main_class);
 
-        let jar = files.remove(&format!("{}.jar", app_id)).context("Invalid format")?;
+        let jar = files.remove(&format!("{}.jar", msd.id)).context("Invalid format")?;
 
         Ok(Self::from_jar(jar, &msd.id, &msd.main_class))
     }
