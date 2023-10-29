@@ -1,4 +1,5 @@
 use alloc::{
+    borrow::ToOwned,
     boxed::Box,
     collections::BTreeMap,
     format, str,
@@ -14,6 +15,7 @@ use crate::app::SktApp;
 
 pub struct SktArchive {
     jar: Vec<u8>,
+    id: String,
     main_class_name: String,
 }
 
@@ -31,18 +33,23 @@ impl SktArchive {
 
         let jar = files.remove(&format!("{}.jar", app_id)).context("Invalid format")?;
 
-        Ok(Self::from_jar(jar, &msd.main_class))
+        Ok(Self::from_jar(jar, &msd.id, &msd.main_class))
     }
 
-    pub fn from_jar(data: Vec<u8>, main_class_name: &str) -> Self {
+    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: &str) -> Self {
         Self {
             jar: data,
+            id: id.into(),
             main_class_name: main_class_name.into(),
         }
     }
 }
 
 impl Archive for SktArchive {
+    fn id(&self) -> String {
+        self.id.to_owned()
+    }
+
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
         backend.mount_zip(&self.jar)?;
 
@@ -51,12 +58,14 @@ impl Archive for SktArchive {
 }
 
 struct SktMsd {
+    id: String,
     main_class: String,
 }
 
 impl SktMsd {
     pub fn parse(data: &[u8]) -> Self {
         let mut main_class = String::new();
+        let mut id = String::new();
 
         let mut lines = data.split(|x| *x == b'\n');
 
@@ -65,9 +74,12 @@ impl SktMsd {
                 let value = line[10..].split(|x| *x == b',').collect::<Vec<_>>();
                 main_class = str::from_utf8(value[2]).unwrap().trim().to_string();
             }
+            if line.starts_with(b"DD-ProgName") {
+                id = str::from_utf8(&line[12..]).unwrap().trim().to_string();
+            }
             // TODO load name, it's in euc-kr..
         }
 
-        Self { main_class }
+        Self { id, main_class }
     }
 }

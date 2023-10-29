@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use wie_backend::{App, Archive, Backend};
 
@@ -15,6 +15,10 @@ impl J2MEArchive {
 }
 
 impl Archive for J2MEArchive {
+    fn id(&self) -> String {
+        todo!()
+    }
+
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
         backend.mount_zip(&self.jar)?;
 

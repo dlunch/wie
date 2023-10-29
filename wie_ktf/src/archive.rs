@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
 use anyhow::Context;
 
@@ -8,6 +8,7 @@ use crate::app::KtfApp;
 
 pub struct KtfArchive {
     jar: Vec<u8>,
+    id: String,
     main_class_name: String,
 }
 
@@ -26,18 +27,23 @@ impl KtfArchive {
 
         // TODO load resource on P directory
 
-        Ok(Self::from_jar(jar, &adf.mclass))
+        Ok(Self::from_jar(jar, &adf.aid, &adf.mclass))
     }
 
-    pub fn from_jar(data: Vec<u8>, main_class_name: &str) -> Self {
+    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: &str) -> Self {
         Self {
             jar: data,
+            id: id.into(),
             main_class_name: main_class_name.into(),
         }
     }
 }
 
 impl Archive for KtfArchive {
+    fn id(&self) -> String {
+        self.id.to_owned()
+    }
+
     fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
         backend.mount_zip(&self.jar)?;
 
