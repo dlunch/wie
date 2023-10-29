@@ -44,6 +44,7 @@ impl Database {
     pub fn new(base_path: PathBuf) -> anyhow::Result<Self> {
         tracing::trace!("Opening database at {:?}", base_path);
 
+        // TODO wasm?
         fs::create_dir_all(&base_path)?;
 
         Ok(Self { base_path })
