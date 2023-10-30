@@ -39,6 +39,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
+          targets: wasm32-unknown-unknown
           components: rustfmt, clippy
 
       - name: Install required packages
@@ -51,4 +52,5 @@ jobs:
 
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all -- -D warnings
+      - run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
       - run: cargo test --all
