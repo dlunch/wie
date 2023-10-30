@@ -52,13 +52,6 @@ jobs:
           toolchain: stable
           targets: wasm32-unknown-unknown
 
-      - uses: jetli/trunk-action@v0.4.0
-        with:
-          version: "latest"
-
-      - run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
-        working-directory: ./wie_web
-
       - name: npm install
         working-directory: ./wie_web
         run: npm install

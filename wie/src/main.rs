@@ -1,5 +1,7 @@
 extern crate alloc;
 
+cfg_if::cfg_if! {
+if #[cfg(not(target_arch = "wasm32"))] {
 mod window;
 
 use std::{
@@ -101,4 +103,9 @@ fn convert_key(key_code: TAOKeyCode) -> Option<KeyCode> {
         TAOKeyCode::ArrowRight => Some(KeyCode::RIGHT),
         _ => None,
     }
+}
+}
+else {
+fn main() {}
+}
 }
