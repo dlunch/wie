@@ -28,6 +28,7 @@ impl DataBase {
                 JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodFlag::NONE),
                 JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodFlag::NONE),
                 JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, JavaMethodFlag::NONE),
+                JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", JavaFieldAccessFlag::NONE)],
         }
@@ -105,5 +106,19 @@ impl DataBase {
         let id = context.backend().database().open(&db_name_str)?.add(cast_slice(&data))?;
 
         Ok(id as _)
+    }
+
+    async fn select_record(context: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>, record_id: i32) -> JavaResult<JavaObjectProxy<Array>> {
+        tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:#x}, {})", this.ptr_instance, record_id);
+
+        let db_name = JavaObjectProxy::new(context.get_field(&this.cast(), "dbName")?);
+        let db_name_str = String::to_rust_string(context, &db_name)?;
+
+        let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
+
+        let array = context.instantiate_array("B", data.len() as _).await?;
+        context.store_array_i8(&array.cast(), 0, cast_slice(&data))?;
+
+        Ok(array.cast())
     }
 }
