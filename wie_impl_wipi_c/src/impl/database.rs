@@ -1,5 +1,9 @@
-use alloc::string::String;
-use alloc::{vec, vec::Vec};
+use alloc::{str, string::String, vec, vec::Vec};
+use core::mem::size_of;
+
+use bytemuck::{Pod, Zeroable};
+
+use wie_base::util::{read_generic, write_generic};
 
 use crate::{
     base::{WIPICContext, WIPICMethodBody, WIPICWord},
@@ -7,38 +11,75 @@ use crate::{
     WIPICResult,
 };
 
+#[derive(Pod, Zeroable, Copy, Clone)]
+#[repr(C)]
+struct DatabaseHandle {
+    name: [u8; 32], // TODO hardcoded max size
+}
+
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
     let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented database{}: {}", id, name)) };
 
     body.into_body()
 }
 
-async fn open_database(_context: &mut dyn WIPICContext, name: String, record_size: i32, create: i32, mode: i32) -> WIPICResult<i32> {
-    tracing::warn!("stub MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
-    Ok(0)
+async fn open_database(context: &mut dyn WIPICContext, name: String, record_size: i32, create: i32, mode: i32) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
+
+    let name_bytes = name.as_bytes();
+    let mut handle = DatabaseHandle { name: [0; 32] };
+
+    handle.name[..name_bytes.len()].copy_from_slice(name_bytes);
+
+    let ptr_handle = context.alloc_raw(size_of::<DatabaseHandle>() as _)?;
+    write_generic(context, ptr_handle, handle)?;
+
+    Ok(ptr_handle as _)
 }
 
-async fn close_database(_context: &mut dyn WIPICContext, db_id: i32) -> WIPICResult<i32> {
-    tracing::warn!("stub MC_dbCloseDataBase({})", db_id);
-    Ok(0)
+async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbCloseDataBase({})", db_id);
+
+    context.free_raw(db_id as _)?;
+
+    Ok(0) // success
 }
 
 async fn delete_database(_context: &mut dyn WIPICContext, name: WIPICWord, mode: i32) -> WIPICResult<i32> {
-    tracing::warn!("stub MC_dbCloseDataBase({:#x}, {})", name, mode);
+    tracing::warn!("stub MC_dbDeleteDataBase({:#x}, {})", name, mode);
 
     Ok(0)
 }
 
-async fn insert_record(_context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
-    tracing::warn!("stub MC_dbInsertRecord({}, {:#x}, {})", db_id, buf_ptr, buf_len);
+async fn insert_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbInsertRecord({}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
-    Ok(0)
+    let data = context.read_bytes(buf_ptr, buf_len)?;
+    let handle: DatabaseHandle = read_generic(context, db_id as _)?;
+
+    let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
+    let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
+
+    let mut db = context.backend().database().open(db_name)?;
+
+    let id = db.add(&data)?;
+
+    Ok(id as _)
 }
 
-async fn delete_record(_context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> WIPICResult<i32> {
-    tracing::warn!("stub MC_dbDeleteRecord({}, {})", db_id, rec_id);
+async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbDeleteRecord({}, {})", db_id, rec_id);
 
-    Ok(0)
+    let handle: DatabaseHandle = read_generic(context, db_id as _)?;
+
+    let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
+    let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
+
+    let mut db = context.backend().database().open(db_name)?;
+
+    db.delete(rec_id as _)?;
+
+    Ok(0) // success
 }
 
 async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
