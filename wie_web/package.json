@@ -13,7 +13,7 @@
     "@wasm-tool/wasm-pack-plugin": "^1.7.0",
     "css-loader": "^6.8.1",
     "html-bundler-webpack-plugin": "^2.14.2",
-    "sass": "^1.68.0",
+    "sass": "^1.69.5",
     "sass-loader": "^13.3.2",
     "ts-loader": "^9.5.0",
     "ts-node": "^10.9.1",
