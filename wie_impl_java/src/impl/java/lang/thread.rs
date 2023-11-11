@@ -24,14 +24,14 @@ impl Thread {
                 JavaMethodProto::new("sleep", "(J)V", Self::sleep, JavaMethodFlag::NATIVE),
                 JavaMethodProto::new("yield", "()V", Self::r#yield, JavaMethodFlag::NATIVE),
             ],
-            fields: vec![JavaFieldProto::new("runnable", "Ljava/lang/Runnable;", crate::JavaFieldAccessFlag::NONE)],
+            fields: vec![JavaFieldProto::new("target", "Ljava/lang/Runnable;", crate::JavaFieldAccessFlag::NONE)],
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, runnable: JavaObjectProxy<Runnable>) -> JavaResult<()> {
-        tracing::debug!("Thread::<init>({:#x}, {:#x})", this.ptr_instance, runnable.ptr_instance);
+    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, target: JavaObjectProxy<Runnable>) -> JavaResult<()> {
+        tracing::debug!("Thread::<init>({:#x}, {:#x})", this.ptr_instance, target.ptr_instance);
 
-        context.put_field(&this.cast(), "runnable", runnable.ptr_instance)?;
+        context.put_field(&this.cast(), "runnable", target.ptr_instance)?;
 
         Ok(())
     }
@@ -55,9 +55,9 @@ impl Thread {
             }
         }
 
-        let runnable = JavaObjectProxy::new(context.get_field(&this.cast(), "runnable")?);
+        let target = JavaObjectProxy::new(context.get_field(&this.cast(), "target")?);
 
-        context.spawn(Box::new(ThreadStartProxy { runnable }))?;
+        context.spawn(Box::new(ThreadStartProxy { runnable: target }))?;
 
         Ok(())
     }
