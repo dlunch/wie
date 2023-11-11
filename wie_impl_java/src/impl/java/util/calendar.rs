@@ -27,6 +27,7 @@ impl Calendar {
         tracing::warn!("stub java.util.Calendar::getInstance()");
 
         let instance = context.instantiate("Ljava/util/GregorianCalendar;").await?.cast();
+        // TODO call <init>
 
         Ok(instance)
     }
