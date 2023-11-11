@@ -40,8 +40,8 @@ async fn current_time(context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> 
     Ok(context.backend().time().now().raw() as WIPICWord)
 }
 
-async fn get_system_property(_context: &mut dyn WIPICContext, p_id: WIPICWord, p_out: WIPICWord, buf_size: WIPICWord) -> WIPICResult<i32> {
-    tracing::warn!("stub MC_knlGetSystemProperty({:#x}, {:#x}, {})", p_id, p_out, buf_size);
+async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> WIPICResult<i32> {
+    tracing::warn!("stub MC_knlGetSystemProperty({}, {:#x}, {})", id, p_out, buf_size);
 
     Ok(0)
 }
