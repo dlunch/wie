@@ -234,6 +234,8 @@ impl EventQueue {
             // TODO temporary until we have correct gc
             let image_data = JavaObjectProxy::new(context.get_field(&java_image.cast(), "imgData")?);
             context.destroy(image_data)?;
+            context.destroy(java_image.cast())?;
+            context.put_field(&graphics, "img", 0)?;
 
             let mut canvas = context.backend().screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());
