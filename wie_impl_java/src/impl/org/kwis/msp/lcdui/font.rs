@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
 };
 
@@ -14,6 +14,7 @@ impl Font {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
@@ -23,8 +24,22 @@ impl Font {
                     JavaMethodFlag::STATIC,
                 ),
             ],
-            fields: vec![],
+            fields: vec![
+                JavaFieldProto::new("FACE_SYSTEM", "I", crate::JavaFieldAccessFlag::STATIC),
+                JavaFieldProto::new("STYLE_PLAIN", "I", crate::JavaFieldAccessFlag::STATIC),
+                JavaFieldProto::new("SIZE_SMALL", "I", crate::JavaFieldAccessFlag::STATIC),
+            ],
         }
+    }
+
+    async fn cl_init(context: &mut dyn JavaContext, this: JavaObjectProxy<Font>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::<clinit>({:#x})", this.ptr_instance);
+
+        context.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", 0)?;
+        context.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", 0)?;
+        context.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", 8)?;
+
+        Ok(())
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Font>) -> JavaResult<()> {
