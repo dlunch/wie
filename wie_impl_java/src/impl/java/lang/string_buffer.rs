@@ -31,6 +31,7 @@ impl StringBuffer {
                     JavaMethodFlag::NONE,
                 ),
                 JavaMethodProto::new("append", "(I)Ljava/lang/StringBuffer;", Self::append_integer, JavaMethodFlag::NONE),
+                JavaMethodProto::new("append", "(J)Ljava/lang/StringBuffer;", Self::append_long, JavaMethodFlag::NONE),
                 JavaMethodProto::new("append", "(C)Ljava/lang/StringBuffer;", Self::append_character, JavaMethodFlag::NONE),
                 JavaMethodProto::new("toString", "()Ljava/lang/String;", Self::to_string, JavaMethodFlag::NONE),
             ],
@@ -85,6 +86,26 @@ impl StringBuffer {
         tracing::debug!("java.lang.StringBuffer::append({:#x}, {:#x})", this.ptr_instance, value);
 
         let digits = value.to_string();
+
+        Self::append(context, &this, &digits).await?;
+
+        Ok(this)
+    }
+
+    async fn append_long(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<StringBuffer>,
+        value_low: i32,
+        value_high: i32,
+    ) -> JavaResult<JavaObjectProxy<StringBuffer>> {
+        tracing::debug!(
+            "java.lang.StringBuffer::append({:#x}, {:#x}, {:#x})",
+            this.ptr_instance,
+            value_low,
+            value_high
+        );
+
+        let digits = ((value_high as i64) << 32 | (value_low as i64)).to_string();
 
         Self::append(context, &this, &digits).await?;
 
