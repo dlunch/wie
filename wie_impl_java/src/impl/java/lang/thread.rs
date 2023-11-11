@@ -31,7 +31,7 @@ impl Thread {
     async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, target: JavaObjectProxy<Runnable>) -> JavaResult<()> {
         tracing::debug!("Thread::<init>({:#x}, {:#x})", this.ptr_instance, target.ptr_instance);
 
-        context.put_field(&this.cast(), "runnable", target.ptr_instance)?;
+        context.put_field(&this.cast(), "target", target.ptr_instance)?;
 
         Ok(())
     }
