@@ -154,6 +154,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/Thread" => crate::r#impl::java::lang::Thread::as_proto(),
         "java/lang/Throwable" => crate::r#impl::java::lang::Throwable::as_proto(),
         "java/util/Calendar" => crate::r#impl::java::util::Calendar::as_proto(),
+        "java/util/GregorianCalendar" => crate::r#impl::java::util::GregorianCalendar::as_proto(),
         "java/util/Hashtable" => crate::r#impl::java::util::Hashtable::as_proto(),
         "java/util/Random" => crate::r#impl::java::util::Random::as_proto(),
         "java/util/Timer" => crate::r#impl::java::util::Timer::as_proto(),
