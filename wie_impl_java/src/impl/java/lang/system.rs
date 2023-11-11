@@ -2,8 +2,8 @@ use alloc::vec;
 
 use crate::{
     array::Array,
-    base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    JavaObjectProxy,
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    JavaFieldAccessFlag, JavaObjectProxy,
 };
 
 // class java.lang.System
@@ -15,6 +15,7 @@ impl System {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, JavaMethodFlag::STATIC),
                 JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodFlag::NATIVE),
                 JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
@@ -24,8 +25,19 @@ impl System {
                     JavaMethodFlag::NATIVE,
                 ),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("out", "Ljava/io/PrintStream;", JavaFieldAccessFlag::STATIC)],
         }
+    }
+
+    async fn cl_init(context: &mut dyn JavaContext) -> JavaResult<()> {
+        tracing::debug!("java.lang.System::<clinit>()");
+
+        let out = context.instantiate("Ljava/io/PrintStream;").await?;
+        // TODO call constructor with dummy output stream?
+
+        context.put_static_field("java/lang/System", "out", out.ptr_instance)?;
+
+        Ok(())
     }
 
     async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<i32> {
