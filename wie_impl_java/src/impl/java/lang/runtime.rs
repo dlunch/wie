@@ -17,6 +17,7 @@ impl Runtime {
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime, JavaMethodFlag::NONE),
                 JavaMethodProto::new("totalMemory", "()J", Self::total_memory, JavaMethodFlag::NONE),
+                JavaMethodProto::new("freeMemory", "()J", Self::free_memory, JavaMethodFlag::NONE),
                 JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::NONE),
             ],
             fields: vec![],
@@ -39,7 +40,13 @@ impl Runtime {
     }
 
     async fn total_memory(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<i32> {
-        tracing::warn!("stub java.lang.Runtime::total_memory({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Runtime::totalMemory({:#x})", this.ptr_instance);
+
+        Ok(0x100000) // TODO: hardcoded
+    }
+
+    async fn free_memory(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<i32> {
+        tracing::warn!("stub java.lang.Runtime::freeMemory({:#x})", this.ptr_instance);
 
         Ok(0x100000) // TODO: hardcoded
     }
