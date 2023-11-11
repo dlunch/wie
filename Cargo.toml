@@ -20,6 +20,8 @@ default-members = ["wie"]
 
 [profile.release]
 lto = true
+
+[profile.release.package.wie_web]
 opt-level = "z"
 
 [workspace.package]
