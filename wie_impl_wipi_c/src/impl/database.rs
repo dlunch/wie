@@ -100,8 +100,8 @@ fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Databa
 pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
     vec![
         open_database.into_body(),
-        list_record.into_body(),
         insert_record.into_body(),
+        list_record.into_body(),
         close_database.into_body(),
         gen_stub(4, "MC_dbSelectRecord"),
         gen_stub(5, "MC_dbUpdateRecord"),
