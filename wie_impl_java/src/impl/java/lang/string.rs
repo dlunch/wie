@@ -29,6 +29,7 @@ impl String {
                 JavaMethodProto::new("<init>", "([C)V", Self::init_with_char_array, JavaMethodFlag::NONE),
                 JavaMethodProto::new("<init>", "([CII)V", Self::init_with_partial_char_array, JavaMethodFlag::NONE),
                 JavaMethodProto::new("<init>", "([BII)V", Self::init_with_partial_byte_array, JavaMethodFlag::NONE),
+                JavaMethodProto::new("equals", "(Ljava/lang/Object;)Z", Self::equals, JavaMethodFlag::NONE),
                 JavaMethodProto::new("charAt", "(I)C", Self::char_at, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getBytes", "()[B", Self::get_bytes, JavaMethodFlag::NONE),
                 JavaMethodProto::new("length", "()I", Self::length, JavaMethodFlag::NONE),
@@ -122,6 +123,21 @@ impl String {
         context.call_method(&this.cast(), "<init>", "([C)V", &[array.ptr_instance]).await?;
 
         Ok(())
+    }
+
+    async fn equals(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, other: JavaObjectProxy<Object>) -> JavaResult<i32> {
+        tracing::debug!("java.lang.String::equals({:#x}, {:#x})", this.ptr_instance, other.ptr_instance);
+
+        // TODO Object.equals()
+
+        let other_string = Self::to_rust_string(context, &other.cast())?;
+        let this_string = Self::to_rust_string(context, &this)?;
+
+        if this_string == other_string {
+            Ok(1)
+        } else {
+            Ok(0) // TODO boolean type
+        }
     }
 
     async fn char_at(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, index: i32) -> JavaResult<i32> {
