@@ -216,6 +216,10 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> WIPICR
 
                     result += &str;
                 }
+                'c' => {
+                    let byte = arg_iter.next().unwrap();
+                    result.push(*byte as u8 as char)
+                }
                 _ => panic!("Unknown format: {}", format),
             }
         } else {
