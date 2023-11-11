@@ -44,6 +44,7 @@ impl String {
                     JavaMethodFlag::STATIC,
                 ),
                 JavaMethodProto::new("indexOf", "(Ljava/lang/String;I)I", Self::index_of_with_from, JavaMethodFlag::NONE),
+                JavaMethodProto::new("trim", "()Ljava/lang/String;", Self::trim, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE)],
         }
@@ -246,6 +247,16 @@ impl String {
         let index = this_string[from_index as usize..].find(&str_string).map(|x| x as i32 + from_index);
 
         Ok(index.unwrap_or(-1))
+    }
+
+    async fn trim(context: &mut dyn JavaContext, this: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<String>> {
+        tracing::debug!("java.lang.String::trim({:#x})", this.ptr_instance);
+
+        let string = Self::to_rust_string(context, &this)?;
+
+        let trimmed = string.trim().to_string();
+
+        Self::from_rust_string(context, &trimmed).await // TODO buffer sharing
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
