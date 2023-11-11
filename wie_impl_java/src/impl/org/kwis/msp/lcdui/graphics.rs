@@ -49,6 +49,7 @@ impl Graphics {
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, JavaMethodFlag::NONE),
+                JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, JavaMethodFlag::NONE),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, JavaMethodFlag::NONE),
@@ -135,6 +136,16 @@ impl Graphics {
         let rgb = (r << 16) | (g << 8) | b;
 
         context.put_field(&this.cast(), "rgb", rgb as _)?;
+
+        Ok(())
+    }
+
+    async fn set_font(_context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, font: JavaObjectProxy<Font>) -> JavaResult<()> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::setFont({:#x}, {:#x})",
+            this.ptr_instance,
+            font.ptr_instance
+        );
 
         Ok(())
     }
