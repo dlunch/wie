@@ -50,9 +50,15 @@ async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICW
     tracing::debug!("MC_dbListRecords({}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let db = get_database_from_db_id(context, db_id);
-    let count = db.count()?; // TODO insert record ids
+    let ids = db.get_record_ids()?;
 
-    Ok(count as _)
+    let mut cursor = 0;
+    for &id in &ids {
+        write_generic(context, buf_ptr + cursor, id)?;
+        cursor += size_of::<WIPICWord>() as u32;
+    }
+
+    Ok(ids.len() as _)
 }
 
 async fn insert_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {

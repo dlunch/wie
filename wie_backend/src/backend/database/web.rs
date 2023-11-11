@@ -48,4 +48,8 @@ impl Database {
     pub fn count(&self) -> anyhow::Result<usize> {
         Ok(0)
     }
+
+    pub fn get_record_ids(&self) -> anyhow::Result<Vec<RecordId>> {
+        Ok(Vec::new())
+    }
 }
