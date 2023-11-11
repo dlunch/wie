@@ -321,6 +321,7 @@ impl<'a> KtfJavaContext<'a> {
                 b'I' => 4,
                 b'Z' => 1,
                 b'S' => 2,
+                b'J' => 8,
                 _ => unimplemented!("get_array_element_size {}", class_name),
             })
         }
