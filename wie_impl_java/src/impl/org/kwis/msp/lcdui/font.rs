@@ -34,7 +34,7 @@ impl Font {
     }
 
     async fn cl_init(context: &mut dyn JavaContext, this: JavaObjectProxy<Font>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::<clinit>({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>({:#x})", this.ptr_instance);
 
         context.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", 0)?;
         context.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", 0)?;
