@@ -42,6 +42,7 @@ impl String {
                     Self::value_of_object,
                     JavaMethodFlag::STATIC,
                 ),
+                JavaMethodProto::new("indexOf", "(Ljava/lang/String;I)I", Self::index_of_with_from, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("value", "[C", JavaFieldAccessFlag::NONE)],
         }
@@ -213,6 +214,22 @@ impl String {
         // TODO Object.toString()
 
         Self::from_rust_string(context, "").await
+    }
+
+    async fn index_of_with_from(
+        context: &mut dyn JavaContext,
+        this: JavaObjectProxy<String>,
+        str: JavaObjectProxy<String>,
+        from_index: i32,
+    ) -> JavaResult<i32> {
+        tracing::debug!("java.lang.String::indexOf({:#x}, {:#x})", this.ptr_instance, str.ptr_instance);
+
+        let this_string = Self::to_rust_string(context, &this)?;
+        let str_string = Self::to_rust_string(context, &str)?;
+
+        let index = this_string[from_index as usize..].find(&str_string).map(|x| x as i32 + from_index);
+
+        Ok(index.unwrap_or(-1))
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JavaObjectProxy<String>) -> JavaResult<RustString> {
