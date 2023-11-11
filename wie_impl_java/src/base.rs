@@ -133,6 +133,7 @@ pub trait JavaContext {
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     Some(match name {
         "java/io/ByteArrayInputStream" => crate::r#impl::java::io::ByteArrayInputStream::as_proto(),
+        "java/io/DataInputStream" => crate::r#impl::java::io::DataInputStream::as_proto(),
         "java/io/EOFException" => crate::r#impl::java::io::EOFException::as_proto(),
         "java/io/IOException" => crate::r#impl::java::io::IOException::as_proto(),
         "java/io/InputStream" => crate::r#impl::java::io::InputStream::as_proto(),
