@@ -57,6 +57,7 @@ impl Graphics {
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, JavaMethodFlag::NONE),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, JavaMethodFlag::NONE),
+                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodFlag::NONE),
@@ -159,14 +160,27 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_clip(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a0: i32, a1: i32, a2: i32, a3: i32) -> JavaResult<()> {
+    async fn set_clip(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Graphics::setClip({:#x}, {}, {}, {}, {})",
             this.ptr_instance,
-            a0,
-            a1,
-            a2,
-            a3
+            x,
+            y,
+            width,
+            height
+        );
+
+        Ok(())
+    }
+
+    async fn clip_rect(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::clipRect({:#x}, {}, {}, {}, {})",
+            this.ptr_instance,
+            x,
+            y,
+            width,
+            height
         );
 
         Ok(())
