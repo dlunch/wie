@@ -61,6 +61,9 @@ impl Graphics {
                 JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, JavaMethodFlag::NONE),
+                JavaMethodProto::new("translate", "(II)V", Self::translate, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", JavaFieldAccessFlag::NONE),
@@ -328,6 +331,24 @@ impl Graphics {
         let h = context.get_field(&this.cast(), "h")?;
 
         Ok(h as _)
+    }
+
+    async fn get_translate_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:#x})", this.ptr_instance);
+
+        Ok(0)
+    }
+
+    async fn get_translate_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:#x})", this.ptr_instance);
+
+        Ok(0)
+    }
+
+    async fn translate(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:#x}, {}, {})", this.ptr_instance, x, y);
+
+        Ok(())
     }
 
     async fn image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {
