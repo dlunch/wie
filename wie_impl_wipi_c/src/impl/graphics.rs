@@ -287,6 +287,43 @@ async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h:
     Ok(memory)
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn copy_frame_buffer(
+    context: &mut dyn WIPICContext,
+    dst: WIPICMemoryId,
+    dx: i32,
+    dy: i32,
+    w: i32,
+    h: i32,
+    src: WIPICMemoryId,
+    sx: i32,
+    sy: i32,
+    pgc: WIPICWord,
+) -> WIPICResult<()> {
+    tracing::debug!(
+        "MC_grpCopyFrameBuffer({:#x}, {}, {}, {}, {}, {:#x}, {}, {}, {:#x})",
+        dst.0,
+        dx,
+        dy,
+        w,
+        h,
+        src.0,
+        sx,
+        sy,
+        pgc
+    );
+
+    let src_framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(src)?)?;
+    let dst_framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+
+    let src_image = src_framebuffer.image(context)?;
+    let mut dst_canvas = dst_framebuffer.canvas(context)?;
+
+    dst_canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _);
+
+    Ok(())
+}
+
 pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
     vec![
         gen_stub(0, "MC_grpGetImageProperty"),
@@ -301,7 +338,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(9, "MC_grpDrawLine"),
         gen_stub(10, "MC_grpDrawRect"),
         fill_rect.into_body(),
-        gen_stub(12, "MC_grpCopyFrameBuffer"),
+        copy_frame_buffer.into_body(),
         draw_image.into_body(),
         copy_area.into_body(),
         gen_stub(15, "MC_grpDrawArc"),
