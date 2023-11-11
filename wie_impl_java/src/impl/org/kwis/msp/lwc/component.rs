@@ -16,6 +16,7 @@ impl Component {
             methods: vec![
                 JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setFocus", "()V", Self::set_focus, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
             ],
             fields: vec![],
         }
@@ -23,7 +24,7 @@ impl Component {
 
     async fn key_notify(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>, r#type: i32, chr: i32) -> JavaResult<i32> {
         tracing::warn!(
-            "stub org.kwis.msp.lwc.Component::key_notify({:#x}, {:#x}, {:#x})",
+            "stub org.kwis.msp.lwc.Component::keyNotify({:#x}, {:#x}, {:#x})",
             this.ptr_instance,
             r#type,
             chr
@@ -33,8 +34,14 @@ impl Component {
     }
 
     async fn set_focus(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::set_focus({:#x})", this.ptr_instance,);
+        tracing::warn!("stub org.kwis.msp.lwc.Component::setFocus({:#x})", this.ptr_instance,);
 
         Ok(())
+    }
+
+    async fn get_height(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({:#x})", this.ptr_instance,);
+
+        Ok(0)
     }
 }
