@@ -10,7 +10,7 @@ on:
 name: Rust CI
 
 jobs:
-  ci:
+  rust_ci:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

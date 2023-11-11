@@ -10,7 +10,7 @@ on:
 name: Web CI
 
 jobs:
-  ci:
+  web_ci:
     runs-on: ubuntu-latest
     strategy:
       matrix:
