@@ -23,6 +23,7 @@ impl Font {
                     Self::get_default_font,
                     JavaMethodFlag::STATIC,
                 ),
+                JavaMethodProto::new("getFont", "(III)Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::STATIC),
             ],
             fields: vec![
                 JavaFieldProto::new("FACE_SYSTEM", "I", crate::JavaFieldAccessFlag::STATIC),
@@ -49,13 +50,22 @@ impl Font {
     }
 
     async fn get_height(_: &mut dyn JavaContext) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::get_height");
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::getHeight");
 
         Ok(12) // TODO: hardcoded
     }
 
     async fn get_default_font(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Font>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::get_default_font");
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
+
+        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Font;").await?;
+        context.call_method(&instance, "<init>", "()V", &[]).await?;
+
+        Ok(instance.cast())
+    }
+
+    async fn get_font(context: &mut dyn JavaContext, face: i32, style: i32, size: i32) -> JavaResult<JavaObjectProxy<Font>> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:#x}, {:#x}, {:#x})", face, style, size);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Font;").await?;
         context.call_method(&instance, "<init>", "()V", &[]).await?;
