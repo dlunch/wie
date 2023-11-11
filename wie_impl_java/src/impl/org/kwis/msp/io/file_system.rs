@@ -17,6 +17,7 @@ impl FileSystem {
             methods: vec![
                 JavaMethodProto::new("isFile", "(Ljava/lang/String;)Z", Self::is_file, JavaMethodFlag::STATIC),
                 JavaMethodProto::new("isDirectory", "(Ljava/lang/String;I)Z", Self::is_directory, JavaMethodFlag::STATIC),
+                JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, JavaMethodFlag::STATIC),
             ],
             fields: vec![],
         }
@@ -32,5 +33,11 @@ impl FileSystem {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:#x}, {:#x})", name.ptr_instance, flag);
 
         Ok(1)
+    }
+
+    async fn exists(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:#x})", name.ptr_instance);
+
+        Ok(0)
     }
 }
