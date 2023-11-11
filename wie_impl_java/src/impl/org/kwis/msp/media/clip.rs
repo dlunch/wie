@@ -3,7 +3,7 @@ use alloc::vec;
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JavaObjectProxy,
-    r#impl::java::lang::String,
+    r#impl::{java::lang::String, org::kwis::msp::media::PlayListener},
     Array,
 };
 
@@ -19,6 +19,12 @@ impl Clip {
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;Ljava/lang/String;)V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init_with_data, JavaMethodFlag::NONE),
                 JavaMethodProto::new("setVolume", "(I)Z", Self::set_volume, JavaMethodFlag::NONE),
+                JavaMethodProto::new(
+                    "setListener",
+                    "(Lorg/kwis/msp/media/PlayListener;)V",
+                    Self::set_listener,
+                    JavaMethodFlag::NONE,
+                ),
             ],
             fields: vec![],
         }
@@ -58,6 +64,16 @@ impl Clip {
 
     async fn set_volume(_: &mut dyn JavaContext, this: JavaObjectProxy<Clip>, level: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:#x}, {})", this.ptr_instance, level);
+
+        Ok(())
+    }
+
+    async fn set_listener(_: &mut dyn JavaContext, this: JavaObjectProxy<Clip>, listener: JavaObjectProxy<PlayListener>) -> JavaResult<()> {
+        tracing::warn!(
+            "stub org.kwis.msp.media.Clip::setListener({:#x}, {:#x})",
+            this.ptr_instance,
+            listener.ptr_instance
+        );
 
         Ok(())
     }
