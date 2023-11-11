@@ -1,5 +1,5 @@
 pub mod canvas;
-mod database;
+pub mod database;
 mod resource;
 pub mod time;
 pub mod window;

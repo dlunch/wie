@@ -5,7 +5,7 @@ mod executor;
 pub mod task;
 
 pub use self::{
-    backend::{canvas, window::Window, Backend},
+    backend::{canvas, database::Database, window::Window, Backend},
     executor::{AsyncCallable, Executor},
 };
 
