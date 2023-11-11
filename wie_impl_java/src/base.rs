@@ -137,6 +137,8 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/io/EOFException" => crate::r#impl::java::io::EOFException::as_proto(),
         "java/io/IOException" => crate::r#impl::java::io::IOException::as_proto(),
         "java/io/InputStream" => crate::r#impl::java::io::InputStream::as_proto(),
+        "java/io/OutputStream" => crate::r#impl::java::io::OutputStream::as_proto(),
+        "java/io/PrintStream" => crate::r#impl::java::io::PrintStream::as_proto(),
         "java/lang/Class" => crate::r#impl::java::lang::Class::as_proto(),
         "java/lang/Exception" => crate::r#impl::java::lang::Exception::as_proto(),
         "java/lang/IllegalArgumentException" => crate::r#impl::java::lang::IllegalArgumentException::as_proto(),
