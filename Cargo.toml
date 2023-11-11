@@ -18,6 +18,9 @@ members = [
 
 default-members = ["wie"]
 
+[profile.dev]
+opt-level = 1
+
 [profile.release]
 lto = true
 
