@@ -18,6 +18,10 @@ members = [
 
 default-members = ["wie"]
 
+[profile.release]
+lto = true
+opt-level = "z"
+
 [workspace.package]
 version = "0.0.1"
 edition = "2021"
