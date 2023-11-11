@@ -23,6 +23,7 @@ opt-level = 1
 
 [profile.release]
 lto = true
+strip = true
 
 [workspace.package]
 version = "0.0.1"
