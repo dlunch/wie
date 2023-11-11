@@ -94,6 +94,13 @@ impl Database {
         Ok(fs::read_dir(&self.base_path)?.filter(|x| x.as_ref().unwrap().path().is_file()).count())
     }
 
+    pub fn get_record_ids(&self) -> anyhow::Result<Vec<RecordId>> {
+        Ok(fs::read_dir(&self.base_path)?
+            .filter(|x| x.as_ref().unwrap().path().is_file())
+            .map(|x| x.unwrap().file_name().to_str().unwrap().parse().unwrap())
+            .collect())
+    }
+
     fn get_path_for_record(&self, id: RecordId) -> PathBuf {
         self.base_path.join(id.to_string())
     }
