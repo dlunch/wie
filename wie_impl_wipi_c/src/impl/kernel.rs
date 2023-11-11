@@ -1,9 +1,14 @@
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::{cell::Ref, iter};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_base::util::{read_generic, write_generic};
+use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
 
 use crate::{
     base::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
@@ -162,10 +167,24 @@ async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICM
     Ok(0)
 }
 
-async fn printk(_context: &mut dyn WIPICContext, format: WIPICWord) -> WIPICResult<()> {
-    tracing::warn!("stub MC_knlPrintk({:#x})", format);
+async fn printk(context: &mut dyn WIPICContext, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> WIPICResult<()> {
+    tracing::warn!("stub MC_knlPrintk({}, {:#x}, {:#x}, {:#x}, {:#x})", format, a0, a1, a2, a3);
+
+    let result = sprintf(context, &format, &[a0, a1, a2, a3])?;
+
+    tracing::info!("printk: {}", result);
 
     Ok(())
+}
+
+async fn sprintk(context: &mut dyn WIPICContext, dest: WIPICWord, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> WIPICResult<WIPICWord> {
+    tracing::debug!("MC_knlSprintk({:#x}, {}, {:#x}, {:#x}, {:#x}, {:#x})", dest, format, a0, a1, a2, a3);
+
+    let result = sprintf(context, &format, &[a0, a1, a2, a3])?;
+
+    write_null_terminated_string(context, dest, &result)?;
+
+    Ok(result.len() as _)
 }
 
 async fn get_total_memory(_context: &mut dyn WIPICContext) -> WIPICResult<i32> {
@@ -180,13 +199,40 @@ async fn get_free_memory(_context: &mut dyn WIPICContext) -> WIPICResult<i32> {
     Ok(0x100000) // TODO hardcoded
 }
 
+fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> WIPICResult<String> {
+    let mut result = String::with_capacity(format.len());
+    let mut chars = format.chars();
+    let mut arg_iter = args.iter();
+
+    while let Some(x) = chars.next() {
+        if x == '%' {
+            let format = chars.next().unwrap();
+            match format {
+                '%' => result.push('%'),
+                'd' => result += &arg_iter.next().unwrap().to_string(),
+                's' => {
+                    let ptr = arg_iter.next().unwrap();
+                    let str = read_null_terminated_string(context, *ptr)?;
+
+                    result += &str;
+                }
+                _ => panic!("Unknown format: {}", format),
+            }
+        } else {
+            result.push(x);
+        }
+    }
+
+    Ok(result)
+}
+
 pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<WIPICMethodBody>
 where
     M: MethodImpl<F, R, WIPICError, P>,
 {
     vec![
         printk.into_body(),
-        gen_stub(1, "MC_knlSprintk"),
+        sprintk.into_body(),
         gen_stub(2, "MC_knlGetExecNames"),
         gen_stub(3, "MC_knlExecute"),
         gen_stub(4, "MC_knlMExecute"),
