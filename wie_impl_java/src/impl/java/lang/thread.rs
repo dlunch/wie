@@ -23,6 +23,7 @@ impl Thread {
                 JavaMethodProto::new("start", "()V", Self::start, JavaMethodFlag::NONE),
                 JavaMethodProto::new("sleep", "(J)V", Self::sleep, JavaMethodFlag::NATIVE),
                 JavaMethodProto::new("yield", "()V", Self::r#yield, JavaMethodFlag::NATIVE),
+                JavaMethodProto::new("setPriority", "(I)V", Self::set_priority, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("target", "Ljava/lang/Runnable;", crate::JavaFieldAccessFlag::NONE)],
         }
@@ -74,5 +75,11 @@ impl Thread {
         task::yield_now().await;
 
         Ok(0)
+    }
+
+    async fn set_priority(_: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, new_priority: i32) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.Thread::setPriority({:#x}, {:#x})", this.ptr_instance, new_priority);
+
+        Ok(())
     }
 }
