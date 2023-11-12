@@ -8,7 +8,7 @@ impl Audio {
         Self {}
     }
 
-    pub fn load_mmf(&mut self, data: &[u8]) -> anyhow::Result<()> {
+    pub fn load_smaf(&mut self, data: &[u8]) -> anyhow::Result<()> {
         let smaf = Smaf::new(data)?;
 
         for chunk in &smaf.chunks {
