@@ -110,7 +110,7 @@ async fn clip_put_data(context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIP
 
     let data = context.read_bytes(buf, buf_size)?;
 
-    context.backend().audio().load_mmf(&data)?;
+    context.backend().audio().load_smaf(&data)?;
 
     Ok(0)
 }
