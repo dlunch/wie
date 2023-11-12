@@ -2517,6 +2517,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "smaf"
+version = "0.1.0"
+source = "git+https://github.com/dlunch/smaf.git#39eb3a32df425fdacf17aeecbf9272cbcb63d44f"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3217,6 +3225,7 @@ dependencies = [
  "num-traits",
  "piet",
  "piet-common",
+ "smaf",
  "time",
  "tracing",
  "wie_base",
