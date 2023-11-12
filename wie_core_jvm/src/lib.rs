@@ -1,14 +1,17 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{fmt::Debug, format};
+use alloc::{fmt::Debug, format, rc::Rc};
+use core::cell::RefCell;
 
-use cafebabe::parse_class;
+use jvm::Jvm;
 
 use wie_backend::{task, AsyncCallable, Backend};
 
 #[derive(Clone, Default)]
-pub struct JvmCore {}
+pub struct JvmCore {
+    jvm: Rc<RefCell<Jvm>>,
+}
 
 #[allow(dead_code)]
 pub struct JvmClass<'a> {
@@ -17,7 +20,9 @@ pub struct JvmClass<'a> {
 
 impl JvmCore {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            jvm: Rc::new(RefCell::new(Jvm::new())),
+        }
     }
 
     pub fn spawn<C, R, E>(&mut self, callable: C)
@@ -36,10 +41,8 @@ impl JvmCore {
         let resource_id = resource.id(&path).unwrap();
         let class_data = resource.data(resource_id);
 
-        let class = parse_class(class_data)?;
+        self.jvm.borrow_mut().load_class(class_data)?;
 
-        tracing::info!("Loaded class {:?}", class);
-
-        todo!("")
+        todo!()
     }
 }
