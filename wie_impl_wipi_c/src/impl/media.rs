@@ -1,9 +1,71 @@
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
+use core::mem::size_of;
 
 use crate::{
     base::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
     method::MethodImpl,
 };
+
+#[repr(C)]
+struct MdaClip {
+    clip_id: i32,
+    h_proc: i32,
+    r#type: u8,
+    in_use: bool,
+    dev_id: i32,
+
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    mute: bool,
+    watermark: i32,
+    position: i32,
+    quality: i32,
+    mode: i32,
+    state: i32,
+    penpot: i32,
+    num_slave: i32,
+
+    clip_save: WIPICWord, // MC_MdaClip**
+
+    audio_tone_saved_len: i32,
+    audio_tone_len: i32,
+    audio_tone: WIPICWord,          // MC_MdaToneType*
+    audio_tone_duration: WIPICWord, // M_Int32 *
+
+    audio_freq_saved_len: i32,
+    audio_freq_len: i32,
+    audio_hi_freq: WIPICWord,       // M_Int32 *
+    audio_low_freq: WIPICWord,      // M_Int32 *
+    audio_freq_duration: WIPICWord, // M_Int32 *
+
+    sound_data_saved_len: i32,
+    sound_data_len: i32,
+    sound_data: WIPICWord, // M_Byte *
+
+    original_volume: i32,
+
+    pos: i8,
+    codec_config_data_size: i32,
+    codec_config_data: WIPICWord, // M_Byte *
+    tick_duration: i32,
+
+    b_control: bool,
+
+    movie_record_size_width: i32,
+    movie_record_size_height: i32,
+    max_record_length: i32,
+
+    temp_record_space: WIPICWord, // M_Byte *
+    temp_record_space_size: i32,
+    temp_reord_size: i32,
+
+    next_ptr: WIPICWord, // MC_MdaClip*
+
+    mda_id: i32,
+    device_info: i32,
+}
 
 fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
     let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented media{}: {}", id, name)) };
@@ -11,10 +73,12 @@ fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
     body.into_body()
 }
 
-async fn clip_create(_context: &mut dyn WIPICContext, r#type: WIPICWord, buf_size: WIPICWord, callback: WIPICWord) -> WIPICResult<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipCreate({:#x}, {:#x}, {:#x})", r#type, buf_size, callback);
+async fn clip_create(context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> WIPICResult<WIPICWord> {
+    tracing::warn!("stub MC_mdaClipCreate({}, {:#x}, {:#x})", r#type, buf_size, callback);
 
-    Ok(0)
+    let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
+
+    Ok(clip)
 }
 
 async fn clip_get_type(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> WIPICResult<WIPICWord> {
@@ -41,8 +105,12 @@ async fn clip_get_info(
     Ok(0)
 }
 
-async fn clip_put_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn clip_put_data(context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> WIPICResult<WIPICWord> {
     tracing::warn!("stub MC_mdaClipPutData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
+
+    let data = context.read_bytes(buf, buf_size)?;
+
+    context.backend().audio().load_mmf(&data)?;
 
     Ok(0)
 }

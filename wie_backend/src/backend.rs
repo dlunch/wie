@@ -1,3 +1,4 @@
+mod audio;
 pub mod canvas;
 pub mod database;
 mod resource;
@@ -12,6 +13,7 @@ use wie_base::Event;
 use crate::extract_zip;
 
 use self::{
+    audio::Audio,
     canvas::{ArgbPixel, Canvas, ImageBuffer},
     database::DatabaseRepository,
     resource::Resource,
@@ -27,6 +29,7 @@ pub struct Backend {
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
     window: Rc<RefCell<Box<dyn Window>>>,
+    audio: Rc<RefCell<Audio>>,
 }
 
 impl Backend {
@@ -40,6 +43,7 @@ impl Backend {
             screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
             window: Rc::new(RefCell::new(window)),
+            audio: Rc::new(RefCell::new(Audio::new())),
         }
     }
 
@@ -61,6 +65,10 @@ impl Backend {
 
     pub fn window(&self) -> RefMut<'_, Box<dyn Window>> {
         (*self.window).borrow_mut()
+    }
+
+    pub fn audio(&self) -> RefMut<'_, Audio> {
+        (*self.audio).borrow_mut()
     }
 
     pub fn pop_event(&self) -> Option<Event> {
