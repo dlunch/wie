@@ -1616,6 +1616,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "jvm"
+version = "0.1.0"
+source = "git+https://github.com/dlunch/jvm.git#d98524d0d714e047d4468f7de0cc569cc7d42c8d"
+dependencies = [
+ "anyhow",
+ "cafebabe",
+ "tracing",
+]
+
+[[package]]
 name = "kurbo"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3263,7 +3273,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytemuck",
- "cafebabe",
+ "jvm",
  "tracing",
  "wie_backend",
  "wie_base",
