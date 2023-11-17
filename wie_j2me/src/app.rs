@@ -11,7 +11,7 @@ pub struct J2MEApp {
 
 impl J2MEApp {
     pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
-        let core = JvmCore::new();
+        let core = JvmCore::new(backend);
 
         Ok(Self {
             core,
@@ -23,9 +23,9 @@ impl J2MEApp {
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
-        core.load_class(backend, &main_class_name)?;
+        core.invoke_static_method(&main_class_name, "startApp", "()V")?;
 
-        todo!()
+        Ok(())
     }
 }
 

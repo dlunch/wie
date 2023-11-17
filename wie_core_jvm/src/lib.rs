@@ -4,9 +4,11 @@ extern crate alloc;
 use alloc::{fmt::Debug, format, rc::Rc};
 use core::cell::RefCell;
 
-use jvm::Jvm;
+use jvm::{Class, ClassLoader, Jvm};
 
 use wie_backend::{task, AsyncCallable, Backend};
+
+pub type JvmCoreResult<T> = anyhow::Result<T>;
 
 #[derive(Clone, Default)]
 pub struct JvmCore {
@@ -14,9 +16,12 @@ pub struct JvmCore {
 }
 
 impl JvmCore {
-    pub fn new() -> Self {
+    pub fn new(backend: &Backend) -> Self {
+        let mut jvm = Jvm::new();
+        jvm.add_class_loader(JvmCoreClassLoader { backend: backend.clone() });
+
         Self {
-            jvm: Rc::new(RefCell::new(Jvm::new())),
+            jvm: Rc::new(RefCell::new(jvm)),
         }
     }
 
@@ -29,13 +34,25 @@ impl JvmCore {
         task::spawn(callable)
     }
 
-    pub fn load_class(&mut self, backend: &Backend, class_name: &str) -> anyhow::Result<()> {
+    pub fn invoke_static_method(&mut self, main_class_name: &str, method_name: &str, descriptor: &str) -> JvmCoreResult<()> {
+        let mut jvm = self.jvm.borrow_mut();
+
+        jvm.invoke_static_method(main_class_name, method_name, descriptor)
+    }
+}
+
+struct JvmCoreClassLoader {
+    backend: Backend,
+}
+
+impl ClassLoader for JvmCoreClassLoader {
+    fn load(&mut self, class_name: &str) -> jvm::JvmResult<Option<jvm::Class>> {
         let path = format!("{}.class", class_name.replace('.', "/"));
 
-        let resource = backend.resource();
+        let resource = self.backend.resource();
         let resource_id = resource.id(&path).unwrap();
         let class_data = resource.data(resource_id);
 
-        self.jvm.borrow_mut().load_class(class_data)
+        Some(Class::from_classfile(class_data)).transpose()
     }
 }
