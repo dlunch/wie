@@ -2529,7 +2529,7 @@ dependencies = [
 [[package]]
 name = "smaf"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#39eb3a32df425fdacf17aeecbf9272cbcb63d44f"
+source = "git+https://github.com/dlunch/smaf.git#5be569871e8ebdfe66d86187158d1c7a57ab89e4"
 dependencies = [
  "anyhow",
 ]

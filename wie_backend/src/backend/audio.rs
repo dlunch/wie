@@ -18,6 +18,9 @@ impl Audio {
                 SmafChunk::ScoreTrack(x, _) => {
                     tracing::info!("Loaded ScoreTrack({})", x)
                 }
+                SmafChunk::PCMAudioTrack(x, _) => {
+                    tracing::info!("Loaded PcmTrack({})", x)
+                }
             }
         }
 
