@@ -8,7 +8,7 @@
   },
   "author": "",
   "devDependencies": {
-    "@types/node": "^20.9.1",
+    "@types/node": "^20.9.2",
     "@types/webpack": "^5.28.5",
     "@wasm-tool/wasm-pack-plugin": "^1.7.0",
     "css-loader": "^6.8.1",
