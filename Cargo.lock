@@ -563,7 +563,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/jvm.git#6a337f6b79df0827fafededf22432f8bcd2b814a"
+source = "git+https://github.com/dlunch/jvm.git#a85b6aee923e4078a890df2792eeab3bb70d4ee8"
 dependencies = [
  "anyhow",
  "nom",
@@ -1651,7 +1651,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/jvm.git#6a337f6b79df0827fafededf22432f8bcd2b814a"
+source = "git+https://github.com/dlunch/jvm.git#a85b6aee923e4078a890df2792eeab3bb70d4ee8"
 dependencies = [
  "anyhow",
  "classfile",
