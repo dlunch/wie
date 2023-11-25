@@ -1,15 +1,11 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use core::mem::size_of;
 
-use wie_backend::Backend;
-use wie_base::util::{read_generic, write_generic, write_null_terminated_string, ByteWrite};
-use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
-use wie_impl_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult, JavaWord};
+use wie_base::util::{write_generic, write_null_terminated_string};
+use wie_core_arm::Allocator;
+use wie_impl_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaResult};
 
-use super::{
-    field::JavaField, name::JavaFullName, vtable_builder::JavaVtableBuilder, JavaClass, JavaClassDescriptor, JavaMethod, JavaMethodFlagBit,
-    KtfJavaContext,
-};
+use super::{field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaClass, JavaClassDescriptor, KtfJavaContext};
 
 pub struct ClassLoader {}
 
@@ -137,45 +133,9 @@ impl ClassLoader {
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let full_name = JavaFullName {
-                tag: 0,
-                name: method.name,
-                signature: method.signature,
-            };
-            let full_name_bytes = full_name.as_bytes();
+            let method = JavaMethod::new(context, ptr_class, method, &mut vtable_builder)?;
 
-            let ptr_name = Allocator::alloc(context.core, full_name_bytes.len() as u32)?;
-            context.core.write_bytes(ptr_name, &full_name_bytes)?;
-
-            let fn_method = Self::register_java_method(context, method.body, method.flag == JavaMethodFlag::NATIVE)?;
-            let (fn_body, fn_body_native) = if method.flag == JavaMethodFlag::NATIVE {
-                (0, fn_method)
-            } else {
-                (fn_method, 0)
-            };
-
-            let ptr_method = Allocator::alloc(context.core, size_of::<JavaMethod>() as u32)?;
-            let index_in_vtable = vtable_builder.add(ptr_method, &full_name) as u16;
-
-            let flag = JavaMethodFlagBit::from_flag(method.flag);
-
-            write_generic(
-                context.core,
-                ptr_method,
-                JavaMethod {
-                    fn_body,
-                    ptr_class,
-                    fn_body_native_or_exception_table: fn_body_native,
-                    ptr_name,
-                    exception_table_count: 0,
-                    unk3: 0,
-                    index_in_vtable,
-                    flag,
-                    unk6: 0,
-                },
-            )?;
-
-            methods.push(ptr_method);
+            methods.push(method.ptr_raw);
         }
         let ptr_methods = context.write_null_terminated_table(&methods)?;
 
@@ -235,48 +195,5 @@ impl ClassLoader {
         context.register_class(ptr_class).await?;
 
         Ok(ptr_class)
-    }
-
-    fn register_java_method(context: &mut KtfJavaContext<'_>, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
-        struct JavaMethodProxy {
-            body: JavaMethodBody,
-            native: bool,
-        }
-
-        impl JavaMethodProxy {
-            pub fn new(body: JavaMethodBody, native: bool) -> Self {
-                Self { body, native }
-            }
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl EmulatedFunction<(u32, u32, u32), ArmEngineError, Backend, u32> for JavaMethodProxy {
-            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmEngineError> {
-                let a1 = u32::get(core, 1);
-                let a2 = u32::get(core, 2);
-                let a3 = u32::get(core, 3);
-                let a4 = u32::get(core, 4);
-                let a5 = u32::get(core, 5);
-                let a6 = u32::get(core, 6);
-
-                let args = if self.native {
-                    (0..6).map(|x| read_generic(core, a1 + x * 4)).collect::<JavaResult<Vec<u32>>>()?
-                } else {
-                    vec![a1, a2, a3, a4, a5, a6]
-                };
-
-                let mut context = KtfJavaContext::new(core, backend);
-
-                let args = args.into_iter().map(|x| x as JavaWord).collect::<Vec<_>>();
-
-                let result = self.body.call(&mut context, &args).await?; // TODO do we need arg proxy?
-
-                Ok(result as _)
-            }
-        }
-
-        let proxy = JavaMethodProxy::new(body, native);
-
-        context.core.register_function(proxy, context.backend)
     }
 }

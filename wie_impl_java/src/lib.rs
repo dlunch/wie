@@ -12,8 +12,8 @@ mod proxy;
 pub use self::{
     array::Array,
     base::{
-        get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodFlag, JavaResult,
-        JavaWord,
+        get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodFlag,
+        JavaMethodProto, JavaResult, JavaWord,
     },
     proxy::JavaObjectProxy,
 };

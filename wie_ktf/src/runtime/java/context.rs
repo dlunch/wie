@@ -1,5 +1,6 @@
 mod class_loader;
 mod field;
+mod method;
 mod name;
 mod vtable_builder;
 
@@ -16,36 +17,12 @@ use wie_backend::{
 };
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-use wie_impl_java::{
-    r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult, JavaWord,
-};
+use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
 
 use crate::runtime::KtfPeb;
 
 pub use self::name::JavaFullName;
-use self::{class_loader::ClassLoader, field::JavaField};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaMethodFlagBit(u16);
-
-bitflags::bitflags! {
-    impl JavaMethodFlagBit: u16 {
-        const NONE = 0;
-        const STATIC = 8;
-        const NATIVE = 0x100;
-    }
-}
-
-impl JavaMethodFlagBit {
-    fn from_flag(flag: JavaMethodFlag) -> JavaMethodFlagBit {
-        match flag {
-            JavaMethodFlag::NONE => JavaMethodFlagBit::NONE,
-            JavaMethodFlag::STATIC => JavaMethodFlagBit::STATIC,
-            JavaMethodFlag::NATIVE => JavaMethodFlagBit::NATIVE,
-        }
-    }
-}
+use self::{class_loader::ClassLoader, field::JavaField, method::JavaMethod};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -73,20 +50,6 @@ struct JavaClassDescriptor {
     unk6: u16,
     unk7: u16,
     unk8: u16,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaMethod {
-    fn_body: u32,
-    ptr_class: u32,
-    fn_body_native_or_exception_table: u32,
-    ptr_name: u32,
-    exception_table_count: u16,
-    unk3: u16,
-    index_in_vtable: u16,
-    flag: JavaMethodFlagBit,
-    unk6: u32,
 }
 
 #[repr(C)]
@@ -155,10 +118,9 @@ impl<'a> KtfJavaContext<'a> {
 
         let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
         for ptr_method in ptr_methods {
-            let current_method: JavaMethod = read_generic(self.core, ptr_method)?;
-            let current_fullname = JavaFullName::from_ptr(self.core, current_method.ptr_name)?;
+            let method = JavaMethod::from_raw(ptr_method);
 
-            if current_fullname == fullname {
+            if method.name(self)? == fullname {
                 return Ok(ptr_method);
             }
         }
@@ -245,7 +207,8 @@ impl<'a> KtfJavaContext<'a> {
         if let Ok(x) = clinit {
             tracing::trace!("Call <clinit>");
 
-            self.call_method_inner(x, &[]).await?;
+            let method = JavaMethod::from_raw(x);
+            method.invoke(self, &[]).await?;
         }
 
         Ok(())
@@ -361,31 +324,6 @@ impl<'a> KtfJavaContext<'a> {
         write_generic(self.core, cursor, 0u32)?;
 
         Ok(base_address)
-    }
-
-    async fn call_method_inner(&mut self, ptr_method: u32, args: &[JavaWord]) -> JavaResult<u32> {
-        let method: JavaMethod = read_generic(self.core, ptr_method)?;
-
-        if method.flag.contains(JavaMethodFlagBit::NATIVE) {
-            let arg_container = Allocator::alloc(self.core, (args.len() as u32) * 4)?;
-            for (i, arg) in args.iter().enumerate() {
-                write_generic(self.core, arg_container + (i * 4) as u32, *arg as u32)?;
-            }
-
-            let result = self
-                .core
-                .run_function(method.fn_body_native_or_exception_table, &[0, arg_container])
-                .await;
-
-            Allocator::free(self.core, arg_container)?;
-
-            result
-        } else {
-            let mut params = vec![0];
-            params.extend(args.iter().map(|&x| x as u32));
-
-            self.core.run_function(method.fn_body, &params).await
-        }
     }
 
     fn read_context_data(&self) -> JavaResult<JavaContextData> {
@@ -518,7 +456,9 @@ impl JavaContext for KtfJavaContext<'_> {
             },
         )?;
 
-        Ok(self.call_method_inner(ptr_method, &params).await? as _)
+        let method = JavaMethod::from_raw(ptr_method);
+
+        Ok(method.invoke(self, &params).await? as _)
     }
 
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
@@ -535,7 +475,9 @@ impl JavaContext for KtfJavaContext<'_> {
             },
         )?;
 
-        Ok(self.call_method_inner(ptr_method, args).await? as _)
+        let method = JavaMethod::from_raw(ptr_method);
+
+        Ok(method.invoke(self, args).await? as _)
     }
 
     fn backend(&mut self) -> &mut Backend {
