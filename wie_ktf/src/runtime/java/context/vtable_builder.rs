@@ -1,9 +1,8 @@
 use alloc::{borrow::ToOwned, vec::Vec};
 
-use wie_base::util::read_generic;
 use wie_impl_java::JavaResult;
 
-use super::{name::JavaFullName, JavaMethod, KtfJavaContext};
+use super::{method::JavaMethod, name::JavaFullName, KtfJavaContext};
 
 struct JavaVtableMethod {
     ptr_method: u32,
@@ -58,10 +57,12 @@ impl JavaVtableBuilder {
             let items = ptr_methods
                 .into_iter()
                 .map(|x| {
-                    let method: JavaMethod = read_generic(context.core, x)?;
-                    let name = JavaFullName::from_ptr(context.core, method.ptr_name)?;
+                    let method = JavaMethod::from_raw(x);
 
-                    anyhow::Ok(JavaVtableMethod { ptr_method: x, name })
+                    anyhow::Ok(JavaVtableMethod {
+                        ptr_method: x,
+                        name: method.name(context)?,
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
