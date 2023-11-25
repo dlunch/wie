@@ -78,11 +78,11 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
     let fullname = JavaFullName::from_ptr(core, ptr_fullname)?;
     tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let ptr_method = KtfJavaContext::new(core, backend).get_ptr_method(ptr_class, fullname)?;
+    let method = KtfJavaContext::new(core, backend).get_java_method(ptr_class, fullname)?;
 
-    tracing::trace!("get_java_method result {:#x}", ptr_method);
+    tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
-    Ok(ptr_method)
+    Ok(method.ptr_raw)
 }
 
 async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u32) -> anyhow::Result<u32> {
@@ -125,9 +125,9 @@ async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: 
     let field_name = JavaFullName::from_ptr(core, field_name)?;
     let context = KtfJavaContext::new(core, backend);
 
-    let ptr_field = context.get_ptr_field(ptr_class, &field_name.name)?;
+    let field = context.get_java_field(ptr_class, &field_name.name)?;
 
-    Ok(ptr_field)
+    Ok(field.ptr_raw)
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Backend, a0: u32, a1: u32) -> anyhow::Result<u32> {

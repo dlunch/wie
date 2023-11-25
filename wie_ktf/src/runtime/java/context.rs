@@ -54,7 +54,7 @@ struct JavaClassDescriptor {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaClassInstance {
+pub struct JavaClassInstance {
     ptr_fields: u32,
     ptr_class: u32,
 }
@@ -113,7 +113,7 @@ impl<'a> KtfJavaContext<'a> {
         Self { core, backend }
     }
 
-    pub fn get_ptr_method(&self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<u32> {
+    pub fn get_java_method(&self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<JavaMethod> {
         let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
         let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
@@ -121,21 +121,21 @@ impl<'a> KtfJavaContext<'a> {
             let method = JavaMethod::from_raw(ptr_method);
 
             if method.name(self)? == fullname {
-                return Ok(ptr_method);
+                return Ok(method);
             }
         }
 
         if class_descriptor.ptr_parent_class != 0 {
             let name_copy = fullname.clone(); // TODO remove clone
 
-            self.get_ptr_method(class_descriptor.ptr_parent_class, fullname)
+            self.get_java_method(class_descriptor.ptr_parent_class, fullname)
                 .map_err(|_| anyhow::anyhow!("Cannot find function {} from {}", name_copy, class_name))
         } else {
             anyhow::bail!("Cannot find function {} from {}", fullname, class_name)
         }
     }
 
-    pub fn get_ptr_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<u32> {
+    pub fn get_java_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<JavaField> {
         let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
 
         let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields_or_element_type)?;
@@ -143,7 +143,7 @@ impl<'a> KtfJavaContext<'a> {
             let field = JavaField::from_raw(ptr_field);
 
             if field.name(self)?.name == field_name {
-                return Ok(ptr_field);
+                return Ok(field);
             }
         }
 
@@ -194,7 +194,7 @@ impl<'a> KtfJavaContext<'a> {
             ptr_class,
         )?;
 
-        let clinit = self.get_ptr_method(
+        let clinit = self.get_java_method(
             ptr_class,
             JavaFullName {
                 tag: 0,
@@ -207,8 +207,7 @@ impl<'a> KtfJavaContext<'a> {
         if let Ok(x) = clinit {
             tracing::trace!("Call <clinit>");
 
-            let method = JavaMethod::from_raw(x);
-            method.invoke(self, &[]).await?;
+            x.invoke(self, &[]).await?;
         }
 
         Ok(())
@@ -447,7 +446,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let mut params = vec![instance_proxy.ptr_instance];
         params.extend(args);
 
-        let ptr_method = self.get_ptr_method(
+        let method = self.get_java_method(
             instance.ptr_class,
             JavaFullName {
                 tag: 0,
@@ -455,8 +454,6 @@ impl JavaContext for KtfJavaContext<'_> {
                 signature: signature.to_owned(),
             },
         )?;
-
-        let method = JavaMethod::from_raw(ptr_method);
 
         Ok(method.invoke(self, &params).await? as _)
     }
@@ -466,7 +463,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
 
-        let ptr_method = self.get_ptr_method(
+        let method = self.get_java_method(
             ptr_class,
             JavaFullName {
                 tag: 0,
@@ -474,8 +471,6 @@ impl JavaContext for KtfJavaContext<'_> {
                 signature: signature.to_owned(),
             },
         )?;
-
-        let method = JavaMethod::from_raw(ptr_method);
 
         Ok(method.invoke(self, args).await? as _)
     }
@@ -487,11 +482,11 @@ impl JavaContext for KtfJavaContext<'_> {
     fn get_field_id(&self, class_name: &str, field_name: &str, _signature: &str) -> JavaResult<JavaWord> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.context("No such class")?;
 
-        let field = self.get_ptr_field(ptr_class, field_name)?;
+        let field = self.get_java_field(ptr_class, field_name)?;
 
         // TODO signature comparison
 
-        Ok(field as _)
+        Ok(field.ptr_raw as _)
     }
 
     fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord> {
@@ -512,36 +507,28 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
-        let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
-
-        let field = JavaField::from_raw(ptr_field);
+        let field = self.get_java_field(instance.ptr_class, field_name)?;
 
         field.read_value(self, instance)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
-        let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
-
-        let field = JavaField::from_raw(ptr_field);
+        let field = self.get_java_field(instance.ptr_class, field_name)?;
 
         field.write_value(self, instance, value)
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
-
-        let field = JavaField::from_raw(ptr_field);
+        let field = self.get_java_field(ptr_class, field_name)?;
 
         field.read_static_value(self)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
-
-        let field = JavaField::from_raw(ptr_field);
+        let field = self.get_java_field(ptr_class, field_name)?;
         field.write_static_value(self, value)
     }
 
