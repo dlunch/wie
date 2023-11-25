@@ -7,8 +7,8 @@ use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, Emulate
 use wie_impl_java::{get_class_proto, JavaClassProto, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaResult, JavaWord};
 
 use super::{
-    name::JavaFullName, vtable_builder::JavaVtableBuilder, JavaClass, JavaClassDescriptor, JavaField, JavaFieldAccessFlagBit, JavaMethod,
-    JavaMethodFlagBit, KtfJavaContext,
+    field::JavaField, name::JavaFullName, vtable_builder::JavaVtableBuilder, JavaClass, JavaClassDescriptor, JavaMethod, JavaMethodFlagBit,
+    KtfJavaContext,
 };
 
 pub struct ClassLoader {}
@@ -181,35 +181,15 @@ impl ClassLoader {
 
         let mut fields = Vec::new();
         for (index, field) in proto.fields.into_iter().enumerate() {
-            let full_name = (JavaFullName {
-                tag: 0,
-                name: field.name,
-                signature: field.signature,
-            })
-            .as_bytes();
-
-            let ptr_name = Allocator::alloc(context.core, full_name.len() as u32)?;
-            context.core.write_bytes(ptr_name, &full_name)?;
-
-            let ptr_field = Allocator::alloc(context.core, size_of::<JavaField>() as u32)?;
             let offset_or_value = if field.access_flag == JavaFieldAccessFlag::STATIC {
                 0
             } else {
                 (index as u32) * 4
             };
 
-            write_generic(
-                context.core,
-                ptr_field,
-                JavaField {
-                    access_flag: JavaFieldAccessFlagBit::from_access_flag(field.access_flag).bits(),
-                    ptr_class,
-                    ptr_name,
-                    offset_or_value,
-                },
-            )?;
+            let field = JavaField::new(context, ptr_class, field, offset_or_value)?;
 
-            fields.push(ptr_field);
+            fields.push(field.ptr_raw);
         }
         let ptr_fields = context.write_null_terminated_table(&fields)?;
 

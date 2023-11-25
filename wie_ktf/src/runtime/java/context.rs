@@ -1,4 +1,5 @@
 mod class_loader;
+mod field;
 mod name;
 mod vtable_builder;
 
@@ -16,30 +17,13 @@ use wie_backend::{
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 use wie_impl_java::{
-    r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaFieldAccessFlag, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult,
-    JavaWord,
+    r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaMethodFlag, JavaObjectProxy, JavaResult, JavaWord,
 };
 
 use crate::runtime::KtfPeb;
 
-use self::class_loader::ClassLoader;
 pub use self::name::JavaFullName;
-
-bitflags::bitflags! {
-    struct JavaFieldAccessFlagBit: u32 {
-        const NONE = 0;
-        const STATIC = 8;
-    }
-}
-
-impl JavaFieldAccessFlagBit {
-    fn from_access_flag(access_flag: JavaFieldAccessFlag) -> JavaFieldAccessFlagBit {
-        match access_flag {
-            JavaFieldAccessFlag::NONE => JavaFieldAccessFlagBit::NONE,
-            JavaFieldAccessFlag::STATIC => JavaFieldAccessFlagBit::STATIC,
-        }
-    }
-}
+use self::{class_loader::ClassLoader, field::JavaField};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -103,15 +87,6 @@ struct JavaMethod {
     index_in_vtable: u16,
     flag: JavaMethodFlagBit,
     unk6: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaField {
-    access_flag: u32,
-    ptr_class: u32,
-    ptr_name: u32,
-    offset_or_value: u32,
 }
 
 #[repr(C)]
@@ -203,10 +178,9 @@ impl<'a> KtfJavaContext<'a> {
 
         let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields_or_element_type)?;
         for ptr_field in ptr_fields {
-            let field: JavaField = read_generic(self.core, ptr_field)?;
+            let field = JavaField::from_raw(ptr_field);
 
-            let fullname = JavaFullName::from_ptr(self.core, field.ptr_name)?;
-            if fullname.name == field_name {
+            if field.name(self)?.name == field_name {
                 return Ok(ptr_field);
             }
         }
@@ -580,76 +554,53 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
-        let field: JavaField = read_generic(self.core, id as _)?;
 
-        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+        let field = JavaField::from_raw(id as _);
 
-        let offset = field.offset_or_value;
-
-        let value: u32 = read_generic(self.core, instance.ptr_fields + offset + 4)?;
-
-        Ok(value as _)
+        field.read_value(self, instance)
     }
 
     fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
-        let field: JavaField = read_generic(self.core, id as _)?;
 
-        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+        let field = JavaField::from_raw(id as _);
 
-        let offset = field.offset_or_value;
-
-        write_generic(self.core, instance.ptr_fields + offset + 4, value as u32)
+        field.write_value(self, instance, value)
     }
 
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
-        let field: JavaField = read_generic(self.core, ptr_field)?;
 
-        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+        let field = JavaField::from_raw(ptr_field);
 
-        let offset = field.offset_or_value;
-
-        let value: u32 = read_generic(self.core, instance.ptr_fields + offset + 4)?;
-
-        Ok(value as _)
+        field.read_value(self, instance)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
         let ptr_field = self.get_ptr_field(instance.ptr_class, field_name)?;
-        let field: JavaField = read_generic(self.core, ptr_field)?;
 
-        assert!(field.access_flag & 0x0008 == 0, "Field is static");
+        let field = JavaField::from_raw(ptr_field);
 
-        let offset = field.offset_or_value;
-
-        write_generic(self.core, instance.ptr_fields + offset + 4, value as u32)
+        field.write_value(self, instance, value)
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
-        let field: JavaField = read_generic(self.core, ptr_field)?;
 
-        assert!(field.access_flag & 0x0008 != 0, "Field is not static");
+        let field = JavaField::from_raw(ptr_field);
 
-        Ok(field.offset_or_value as _)
+        field.read_static_value(self)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let ptr_field = self.get_ptr_field(ptr_class, field_name)?;
-        let mut field: JavaField = read_generic(self.core, ptr_field)?;
 
-        assert!(field.access_flag & 0x0008 != 0, "Field is not static");
-
-        field.offset_or_value = value as _;
-
-        write_generic(self.core, ptr_field, field)?;
-
-        Ok(())
+        let field = JavaField::from_raw(ptr_field);
+        field.write_static_value(self, value)
     }
 
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()> {
