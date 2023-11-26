@@ -65,7 +65,6 @@ impl Window for WindowProxy {
 pub struct WindowImpl {
     window: Rc<TaoWindow>,
     event_loop: EventLoop<WindowInternalEvent>,
-    surface: Surface,
 }
 
 impl WindowImpl {
@@ -77,18 +76,10 @@ impl WindowImpl {
         let builder = WindowBuilder::new().with_inner_size(size).with_title("WIE");
 
         let window = builder.build(&event_loop)?;
-        // TODO we need to render to gtk window instead of whole wayland window to make decoration work on linux
-        let context = unsafe { Context::new(&window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
-        let mut surface = unsafe { Surface::new(&context, &window) }.map_err(|x| anyhow::anyhow!("{:?}", x))?;
-
-        surface
-            .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
-            .map_err(|x| anyhow::anyhow!("{:?}", x))?;
 
         Ok(Self {
             window: Rc::new(window),
             event_loop,
-            surface,
         })
     }
 
@@ -112,18 +103,28 @@ impl WindowImpl {
         }
     }
 
-    pub fn run<C, E>(mut self, mut callback: C) -> !
+    pub fn run<C, E>(self, mut callback: C) -> !
     where
         C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
     {
+        // TODO we need to render to gtk window instead of whole wayland window to make decoration work on linux
+        let context = Context::new(self.window.clone()).unwrap();
+        let mut surface = Surface::new(&context, self.window.clone()).unwrap();
+
+        let size = self.window.inner_size();
+
+        surface
+            .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
+            .unwrap();
+
         self.event_loop.run(move |event, _, control_flow| match event {
             Event::UserEvent(x) => match x {
                 WindowInternalEvent::RequestRedraw => {
                     self.window.request_redraw();
                 }
                 WindowInternalEvent::Paint(data) => {
-                    let mut buffer = self.surface.buffer_mut().unwrap();
+                    let mut buffer = surface.buffer_mut().unwrap();
                     buffer.copy_from_slice(&data);
 
                     buffer.present().unwrap();
