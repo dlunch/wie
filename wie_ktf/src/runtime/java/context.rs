@@ -1,10 +1,11 @@
+mod class;
 mod class_loader;
 mod field;
 mod method;
 mod name;
 mod vtable_builder;
 
-use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, vec, vec::Vec};
 use core::{iter, mem::size_of};
 
 use anyhow::Context;
@@ -15,42 +16,14 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend,
 };
-use wie_base::util::{read_generic, read_null_terminated_string, write_generic, ByteRead, ByteWrite};
+use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
 
 use crate::runtime::KtfPeb;
 
 pub use self::name::JavaFullName;
-use self::{class_loader::ClassLoader, field::JavaField, method::JavaMethod};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaClass {
-    ptr_next: u32,
-    unk1: u32,
-    ptr_descriptor: u32,
-    ptr_vtable: u32,
-    vtable_count: u16,
-    unk_flag: u16,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaClassDescriptor {
-    ptr_name: u32,
-    unk1: u32,
-    ptr_parent_class: u32,
-    ptr_methods: u32,
-    ptr_interfaces: u32,
-    ptr_fields_or_element_type: u32, // for array class, this is element type
-    method_count: u16,
-    fields_size: u16,
-    access_flag: u16,
-    unk6: u16,
-    unk7: u16,
-    unk8: u16,
-}
+use self::{class::JavaClass, class_loader::ClassLoader, field::JavaField};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -113,98 +86,56 @@ impl<'a> KtfJavaContext<'a> {
         Self { core, backend }
     }
 
-    pub fn get_java_method(&self, ptr_class: u32, fullname: JavaFullName) -> JavaResult<JavaMethod> {
-        let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
-
-        let ptr_methods = self.read_null_terminated_table(class_descriptor.ptr_methods)?;
-        for ptr_method in ptr_methods {
-            let method = JavaMethod::from_raw(ptr_method);
-
-            if method.name(self)? == fullname {
-                return Ok(method);
-            }
-        }
-
-        if class_descriptor.ptr_parent_class != 0 {
-            let name_copy = fullname.clone(); // TODO remove clone
-
-            self.get_java_method(class_descriptor.ptr_parent_class, fullname)
-                .map_err(|_| anyhow::anyhow!("Cannot find function {} from {}", name_copy, class_name))
-        } else {
-            anyhow::bail!("Cannot find function {} from {}", fullname, class_name)
-        }
-    }
-
-    pub fn get_java_field(&self, ptr_class: u32, field_name: &str) -> JavaResult<JavaField> {
-        let (_, class_descriptor, class_name) = self.read_ptr_class(ptr_class)?;
-
-        let ptr_fields = self.read_null_terminated_table(class_descriptor.ptr_fields_or_element_type)?;
-        for ptr_field in ptr_fields {
-            let field = JavaField::from_raw(ptr_field);
-
-            if field.name(self)?.name == field_name {
-                return Ok(field);
-            }
-        }
-
-        anyhow::bail!("Cannot find field {} from {}", field_name, class_name)
-    }
-
     pub async fn load_class_by_name(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let ptr_class = ClassLoader::get_or_load_ptr_class(self, name).await?;
+        let class = ClassLoader::get_or_load_class(self, name).await?;
 
-        write_generic(self.core, ptr_target, ptr_class)?;
+        write_generic(self.core, ptr_target, class.ptr_raw)?;
 
         Ok(())
     }
 
-    pub async fn instantiate_from_ptr_class(&mut self, ptr_class: u32) -> JavaResult<JavaObjectProxy<Object>> {
-        let (_, _, class_name) = self.read_ptr_class(ptr_class)?;
+    pub async fn instantiate_from_class(&mut self, class: JavaClass) -> JavaResult<JavaObjectProxy<Object>> {
+        let field_size = class.field_size(self)?;
 
-        let class_hierarchy = self.read_class_hierarchy(ptr_class)?;
-        let fields_size = class_hierarchy.into_iter().map(|x| x.fields_size as JavaWord).sum();
+        let proxy = self.instantiate_inner(&class, field_size).await?;
 
-        let proxy = self.instantiate_inner(ptr_class, fields_size).await?;
-
-        tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        tracing::trace!("Instantiated {} at {:#x}", class.name(self)?, proxy.ptr_instance);
 
         Ok(proxy)
     }
 
-    pub async fn instantiate_array_from_ptr_class(&mut self, ptr_class_array: u32, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
-        let (_, _, class_name) = self.read_ptr_class(ptr_class_array)?;
+    pub async fn instantiate_array_from_ptr_class(&mut self, array_class: JavaClass, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
+        let proxy = self.instantiate_array_inner(&array_class, count).await?;
 
-        let proxy = self.instantiate_array_inner(ptr_class_array, count).await?;
-
-        tracing::trace!("Instantiated {} at {:#x}", class_name, proxy.ptr_instance);
+        tracing::trace!("Instantiated {} at {:#x}", array_class.name(self)?, proxy.ptr_instance);
 
         Ok(proxy)
     }
 
-    pub async fn register_class(&mut self, ptr_class: u32) -> JavaResult<()> {
+    pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
         let context_data = self.read_context_data()?;
         let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
-        if ptr_classes.contains(&ptr_class) {
+        if ptr_classes.contains(&class.ptr_raw) {
             return Ok(());
         }
 
         write_generic(
             self.core,
             context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
-            ptr_class,
+            class.ptr_raw,
         )?;
 
-        let clinit = self.get_java_method(
-            ptr_class,
-            JavaFullName {
+        let clinit = class.method(
+            self,
+            &JavaFullName {
                 tag: 0,
                 name: "<clinit>".into(),
                 signature: "()V".into(),
             },
-        );
+        )?;
         // TODO change get_method to return optional
 
-        if let Ok(x) = clinit {
+        if let Some(x) = clinit {
             tracing::trace!("Call <clinit>");
 
             x.invoke(self, &[]).await?;
@@ -213,16 +144,27 @@ impl<'a> KtfJavaContext<'a> {
         Ok(())
     }
 
-    async fn instantiate_inner(&mut self, ptr_class: u32, fields_size: JavaWord) -> JavaResult<JavaObjectProxy<Object>> {
-        let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as _)?;
-        let ptr_fields = Allocator::alloc(self.core, (fields_size + 4) as _)?;
+    pub fn class_from_raw(&self, ptr_class: u32) -> JavaClass {
+        JavaClass::from_raw(ptr_class)
+    }
 
-        let zero = iter::repeat(0).take((fields_size + 4) as _).collect::<Vec<_>>();
+    async fn instantiate_inner(&mut self, class: &JavaClass, field_size: JavaWord) -> JavaResult<JavaObjectProxy<Object>> {
+        let ptr_instance = Allocator::alloc(self.core, size_of::<JavaClassInstance>() as _)?;
+        let ptr_fields = Allocator::alloc(self.core, (field_size + 4) as _)?;
+
+        let zero = iter::repeat(0).take((field_size + 4) as _).collect::<Vec<_>>();
         self.core.write_bytes(ptr_fields, &zero)?;
 
-        let vtable_index = self.get_vtable_index(ptr_class)?;
+        let vtable_index = self.get_vtable_index(class)?;
 
-        write_generic(self.core, ptr_instance, JavaClassInstance { ptr_fields, ptr_class })?;
+        write_generic(
+            self.core,
+            ptr_instance,
+            JavaClassInstance {
+                ptr_fields,
+                ptr_class: class.ptr_raw,
+            },
+        )?;
         write_generic(self.core, ptr_fields, (vtable_index * 4) << 5)?;
 
         tracing::trace!("Instantiate {:#x}, vtable_index {:#x}", ptr_instance, vtable_index);
@@ -232,9 +174,9 @@ impl<'a> KtfJavaContext<'a> {
         Ok(instance)
     }
 
-    async fn instantiate_array_inner(&mut self, ptr_class_array: u32, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
-        let element_size = self.get_array_element_size(ptr_class_array)?;
-        let proxy = self.instantiate_inner(ptr_class_array, count * element_size + 4).await?;
+    async fn instantiate_array_inner(&mut self, class: &JavaClass, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
+        let element_size = self.get_array_element_size(class)?;
+        let proxy = self.instantiate_inner(class, count * element_size + 4).await?;
         let instance: JavaClassInstance = read_generic(self.core, proxy.ptr_instance as _)?;
 
         write_generic(self.core, instance.ptr_fields + 4, count as u32)?;
@@ -242,8 +184,8 @@ impl<'a> KtfJavaContext<'a> {
         Ok(proxy.cast())
     }
 
-    fn get_array_element_size(&self, ptr_class_array: u32) -> JavaResult<JavaWord> {
-        let (_, _, class_name) = self.read_ptr_class(ptr_class_array)?;
+    fn get_array_element_size(&self, class: &JavaClass) -> JavaResult<JavaWord> {
+        let class_name = class.name(self)?;
 
         assert!(class_name.starts_with('['), "Not an array class {}", class_name);
 
@@ -263,36 +205,22 @@ impl<'a> KtfJavaContext<'a> {
         }
     }
 
-    fn get_vtable_index(&mut self, ptr_class: u32) -> anyhow::Result<u32> {
-        let (class, _, class_name) = self.read_ptr_class(ptr_class)?;
-
-        tracing::trace!("get_vtable_index {} {:#x} {:#x}", class_name, ptr_class, class.ptr_vtable);
-
+    fn get_vtable_index(&mut self, class: &JavaClass) -> anyhow::Result<u32> {
         let context_data = self.read_context_data()?;
         let ptr_vtables = self.read_null_terminated_table(context_data.ptr_vtables_base)?;
 
-        for (index, &ptr_vtable) in ptr_vtables.iter().enumerate() {
-            if ptr_vtable == class.ptr_vtable {
+        let ptr_vtable = class.ptr_vtable(self)?;
+
+        for (index, &current_ptr_vtable) in ptr_vtables.iter().enumerate() {
+            if ptr_vtable == current_ptr_vtable {
                 return Ok(index as _);
             }
         }
 
         let index = ptr_vtables.len();
-        write_generic(
-            self.core,
-            context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32,
-            class.ptr_vtable,
-        )?;
+        write_generic(self.core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
 
         Ok(index as _)
-    }
-
-    fn read_ptr_class(&self, ptr_class: u32) -> JavaResult<(JavaClass, JavaClassDescriptor, String)> {
-        let class: JavaClass = read_generic(self.core, ptr_class)?;
-        let class_descriptor: JavaClassDescriptor = read_generic(self.core, class.ptr_descriptor)?;
-        let class_name = read_null_terminated_string(self.core, class_descriptor.ptr_name)?;
-
-        Ok((class, class_descriptor, class_name))
     }
 
     fn read_null_terminated_table(&self, base_address: u32) -> JavaResult<Vec<u32>> {
@@ -341,9 +269,10 @@ impl<'a> KtfJavaContext<'a> {
         }
 
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as _)?;
+        let class = JavaClass::from_raw(instance.ptr_class);
         let items_offset = instance.ptr_fields + 8;
 
-        let element_size = self.get_array_element_size(instance.ptr_class)?;
+        let element_size = self.get_array_element_size(&class)?;
         assert!(element_size == core::mem::size_of::<T>() as _, "Incorrect element size");
 
         let values_raw = self
@@ -369,32 +298,15 @@ impl<'a> KtfJavaContext<'a> {
         }
 
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as _)?;
+        let class = JavaClass::from_raw(instance.ptr_class);
         let items_offset = instance.ptr_fields + 8;
 
-        let element_size = self.get_array_element_size(instance.ptr_class)?;
+        let element_size = self.get_array_element_size(&class)?;
         assert!(element_size == core::mem::size_of::<T>() as _, "Incorrect element size");
 
         let values_u8 = cast_slice(values);
 
         self.core.write_bytes(items_offset + (element_size * offset) as u32, values_u8)
-    }
-
-    fn read_class_hierarchy(&self, ptr_class: u32) -> JavaResult<Vec<JavaClassDescriptor>> {
-        let mut result = vec![];
-
-        let mut current_class = ptr_class;
-        loop {
-            let (_, class_descriptor, _) = self.read_ptr_class(current_class)?;
-            result.push(class_descriptor);
-
-            if class_descriptor.ptr_parent_class != 0 {
-                current_class = class_descriptor.ptr_parent_class;
-            } else {
-                break;
-            }
-        }
-
-        Ok(result)
     }
 }
 
@@ -404,16 +316,16 @@ impl JavaContext for KtfJavaContext<'_> {
         anyhow::ensure!(type_name.as_bytes()[0] != b'[', "Array class should not be instantiated here");
 
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
+        let class = ClassLoader::get_or_load_class(self, class_name).await?;
 
-        self.instantiate_from_ptr_class(ptr_class).await
+        self.instantiate_from_class(class).await
     }
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let ptr_class_array = ClassLoader::get_or_load_ptr_class(self, &array_type).await?;
+        let array_class = ClassLoader::get_or_load_class(self, &array_type).await?;
 
-        let proxy = self.instantiate_array_inner(ptr_class_array, count).await?;
+        let proxy = self.instantiate_array_inner(&array_class, count).await?;
 
         tracing::trace!("Instantiated {} at {:#x}", array_type, proxy.ptr_instance);
 
@@ -439,21 +351,23 @@ impl JavaContext for KtfJavaContext<'_> {
         args: &[JavaWord],
     ) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, instance_proxy.ptr_instance as _)?;
-        let (_, _, class_name) = self.read_ptr_class(instance.ptr_class)?;
+        let class = JavaClass::from_raw(instance.ptr_class);
 
-        tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
+        tracing::trace!("Call {}::{}({})", class.name(self)?, method_name, signature);
 
         let mut params = vec![instance_proxy.ptr_instance];
         params.extend(args);
 
-        let method = self.get_java_method(
-            instance.ptr_class,
-            JavaFullName {
-                tag: 0,
-                name: method_name.to_owned(),
-                signature: signature.to_owned(),
-            },
-        )?;
+        let method = class
+            .method(
+                self,
+                &JavaFullName {
+                    tag: 0,
+                    name: method_name.to_owned(),
+                    signature: signature.to_owned(),
+                },
+            )?
+            .unwrap();
 
         Ok(method.invoke(self, &params).await? as _)
     }
@@ -461,16 +375,18 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let ptr_class = ClassLoader::get_or_load_ptr_class(self, class_name).await?;
+        let class = ClassLoader::get_or_load_class(self, class_name).await?;
 
-        let method = self.get_java_method(
-            ptr_class,
-            JavaFullName {
-                tag: 0,
-                name: method_name.to_owned(),
-                signature: signature.to_owned(),
-            },
-        )?;
+        let method = class
+            .method(
+                self,
+                &JavaFullName {
+                    tag: 0,
+                    name: method_name.to_owned(),
+                    signature: signature.to_owned(),
+                },
+            )?
+            .unwrap();
 
         Ok(method.invoke(self, args).await? as _)
     }
@@ -480,9 +396,9 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_field_id(&self, class_name: &str, field_name: &str, _signature: &str) -> JavaResult<JavaWord> {
-        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.context("No such class")?;
+        let class = ClassLoader::find_loaded_class(self, class_name)?.context("No such class")?;
 
-        let field = self.get_java_field(ptr_class, field_name)?;
+        let field = class.field(self, field_name)?.unwrap();
 
         // TODO signature comparison
 
@@ -507,28 +423,31 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
-        let field = self.get_java_field(instance.ptr_class, field_name)?;
+        let class = JavaClass::from_raw(instance.ptr_class);
+        let field = class.field(self, field_name)?.unwrap();
 
         field.read_value(self, instance)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let instance: JavaClassInstance = read_generic(self.core, instance.ptr_instance as _)?;
-        let field = self.get_java_field(instance.ptr_class, field_name)?;
+        let class = JavaClass::from_raw(instance.ptr_class);
+        let field = class.field(self, field_name)?.unwrap();
 
         field.write_value(self, instance, value)
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
-        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let field = self.get_java_field(ptr_class, field_name)?;
+        let class = ClassLoader::find_loaded_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let field = class.field(self, field_name)?.unwrap();
 
         field.read_static_value(self)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let ptr_class = ClassLoader::get_ptr_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let field = self.get_java_field(ptr_class, field_name)?;
+        let class = ClassLoader::find_loaded_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let field = class.field(self, field_name)?.unwrap();
+
         field.write_static_value(self, value)
     }
 
@@ -558,8 +477,9 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
         let instance: JavaClassInstance = read_generic(self.core, array.ptr_instance as _)?;
+        let class = JavaClass::from_raw(instance.ptr_class);
 
-        self.get_array_element_size(instance.ptr_class)
+        self.get_array_element_size(&class)
     }
 
     fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
