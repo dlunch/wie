@@ -78,7 +78,9 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
     let fullname = JavaFullName::from_ptr(core, ptr_fullname)?;
     tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let method = KtfJavaContext::new(core, backend).get_java_method(ptr_class, fullname)?;
+    let context = KtfJavaContext::new(core, backend);
+    let class = context.class_from_raw(ptr_class);
+    let method = class.method(&context, &fullname)?.unwrap();
 
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
@@ -94,7 +96,9 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u3
 async fn register_class(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<()> {
     tracing::trace!("register_class({:#x})", ptr_class);
 
-    KtfJavaContext::new(core, backend).register_class(ptr_class).await?;
+    let mut context = KtfJavaContext::new(core, backend);
+    let class = context.class_from_raw(ptr_class);
+    context.register_class(&class).await?;
 
     Ok(())
 }
@@ -123,9 +127,10 @@ async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: 
     tracing::warn!("stub get_static_field({:#x}, {:#x})", ptr_class, field_name);
 
     let field_name = JavaFullName::from_ptr(core, field_name)?;
-    let context = KtfJavaContext::new(core, backend);
 
-    let field = context.get_java_field(ptr_class, &field_name.name)?;
+    let context = KtfJavaContext::new(core, backend);
+    let class = context.class_from_raw(ptr_class);
+    let field = class.field(&context, &field_name.name)?.unwrap();
 
     Ok(field.ptr_raw)
 }
@@ -180,7 +185,10 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut Backend, arg1: u32, arg2: u32, 
 pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_new({:#x})", ptr_class);
 
-    let instance = KtfJavaContext::new(core, backend).instantiate_from_ptr_class(ptr_class).await?;
+    let mut context = KtfJavaContext::new(core, backend);
+    let class = context.class_from_raw(ptr_class);
+
+    let instance = context.instantiate_from_class(class).await?;
 
     Ok(instance.ptr_instance as u32)
 }
@@ -192,6 +200,7 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
 
     // HACK: we don't have element type class
     let instance = if element_type > 0x100 {
+        let element_type = java_context.class_from_raw(element_type);
         java_context.instantiate_array_from_ptr_class(element_type, count as _).await?
     } else {
         let element_type_name = (element_type as u8 as char).to_string();

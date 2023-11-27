@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, vec::Vec};
 
 use wie_impl_java::JavaResult;
 
-use super::{method::JavaMethod, name::JavaFullName, KtfJavaContext};
+use super::{class::JavaClass, name::JavaFullName, KtfJavaContext};
 
 struct JavaVtableMethod {
     ptr_method: u32,
@@ -14,8 +14,8 @@ pub struct JavaVtableBuilder {
 }
 
 impl JavaVtableBuilder {
-    pub fn new(context: &KtfJavaContext<'_>, ptr_parent_class: Option<u32>) -> JavaResult<Self> {
-        let items = if let Some(x) = ptr_parent_class {
+    pub fn new(context: &KtfJavaContext<'_>, parent_class: &Option<JavaClass>) -> JavaResult<Self> {
+        let items = if let Some(x) = parent_class {
             Self::build_vtable(context, x)?
         } else {
             Vec::new()
@@ -46,22 +46,20 @@ impl JavaVtableBuilder {
         self.items.iter().map(|x| x.ptr_method).collect()
     }
 
-    fn build_vtable(context: &KtfJavaContext<'_>, ptr_class: u32) -> JavaResult<Vec<JavaVtableMethod>> {
-        let class_hierarchy = context.read_class_hierarchy(ptr_class)?.into_iter().rev();
+    fn build_vtable(context: &KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<Vec<JavaVtableMethod>> {
+        let class_hierarchy = class.read_class_hierarchy(context)?.into_iter().rev();
 
         let mut vtable: Vec<JavaVtableMethod> = Vec::new();
 
-        for class_descriptor in class_hierarchy {
-            let ptr_methods = context.read_null_terminated_table(class_descriptor.ptr_methods)?;
+        for class in class_hierarchy {
+            let methods = class.methods(context)?;
 
-            let items = ptr_methods
+            let items = methods
                 .into_iter()
                 .map(|x| {
-                    let method = JavaMethod::from_raw(x);
-
                     anyhow::Ok(JavaVtableMethod {
-                        ptr_method: x,
-                        name: method.name(context)?,
+                        ptr_method: x.ptr_raw,
+                        name: x.name(context)?,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
