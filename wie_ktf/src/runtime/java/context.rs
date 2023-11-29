@@ -133,7 +133,6 @@ impl<'a> KtfJavaContext<'a> {
                 signature: "()V".into(),
             },
         )?;
-        // TODO change get_method to return optional
 
         if let Some(x) = clinit {
             tracing::trace!("Call <clinit>");
