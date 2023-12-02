@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use wie_base::util::write_null_terminated_string;
+use wie_base::util::{read_null_terminated_table, write_null_terminated_string};
 use wie_core_arm::Allocator;
 use wie_impl_java::{get_class_proto, JavaResult};
 
@@ -48,7 +48,7 @@ impl ClassLoader {
 
     pub fn find_loaded_class(context: &KtfJavaContext<'_>, name: &str) -> JavaResult<Option<JavaClass>> {
         let context_data = context.read_context_data()?;
-        let classes = context.read_null_terminated_table(context_data.classes_base)?;
+        let classes = read_null_terminated_table(context.core, context_data.classes_base)?;
         for ptr_raw in classes {
             let class = JavaClass::from_raw(ptr_raw);
 

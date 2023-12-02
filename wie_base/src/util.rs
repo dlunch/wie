@@ -81,3 +81,35 @@ where
 
     writer.write_bytes(address, data_slice)
 }
+
+pub fn read_null_terminated_table<R>(reader: &R, base_address: u32) -> anyhow::Result<Vec<u32>>
+where
+    R: ?Sized + ByteRead,
+{
+    let mut cursor = base_address;
+    let mut result = Vec::new();
+    loop {
+        let item: u32 = read_generic(reader, cursor)?;
+        if item == 0 {
+            break;
+        }
+        result.push(item);
+
+        cursor += 4;
+    }
+
+    Ok(result)
+}
+
+pub fn write_null_terminated_table<W>(writer: &mut W, base_address: u32, items: &[u32]) -> anyhow::Result<()>
+where
+    W: ?Sized + ByteWrite,
+{
+    let mut cursor = base_address;
+    for &item in items {
+        write_generic(writer, cursor, item)?;
+
+        cursor += 4;
+    }
+    write_generic(writer, cursor, 0u32)
+}
