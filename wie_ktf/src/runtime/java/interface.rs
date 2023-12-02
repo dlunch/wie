@@ -1,4 +1,5 @@
 use alloc::{
+    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -187,8 +188,9 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
 
     let mut context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
+    let class_name = class.name(&context)?;
 
-    let instance = context.instantiate_from_class(class).await?;
+    let instance = context.instantiate(&format!("L{};", class_name)).await?;
 
     Ok(instance.ptr_instance as u32)
 }
@@ -198,14 +200,15 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
 
     let mut java_context = KtfJavaContext::new(core, backend);
 
-    // HACK: we don't have element type class
-    let instance = if element_type > 0x100 {
-        let element_type = java_context.class_from_raw(element_type);
-        java_context.instantiate_array_from_ptr_class(element_type, count as _).await?
+    let element_type_name = if element_type > 0x100 {
+        // HACK: we don't have element type class
+        let class = java_context.class_from_raw(element_type);
+        class.name(&java_context)?
     } else {
-        let element_type_name = (element_type as u8 as char).to_string();
-        java_context.instantiate_array(&element_type_name, count as _).await?
+        (element_type as u8 as char).to_string()
     };
+
+    let instance = java_context.instantiate_array(&element_type_name, count as _).await?;
 
     Ok(instance.ptr_instance as u32)
 }
