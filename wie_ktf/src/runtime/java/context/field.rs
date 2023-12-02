@@ -6,7 +6,7 @@ use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::Allocator;
 use wie_impl_java::{JavaFieldAccessFlag, JavaFieldProto, JavaResult, JavaWord};
 
-use super::{JavaClassInstance, JavaFullName, KtfJavaContext};
+use super::{class_instance::JavaClassInstance, JavaFullName, KtfJavaContext};
 
 bitflags::bitflags! {
     struct JavaFieldAccessFlagBit: u32 {
@@ -81,7 +81,7 @@ impl JavaField {
         anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
 
         let offset = raw.offset_or_value;
-        let value: u32 = read_generic(context.core, instance.ptr_fields + offset + 4)?;
+        let value = instance.read_field(context, offset)?;
 
         Ok(value as _)
     }
@@ -92,7 +92,7 @@ impl JavaField {
         anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
 
         let offset = raw.offset_or_value;
-        write_generic(context.core, instance.ptr_fields + offset + 4, value as u32)
+        instance.write_field(context, offset, value as _)
     }
 
     pub fn read_static_value(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaWord> {
