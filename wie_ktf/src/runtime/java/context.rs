@@ -17,7 +17,7 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend,
 };
-use wie_base::util::{read_generic, write_generic};
+use wie_base::util::{read_generic, read_null_terminated_table, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
 
@@ -85,7 +85,7 @@ impl<'a> KtfJavaContext<'a> {
 
     pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
         let context_data = self.read_context_data()?;
-        let ptr_classes = self.read_null_terminated_table(context_data.classes_base)?;
+        let ptr_classes = read_null_terminated_table(self.core, context_data.classes_base)?;
         if ptr_classes.contains(&class.ptr_raw) {
             return Ok(());
         }
@@ -120,7 +120,7 @@ impl<'a> KtfJavaContext<'a> {
 
     fn get_vtable_index(&mut self, class: &JavaClass) -> anyhow::Result<u32> {
         let context_data = self.read_context_data()?;
-        let ptr_vtables = self.read_null_terminated_table(context_data.ptr_vtables_base)?;
+        let ptr_vtables = read_null_terminated_table(self.core, context_data.ptr_vtables_base)?;
 
         let ptr_vtable = class.ptr_vtable(self)?;
 
@@ -134,36 +134,6 @@ impl<'a> KtfJavaContext<'a> {
         write_generic(self.core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
 
         Ok(index as _)
-    }
-
-    fn read_null_terminated_table(&self, base_address: u32) -> JavaResult<Vec<u32>> {
-        let mut cursor = base_address;
-        let mut result = Vec::new();
-        loop {
-            let item: u32 = read_generic(self.core, cursor)?;
-            if item == 0 {
-                break;
-            }
-            result.push(item);
-
-            cursor += 4;
-        }
-
-        Ok(result)
-    }
-
-    fn write_null_terminated_table(&mut self, items: &[u32]) -> JavaResult<u32> {
-        let base_address = Allocator::alloc(self.core, ((items.len() + 1) * size_of::<u32>()) as _)?;
-
-        let mut cursor = base_address;
-        for &item in items {
-            write_generic(self.core, cursor, item)?;
-
-            cursor += 4;
-        }
-        write_generic(self.core, cursor, 0u32)?;
-
-        Ok(base_address)
     }
 
     fn read_context_data(&self) -> JavaResult<JavaContextData> {

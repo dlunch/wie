@@ -1,6 +1,8 @@
 use alloc::{string::String, vec, vec::Vec};
 use core::mem::size_of;
-use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
+use wie_base::util::{
+    read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
+};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -63,7 +65,8 @@ impl JavaClass {
 
             methods.push(method.ptr_raw);
         }
-        let ptr_methods = context.write_null_terminated_table(&methods)?;
+        let ptr_methods = Allocator::alloc(context.core, ((methods.len() + 1) * size_of::<u32>()) as _)?;
+        write_null_terminated_table(context.core, ptr_methods, &methods)?;
 
         let mut fields = Vec::new();
         for (index, field) in proto.fields.into_iter().enumerate() {
@@ -77,7 +80,8 @@ impl JavaClass {
 
             fields.push(field.ptr_raw);
         }
-        let ptr_fields = context.write_null_terminated_table(&fields)?;
+        let ptr_fields = Allocator::alloc(context.core, ((fields.len() + 1) * size_of::<u32>()) as _)?;
+        write_null_terminated_table(context.core, ptr_fields, &fields)?;
 
         let ptr_name = Allocator::alloc(context.core, (name.len() + 1) as u32)?;
         write_null_terminated_string(context.core, ptr_name, name)?;
@@ -103,7 +107,8 @@ impl JavaClass {
         )?;
 
         let vtable = vtable_builder.serialize();
-        let ptr_vtable = context.write_null_terminated_table(&vtable)?;
+        let ptr_vtable = Allocator::alloc(context.core, ((vtable.len() + 1) * size_of::<u32>()) as _)?;
+        write_null_terminated_table(context.core, ptr_vtable, &vtable)?;
 
         write_generic(
             context.core,
@@ -173,7 +178,7 @@ impl JavaClass {
         )?;
 
         let context_data = context.read_context_data()?;
-        let ptr_classes = context.read_null_terminated_table(context_data.classes_base)?;
+        let ptr_classes = read_null_terminated_table(context.core, context_data.classes_base)?;
         write_generic(
             context.core,
             context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
@@ -227,7 +232,7 @@ impl JavaClass {
         let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
 
-        let ptr_methods = context.read_null_terminated_table(descriptor.ptr_methods)?;
+        let ptr_methods = read_null_terminated_table(context.core, descriptor.ptr_methods)?;
 
         Ok(ptr_methods.into_iter().map(JavaMethod::from_raw).collect())
     }
@@ -236,7 +241,7 @@ impl JavaClass {
         let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
 
-        let ptr_fields = context.read_null_terminated_table(descriptor.ptr_fields_or_element_type)?;
+        let ptr_fields = read_null_terminated_table(context.core, descriptor.ptr_fields_or_element_type)?;
 
         Ok(ptr_fields.into_iter().map(JavaField::from_raw).collect())
     }
