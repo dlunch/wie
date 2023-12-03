@@ -5,7 +5,7 @@ use alloc::{boxed::Box, fmt::Debug, format, rc::Rc};
 use core::cell::RefCell;
 
 use jvm::{ArrayClass, Class, ClassLoader, Jvm, JvmResult};
-use jvm_impl::{ClassImpl, ThreadContextProviderImpl};
+use jvm_impl::{ArrayClassImpl, ClassImpl, ThreadContextProviderImpl};
 
 use wie_backend::{task, AsyncCallable, Backend};
 
@@ -18,8 +18,7 @@ pub struct JvmCore {
 
 impl JvmCore {
     pub fn new(backend: &Backend) -> Self {
-        let mut jvm = Jvm::new(&ThreadContextProviderImpl {});
-        jvm.add_class_loader(JvmCoreClassLoader { backend: backend.clone() });
+        let jvm = Jvm::new(JvmCoreClassLoader { backend: backend.clone() }, &ThreadContextProviderImpl {});
 
         Self {
             jvm: Rc::new(RefCell::new(jvm)),
@@ -59,7 +58,7 @@ impl ClassLoader for JvmCoreClassLoader {
         Ok(Some(Box::new(ClassImpl::from_classfile(class_data)?)))
     }
 
-    fn load_array_class(&mut self, _element_type_name: &str) -> JvmResult<Option<Box<dyn ArrayClass>>> {
-        Ok(None)
+    fn load_array_class(&mut self, element_type_name: &str) -> JvmResult<Option<Box<dyn ArrayClass>>> {
+        Ok(Some(Box::new(ArrayClassImpl::new(element_type_name))))
     }
 }
