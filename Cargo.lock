@@ -563,7 +563,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/jvm.git#f5d13c9c20e2abc0ce85e5c31f294a17672c26e5"
+source = "git+https://github.com/dlunch/jvm.git#a6a1c6be26366992b67d33c5eff0756c8f788003"
 dependencies = [
  "anyhow",
  "bitflags 2.4.1",
@@ -1636,7 +1636,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/jvm.git#f5d13c9c20e2abc0ce85e5c31f294a17672c26e5"
+source = "git+https://github.com/dlunch/jvm.git#a6a1c6be26366992b67d33c5eff0756c8f788003"
 dependencies = [
  "anyhow",
  "tracing",
@@ -1645,7 +1645,7 @@ dependencies = [
 [[package]]
 name = "jvm_impl"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/jvm.git#f5d13c9c20e2abc0ce85e5c31f294a17672c26e5"
+source = "git+https://github.com/dlunch/jvm.git#a6a1c6be26366992b67d33c5eff0756c8f788003"
 dependencies = [
  "anyhow",
  "classfile",
