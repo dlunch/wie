@@ -9,7 +9,7 @@ use wie_impl_java::JavaResult;
 pub struct JavaFullName {
     pub tag: u8,
     pub name: String,
-    pub signature: String,
+    pub descriptor: String,
 }
 
 impl JavaFullName {
@@ -22,7 +22,7 @@ impl JavaFullName {
         Ok(JavaFullName {
             tag,
             name: value[1].into(),
-            signature: value[0].into(),
+            descriptor: value[0].into(),
         })
     }
 
@@ -30,7 +30,7 @@ impl JavaFullName {
         let mut bytes = Vec::new();
 
         bytes.push(self.tag);
-        bytes.extend_from_slice(self.signature.as_bytes());
+        bytes.extend_from_slice(self.descriptor.as_bytes());
         bytes.push(b'+');
         bytes.extend_from_slice(self.name.as_bytes());
         bytes.push(0);
@@ -42,7 +42,7 @@ impl JavaFullName {
 impl Display for JavaFullName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.name.fmt(f)?;
-        self.signature.fmt(f)?;
+        self.descriptor.fmt(f)?;
         write!(f, "@{}", self.tag)?;
 
         Ok(())
@@ -51,6 +51,6 @@ impl Display for JavaFullName {
 
 impl PartialEq for JavaFullName {
     fn eq(&self, other: &Self) -> bool {
-        self.signature == other.signature && self.name == other.name
+        self.descriptor == other.descriptor && self.name == other.name
     }
 }

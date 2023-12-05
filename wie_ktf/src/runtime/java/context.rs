@@ -64,7 +64,7 @@ impl<'a> KtfJavaContext<'a> {
             &JavaFullName {
                 tag: 0,
                 name: "<clinit>".into(),
-                signature: "()V".into(),
+                descriptor: "()V".into(),
             },
         )?;
 
@@ -110,11 +110,11 @@ impl JavaContext for KtfJavaContext<'_> {
         instance.destroy(self)
     }
 
-    async fn call_method(&mut self, proxy: &JavaObjectProxy<Object>, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
+    async fn call_method(&mut self, proxy: &JavaObjectProxy<Object>, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
         let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _);
         let class = instance.class(self)?;
 
-        tracing::trace!("Call {}::{}({})", class.name(self)?, method_name, signature);
+        tracing::trace!("Call {}::{}({})", class.name(self)?, method_name, descriptor);
 
         let mut params = vec![proxy.ptr_instance];
         params.extend(args);
@@ -125,7 +125,7 @@ impl JavaContext for KtfJavaContext<'_> {
                 &JavaFullName {
                     tag: 0,
                     name: method_name.to_owned(),
-                    signature: signature.to_owned(),
+                    descriptor: descriptor.to_owned(),
                 },
             )?
             .unwrap();
@@ -133,8 +133,8 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(method.invoke(self, &params).await? as _)
     }
 
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
-        tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
+        tracing::trace!("Call {}::{}({})", class_name, method_name, descriptor);
 
         let class = self.load_class(class_name).await?.unwrap();
 
@@ -144,7 +144,7 @@ impl JavaContext for KtfJavaContext<'_> {
                 &JavaFullName {
                     tag: 0,
                     name: method_name.to_owned(),
-                    signature: signature.to_owned(),
+                    descriptor: descriptor.to_owned(),
                 },
             )?
             .unwrap();
@@ -156,12 +156,12 @@ impl JavaContext for KtfJavaContext<'_> {
         self.backend
     }
 
-    fn get_field_id(&self, class_name: &str, field_name: &str, _signature: &str) -> JavaResult<JavaWord> {
+    fn get_field_id(&self, class_name: &str, field_name: &str, _descriptor: &str) -> JavaResult<JavaWord> {
         let class = JavaContextData::find_class(self, class_name)?.context("No such class")?;
 
         let field = class.field(self, field_name)?.unwrap();
 
-        // TODO signature comparison
+        // TODO descriptor comparison
 
         Ok(field.ptr_raw as _)
     }

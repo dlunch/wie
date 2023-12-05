@@ -35,22 +35,22 @@ pub enum JavaFieldAccessFlag {
 
 pub struct JavaMethodProto {
     pub name: String,
-    pub signature: String,
+    pub descriptor: String,
     pub body: JavaMethodBody,
     pub flag: JavaMethodFlag,
 }
 
 pub struct JavaFieldProto {
     pub name: String,
-    pub signature: String,
+    pub descriptor: String,
     pub access_flag: JavaFieldAccessFlag,
 }
 
 impl JavaFieldProto {
-    pub fn new(name: &str, signature: &str, access_flag: JavaFieldAccessFlag) -> Self {
+    pub fn new(name: &str, descriptor: &str, access_flag: JavaFieldAccessFlag) -> Self {
         Self {
             name: name.into(),
-            signature: signature.into(),
+            descriptor: descriptor.into(),
             access_flag,
         }
     }
@@ -59,38 +59,38 @@ impl JavaFieldProto {
 pub type JavaMethodBody = Box<dyn MethodBody<JavaError>>;
 
 impl JavaMethodProto {
-    pub fn new<M, F, R, P>(name: &str, signature: &str, method: M, flag: JavaMethodFlag) -> Self
+    pub fn new<M, F, R, P>(name: &str, descriptor: &str, method: M, flag: JavaMethodFlag) -> Self
     where
         M: MethodImpl<F, R, JavaError, P>,
     {
         Self {
             name: name.into(),
-            signature: signature.into(),
+            descriptor: descriptor.into(),
             body: method.into_body(),
             flag,
         }
     }
 
-    pub fn new_abstract(name: &str, signature: &str, flag: JavaMethodFlag) -> Self {
+    pub fn new_abstract(name: &str, descriptor: &str, flag: JavaMethodFlag) -> Self {
         struct AbstractCall {
             name: String,
-            signature: String,
+            descriptor: String,
         }
 
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for AbstractCall {
             async fn call(&self, _: &mut dyn JavaContext, _: &[JavaWord]) -> Result<JavaWord, JavaError> {
                 // TODO throw java.lang.AbstractMethodError
-                anyhow::bail!("Call to abstract function {}{}", self.name, self.signature)
+                anyhow::bail!("Call to abstract function {}{}", self.name, self.descriptor)
             }
         }
 
         Self {
             name: name.into(),
-            signature: signature.into(),
+            descriptor: descriptor.into(),
             body: Box::new(AbstractCall {
                 name: name.into(),
-                signature: signature.into(),
+                descriptor: descriptor.into(),
             }),
             flag,
         }
@@ -106,11 +106,11 @@ pub trait JavaContext {
         &mut self,
         instance: &JavaObjectProxy<Object>,
         method_name: &str,
-        signature: &str,
+        descriptor: &str,
         args: &[JavaWord],
     ) -> JavaResult<JavaWord>; // invokespecial/invokevirtual
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
-    fn get_field_id(&self, class_name: &str, field_name: &str, signature: &str) -> JavaResult<JavaWord>;
+    async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
+    fn get_field_id(&self, class_name: &str, field_name: &str, descriptor: &str) -> JavaResult<JavaWord>;
     fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord>;
     fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()>;
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord>; // getfield
