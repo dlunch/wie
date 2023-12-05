@@ -2,13 +2,13 @@ mod array_class_instance;
 mod class;
 mod class_instance;
 mod class_loader;
+mod context_data;
 mod field;
 mod method;
 mod name;
 mod vtable_builder;
 
 use alloc::{borrow::ToOwned, boxed::Box, format, vec, vec::Vec};
-use core::mem::size_of;
 
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
@@ -17,24 +17,15 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend,
 };
-use wie_base::util::{read_generic, read_null_terminated_table, write_generic};
-use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
+use wie_base::util::write_generic;
+use wie_core_arm::ArmCore;
 use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
-
-use crate::runtime::KtfPeb;
 
 pub use self::name::JavaFullName;
 use self::{
-    array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField,
+    array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance, class_loader::ClassLoader,
+    context_data::JavaContextData, field::JavaField,
 };
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaContextData {
-    pub classes_base: u32,
-    pub ptr_vtables_base: u32,
-    pub fn_get_class: u32,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -55,20 +46,7 @@ pub struct KtfJavaContext<'a> {
 
 impl<'a> KtfJavaContext<'a> {
     pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JavaResult<u32> {
-        let classes_base = Allocator::alloc(core, 0x1000)?;
-
-        let ptr_java_context_data = Allocator::alloc(core, size_of::<JavaContextData>() as _)?;
-        write_generic(
-            core,
-            ptr_java_context_data,
-            JavaContextData {
-                classes_base,
-                ptr_vtables_base,
-                fn_get_class,
-            },
-        )?;
-
-        Ok(ptr_java_context_data)
+        JavaContextData::init(core, ptr_vtables_base, fn_get_class)
     }
 
     pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
@@ -84,17 +62,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
-        let context_data = self.read_context_data()?;
-        let ptr_classes = read_null_terminated_table(self.core, context_data.classes_base)?;
-        if ptr_classes.contains(&class.ptr_raw) {
-            return Ok(());
-        }
-
-        write_generic(
-            self.core,
-            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
-            class.ptr_raw,
-        )?;
+        JavaContextData::register_class(self, class)?;
 
         let clinit = class.method(
             self,
@@ -116,30 +84,6 @@ impl<'a> KtfJavaContext<'a> {
 
     pub fn class_from_raw(&self, ptr_class: u32) -> JavaClass {
         JavaClass::from_raw(ptr_class)
-    }
-
-    fn get_vtable_index(&mut self, class: &JavaClass) -> anyhow::Result<u32> {
-        let context_data = self.read_context_data()?;
-        let ptr_vtables = read_null_terminated_table(self.core, context_data.ptr_vtables_base)?;
-
-        let ptr_vtable = class.ptr_vtable(self)?;
-
-        for (index, &current_ptr_vtable) in ptr_vtables.iter().enumerate() {
-            if ptr_vtable == current_ptr_vtable {
-                return Ok(index as _);
-            }
-        }
-
-        let index = ptr_vtables.len();
-        write_generic(self.core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
-
-        Ok(index as _)
-    }
-
-    fn read_context_data(&self) -> JavaResult<JavaContextData> {
-        let peb: KtfPeb = read_generic(self.core, PEB_BASE)?;
-
-        read_generic(self.core, peb.ptr_java_context_data)
     }
 }
 
@@ -218,7 +162,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_field_id(&self, class_name: &str, field_name: &str, _signature: &str) -> JavaResult<JavaWord> {
-        let class = ClassLoader::find_loaded_class(self, class_name)?.context("No such class")?;
+        let class = JavaContextData::find_class(self, class_name)?.context("No such class")?;
 
         let field = class.field(self, field_name)?.unwrap();
 
@@ -260,14 +204,14 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
-        let class = ClassLoader::find_loaded_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let field = class.field(self, field_name)?.unwrap();
 
         field.read_static_value(self)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let class = ClassLoader::find_loaded_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let field = class.field(self, field_name)?.unwrap();
 
         field.write_static_value(self, value)
