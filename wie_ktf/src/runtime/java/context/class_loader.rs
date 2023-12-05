@@ -10,19 +10,19 @@ pub struct ClassLoader {}
 
 impl ClassLoader {
     #[async_recursion::async_recursion(?Send)]
-    pub async fn get_or_load_class(context: &mut KtfJavaContext<'_>, name: &str) -> JavaResult<JavaClass> {
+    pub async fn get_or_load_class(context: &mut KtfJavaContext<'_>, name: &str) -> JavaResult<Option<JavaClass>> {
         let class = JavaContextData::find_class(context, name)?;
 
         if let Some(class) = class {
-            Ok(class)
+            Ok(Some(class))
         } else {
             // array class is created dynamically
             if name.as_bytes()[0] == b'[' {
-                JavaClass::new_array(context, name).await
+                Ok(Some(JavaClass::new_array(context, name).await?))
             } else {
                 let proto = get_class_proto(name);
                 if let Some(x) = proto {
-                    JavaClass::new(context, name, x).await
+                    Ok(Some(JavaClass::new(context, name, x).await?))
                 } else {
                     // find from client.bin
                     let fn_get_class = JavaContextData::fn_get_class(context)?;
@@ -37,9 +37,9 @@ impl ClassLoader {
                         let class = JavaClass::from_raw(ptr_raw);
                         context.register_class(&class).await?;
 
-                        Ok(class)
+                        Ok(Some(class))
                     } else {
-                        anyhow::bail!("Cannot find class {}", name);
+                        Ok(None)
                     }
                 }
             }

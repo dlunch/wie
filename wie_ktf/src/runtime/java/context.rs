@@ -17,7 +17,6 @@ use wie_backend::{
     task::{self, SleepFuture},
     AsyncCallable, Backend,
 };
-use wie_base::util::write_generic;
 use wie_core_arm::ArmCore;
 use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
 
@@ -53,12 +52,8 @@ impl<'a> KtfJavaContext<'a> {
         Self { core, backend }
     }
 
-    pub async fn load_class_by_name(&mut self, ptr_target: u32, name: &str) -> JavaResult<()> {
-        let class = ClassLoader::get_or_load_class(self, name).await?;
-
-        write_generic(self.core, ptr_target, class.ptr_raw)?;
-
-        Ok(())
+    pub async fn load_class(&mut self, name: &str) -> JavaResult<Option<JavaClass>> {
+        ClassLoader::get_or_load_class(self, name).await
     }
 
     pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
@@ -93,7 +88,7 @@ impl JavaContext for KtfJavaContext<'_> {
         anyhow::ensure!(type_name.as_bytes()[0] != b'[', "Array class should not be instantiated here");
 
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let class = ClassLoader::get_or_load_class(self, class_name).await?;
+        let class = self.load_class(class_name).await?.context("No such class")?;
 
         let instance = JavaClassInstance::new(self, &class).await?;
 
@@ -102,7 +97,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let array_class = ClassLoader::get_or_load_class(self, &array_type).await?;
+        let array_class = self.load_class(&array_type).await?.unwrap();
 
         let instance = JavaArrayClassInstance::new(self, array_class, count).await?;
 
@@ -141,7 +136,7 @@ impl JavaContext for KtfJavaContext<'_> {
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, signature: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
         tracing::trace!("Call {}::{}({})", class_name, method_name, signature);
 
-        let class = ClassLoader::get_or_load_class(self, class_name).await?;
+        let class = self.load_class(class_name).await?.unwrap();
 
         let method = class
             .method(

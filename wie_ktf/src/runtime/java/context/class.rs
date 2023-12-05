@@ -9,10 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_core_arm::Allocator;
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
-use super::{
-    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName,
-    KtfJavaContext,
-};
+use super::{context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -53,7 +50,7 @@ impl JavaClass {
 
     pub async fn new(context: &mut KtfJavaContext<'_>, name: &str, proto: JavaClassProto) -> JavaResult<Self> {
         let parent_class = if let Some(x) = proto.parent_class {
-            Some(ClassLoader::get_or_load_class(context, x).await?)
+            Some(context.load_class(x).await?.unwrap())
         } else {
             None
         };
@@ -134,12 +131,12 @@ impl JavaClass {
     }
 
     pub async fn new_array(context: &mut KtfJavaContext<'_>, name: &str) -> JavaResult<JavaClass> {
-        let ptr_parent_class = ClassLoader::get_or_load_class(context, "java/lang/Object").await?;
+        let ptr_parent_class = context.load_class("java/lang/Object").await?.unwrap();
         let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type = if element_type_name.starts_with('L') {
-            Some(ClassLoader::get_or_load_class(context, &element_type_name[1..element_type_name.len() - 1]).await?)
+            Some(context.load_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap())
         } else {
             None
         };
