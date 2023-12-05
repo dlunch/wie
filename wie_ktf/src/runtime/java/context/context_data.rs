@@ -23,8 +23,9 @@ pub struct JavaContextData {}
 impl JavaContextData {
     pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JavaResult<u32> {
         let classes_base = Allocator::alloc(core, 0x1000)?;
+        write_generic(core, classes_base, 0u32)?;
 
-        let ptr_java_context_data = Allocator::alloc(core, size_of::<JavaContextData>() as _)?;
+        let ptr_java_context_data = Allocator::alloc(core, size_of::<RawJavaContextData>() as _)?;
         write_generic(
             core,
             ptr_java_context_data,
