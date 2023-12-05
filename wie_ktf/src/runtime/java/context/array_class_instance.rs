@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use bytemuck::{cast_slice, cast_vec, Pod};
 use num_traits::FromBytes;
 
-use wie_base::util::{ByteRead, ByteWrite};
+use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_impl_java::{JavaResult, JavaWord};
 
 use super::{class::JavaClass, class_instance::JavaClassInstance, KtfJavaContext};
@@ -21,11 +21,12 @@ impl JavaArrayClassInstance {
 
     pub async fn new(context: &mut KtfJavaContext<'_>, array_class: JavaClass, count: JavaWord) -> JavaResult<Self> {
         let element_size = Self::get_array_element_size(context, &array_class)?;
-        let instance = JavaClassInstance::instantiate(context, &array_class, count * element_size + 4).await?;
+        let class_instance: JavaClassInstance = JavaClassInstance::instantiate(context, &array_class, count * element_size + 4).await?;
 
-        instance.write_field(context, 0, count)?;
+        let length_address = class_instance.field_address(context, 0)?;
+        write_generic(context.core, length_address, count as u32)?;
 
-        Ok(Self { class_instance: instance })
+        Ok(Self { class_instance })
     }
 
     pub fn load_array<T, const B: usize>(&self, context: &KtfJavaContext<'_>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<T>>
@@ -75,7 +76,8 @@ impl JavaArrayClassInstance {
     }
 
     pub fn array_length(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaWord> {
-        let result = self.class_instance.read_field(context, 0)?;
+        let length_address = self.class_instance.field_address(context, 0)?;
+        let result: u32 = read_generic(context.core, length_address)?;
 
         Ok(result as _)
     }

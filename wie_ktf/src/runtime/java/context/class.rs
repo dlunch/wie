@@ -287,4 +287,17 @@ impl JavaClass {
 
         Ok(None)
     }
+
+    pub fn read_static_field(&self, context: &KtfJavaContext<'_>, field: &JavaField) -> JavaResult<JavaWord> {
+        let address = field.static_address(context)?;
+        let result: u32 = read_generic(context.core, address)?;
+
+        Ok(result as _)
+    }
+
+    pub fn write_static_field(&self, context: &mut KtfJavaContext<'_>, field: &JavaField, value: JavaWord) -> JavaResult<()> {
+        let address = field.static_address(context)?;
+
+        write_generic(context.core, address, value as u32)
+    }
 }

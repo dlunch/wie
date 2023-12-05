@@ -171,7 +171,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let field = JavaField::from_raw(id as _);
 
-        field.read_value(self, instance)
+        instance.read_field(self, &field)
     }
 
     fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()> {
@@ -179,7 +179,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let field = JavaField::from_raw(id as _);
 
-        field.write_value(self, instance, value)
+        instance.write_field(self, &field, value)
     }
 
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {
@@ -187,7 +187,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let class = instance.class(self)?;
         let field = class.field(self, field_name)?.unwrap();
 
-        field.read_value(self, instance)
+        instance.read_field(self, &field)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
@@ -195,21 +195,21 @@ impl JavaContext for KtfJavaContext<'_> {
         let class = instance.class(self)?;
         let field = class.field(self, field_name)?.unwrap();
 
-        field.write_value(self, instance, value)
+        instance.write_field(self, &field, value)
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
         let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let field = class.field(self, field_name)?.unwrap();
 
-        field.read_static_value(self)
+        class.read_static_field(self, &field)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let field = class.field(self, field_name)?.unwrap();
 
-        field.write_static_value(self, value)
+        class.write_static_field(self, &field, value)
     }
 
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()> {
