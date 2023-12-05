@@ -9,7 +9,10 @@ use bytemuck::{Pod, Zeroable};
 use wie_core_arm::Allocator;
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
-use super::{class_loader::ClassLoader, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
+use super::{
+    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName,
+    KtfJavaContext,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -177,15 +180,11 @@ impl JavaClass {
             },
         )?;
 
-        let context_data = context.read_context_data()?;
-        let ptr_classes = read_null_terminated_table(context.core, context_data.classes_base)?;
-        write_generic(
-            context.core,
-            context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
-            ptr_raw,
-        )?;
+        let class = JavaClass::from_raw(ptr_raw);
 
-        Ok(JavaClass::from_raw(ptr_raw))
+        JavaContextData::register_class(context, &class)?;
+
+        Ok(class)
     }
 
     pub fn read_class_hierarchy(&self, context: &KtfJavaContext<'_>) -> JavaResult<Vec<JavaClass>> {

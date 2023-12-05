@@ -7,6 +7,8 @@ use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::Allocator;
 use wie_impl_java::{JavaResult, JavaWord};
 
+use crate::runtime::java::context::context_data::JavaContextData;
+
 use super::{class::JavaClass, KtfJavaContext};
 
 #[repr(C)]
@@ -86,7 +88,7 @@ impl JavaClassInstance {
         let zero = iter::repeat(0).take((field_size + 4) as _).collect::<Vec<_>>();
         context.core.write_bytes(ptr_fields, &zero)?;
 
-        let vtable_index = context.get_vtable_index(class)?;
+        let vtable_index = JavaContextData::get_vtable_index(context, class)?;
 
         write_generic(
             context.core,
