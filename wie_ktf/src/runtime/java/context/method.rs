@@ -59,7 +59,7 @@ impl JavaMethod {
         let full_name = JavaFullName {
             tag: 0,
             name: proto.name,
-            signature: proto.signature,
+            descriptor: proto.descriptor,
         };
         let full_name_bytes = full_name.as_bytes();
 

@@ -46,7 +46,7 @@ impl JavaField {
         let full_name = (JavaFullName {
             tag: 0,
             name: proto.name,
-            signature: proto.signature,
+            descriptor: proto.descriptor,
         })
         .as_bytes();
 
