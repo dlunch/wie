@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
@@ -9,7 +9,7 @@ use wie_impl_java::{JavaResult, JavaWord};
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
-use super::{class::JavaClass, field::JavaField, KtfJavaContext};
+use super::{class::JavaClass, field::JavaField, method::JavaMethod, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -75,6 +75,13 @@ impl JavaClassInstance {
         let address = self.field_address(context, offset)?;
 
         write_generic(context.core, address, value as u32)
+    }
+
+    pub async fn invoke_method(&self, context: &mut KtfJavaContext<'_>, method: &JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
+        let mut params = vec![self.ptr_raw as _];
+        params.extend(args);
+
+        method.run(context, &params).await
     }
 
     pub(super) fn field_address(&self, context: &KtfJavaContext<'_>, offset: u32) -> JavaResult<u32> {
