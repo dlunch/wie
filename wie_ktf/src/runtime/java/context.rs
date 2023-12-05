@@ -8,7 +8,7 @@ mod method;
 mod name;
 mod vtable_builder;
 
-use alloc::{borrow::ToOwned, boxed::Box, format, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, vec::Vec};
 
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
@@ -71,7 +71,7 @@ impl<'a> KtfJavaContext<'a> {
         if let Some(x) = clinit {
             tracing::trace!("Call <clinit>");
 
-            x.invoke(self, &[]).await?;
+            class.invoke_static_method(self, &x, &[]).await?;
         }
 
         Ok(())
@@ -116,9 +116,6 @@ impl JavaContext for KtfJavaContext<'_> {
 
         tracing::trace!("Call {}::{}({})", class.name(self)?, method_name, descriptor);
 
-        let mut params = vec![proxy.ptr_instance];
-        params.extend(args);
-
         let method = class
             .method(
                 self,
@@ -130,7 +127,7 @@ impl JavaContext for KtfJavaContext<'_> {
             )?
             .unwrap();
 
-        Ok(method.invoke(self, &params).await? as _)
+        Ok(instance.invoke_method(self, &method, args).await? as _)
     }
 
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
@@ -149,7 +146,7 @@ impl JavaContext for KtfJavaContext<'_> {
             )?
             .unwrap();
 
-        Ok(method.invoke(self, args).await? as _)
+        Ok(class.invoke_static_method(self, &method, args).await? as _)
     }
 
     fn backend(&mut self) -> &mut Backend {

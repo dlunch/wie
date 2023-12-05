@@ -300,4 +300,8 @@ impl JavaClass {
 
         write_generic(context.core, address, value as u32)
     }
+
+    pub async fn invoke_static_method(&self, context: &mut KtfJavaContext<'_>, method: &JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
+        method.run(context, args).await
+    }
 }

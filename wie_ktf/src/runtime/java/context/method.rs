@@ -103,7 +103,7 @@ impl JavaMethod {
         JavaFullName::from_ptr(context.core, raw.ptr_name)
     }
 
-    pub async fn invoke(&self, context: &mut KtfJavaContext<'_>, args: &[JavaWord]) -> JavaResult<u32> {
+    pub async fn run(&self, context: &mut KtfJavaContext<'_>, args: &[JavaWord]) -> JavaResult<u32> {
         let raw: RawJavaMethod = read_generic(context.core, self.ptr_raw)?;
 
         if raw.flag.contains(JavaMethodFlagBit::NATIVE) {
