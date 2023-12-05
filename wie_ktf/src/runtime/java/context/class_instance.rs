@@ -9,7 +9,7 @@ use wie_impl_java::{JavaResult, JavaWord};
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
-use super::{class::JavaClass, KtfJavaContext};
+use super::{class::JavaClass, field::JavaField, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -59,7 +59,9 @@ impl JavaClassInstance {
         Ok(JavaClass::from_raw(raw.ptr_class))
     }
 
-    pub fn read_field(&self, context: &KtfJavaContext<'_>, offset: u32) -> JavaResult<JavaWord> {
+    pub fn read_field(&self, context: &KtfJavaContext<'_>, field: &JavaField) -> JavaResult<JavaWord> {
+        let offset = field.offset(context)?;
+
         let address = self.field_address(context, offset)?;
 
         let value: u32 = read_generic(context.core, address)?;
@@ -67,12 +69,12 @@ impl JavaClassInstance {
         Ok(value as _)
     }
 
-    pub fn write_field(&self, context: &mut KtfJavaContext<'_>, offset: u32, value: JavaWord) -> JavaResult<()> {
+    pub fn write_field(&self, context: &mut KtfJavaContext<'_>, field: &JavaField, value: JavaWord) -> JavaResult<()> {
+        let offset = field.offset(context)?;
+
         let address = self.field_address(context, offset)?;
 
-        write_generic(context.core, address, value as u32)?;
-
-        Ok(())
+        write_generic(context.core, address, value as u32)
     }
 
     pub(super) fn field_address(&self, context: &KtfJavaContext<'_>, offset: u32) -> JavaResult<u32> {

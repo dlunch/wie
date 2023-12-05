@@ -4,9 +4,9 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::Allocator;
-use wie_impl_java::{JavaFieldAccessFlag, JavaFieldProto, JavaResult, JavaWord};
+use wie_impl_java::{JavaFieldAccessFlag, JavaFieldProto, JavaResult};
 
-use super::{class_instance::JavaClassInstance, JavaFullName, KtfJavaContext};
+use super::{JavaFullName, KtfJavaContext};
 
 bitflags::bitflags! {
     struct JavaFieldAccessFlagBit: u32 {
@@ -75,41 +75,21 @@ impl JavaField {
         JavaFullName::from_ptr(context.core, raw.ptr_name)
     }
 
-    pub fn read_value(&self, context: &KtfJavaContext<'_>, instance: JavaClassInstance) -> JavaResult<JavaWord> {
+    pub fn offset(&self, context: &KtfJavaContext<'_>) -> JavaResult<u32> {
         let raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
 
         anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
 
-        let offset = raw.offset_or_value;
-        let value = instance.read_field(context, offset)?;
-
-        Ok(value as _)
+        Ok(raw.offset_or_value)
     }
 
-    pub fn write_value(&self, context: &mut KtfJavaContext<'_>, instance: JavaClassInstance, value: JavaWord) -> JavaResult<()> {
-        let raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
-
-        anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
-
-        let offset = raw.offset_or_value;
-        instance.write_field(context, offset, value as _)
-    }
-
-    pub fn read_static_value(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaWord> {
+    pub fn static_address(&self, context: &KtfJavaContext<'_>) -> JavaResult<u32> {
         let raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
 
         anyhow::ensure!(raw.access_flag & 0x0008 != 0, "Field is not static");
 
-        Ok(raw.offset_or_value as _)
-    }
+        let address = self.ptr_raw + 12; // offsetof offset_or_value
 
-    pub fn write_static_value(&self, context: &mut KtfJavaContext<'_>, value: JavaWord) -> JavaResult<()> {
-        let mut raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
-
-        anyhow::ensure!(raw.access_flag & 0x0008 != 0, "Field is not static");
-
-        raw.offset_or_value = value as _;
-
-        write_generic(context.core, self.ptr_raw, raw)
+        Ok(address)
     }
 }
