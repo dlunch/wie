@@ -2618,9 +2618,11 @@ dependencies = [
 [[package]]
 name = "smaf"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#5be569871e8ebdfe66d86187158d1c7a57ab89e4"
+source = "git+https://github.com/dlunch/smaf.git#6f4310add9a14bc495955be16b0ce5c2a5b3b3d9"
 dependencies = [
  "anyhow",
+ "nom",
+ "nom-derive",
 ]
 
 [[package]]
