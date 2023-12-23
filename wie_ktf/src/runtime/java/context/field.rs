@@ -3,7 +3,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
-use wie_core_arm::Allocator;
+use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaFieldAccessFlag, JavaFieldProto, JavaResult};
 
 use super::{JavaFullName, KtfJavaContext};
@@ -35,11 +35,12 @@ struct RawJavaField {
 
 pub struct JavaField {
     pub(crate) ptr_raw: u32,
+    core: ArmCore,
 }
 
 impl JavaField {
-    pub fn from_raw(ptr_raw: u32) -> Self {
-        Self { ptr_raw }
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub fn new(context: &mut KtfJavaContext<'_>, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> JavaResult<Self> {
@@ -66,25 +67,25 @@ impl JavaField {
             },
         )?;
 
-        Ok(Self::from_raw(ptr_raw))
+        Ok(Self::from_raw(ptr_raw, context.core))
     }
 
-    pub fn name(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaFullName> {
-        let raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
+    pub fn name(&self) -> JavaResult<JavaFullName> {
+        let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
-        JavaFullName::from_ptr(context.core, raw.ptr_name)
+        JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub fn offset(&self, context: &KtfJavaContext<'_>) -> JavaResult<u32> {
-        let raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
+    pub fn offset(&self) -> JavaResult<u32> {
+        let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
         anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
 
         Ok(raw.offset_or_value)
     }
 
-    pub fn static_address(&self, context: &KtfJavaContext<'_>) -> JavaResult<u32> {
-        let raw: RawJavaField = read_generic(context.core, self.ptr_raw)?;
+    pub fn static_address(&self) -> JavaResult<u32> {
+        let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
         anyhow::ensure!(raw.access_flag & 0x0008 != 0, "Field is not static");
 

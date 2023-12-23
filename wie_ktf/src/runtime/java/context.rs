@@ -59,26 +59,23 @@ impl<'a> KtfJavaContext<'a> {
     pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
         JavaContextData::register_class(self, class)?;
 
-        let clinit = class.method(
-            self,
-            &JavaFullName {
-                tag: 0,
-                name: "<clinit>".into(),
-                descriptor: "()V".into(),
-            },
-        )?;
+        let clinit = class.method(&JavaFullName {
+            tag: 0,
+            name: "<clinit>".into(),
+            descriptor: "()V".into(),
+        })?;
 
-        if let Some(x) = clinit {
+        if let Some(mut x) = clinit {
             tracing::trace!("Call <clinit>");
 
-            class.invoke_static_method(self, &x, &[]).await?;
+            class.invoke_static_method(&mut x, &[]).await?;
         }
 
         Ok(())
     }
 
     pub fn class_from_raw(&self, ptr_class: u32) -> JavaClass {
-        JavaClass::from_raw(ptr_class)
+        JavaClass::from_raw(ptr_class, self.core)
     }
 }
 
@@ -105,29 +102,26 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn destroy(&mut self, proxy: JavaObjectProxy<Object>) -> JavaResult<()> {
-        let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _);
+        let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _, self.core);
 
-        instance.destroy(self)
+        instance.destroy()
     }
 
     async fn call_method(&mut self, proxy: &JavaObjectProxy<Object>, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
-        let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _);
-        let class = instance.class(self)?;
+        let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _, self.core);
+        let class = instance.class()?;
 
-        tracing::trace!("Call {}::{}({})", class.name(self)?, method_name, descriptor);
+        tracing::trace!("Call {}::{}({})", class.name()?, method_name, descriptor);
 
-        let method = class
-            .method(
-                self,
-                &JavaFullName {
-                    tag: 0,
-                    name: method_name.to_owned(),
-                    descriptor: descriptor.to_owned(),
-                },
-            )?
+        let mut method = class
+            .method(&JavaFullName {
+                tag: 0,
+                name: method_name.to_owned(),
+                descriptor: descriptor.to_owned(),
+            })?
             .unwrap();
 
-        Ok(instance.invoke_method(self, &method, args).await? as _)
+        Ok(instance.invoke_method(&mut method, args).await? as _)
     }
 
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
@@ -135,18 +129,15 @@ impl JavaContext for KtfJavaContext<'_> {
 
         let class = self.load_class(class_name).await?.unwrap();
 
-        let method = class
-            .method(
-                self,
-                &JavaFullName {
-                    tag: 0,
-                    name: method_name.to_owned(),
-                    descriptor: descriptor.to_owned(),
-                },
-            )?
+        let mut method = class
+            .method(&JavaFullName {
+                tag: 0,
+                name: method_name.to_owned(),
+                descriptor: descriptor.to_owned(),
+            })?
             .unwrap();
 
-        Ok(class.invoke_static_method(self, &method, args).await? as _)
+        Ok(class.invoke_static_method(&mut method, args).await? as _)
     }
 
     fn backend(&mut self) -> &mut Backend {
@@ -156,7 +147,7 @@ impl JavaContext for KtfJavaContext<'_> {
     fn get_field_id(&self, class_name: &str, field_name: &str, _descriptor: &str) -> JavaResult<JavaWord> {
         let class = JavaContextData::find_class(self, class_name)?.context("No such class")?;
 
-        let field = class.field(self, field_name)?.unwrap();
+        let field = class.field(field_name)?.unwrap();
 
         // TODO descriptor comparison
 
@@ -164,91 +155,91 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _);
+        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
 
-        let field = JavaField::from_raw(id as _);
+        let field = JavaField::from_raw(id as _, self.core);
 
-        instance.read_field(self, &field)
+        instance.read_field(&field)
     }
 
     fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _);
+        let mut instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
 
-        let field = JavaField::from_raw(id as _);
+        let field = JavaField::from_raw(id as _, self.core);
 
-        instance.write_field(self, &field, value)
+        instance.write_field(&field, value)
     }
 
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _);
-        let class = instance.class(self)?;
-        let field = class.field(self, field_name)?.unwrap();
+        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
+        let class = instance.class()?;
+        let field = class.field(field_name)?.unwrap();
 
-        instance.read_field(self, &field)
+        instance.read_field(&field)
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _);
-        let class = instance.class(self)?;
-        let field = class.field(self, field_name)?.unwrap();
+        let mut instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
+        let class = instance.class()?;
+        let field = class.field(field_name)?.unwrap();
 
-        instance.write_field(self, &field, value)
+        instance.write_field(&field, value)
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
         let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let field = class.field(self, field_name)?.unwrap();
+        let field = class.field(field_name)?.unwrap();
 
-        class.read_static_field(self, &field)
+        class.read_static_field(&field)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let field = class.field(self, field_name)?.unwrap();
+        let mut class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let field = class.field(field_name)?.unwrap();
 
-        class.write_static_field(self, &field, value)
+        class.write_static_field(&field, value)
     }
 
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
-        instance.store_array(self, offset, values)
+        let mut instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
+        instance.store_array(offset, values)
     }
 
     fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
-        instance.load_array(self, offset, count)
+        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
+        instance.load_array(offset, count)
     }
 
     fn store_array_i16(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i16]) -> JavaResult<()> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
-        instance.store_array(self, offset, values)
+        let mut instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
+        instance.store_array(offset, values)
     }
 
     fn load_array_i16(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i16>> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
-        instance.load_array(self, offset, count)
+        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
+        instance.load_array(offset, count)
     }
 
     fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i8]) -> JavaResult<()> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
-        instance.store_array(self, offset, values)
+        let mut instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
+        instance.store_array(offset, values)
     }
 
     fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i8>> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
-        instance.load_array(self, offset, count)
+        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
+        instance.load_array(offset, count)
     }
 
     fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
+        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
 
-        instance.array_element_size(self)
+        instance.array_element_size()
     }
 
     fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _);
+        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
 
-        instance.array_length(self)
+        instance.array_length()
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {

@@ -83,7 +83,7 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
 
     let context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    let method = class.method(&context, &fullname)?.unwrap();
+    let method = class.method(&fullname)?.unwrap();
 
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
@@ -133,7 +133,7 @@ async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: 
 
     let context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    let field = class.field(&context, &field_name.name)?.unwrap();
+    let field = class.field(&field_name.name)?.unwrap();
 
     Ok(field.ptr_raw)
 }
@@ -190,7 +190,7 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
 
     let mut context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    let class_name = class.name(&context)?;
+    let class_name = class.name()?;
 
     let instance = context.instantiate(&format!("L{};", class_name)).await?;
 
@@ -205,7 +205,7 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
     let element_type_name = if element_type > 0x100 {
         // HACK: we don't have element type class
         let class = java_context.class_from_raw(element_type);
-        class.name(&java_context)?
+        class.name()?
     } else {
         (element_type as u8 as char).to_string()
     };

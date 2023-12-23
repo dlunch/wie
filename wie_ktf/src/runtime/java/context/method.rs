@@ -48,11 +48,12 @@ struct RawJavaMethod {
 
 pub struct JavaMethod {
     pub(crate) ptr_raw: u32,
+    core: ArmCore,
 }
 
 impl JavaMethod {
-    pub fn from_raw(ptr_raw: u32) -> Self {
-        Self { ptr_raw }
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub fn new(context: &mut KtfJavaContext<'_>, ptr_class: u32, proto: JavaMethodProto, vtable_builder: &mut JavaVtableBuilder) -> JavaResult<Self> {
@@ -94,37 +95,34 @@ impl JavaMethod {
             },
         )?;
 
-        Ok(Self::from_raw(ptr_raw))
+        Ok(Self::from_raw(ptr_raw, context.core))
     }
 
-    pub fn name(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaFullName> {
-        let raw: RawJavaMethod = read_generic(context.core, self.ptr_raw)?;
+    pub fn name(&self) -> JavaResult<JavaFullName> {
+        let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
-        JavaFullName::from_ptr(context.core, raw.ptr_name)
+        JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, context: &mut KtfJavaContext<'_>, args: &[JavaWord]) -> JavaResult<u32> {
-        let raw: RawJavaMethod = read_generic(context.core, self.ptr_raw)?;
+    pub async fn run(&mut self, args: &[JavaWord]) -> JavaResult<u32> {
+        let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         if raw.flag.contains(JavaMethodFlagBit::NATIVE) {
-            let arg_container = Allocator::alloc(context.core, (args.len() as u32) * 4)?;
+            let arg_container = Allocator::alloc(&mut self.core, (args.len() as u32) * 4)?;
             for (i, arg) in args.iter().enumerate() {
-                write_generic(context.core, arg_container + (i * 4) as u32, *arg as u32)?;
+                write_generic(&mut self.core, arg_container + (i * 4) as u32, *arg as u32)?;
             }
 
-            let result = context
-                .core
-                .run_function(raw.fn_body_native_or_exception_table, &[0, arg_container])
-                .await;
+            let result = self.core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
 
-            Allocator::free(context.core, arg_container)?;
+            Allocator::free(&mut self.core, arg_container)?;
 
             result
         } else {
             let mut params = vec![0];
             params.extend(args.iter().map(|&x| x as u32));
 
-            context.core.run_function(raw.fn_body, &params).await
+            self.core.run_function(raw.fn_body, &params).await
         }
     }
 

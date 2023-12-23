@@ -4,7 +4,7 @@ use core::{iter, mem::size_of};
 use bytemuck::{Pod, Zeroable};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
-use wie_core_arm::Allocator;
+use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaResult, JavaWord};
 
 use crate::runtime::java::context::context_data::JavaContextData;
@@ -27,65 +27,66 @@ struct RawJavaClassInstanceFields {
 
 pub struct JavaClassInstance {
     pub(crate) ptr_raw: u32,
+    core: ArmCore,
 }
 
 impl JavaClassInstance {
-    pub fn from_raw(ptr_raw: u32) -> Self {
-        Self { ptr_raw }
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub async fn new(context: &mut KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<Self> {
-        let field_size = class.field_size(context)?;
+        let field_size = class.field_size()?;
 
         let instance = Self::instantiate(context, class, field_size).await?;
 
-        tracing::trace!("Instantiated {} at {:#x}", class.name(context)?, instance.ptr_raw);
+        tracing::trace!("Instantiated {} at {:#x}", class.name()?, instance.ptr_raw);
 
         Ok(instance)
     }
 
-    pub fn destroy(&self, context: &mut KtfJavaContext<'_>) -> JavaResult<()> {
-        let raw = self.read_raw(context)?;
+    pub fn destroy(mut self) -> JavaResult<()> {
+        let raw = self.read_raw()?;
 
-        Allocator::free(context.core, raw.ptr_fields)?;
-        Allocator::free(context.core, self.ptr_raw)?;
+        Allocator::free(&mut self.core, raw.ptr_fields)?;
+        Allocator::free(&mut self.core, self.ptr_raw)?;
 
         Ok(())
     }
 
-    pub fn class(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaClass> {
-        let raw = self.read_raw(context)?;
+    pub fn class(&self) -> JavaResult<JavaClass> {
+        let raw = self.read_raw()?;
 
-        Ok(JavaClass::from_raw(raw.ptr_class))
+        Ok(JavaClass::from_raw(raw.ptr_class, &self.core))
     }
 
-    pub fn read_field(&self, context: &KtfJavaContext<'_>, field: &JavaField) -> JavaResult<JavaWord> {
-        let offset = field.offset(context)?;
+    pub fn read_field(&self, field: &JavaField) -> JavaResult<JavaWord> {
+        let offset = field.offset()?;
 
-        let address = self.field_address(context, offset)?;
+        let address = self.field_address(offset)?;
 
-        let value: u32 = read_generic(context.core, address)?;
+        let value: u32 = read_generic(&self.core, address)?;
 
         Ok(value as _)
     }
 
-    pub fn write_field(&self, context: &mut KtfJavaContext<'_>, field: &JavaField, value: JavaWord) -> JavaResult<()> {
-        let offset = field.offset(context)?;
+    pub fn write_field(&mut self, field: &JavaField, value: JavaWord) -> JavaResult<()> {
+        let offset = field.offset()?;
 
-        let address = self.field_address(context, offset)?;
+        let address = self.field_address(offset)?;
 
-        write_generic(context.core, address, value as u32)
+        write_generic(&mut self.core, address, value as u32)
     }
 
-    pub async fn invoke_method(&self, context: &mut KtfJavaContext<'_>, method: &JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
+    pub async fn invoke_method(&self, method: &mut JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
         let mut params = vec![self.ptr_raw as _];
         params.extend(args);
 
-        method.run(context, &params).await
+        method.run(&params).await
     }
 
-    pub(super) fn field_address(&self, context: &KtfJavaContext<'_>, offset: u32) -> JavaResult<u32> {
-        let raw = self.read_raw(context)?;
+    pub(super) fn field_address(&self, offset: u32) -> JavaResult<u32> {
+        let raw = self.read_raw()?;
 
         Ok(raw.ptr_fields + offset + 4)
     }
@@ -109,13 +110,13 @@ impl JavaClassInstance {
         )?;
         write_generic(context.core, ptr_fields, (vtable_index * 4) << 5)?;
 
-        tracing::trace!("Instantiate {}, vtable_index {:#x}", class.name(context)?, vtable_index);
+        tracing::trace!("Instantiate {}, vtable_index {:#x}", class.name()?, vtable_index);
 
-        Ok(Self { ptr_raw })
+        Ok(Self::from_raw(ptr_raw, context.core))
     }
 
-    fn read_raw(&self, context: &KtfJavaContext<'_>) -> JavaResult<RawJavaClassInstance> {
-        let instance: RawJavaClassInstance = read_generic(context.core, self.ptr_raw as _)?;
+    fn read_raw(&self) -> JavaResult<RawJavaClassInstance> {
+        let instance: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw as _)?;
 
         Ok(instance)
     }

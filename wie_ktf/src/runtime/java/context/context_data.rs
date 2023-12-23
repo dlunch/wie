@@ -43,7 +43,7 @@ impl JavaContextData {
         let context_data = Self::read(context)?;
         let ptr_vtables = read_null_terminated_table(context.core, context_data.ptr_vtables_base)?;
 
-        let ptr_vtable = class.ptr_vtable(context)?;
+        let ptr_vtable = class.ptr_vtable()?;
 
         for (index, &current_ptr_vtable) in ptr_vtables.iter().enumerate() {
             if ptr_vtable == current_ptr_vtable {
@@ -79,10 +79,10 @@ impl JavaContextData {
         let context_data = Self::read(context)?;
         let classes = read_null_terminated_table(context.core, context_data.classes_base)?;
         for ptr_raw in classes {
-            let class = JavaClass::from_raw(ptr_raw);
+            let class = JavaClass::from_raw(ptr_raw, context.core);
 
-            if class.name(context)? == name {
-                return Ok(Some(JavaClass::from_raw(ptr_raw)));
+            if class.name()? == name {
+                return Ok(Some(JavaClass::from_raw(ptr_raw, context.core)));
             }
         }
 
