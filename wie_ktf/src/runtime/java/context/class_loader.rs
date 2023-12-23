@@ -34,7 +34,7 @@ impl ClassLoader {
                     Allocator::free(context.core, ptr_name)?;
 
                     if ptr_raw != 0 {
-                        let class = JavaClass::from_raw(ptr_raw);
+                        let class = JavaClass::from_raw(ptr_raw, context.core);
                         context.register_class(&class).await?;
 
                         Ok(Some(class))

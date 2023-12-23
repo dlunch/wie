@@ -1,12 +1,12 @@
 use alloc::{string::String, vec, vec::Vec};
 use core::mem::size_of;
-use wie_base::util::{
-    read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
-};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_core_arm::Allocator;
+use wie_base::util::{
+    read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
+};
+use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
 use super::{context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
@@ -41,11 +41,12 @@ struct RawJavaClassDescriptor {
 
 pub struct JavaClass {
     pub(crate) ptr_raw: u32,
+    core: ArmCore,
 }
 
 impl JavaClass {
-    pub fn from_raw(ptr_raw: u32) -> Self {
-        Self { ptr_raw }
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub async fn new(context: &mut KtfJavaContext<'_>, name: &str, proto: JavaClassProto) -> JavaResult<Self> {
@@ -55,7 +56,7 @@ impl JavaClass {
             None
         };
 
-        let mut vtable_builder = JavaVtableBuilder::new(context, &parent_class)?;
+        let mut vtable_builder = JavaVtableBuilder::new(&parent_class)?;
 
         let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaClass>() as u32)?;
 
@@ -123,7 +124,7 @@ impl JavaClass {
             },
         )?;
 
-        let result = Self::from_raw(ptr_raw);
+        let result = Self::from_raw(ptr_raw, context.core);
 
         context.register_class(&result).await?;
 
@@ -177,22 +178,22 @@ impl JavaClass {
             },
         )?;
 
-        let class = JavaClass::from_raw(ptr_raw);
+        let class = JavaClass::from_raw(ptr_raw, context.core);
 
         JavaContextData::register_class(context, &class)?;
 
         Ok(class)
     }
 
-    pub fn read_class_hierarchy(&self, context: &KtfJavaContext<'_>) -> JavaResult<Vec<JavaClass>> {
+    pub fn read_class_hierarchy(&self) -> JavaResult<Vec<JavaClass>> {
         let mut result = vec![];
 
         let mut current_class = self.ptr_raw;
         loop {
-            result.push(JavaClass::from_raw(current_class));
+            result.push(JavaClass::from_raw(current_class, &self.core));
 
-            let raw: RawJavaClass = read_generic(context.core, current_class)?;
-            let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
+            let raw: RawJavaClass = read_generic(&self.core, current_class)?;
+            let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
             if descriptor.ptr_parent_class != 0 {
                 current_class = descriptor.ptr_parent_class;
@@ -204,83 +205,83 @@ impl JavaClass {
         Ok(result)
     }
 
-    pub fn ptr_vtable(&self, context: &KtfJavaContext<'_>) -> JavaResult<u32> {
-        let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
+    pub fn ptr_vtable(&self) -> JavaResult<u32> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
 
         Ok(raw.ptr_vtable)
     }
 
-    pub fn field_size(&self, context: &KtfJavaContext<'_>) -> JavaResult<JavaWord> {
-        let class_hierarchy = self.read_class_hierarchy(context)?;
+    pub fn field_size(&self) -> JavaResult<JavaWord> {
+        let class_hierarchy = self.read_class_hierarchy()?;
 
         Ok(class_hierarchy
             .into_iter()
             .map(|x| {
-                let raw: RawJavaClass = read_generic(context.core, x.ptr_raw).unwrap();
-                let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor).unwrap();
+                let raw: RawJavaClass = read_generic(&self.core, x.ptr_raw).unwrap();
+                let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor).unwrap();
 
                 descriptor.fields_size as JavaWord
             })
             .sum())
     }
 
-    pub fn methods(&self, context: &KtfJavaContext<'_>) -> JavaResult<Vec<JavaMethod>> {
-        let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
-        let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
+    pub fn methods(&self) -> JavaResult<Vec<JavaMethod>> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        let ptr_methods = read_null_terminated_table(context.core, descriptor.ptr_methods)?;
+        let ptr_methods = read_null_terminated_table(&self.core, descriptor.ptr_methods)?;
 
-        Ok(ptr_methods.into_iter().map(JavaMethod::from_raw).collect())
+        Ok(ptr_methods.into_iter().map(|x| JavaMethod::from_raw(x, &self.core)).collect())
     }
 
-    pub fn fields(&self, context: &KtfJavaContext<'_>) -> JavaResult<Vec<JavaField>> {
-        let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
-        let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
+    pub fn fields(&self) -> JavaResult<Vec<JavaField>> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        let ptr_fields = read_null_terminated_table(context.core, descriptor.ptr_fields_or_element_type)?;
+        let ptr_fields = read_null_terminated_table(&self.core, descriptor.ptr_fields_or_element_type)?;
 
-        Ok(ptr_fields.into_iter().map(JavaField::from_raw).collect())
+        Ok(ptr_fields.into_iter().map(|x| JavaField::from_raw(x, &self.core)).collect())
     }
 
-    pub fn name(&self, context: &KtfJavaContext<'_>) -> JavaResult<String> {
-        let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
-        let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
+    pub fn name(&self) -> JavaResult<String> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        read_null_terminated_string(context.core, descriptor.ptr_name)
+        read_null_terminated_string(&self.core, descriptor.ptr_name)
     }
 
-    pub fn parent_class(&self, context: &KtfJavaContext<'_>) -> JavaResult<Option<JavaClass>> {
-        let raw: RawJavaClass = read_generic(context.core, self.ptr_raw)?;
-        let descriptor: RawJavaClassDescriptor = read_generic(context.core, raw.ptr_descriptor)?;
+    pub fn parent_class(&self) -> JavaResult<Option<JavaClass>> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
         if descriptor.ptr_parent_class != 0 {
-            Ok(Some(JavaClass::from_raw(descriptor.ptr_parent_class)))
+            Ok(Some(JavaClass::from_raw(descriptor.ptr_parent_class, &self.core)))
         } else {
             Ok(None)
         }
     }
 
-    pub fn method(&self, context: &KtfJavaContext<'_>, fullname: &JavaFullName) -> JavaResult<Option<JavaMethod>> {
-        let methods = self.methods(context)?;
+    pub fn method(&self, fullname: &JavaFullName) -> JavaResult<Option<JavaMethod>> {
+        let methods = self.methods()?;
 
         for method in methods {
-            if method.name(context)? == *fullname {
+            if method.name()? == *fullname {
                 return Ok(Some(method));
             }
         }
 
-        if let Some(x) = self.parent_class(context)? {
-            x.method(context, fullname)
+        if let Some(x) = self.parent_class()? {
+            x.method(fullname)
         } else {
             Ok(None)
         }
     }
 
-    pub fn field(&self, context: &KtfJavaContext<'_>, name: &str) -> JavaResult<Option<JavaField>> {
-        let fields = self.fields(context)?;
+    pub fn field(&self, name: &str) -> JavaResult<Option<JavaField>> {
+        let fields = self.fields()?;
 
         for field in fields {
-            if field.name(context)?.name == name {
+            if field.name()?.name == name {
                 return Ok(Some(field));
             }
         }
@@ -288,20 +289,20 @@ impl JavaClass {
         Ok(None)
     }
 
-    pub fn read_static_field(&self, context: &KtfJavaContext<'_>, field: &JavaField) -> JavaResult<JavaWord> {
-        let address = field.static_address(context)?;
-        let result: u32 = read_generic(context.core, address)?;
+    pub fn read_static_field(&self, field: &JavaField) -> JavaResult<JavaWord> {
+        let address = field.static_address()?;
+        let result: u32 = read_generic(&self.core, address)?;
 
         Ok(result as _)
     }
 
-    pub fn write_static_field(&self, context: &mut KtfJavaContext<'_>, field: &JavaField, value: JavaWord) -> JavaResult<()> {
-        let address = field.static_address(context)?;
+    pub fn write_static_field(&mut self, field: &JavaField, value: JavaWord) -> JavaResult<()> {
+        let address = field.static_address()?;
 
-        write_generic(context.core, address, value as u32)
+        write_generic(&mut self.core, address, value as u32)
     }
 
-    pub async fn invoke_static_method(&self, context: &mut KtfJavaContext<'_>, method: &JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
-        method.run(context, args).await
+    pub async fn invoke_static_method(&self, method: &mut JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
+        method.run(args).await
     }
 }

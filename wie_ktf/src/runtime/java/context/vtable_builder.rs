@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, vec::Vec};
 
 use wie_impl_java::JavaResult;
 
-use super::{class::JavaClass, name::JavaFullName, KtfJavaContext};
+use super::{class::JavaClass, name::JavaFullName};
 
 struct JavaVtableMethod {
     ptr_method: u32,
@@ -14,9 +14,9 @@ pub struct JavaVtableBuilder {
 }
 
 impl JavaVtableBuilder {
-    pub fn new(context: &KtfJavaContext<'_>, parent_class: &Option<JavaClass>) -> JavaResult<Self> {
+    pub fn new(parent_class: &Option<JavaClass>) -> JavaResult<Self> {
         let items = if let Some(x) = parent_class {
-            Self::build_vtable(context, x)?
+            Self::build_vtable(x)?
         } else {
             Vec::new()
         };
@@ -46,20 +46,20 @@ impl JavaVtableBuilder {
         self.items.iter().map(|x| x.ptr_method).collect()
     }
 
-    fn build_vtable(context: &KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<Vec<JavaVtableMethod>> {
-        let class_hierarchy = class.read_class_hierarchy(context)?.into_iter().rev();
+    fn build_vtable(class: &JavaClass) -> JavaResult<Vec<JavaVtableMethod>> {
+        let class_hierarchy = class.read_class_hierarchy()?.into_iter().rev();
 
         let mut vtable: Vec<JavaVtableMethod> = Vec::new();
 
         for class in class_hierarchy {
-            let methods = class.methods(context)?;
+            let methods = class.methods()?;
 
             let items = methods
                 .into_iter()
                 .map(|x| {
                     anyhow::Ok(JavaVtableMethod {
                         ptr_method: x.ptr_raw,
-                        name: x.name(context)?,
+                        name: x.name()?,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
