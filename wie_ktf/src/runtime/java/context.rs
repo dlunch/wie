@@ -87,7 +87,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
         let class = self.load_class(class_name).await?.context("No such class")?;
 
-        let instance = JavaClassInstance::new(self, &class).await?;
+        let instance = JavaClassInstance::new(self, &class)?;
 
         Ok(JavaObjectProxy::new(instance.ptr_raw as _))
     }
@@ -96,7 +96,7 @@ impl JavaContext for KtfJavaContext<'_> {
         let array_type = format!("[{}", element_type_name);
         let array_class = self.load_class(&array_type).await?.unwrap();
 
-        let instance = JavaArrayClassInstance::new(self, array_class, count).await?;
+        let instance = JavaArrayClassInstance::new(self, array_class, count)?;
 
         Ok(JavaObjectProxy::new(instance.class_instance.ptr_raw as _))
     }
