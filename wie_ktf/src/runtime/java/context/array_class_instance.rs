@@ -7,7 +7,7 @@ use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
 use wie_impl_java::{JavaResult, JavaWord};
 
-use super::{class::JavaClass, class_instance::JavaClassInstance, KtfJavaContext};
+use super::{class::JavaClass, class_instance::JavaClassInstance};
 
 pub struct JavaArrayClassInstance {
     pub(crate) class_instance: JavaClassInstance,
@@ -22,14 +22,14 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(context: &mut KtfJavaContext<'_>, array_class: JavaClass, count: JavaWord) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, array_class: JavaClass, count: JavaWord) -> JavaResult<Self> {
         let element_size = Self::get_array_element_size(&array_class)?;
-        let class_instance = JavaClassInstance::instantiate(context, &array_class, count * element_size + 4)?;
+        let class_instance = JavaClassInstance::instantiate(core, &array_class, count * element_size + 4)?;
 
         let length_address = class_instance.field_address(0)?;
-        write_generic(context.core, length_address, count as u32)?;
+        write_generic(core, length_address, count as u32)?;
 
-        Ok(Self::from_raw(class_instance.ptr_raw, context.core))
+        Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
     pub fn load_array<T, const B: usize>(&self, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<T>>

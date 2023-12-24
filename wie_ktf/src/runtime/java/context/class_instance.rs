@@ -9,7 +9,7 @@ use wie_impl_java::{JavaResult, JavaWord};
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
-use super::{class::JavaClass, field::JavaField, method::JavaMethod, KtfJavaContext};
+use super::{class::JavaClass, field::JavaField, method::JavaMethod};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -35,10 +35,10 @@ impl JavaClassInstance {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(context: &mut KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, class: &JavaClass) -> JavaResult<Self> {
         let field_size = class.field_size()?;
 
-        let instance = Self::instantiate(context, class, field_size)?;
+        let instance = Self::instantiate(core, class, field_size)?;
 
         tracing::trace!("Instantiated {} at {:#x}", class.name()?, instance.ptr_raw);
 
@@ -91,28 +91,28 @@ impl JavaClassInstance {
         Ok(raw.ptr_fields + offset + 4)
     }
 
-    pub(super) fn instantiate(context: &mut KtfJavaContext<'_>, class: &JavaClass, field_size: JavaWord) -> JavaResult<Self> {
-        let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaClassInstance>() as _)?;
-        let ptr_fields = Allocator::alloc(context.core, (field_size + 4) as _)?;
+    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClass, field_size: JavaWord) -> JavaResult<Self> {
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as _)?;
+        let ptr_fields = Allocator::alloc(core, (field_size + 4) as _)?;
 
         let zero = iter::repeat(0).take((field_size + 4) as _).collect::<Vec<_>>();
-        context.core.write_bytes(ptr_fields, &zero)?;
+        core.write_bytes(ptr_fields, &zero)?;
 
-        let vtable_index = JavaContextData::get_vtable_index(context.core, class)?;
+        let vtable_index = JavaContextData::get_vtable_index(core, class)?;
 
         write_generic(
-            context.core,
+            core,
             ptr_raw,
             RawJavaClassInstance {
                 ptr_fields,
                 ptr_class: class.ptr_raw,
             },
         )?;
-        write_generic(context.core, ptr_fields, (vtable_index * 4) << 5)?;
+        write_generic(core, ptr_fields, (vtable_index * 4) << 5)?;
 
         tracing::trace!("Instantiate {}, vtable_index {:#x}", class.name()?, vtable_index);
 
-        Ok(Self::from_raw(ptr_raw, context.core))
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     fn read_raw(&self) -> JavaResult<RawJavaClassInstance> {
