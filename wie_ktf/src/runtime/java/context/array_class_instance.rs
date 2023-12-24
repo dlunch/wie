@@ -22,9 +22,9 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub async fn new(context: &mut KtfJavaContext<'_>, array_class: JavaClass, count: JavaWord) -> JavaResult<Self> {
+    pub fn new(context: &mut KtfJavaContext<'_>, array_class: JavaClass, count: JavaWord) -> JavaResult<Self> {
         let element_size = Self::get_array_element_size(&array_class)?;
-        let class_instance: JavaClassInstance = JavaClassInstance::instantiate(context, &array_class, count * element_size + 4).await?;
+        let class_instance = JavaClassInstance::instantiate(context, &array_class, count * element_size + 4)?;
 
         let length_address = class_instance.field_address(0)?;
         write_generic(context.core, length_address, count as u32)?;

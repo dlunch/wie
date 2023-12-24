@@ -35,10 +35,10 @@ impl JavaClassInstance {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new(context: &mut KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<Self> {
+    pub fn new(context: &mut KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<Self> {
         let field_size = class.field_size()?;
 
-        let instance = Self::instantiate(context, class, field_size).await?;
+        let instance = Self::instantiate(context, class, field_size)?;
 
         tracing::trace!("Instantiated {} at {:#x}", class.name()?, instance.ptr_raw);
 
@@ -91,7 +91,7 @@ impl JavaClassInstance {
         Ok(raw.ptr_fields + offset + 4)
     }
 
-    pub(super) async fn instantiate(context: &mut KtfJavaContext<'_>, class: &JavaClass, field_size: JavaWord) -> JavaResult<Self> {
+    pub(super) fn instantiate(context: &mut KtfJavaContext<'_>, class: &JavaClass, field_size: JavaWord) -> JavaResult<Self> {
         let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaClassInstance>() as _)?;
         let ptr_fields = Allocator::alloc(context.core, (field_size + 4) as _)?;
 
