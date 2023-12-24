@@ -180,7 +180,7 @@ impl JavaClass {
 
         let class = JavaClass::from_raw(ptr_raw, context.core);
 
-        JavaContextData::register_class(context, &class)?;
+        JavaContextData::register_class(context.core, &class)?;
 
         Ok(class)
     }

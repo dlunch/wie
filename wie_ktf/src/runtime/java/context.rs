@@ -57,7 +57,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
-        JavaContextData::register_class(self, class)?;
+        JavaContextData::register_class(self.core, class)?;
 
         let clinit = class.method(&JavaFullName {
             tag: 0,
@@ -145,7 +145,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_field_id(&self, class_name: &str, field_name: &str, _descriptor: &str) -> JavaResult<JavaWord> {
-        let class = JavaContextData::find_class(self, class_name)?.context("No such class")?;
+        let class = JavaContextData::find_class(self.core, class_name)?.context("No such class")?;
 
         let field = class.field(field_name)?.unwrap();
 
@@ -187,14 +187,14 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
-        let class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let class = JavaContextData::find_class(self.core, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let field = class.field(field_name)?.unwrap();
 
         class.read_static_field(&field)
     }
 
     fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let mut class = JavaContextData::find_class(self, class_name)?.with_context(|| format!("No such class {}", class_name))?;
+        let mut class = JavaContextData::find_class(self.core, class_name)?.with_context(|| format!("No such class {}", class_name))?;
         let field = class.field(field_name)?.unwrap();
 
         class.write_static_field(&field, value)

@@ -98,7 +98,7 @@ impl JavaClassInstance {
         let zero = iter::repeat(0).take((field_size + 4) as _).collect::<Vec<_>>();
         context.core.write_bytes(ptr_fields, &zero)?;
 
-        let vtable_index = JavaContextData::get_vtable_index(context, class)?;
+        let vtable_index = JavaContextData::get_vtable_index(context.core, class)?;
 
         write_generic(
             context.core,

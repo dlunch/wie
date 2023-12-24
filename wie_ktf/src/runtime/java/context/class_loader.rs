@@ -11,7 +11,7 @@ pub struct ClassLoader {}
 impl ClassLoader {
     #[async_recursion::async_recursion(?Send)]
     pub async fn get_or_load_class(context: &mut KtfJavaContext<'_>, name: &str) -> JavaResult<Option<JavaClass>> {
-        let class = JavaContextData::find_class(context, name)?;
+        let class = JavaContextData::find_class(context.core, name)?;
 
         if let Some(class) = class {
             Ok(Some(class))
@@ -25,7 +25,7 @@ impl ClassLoader {
                     Ok(Some(JavaClass::new(context, name, x).await?))
                 } else {
                     // find from client.bin
-                    let fn_get_class = JavaContextData::fn_get_class(context)?;
+                    let fn_get_class = JavaContextData::fn_get_class(context.core)?;
 
                     let ptr_name = Allocator::alloc(context.core, 50)?; // TODO size fix
                     write_null_terminated_string(context.core, ptr_name, name)?;

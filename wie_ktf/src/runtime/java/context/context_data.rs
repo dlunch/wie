@@ -8,7 +8,7 @@ use wie_impl_java::JavaResult;
 
 use crate::runtime::KtfPeb;
 
-use super::{class::JavaClass, KtfJavaContext};
+use super::class::JavaClass;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -39,9 +39,9 @@ impl JavaContextData {
         Ok(ptr_java_context_data)
     }
 
-    pub fn get_vtable_index(context: &mut KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<u32> {
-        let context_data = Self::read(context)?;
-        let ptr_vtables = read_null_terminated_table(context.core, context_data.ptr_vtables_base)?;
+    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClass) -> JavaResult<u32> {
+        let context_data = Self::read(core)?;
+        let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
 
         let ptr_vtable = class.ptr_vtable()?;
 
@@ -52,52 +52,48 @@ impl JavaContextData {
         }
 
         let index = ptr_vtables.len();
-        write_generic(
-            context.core,
-            context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32,
-            ptr_vtable,
-        )?;
+        write_generic(core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
 
         Ok(index as _)
     }
 
-    pub fn register_class(context: &mut KtfJavaContext<'_>, class: &JavaClass) -> JavaResult<()> {
-        let context_data = Self::read(context)?;
-        let ptr_classes: alloc::vec::Vec<u32> = read_null_terminated_table(context.core, context_data.classes_base)?;
+    pub fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
+        let context_data = Self::read(core)?;
+        let ptr_classes: alloc::vec::Vec<u32> = read_null_terminated_table(core, context_data.classes_base)?;
         if ptr_classes.contains(&class.ptr_raw) {
             return Ok(());
         }
 
         write_generic(
-            context.core,
+            core,
             context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
             class.ptr_raw,
         )
     }
 
-    pub fn find_class(context: &KtfJavaContext<'_>, name: &str) -> JavaResult<Option<JavaClass>> {
-        let context_data = Self::read(context)?;
-        let classes = read_null_terminated_table(context.core, context_data.classes_base)?;
+    pub fn find_class(core: &ArmCore, name: &str) -> JavaResult<Option<JavaClass>> {
+        let context_data = Self::read(core)?;
+        let classes = read_null_terminated_table(core, context_data.classes_base)?;
         for ptr_raw in classes {
-            let class = JavaClass::from_raw(ptr_raw, context.core);
+            let class = JavaClass::from_raw(ptr_raw, core);
 
             if class.name()? == name {
-                return Ok(Some(JavaClass::from_raw(ptr_raw, context.core)));
+                return Ok(Some(JavaClass::from_raw(ptr_raw, core)));
             }
         }
 
         Ok(None)
     }
 
-    pub fn fn_get_class(context: &KtfJavaContext<'_>) -> JavaResult<u32> {
-        let context_data = Self::read(context)?;
+    pub fn fn_get_class(core: &ArmCore) -> JavaResult<u32> {
+        let context_data = Self::read(core)?;
 
         Ok(context_data.fn_get_class)
     }
 
-    fn read(context: &KtfJavaContext<'_>) -> JavaResult<RawJavaContextData> {
-        let peb: KtfPeb = read_generic(context.core, PEB_BASE)?;
+    fn read(core: &ArmCore) -> JavaResult<RawJavaContextData> {
+        let peb: KtfPeb = read_generic(core, PEB_BASE)?;
 
-        read_generic(context.core, peb.ptr_java_context_data)
+        read_generic(core, peb.ptr_java_context_data)
     }
 }
