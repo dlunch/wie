@@ -56,8 +56,8 @@ impl<'a> KtfJavaContext<'a> {
         ClassLoader::get_or_load_class(self, name).await
     }
 
-    pub async fn register_class(&mut self, class: &JavaClass) -> JavaResult<()> {
-        JavaContextData::register_class(self.core, class)?;
+    pub async fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
+        JavaContextData::register_class(core, class)?;
 
         let clinit = class.method(&JavaFullName {
             tag: 0,
