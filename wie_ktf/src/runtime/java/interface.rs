@@ -99,9 +99,9 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut Backend, arg1: u32, address: u3
 async fn register_class(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32) -> anyhow::Result<()> {
     tracing::trace!("register_class({:#x})", ptr_class);
 
-    let mut context = KtfJavaContext::new(core, backend);
+    let context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    context.register_class(&class).await?;
+    KtfJavaContext::register_class(core, &class).await?;
 
     Ok(())
 }

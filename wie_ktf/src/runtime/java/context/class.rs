@@ -126,7 +126,7 @@ impl JavaClass {
 
         let result = Self::from_raw(ptr_raw, context.core);
 
-        context.register_class(&result).await?;
+        KtfJavaContext::register_class(context.core, &result).await?;
 
         Ok(result)
     }
