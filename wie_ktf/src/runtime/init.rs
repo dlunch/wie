@@ -127,7 +127,7 @@ pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> anyhow
     core.run_function(image_base + 1, &[bss_size]).await
 }
 
-pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyhow::Result<u32> {
+pub async fn init(core: &mut ArmCore, wipi_exe: u32) -> anyhow::Result<u32> {
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
@@ -175,18 +175,18 @@ pub async fn init(core: &mut ArmCore, backend: &Backend, wipi_exe: u32) -> anyho
     write_generic(core, ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
-        fn_get_interface: core.register_function(get_interface, backend)?,
-        fn_java_throw: core.register_function(java_throw, backend)?,
+        fn_get_interface: core.register_function(get_interface)?,
+        fn_java_throw: core.register_function(java_throw)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_cast: core.register_function(java_check_cast, backend)?,
-        fn_java_new: core.register_function(java_new, backend)?,
-        fn_java_array_new: core.register_function(java_array_new, backend)?,
+        fn_java_check_cast: core.register_function(java_check_cast)?,
+        fn_java_new: core.register_function(java_new)?,
+        fn_java_array_new: core.register_function(java_array_new)?,
         unk6: 0,
-        fn_java_class_load: core.register_function(java_class_load, backend)?,
+        fn_java_class_load: core.register_function(java_class_load)?,
         unk7: 0,
         unk8: 0,
-        fn_alloc: core.register_function(alloc, backend)?,
+        fn_alloc: core.register_function(alloc)?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
@@ -223,7 +223,7 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, backend),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core, backend),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             tracing::warn!("Unknown {}", r#struct);
 
