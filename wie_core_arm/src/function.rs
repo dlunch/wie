@@ -1,5 +1,6 @@
 use alloc::{boxed::Box, string::String};
 use core::{fmt::Debug, future::Future, marker::PhantomData};
+use wie_backend::Backend;
 
 use wie_base::util::read_null_terminated_string;
 
@@ -7,83 +8,75 @@ use crate::{engine::ArmEngineResult, ArmCore};
 
 #[async_trait::async_trait(?Send)]
 pub trait RegisteredFunction {
-    async fn call(&self, core: &mut ArmCore) -> ArmEngineResult<()>;
+    async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> ArmEngineResult<()>;
 }
 
-pub struct RegisteredFunctionHolder<F, P, E, C, R>
+pub struct RegisteredFunctionHolder<F, P, E, R>
 where
-    F: EmulatedFunction<P, E, C, R> + 'static,
+    F: EmulatedFunction<P, E, R> + 'static,
     E: Debug,
-    C: Clone + 'static,
     R: ResultWriter<R>,
 {
     function: Box<F>,
-    context: C,
-    _phantom: PhantomData<(P, E, C, R)>,
+    _phantom: PhantomData<(P, E, R)>,
 }
 
-impl<F, P, E, C, R> RegisteredFunctionHolder<F, P, E, C, R>
+impl<F, P, E, R> RegisteredFunctionHolder<F, P, E, R>
 where
-    F: EmulatedFunction<P, E, C, R> + 'static,
+    F: EmulatedFunction<P, E, R> + 'static,
     E: Debug,
-    C: Clone + 'static,
     R: ResultWriter<R>,
 {
-    pub fn new(function: F, context: &C) -> Self {
+    pub fn new(function: F) -> Self {
         Self {
             function: Box::new(function),
-            context: context.clone(),
             _phantom: PhantomData,
         }
     }
 }
 
 #[async_trait::async_trait(?Send)]
-impl<F, P, E, C, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, C, R>
+impl<F, P, E, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, R>
 where
-    F: EmulatedFunction<P, E, C, R> + 'static,
+    F: EmulatedFunction<P, E, R> + 'static,
     E: Debug,
-    C: Clone + 'static,
     R: ResultWriter<R>,
 {
-    async fn call(&self, core: &mut ArmCore) -> ArmEngineResult<()> {
+    async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> ArmEngineResult<()> {
         let (pc, lr) = core.read_pc_lr()?;
 
         tracing::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
-        let mut new_context = self.context.clone();
-
-        let result = self.function.call(core, &mut new_context).await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+        let result = self.function.call(core, backend).await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
         R::write(core, result, lr)?;
 
         Ok(())
     }
 }
 
-trait FnHelper<'a, E, C, R, P> {
+trait FnHelper<'a, E, R, P> {
     type Output: Future<Output = Result<R, E>> + 'a;
-    fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Self::Output;
+    fn do_call(&self, core: &'a mut ArmCore, backend: &'a mut Backend) -> Self::Output;
 }
 
 macro_rules! generate_fn_helper {
     ($($arg: ident),*) => {
-        impl<'a, E, C, R, F, Fut, $($arg),*> FnHelper<'a, E, C, R, ($($arg,)*)> for F
+        impl<'a, E, R, F, Fut, $($arg),*> FnHelper<'a, E, R, ($($arg,)*)> for F
         where
-            F: Fn(&'a mut ArmCore, &'a mut C, $($arg),*) -> Fut,
+            F: Fn(&'a mut ArmCore, &'a mut Backend, $($arg),*) -> Fut,
             Fut: Future<Output = Result<R, E>> + 'a,
-            C: 'a,
             R: 'a,
             $($arg: EmulatedFunctionParam<$arg>),*
         {
             type Output = Fut;
             #[allow(unused_variables, unused_assignments, non_snake_case, unused_mut)]
-            fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Fut {
+            fn do_call(&self, core: &'a mut ArmCore, backend: &'a mut Backend) -> Fut {
                 let mut index = 0;
                 $(
                     let $arg = $arg::get(core, index);
                     index += 1;
                 )*
-                self(core, context, $($arg),*)
+                self(core, backend, $($arg),*)
             }
         }
     };
@@ -96,20 +89,20 @@ generate_fn_helper!(P0, P1, P2);
 generate_fn_helper!(P0, P1, P2, P3);
 
 #[async_trait::async_trait(?Send)]
-pub trait EmulatedFunction<P, E, C, R> {
-    async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E>;
+pub trait EmulatedFunction<P, E, R> {
+    async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<R, E>;
 }
 
 macro_rules! generate_emulated_function {
     ($($arg: ident),*) => {
         #[async_trait::async_trait(?Send)]
-        impl<Func, E, C, R, $($arg),*> EmulatedFunction<($($arg,)*), E, C, R> for Func
+        impl<Func, E, R, $($arg),*> EmulatedFunction<($($arg,)*), E, R> for Func
         where
-            Func: for<'a> FnHelper<'a, E, C, R, ($($arg,)*)>,
+            Func: for<'a> FnHelper<'a, E, R, ($($arg,)*)>,
             $($arg: EmulatedFunctionParam<$arg>),*
         {
-            async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E> {
-                self.do_call(core, context).await
+            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<R, E> {
+                self.do_call(core, backend).await
             }
         }
     };

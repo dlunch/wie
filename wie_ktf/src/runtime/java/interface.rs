@@ -32,21 +32,21 @@ struct WIPIJBInterface {
     fn_call_native: u32,
 }
 
-pub fn get_wipi_jb_interface(core: &mut ArmCore, backend: &Backend) -> anyhow::Result<u32> {
+pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_java_jump_1: core.register_function(java_jump_1, backend)?,
-        fn_java_jump_2: core.register_function(java_jump_2, backend)?,
-        fn_java_jump_3: core.register_function(java_jump_3, backend)?,
-        fn_get_java_method: core.register_function(get_java_method, backend)?,
-        fn_get_static_field: core.register_function(get_static_field, backend)?,
-        fn_unk4: core.register_function(jb_unk4, backend)?,
-        fn_unk5: core.register_function(jb_unk5, backend)?,
-        fn_unk7: core.register_function(jb_unk7, backend)?,
-        fn_unk8: core.register_function(jb_unk8, backend)?,
-        fn_register_class: core.register_function(register_class, backend)?,
-        fn_register_java_string: core.register_function(register_java_string, backend)?,
-        fn_call_native: core.register_function(call_native, backend)?,
+        fn_java_jump_1: core.register_function(java_jump_1)?,
+        fn_java_jump_2: core.register_function(java_jump_2)?,
+        fn_java_jump_3: core.register_function(java_jump_3)?,
+        fn_get_java_method: core.register_function(get_java_method)?,
+        fn_get_static_field: core.register_function(get_static_field)?,
+        fn_unk4: core.register_function(jb_unk4)?,
+        fn_unk5: core.register_function(jb_unk5)?,
+        fn_unk7: core.register_function(jb_unk7)?,
+        fn_unk8: core.register_function(jb_unk8)?,
+        fn_register_class: core.register_function(register_class)?,
+        fn_register_java_string: core.register_function(register_java_string)?,
+        fn_call_native: core.register_function(call_native)?,
     };
 
     let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;

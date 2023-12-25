@@ -19,7 +19,7 @@ pub struct KtfApp {
 
 impl KtfApp {
     pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
-        let mut core = ArmCore::new()?;
+        let mut core = ArmCore::new(backend.clone())?;
 
         Allocator::init(&mut core)?;
 
@@ -42,7 +42,7 @@ impl KtfApp {
         let wipi_exe = crate::runtime::start(core, IMAGE_BASE, bss_size).await?;
         tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 
-        let fn_init = crate::runtime::init(core, backend, wipi_exe).await?;
+        let fn_init = crate::runtime::init(core, wipi_exe).await?;
         tracing::debug!("Call wipi init at {:#x}", fn_init);
 
         let result = core.run_function::<u32>(fn_init, &[]).await?;

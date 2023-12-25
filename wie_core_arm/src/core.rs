@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
 use core::{cell::RefCell, fmt::Debug, mem::size_of};
 
-use wie_backend::{task, AsyncCallable};
+use wie_backend::{task, AsyncCallable, Backend};
 use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
@@ -18,6 +18,7 @@ pub const PEB_BASE: u32 = 0x7ff00000;
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
+    backend: Backend,
     functions: BTreeMap<u32, Rc<Box<dyn RegisteredFunction>>>,
     functions_count: usize,
 }
@@ -28,7 +29,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new() -> ArmEngineResult<Self> {
+    pub fn new(backend: Backend) -> ArmEngineResult<Self> {
         #[cfg(any(target_arch = "wasm32", target_os = "linux"))]
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
         #[cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))]
@@ -39,6 +40,7 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
+            backend,
             functions: BTreeMap::new(),
             functions_count: 0,
         };
@@ -69,12 +71,13 @@ impl ArmCore {
 
         if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
             let mut self1 = self.clone();
+            let mut backend1 = inner.backend.clone();
 
             let function = inner.functions.get(&cur_pc).unwrap().clone();
 
             drop(inner);
 
-            function.call(&mut self1).await?;
+            function.call(&mut self1, &mut backend1).await?;
         }
 
         Ok(())
@@ -139,11 +142,10 @@ impl ArmCore {
         task::spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
-    pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmEngineResult<u32>
+    pub fn register_function<F, P, E, R>(&mut self, function: F) -> ArmEngineResult<u32>
     where
-        F: EmulatedFunction<P, E, C, R> + 'static,
+        F: EmulatedFunction<P, E, R> + 'static,
         E: Debug + 'static,
-        C: Clone + 'static,
         R: ResultWriter<R> + 'static,
         P: 'static,
     {
@@ -154,7 +156,7 @@ impl ArmCore {
 
         inner.engine.mem_write(address as u32, &bytes)?;
 
-        let callback = RegisteredFunctionHolder::new(function, context);
+        let callback = RegisteredFunctionHolder::new(function);
 
         inner.functions.insert(address as u32, Rc::new(Box::new(callback)));
         inner.functions_count += 1;

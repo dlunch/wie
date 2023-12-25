@@ -15,7 +15,7 @@ pub struct LgtApp {
 
 impl LgtApp {
     pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
-        let mut core = ArmCore::new()?;
+        let mut core = ArmCore::new(backend.clone())?;
 
         Allocator::init(&mut core)?;
 
