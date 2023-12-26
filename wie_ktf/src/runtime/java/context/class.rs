@@ -1,7 +1,14 @@
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
+
+use jvm::{Class, ClassInstance, Field, JavaValue, JvmResult, Method};
 
 use wie_base::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
@@ -9,7 +16,10 @@ use wie_base::util::{
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
-use super::{class_loader::ClassLoader, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
+use super::{
+    class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder,
+    JavaFullName, KtfJavaContext,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -250,5 +260,45 @@ impl JavaClass {
 
     pub async fn invoke_static_method(&self, method: &mut JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
         method.run(args).await
+    }
+}
+
+impl Class for JavaClass {
+    fn name(&self) -> String {
+        self.name().unwrap()
+    }
+
+    fn instantiate(&self) -> Box<dyn ClassInstance> {
+        let instance = JavaClassInstance::new(&mut self.core.clone(), self).unwrap();
+
+        Box::new(instance)
+    }
+
+    fn method(&self, name: &str, descriptor: &str) -> Option<Box<dyn Method>> {
+        self.method(&JavaFullName {
+            name: name.to_string(),
+            descriptor: descriptor.to_string(),
+            tag: 0,
+        })
+        .unwrap()
+        .map(|x| Box::new(x) as _)
+    }
+
+    fn field(&self, name: &str, _descriptor: &str, _is_static: bool) -> Option<Box<dyn Field>> {
+        self.field(name).unwrap().map(|x| Box::new(x) as _)
+    }
+
+    fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
+        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
+        let value = self.read_static_field(field)?;
+
+        Ok(JavaValue::Long(value as _))
+    }
+
+    fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
+        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
+        let value = value.as_long();
+
+        self.write_static_field(field, value as _)
     }
 }

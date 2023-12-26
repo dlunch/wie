@@ -1,10 +1,14 @@
+use alloc::{boxed::Box, string::String};
 use core::mem::size_of;
+
+use jvm::{ArrayClass, Class, ClassInstance, Field, JavaValue, JvmResult, Method};
 
 use wie_base::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaResult, JavaWord};
 
 use super::{
+    array_class_instance::JavaArrayClassInstance,
     class::JavaClass,
     class::{RawJavaClass, RawJavaClassDescriptor},
     class_loader::ClassLoader,
@@ -13,12 +17,14 @@ use super::{
 
 pub struct JavaArrayClass {
     pub(crate) class: JavaClass,
+    core: ArmCore,
 }
 
 impl JavaArrayClass {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
         Self {
             class: JavaClass::from_raw(ptr_raw, core),
+            core: core.clone(),
         }
     }
 
@@ -99,5 +105,43 @@ impl JavaArrayClass {
                 _ => unimplemented!("get_array_element_size {}", class_name),
             })
         }
+    }
+}
+
+impl Class for JavaArrayClass {
+    fn name(&self) -> String {
+        self.class.name().unwrap()
+    }
+
+    fn instantiate(&self) -> Box<dyn ClassInstance> {
+        panic!("Array class should not be instantiated here")
+    }
+
+    fn method(&self, _name: &str, _descriptor: &str) -> Option<Box<dyn Method>> {
+        panic!("Array class does not have methods")
+    }
+
+    fn field(&self, _name: &str, _descriptor: &str, _is_static: bool) -> Option<Box<dyn Field>> {
+        panic!("Array class does not have fields")
+    }
+
+    fn get_static_field(&self, _field: &dyn Field) -> JvmResult<JavaValue> {
+        panic!("Array class does not have fields")
+    }
+
+    fn put_static_field(&mut self, _field: &dyn Field, _value: JavaValue) -> JvmResult<()> {
+        panic!("Array class does not have fields")
+    }
+}
+
+impl ArrayClass for JavaArrayClass {
+    fn element_type_name(&self) -> String {
+        let class_name = self.class.name().unwrap();
+
+        class_name[1..].into()
+    }
+
+    fn instantiate_array(&self, length: usize) -> Box<dyn ClassInstance> {
+        Box::new(JavaArrayClassInstance::new(&mut self.core.clone(), self, length).unwrap())
     }
 }

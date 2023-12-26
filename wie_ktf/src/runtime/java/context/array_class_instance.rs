@@ -1,7 +1,9 @@
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 use bytemuck::{cast_slice, cast_vec, Pod};
 use num_traits::FromBytes;
+
+use jvm::{ArrayClassInstance, ClassInstance, Field, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
@@ -22,7 +24,7 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(core: &mut ArmCore, array_class: JavaArrayClass, count: JavaWord) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClass, count: JavaWord) -> JavaResult<Self> {
         let element_size = array_class.element_size()?;
         let class_instance = JavaClassInstance::instantiate(core, &array_class.class, count * element_size + 4)?;
 
@@ -89,5 +91,41 @@ impl JavaArrayClassInstance {
         let array_class = JavaArrayClass::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         array_class.element_size()
+    }
+}
+
+impl ClassInstance for JavaArrayClassInstance {
+    fn class_name(&self) -> String {
+        self.class_instance.class_name()
+    }
+
+    fn get_field(&self, _field: &dyn Field) -> JvmResult<JavaValue> {
+        panic!("Array class instance does not have fields")
+    }
+
+    fn put_field(&mut self, _field: &dyn Field, _value: JavaValue) -> JvmResult<()> {
+        panic!("Array class instance does not have fields")
+    }
+
+    fn as_array_instance(&self) -> Option<&dyn ArrayClassInstance> {
+        Some(self)
+    }
+
+    fn as_array_instance_mut(&mut self) -> Option<&mut dyn ArrayClassInstance> {
+        Some(self)
+    }
+}
+
+impl ArrayClassInstance for JavaArrayClassInstance {
+    fn store(&mut self, _offset: usize, _values: &[JavaValue]) -> JvmResult<()> {
+        todo!()
+    }
+
+    fn load(&self, _offset: usize, _count: usize) -> JvmResult<Vec<JavaValue>> {
+        todo!()
+    }
+
+    fn length(&self) -> usize {
+        todo!()
     }
 }

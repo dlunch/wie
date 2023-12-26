@@ -9,10 +9,13 @@ mod method;
 mod name;
 mod vtable_builder;
 
-use alloc::{borrow::ToOwned, boxed::Box, format, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, rc::Rc, vec::Vec};
+use core::cell::RefCell;
 
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
+
+use jvm::{ArrayClass, Class, ClassRef, JavaValue, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -39,9 +42,46 @@ struct JavaExceptionHandler {
     context: [u32; 11], // r4-lr
 }
 
+struct KtfJvmDetail {
+    core: ArmCore,
+}
+
+impl KtfJvmDetail {
+    pub fn new(core: &ArmCore) -> Self {
+        Self { core: core.clone() }
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl JvmDetail for KtfJvmDetail {
+    async fn load_class(&mut self, class_name: &str) -> JvmResult<Option<ClassRef>> {
+        let class = ClassLoader::get_or_load_class(&mut self.core, class_name).await?;
+
+        Ok(class.map(|x| Rc::new(RefCell::new(Box::new(x) as Box<dyn Class>))))
+    }
+
+    async fn load_array_class(&mut self, element_type_name: &str) -> JvmResult<Option<Box<dyn ArrayClass>>> {
+        let class_name = format!("[{}", element_type_name);
+        let class = JavaArrayClass::new(&mut self.core, &class_name).await?;
+
+        Ok(Some(Box::new(class)))
+    }
+
+    fn get_class(&self, class_name: &str) -> JvmResult<Option<ClassRef>> {
+        let class = JavaContextData::find_class(&self.core, class_name)?;
+
+        Ok(class.map(|x| Rc::new(RefCell::new(Box::new(x) as Box<dyn Class>))))
+    }
+
+    fn thread_context(&mut self, _thread_id: ThreadId) -> &mut dyn ThreadContext {
+        todo!()
+    }
+}
+
 pub struct KtfJavaContext<'a> {
     core: &'a mut ArmCore,
     backend: &'a mut Backend,
+    jvm: Jvm,
 }
 
 impl<'a> KtfJavaContext<'a> {
@@ -50,7 +90,9 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
-        Self { core, backend }
+        let jvm = Jvm::new(KtfJvmDetail::new(core));
+
+        Self { core, backend, jvm }
     }
 
     pub async fn load_class(&mut self, name: &str) -> JavaResult<Option<JavaClass>> {
@@ -90,18 +132,18 @@ impl JavaContext for KtfJavaContext<'_> {
         anyhow::ensure!(type_name.as_bytes()[0] != b'[', "Array class should not be instantiated here");
 
         let class_name = &type_name[1..type_name.len() - 1]; // L{};
-        let class = self.load_class(class_name).await?.context("No such class")?;
 
-        let instance = JavaClassInstance::new(self.core, &class)?;
+        let instance = self.jvm.instantiate_class(class_name).await?;
+        let instance = instance.borrow();
+        let instance = instance.as_any().downcast_ref::<JavaClassInstance>().unwrap();
 
         Ok(JavaObjectProxy::new(instance.ptr_raw as _))
     }
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
-        let array_type = format!("[{}", element_type_name);
-        let array_class = self.load_array_class(&array_type).await?.unwrap();
-
-        let instance = JavaArrayClassInstance::new(self.core, array_class, count)?;
+        let instance = self.jvm.instantiate_array(element_type_name, count).await?;
+        let instance = instance.borrow();
+        let instance = instance.as_any().downcast_ref::<JavaArrayClassInstance>().unwrap();
 
         Ok(JavaObjectProxy::new(instance.class_instance.ptr_raw as _))
     }
@@ -184,11 +226,12 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let mut instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
-        let class = instance.class()?;
-        let field = class.field(field_name)?.unwrap();
+        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
 
-        instance.write_field(&field, value)
+        self.jvm
+            .put_field(&Rc::new(RefCell::new(Box::new(instance))), field_name, "", JavaValue::Long(value as _))?;
+
+        Ok(())
     }
 
     fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
