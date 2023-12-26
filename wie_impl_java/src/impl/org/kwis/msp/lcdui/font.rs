@@ -1,10 +1,10 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
 };
 
 // class org.kwis.msp.lcdui.Font
@@ -35,8 +35,8 @@ impl Font {
         }
     }
 
-    async fn cl_init(context: &mut dyn JavaContext, this: ClassInstanceRef) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>({:#x})", context.instance_raw(&this));
+    async fn cl_init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>({:#x})", context.instance_raw(&this.class_instance));
 
         context
             .jvm()

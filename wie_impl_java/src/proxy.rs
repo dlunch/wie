@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use jvm::ClassInstanceRef;
+
 use crate::{
     base::{JavaContext, JavaWord},
     method::TypeConverter,
@@ -30,5 +32,23 @@ impl<T> TypeConverter<JavaObjectProxy<T>> for JavaObjectProxy<T> {
 
     fn from_rust(_: &mut dyn JavaContext, rust: JavaObjectProxy<T>) -> usize {
         rust.ptr_instance as _
+    }
+}
+
+pub struct JvmClassInstanceProxy<T> {
+    pub class_instance: ClassInstanceRef,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
+    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> JvmClassInstanceProxy<T> {
+        JvmClassInstanceProxy {
+            class_instance: context.instance_from_raw(raw),
+            _phantom: PhantomData,
+        }
+    }
+
+    fn from_rust(context: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaWord {
+        context.instance_raw(&value.class_instance)
     }
 }

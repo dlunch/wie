@@ -216,13 +216,3 @@ impl TypeConverter<()> for () {
         0
     }
 }
-
-impl TypeConverter<ClassInstanceRef> for ClassInstanceRef {
-    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> ClassInstanceRef {
-        context.instance_from_raw(raw)
-    }
-
-    fn from_rust(context: &mut dyn JavaContext, value: ClassInstanceRef) -> JavaWord {
-        context.instance_raw(&value)
-    }
-}
