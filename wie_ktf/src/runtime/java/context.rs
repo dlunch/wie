@@ -16,7 +16,7 @@ use core::cell::RefCell;
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{ArrayClass, Class, ClassRef, Field, JavaValue, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
+use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Field, JavaValue, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -129,6 +129,21 @@ impl<'a> KtfJavaContext<'a> {
 
 #[async_trait::async_trait(?Send)]
 impl JavaContext for KtfJavaContext<'_> {
+    fn jvm(&mut self) -> &mut Jvm {
+        &mut self.jvm
+    }
+
+    fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord {
+        let instance = instance.borrow();
+        let instance = instance.as_any().downcast_ref::<JavaClassInstance>().unwrap();
+
+        instance.ptr_raw as _
+    }
+
+    fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef {
+        Rc::new(RefCell::new(Box::new(JavaClassInstance::from_raw(raw as _, self.core))))
+    }
+
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>> {
         anyhow::ensure!(type_name.as_bytes()[0] != b'[', "Array class should not be instantiated here");
 
@@ -238,20 +253,6 @@ impl JavaContext for KtfJavaContext<'_> {
         )?;
 
         Ok(())
-    }
-
-    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord> {
-        let class = JavaContextData::find_class(self.core, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let field = class.field(field_name)?.unwrap();
-
-        class.read_static_field(&field)
-    }
-
-    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let mut class = JavaContextData::find_class(self.core, class_name)?.with_context(|| format!("No such class {}", class_name))?;
-        let field = class.field(field_name)?.unwrap();
-
-        class.write_static_field(&field, value)
     }
 
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()> {

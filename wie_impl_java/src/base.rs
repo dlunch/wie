@@ -1,5 +1,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
+use jvm::{ClassInstanceRef, Jvm};
+
 use wie_backend::{task::SleepFuture, Backend};
 
 use crate::{
@@ -99,6 +101,9 @@ impl JavaMethodProto {
 
 #[async_trait::async_trait(?Send)]
 pub trait JavaContext {
+    fn jvm(&mut self) -> &mut Jvm;
+    fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord; // TODO will be removed
+    fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
     async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>>; // newarray
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
@@ -115,8 +120,6 @@ pub trait JavaContext {
     fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()>;
     fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord>; // getfield
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()>; // putfield
-    fn get_static_field(&self, class_name: &str, field_name: &str) -> JavaResult<JavaWord>; // getstatic
-    fn put_static_field(&mut self, class_name: &str, field_name: &str, value: JavaWord) -> JavaResult<()>; // putstatic
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()>; // iastore
     fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>>; // iaload
     fn store_array_i16(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i16]) -> JavaResult<()>; // (c|s)astore
@@ -211,5 +214,15 @@ impl TypeConverter<()> for () {
 
     fn from_rust(_: &mut dyn JavaContext, _: ()) -> JavaWord {
         0
+    }
+}
+
+impl TypeConverter<ClassInstanceRef> for ClassInstanceRef {
+    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> ClassInstanceRef {
+        context.instance_from_raw(raw)
+    }
+
+    fn from_rust(context: &mut dyn JavaContext, value: ClassInstanceRef) -> JavaWord {
+        context.instance_raw(&value)
     }
 }
