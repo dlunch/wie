@@ -4,7 +4,7 @@ use wie_base::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{get_class_proto, JavaResult};
 
-use super::{class::JavaClass, context_data::JavaContextData, KtfJavaContext};
+use super::{array_class::JavaArrayClass, class::JavaClass, context_data::JavaContextData, KtfJavaContext};
 
 pub struct ClassLoader {}
 
@@ -18,7 +18,7 @@ impl ClassLoader {
         } else {
             // array class is created dynamically
             if name.as_bytes()[0] == b'[' {
-                Ok(Some(JavaClass::new_array(core, name).await?))
+                Ok(Some(JavaArrayClass::new(core, name).await?.class))
             } else {
                 let proto = get_class_proto(name);
                 if let Some(x) = proto {

@@ -9,37 +9,34 @@ use wie_base::util::{
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
-use super::{
-    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName,
-    KtfJavaContext,
-};
+use super::{class_loader::ClassLoader, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct RawJavaClass {
-    ptr_next: u32,
-    unk1: u32,
-    ptr_descriptor: u32,
-    ptr_vtable: u32,
-    vtable_count: u16,
-    unk_flag: u16,
+pub(super) struct RawJavaClass {
+    pub(super) ptr_next: u32,
+    pub(super) unk1: u32,
+    pub(super) ptr_descriptor: u32,
+    pub(super) ptr_vtable: u32,
+    pub(super) vtable_count: u16,
+    pub(super) unk_flag: u16,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct RawJavaClassDescriptor {
-    ptr_name: u32,
-    unk1: u32,
-    ptr_parent_class: u32,
-    ptr_methods: u32,
-    ptr_interfaces: u32,
-    ptr_fields_or_element_type: u32, // for array class, this is element type
-    method_count: u16,
-    fields_size: u16,
-    access_flag: u16,
-    unk6: u16,
-    unk7: u16,
-    unk8: u16,
+pub(super) struct RawJavaClassDescriptor {
+    pub(super) ptr_name: u32,
+    pub(super) unk1: u32,
+    pub(super) ptr_parent_class: u32,
+    pub(super) ptr_methods: u32,
+    pub(super) ptr_interfaces: u32,
+    pub(super) ptr_fields_or_element_type: u32, // for array class, this is element type
+    pub(super) method_count: u16,
+    pub(super) fields_size: u16,
+    pub(super) access_flag: u16,
+    pub(super) unk6: u16,
+    pub(super) unk7: u16,
+    pub(super) unk8: u16,
 }
 
 pub struct JavaClass {
@@ -132,64 +129,6 @@ impl JavaClass {
         KtfJavaContext::register_class(core, &result).await?;
 
         Ok(result)
-    }
-
-    pub async fn new_array(core: &mut ArmCore, name: &str) -> JavaResult<JavaClass> {
-        let ptr_parent_class = ClassLoader::get_or_load_class(core, "java/lang/Object").await?.unwrap();
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
-
-        let element_type_name = &name[1..];
-        let element_type = if element_type_name.starts_with('L') {
-            Some(
-                ClassLoader::get_or_load_class(core, &element_type_name[1..element_type_name.len() - 1])
-                    .await?
-                    .unwrap(),
-            )
-        } else {
-            None
-        };
-
-        let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(core, ptr_name, name)?;
-
-        let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
-        write_generic(
-            core,
-            ptr_descriptor,
-            RawJavaClassDescriptor {
-                ptr_name,
-                unk1: 0,
-                ptr_parent_class: ptr_parent_class.ptr_raw,
-                ptr_methods: 0,
-                ptr_interfaces: 0,
-                ptr_fields_or_element_type: element_type.map(|x| x.ptr_raw).unwrap_or(0),
-                method_count: 0,
-                fields_size: 0,
-                access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
-                unk6: 0,
-                unk7: 0,
-                unk8: 0,
-            },
-        )?;
-
-        write_generic(
-            core,
-            ptr_raw,
-            RawJavaClass {
-                ptr_next: ptr_raw + 4,
-                unk1: 0,
-                ptr_descriptor,
-                ptr_vtable: 0,
-                vtable_count: 0,
-                unk_flag: 8,
-            },
-        )?;
-
-        let class = JavaClass::from_raw(ptr_raw, core);
-
-        JavaContextData::register_class(core, &class)?;
-
-        Ok(class)
     }
 
     pub fn read_class_hierarchy(&self) -> JavaResult<Vec<JavaClass>> {

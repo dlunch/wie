@@ -1,3 +1,4 @@
+mod array_class;
 mod array_class_instance;
 mod class;
 mod class_instance;
