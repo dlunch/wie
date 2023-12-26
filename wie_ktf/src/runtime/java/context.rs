@@ -7,6 +7,7 @@ mod context_data;
 mod field;
 mod method;
 mod name;
+mod value;
 mod vtable_builder;
 
 use alloc::{borrow::ToOwned, boxed::Box, format, rc::Rc, vec::Vec};
@@ -15,7 +16,7 @@ use core::cell::RefCell;
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{ArrayClass, Class, ClassRef, JavaValue, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
+use jvm::{ArrayClass, Class, ClassRef, Field, JavaValue, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -27,7 +28,7 @@ use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, J
 pub use self::name::JavaFullName;
 use self::{
     array_class::JavaArrayClass, array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance,
-    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField,
+    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField, value::JavaValueExt,
 };
 
 #[repr(C)]
@@ -227,9 +228,14 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
         let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
+        let field = instance.class()?.field(field_name)?.unwrap();
 
-        self.jvm
-            .put_field(&Rc::new(RefCell::new(Box::new(instance))), field_name, "", JavaValue::Long(value as _))?;
+        self.jvm.put_field(
+            &Rc::new(RefCell::new(Box::new(instance))),
+            field_name,
+            "",
+            JavaValue::from_raw(value, &field.descriptor(), self.core),
+        )?;
 
         Ok(())
     }
