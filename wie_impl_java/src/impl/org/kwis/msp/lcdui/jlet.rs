@@ -1,5 +1,7 @@
 use alloc::{boxed::Box, format, vec};
 
+use jvm::JavaValue;
+
 use crate::{
     base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     method::MethodBody,
@@ -62,7 +64,17 @@ impl Jlet {
         let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
         context.put_field_by_id(&this.cast(), field_id, event_queue.ptr_instance)?;
 
-        context.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", this.ptr_instance)?;
+        let this_instance = context.instance_from_raw(this.ptr_instance);
+
+        context
+            .jvm()
+            .put_static_field(
+                "org/kwis/msp/lcdui/Jlet",
+                "qtletActive",
+                "Lorg/kwis/msp/lcdui/Jlet;",
+                JavaValue::Object(Some(this_instance)),
+            )
+            .await?;
 
         Ok(())
     }
@@ -70,8 +82,13 @@ impl Jlet {
     async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
-        let jlet = JavaObjectProxy::new(context.get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive")?);
-        Ok(jlet)
+        let jlet = context
+            .jvm()
+            .get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;")
+            .await?;
+        let instance = context.instance_raw(jlet.as_object().unwrap());
+
+        Ok(JavaObjectProxy::new(instance))
     }
 
     async fn get_event_queue(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<JavaObjectProxy<EventQueue>> {

@@ -1,5 +1,7 @@
 use alloc::vec;
 
+use jvm::JavaValue;
+
 use crate::{
     array::Array,
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -35,7 +37,11 @@ impl System {
         let out = context.instantiate("Ljava/io/PrintStream;").await?;
         // TODO call constructor with dummy output stream?
 
-        context.put_static_field("java/lang/System", "out", out.ptr_instance)?;
+        let out = context.instance_from_raw(out.ptr_instance);
+        context
+            .jvm()
+            .put_static_field("java/lang/System", "out", "Ljava/io/PrintStream;", JavaValue::Object(Some(out)))
+            .await?;
 
         Ok(())
     }
