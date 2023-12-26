@@ -7,7 +7,7 @@ use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
 use wie_impl_java::{JavaResult, JavaWord};
 
-use super::{class::JavaClass, class_instance::JavaClassInstance};
+use super::{array_class::JavaArrayClass, class_instance::JavaClassInstance};
 
 pub struct JavaArrayClassInstance {
     pub(crate) class_instance: JavaClassInstance,
@@ -22,9 +22,9 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(core: &mut ArmCore, array_class: JavaClass, count: JavaWord) -> JavaResult<Self> {
-        let element_size = Self::get_array_element_size(&array_class)?;
-        let class_instance = JavaClassInstance::instantiate(core, &array_class, count * element_size + 4)?;
+    pub fn new(core: &mut ArmCore, array_class: JavaArrayClass, count: JavaWord) -> JavaResult<Self> {
+        let element_size = array_class.element_size()?;
+        let class_instance = JavaClassInstance::instantiate(core, &array_class.class, count * element_size + 4)?;
 
         let length_address = class_instance.field_address(0)?;
         write_generic(core, length_address, count as u32)?;
@@ -86,29 +86,8 @@ impl JavaArrayClassInstance {
     }
 
     pub fn array_element_size(&self) -> JavaResult<JavaWord> {
-        let class = self.class_instance.class()?;
+        let array_class = JavaArrayClass::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
-        Self::get_array_element_size(&class)
-    }
-
-    fn get_array_element_size(class: &JavaClass) -> JavaResult<JavaWord> {
-        let class_name = class.name()?;
-
-        assert!(class_name.starts_with('['), "Not an array class {}", class_name);
-
-        if class_name.starts_with("[L") || class_name.starts_with("[[") {
-            Ok(4)
-        } else {
-            let element = class_name.as_bytes()[1];
-            Ok(match element {
-                b'B' => 1,
-                b'C' => 2,
-                b'I' => 4,
-                b'Z' => 1,
-                b'S' => 2,
-                b'J' => 8,
-                _ => unimplemented!("get_array_element_size {}", class_name),
-            })
-        }
+        array_class.element_size()
     }
 }

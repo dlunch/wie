@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use wie_base::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::JavaResult;
+use wie_impl_java::{JavaResult, JavaWord};
 
 use super::{
     class::JavaClass,
@@ -78,5 +78,26 @@ impl JavaArrayClass {
         JavaContextData::register_class(core, &class.class)?;
 
         Ok(class)
+    }
+
+    pub fn element_size(&self) -> JavaResult<JavaWord> {
+        let class_name = self.class.name()?;
+
+        assert!(class_name.starts_with('['), "Not an array class {}", class_name);
+
+        if class_name.starts_with("[L") || class_name.starts_with("[[") {
+            Ok(4)
+        } else {
+            let element = class_name.as_bytes()[1];
+            Ok(match element {
+                b'B' => 1,
+                b'C' => 2,
+                b'I' => 4,
+                b'Z' => 1,
+                b'S' => 2,
+                b'J' => 8,
+                _ => unimplemented!("get_array_element_size {}", class_name),
+            })
+        }
     }
 }

@@ -23,8 +23,8 @@ use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, J
 
 pub use self::name::JavaFullName;
 use self::{
-    array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance, class_loader::ClassLoader,
-    context_data::JavaContextData, field::JavaField,
+    array_class::JavaArrayClass, array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance,
+    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField,
 };
 
 #[repr(C)]
@@ -55,6 +55,10 @@ impl<'a> KtfJavaContext<'a> {
 
     pub async fn load_class(&mut self, name: &str) -> JavaResult<Option<JavaClass>> {
         ClassLoader::get_or_load_class(self.core, name).await
+    }
+
+    pub async fn load_array_class(&mut self, name: &str) -> JavaResult<Option<JavaArrayClass>> {
+        ClassLoader::load_array_class(self.core, name).await
     }
 
     pub async fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
@@ -95,7 +99,7 @@ impl JavaContext for KtfJavaContext<'_> {
 
     async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
         let array_type = format!("[{}", element_type_name);
-        let array_class = self.load_class(&array_type).await?.unwrap();
+        let array_class = self.load_array_class(&array_type).await?.unwrap();
 
         let instance = JavaArrayClassInstance::new(self.core, array_class, count)?;
 

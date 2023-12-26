@@ -58,7 +58,11 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
 pub async fn java_class_load(core: &mut ArmCore, backend: &mut Backend, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let class = KtfJavaContext::new(core, backend).load_class(&name).await?;
+    let class = if name.as_bytes()[0] == b'[' {
+        KtfJavaContext::new(core, backend).load_array_class(&name).await?.map(|x| x.class)
+    } else {
+        KtfJavaContext::new(core, backend).load_class(&name).await?
+    };
 
     if let Some(x) = class {
         write_generic(core, ptr_target, x.ptr_raw)?;
