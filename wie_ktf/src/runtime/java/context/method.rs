@@ -1,7 +1,9 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
+
+use jvm::{JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, ByteWrite};
@@ -104,25 +106,27 @@ impl JavaMethod {
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&mut self, args: &[JavaWord]) -> JavaResult<u32> {
+    pub async fn run(&self, args: &[JavaWord]) -> JavaResult<u32> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
+        let mut core = self.core.clone();
+
         if raw.flag.contains(JavaMethodFlagBit::NATIVE) {
-            let arg_container = Allocator::alloc(&mut self.core, (args.len() as u32) * 4)?;
+            let arg_container = Allocator::alloc(&mut core, (args.len() as u32) * 4)?;
             for (i, arg) in args.iter().enumerate() {
-                write_generic(&mut self.core, arg_container + (i * 4) as u32, *arg as u32)?;
+                write_generic(&mut core, arg_container + (i * 4) as u32, *arg as u32)?;
             }
 
-            let result = self.core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
+            let result = core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
 
-            Allocator::free(&mut self.core, arg_container)?;
+            Allocator::free(&mut core, arg_container)?;
 
             result
         } else {
             let mut params = vec![0];
             params.extend(args.iter().map(|&x| x as u32));
 
-            self.core.run_function(raw.fn_body, &params).await
+            core.run_function(raw.fn_body, &params).await
         }
     }
 
@@ -167,5 +171,27 @@ impl JavaMethod {
         let proxy = JavaMethodProxy::new(body, native);
 
         core.register_function(proxy)
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl Method for JavaMethod {
+    fn name(&self) -> String {
+        let name = self.name().unwrap();
+
+        name.name
+    }
+
+    fn descriptor(&self) -> String {
+        let name = self.name().unwrap();
+
+        name.descriptor
+    }
+
+    async fn run(&self, _jvm: &mut Jvm, args: &[JavaValue]) -> JvmResult<JavaValue> {
+        let args = args.iter().map(|x| x.as_long() as _).collect::<Vec<_>>();
+        let result = self.run(&args).await?;
+
+        Ok(JavaValue::Long(result as _))
     }
 }

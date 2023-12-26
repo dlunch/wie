@@ -1,7 +1,9 @@
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
+
+use jvm::{ArrayClassInstance, ClassInstance, Field, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
@@ -119,5 +121,33 @@ impl JavaClassInstance {
         let instance: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw as _)?;
 
         Ok(instance)
+    }
+}
+
+impl ClassInstance for JavaClassInstance {
+    fn class_name(&self) -> String {
+        self.class().unwrap().name().unwrap()
+    }
+
+    fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
+        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
+
+        let result = self.read_field(field)?;
+
+        Ok(JavaValue::Long(result as _))
+    }
+
+    fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
+        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
+
+        self.write_field(field, value.as_long() as _)
+    }
+
+    fn as_array_instance(&self) -> Option<&dyn ArrayClassInstance> {
+        None
+    }
+
+    fn as_array_instance_mut(&mut self) -> Option<&mut dyn ArrayClassInstance> {
+        None
     }
 }
