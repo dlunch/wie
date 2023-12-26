@@ -17,8 +17,8 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
 use super::{
-    class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder,
-    JavaFullName, KtfJavaContext,
+    class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
+    vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext,
 };
 
 #[repr(C)]
@@ -292,12 +292,12 @@ impl Class for JavaClass {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field)?;
 
-        Ok(JavaValue::Long(value as _))
+        Ok(JavaValue::from_raw(value, &field.descriptor(), &self.core))
     }
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let value = value.as_long();
+        let value = value.as_raw(&field.descriptor());
 
         self.write_static_field(field, value as _)
     }

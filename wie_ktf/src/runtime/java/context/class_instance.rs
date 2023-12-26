@@ -11,7 +11,7 @@ use wie_impl_java::{JavaResult, JavaWord};
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
-use super::{class::JavaClass, field::JavaField, method::JavaMethod};
+use super::{class::JavaClass, field::JavaField, method::JavaMethod, value::JavaValueExt};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -134,13 +134,13 @@ impl ClassInstance for JavaClassInstance {
 
         let result = self.read_field(field)?;
 
-        Ok(JavaValue::Long(result as _))
+        Ok(JavaValue::from_raw(result, &field.descriptor(), &self.core))
     }
 
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
 
-        self.write_field(field, value.as_long() as _)
+        self.write_field(field, value.as_raw(&field.descriptor()))
     }
 
     fn as_array_instance(&self) -> Option<&dyn ArrayClassInstance> {
