@@ -6,7 +6,7 @@ use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaFieldAccessFlag, JavaFieldProto, JavaResult};
 
-use super::{JavaFullName, KtfJavaContext};
+use super::JavaFullName;
 
 bitflags::bitflags! {
     struct JavaFieldAccessFlagBit: u32 {
@@ -43,7 +43,7 @@ impl JavaField {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(context: &mut KtfJavaContext<'_>, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> JavaResult<Self> {
         let full_name = (JavaFullName {
             tag: 0,
             name: proto.name,
@@ -51,13 +51,13 @@ impl JavaField {
         })
         .as_bytes();
 
-        let ptr_name = Allocator::alloc(context.core, full_name.len() as u32)?;
-        context.core.write_bytes(ptr_name, &full_name)?;
+        let ptr_name = Allocator::alloc(core, full_name.len() as u32)?;
+        core.write_bytes(ptr_name, &full_name)?;
 
-        let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaField>() as u32)?;
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaField>() as u32)?;
 
         write_generic(
-            context.core,
+            core,
             ptr_raw,
             RawJavaField {
                 access_flag: JavaFieldAccessFlagBit::from_access_flag(proto.access_flag).bits(),
@@ -67,7 +67,7 @@ impl JavaField {
             },
         )?;
 
-        Ok(Self::from_raw(ptr_raw, context.core))
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     pub fn name(&self) -> JavaResult<JavaFullName> {

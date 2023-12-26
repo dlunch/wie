@@ -9,7 +9,10 @@ use wie_base::util::{
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
-use super::{context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
+use super::{
+    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField, method::JavaMethod, vtable_builder::JavaVtableBuilder, JavaFullName,
+    KtfJavaContext,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -49,25 +52,25 @@ impl JavaClass {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new(context: &mut KtfJavaContext<'_>, name: &str, proto: JavaClassProto) -> JavaResult<Self> {
+    pub async fn new(core: &mut ArmCore, name: &str, proto: JavaClassProto) -> JavaResult<Self> {
         let parent_class = if let Some(x) = proto.parent_class {
-            Some(context.load_class(x).await?.unwrap())
+            Some(ClassLoader::get_or_load_class(core, x).await?.unwrap())
         } else {
             None
         };
 
         let mut vtable_builder = JavaVtableBuilder::new(&parent_class)?;
 
-        let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaClass>() as u32)?;
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(context, ptr_raw, method, &mut vtable_builder)?;
+            let method = JavaMethod::new(core, ptr_raw, method, &mut vtable_builder)?;
 
             methods.push(method.ptr_raw);
         }
-        let ptr_methods = Allocator::alloc(context.core, ((methods.len() + 1) * size_of::<u32>()) as _)?;
-        write_null_terminated_table(context.core, ptr_methods, &methods)?;
+        let ptr_methods = Allocator::alloc(core, ((methods.len() + 1) * size_of::<u32>()) as _)?;
+        write_null_terminated_table(core, ptr_methods, &methods)?;
 
         let mut fields = Vec::new();
         for (index, field) in proto.fields.into_iter().enumerate() {
@@ -77,19 +80,19 @@ impl JavaClass {
                 (index as u32) * 4
             };
 
-            let field = JavaField::new(context, ptr_raw, field, offset_or_value)?;
+            let field = JavaField::new(core, ptr_raw, field, offset_or_value)?;
 
             fields.push(field.ptr_raw);
         }
-        let ptr_fields = Allocator::alloc(context.core, ((fields.len() + 1) * size_of::<u32>()) as _)?;
-        write_null_terminated_table(context.core, ptr_fields, &fields)?;
+        let ptr_fields = Allocator::alloc(core, ((fields.len() + 1) * size_of::<u32>()) as _)?;
+        write_null_terminated_table(core, ptr_fields, &fields)?;
 
-        let ptr_name = Allocator::alloc(context.core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(context.core, ptr_name, name)?;
+        let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
+        write_null_terminated_string(core, ptr_name, name)?;
 
-        let ptr_descriptor = Allocator::alloc(context.core, size_of::<RawJavaClassDescriptor>() as u32)?;
+        let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(
-            context.core,
+            core,
             ptr_descriptor,
             RawJavaClassDescriptor {
                 ptr_name,
@@ -108,11 +111,11 @@ impl JavaClass {
         )?;
 
         let vtable = vtable_builder.serialize();
-        let ptr_vtable = Allocator::alloc(context.core, ((vtable.len() + 1) * size_of::<u32>()) as _)?;
-        write_null_terminated_table(context.core, ptr_vtable, &vtable)?;
+        let ptr_vtable = Allocator::alloc(core, ((vtable.len() + 1) * size_of::<u32>()) as _)?;
+        write_null_terminated_table(core, ptr_vtable, &vtable)?;
 
         write_generic(
-            context.core,
+            core,
             ptr_raw,
             RawJavaClass {
                 ptr_next: ptr_raw + 4,
@@ -124,30 +127,34 @@ impl JavaClass {
             },
         )?;
 
-        let result = Self::from_raw(ptr_raw, context.core);
+        let result = Self::from_raw(ptr_raw, core);
 
-        KtfJavaContext::register_class(context.core, &result).await?;
+        KtfJavaContext::register_class(core, &result).await?;
 
         Ok(result)
     }
 
-    pub async fn new_array(context: &mut KtfJavaContext<'_>, name: &str) -> JavaResult<JavaClass> {
-        let ptr_parent_class = context.load_class("java/lang/Object").await?.unwrap();
-        let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaClass>() as u32)?;
+    pub async fn new_array(core: &mut ArmCore, name: &str) -> JavaResult<JavaClass> {
+        let ptr_parent_class = ClassLoader::get_or_load_class(core, "java/lang/Object").await?.unwrap();
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type = if element_type_name.starts_with('L') {
-            Some(context.load_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap())
+            Some(
+                ClassLoader::get_or_load_class(core, &element_type_name[1..element_type_name.len() - 1])
+                    .await?
+                    .unwrap(),
+            )
         } else {
             None
         };
 
-        let ptr_name = Allocator::alloc(context.core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(context.core, ptr_name, name)?;
+        let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
+        write_null_terminated_string(core, ptr_name, name)?;
 
-        let ptr_descriptor = Allocator::alloc(context.core, size_of::<RawJavaClassDescriptor>() as u32)?;
+        let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(
-            context.core,
+            core,
             ptr_descriptor,
             RawJavaClassDescriptor {
                 ptr_name,
@@ -166,7 +173,7 @@ impl JavaClass {
         )?;
 
         write_generic(
-            context.core,
+            core,
             ptr_raw,
             RawJavaClass {
                 ptr_next: ptr_raw + 4,
@@ -178,9 +185,9 @@ impl JavaClass {
             },
         )?;
 
-        let class = JavaClass::from_raw(ptr_raw, context.core);
+        let class = JavaClass::from_raw(ptr_raw, core);
 
-        JavaContextData::register_class(context.core, &class)?;
+        JavaContextData::register_class(core, &class)?;
 
         Ok(class)
     }
