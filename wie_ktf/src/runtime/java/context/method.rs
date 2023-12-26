@@ -56,7 +56,7 @@ impl JavaMethod {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(context: &mut KtfJavaContext<'_>, ptr_class: u32, proto: JavaMethodProto, vtable_builder: &mut JavaVtableBuilder) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaMethodProto, vtable_builder: &mut JavaVtableBuilder) -> JavaResult<Self> {
         let full_name = JavaFullName {
             tag: 0,
             name: proto.name,
@@ -64,23 +64,23 @@ impl JavaMethod {
         };
         let full_name_bytes = full_name.as_bytes();
 
-        let ptr_name = Allocator::alloc(context.core, full_name_bytes.len() as u32)?;
-        context.core.write_bytes(ptr_name, &full_name_bytes)?;
+        let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
+        core.write_bytes(ptr_name, &full_name_bytes)?;
 
-        let fn_method = Self::register_java_method(context, proto.body, proto.flag == JavaMethodFlag::NATIVE)?;
+        let fn_method = Self::register_java_method(core, proto.body, proto.flag == JavaMethodFlag::NATIVE)?;
         let (fn_body, fn_body_native) = if proto.flag == JavaMethodFlag::NATIVE {
             (0, fn_method)
         } else {
             (fn_method, 0)
         };
 
-        let ptr_raw = Allocator::alloc(context.core, size_of::<RawJavaMethod>() as u32)?;
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
         let index_in_vtable = vtable_builder.add(ptr_raw, &full_name) as u16;
 
         let flag = JavaMethodFlagBit::from_flag(proto.flag);
 
         write_generic(
-            context.core,
+            core,
             ptr_raw,
             RawJavaMethod {
                 fn_body,
@@ -95,7 +95,7 @@ impl JavaMethod {
             },
         )?;
 
-        Ok(Self::from_raw(ptr_raw, context.core))
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     pub fn name(&self) -> JavaResult<JavaFullName> {
@@ -126,7 +126,7 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method(context: &mut KtfJavaContext<'_>, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
+    fn register_java_method(core: &mut ArmCore, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
         struct JavaMethodProxy {
             body: JavaMethodBody,
             native: bool,
@@ -166,6 +166,6 @@ impl JavaMethod {
 
         let proxy = JavaMethodProxy::new(body, native);
 
-        context.core.register_function(proxy)
+        core.register_function(proxy)
     }
 }

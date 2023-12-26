@@ -53,7 +53,7 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub async fn load_class(&mut self, name: &str) -> JavaResult<Option<JavaClass>> {
-        ClassLoader::get_or_load_class(self, name).await
+        ClassLoader::get_or_load_class(self.core, name).await
     }
 
     pub async fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
