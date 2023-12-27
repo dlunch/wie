@@ -75,7 +75,7 @@ impl Display {
         );
 
         let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
-        let cards = context.instance_from_raw(cards.ptr_instance);
+        let cards = context.array_instance_from_raw(cards.ptr_instance);
         context.jvm().put_field(
             &this.class_instance,
             "cards",
@@ -127,19 +127,19 @@ impl Display {
         Ok(JavaObjectProxy::new(0))
     }
 
-    async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JavaObjectProxy<Card>) -> JavaResult<()> {
+    async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})",
             context.instance_raw(&this.class_instance),
-            c.ptr_instance
+            context.instance_raw(&c.class_instance)
         );
 
         let cards = context.jvm().get_field(&this.class_instance, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let cards = JavaObjectProxy::new(context.instance_raw(cards.as_object().unwrap()));
-        let card = context.load_array_i32(&cards, 0, 1)?[0];
+        let card = &context.jvm().load_array(cards.as_object().unwrap(), 0, 1)?[0];
 
-        if card == 0 {
-            context.store_array_i32(&cards, 0, &[c.ptr_instance as _])?; // TODO store_array_reference
+        if card.as_object().is_none() {
+            let value = JavaValue::Object(Some(c.class_instance.clone()));
+            context.jvm().store_array(cards.as_object().unwrap(), 0, &[value])?;
         }
 
         Ok(())

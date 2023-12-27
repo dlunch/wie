@@ -1,11 +1,14 @@
-use alloc::{boxed::Box, string::String};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+};
 use core::mem::size_of;
 
-use jvm::{ArrayClass, Class, ClassInstance, Field, JavaValue, JvmResult, Method};
+use jvm::{ArrayClass, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
 use wie_base::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{JavaResult, JavaWord};
+use wie_impl_java::JavaResult;
 
 use super::{
     array_class_instance::JavaArrayClassInstance,
@@ -86,25 +89,27 @@ impl JavaArrayClass {
         Ok(class)
     }
 
-    pub fn element_size(&self) -> JavaResult<JavaWord> {
+    pub fn element_type_descriptor(&self) -> JavaResult<String> {
         let class_name = self.class.name()?;
 
-        assert!(class_name.starts_with('['), "Not an array class {}", class_name);
+        Ok(class_name[1..].to_string())
+    }
 
-        if class_name.starts_with("[L") || class_name.starts_with("[[") {
-            Ok(4)
-        } else {
-            let element = class_name.as_bytes()[1];
-            Ok(match element {
-                b'B' => 1,
-                b'C' => 2,
-                b'I' => 4,
-                b'Z' => 1,
-                b'S' => 2,
-                b'J' => 8,
-                _ => unimplemented!("get_array_element_size {}", class_name),
-            })
-        }
+    pub fn element_size(&self) -> JavaResult<usize> {
+        let r#type = JavaType::parse(&self.element_type_descriptor()?);
+        Ok(match r#type {
+            JavaType::Boolean => 1,
+            JavaType::Byte => 1,
+            JavaType::Char => 2,
+            JavaType::Short => 2,
+            JavaType::Int => 4,
+            JavaType::Long => 8,
+            JavaType::Float => 4,
+            JavaType::Double => 8,
+            JavaType::Class(_) => 4, // TODO do we need to extract pointer size to constant?
+            JavaType::Array(_) => 4,
+            _ => panic!("Should not reach here"),
+        })
     }
 }
 

@@ -3,9 +3,9 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::java::io::InputStream,
-    Array, JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
 // class java.io.DataInputStream
@@ -62,25 +62,26 @@ impl DataInputStream {
     async fn read(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        b: JavaObjectProxy<Array>,
+        b: JvmArrayClassInstanceProxy<i8>,
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
         tracing::debug!(
             "java.lang.DataInputStream::read({:#x}, {:#x}, {}, {})",
             context.instance_raw(&this.class_instance),
-            b.ptr_instance,
+            context.instance_raw(&b.class_instance),
             off,
             len
         );
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
+        let b = context.instance_raw(&b.class_instance);
         let result = context
             .call_method(
                 &JavaObjectProxy::new(context.instance_raw(r#in.as_object().unwrap())),
                 "read",
                 "([BII)I",
-                &[b.ptr_instance, off as _, len as _],
+                &[b, off as _, len as _],
             )
             .await?;
 

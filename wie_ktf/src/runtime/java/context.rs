@@ -10,7 +10,7 @@ mod name;
 mod value;
 mod vtable_builder;
 
-use alloc::{borrow::ToOwned, boxed::Box, format, rc::Rc, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, rc::Rc};
 use core::cell::RefCell;
 
 use bytemuck::{Pod, Zeroable};
@@ -22,7 +22,7 @@ use wie_backend::{
     AsyncCallable, Backend,
 };
 use wie_core_arm::ArmCore;
-use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
+use wie_impl_java::{r#impl::java::lang::Object, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
 
 pub use self::name::JavaFullName;
 use self::{
@@ -134,13 +134,21 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord {
         let instance = instance.borrow();
-        let instance = instance.as_any().downcast_ref::<JavaClassInstance>().unwrap();
+        if let Some(x) = instance.as_any().downcast_ref::<JavaClassInstance>() {
+            x.ptr_raw as _
+        } else {
+            let instance = instance.as_any().downcast_ref::<JavaArrayClassInstance>().unwrap();
 
-        instance.ptr_raw as _
+            instance.class_instance.ptr_raw as _
+        }
     }
 
     fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef {
         Rc::new(RefCell::new(Box::new(JavaClassInstance::from_raw(raw as _, self.core))))
+    }
+
+    fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef {
+        Rc::new(RefCell::new(Box::new(JavaArrayClassInstance::from_raw(raw as _, self.core))))
     }
 
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>> {
@@ -155,7 +163,7 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(JavaObjectProxy::new(instance.ptr_raw as _))
     }
 
-    async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>> {
+    async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Object>> {
         let instance = self.jvm.instantiate_array(element_type_name, count).await?;
         let instance = instance.borrow();
         let instance = instance.as_any().downcast_ref::<JavaArrayClassInstance>().unwrap();
@@ -204,48 +212,6 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn backend(&mut self) -> &mut Backend {
         self.backend
-    }
-
-    fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()> {
-        let mut instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-        instance.store_array(offset, values)
-    }
-
-    fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-        instance.load_array(offset, count)
-    }
-
-    fn store_array_i16(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i16]) -> JavaResult<()> {
-        let mut instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-        instance.store_array(offset, values)
-    }
-
-    fn load_array_i16(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i16>> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-        instance.load_array(offset, count)
-    }
-
-    fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i8]) -> JavaResult<()> {
-        let mut instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-        instance.store_array(offset, values)
-    }
-
-    fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i8>> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-        instance.load_array(offset, count)
-    }
-
-    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-
-        instance.array_element_size()
-    }
-
-    fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord> {
-        let instance = JavaArrayClassInstance::from_raw(array.ptr_instance as _, self.core);
-
-        instance.array_length()
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {

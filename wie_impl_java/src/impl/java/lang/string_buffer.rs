@@ -4,8 +4,6 @@ use alloc::{
     vec::Vec,
 };
 
-use bytemuck::cast_slice;
-
 use jvm::JavaValue;
 
 use crate::{
@@ -48,7 +46,7 @@ impl StringBuffer {
         tracing::debug!("java.lang.StringBuffer::<init>({:#x})", context.instance_raw(&this.class_instance));
 
         let array = context.instantiate_array("C", 16).await?;
-        let java_value_array = context.instance_from_raw(array.ptr_instance);
+        let java_value_array = context.array_instance_from_raw(array.ptr_instance);
         context
             .jvm()
             .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(java_value_array)))?;
@@ -69,7 +67,7 @@ impl StringBuffer {
         );
 
         let value_array = context.jvm().get_field(&string.class_instance, "value", "[C")?;
-        let length = context.array_length(&JavaObjectProxy::new(context.instance_raw(value_array.as_object().unwrap())))?;
+        let length = context.jvm().array_length(value_array.as_object().unwrap())?;
 
         context.jvm().put_field(&this.class_instance, "value", "[C", value_array)?;
         context.jvm().put_field(&this.class_instance, "count", "I", JavaValue::Int(length as _))?;
@@ -168,22 +166,18 @@ impl StringBuffer {
 
     async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: JavaWord) -> JavaResult<()> {
         let java_value_array = context.jvm().get_field(&this.class_instance, "value", "[C")?;
-        let current_capacity = context.array_length(&JavaObjectProxy::new(context.instance_raw(java_value_array.as_object().unwrap())))?;
+        let current_capacity = context.jvm().array_length(java_value_array.as_object().unwrap())?;
 
         if current_capacity < capacity {
-            let old_values = context.load_array_i16(
-                &JavaObjectProxy::new(context.instance_raw(java_value_array.as_object().unwrap())),
-                0,
-                current_capacity,
-            )?;
+            let old_values = context.jvm().load_array(java_value_array.as_object().unwrap(), 0, current_capacity)?;
             let new_capacity = capacity * 2;
 
             let java_new_value_array = context.instantiate_array("C", new_capacity).await?;
             let new_value = context.instance_from_raw(java_new_value_array.ptr_instance);
             context
                 .jvm()
-                .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(new_value)))?;
-            context.store_array_i16(&java_new_value_array, 0, &old_values)?;
+                .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(new_value.clone())))?;
+            context.jvm().store_array(&new_value, 0, &old_values)?;
         }
 
         Ok(())
@@ -192,17 +186,15 @@ impl StringBuffer {
     async fn append(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, string: &str) -> JavaResult<()> {
         let current_count = context.jvm().get_field(&this.class_instance, "count", "I")?.as_int();
 
-        let value_to_add = string.encode_utf16().collect::<Vec<_>>();
+        let value_to_add = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
         let count_to_add = value_to_add.len() as i32;
 
         StringBuffer::ensure_capacity(context, this, (current_count + count_to_add) as _).await?;
 
         let java_value_array = context.jvm().get_field(&this.class_instance, "value", "[C")?;
-        context.store_array_i16(
-            &JavaObjectProxy::new(context.instance_raw(java_value_array.as_object().unwrap())),
-            current_count as _,
-            cast_slice(&value_to_add),
-        )?;
+        context
+            .jvm()
+            .store_array(java_value_array.as_object().unwrap(), current_count as _, &value_to_add)?;
         context
             .jvm()
             .put_field(&this.class_instance, "count", "I", JavaValue::Int(current_count + count_to_add))?;

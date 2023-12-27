@@ -5,15 +5,12 @@ use alloc::{
     vec::Vec,
 };
 
-use bytemuck::cast_slice;
-
 use jvm::{ClassInstanceRef, JavaValue};
 use wie_backend::{decode_str, encode_str};
 
 use crate::{
-    array::Array,
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::java::lang::Object,
     JavaContext, JavaFieldAccessFlag, JavaObjectProxy, JavaResult,
 };
@@ -52,81 +49,100 @@ impl String {
         }
     }
 
-    async fn init_with_byte_array(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, value: JavaObjectProxy<Array>) -> JavaResult<()> {
-        tracing::debug!("java.lang.String::<init>({:#x}, {:#x})", this.ptr_instance, value.ptr_instance,);
+    async fn init_with_byte_array(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        value: JvmArrayClassInstanceProxy<i8>,
+    ) -> JavaResult<()> {
+        tracing::debug!(
+            "java.lang.String::<init>({:#x}, {:#x})",
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&value.class_instance)
+        );
 
-        let count = context.array_length(&value)?;
+        let count = context.jvm().array_length(&value.class_instance)?;
 
-        context
-            .call_method(&this.cast(), "<init>", "([BII)V", &[value.ptr_instance, 0, count as _])
-            .await?;
+        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
+        let value = context.instance_raw(&value.class_instance);
+        context.call_method(&this, "<init>", "([BII)V", &[value, 0, count as _]).await?;
 
         Ok(())
     }
 
-    async fn init_with_char_array(context: &mut dyn JavaContext, this: JavaObjectProxy<String>, value: JavaObjectProxy<Array>) -> JavaResult<()> {
-        tracing::debug!("java.lang.String::<init>({:#x}, {:#x})", this.ptr_instance, value.ptr_instance,);
+    async fn init_with_char_array(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        value: JvmArrayClassInstanceProxy<u16>,
+    ) -> JavaResult<()> {
+        tracing::debug!(
+            "java.lang.String::<init>({:#x}, {:#x})",
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&value.class_instance)
+        );
 
-        let count = context.array_length(&value)?;
+        let count = context.jvm().array_length(&value.class_instance)?;
 
-        context
-            .call_method(&this.cast(), "<init>", "([CII)V", &[value.ptr_instance, 0, count as _])
-            .await?;
+        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
+        let value = context.instance_raw(&value.class_instance);
+        context.call_method(&this, "<init>", "([CII)V", &[value, 0, count as _]).await?;
 
         Ok(())
     }
 
     async fn init_with_partial_char_array(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<String>,
-        value: JavaObjectProxy<Array>,
+        this: JvmClassInstanceProxy<Self>,
+        value: JvmArrayClassInstanceProxy<u16>,
         offset: i32,
         count: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
             "java.lang.String::<init>({:#x}, {:#x}, {}, {})",
             context.instance_raw(&this.class_instance),
-            value.ptr_instance,
+            context.instance_raw(&value.class_instance),
             offset,
             count
         );
 
         let array = context.instantiate_array("C", count as _).await?;
-        let array = context.instance_from_raw(array.ptr_instance);
+        let array = context.array_instance_from_raw(array.ptr_instance);
         context
             .jvm()
             .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(array.clone())))?;
 
-        let data = context.load_array_i16(&value.cast(), offset as _, count as _)?;
-        context.store_array_i16(&JavaObjectProxy::new(context.instance_raw(&array)), 0, &data)?; // TODO we should store value, offset, count like in java
+        let data = context.jvm().load_array(&value.class_instance, offset as _, count as _)?;
+        context.jvm().store_array(&array, 0, &data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
     }
 
     async fn init_with_partial_byte_array(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<String>,
-        value: JavaObjectProxy<Array>,
+        this: JvmClassInstanceProxy<Self>,
+        value: JvmArrayClassInstanceProxy<i8>,
         offset: i32,
         count: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
             "java.lang.String::<init>({:#x}, {:#x}, {}, {})",
-            this.ptr_instance,
-            value.ptr_instance,
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&value.class_instance),
             offset,
             count
         );
 
-        let bytes = context.load_array_i8(&value.cast(), offset as _, count as _)?;
-        let string = decode_str(cast_slice(&bytes));
+        let bytes = context.jvm().load_array(&value.class_instance, offset as _, count as _)?;
+        let string = decode_str(&bytes.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>());
 
-        let utf16 = string.encode_utf16().collect::<Vec<_>>();
+        let utf16 = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
 
         let array = context.instantiate_array("C", utf16.len()).await?;
-        context.store_array_i16(&array, 0, cast_slice(&utf16))?;
+        let array = context.array_instance_from_raw(array.ptr_instance);
+        context.jvm().store_array(&array, 0, &utf16)?;
 
-        context.call_method(&this.cast(), "<init>", "([C)V", &[array.ptr_instance]).await?;
+        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
+        let array = context.instance_raw(&array);
+        context.call_method(&this, "<init>", "([C)V", &[array]).await?;
 
         Ok(())
     }
@@ -154,16 +170,15 @@ impl String {
         tracing::debug!("java.lang.String::charAt({:#x}, {})", context.instance_raw(&this.class_instance), index);
 
         let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
-        let value = JavaObjectProxy::new(context.instance_raw(value.as_object().unwrap()));
 
-        Ok(context.load_array_i16(&value, index as _, 1)?[0] as _)
+        Ok(context.jvm().load_array(value.as_object().unwrap(), index as _, 1)?[0].as_char() as _)
     }
 
     async fn concat(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
         other: JvmClassInstanceProxy<Self>,
-    ) -> JavaResult<JavaObjectProxy<String>> {
+    ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!(
             "java.lang.String::concat({:#x}, {:#x})",
             context.instance_raw(&this.class_instance),
@@ -178,33 +193,34 @@ impl String {
         Self::from_rust_string(context, &concat).await
     }
 
-    async fn get_bytes(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JavaObjectProxy<Array>> {
+    async fn get_bytes(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmArrayClassInstanceProxy<i8>> {
         tracing::debug!("java.lang.String::getBytes({:#x})", context.instance_raw(&this.class_instance));
 
-        let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
-        let value = JavaObjectProxy::new(context.instance_raw(value.as_object().unwrap()));
+        let string = Self::to_rust_string(context, &this.class_instance)?;
 
-        let len = context.array_length(&value)?;
-        let utf16 = context.load_array_i16(&value, 0, len)?;
-
-        let bytes = encode_str(&RustString::from_utf16(cast_slice(&utf16))?);
+        let bytes = encode_str(&string);
+        let bytes = bytes.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
         let byte_array = context.instantiate_array("B", bytes.len()).await?;
-        context.store_array_i8(&byte_array, 0, cast_slice(&bytes))?;
+        let byte_array = context.instance_from_raw(byte_array.ptr_instance);
+        context.jvm().store_array(&byte_array, 0, &bytes)?;
 
-        Ok(byte_array)
+        Ok(JvmArrayClassInstanceProxy::new(byte_array))
     }
 
     async fn length(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.String::length({:#x})", context.instance_raw(&this.class_instance));
 
         let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
-        let value = JavaObjectProxy::new(context.instance_raw(value.as_object().unwrap()));
 
-        Ok(context.array_length(&value)? as _)
+        Ok(context.jvm().array_length(value.as_object().unwrap())? as _)
     }
 
-    async fn substring(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, begin_index: i32) -> JavaResult<JavaObjectProxy<String>> {
+    async fn substring(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        begin_index: i32,
+    ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!(
             "java.lang.String::substring({:#x}, {})",
             context.instance_raw(&this.class_instance),
@@ -223,7 +239,7 @@ impl String {
         this: JvmClassInstanceProxy<Self>,
         begin_index: i32,
         end_index: i32,
-    ) -> JavaResult<JavaObjectProxy<String>> {
+    ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!(
             "java.lang.String::substring({:#x}, {}, {})",
             context.instance_raw(&this.class_instance),
@@ -242,7 +258,7 @@ impl String {
         Self::from_rust_string(context, &substr).await
     }
 
-    async fn value_of_integer(context: &mut dyn JavaContext, value: i32) -> JavaResult<JavaObjectProxy<String>> {
+    async fn value_of_integer(context: &mut dyn JavaContext, value: i32) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.String::valueOf({})", value);
 
         let string = value.to_string();
@@ -250,7 +266,7 @@ impl String {
         Self::from_rust_string(context, &string).await
     }
 
-    async fn value_of_object(context: &mut dyn JavaContext, value: JavaObjectProxy<Object>) -> JavaResult<JavaObjectProxy<String>> {
+    async fn value_of_object(context: &mut dyn JavaContext, value: JavaObjectProxy<Object>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::warn!("stub java.lang.String::valueOf({:#x})", value.ptr_instance);
 
         // TODO Object.toString()
@@ -278,7 +294,7 @@ impl String {
         Ok(index.unwrap_or(-1))
     }
 
-    async fn trim(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JavaObjectProxy<String>> {
+    async fn trim(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.String::trim({:#x})", context.instance_raw(&this.class_instance));
 
         let string = Self::to_rust_string(context, &this.class_instance)?;
@@ -290,29 +306,31 @@ impl String {
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &ClassInstanceRef) -> JavaResult<RustString> {
         let value = context.jvm().get_field(instance, "value", "[C")?;
-        let java_value = JavaObjectProxy::new(context.instance_raw(value.as_object().unwrap()));
 
-        let length = context.array_length(&java_value)?;
-        let string = context.load_array_i16(&java_value, 0, length)?;
+        let length = context.jvm().array_length(value.as_object().unwrap())?;
+        let string = context.jvm().load_array(value.as_object().unwrap(), 0, length)?;
 
-        Ok(RustString::from_utf16(cast_slice(&string))?)
+        Ok(RustString::from_utf16(&string.into_iter().map(|x| x.as_char()).collect::<Vec<_>>())?)
     }
 
-    pub async fn from_rust_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JavaObjectProxy<String>> {
+    pub async fn from_rust_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JvmClassInstanceProxy<Self>> {
         let utf16 = string.encode_utf16().collect::<Vec<_>>();
 
         Self::from_utf16(context, &utf16).await
     }
 
-    pub async fn from_utf16(context: &mut dyn JavaContext, data: &[u16]) -> JavaResult<JavaObjectProxy<String>> {
+    pub async fn from_utf16(context: &mut dyn JavaContext, data: &[u16]) -> JavaResult<JvmClassInstanceProxy<Self>> {
         let java_value = context.instantiate_array("C", data.len()).await?;
-        context.store_array_i16(&java_value, 0, cast_slice(data))?;
+        let java_value = context.array_instance_from_raw(java_value.ptr_instance);
 
-        let instance = context.instantiate("Ljava/lang/String;").await?.cast();
-        context
-            .call_method(&instance.cast(), "<init>", "([C)V", &[java_value.ptr_instance])
-            .await?;
+        let data = data.iter().map(|&x| JavaValue::Char(x)).collect::<Vec<_>>();
+        context.jvm().store_array(&java_value, 0, &data)?;
 
-        Ok(instance)
+        let instance = context.instantiate("Ljava/lang/String;").await?;
+
+        let java_value = context.instance_raw(&java_value);
+        context.call_method(&instance, "<init>", "([C)V", &[java_value]).await?;
+
+        Ok(JvmClassInstanceProxy::new(context.instance_from_raw(instance.ptr_instance)))
     }
 }
