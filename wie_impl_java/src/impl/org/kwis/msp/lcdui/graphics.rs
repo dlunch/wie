@@ -119,8 +119,8 @@ impl Graphics {
             "Lorg/kwis/msp/lcdui/Image;",
             JavaValue::Object(Some(image.class_instance)),
         )?;
-        context.jvm().put_field(&this.class_instance, "w", "I", JavaValue::Integer(width as _))?;
-        context.jvm().put_field(&this.class_instance, "h", "I", JavaValue::Integer(height as _))?;
+        context.jvm().put_field(&this.class_instance, "w", "I", JavaValue::Int(width as _))?;
+        context.jvm().put_field(&this.class_instance, "h", "I", JavaValue::Int(height as _))?;
 
         Ok(())
     }
@@ -141,7 +141,7 @@ impl Graphics {
             rgb
         );
 
-        context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Integer(rgb as _))?;
+        context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Int(rgb as _))?;
 
         Ok(())
     }
@@ -157,7 +157,7 @@ impl Graphics {
 
         let rgb = (r << 16) | (g << 8) | b;
 
-        context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Integer(rgb as _))?;
+        context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Int(rgb as _))?;
 
         Ok(())
     }
@@ -214,7 +214,7 @@ impl Graphics {
             height
         );
 
-        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_integer();
+        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_int();
 
         let image = Self::image(context, &this.class_instance).await?;
         let mut canvas = Image::canvas(context, &image.class_instance)?;
@@ -234,7 +234,7 @@ impl Graphics {
             height
         );
 
-        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_integer();
+        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_int();
 
         let image = Self::image(context, &this.class_instance).await?;
         let mut canvas = Image::canvas(context, &image.class_instance)?;
@@ -281,7 +281,7 @@ impl Graphics {
             y2
         );
 
-        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_integer();
+        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_int();
 
         let image = Self::image(context, &this.class_instance).await?;
         let mut canvas = Image::canvas(context, &image.class_instance)?;
@@ -355,7 +355,7 @@ impl Graphics {
             context.instance_raw(&this.class_instance)
         );
 
-        let w = context.jvm().get_field(&this.class_instance, "w", "I")?.as_integer();
+        let w = context.jvm().get_field(&this.class_instance, "w", "I")?.as_int();
 
         Ok(w as _)
     }
@@ -366,7 +366,7 @@ impl Graphics {
             context.instance_raw(&this.class_instance)
         );
 
-        let h = context.jvm().get_field(&this.class_instance, "h", "I")?.as_integer();
+        let h = context.jvm().get_field(&this.class_instance, "h", "I")?.as_int();
 
         Ok(h as _)
     }
@@ -395,8 +395,8 @@ impl Graphics {
         if image.as_object().is_some() {
             Ok(JvmClassInstanceProxy::new(image.as_object().unwrap().clone()))
         } else {
-            let width = context.jvm().get_field(this, "w", "I")?.as_integer();
-            let height = context.jvm().get_field(this, "h", "I")?.as_integer();
+            let width = context.jvm().get_field(this, "w", "I")?.as_int();
+            let height = context.jvm().get_field(this, "h", "I")?.as_int();
 
             let image = context
                 .call_static_method(

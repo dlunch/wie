@@ -52,7 +52,7 @@ impl StringBuffer {
         context
             .jvm()
             .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(java_value_array)))?;
-        context.jvm().put_field(&this.class_instance, "count", "I", JavaValue::Integer(0))?;
+        context.jvm().put_field(&this.class_instance, "count", "I", JavaValue::Int(0))?;
 
         Ok(())
     }
@@ -72,9 +72,7 @@ impl StringBuffer {
         let length = context.array_length(&JavaObjectProxy::new(context.instance_raw(value_array.as_object().unwrap())))?;
 
         context.jvm().put_field(&this.class_instance, "value", "[C", value_array)?;
-        context
-            .jvm()
-            .put_field(&this.class_instance, "count", "I", JavaValue::Integer(length as _))?;
+        context.jvm().put_field(&this.class_instance, "count", "I", JavaValue::Int(length as _))?;
 
         Ok(())
     }
@@ -161,7 +159,7 @@ impl StringBuffer {
                 &string.cast(),
                 "<init>",
                 "([CII)V",
-                &[context.instance_raw(java_value.as_object().unwrap()), 0, count.as_integer() as _],
+                &[context.instance_raw(java_value.as_object().unwrap()), 0, count.as_int() as _],
             )
             .await?;
 
@@ -192,7 +190,7 @@ impl StringBuffer {
     }
 
     async fn append(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, string: &str) -> JavaResult<()> {
-        let current_count = context.jvm().get_field(&this.class_instance, "count", "I")?.as_integer();
+        let current_count = context.jvm().get_field(&this.class_instance, "count", "I")?.as_int();
 
         let value_to_add = string.encode_utf16().collect::<Vec<_>>();
         let count_to_add = value_to_add.len() as i32;
@@ -207,7 +205,7 @@ impl StringBuffer {
         )?;
         context
             .jvm()
-            .put_field(&this.class_instance, "count", "I", JavaValue::Integer(current_count + count_to_add))?;
+            .put_field(&this.class_instance, "count", "I", JavaValue::Int(current_count + count_to_add))?;
 
         Ok(())
     }

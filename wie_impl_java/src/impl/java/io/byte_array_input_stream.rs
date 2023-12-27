@@ -42,7 +42,7 @@ impl ByteArrayInputStream {
             "Ljava/lang/Object;",
             JavaValue::Object(Some(data.class_instance)),
         )?;
-        context.jvm().put_field(&this.class_instance, "pos", "I", JavaValue::Integer(0))?;
+        context.jvm().put_field(&this.class_instance, "pos", "I", JavaValue::Int(0))?;
 
         Ok(())
     }
@@ -54,7 +54,7 @@ impl ByteArrayInputStream {
         );
 
         let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
-        let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_integer();
+        let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_int();
         let buf_length = context.array_length(&JavaObjectProxy::new(context.instance_raw(buf.as_object().unwrap())))? as i32;
 
         Ok((buf_length - pos) as _)
@@ -77,7 +77,7 @@ impl ByteArrayInputStream {
 
         let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
         let buf_length = context.array_length(&JavaObjectProxy::new(context.instance_raw(buf.as_object().unwrap())))?;
-        let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_integer();
+        let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_int();
 
         let available = (buf_length as i32 - pos) as _;
         let len_to_read = if len > available { available } else { len };
@@ -100,7 +100,7 @@ impl ByteArrayInputStream {
             )
             .await?;
 
-        context.jvm().put_field(&this.class_instance, "pos", "I", JavaValue::Integer(pos + len))?;
+        context.jvm().put_field(&this.class_instance, "pos", "I", JavaValue::Int(pos + len))?;
 
         Ok(len)
     }

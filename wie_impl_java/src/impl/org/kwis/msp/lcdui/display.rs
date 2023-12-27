@@ -87,12 +87,8 @@ impl Display {
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 
-        context
-            .jvm()
-            .put_field(&this.class_instance, "m_w", "I", JavaValue::Integer(width as _))?;
-        context
-            .jvm()
-            .put_field(&this.class_instance, "m_h", "I", JavaValue::Integer(height as _))?;
+        context.jvm().put_field(&this.class_instance, "m_w", "I", JavaValue::Int(width as _))?;
+        context.jvm().put_field(&this.class_instance, "m_h", "I", JavaValue::Int(height as _))?;
 
         Ok(())
     }
