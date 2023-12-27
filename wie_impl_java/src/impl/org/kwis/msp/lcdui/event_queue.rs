@@ -1,5 +1,6 @@
 use alloc::vec;
 
+use jvm::JavaValue;
 use wie_base::KeyCode;
 
 use crate::{
@@ -175,19 +176,20 @@ impl EventQueue {
     }
 
     async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
-        let jlet = JavaObjectProxy::new(
-            context
-                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
-                .await?,
-        );
+        let jlet = context
+            .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .await?;
+        let jlet = context.instance_from_raw(jlet);
 
-        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        let display = JavaObjectProxy::new(context.get_field_by_id(&jlet, field_id)?);
-        if display.ptr_instance == 0 {
+        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        if display.as_object().is_none() {
             return Ok(());
         }
 
-        let cards = JavaObjectProxy::new(context.get_field(&display, "cards")?);
+        let cards = context
+            .jvm()
+            .get_field(display.as_object().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let cards = JavaObjectProxy::new(context.instance_raw(cards.as_object().unwrap()));
         let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0] as _);
         if card.ptr_instance == 0 {
             return Ok(());
@@ -199,19 +201,20 @@ impl EventQueue {
     }
 
     async fn repaint(context: &mut dyn JavaContext) -> JavaResult<()> {
-        let jlet = JavaObjectProxy::new(
-            context
-                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
-                .await?,
-        );
+        let jlet = context
+            .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .await?;
+        let jlet = context.instance_from_raw(jlet);
 
-        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        let display = JavaObjectProxy::new(context.get_field_by_id(&jlet, field_id)?);
-        if display.ptr_instance == 0 {
+        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        if display.as_object().is_none() {
             return Ok(());
         }
 
-        let cards = JavaObjectProxy::new(context.get_field(&display, "cards")?);
+        let cards = context
+            .jvm()
+            .get_field(display.as_object().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let cards = JavaObjectProxy::new(context.instance_raw(cards.as_object().unwrap()));
         let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0] as _);
         if card.ptr_instance == 0 {
             return Ok(());
@@ -219,23 +222,31 @@ impl EventQueue {
 
         let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?;
         context
-            .call_method(&graphics, "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", &[display.ptr_instance])
+            .call_method(
+                &graphics,
+                "<init>",
+                "(Lorg/kwis/msp/lcdui/Display;)V",
+                &[context.instance_raw(display.as_object().unwrap())],
+            )
             .await?;
 
         context
             .call_method(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
             .await?;
 
-        let java_image = JavaObjectProxy::new(context.get_field(&graphics, "img")?);
+        let graphics = context.instance_from_raw(graphics.ptr_instance);
+        let java_image = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if java_image.ptr_instance != 0 {
-            let image = JavaImage::image(context, &java_image)?;
+        if java_image.as_object().is_some() {
+            let image = JavaImage::image(context, java_image.as_object().unwrap())?;
 
             // TODO temporary until we have correct gc
-            let image_data = JavaObjectProxy::new(context.get_field(&java_image.cast(), "imgData")?);
-            context.destroy(image_data)?;
-            context.destroy(java_image.cast())?;
-            context.put_field(&graphics, "img", 0)?;
+            let image_data = context.jvm().get_field(java_image.as_object().unwrap(), "imgData", "[B")?;
+            context.destroy(JavaObjectProxy::new(context.instance_raw(image_data.as_object().unwrap())))?;
+            context.destroy(JavaObjectProxy::new(context.instance_raw(java_image.as_object().unwrap())))?;
+            context
+                .jvm()
+                .put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(None))?;
 
             let mut canvas = context.backend().screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());

@@ -2,8 +2,9 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class java.io.PrintStream
@@ -24,10 +25,14 @@ impl PrintStream {
         }
     }
 
-    async fn println(context: &mut dyn JavaContext, this: JavaObjectProxy<PrintStream>, str: JavaObjectProxy<String>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.PrintStream::println({:#x}, {:#x})", this.ptr_instance, str.ptr_instance);
+    async fn println(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, str: JvmClassInstanceProxy<String>) -> JavaResult<()> {
+        tracing::warn!(
+            "stub java.lang.PrintStream::println({:#x}, {:#x})",
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&str.class_instance)
+        );
 
-        let rust_str = String::to_rust_string(context, &str)?;
+        let rust_str = String::to_rust_string(context, &str.class_instance)?;
         tracing::info!("println: {}", rust_str);
 
         Ok(())

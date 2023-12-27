@@ -2,8 +2,9 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class java.lang.Integer
@@ -24,10 +25,10 @@ impl Integer {
         }
     }
 
-    async fn parse_int(context: &mut dyn JavaContext, s: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::debug!("java.lang.Integer::parseInt({:#x})", s.ptr_instance);
+    async fn parse_int(context: &mut dyn JavaContext, s: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+        tracing::debug!("java.lang.Integer::parseInt({:#x})", context.instance_raw(&s.class_instance));
 
-        let s = String::to_rust_string(context, &s)?;
+        let s = String::to_rust_string(context, &s.class_instance)?;
 
         Ok(s.parse()?)
     }

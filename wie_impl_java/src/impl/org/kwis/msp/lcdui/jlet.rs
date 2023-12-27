@@ -5,6 +5,7 @@ use jvm::JavaValue;
 use crate::{
     base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     method::MethodBody,
+    proxy::JvmClassInstanceProxy,
     r#impl::org::kwis::msp::lcdui::EventQueue,
     JavaFieldAccessFlag, JavaObjectProxy,
 };
@@ -40,8 +41,8 @@ impl Jlet {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>");
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:#x})", context.instance_raw(&this.class_instance));
 
         let display = context.instantiate("Lorg/kwis/msp/lcdui/Display;").await?;
         context
@@ -49,22 +50,35 @@ impl Jlet {
                 &display.cast(),
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
-                &[this.ptr_instance, 0],
+                &[context.instance_raw(&this.class_instance), 0],
             )
             .await?;
+        let display = context.instance_from_raw(display.ptr_instance);
 
-        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        context.put_field_by_id(&this.cast(), field_id, display.ptr_instance)?;
+        context.jvm().put_field(
+            &this.class_instance,
+            "dis",
+            "Lorg/kwis/msp/lcdui/Display;",
+            JavaValue::Object(Some(display)),
+        )?;
 
         let event_queue = context.instantiate("Lorg/kwis/msp/lcdui/EventQueue;").await?;
         context
-            .call_method(&event_queue.cast(), "<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", &[this.ptr_instance])
+            .call_method(
+                &event_queue.cast(),
+                "<init>",
+                "(Lorg/kwis/msp/lcdui/Jlet;)V",
+                &[context.instance_raw(&this.class_instance)],
+            )
             .await?;
 
-        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
-        context.put_field_by_id(&this.cast(), field_id, event_queue.ptr_instance)?;
-
-        let this_instance = context.instance_from_raw(this.ptr_instance);
+        let event_queue = context.instance_from_raw(event_queue.ptr_instance);
+        context.jvm().put_field(
+            &this.class_instance,
+            "eq",
+            "Lorg/kwis/msp/lcdui/EventQueue;",
+            JavaValue::Object(Some(event_queue)),
+        )?;
 
         context
             .jvm()
@@ -72,7 +86,7 @@ impl Jlet {
                 "org/kwis/msp/lcdui/Jlet",
                 "qtletActive",
                 "Lorg/kwis/msp/lcdui/Jlet;",
-                JavaValue::Object(Some(this_instance)),
+                JavaValue::Object(Some(this.class_instance)),
             )
             .await?;
 
@@ -91,13 +105,15 @@ impl Jlet {
         Ok(JavaObjectProxy::new(instance))
     }
 
-    async fn get_event_queue(context: &mut dyn JavaContext, this: JavaObjectProxy<Jlet>) -> JavaResult<JavaObjectProxy<EventQueue>> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue");
+    async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<EventQueue>> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Jlet::getEventQueue({:#x})",
+            context.instance_raw(&this.class_instance)
+        );
 
-        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
-        let eq = JavaObjectProxy::new(context.get_field_by_id(&this.cast(), field_id)?);
+        let eq = context.jvm().get_field(&this.class_instance, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
 
-        Ok(eq)
+        Ok(JvmClassInstanceProxy::new(eq.as_object().unwrap().clone()))
     }
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {

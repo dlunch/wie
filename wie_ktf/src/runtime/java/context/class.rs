@@ -268,6 +268,10 @@ impl Class for JavaClass {
         self.name().unwrap()
     }
 
+    fn super_class_name(&self) -> Option<String> {
+        self.parent_class().unwrap().map(|x| x.name().unwrap())
+    }
+
     fn instantiate(&self) -> Box<dyn ClassInstance> {
         let instance = JavaClassInstance::new(&mut self.core.clone(), self).unwrap();
 

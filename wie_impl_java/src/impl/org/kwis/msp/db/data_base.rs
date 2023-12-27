@@ -2,10 +2,12 @@ use alloc::vec;
 
 use bytemuck::cast_slice;
 
+use jvm::JavaValue;
+
 use crate::{
     array::Array,
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
     r#impl::java::lang::String,
 };
 
@@ -33,14 +35,19 @@ impl DataBase {
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", JavaFieldAccessFlag::NONE)],
         }
     }
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>, data_base_name: JavaObjectProxy<String>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data_base_name: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::<init>({:#x}, {:#x})",
-            this.ptr_instance,
-            data_base_name.ptr_instance
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&data_base_name.class_instance)
         );
 
-        context.put_field(&this.cast(), "dbName", data_base_name.ptr_instance)?;
+        context.jvm().put_field(
+            &this.class_instance,
+            "dbName",
+            "Ljava/lang/String;",
+            JavaValue::Object(Some(data_base_name.class_instance)),
+        )?;
 
         Ok(())
     }
@@ -66,11 +73,14 @@ impl DataBase {
         Ok(instance)
     }
 
-    async fn get_number_of_records(context: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<i32> {
-        tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})", this.ptr_instance);
+    async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::debug!(
+            "org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})",
+            context.instance_raw(&this.class_instance)
+        );
 
-        let db_name = JavaObjectProxy::new(context.get_field(&this.cast(), "dbName")?);
-        let db_name_str = String::to_rust_string(context, &db_name)?;
+        let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
+        let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
 
         let count = context.backend().database().open(&db_name_str)?.count()?;
 
@@ -85,21 +95,21 @@ impl DataBase {
 
     async fn insert_record(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<DataBase>,
+        this: JvmClassInstanceProxy<Self>,
         data: JavaObjectProxy<Array>,
         offset: i32,
         num_bytes: i32,
     ) -> JavaResult<i32> {
         tracing::debug!(
             "org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
-            this.ptr_instance,
+            context.instance_raw(&this.class_instance),
             data.ptr_instance,
             offset,
             num_bytes
         );
 
-        let db_name = JavaObjectProxy::new(context.get_field(&this.cast(), "dbName")?);
-        let db_name_str = String::to_rust_string(context, &db_name)?;
+        let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
+        let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
 
         let data = context.load_array_i8(&data.cast(), offset as _, num_bytes as _)?;
 
@@ -108,11 +118,15 @@ impl DataBase {
         Ok(id as _)
     }
 
-    async fn select_record(context: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>, record_id: i32) -> JavaResult<JavaObjectProxy<Array>> {
-        tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:#x}, {})", this.ptr_instance, record_id);
+    async fn select_record(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, record_id: i32) -> JavaResult<JavaObjectProxy<Array>> {
+        tracing::debug!(
+            "org.kwis.msp.db.DataBase::selectRecord({:#x}, {})",
+            context.instance_raw(&this.class_instance),
+            record_id
+        );
 
-        let db_name = JavaObjectProxy::new(context.get_field(&this.cast(), "dbName")?);
-        let db_name_str = String::to_rust_string(context, &db_name)?;
+        let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
+        let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
 
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
 

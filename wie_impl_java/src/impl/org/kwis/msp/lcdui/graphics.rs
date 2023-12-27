@@ -1,11 +1,13 @@
 use alloc::{format, vec};
 
+use jvm::{ClassInstanceRef, JavaValue};
+
 use wie_backend::canvas::{PixelType, Rgb8Pixel};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::TypeConverter,
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
     r#impl::{
         java::lang::String,
         org::kwis::msp::lcdui::{Display, Font, Image},
@@ -75,26 +77,27 @@ impl Graphics {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, display: JavaObjectProxy<Display>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, display: JvmClassInstanceProxy<Display>) -> JavaResult<()> {
         let log = format!(
             "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x})",
-            this.ptr_instance, display.ptr_instance
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&display.class_instance)
         );
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
-        let width = context.get_field(&display.cast(), "m_w")?;
-        let height = context.get_field(&display.cast(), "m_h")?;
+        let width = context.jvm().get_field(&display.class_instance, "m_w", "I")?;
+        let height = context.jvm().get_field(&display.class_instance, "m_h", "I")?;
 
-        context.put_field(&this.cast(), "w", width)?;
-        context.put_field(&this.cast(), "h", height)?;
+        context.jvm().put_field(&this.class_instance, "w", "I", width)?;
+        context.jvm().put_field(&this.class_instance, "h", "I", height)?;
 
         Ok(())
     }
 
     async fn init_with_image(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<Graphics>,
-        image: JavaObjectProxy<Image>,
+        this: JvmClassInstanceProxy<Self>,
+        image: JvmClassInstanceProxy<Image>,
         a0: i32,
         a1: i32,
         width: i32,
@@ -102,17 +105,22 @@ impl Graphics {
     ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
-            this.ptr_instance,
-            image.ptr_instance,
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&image.class_instance),
             a0,
             a1,
             width,
             height
         );
 
-        context.put_field(&this.cast(), "img", image.ptr_instance)?;
-        context.put_field(&this.cast(), "w", width as _)?;
-        context.put_field(&this.cast(), "h", height as _)?;
+        context.jvm().put_field(
+            &this.class_instance,
+            "img",
+            "Lorg/kwis/msp/lcdui/Image;",
+            JavaValue::Object(Some(image.class_instance)),
+        )?;
+        context.jvm().put_field(&this.class_instance, "w", "I", JavaValue::Integer(width as _))?;
+        context.jvm().put_field(&this.class_instance, "h", "I", JavaValue::Integer(height as _))?;
 
         Ok(())
     }
@@ -126,20 +134,30 @@ impl Graphics {
         Ok(font)
     }
 
-    async fn set_color(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, rgb: i32) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})", this.ptr_instance, rgb);
+    async fn set_color(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, rgb: i32) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})",
+            context.instance_raw(&this.class_instance),
+            rgb
+        );
 
-        context.put_field(&this.cast(), "rgb", rgb as _)?;
+        context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Integer(rgb as _))?;
 
         Ok(())
     }
 
-    async fn set_color_by_rgb(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, r: i32, g: i32, b: i32) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:#x}, {}, {}, {})", this.ptr_instance, r, g, b);
+    async fn set_color_by_rgb(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, r: i32, g: i32, b: i32) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::setColor({:#x}, {}, {}, {})",
+            context.instance_raw(&this.class_instance),
+            r,
+            g,
+            b
+        );
 
         let rgb = (r << 16) | (g << 8) | b;
 
-        context.put_field(&this.cast(), "rgb", rgb as _)?;
+        context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Integer(rgb as _))?;
 
         Ok(())
     }
@@ -186,40 +204,40 @@ impl Graphics {
         Ok(())
     }
 
-    async fn fill_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
+    async fn fill_rect(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {}, {}, {}, {})",
-            this.ptr_instance,
+            context.instance_raw(&this.class_instance),
             x,
             y,
             width,
             height
         );
 
-        let rgb = context.get_field(&this.cast(), "rgb")?;
+        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_integer();
 
-        let image = Self::image(context, &this).await?;
-        let mut canvas = Image::canvas(context, &image)?;
+        let image = Self::image(context, &this.class_instance).await?;
+        let mut canvas = Image::canvas(context, &image.class_instance)?;
 
         canvas.fill_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
 
         Ok(())
     }
 
-    async fn draw_rect(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
+    async fn draw_rect(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::drawRect({:#x}, {}, {}, {}, {})",
-            this.ptr_instance,
+            context.instance_raw(&this.class_instance),
             x,
             y,
             width,
             height
         );
 
-        let rgb = context.get_field(&this.cast(), "rgb")?;
+        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_integer();
 
-        let image = Self::image(context, &this).await?;
-        let mut canvas = Image::canvas(context, &image)?;
+        let image = Self::image(context, &this.class_instance).await?;
+        let mut canvas = Image::canvas(context, &image.class_instance)?;
 
         canvas.draw_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
 
@@ -228,45 +246,45 @@ impl Graphics {
 
     async fn draw_string(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<Graphics>,
-        string: JavaObjectProxy<String>,
+        this: JvmClassInstanceProxy<Self>,
+        string: JvmClassInstanceProxy<String>,
         x: i32,
         y: i32,
         anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::drawString({:#x}, {:#x}, {}, {}, {})",
-            this.ptr_instance,
-            string.ptr_instance,
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&string.class_instance),
             x,
             y,
             anchor.0
         );
 
-        let rust_string = String::to_rust_string(context, &string)?;
+        let rust_string = String::to_rust_string(context, &string.class_instance)?;
 
-        let image = Self::image(context, &this).await?;
-        let mut canvas = Image::canvas(context, &image)?;
+        let image = Self::image(context, &this.class_instance).await?;
+        let mut canvas = Image::canvas(context, &image.class_instance)?;
 
         canvas.draw_text(&rust_string, x as _, y as _);
 
         Ok(())
     }
 
-    async fn draw_line(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
+    async fn draw_line(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::drawLine({:#x}, {}, {}, {}, {})",
-            this.ptr_instance,
+            context.instance_raw(&this.class_instance),
             x1,
             y1,
             x2,
             y2
         );
 
-        let rgb = context.get_field(&this.cast(), "rgb")?;
+        let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_integer();
 
-        let image = Self::image(context, &this).await?;
-        let mut canvas = Image::canvas(context, &image)?;
+        let image = Self::image(context, &this.class_instance).await?;
+        let mut canvas = Image::canvas(context, &image.class_instance)?;
 
         canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(rgb as _));
 
@@ -275,25 +293,25 @@ impl Graphics {
 
     async fn draw_image(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<Graphics>,
-        img: JavaObjectProxy<Image>,
+        this: JvmClassInstanceProxy<Self>,
+        img: JvmClassInstanceProxy<Image>,
         x: i32,
         y: i32,
         anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
-            this.ptr_instance,
-            img.ptr_instance,
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&img.class_instance),
             x,
             y,
             anchor.0
         );
 
-        let src_canvas = Image::image(context, &img)?;
+        let src_canvas = Image::image(context, &img.class_instance)?;
 
-        let image = Self::image(context, &this).await?;
-        let mut canvas = Image::canvas(context, &image)?;
+        let image = Self::image(context, &this.class_instance).await?;
+        let mut canvas = Image::canvas(context, &image.class_instance)?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
             -((src_canvas.width() / 2) as i32)
@@ -331,18 +349,24 @@ impl Graphics {
         Ok(0)
     }
 
-    async fn get_clip_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:#x})", this.ptr_instance);
+    async fn get_clip_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::getClipWidth({:#x})",
+            context.instance_raw(&this.class_instance)
+        );
 
-        let w = context.get_field(&this.cast(), "w")?;
+        let w = context.jvm().get_field(&this.class_instance, "w", "I")?.as_integer();
 
         Ok(w as _)
     }
 
-    async fn get_clip_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})", this.ptr_instance);
+    async fn get_clip_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})",
+            context.instance_raw(&this.class_instance)
+        );
 
-        let h = context.get_field(&this.cast(), "h")?;
+        let h = context.jvm().get_field(&this.class_instance, "h", "I")?.as_integer();
 
         Ok(h as _)
     }
@@ -365,29 +389,30 @@ impl Graphics {
         Ok(())
     }
 
-    async fn image(context: &mut dyn JavaContext, this: &JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Image>> {
-        let image = JavaObjectProxy::new(context.get_field(&this.cast(), "img")?);
+    async fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<JvmClassInstanceProxy<Image>> {
+        let image = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if image.ptr_instance != 0 {
-            Ok(image)
+        if image.as_object().is_some() {
+            Ok(JvmClassInstanceProxy::new(image.as_object().unwrap().clone()))
         } else {
-            let width = context.get_field(&this.cast(), "w")?;
-            let height = context.get_field(&this.cast(), "h")?;
+            let width = context.jvm().get_field(this, "w", "I")?.as_integer();
+            let height = context.jvm().get_field(this, "h", "I")?.as_integer();
 
-            let image = JavaObjectProxy::new(
-                context
-                    .call_static_method(
-                        "org/kwis/msp/lcdui/Image",
-                        "createImage",
-                        "(II)Lorg/kwis/msp/lcdui/Image;",
-                        &[width, height],
-                    )
-                    .await?,
-            );
+            let image = context
+                .call_static_method(
+                    "org/kwis/msp/lcdui/Image",
+                    "createImage",
+                    "(II)Lorg/kwis/msp/lcdui/Image;",
+                    &[width as _, height as _],
+                )
+                .await?;
+            let image = context.instance_from_raw(image);
 
-            context.put_field(&this.cast(), "img", image.ptr_instance)?;
+            context
+                .jvm()
+                .put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(Some(image.clone())))?;
 
-            Ok(image)
+            Ok(JvmClassInstanceProxy::new(image))
         }
     }
 }

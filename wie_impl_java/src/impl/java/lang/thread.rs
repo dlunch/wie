@@ -1,11 +1,13 @@
 use alloc::{boxed::Box, vec};
 
+use jvm::JavaValue;
+
 use wie_backend::task;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::MethodBody,
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
     r#impl::java::lang::Runnable,
     JavaError,
 };
@@ -29,16 +31,25 @@ impl Thread {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, target: JavaObjectProxy<Runnable>) -> JavaResult<()> {
-        tracing::debug!("Thread::<init>({:#x}, {:#x})", this.ptr_instance, target.ptr_instance);
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, target: JvmClassInstanceProxy<Runnable>) -> JavaResult<()> {
+        tracing::debug!(
+            "Thread::<init>({:#x}, {:#x})",
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&target.class_instance)
+        );
 
-        context.put_field(&this.cast(), "target", target.ptr_instance)?;
+        context.jvm().put_field(
+            &this.class_instance,
+            "target",
+            "Ljava/lang/Runnable;",
+            JavaValue::Object(Some(target.class_instance)),
+        )?;
 
         Ok(())
     }
 
-    async fn start(context: &mut dyn JavaContext, this: JavaObjectProxy<Thread>) -> JavaResult<()> {
-        tracing::debug!("Thread::start({:#x})", this.ptr_instance);
+    async fn start(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::debug!("Thread::start({:#x})", context.instance_raw(&this.class_instance));
 
         struct ThreadStartProxy {
             runnable: JavaObjectProxy<Runnable>,
@@ -56,7 +67,8 @@ impl Thread {
             }
         }
 
-        let target = JavaObjectProxy::new(context.get_field(&this.cast(), "target")?);
+        let target = context.jvm().get_field(&this.class_instance, "target", "Ljava/lang/Runnable;")?;
+        let target = JavaObjectProxy::new(context.instance_raw(target.as_object().unwrap()));
 
         context.spawn(Box::new(ThreadStartProxy { runnable: target }))?;
 
