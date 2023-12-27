@@ -233,7 +233,8 @@ impl EventQueue {
         }
         let card = JavaObjectProxy::new(context.instance_raw(card.as_object_ref().unwrap()));
 
-        let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?;
+        let graphics = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
+        let graphics = JavaObjectProxy::new(context.instance_raw(&graphics));
         context
             .call_method(
                 &graphics,

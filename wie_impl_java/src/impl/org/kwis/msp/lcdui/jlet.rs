@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec};
+use alloc::{boxed::Box, vec};
 
 use jvm::JavaValue;
 
@@ -44,10 +44,11 @@ impl Jlet {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:#x})", context.instance_raw(&this.class_instance));
 
-        let display = context.instantiate("Lorg/kwis/msp/lcdui/Display;").await?;
+        let display = context.jvm().instantiate_class("org/kwis/msp/lcdui/Display").await?;
+        let display = JavaObjectProxy::new(context.instance_raw(&display));
         context
             .call_method(
-                &display.cast(),
+                &display,
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
                 &[context.instance_raw(&this.class_instance), 0],
@@ -62,10 +63,11 @@ impl Jlet {
             JavaValue::Object(Some(display)),
         )?;
 
-        let event_queue = context.instantiate("Lorg/kwis/msp/lcdui/EventQueue;").await?;
+        let event_queue = context.jvm().instantiate_class("org/kwis/msp/lcdui/EventQueue").await?;
+        let event_queue = JavaObjectProxy::new(context.instance_raw(&event_queue));
         context
             .call_method(
-                &event_queue.cast(),
+                &event_queue,
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;)V",
                 &[context.instance_raw(&this.class_instance)],
@@ -118,15 +120,15 @@ impl Jlet {
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
         let main_class_name = main_class_name.replace('.', "/");
-        let ptr_main_class = context.instantiate(&format!("L{};", main_class_name)).await?;
+        let ptr_main_class = context.jvm().instantiate_class(&main_class_name).await?;
+        let ptr_main_class = JavaObjectProxy::new(context.instance_raw(&ptr_main_class));
         context.call_method(&ptr_main_class, "<init>", "()V", &[]).await?;
 
         tracing::debug!("Main class instance: {:#x}", ptr_main_class.ptr_instance);
 
-        let arg = context.instantiate_array("Ljava/lang/String;", 0).await?;
-        context
-            .call_method(&ptr_main_class, "startApp", "([Ljava/lang/String;)V", &[arg.ptr_instance])
-            .await?;
+        let arg = context.jvm().instantiate_array("Ljava/lang/String;", 0).await?;
+        let arg = context.instance_raw(&arg);
+        context.call_method(&ptr_main_class, "startApp", "([Ljava/lang/String;)V", &[arg]).await?;
 
         struct StartProxy {}
 

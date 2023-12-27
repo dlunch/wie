@@ -128,10 +128,11 @@ impl Graphics {
     async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:#x})", this.ptr_instance);
 
-        let font = context.instantiate("Lorg/kwis/msp/lcdui/Font;").await?.cast();
-        context.call_method(&font.cast(), "<init>", "()V", &[]).await?;
+        let font = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
+        let font = JavaObjectProxy::new(context.instance_raw(&font));
+        context.call_method(&font, "<init>", "()V", &[]).await?;
 
-        Ok(font)
+        Ok(font.cast())
     }
 
     async fn set_color(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, rgb: i32) -> JavaResult<()> {

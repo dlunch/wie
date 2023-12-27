@@ -1,5 +1,4 @@
 use alloc::{
-    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -196,9 +195,10 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
     let class = context.class_from_raw(ptr_class);
     let class_name = class.name()?;
 
-    let instance = context.instantiate(&format!("L{};", class_name)).await?;
+    let instance = context.jvm().instantiate_class(&class_name).await?;
+    let raw = context.instance_raw(&instance);
 
-    Ok(instance.ptr_instance as u32)
+    Ok(raw as u32)
 }
 
 pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
@@ -214,9 +214,10 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
         (element_type as u8 as char).to_string()
     };
 
-    let instance = java_context.instantiate_array(&element_type_name, count as _).await?;
+    let instance = java_context.jvm().instantiate_array(&element_type_name, count as _).await?;
+    let raw = java_context.instance_raw(&instance);
 
-    Ok(instance.ptr_instance as u32)
+    Ok(raw as u32)
 }
 
 pub async fn java_check_cast(_: &mut ArmCore, _: &mut Backend, ptr_class: u32, ptr_instance: u32) -> anyhow::Result<u32> {

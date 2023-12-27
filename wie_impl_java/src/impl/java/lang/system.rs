@@ -34,10 +34,9 @@ impl System {
     async fn cl_init(context: &mut dyn JavaContext) -> JavaResult<()> {
         tracing::debug!("java.lang.System::<clinit>()");
 
-        let out = context.instantiate("Ljava/io/PrintStream;").await?;
+        let out = context.jvm().instantiate_class("java/io/PrintStream").await?;
         // TODO call constructor with dummy output stream?
 
-        let out = context.instance_from_raw(out.ptr_instance);
         context
             .jvm()
             .put_static_field("java/lang/System", "out", "Ljava/io/PrintStream;", JavaValue::Object(Some(out)))

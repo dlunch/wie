@@ -45,11 +45,10 @@ impl StringBuffer {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.StringBuffer::<init>({:#x})", context.instance_raw(&this.class_instance));
 
-        let array = context.instantiate_array("C", 16).await?;
-        let java_value_array = context.array_instance_from_raw(array.ptr_instance);
+        let array = context.jvm().instantiate_array("C", 16).await?;
         context
             .jvm()
-            .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(java_value_array)))?;
+            .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(array)))?;
         context.jvm().put_field(&this.class_instance, "count", "I", JavaValue::Int(0))?;
 
         Ok(())
@@ -151,7 +150,8 @@ impl StringBuffer {
         let java_value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
         let count = context.jvm().get_field(&this.class_instance, "count", "I")?;
 
-        let string = context.instantiate("Ljava/lang/String;").await?.cast();
+        let string = context.jvm().instantiate_class("java/lang/String").await?;
+        let string = JavaObjectProxy::new(context.instance_raw(&string));
         context
             .call_method(
                 &string.cast(),
@@ -172,12 +172,11 @@ impl StringBuffer {
             let old_values = context.jvm().load_array(java_value_array.as_object_ref().unwrap(), 0, current_capacity)?;
             let new_capacity = capacity * 2;
 
-            let java_new_value_array = context.instantiate_array("C", new_capacity).await?;
-            let new_value = context.instance_from_raw(java_new_value_array.ptr_instance);
+            let java_new_value_array = context.jvm().instantiate_array("C", new_capacity).await?;
             context
                 .jvm()
-                .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(new_value.clone())))?;
-            context.jvm().store_array(&new_value, 0, &old_values)?;
+                .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(java_new_value_array.clone())))?;
+            context.jvm().store_array(&java_new_value_array, 0, &old_values)?;
         }
 
         Ok(())

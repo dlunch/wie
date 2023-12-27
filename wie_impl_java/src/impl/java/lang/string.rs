@@ -104,8 +104,7 @@ impl String {
             count
         );
 
-        let array = context.instantiate_array("C", count as _).await?;
-        let array = context.array_instance_from_raw(array.ptr_instance);
+        let array = context.jvm().instantiate_array("C", count as _).await?;
         context
             .jvm()
             .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(array.clone())))?;
@@ -136,8 +135,7 @@ impl String {
 
         let utf16 = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
 
-        let array = context.instantiate_array("C", utf16.len()).await?;
-        let array = context.array_instance_from_raw(array.ptr_instance);
+        let array = context.jvm().instantiate_array("C", utf16.len()).await?;
         context.jvm().store_array(&array, 0, &utf16)?;
 
         let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
@@ -201,8 +199,7 @@ impl String {
         let bytes = encode_str(&string);
         let bytes = bytes.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
-        let byte_array = context.instantiate_array("B", bytes.len()).await?;
-        let byte_array = context.instance_from_raw(byte_array.ptr_instance);
+        let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
         context.jvm().store_array(&byte_array, 0, &bytes)?;
 
         Ok(JvmArrayClassInstanceProxy::new(byte_array))
@@ -320,13 +317,13 @@ impl String {
     }
 
     pub async fn from_utf16(context: &mut dyn JavaContext, data: &[u16]) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        let java_value = context.instantiate_array("C", data.len()).await?;
-        let java_value = context.array_instance_from_raw(java_value.ptr_instance);
+        let java_value = context.jvm().instantiate_array("C", data.len()).await?;
 
         let data = data.iter().map(|&x| JavaValue::Char(x)).collect::<Vec<_>>();
         context.jvm().store_array(&java_value, 0, &data)?;
 
-        let instance = context.instantiate("Ljava/lang/String;").await?;
+        let instance = context.jvm().instantiate_class("java/lang/String").await?;
+        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
 
         let java_value = context.instance_raw(&java_value);
         context.call_method(&instance, "<init>", "([C)V", &[java_value]).await?;

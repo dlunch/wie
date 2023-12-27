@@ -74,8 +74,7 @@ impl Display {
             display_proxy.ptr_instance
         );
 
-        let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
-        let cards = context.array_instance_from_raw(cards.ptr_instance);
+        let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
         context.jvm().put_field(
             &this.class_instance,
             "cards",

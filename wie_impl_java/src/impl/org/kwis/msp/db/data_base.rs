@@ -62,7 +62,8 @@ impl DataBase {
             create
         );
 
-        let instance = context.instantiate("Lorg/kwis/msp/db/DataBase;").await?.cast();
+        let instance = context.jvm().instantiate_class("org/kwis/msp/db/DataBase").await?;
+        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
         context
             .call_method(&instance.cast(), "<init>", "()V", &[data_base_name.ptr_instance])
             .await?;
@@ -133,8 +134,7 @@ impl DataBase {
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
         let data = data.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
-        let array = context.instantiate_array("B", data.len() as _).await?;
-        let array = context.array_instance_from_raw(array.ptr_instance);
+        let array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&array, 0, &data)?;
 
         Ok(JvmArrayClassInstanceProxy::new(array))
