@@ -40,15 +40,15 @@ impl Font {
 
         context
             .jvm()
-            .put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", JavaValue::Integer(0))
+            .put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", JavaValue::Int(0))
             .await?;
         context
             .jvm()
-            .put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", JavaValue::Integer(0))
+            .put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", JavaValue::Int(0))
             .await?;
         context
             .jvm()
-            .put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", JavaValue::Integer(8))
+            .put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", JavaValue::Int(8))
             .await?;
 
         Ok(())

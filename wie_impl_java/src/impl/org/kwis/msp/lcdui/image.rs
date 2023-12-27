@@ -111,8 +111,8 @@ impl Image {
     async fn get_graphics(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JavaObjectProxy<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", context.instance_raw(&this.class_instance));
 
-        let width = context.jvm().get_field(&this.class_instance, "w", "I")?.as_integer();
-        let height = context.jvm().get_field(&this.class_instance, "h", "I")?.as_integer();
+        let width = context.jvm().get_field(&this.class_instance, "w", "I")?.as_int();
+        let height = context.jvm().get_field(&this.class_instance, "h", "I")?.as_int();
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?.cast();
         context
@@ -130,13 +130,13 @@ impl Image {
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:#x})", context.instance_raw(&this.class_instance));
 
-        Ok(context.jvm().get_field(&this.class_instance, "w", "I")?.as_integer() as _)
+        Ok(context.jvm().get_field(&this.class_instance, "w", "I")?.as_int() as _)
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:#x})", context.instance_raw(&this.class_instance));
 
-        Ok(context.jvm().get_field(&this.class_instance, "h", "I")?.as_integer() as _)
+        Ok(context.jvm().get_field(&this.class_instance, "h", "I")?.as_int() as _)
     }
 
     pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
@@ -166,9 +166,9 @@ impl Image {
     fn create_canvas(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn Canvas>> {
         let buf = Self::buf(context, this)?;
 
-        let width = context.jvm().get_field(this, "w", "I")?.as_integer();
-        let height = context.jvm().get_field(this, "h", "I")?.as_integer();
-        let bpl = context.jvm().get_field(this, "bpl", "I")?.as_integer();
+        let width = context.jvm().get_field(this, "w", "I")?.as_int();
+        let height = context.jvm().get_field(this, "h", "I")?.as_int();
+        let bpl = context.jvm().get_field(this, "bpl", "I")?.as_int();
 
         let bytes_per_pixel = bpl / width;
 
@@ -196,12 +196,12 @@ impl Image {
         let data_array = context.instance_from_raw(data_array.ptr_instance);
 
         let instance = context.instance_from_raw(instance.ptr_instance);
-        context.jvm().put_field(&instance, "w", "I", JavaValue::Integer(width as _))?;
-        context.jvm().put_field(&instance, "h", "I", JavaValue::Integer(height as _))?;
+        context.jvm().put_field(&instance, "w", "I", JavaValue::Int(width as _))?;
+        context.jvm().put_field(&instance, "h", "I", JavaValue::Int(height as _))?;
         context.jvm().put_field(&instance, "imgData", "[B", JavaValue::Object(Some(data_array)))?;
         context
             .jvm()
-            .put_field(&instance, "bpl", "I", JavaValue::Integer((width * bytes_per_pixel) as _))?;
+            .put_field(&instance, "bpl", "I", JavaValue::Int((width * bytes_per_pixel) as _))?;
 
         Ok(JvmClassInstanceProxy::new(instance))
     }
