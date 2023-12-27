@@ -2,9 +2,8 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy},
     r#impl::{java::lang::String, org::kwis::msp::media::PlayListener},
-    Array,
 };
 
 // class org.kwis.msp.media.Clip
@@ -47,16 +46,16 @@ impl Clip {
     }
 
     async fn init_with_data(
-        _: &mut dyn JavaContext,
+        context: &mut dyn JavaContext,
         this: JavaObjectProxy<Clip>,
         r#type: JavaObjectProxy<String>,
-        data: JavaObjectProxy<Array>,
+        data: JvmArrayClassInstanceProxy<i8>,
     ) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.media.Clip::<init>({:#x}, {:#x}, {:#x})",
             this.ptr_instance,
             r#type.ptr_instance,
-            data.ptr_instance
+            context.instance_raw(&data.class_instance)
         );
 
         Ok(())

@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
 };
 
@@ -24,7 +24,7 @@ impl HandsetProperty {
         }
     }
 
-    async fn get_system_property(context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<JavaObjectProxy<String>> {
+    async fn get_system_property(context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<String>> {
         let name = String::to_rust_string(context, &name.class_instance)?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 

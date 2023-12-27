@@ -2,8 +2,8 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
-    Array,
+    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy},
+    r#impl::java::lang::String,
 };
 
 // class org.kwis.msp.lcdui.Main
@@ -28,8 +28,12 @@ impl Main {
         Ok(())
     }
 
-    async fn main(context: &mut dyn JavaContext, this: JavaObjectProxy<Main>, args: JavaObjectProxy<Array>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:#x}, {:#x})", this.ptr_instance, args.ptr_instance);
+    async fn main(context: &mut dyn JavaContext, this: JavaObjectProxy<Main>, args: JvmArrayClassInstanceProxy<String>) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Main::<init>({:#x}, {:#x})",
+            this.ptr_instance,
+            context.instance_raw(&args.class_instance)
+        );
 
         let jlet = JavaObjectProxy::new(
             context

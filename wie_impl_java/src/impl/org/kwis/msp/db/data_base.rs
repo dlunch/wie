@@ -1,13 +1,10 @@
-use alloc::vec;
-
-use bytemuck::cast_slice;
+use alloc::{vec, vec::Vec};
 
 use jvm::JavaValue;
 
 use crate::{
-    array::Array,
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::java::lang::String,
 };
 
@@ -96,14 +93,14 @@ impl DataBase {
     async fn insert_record(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        data: JavaObjectProxy<Array>,
+        data: JvmArrayClassInstanceProxy<i8>,
         offset: i32,
         num_bytes: i32,
     ) -> JavaResult<i32> {
         tracing::debug!(
             "org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
             context.instance_raw(&this.class_instance),
-            data.ptr_instance,
+            context.instance_raw(&data.class_instance),
             offset,
             num_bytes
         );
@@ -111,14 +108,19 @@ impl DataBase {
         let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
 
-        let data = context.load_array_i8(&data.cast(), offset as _, num_bytes as _)?;
+        let data = context.jvm().load_array(&data.class_instance, offset as _, num_bytes as _)?;
+        let data_raw = data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
 
-        let id = context.backend().database().open(&db_name_str)?.add(cast_slice(&data))?;
+        let id = context.backend().database().open(&db_name_str)?.add(&data_raw)?;
 
         Ok(id as _)
     }
 
-    async fn select_record(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, record_id: i32) -> JavaResult<JavaObjectProxy<Array>> {
+    async fn select_record(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        record_id: i32,
+    ) -> JavaResult<JvmArrayClassInstanceProxy<i8>> {
         tracing::debug!(
             "org.kwis.msp.db.DataBase::selectRecord({:#x}, {})",
             context.instance_raw(&this.class_instance),
@@ -129,10 +131,12 @@ impl DataBase {
         let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
 
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
+        let data = data.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
         let array = context.instantiate_array("B", data.len() as _).await?;
-        context.store_array_i8(&array.cast(), 0, cast_slice(&data))?;
+        let array = context.array_instance_from_raw(array.ptr_instance);
+        context.jvm().store_array(&array, 0, &data)?;
 
-        Ok(array.cast())
+        Ok(JvmArrayClassInstanceProxy::new(array))
     }
 }

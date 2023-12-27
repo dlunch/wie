@@ -4,17 +4,15 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use bytemuck::{cast_slice, cast_vec};
-
 use jvm::{ClassInstanceRef, JavaValue};
 
 use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::{java::lang::String, org::kwis::msp::lcdui::Graphics},
-    Array, JavaFieldAccessFlag,
+    JavaFieldAccessFlag,
 };
 
 // class org.kwis.msp.lcdui.Image
@@ -96,14 +94,20 @@ impl Image {
 
     async fn create_image_from_bytes(
         context: &mut dyn JavaContext,
-        data: JavaObjectProxy<Array>,
+        data: JvmArrayClassInstanceProxy<i8>,
         offset: i32,
         length: i32,
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})",
+            context.instance_raw(&data.class_instance),
+            offset,
+            length
+        );
 
-        let image_data = context.load_array_i8(&data, offset as _, length as _)?;
-        let image = decode_image(cast_slice(&image_data))?;
+        let image_data = context.jvm().load_array(&data.class_instance, offset as _, length as _)?;
+        let image_data = image_data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
+        let image = decode_image(&image_data)?;
 
         Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
@@ -141,12 +145,12 @@ impl Image {
 
     pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
         let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
-        let java_img_data = JavaObjectProxy::new(context.instance_raw(java_img_data.as_object().unwrap()));
-        let img_data_len = context.array_length(&java_img_data)?;
+        let img_data_len = context.jvm().array_length(java_img_data.as_object().unwrap())?;
 
-        let img_data = context.load_array_i8(&java_img_data.cast(), 0, img_data_len)?;
+        let img_data = context.jvm().load_array(java_img_data.as_object().unwrap(), 0, img_data_len)?;
+        let img_data = img_data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
 
-        Ok(cast_vec(img_data))
+        Ok(img_data)
     }
 
     pub fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn BackendImage>> {
@@ -191,9 +195,11 @@ impl Image {
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
+        let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
+
         let data_array = context.instantiate_array("B", data.len() as _).await?;
-        context.store_array_i8(&data_array, 0, cast_slice(data))?;
-        let data_array = context.instance_from_raw(data_array.ptr_instance);
+        let data_array = context.array_instance_from_raw(data_array.ptr_instance);
+        context.jvm().store_array(&data_array, 0, &data)?;
 
         let instance = context.instance_from_raw(instance.ptr_instance);
         context.jvm().put_field(&instance, "w", "I", JavaValue::Int(width as _))?;
@@ -216,9 +222,10 @@ pub struct ImageCanvas<'a> {
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
-        let data = JavaObjectProxy::new(self.context.instance_raw(data.as_object().unwrap()));
 
-        self.context.store_array_i8(&data, 0, cast_slice(self.canvas.raw())).unwrap();
+        let values = self.canvas.raw().iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
+
+        self.context.jvm().store_array(data.as_object().unwrap(), 0, &values).unwrap();
     }
 }
 

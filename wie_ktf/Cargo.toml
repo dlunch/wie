@@ -12,7 +12,6 @@ bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 async-recursion = { version = "^1.0" }
-num-traits = { version = "^0.2" }
 
 jvm = { git = "https://github.com/dlunch/jvm.git" }
 

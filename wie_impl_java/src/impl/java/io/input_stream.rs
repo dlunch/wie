@@ -2,7 +2,8 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    Array, JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
 // class java.io.InputStream
@@ -24,19 +25,23 @@ impl InputStream {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<InputStream>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.InputStream::<init>({:#x})", this.ptr_instance);
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.InputStream::<init>({:#x})", context.instance_raw(&this.class_instance));
 
         Ok(())
     }
 
-    async fn read(context: &mut dyn JavaContext, this: JavaObjectProxy<InputStream>, b: JavaObjectProxy<Array>) -> JavaResult<i32> {
-        tracing::debug!("java.lang.InputStream::read({:#x}, {:#x})", this.ptr_instance, b.ptr_instance);
+    async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, b: JvmArrayClassInstanceProxy<i8>) -> JavaResult<i32> {
+        tracing::debug!(
+            "java.lang.InputStream::read({:#x}, {:#x})",
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&b.class_instance)
+        );
 
-        let array_length = context.array_length(&b)?;
+        let array_length = context.jvm().array_length(&b.class_instance)?;
 
-        Ok(context
-            .call_method(&this.cast(), "read", "([BII)I", &[b.ptr_instance, 0, array_length as _])
-            .await? as _)
+        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
+        let b = context.instance_raw(&b.class_instance);
+        Ok(context.call_method(&this, "read", "([BII)I", &[b, 0, array_length as _]).await? as _)
     }
 }

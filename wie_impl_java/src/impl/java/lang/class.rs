@@ -1,8 +1,8 @@
 use core::cell::Ref;
 
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
-use bytemuck::cast_slice;
+use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
@@ -55,7 +55,10 @@ impl Class {
             let data = Ref::map(backend1.resource(), |x| x.data(id));
 
             let array = context.instantiate_array("B", data.len() as _).await?;
-            context.store_array_i8(&array, 0, cast_slice(&data))?;
+            let array_instance = context.array_instance_from_raw(array.ptr_instance);
+
+            let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
+            context.jvm().store_array(&array_instance, 0, &data)?;
             drop(data);
 
             let result = context.instantiate("Ljava/io/ByteArrayInputStream;").await?.cast();

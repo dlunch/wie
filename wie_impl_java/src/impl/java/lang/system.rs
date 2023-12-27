@@ -3,9 +3,9 @@ use alloc::vec;
 use jvm::JavaValue;
 
 use crate::{
-    array::Array,
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    JavaFieldAccessFlag, JavaObjectProxy,
+    proxy::JvmArrayClassInstanceProxy,
+    JavaFieldAccessFlag,
 };
 
 // class java.lang.System
@@ -60,37 +60,24 @@ impl System {
 
     async fn arraycopy(
         context: &mut dyn JavaContext,
-        src: JavaObjectProxy<Array>,
+        src: JvmArrayClassInstanceProxy<usize>,
         src_pos: i32,
-        dest: JavaObjectProxy<Array>,
+        dest: JvmArrayClassInstanceProxy<usize>,
         dest_pos: i32,
         length: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
             "java.lang.System::arraycopy({:#x}, {}, {:#x}, {}, {})",
-            src.ptr_instance,
+            context.instance_raw(&src.class_instance),
             src_pos,
-            dest.ptr_instance,
+            context.instance_raw(&dest.class_instance),
             dest_pos,
             length
         );
 
-        let element_size = context.array_element_size(&src)?;
-        match element_size {
-            1 => {
-                let src_data = context.load_array_i8(&src.cast(), src_pos as _, length as _)?;
-                context.store_array_i8(&dest.cast(), dest_pos as _, &src_data)?;
-            }
-            2 => {
-                let src_data = context.load_array_i16(&src.cast(), src_pos as _, length as _)?;
-                context.store_array_i16(&dest.cast(), dest_pos as _, &src_data)?;
-            }
-            4 => {
-                let src_data = context.load_array_i32(&src.cast(), src_pos as _, length as _)?;
-                context.store_array_i32(&dest.cast(), dest_pos as _, &src_data)?;
-            }
-            _ => unimplemented!(),
-        }
+        // TODO i think we can make it faster
+        let src = context.jvm().load_array(&src.class_instance, src_pos as _, length as _)?;
+        context.jvm().store_array(&dest.class_instance, dest_pos as _, &src)?;
 
         Ok(())
     }

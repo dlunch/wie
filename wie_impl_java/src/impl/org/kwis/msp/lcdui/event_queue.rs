@@ -1,13 +1,12 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use jvm::JavaValue;
 use wie_base::KeyCode;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::org::kwis::msp::lcdui::{Image as JavaImage, Jlet},
-    Array,
 };
 
 #[repr(i32)]
@@ -112,11 +111,15 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn get_next_event(context: &mut dyn JavaContext, this: JavaObjectProxy<EventQueue>, event: JavaObjectProxy<Array>) -> JavaResult<()> {
+    async fn get_next_event(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        event: JvmArrayClassInstanceProxy<i32>,
+    ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.EventQueue::getNextEvent({:#x}, {:#x})",
-            this.ptr_instance,
-            event.ptr_instance
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&event.class_instance)
         );
 
         loop {
@@ -138,8 +141,9 @@ impl EventQueue {
                         0,
                     ],
                 };
+                let event_data = event_data.into_iter().map(JavaValue::Int).collect::<Vec<_>>();
 
-                context.store_array_i32(&event, 0, &event_data)?;
+                context.jvm().store_array(&event.class_instance, 0, &event_data)?;
 
                 break;
             } else {
@@ -150,14 +154,23 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn dispatch_event(context: &mut dyn JavaContext, this: JavaObjectProxy<EventQueue>, event: JavaObjectProxy<Array>) -> JavaResult<()> {
+    async fn dispatch_event(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        event: JvmArrayClassInstanceProxy<i32>,
+    ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.EventQueue::dispatchEvent({:#x}, {:#x})",
-            this.ptr_instance,
-            event.ptr_instance
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&event.class_instance)
         );
 
-        let event = context.load_array_i32(&event, 0, 4)?;
+        let event = context
+            .jvm()
+            .load_array(&event.class_instance, 0, 4)?
+            .into_iter()
+            .map(|x| x.as_int())
+            .collect::<Vec<_>>();
 
         match EventQueueEvent::from_raw(event[0]) {
             EventQueueEvent::RepaintEvent => {
@@ -189,12 +202,12 @@ impl EventQueue {
         let cards = context
             .jvm()
             .get_field(display.as_object().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let cards = JavaObjectProxy::new(context.instance_raw(cards.as_object().unwrap()));
-        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0] as _);
-        if card.ptr_instance == 0 {
+        let card = &context.jvm().load_array(cards.as_object().unwrap(), 0, 1)?[0];
+        if card.as_object().is_none() {
             return Ok(());
         }
 
+        let card = JavaObjectProxy::new(context.instance_raw(card.as_object().unwrap()));
         context.call_method(&card, "keyNotify", "(II)Z", &[event_type as _, code as _]).await?;
 
         Ok(())
@@ -214,11 +227,11 @@ impl EventQueue {
         let cards = context
             .jvm()
             .get_field(display.as_object().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let cards = JavaObjectProxy::new(context.instance_raw(cards.as_object().unwrap()));
-        let card = JavaObjectProxy::new(context.load_array_i32(&cards, 0, 1)?[0] as _);
-        if card.ptr_instance == 0 {
+        let card = &context.jvm().load_array(cards.as_object().unwrap(), 0, 1)?[0];
+        if card.as_object().is_none() {
             return Ok(());
         }
+        let card = JavaObjectProxy::new(context.instance_raw(card.as_object().unwrap()));
 
         let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?;
         context

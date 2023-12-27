@@ -5,7 +5,6 @@ use jvm::{ClassInstanceRef, Jvm};
 use wie_backend::{task::SleepFuture, Backend};
 
 use crate::{
-    array::Array,
     method::{MethodBody, MethodImpl, TypeConverter},
     proxy::JavaObjectProxy,
     r#impl::java::lang::Object,
@@ -104,8 +103,9 @@ pub trait JavaContext {
     fn jvm(&mut self) -> &mut Jvm;
     fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord; // TODO will be removed
     fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
+    fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
-    async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Array>>; // newarray
+    async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Object>>; // newarray
     fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
     async fn call_method(
         &mut self,
@@ -115,14 +115,6 @@ pub trait JavaContext {
         args: &[JavaWord],
     ) -> JavaResult<JavaWord>; // invokespecial/invokevirtual
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
-    fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()>; // iastore
-    fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>>; // iaload
-    fn store_array_i16(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i16]) -> JavaResult<()>; // (c|s)astore
-    fn load_array_i16(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i16>>; // (c|s)aload
-    fn store_array_i8(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i8]) -> JavaResult<()>; // bastore
-    fn load_array_i8(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i8>>; // baload
-    fn array_element_size(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord>;
-    fn array_length(&self, array: &JavaObjectProxy<Array>) -> JavaResult<JavaWord>; // arraylength
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
