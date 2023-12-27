@@ -1,4 +1,4 @@
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
@@ -125,6 +125,10 @@ impl JavaClassInstance {
 }
 
 impl ClassInstance for JavaClassInstance {
+    fn destroy(self: Box<Self>) {
+        (*self).destroy().unwrap()
+    }
+
     fn class_name(&self) -> String {
         self.class().unwrap().name().unwrap()
     }

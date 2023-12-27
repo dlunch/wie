@@ -392,8 +392,8 @@ impl Graphics {
     async fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<JvmClassInstanceProxy<Image>> {
         let image = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if image.as_object().is_some() {
-            Ok(JvmClassInstanceProxy::new(image.as_object().unwrap().clone()))
+        if image.as_object_ref().is_some() {
+            Ok(JvmClassInstanceProxy::new(image.as_object_ref().unwrap().clone()))
         } else {
             let width = context.jvm().get_field(this, "w", "I")?.as_int();
             let height = context.jvm().get_field(this, "h", "I")?.as_int();

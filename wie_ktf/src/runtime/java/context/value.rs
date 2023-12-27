@@ -61,7 +61,7 @@ impl JavaValueExt for JavaValue {
             JavaType::Double => self.as_double().to_bits() as JavaWord,
             JavaType::Char => self.as_char() as u32 as JavaWord,
             JavaType::Class(_) => {
-                if let Some(x) = self.as_object() {
+                if let Some(x) = self.as_object_ref() {
                     let instance = x.as_ref().borrow();
                     let instance = instance.as_any().downcast_ref::<JavaClassInstance>().unwrap();
 
@@ -71,7 +71,7 @@ impl JavaValueExt for JavaValue {
                 }
             }
             JavaType::Array(_) => {
-                if let Some(x) = self.as_object() {
+                if let Some(x) = self.as_object_ref() {
                     let instance = x.as_ref().borrow();
                     let instance = instance.as_any().downcast_ref::<JavaArrayClassInstance>().unwrap();
 

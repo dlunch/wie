@@ -1,4 +1,4 @@
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use jvm::{ArrayClassInstance, ClassInstance, Field, JavaValue, JvmResult};
 
@@ -113,6 +113,10 @@ impl JavaArrayClassInstance {
 }
 
 impl ClassInstance for JavaArrayClassInstance {
+    fn destroy(self: Box<Self>) {
+        self.class_instance.destroy().unwrap()
+    }
+
     fn class_name(&self) -> String {
         self.class_instance.class_name()
     }

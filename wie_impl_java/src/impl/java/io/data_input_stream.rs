@@ -49,7 +49,7 @@ impl DataInputStream {
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         let available = context
             .call_method(
-                &JavaObjectProxy::new(context.instance_raw(r#in.as_object().unwrap())),
+                &JavaObjectProxy::new(context.instance_raw(r#in.as_object_ref().unwrap())),
                 "available",
                 "()I",
                 &[],
@@ -78,7 +78,7 @@ impl DataInputStream {
         let b = context.instance_raw(&b.class_instance);
         let result = context
             .call_method(
-                &JavaObjectProxy::new(context.instance_raw(r#in.as_object().unwrap())),
+                &JavaObjectProxy::new(context.instance_raw(r#in.as_object_ref().unwrap())),
                 "read",
                 "([BII)I",
                 &[b, off as _, len as _],
@@ -94,7 +94,7 @@ impl DataInputStream {
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         context
             .call_method(
-                &JavaObjectProxy::new(context.instance_raw(r#in.as_object().unwrap())),
+                &JavaObjectProxy::new(context.instance_raw(r#in.as_object_ref().unwrap())),
                 "close",
                 "()V",
                 &[],

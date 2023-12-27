@@ -100,7 +100,7 @@ impl Jlet {
             .jvm()
             .get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;")
             .await?;
-        let instance = context.instance_raw(jlet.as_object().unwrap());
+        let instance = context.instance_raw(jlet.as_object_ref().unwrap());
 
         Ok(JavaObjectProxy::new(instance))
     }
@@ -113,7 +113,7 @@ impl Jlet {
 
         let eq = context.jvm().get_field(&this.class_instance, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
 
-        Ok(JvmClassInstanceProxy::new(eq.as_object().unwrap().clone()))
+        Ok(JvmClassInstanceProxy::new(eq.as_object_ref().unwrap().clone()))
     }
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
