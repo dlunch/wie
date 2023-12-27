@@ -106,7 +106,6 @@ pub trait JavaContext {
     fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
     async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>>; // new
     async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Object>>; // newarray
-    fn destroy(&mut self, instance: JavaObjectProxy<Object>) -> JavaResult<()>;
     async fn call_method(
         &mut self,
         instance: &JavaObjectProxy<Object>,

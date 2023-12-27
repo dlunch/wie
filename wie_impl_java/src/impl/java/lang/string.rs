@@ -171,7 +171,7 @@ impl String {
 
         let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
 
-        Ok(context.jvm().load_array(value.as_object().unwrap(), index as _, 1)?[0].as_char() as _)
+        Ok(context.jvm().load_array(value.as_object_ref().unwrap(), index as _, 1)?[0].as_char() as _)
     }
 
     async fn concat(
@@ -213,7 +213,7 @@ impl String {
 
         let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
 
-        Ok(context.jvm().array_length(value.as_object().unwrap())? as _)
+        Ok(context.jvm().array_length(value.as_object_ref().unwrap())? as _)
     }
 
     async fn substring(
@@ -307,8 +307,8 @@ impl String {
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &ClassInstanceRef) -> JavaResult<RustString> {
         let value = context.jvm().get_field(instance, "value", "[C")?;
 
-        let length = context.jvm().array_length(value.as_object().unwrap())?;
-        let string = context.jvm().load_array(value.as_object().unwrap(), 0, length)?;
+        let length = context.jvm().array_length(value.as_object_ref().unwrap())?;
+        let string = context.jvm().load_array(value.as_object_ref().unwrap(), 0, length)?;
 
         Ok(RustString::from_utf16(&string.into_iter().map(|x| x.as_char()).collect::<Vec<_>>())?)
     }

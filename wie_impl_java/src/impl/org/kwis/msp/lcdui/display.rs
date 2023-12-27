@@ -103,7 +103,7 @@ impl Display {
 
         let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
-        Ok(JvmClassInstanceProxy::new(display.as_object().unwrap().clone()))
+        Ok(JvmClassInstanceProxy::new(display.as_object_ref().unwrap().clone()))
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
@@ -135,11 +135,11 @@ impl Display {
         );
 
         let cards = context.jvm().get_field(&this.class_instance, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card = &context.jvm().load_array(cards.as_object().unwrap(), 0, 1)?[0];
+        let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
 
-        if card.as_object().is_none() {
+        if card.as_object_ref().is_none() {
             let value = JavaValue::Object(Some(c.class_instance.clone()));
-            context.jvm().store_array(cards.as_object().unwrap(), 0, &[value])?;
+            context.jvm().store_array(cards.as_object_ref().unwrap(), 0, &[value])?;
         }
 
         Ok(())

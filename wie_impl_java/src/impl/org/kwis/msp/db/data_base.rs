@@ -77,7 +77,7 @@ impl DataBase {
         );
 
         let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
+        let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let count = context.backend().database().open(&db_name_str)?.count()?;
 
@@ -106,7 +106,7 @@ impl DataBase {
         );
 
         let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
+        let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let data = context.jvm().load_array(&data.class_instance, offset as _, num_bytes as _)?;
         let data_raw = data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
@@ -128,7 +128,7 @@ impl DataBase {
         );
 
         let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(context, db_name.as_object().unwrap())?;
+        let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
         let data = data.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();

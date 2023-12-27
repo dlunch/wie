@@ -171,12 +171,6 @@ impl JavaContext for KtfJavaContext<'_> {
         Ok(JavaObjectProxy::new(instance.class_instance.ptr_raw as _))
     }
 
-    fn destroy(&mut self, proxy: JavaObjectProxy<Object>) -> JavaResult<()> {
-        let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _, self.core);
-
-        instance.destroy()
-    }
-
     async fn call_method(&mut self, proxy: &JavaObjectProxy<Object>, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
         let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _, self.core);
         let class = instance.class()?;

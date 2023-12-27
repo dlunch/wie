@@ -67,7 +67,7 @@ impl StringBuffer {
         );
 
         let value_array = context.jvm().get_field(&string.class_instance, "value", "[C")?;
-        let length = context.jvm().array_length(value_array.as_object().unwrap())?;
+        let length = context.jvm().array_length(value_array.as_object_ref().unwrap())?;
 
         context.jvm().put_field(&this.class_instance, "value", "[C", value_array)?;
         context.jvm().put_field(&this.class_instance, "count", "I", JavaValue::Int(length as _))?;
@@ -157,7 +157,7 @@ impl StringBuffer {
                 &string.cast(),
                 "<init>",
                 "([CII)V",
-                &[context.instance_raw(java_value.as_object().unwrap()), 0, count.as_int() as _],
+                &[context.instance_raw(java_value.as_object_ref().unwrap()), 0, count.as_int() as _],
             )
             .await?;
 
@@ -166,10 +166,10 @@ impl StringBuffer {
 
     async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: JavaWord) -> JavaResult<()> {
         let java_value_array = context.jvm().get_field(&this.class_instance, "value", "[C")?;
-        let current_capacity = context.jvm().array_length(java_value_array.as_object().unwrap())?;
+        let current_capacity = context.jvm().array_length(java_value_array.as_object_ref().unwrap())?;
 
         if current_capacity < capacity {
-            let old_values = context.jvm().load_array(java_value_array.as_object().unwrap(), 0, current_capacity)?;
+            let old_values = context.jvm().load_array(java_value_array.as_object_ref().unwrap(), 0, current_capacity)?;
             let new_capacity = capacity * 2;
 
             let java_new_value_array = context.instantiate_array("C", new_capacity).await?;
@@ -194,7 +194,7 @@ impl StringBuffer {
         let java_value_array = context.jvm().get_field(&this.class_instance, "value", "[C")?;
         context
             .jvm()
-            .store_array(java_value_array.as_object().unwrap(), current_count as _, &value_to_add)?;
+            .store_array(java_value_array.as_object_ref().unwrap(), current_count as _, &value_to_add)?;
         context
             .jvm()
             .put_field(&this.class_instance, "count", "I", JavaValue::Int(current_count + count_to_add))?;

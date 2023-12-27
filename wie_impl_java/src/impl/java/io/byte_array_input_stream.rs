@@ -52,7 +52,7 @@ impl ByteArrayInputStream {
 
         let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
         let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_int();
-        let buf_length = context.jvm().array_length(buf.as_object().unwrap())? as i32;
+        let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())? as i32;
 
         Ok((buf_length - pos) as _)
     }
@@ -73,7 +73,7 @@ impl ByteArrayInputStream {
         );
 
         let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
-        let buf_length = context.jvm().array_length(buf.as_object().unwrap())?;
+        let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())?;
         let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_int();
 
         let available = (buf_length as i32 - pos) as _;
@@ -88,7 +88,13 @@ impl ByteArrayInputStream {
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
-                &[context.instance_raw(buf.as_object().unwrap()), pos as _, b, off as _, len_to_read as _],
+                &[
+                    context.instance_raw(buf.as_object_ref().unwrap()),
+                    pos as _,
+                    b,
+                    off as _,
+                    len_to_read as _,
+                ],
             )
             .await?;
 

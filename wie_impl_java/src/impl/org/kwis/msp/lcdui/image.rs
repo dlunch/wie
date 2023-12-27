@@ -145,9 +145,9 @@ impl Image {
 
     pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
         let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
-        let img_data_len = context.jvm().array_length(java_img_data.as_object().unwrap())?;
+        let img_data_len = context.jvm().array_length(java_img_data.as_object_ref().unwrap())?;
 
-        let img_data = context.jvm().load_array(java_img_data.as_object().unwrap(), 0, img_data_len)?;
+        let img_data = context.jvm().load_array(java_img_data.as_object_ref().unwrap(), 0, img_data_len)?;
         let img_data = img_data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
 
         Ok(img_data)
@@ -225,7 +225,7 @@ impl Drop for ImageCanvas<'_> {
 
         let values = self.canvas.raw().iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
-        self.context.jvm().store_array(data.as_object().unwrap(), 0, &values).unwrap();
+        self.context.jvm().store_array(data.as_object_ref().unwrap(), 0, &values).unwrap();
     }
 }
 

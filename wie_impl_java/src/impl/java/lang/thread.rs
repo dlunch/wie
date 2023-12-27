@@ -68,7 +68,7 @@ impl Thread {
         }
 
         let target = context.jvm().get_field(&this.class_instance, "target", "Ljava/lang/Runnable;")?;
-        let target = JavaObjectProxy::new(context.instance_raw(target.as_object().unwrap()));
+        let target = JavaObjectProxy::new(context.instance_raw(target.as_object_ref().unwrap()));
 
         context.spawn(Box::new(ThreadStartProxy { runnable: target }))?;
 

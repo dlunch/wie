@@ -195,19 +195,19 @@ impl EventQueue {
         let jlet = context.instance_from_raw(jlet);
 
         let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        if display.as_object().is_none() {
+        if display.as_object_ref().is_none() {
             return Ok(());
         }
 
         let cards = context
             .jvm()
-            .get_field(display.as_object().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card = &context.jvm().load_array(cards.as_object().unwrap(), 0, 1)?[0];
-        if card.as_object().is_none() {
+            .get_field(display.as_object_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
+        if card.as_object_ref().is_none() {
             return Ok(());
         }
 
-        let card = JavaObjectProxy::new(context.instance_raw(card.as_object().unwrap()));
+        let card = JavaObjectProxy::new(context.instance_raw(card.as_object_ref().unwrap()));
         context.call_method(&card, "keyNotify", "(II)Z", &[event_type as _, code as _]).await?;
 
         Ok(())
@@ -220,18 +220,18 @@ impl EventQueue {
         let jlet = context.instance_from_raw(jlet);
 
         let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        if display.as_object().is_none() {
+        if display.as_object_ref().is_none() {
             return Ok(());
         }
 
         let cards = context
             .jvm()
-            .get_field(display.as_object().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card = &context.jvm().load_array(cards.as_object().unwrap(), 0, 1)?[0];
-        if card.as_object().is_none() {
+            .get_field(display.as_object_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
+        if card.as_object_ref().is_none() {
             return Ok(());
         }
-        let card = JavaObjectProxy::new(context.instance_raw(card.as_object().unwrap()));
+        let card = JavaObjectProxy::new(context.instance_raw(card.as_object_ref().unwrap()));
 
         let graphics = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?;
         context
@@ -239,7 +239,7 @@ impl EventQueue {
                 &graphics,
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Display;)V",
-                &[context.instance_raw(display.as_object().unwrap())],
+                &[context.instance_raw(display.as_object_ref().unwrap())],
             )
             .await?;
 
@@ -250,13 +250,13 @@ impl EventQueue {
         let graphics = context.instance_from_raw(graphics.ptr_instance);
         let java_image = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if java_image.as_object().is_some() {
-            let image = JavaImage::image(context, java_image.as_object().unwrap())?;
+        if java_image.as_object_ref().is_some() {
+            let image = JavaImage::image(context, java_image.as_object_ref().unwrap())?;
 
             // TODO temporary until we have correct gc
-            let image_data = context.jvm().get_field(java_image.as_object().unwrap(), "imgData", "[B")?;
-            context.destroy(JavaObjectProxy::new(context.instance_raw(image_data.as_object().unwrap())))?;
-            context.destroy(JavaObjectProxy::new(context.instance_raw(java_image.as_object().unwrap())))?;
+            let image_data = context.jvm().get_field(java_image.as_object_ref().unwrap(), "imgData", "[B")?;
+            context.jvm().destroy(image_data.as_object().unwrap())?;
+            context.jvm().destroy(java_image.as_object().unwrap())?;
             context
                 .jvm()
                 .put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(None))?;
