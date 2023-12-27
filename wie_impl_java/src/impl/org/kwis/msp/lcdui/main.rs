@@ -46,11 +46,12 @@ impl Main {
                 .await?,
         );
 
-        let event = context.instantiate_array("I", 4).await?;
+        let event = context.jvm().instantiate_array("I", 4).await?;
+        let event = context.instance_raw(&event);
 
         loop {
-            context.call_method(&event_queue, "getNextEvent", "([I)V", &[event.ptr_instance]).await?;
-            context.call_method(&event_queue, "dispatchEvent", "([I)V", &[event.ptr_instance]).await?;
+            context.call_method(&event_queue, "getNextEvent", "([I)V", &[event]).await?;
+            context.call_method(&event_queue, "dispatchEvent", "([I)V", &[event]).await?;
         }
     }
 }

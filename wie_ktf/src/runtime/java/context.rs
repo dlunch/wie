@@ -151,26 +151,6 @@ impl JavaContext for KtfJavaContext<'_> {
         Rc::new(RefCell::new(Box::new(JavaArrayClassInstance::from_raw(raw as _, self.core))))
     }
 
-    async fn instantiate(&mut self, type_name: &str) -> JavaResult<JavaObjectProxy<Object>> {
-        anyhow::ensure!(type_name.as_bytes()[0] != b'[', "Array class should not be instantiated here");
-
-        let class_name = &type_name[1..type_name.len() - 1]; // L{};
-
-        let instance = self.jvm.instantiate_class(class_name).await?;
-        let instance = instance.borrow();
-        let instance = instance.as_any().downcast_ref::<JavaClassInstance>().unwrap();
-
-        Ok(JavaObjectProxy::new(instance.ptr_raw as _))
-    }
-
-    async fn instantiate_array(&mut self, element_type_name: &str, count: JavaWord) -> JavaResult<JavaObjectProxy<Object>> {
-        let instance = self.jvm.instantiate_array(element_type_name, count).await?;
-        let instance = instance.borrow();
-        let instance = instance.as_any().downcast_ref::<JavaArrayClassInstance>().unwrap();
-
-        Ok(JavaObjectProxy::new(instance.class_instance.ptr_raw as _))
-    }
-
     async fn call_method(&mut self, proxy: &JavaObjectProxy<Object>, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
         let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _, self.core);
         let class = instance.class()?;

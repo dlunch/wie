@@ -60,8 +60,9 @@ impl Image {
     async fn create_image(context: &mut dyn JavaContext, width: i32, height: i32) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
-        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
+        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
+        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
+        context.call_method(&instance, "<init>", "()V", &[]).await?;
 
         let bytes_per_pixel = 4;
 
@@ -118,7 +119,8 @@ impl Image {
         let width = context.jvm().get_field(&this.class_instance, "w", "I")?.as_int();
         let height = context.jvm().get_field(&this.class_instance, "h", "I")?.as_int();
 
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?.cast();
+        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
+        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
         context
             .call_method(
                 &instance.cast(),
@@ -192,13 +194,13 @@ impl Image {
         data: &[u8],
         bytes_per_pixel: u32,
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {
-        let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
-        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
+        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
+        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
+        context.call_method(&instance, "<init>", "()V", &[]).await?;
 
         let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
-        let data_array = context.instantiate_array("B", data.len() as _).await?;
-        let data_array = context.array_instance_from_raw(data_array.ptr_instance);
+        let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&data_array, 0, &data)?;
 
         let instance = context.instance_from_raw(instance.ptr_instance);

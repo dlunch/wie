@@ -33,7 +33,8 @@ impl Runtime {
     async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Runtime>> {
         tracing::debug!("java.lang.Runtime::get_runtime");
 
-        let instance = context.instantiate("Ljava/lang/Runtime;").await?.cast();
+        let instance = context.jvm().instantiate_class("java/lang/Runtime").await?;
+        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         Ok(instance)

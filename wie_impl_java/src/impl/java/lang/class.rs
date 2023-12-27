@@ -54,15 +54,16 @@ impl Class {
             let backend1 = context.backend().clone();
             let data = Ref::map(backend1.resource(), |x| x.data(id));
 
-            let array = context.instantiate_array("B", data.len() as _).await?;
-            let array_instance = context.array_instance_from_raw(array.ptr_instance);
+            let array = context.jvm().instantiate_array("B", data.len() as _).await?;
 
             let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
-            context.jvm().store_array(&array_instance, 0, &data)?;
+            context.jvm().store_array(&array, 0, &data)?;
             drop(data);
 
-            let result = context.instantiate("Ljava/io/ByteArrayInputStream;").await?.cast();
-            context.call_method(&result.cast(), "<init>", "([B)V", &[array.ptr_instance]).await?;
+            let result = context.jvm().instantiate_class("java/io/ByteArrayInputStream").await?;
+            let result = JavaObjectProxy::new(context.instance_raw(&result));
+            let array = context.instance_raw(&array);
+            context.call_method(&result.cast(), "<init>", "([B)V", &[array]).await?;
 
             Ok(result)
         } else {
