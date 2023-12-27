@@ -113,6 +113,10 @@ impl Class for JavaArrayClass {
         self.class.name().unwrap()
     }
 
+    fn super_class_name(&self) -> Option<String> {
+        Some("java/lang/Object".into())
+    }
+
     fn instantiate(&self) -> Box<dyn ClassInstance> {
         panic!("Array class should not be instantiated here")
     }

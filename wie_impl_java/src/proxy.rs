@@ -40,12 +40,18 @@ pub struct JvmClassInstanceProxy<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
-    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> JvmClassInstanceProxy<T> {
-        JvmClassInstanceProxy {
-            class_instance: context.instance_from_raw(raw),
+impl<T> JvmClassInstanceProxy<T> {
+    pub fn new(class_instance: ClassInstanceRef) -> Self {
+        Self {
+            class_instance,
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
+    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> JvmClassInstanceProxy<T> {
+        JvmClassInstanceProxy::new(context.instance_from_raw(raw))
     }
 
     fn from_rust(context: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaWord {

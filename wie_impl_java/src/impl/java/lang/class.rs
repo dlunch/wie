@@ -6,6 +6,7 @@ use bytemuck::cast_slice;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::{io::InputStream, lang::String},
     JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
@@ -41,9 +42,9 @@ impl Class {
     async fn get_resource_as_stream(
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<Class>,
-        name: JavaObjectProxy<String>,
+        name: JvmClassInstanceProxy<String>,
     ) -> JavaResult<JavaObjectProxy<InputStream>> {
-        let name = String::to_rust_string(context, &name)?;
+        let name = String::to_rust_string(context, &name.class_instance)?;
         tracing::debug!("java.lang.Class::getResourceAsStream({:#x}, {})", this.ptr_instance, name);
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };

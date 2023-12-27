@@ -1,7 +1,10 @@
 use alloc::vec;
 
+use jvm::JavaValue;
+
 use crate::{
-    base::{JavaClassProto, JavaFieldProto, JavaMethodProto, JavaWord},
+    base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     Array, JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
 
@@ -26,49 +29,57 @@ impl ByteArrayInputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>, data: JavaObjectProxy<Array>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<Array>) -> JavaResult<()> {
         tracing::debug!(
             "java.lang.ByteArrayInputStream::<init>({:#x}, {:#x})",
-            this.ptr_instance,
-            data.ptr_instance
+            context.instance_raw(&this.class_instance),
+            context.instance_raw(&data.class_instance)
         );
 
-        context.put_field(&this.cast(), "buf", data.ptr_instance)?;
-        context.put_field(&this.cast(), "pos", 0)?;
+        context.jvm().put_field(
+            &this.class_instance,
+            "buf",
+            "Ljava/lang/Object;",
+            JavaValue::Object(Some(data.class_instance)),
+        )?;
+        context.jvm().put_field(&this.class_instance, "pos", "I", JavaValue::Integer(0))?;
 
         Ok(())
     }
 
-    async fn available(context: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<i32> {
-        tracing::debug!("java.lang.ByteArrayInputStream::available({:#x})", this.ptr_instance);
+    async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::debug!(
+            "java.lang.ByteArrayInputStream::available({:#x})",
+            context.instance_raw(&this.class_instance)
+        );
 
-        let buf = JavaObjectProxy::new(context.get_field(&this.cast(), "buf")?);
-        let pos = context.get_field(&this.cast(), "pos")?;
-        let buf_length = context.array_length(&buf)?;
+        let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
+        let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_integer();
+        let buf_length = context.array_length(&JavaObjectProxy::new(context.instance_raw(buf.as_object().unwrap())))? as i32;
 
         Ok((buf_length - pos) as _)
     }
 
     async fn read(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<ByteArrayInputStream>,
+        this: JvmClassInstanceProxy<Self>,
         b: JavaObjectProxy<Array>,
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
         tracing::debug!(
             "java.lang.ByteArrayInputStream::read({:#x}, {:#x}, {}, {})",
-            this.ptr_instance,
+            context.instance_raw(&this.class_instance),
             b.ptr_instance,
             off,
             len
         );
 
-        let buf = JavaObjectProxy::<Array>::new(context.get_field(&this.cast(), "buf")?);
-        let buf_length = context.array_length(&buf)?;
-        let pos = context.get_field(&this.cast(), "pos")?;
+        let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
+        let buf_length = context.array_length(&JavaObjectProxy::new(context.instance_raw(buf.as_object().unwrap())))?;
+        let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_integer();
 
-        let available = (buf_length - pos) as _;
+        let available = (buf_length as i32 - pos) as _;
         let len_to_read = if len > available { available } else { len };
         if len_to_read == 0 {
             return Ok(0);
@@ -79,11 +90,17 @@ impl ByteArrayInputStream {
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
-                &[buf.ptr_instance, pos, b.ptr_instance, off as _, len_to_read as _],
+                &[
+                    context.instance_raw(buf.as_object().unwrap()),
+                    pos as _,
+                    b.ptr_instance,
+                    off as _,
+                    len_to_read as _,
+                ],
             )
             .await?;
 
-        context.put_field(&this.cast(), "pos", pos + len as JavaWord)?;
+        context.jvm().put_field(&this.class_instance, "pos", "I", JavaValue::Integer(pos + len))?;
 
         Ok(len)
     }

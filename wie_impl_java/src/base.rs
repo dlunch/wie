@@ -115,11 +115,6 @@ pub trait JavaContext {
         args: &[JavaWord],
     ) -> JavaResult<JavaWord>; // invokespecial/invokevirtual
     async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
-    fn get_field_id(&self, class_name: &str, field_name: &str, descriptor: &str) -> JavaResult<JavaWord>;
-    fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord>;
-    fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()>;
-    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord>; // getfield
-    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()>; // putfield
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()>; // iastore
     fn load_array_i32(&self, array: &JavaObjectProxy<Array>, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<i32>>; // iaload
     fn store_array_i16(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i16]) -> JavaResult<()>; // (c|s)astore

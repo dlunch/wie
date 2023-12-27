@@ -13,10 +13,9 @@ mod vtable_builder;
 use alloc::{borrow::ToOwned, boxed::Box, format, rc::Rc, vec::Vec};
 use core::cell::RefCell;
 
-use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Field, JavaValue, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
+use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -28,7 +27,7 @@ use wie_impl_java::{r#impl::java::lang::Object, Array, JavaContext, JavaError, J
 pub use self::name::JavaFullName;
 use self::{
     array_class::JavaArrayClass, array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance,
-    class_loader::ClassLoader, context_data::JavaContextData, field::JavaField, value::JavaValueExt,
+    class_loader::ClassLoader, context_data::JavaContextData,
 };
 
 #[repr(C)]
@@ -205,54 +204,6 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn backend(&mut self) -> &mut Backend {
         self.backend
-    }
-
-    fn get_field_id(&self, class_name: &str, field_name: &str, _descriptor: &str) -> JavaResult<JavaWord> {
-        let class = JavaContextData::find_class(self.core, class_name)?.context("No such class")?;
-
-        let field = class.field(field_name)?.unwrap();
-
-        // TODO descriptor comparison
-
-        Ok(field.ptr_raw as _)
-    }
-
-    fn get_field_by_id(&self, instance: &JavaObjectProxy<Object>, id: JavaWord) -> JavaResult<JavaWord> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
-
-        let field = JavaField::from_raw(id as _, self.core);
-
-        instance.read_field(&field)
-    }
-
-    fn put_field_by_id(&mut self, instance: &JavaObjectProxy<Object>, id: JavaWord, value: JavaWord) -> JavaResult<()> {
-        let mut instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
-
-        let field = JavaField::from_raw(id as _, self.core);
-
-        instance.write_field(&field, value)
-    }
-
-    fn get_field(&self, instance: &JavaObjectProxy<Object>, field_name: &str) -> JavaResult<JavaWord> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
-        let class = instance.class()?;
-        let field = class.field(field_name)?.unwrap();
-
-        instance.read_field(&field)
-    }
-
-    fn put_field(&mut self, instance: &JavaObjectProxy<Object>, field_name: &str, value: JavaWord) -> JavaResult<()> {
-        let instance = JavaClassInstance::from_raw(instance.ptr_instance as _, self.core);
-        let field = instance.class()?.field(field_name)?.unwrap();
-
-        self.jvm.put_field(
-            &Rc::new(RefCell::new(Box::new(instance))),
-            field_name,
-            "",
-            JavaValue::from_raw(value, &field.descriptor(), self.core),
-        )?;
-
-        Ok(())
     }
 
     fn store_array_i32(&mut self, array: &JavaObjectProxy<Array>, offset: JavaWord, values: &[i32]) -> JavaResult<()> {

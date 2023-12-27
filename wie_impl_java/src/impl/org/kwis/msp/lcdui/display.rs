@@ -1,8 +1,10 @@
 use alloc::vec;
 
+use jvm::JavaValue;
+
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
     r#impl::{
         java::lang::{Object, String},
         org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
@@ -61,43 +63,51 @@ impl Display {
 
     async fn init(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<Display>,
+        this: JvmClassInstanceProxy<Self>,
         jlet: JavaObjectProxy<Jlet>,
         display_proxy: JavaObjectProxy<Object>,
     ) -> JavaResult<()> {
         tracing::debug!(
             "org.kwis.msp.lcdui.Display::<init>({:#x}, {:#x}, {:#x})",
-            this.ptr_instance,
+            context.instance_raw(&this.class_instance),
             jlet.ptr_instance,
             display_proxy.ptr_instance
         );
 
         let cards = context.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
-        context.put_field(&this.cast(), "cards", cards.ptr_instance)?;
+        let cards = context.instance_from_raw(cards.ptr_instance);
+        context.jvm().put_field(
+            &this.class_instance,
+            "cards",
+            "[Lorg/kwis/msp/lcdui/Card;",
+            JavaValue::Object(Some(cards)),
+        )?;
 
         let screen_canvas = context.backend().screen_canvas();
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 
-        context.put_field(&this.cast(), "m_w", width as _)?;
-        context.put_field(&this.cast(), "m_h", height as _)?;
+        context
+            .jvm()
+            .put_field(&this.class_instance, "m_w", "I", JavaValue::Integer(width as _))?;
+        context
+            .jvm()
+            .put_field(&this.class_instance, "m_h", "I", JavaValue::Integer(height as _))?;
 
         Ok(())
     }
 
-    async fn get_display(context: &mut dyn JavaContext, str: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Display>> {
+    async fn get_display(context: &mut dyn JavaContext, str: JavaObjectProxy<String>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", str.ptr_instance);
 
-        let jlet = JavaObjectProxy::new(
-            context
-                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
-                .await?,
-        );
+        let jlet = context
+            .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .await?;
+        let jlet = context.instance_from_raw(jlet);
 
-        let field_id = context.get_field_id("org/kwis/msp/lcdui/Jlet", "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        let display = JavaObjectProxy::new(context.get_field_by_id(&jlet, field_id)?);
+        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
-        Ok(display)
+        Ok(JvmClassInstanceProxy::new(display.as_object().unwrap().clone()))
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
@@ -121,10 +131,15 @@ impl Display {
         Ok(JavaObjectProxy::new(0))
     }
 
-    async fn push_card(context: &mut dyn JavaContext, this: JavaObjectProxy<Display>, c: JavaObjectProxy<Card>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})", this.ptr_instance, c.ptr_instance);
+    async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JavaObjectProxy<Card>) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Display::pushCard({:#x}, {:#x})",
+            context.instance_raw(&this.class_instance),
+            c.ptr_instance
+        );
 
-        let cards = JavaObjectProxy::new(context.get_field(&this.cast(), "cards")?);
+        let cards = context.jvm().get_field(&this.class_instance, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let cards = JavaObjectProxy::new(context.instance_raw(cards.as_object().unwrap()));
         let card = context.load_array_i32(&cards, 0, 1)?[0];
 
         if card == 0 {

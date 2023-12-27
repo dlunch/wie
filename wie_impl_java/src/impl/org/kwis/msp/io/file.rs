@@ -2,6 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
     JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
 };
@@ -24,15 +25,15 @@ impl File {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<File>, filename: JavaObjectProxy<String>, mode: i32) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<File>, filename: JvmClassInstanceProxy<String>, mode: i32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.io.File::<init>({:#x}, {:#x}, {:#x})",
             this.ptr_instance,
-            filename.ptr_instance,
+            context.instance_raw(&filename.class_instance),
             mode
         );
 
-        let filename = String::to_rust_string(context, &filename)?;
+        let filename = String::to_rust_string(context, &filename.class_instance)?;
         tracing::debug!("filename: {}", filename);
 
         Ok(())
@@ -41,19 +42,19 @@ impl File {
     async fn init_with_flag(
         context: &mut dyn JavaContext,
         this: JavaObjectProxy<File>,
-        filename: JavaObjectProxy<String>,
+        filename: JvmClassInstanceProxy<String>,
         mode: i32,
         flag: i32,
     ) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.io.File::<init>({:#x}, {:#x}, {:#x}, {:#x})",
             this.ptr_instance,
-            filename.ptr_instance,
+            context.instance_raw(&filename.class_instance),
             mode,
             flag
         );
 
-        let filename = String::to_rust_string(context, &filename)?;
+        let filename = String::to_rust_string(context, &filename.class_instance)?;
         tracing::debug!("filename: {}", filename);
 
         Ok(())

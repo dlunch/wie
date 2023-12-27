@@ -6,11 +6,13 @@ use core::{
 
 use bytemuck::{cast_slice, cast_vec};
 
+use jvm::{ClassInstanceRef, JavaValue};
+
 use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
     r#impl::{java::lang::String, org::kwis::msp::lcdui::Graphics},
     Array, JavaFieldAccessFlag,
 };
@@ -57,7 +59,7 @@ impl Image {
         Ok(())
     }
 
-    async fn create_image(context: &mut dyn JavaContext, width: i32, height: i32) -> JavaResult<JavaObjectProxy<Image>> {
+    async fn create_image(context: &mut dyn JavaContext, width: i32, height: i32) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
@@ -76,10 +78,10 @@ impl Image {
     }
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
-    async fn create_image_from_file(context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<JavaObjectProxy<Image>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x})", name.ptr_instance);
+    async fn create_image_from_file(context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<Image>> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x})", context.instance_raw(&name.class_instance));
 
-        let name = String::to_rust_string(context, &name)?;
+        let name = String::to_rust_string(context, &name.class_instance)?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
         let id = context.backend().resource().id(normalized_name).unwrap();
@@ -97,7 +99,7 @@ impl Image {
         data: JavaObjectProxy<Array>,
         offset: i32,
         length: i32,
-    ) -> JavaResult<JavaObjectProxy<Image>> {
+    ) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:#x}, {}, {})", data.ptr_instance, offset, length);
 
         let image_data = context.load_array_i8(&data, offset as _, length as _)?;
@@ -106,11 +108,11 @@ impl Image {
         Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
-    async fn get_graphics(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<JavaObjectProxy<Graphics>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", this.ptr_instance);
+    async fn get_graphics(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JavaObjectProxy<Graphics>> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", context.instance_raw(&this.class_instance));
 
-        let width = context.get_field(&this.cast(), "w")?;
-        let height = context.get_field(&this.cast(), "h")?;
+        let width = context.jvm().get_field(&this.class_instance, "w", "I")?.as_integer();
+        let height = context.jvm().get_field(&this.class_instance, "h", "I")?.as_integer();
 
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Graphics;").await?.cast();
         context
@@ -118,27 +120,28 @@ impl Image {
                 &instance.cast(),
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                &[this.ptr_instance, 0, 0, width, height],
+                &[context.instance_raw(&this.class_instance), 0, 0, width as _, height as _],
             )
             .await?;
 
         Ok(instance)
     }
 
-    async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:#x})", this.ptr_instance);
+    async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:#x})", context.instance_raw(&this.class_instance));
 
-        Ok(context.get_field(&this.cast(), "w")? as _)
+        Ok(context.jvm().get_field(&this.class_instance, "w", "I")?.as_integer() as _)
     }
 
-    async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:#x})", this.ptr_instance);
+    async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:#x})", context.instance_raw(&this.class_instance));
 
-        Ok(context.get_field(&this.cast(), "h")? as _)
+        Ok(context.jvm().get_field(&this.class_instance, "h", "I")?.as_integer() as _)
     }
 
-    pub fn buf(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Vec<u8>> {
-        let java_img_data = JavaObjectProxy::new(context.get_field(&this.cast(), "imgData")?);
+    pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
+        let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
+        let java_img_data = JavaObjectProxy::new(context.instance_raw(java_img_data.as_object().unwrap()));
         let img_data_len = context.array_length(&java_img_data)?;
 
         let img_data = context.load_array_i8(&java_img_data.cast(), 0, img_data_len)?;
@@ -146,11 +149,11 @@ impl Image {
         Ok(cast_vec(img_data))
     }
 
-    pub fn image(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Box<dyn BackendImage>> {
+    pub fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn BackendImage>> {
         Ok(Self::create_canvas(context, this)?.image())
     }
 
-    pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JavaObjectProxy<Image>) -> JavaResult<ImageCanvas<'a>> {
+    pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a ClassInstanceRef) -> JavaResult<ImageCanvas<'a>> {
         let canvas = Self::create_canvas(context, this)?;
 
         Ok(ImageCanvas {
@@ -160,12 +163,12 @@ impl Image {
         })
     }
 
-    fn create_canvas(context: &dyn JavaContext, this: &JavaObjectProxy<Image>) -> JavaResult<Box<dyn Canvas>> {
+    fn create_canvas(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn Canvas>> {
         let buf = Self::buf(context, this)?;
 
-        let width = context.get_field(&this.cast(), "w")?;
-        let height = context.get_field(&this.cast(), "h")?;
-        let bpl = context.get_field(&this.cast(), "bpl")?;
+        let width = context.jvm().get_field(this, "w", "I")?.as_integer();
+        let height = context.jvm().get_field(this, "h", "I")?.as_integer();
+        let bpl = context.jvm().get_field(this, "bpl", "I")?.as_integer();
 
         let bytes_per_pixel = bpl / width;
 
@@ -184,31 +187,36 @@ impl Image {
         height: u32,
         data: &[u8],
         bytes_per_pixel: u32,
-    ) -> JavaResult<JavaObjectProxy<Image>> {
+    ) -> JavaResult<JvmClassInstanceProxy<Image>> {
         let instance = context.instantiate("Lorg/kwis/msp/lcdui/Image;").await?;
         context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
 
         let data_array = context.instantiate_array("B", data.len() as _).await?;
         context.store_array_i8(&data_array, 0, cast_slice(data))?;
+        let data_array = context.instance_from_raw(data_array.ptr_instance);
 
-        context.put_field(&instance, "w", width as _)?;
-        context.put_field(&instance, "h", height as _)?;
-        context.put_field(&instance, "imgData", data_array.ptr_instance)?;
-        context.put_field(&instance, "bpl", (width * bytes_per_pixel) as _)?;
+        let instance = context.instance_from_raw(instance.ptr_instance);
+        context.jvm().put_field(&instance, "w", "I", JavaValue::Integer(width as _))?;
+        context.jvm().put_field(&instance, "h", "I", JavaValue::Integer(height as _))?;
+        context.jvm().put_field(&instance, "imgData", "[B", JavaValue::Object(Some(data_array)))?;
+        context
+            .jvm()
+            .put_field(&instance, "bpl", "I", JavaValue::Integer((width * bytes_per_pixel) as _))?;
 
-        Ok(instance.cast())
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 }
 
 pub struct ImageCanvas<'a> {
-    image: &'a JavaObjectProxy<Image>,
+    image: &'a ClassInstanceRef,
     context: &'a mut dyn JavaContext,
     canvas: Box<dyn Canvas>,
 }
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
-        let data = JavaObjectProxy::new(self.context.get_field(&self.image.cast(), "imgData").unwrap());
+        let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
+        let data = JavaObjectProxy::new(self.context.instance_raw(data.as_object().unwrap()));
 
         self.context.store_array_i8(&data, 0, cast_slice(self.canvas.raw())).unwrap();
     }
