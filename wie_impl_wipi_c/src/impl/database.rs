@@ -64,7 +64,7 @@ async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICW
 }
 
 async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
-    tracing::debug!("MC_dbInsertRecord({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    tracing::debug!("MC_db_write_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let data = context.read_bytes(buf_ptr, buf_len)?;
     let mut db = get_database_from_db_id(context, db_id);
@@ -85,11 +85,14 @@ async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) 
 }
 
 async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
-    tracing::debug!("MC_dbSelectRecord({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    tracing::debug!("MC_db_read_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let db = get_database_from_db_id(context, db_id);
 
     if let Ok(x) = db.get(1) {
+        if buf_len < x.len() as _ {
+            return Ok(-18); // M_E_SHORTBUF
+        }
         context.write_bytes(buf_ptr, &x)?;
 
         Ok(0)
