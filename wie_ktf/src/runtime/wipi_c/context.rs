@@ -58,7 +58,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl EmulatedFunction<(u32, u32, u32), ArmEngineError, u32> for CMethodProxy {
+        impl EmulatedFunction<(), ArmEngineError, u32> for CMethodProxy {
             async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmEngineError> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
