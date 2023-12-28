@@ -81,7 +81,7 @@ impl TestContext {
             }
         }
 
-        MethodBody::Rust(Box::new(MethodProxy { body }) as Box<dyn RustMethodBody<anyhow::Error, JavaValue>>)
+        MethodBody::Rust(Box::new(MethodProxy { body }))
     }
 }
 
