@@ -131,15 +131,8 @@ impl<'a> KtfJavaContext<'a> {
     pub fn class_from_raw(&self, ptr_class: u32) -> JavaClass {
         JavaClass::from_raw(ptr_class, self.core)
     }
-}
 
-#[async_trait::async_trait(?Send)]
-impl JavaContext for KtfJavaContext<'_> {
-    fn jvm(&mut self) -> &mut Jvm {
-        &mut self.jvm
-    }
-
-    fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord {
+    pub fn class_raw(&self, instance: &ClassInstanceRef) -> JavaWord {
         let instance = instance.borrow();
         if let Some(x) = instance.as_any().downcast_ref::<JavaClassInstance>() {
             x.ptr_raw as _
@@ -149,13 +142,12 @@ impl JavaContext for KtfJavaContext<'_> {
             instance.class_instance.ptr_raw as _
         }
     }
+}
 
-    fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef {
-        Rc::new(RefCell::new(Box::new(JavaClassInstance::from_raw(raw as _, self.core))))
-    }
-
-    fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef {
-        Rc::new(RefCell::new(Box::new(JavaArrayClassInstance::from_raw(raw as _, self.core))))
+#[async_trait::async_trait(?Send)]
+impl JavaContext for KtfJavaContext<'_> {
+    fn jvm(&mut self) -> &mut Jvm {
+        &mut self.jvm
     }
 
     fn backend(&mut self) -> &mut Backend {

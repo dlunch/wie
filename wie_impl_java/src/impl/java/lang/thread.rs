@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec};
+use alloc::{boxed::Box, format, string::String, vec};
 
 use jvm::JavaValue;
 
@@ -48,7 +48,7 @@ impl Thread {
         tracing::debug!("Thread::start({:?})", &this);
 
         struct ThreadStartProxy {
-            thread_id: usize,
+            thread_id: String,
             runnable: JvmClassInstanceProxy<Runnable>,
         }
 
@@ -70,10 +70,11 @@ impl Thread {
         let target = context
             .jvm()
             .get_field(this.class_instance.as_ref().unwrap(), "target", "Ljava/lang/Runnable;")?;
+        let runnable = JvmClassInstanceProxy::new(Some(target.as_object().unwrap()));
 
         context.spawn(Box::new(ThreadStartProxy {
-            thread_id: context.instance_raw(target.as_object_ref().unwrap()),
-            runnable: JvmClassInstanceProxy::new(Some(target.as_object().unwrap())),
+            thread_id: format!("{:?}", &runnable),
+            runnable,
         }))?;
 
         Ok(())

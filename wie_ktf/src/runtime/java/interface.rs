@@ -126,7 +126,7 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     let mut context = KtfJavaContext::new(core, backend);
     let instance = JavaString::from_utf16(&mut context, &bytes_u16).await?;
 
-    Ok(context.instance_raw(&instance.class_instance.unwrap()) as _)
+    Ok(context.class_raw(&instance.class_instance.unwrap()) as _)
 }
 
 async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, field_name: u32) -> anyhow::Result<u32> {
@@ -196,7 +196,7 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
     let class_name = class.name()?;
 
     let instance = context.jvm().instantiate_class(&class_name).await?;
-    let raw = context.instance_raw(&instance);
+    let raw = context.class_raw(&instance);
 
     Ok(raw as u32)
 }
@@ -215,7 +215,7 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
     };
 
     let instance = java_context.jvm().instantiate_array(&element_type_name, count as _).await?;
-    let raw = java_context.instance_raw(&instance);
+    let raw = java_context.class_raw(&instance);
 
     Ok(raw as u32)
 }
