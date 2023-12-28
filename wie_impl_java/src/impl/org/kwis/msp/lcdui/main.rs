@@ -31,7 +31,7 @@ impl Main {
     }
 
     async fn main(context: &mut dyn JavaContext, args: JvmArrayClassInstanceProxy<String>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &args);
+        tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = context
             .jvm()

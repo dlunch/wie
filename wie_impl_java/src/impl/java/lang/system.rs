@@ -19,7 +19,7 @@ impl System {
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, JavaMethodFlag::STATIC),
                 JavaMethodProto::new("currentTimeMillis", "()J", Self::current_time_millis, JavaMethodFlag::NATIVE),
-                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::NONE),
+                JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::STATIC),
                 JavaMethodProto::new(
                     "arraycopy",
                     "(Ljava/lang/Object;ILjava/lang/Object;II)V",

@@ -18,7 +18,7 @@ impl HandsetProperty {
                 "getSystemProperty",
                 "(Ljava/lang/String;)Ljava/lang/String;",
                 Self::get_system_property,
-                JavaMethodFlag::NONE,
+                JavaMethodFlag::STATIC,
             )],
             fields: vec![],
         }
