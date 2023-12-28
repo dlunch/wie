@@ -79,9 +79,13 @@ async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) 
 
     let mut db = get_database_from_db_id(context, db_id);
 
-    db.delete(rec_id as _)?;
+    let result = db.delete(rec_id as _);
 
-    Ok(0) // success
+    if result.is_ok() {
+        Ok(0) // success
+    } else {
+        Ok(-22) // M_E_BADRECID
+    }
 }
 
 async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
