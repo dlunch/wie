@@ -2,7 +2,10 @@ use alloc::{
     boxed::Box,
     string::{String, ToString},
 };
-use core::mem::size_of;
+use core::{
+    fmt::{self, Debug, Formatter},
+    mem::size_of,
+};
 
 use jvm::{ArrayClass, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
@@ -152,5 +155,11 @@ impl ArrayClass for JavaArrayClass {
 
     fn instantiate_array(&self, length: usize) -> Box<dyn ClassInstance> {
         Box::new(JavaArrayClassInstance::new(&mut self.core.clone(), self, length).unwrap())
+    }
+}
+
+impl Debug for JavaArrayClass {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaArrayClass").field("class", &self.class).finish()
     }
 }

@@ -4,7 +4,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::mem::size_of;
+use core::{
+    fmt::{self, Debug, Formatter},
+    mem::size_of,
+};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -300,5 +303,11 @@ impl Class for JavaClass {
         let value = value.as_raw();
 
         self.write_static_field(field, value as _)
+    }
+}
+
+impl Debug for JavaClass {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
     }
 }
