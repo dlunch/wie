@@ -177,6 +177,17 @@ impl TypeConverter<i32> for i32 {
     }
 }
 
+//char type
+impl TypeConverter<u16> for u16 {
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> u16 {
+        raw.as_char()
+    }
+
+    fn from_rust(_: &mut dyn JavaContext, rust: u16) -> JavaValue {
+        JavaValue::Char(rust)
+    }
+}
+
 impl TypeConverter<i64> for i64 {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i64 {
         raw.as_long()
