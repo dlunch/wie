@@ -153,12 +153,12 @@ impl String {
         }
     }
 
-    async fn char_at(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, index: i32) -> JavaResult<i32> {
+    async fn char_at(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, index: i32) -> JavaResult<u16> {
         tracing::debug!("java.lang.String::charAt({:?}, {})", &this, index);
 
         let value = context.jvm().get_field(&this, "value", "[C")?;
 
-        Ok(context.jvm().load_array(value.as_object_ref().unwrap(), index as _, 1)?[0].as_char() as _)
+        Ok(context.jvm().load_array(value.as_object_ref().unwrap(), index as _, 1)?[0].as_char())
     }
 
     async fn concat(
