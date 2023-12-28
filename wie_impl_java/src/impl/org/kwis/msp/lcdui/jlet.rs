@@ -83,7 +83,7 @@ impl Jlet {
                 "org/kwis/msp/lcdui/Jlet",
                 "qtletActive",
                 "Lorg/kwis/msp/lcdui/Jlet;",
-                JavaValue::Object(this.class_instance),
+                JavaValue::Object(this.instance),
             )
             .await?;
 

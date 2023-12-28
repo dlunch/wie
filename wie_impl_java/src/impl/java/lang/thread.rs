@@ -36,7 +36,7 @@ impl Thread {
 
         context
             .jvm()
-            .put_field(&this, "target", "Ljava/lang/Runnable;", JavaValue::Object(target.class_instance))?;
+            .put_field(&this, "target", "Ljava/lang/Runnable;", JavaValue::Object(target.instance))?;
 
         Ok(())
     }
