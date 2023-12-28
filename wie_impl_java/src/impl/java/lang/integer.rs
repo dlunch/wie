@@ -26,7 +26,7 @@ impl Integer {
     }
 
     async fn parse_int(context: &mut dyn JavaContext, s: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
-        tracing::debug!("java.lang.Integer::parseInt({:#x})", context.instance_raw(&s.class_instance));
+        tracing::debug!("java.lang.Integer::parseInt({:?})", &s);
 
         let s = String::to_rust_string(context, &s.class_instance)?;
 

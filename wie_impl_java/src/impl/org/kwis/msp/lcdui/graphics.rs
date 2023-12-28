@@ -78,11 +78,7 @@ impl Graphics {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, display: JvmClassInstanceProxy<Display>) -> JavaResult<()> {
-        let log = format!(
-            "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&display.class_instance)
-        );
+        let log = format!("org.kwis.msp.lcdui.Graphics::<init>({:?}, {:?})", &this, &display);
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
         let width = context.jvm().get_field(&display.class_instance, "m_w", "I")?;
@@ -104,9 +100,9 @@ impl Graphics {
         height: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::<init>({:#x}, {:#x}, {}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&image.class_instance),
+            "org.kwis.msp.lcdui.Graphics::<init>({:?}, {:?}, {}, {}, {}, {})",
+            &this,
+            &image,
             a0,
             a1,
             width,
@@ -126,7 +122,7 @@ impl Graphics {
     }
 
     async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JvmClassInstanceProxy<Font>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:?})", this.ptr_instance);
 
         let font = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
         context
@@ -138,11 +134,7 @@ impl Graphics {
     }
 
     async fn set_color(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, rgb: i32) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::setColor({:#x}, {})",
-            context.instance_raw(&this.class_instance),
-            rgb
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
 
         context.jvm().put_field(&this.class_instance, "rgb", "I", JavaValue::Int(rgb as _))?;
 
@@ -150,13 +142,7 @@ impl Graphics {
     }
 
     async fn set_color_by_rgb(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, r: i32, g: i32, b: i32) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::setColor({:#x}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            r,
-            g,
-            b
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {}, {}, {})", &this, r, g, b);
 
         let rgb = (r << 16) | (g << 8) | b;
 
@@ -167,7 +153,7 @@ impl Graphics {
 
     async fn set_font(_context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, font: JavaObjectProxy<Font>) -> JavaResult<()> {
         tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::setFont({:#x}, {:#x})",
+            "stub org.kwis.msp.lcdui.Graphics::setFont({:?}, {:?})",
             this.ptr_instance,
             font.ptr_instance
         );
@@ -176,14 +162,14 @@ impl Graphics {
     }
 
     async fn set_alpha(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a1: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:#x}, {})", this.ptr_instance, a1);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", this.ptr_instance, a1);
 
         Ok(())
     }
 
     async fn set_clip(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::setClip({:#x}, {}, {}, {}, {})",
+            "stub org.kwis.msp.lcdui.Graphics::setClip({:?}, {}, {}, {}, {})",
             this.ptr_instance,
             x,
             y,
@@ -196,7 +182,7 @@ impl Graphics {
 
     async fn clip_rect(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::clipRect({:#x}, {}, {}, {}, {})",
+            "stub org.kwis.msp.lcdui.Graphics::clipRect({:?}, {}, {}, {}, {})",
             this.ptr_instance,
             x,
             y,
@@ -208,14 +194,7 @@ impl Graphics {
     }
 
     async fn fill_rect(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::fillRect({:#x}, {}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
         let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_int();
 
@@ -228,14 +207,7 @@ impl Graphics {
     }
 
     async fn draw_rect(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::drawRect({:#x}, {}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
         let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_int();
 
@@ -256,9 +228,9 @@ impl Graphics {
         anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::drawString({:#x}, {:#x}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&string.class_instance),
+            "org.kwis.msp.lcdui.Graphics::drawString({:?}, {:?}, {}, {}, {})",
+            &this,
+            &string,
             x,
             y,
             anchor.0
@@ -275,14 +247,7 @@ impl Graphics {
     }
 
     async fn draw_line(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::drawLine({:#x}, {}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            x1,
-            y1,
-            x2,
-            y2
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
         let rgb = context.jvm().get_field(&this.class_instance, "rgb", "I")?.as_int();
 
@@ -303,9 +268,9 @@ impl Graphics {
         anchor: Anchor,
     ) -> JavaResult<()> {
         tracing::debug!(
-            "org.kwis.msp.lcdui.Graphics::drawImage({:#x}, {:#x}, {}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&img.class_instance),
+            "org.kwis.msp.lcdui.Graphics::drawImage({:?}, {:?}, {}, {}, {})",
+            &this,
+            &img,
             x,
             y,
             anchor.0
@@ -341,22 +306,19 @@ impl Graphics {
     }
 
     async fn get_clip_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:?})", this.ptr_instance);
 
         Ok(0)
     }
 
     async fn get_clip_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:?})", this.ptr_instance);
 
         Ok(0)
     }
 
     async fn get_clip_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::getClipWidth({:#x})",
-            context.instance_raw(&this.class_instance)
-        );
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:?})", &this);
 
         let w = context.jvm().get_field(&this.class_instance, "w", "I")?.as_int();
 
@@ -364,10 +326,7 @@ impl Graphics {
     }
 
     async fn get_clip_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::getClipHeight({:#x})",
-            context.instance_raw(&this.class_instance)
-        );
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:?})", &this);
 
         let h = context.jvm().get_field(&this.class_instance, "h", "I")?.as_int();
 
@@ -375,19 +334,19 @@ impl Graphics {
     }
 
     async fn get_translate_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:?})", this.ptr_instance);
 
         Ok(0)
     }
 
     async fn get_translate_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:?})", this.ptr_instance);
 
         Ok(0)
     }
 
     async fn translate(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:#x}, {}, {})", this.ptr_instance, x, y);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:?}, {}, {})", this.ptr_instance, x, y);
 
         Ok(())
     }

@@ -19,7 +19,7 @@ impl Hashtable {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Hashtable>) -> JavaResult<()> {
-        tracing::warn!("stub java.util.Hashtable::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.util.Hashtable::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }

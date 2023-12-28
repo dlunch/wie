@@ -42,7 +42,7 @@ impl Jlet {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = context.jvm().instantiate_class("org/kwis/msp/lcdui/Display").await?;
 
@@ -109,10 +109,7 @@ impl Jlet {
     }
 
     async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<EventQueue>> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Jlet::getEventQueue({:#x})",
-            context.instance_raw(&this.class_instance)
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
         let eq = context.jvm().get_field(&this.class_instance, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
 
@@ -124,7 +121,7 @@ impl Jlet {
         let main_class = context.jvm().instantiate_class(&main_class_name).await?;
         context.jvm().invoke_method(&main_class, &main_class_name, "<init>", "()V", &[]).await?;
 
-        tracing::debug!("Main class instance: {:#x}", context.instance_raw(&main_class));
+        tracing::debug!("Main class instance: {:?}", context.instance_raw(&main_class));
 
         let arg = context.jvm().instantiate_array("Ljava/lang/String;", 0).await?;
         context

@@ -33,11 +33,7 @@ impl DataBase {
         }
     }
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data_base_name: JvmClassInstanceProxy<String>) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.db.DataBase::<init>({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&data_base_name.class_instance)
-        );
+        tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
         context.jvm().put_field(
             &this.class_instance,
@@ -56,8 +52,8 @@ impl DataBase {
         create: i32,
     ) -> JavaResult<JvmClassInstanceProxy<DataBase>> {
         tracing::warn!(
-            "stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})",
-            context.instance_raw(&data_base_name.class_instance),
+            "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
+            &data_base_name,
             record_size,
             create
         );
@@ -78,10 +74,7 @@ impl DataBase {
     }
 
     async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
-        tracing::debug!(
-            "org.kwis.msp.db.DataBase::getNumberOfRecords({:#x})",
-            context.instance_raw(&this.class_instance)
-        );
+        tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
         let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
@@ -92,7 +85,7 @@ impl DataBase {
     }
 
     async fn close_data_base(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", this.ptr_instance);
 
         Ok(())
     }
@@ -105,9 +98,9 @@ impl DataBase {
         num_bytes: i32,
     ) -> JavaResult<i32> {
         tracing::debug!(
-            "org.kwis.msp.db.DataBase::insertRecord({:#x}, {:#x}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&data.class_instance),
+            "org.kwis.msp.db.DataBase::insertRecord({:?}, {:?}, {}, {})",
+            &this,
+            &data,
             offset,
             num_bytes
         );
@@ -128,11 +121,7 @@ impl DataBase {
         this: JvmClassInstanceProxy<Self>,
         record_id: i32,
     ) -> JavaResult<JvmArrayClassInstanceProxy<i8>> {
-        tracing::debug!(
-            "org.kwis.msp.db.DataBase::selectRecord({:#x}, {})",
-            context.instance_raw(&this.class_instance),
-            record_id
-        );
+        tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
         let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;

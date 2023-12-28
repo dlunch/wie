@@ -19,7 +19,7 @@ impl OutputStream {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<OutputStream>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.OutputStream::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.OutputStream::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }

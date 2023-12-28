@@ -22,7 +22,7 @@ impl AnnunciatorComponent {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<AnnunciatorComponent>, a0: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:#x}, {})", this.ptr_instance, a0);
+        tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", this.ptr_instance, a0);
 
         Ok(())
     }

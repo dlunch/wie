@@ -36,7 +36,7 @@ impl Font {
     }
 
     async fn cl_init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>({:?})", &this);
 
         context
             .jvm()
@@ -55,7 +55,7 @@ impl Font {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Font>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }
@@ -79,7 +79,7 @@ impl Font {
     }
 
     async fn get_font(context: &mut dyn JavaContext, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceProxy<Font>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:#x}, {:#x}, {:#x})", face, style, size);
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
         context

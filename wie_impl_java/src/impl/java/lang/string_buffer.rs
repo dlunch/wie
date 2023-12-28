@@ -43,7 +43,7 @@ impl StringBuffer {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("java.lang.StringBuffer::<init>({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("java.lang.StringBuffer::<init>({:?})", &this);
 
         let array = context.jvm().instantiate_array("C", 16).await?;
         context
@@ -59,11 +59,7 @@ impl StringBuffer {
         this: JvmClassInstanceProxy<Self>,
         string: JvmClassInstanceProxy<String>,
     ) -> JavaResult<()> {
-        tracing::debug!(
-            "java.lang.StringBuffer::<init>({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&string.class_instance),
-        );
+        tracing::debug!("java.lang.StringBuffer::<init>({:?}, {:?})", &this, &string,);
 
         let value_array = context.jvm().get_field(&string.class_instance, "value", "[C")?;
         let length = context.jvm().array_length(value_array.as_object_ref().unwrap())?;
@@ -79,11 +75,7 @@ impl StringBuffer {
         this: JvmClassInstanceProxy<Self>,
         string: JvmClassInstanceProxy<String>,
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::debug!(
-            "java.lang.StringBuffer::append({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&string.class_instance),
-        );
+        tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, &string,);
 
         let string = String::to_rust_string(context, &string.class_instance)?;
 
@@ -93,11 +85,7 @@ impl StringBuffer {
     }
 
     async fn append_integer(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, value: i32) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::debug!(
-            "java.lang.StringBuffer::append({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            value
-        );
+        tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, value);
 
         let digits = value.to_string();
 
@@ -112,12 +100,7 @@ impl StringBuffer {
         value_low: i32,
         value_high: i32,
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::debug!(
-            "java.lang.StringBuffer::append({:#x}, {:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            value_low,
-            value_high
-        );
+        tracing::debug!("java.lang.StringBuffer::append({:?}, {:?}, {:?})", &this, value_low, value_high);
 
         let digits = ((value_high as i64) << 32 | (value_low as i64)).to_string();
 
@@ -131,11 +114,7 @@ impl StringBuffer {
         this: JvmClassInstanceProxy<Self>,
         value: i32,
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::debug!(
-            "java.lang.StringBuffer::append({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            value
-        );
+        tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, value);
 
         let value = RustString::from_utf16(&[value as u16])?;
 
@@ -145,7 +124,7 @@ impl StringBuffer {
     }
 
     async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<String>> {
-        tracing::debug!("java.lang.StringBuffer::toString({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("java.lang.StringBuffer::toString({:?})", &this);
 
         let java_value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
         let count = context.jvm().get_field(&this.class_instance, "count", "I")?;

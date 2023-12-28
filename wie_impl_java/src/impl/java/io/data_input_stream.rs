@@ -27,11 +27,7 @@ impl DataInputStream {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#in: JvmClassInstanceProxy<InputStream>) -> JavaResult<()> {
-        tracing::debug!(
-            "java.lang.DataInputStream::<init>({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&r#in.class_instance)
-        );
+        tracing::debug!("java.lang.DataInputStream::<init>({:?}, {:?})", &this, &r#in);
 
         context.jvm().put_field(
             &this.class_instance,
@@ -44,7 +40,7 @@ impl DataInputStream {
     }
 
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
-        tracing::debug!("java.lang.DataInputStream::available({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("java.lang.DataInputStream::available({:?})", &this);
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         let available = context
@@ -62,13 +58,7 @@ impl DataInputStream {
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
-        tracing::debug!(
-            "java.lang.DataInputStream::read({:#x}, {:#x}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&b.class_instance),
-            off,
-            len
-        );
+        tracing::debug!("java.lang.DataInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         let result = context
@@ -86,7 +76,7 @@ impl DataInputStream {
     }
 
     async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("java.lang.DataInputStream::close({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("java.lang.DataInputStream::close({:?})", &this);
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         context
