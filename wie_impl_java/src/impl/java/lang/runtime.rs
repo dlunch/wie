@@ -39,13 +39,13 @@ impl Runtime {
         Ok(JvmClassInstanceProxy::new(Some(instance)))
     }
 
-    async fn total_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i32> {
+    async fn total_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i64> {
         tracing::warn!("stub java.lang.Runtime::totalMemory({:?})", &this);
 
         Ok(0x100000) // TODO: hardcoded
     }
 
-    async fn free_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i32> {
+    async fn free_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i64> {
         tracing::warn!("stub java.lang.Runtime::freeMemory({:?})", &this);
 
         Ok(0x100000) // TODO: hardcoded
