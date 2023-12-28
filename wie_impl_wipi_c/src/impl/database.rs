@@ -35,11 +35,13 @@ async fn open_database(context: &mut dyn WIPICContext, name: String, record_size
     let ptr_handle = context.alloc_raw(size_of::<DatabaseHandle>() as _)?;
     write_generic(context, ptr_handle, handle)?;
 
+    tracing::debug!("Created database handle {:#x}", ptr_handle);
+
     Ok(ptr_handle as _)
 }
 
 async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> WIPICResult<i32> {
-    tracing::debug!("MC_dbCloseDataBase({})", db_id);
+    tracing::debug!("MC_dbCloseDataBase({:#x})", db_id);
 
     context.free_raw(db_id as _)?;
 
@@ -47,7 +49,7 @@ async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> WIPICResu
 }
 
 async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
-    tracing::debug!("MC_dbListRecords({}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    tracing::debug!("MC_dbListRecords({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let db = get_database_from_db_id(context, db_id);
     let ids = db.get_record_ids()?;
@@ -61,25 +63,39 @@ async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICW
     Ok(ids.len() as _)
 }
 
-async fn insert_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
-    tracing::debug!("MC_dbInsertRecord({}, {:#x}, {})", db_id, buf_ptr, buf_len);
+async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbInsertRecord({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let data = context.read_bytes(buf_ptr, buf_len)?;
     let mut db = get_database_from_db_id(context, db_id);
 
-    let id = db.add(&data)?;
+    db.set(1, &data)?;
 
-    Ok(id as _)
+    Ok(1)
 }
 
 async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> WIPICResult<i32> {
-    tracing::debug!("MC_dbDeleteRecord({}, {})", db_id, rec_id);
+    tracing::debug!("MC_dbDeleteRecord({:#x}, {})", db_id, rec_id);
 
     let mut db = get_database_from_db_id(context, db_id);
 
     db.delete(rec_id as _)?;
 
     Ok(0) // success
+}
+
+async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbSelectRecord({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+
+    let db = get_database_from_db_id(context, db_id);
+
+    if let Ok(x) = db.get(1) {
+        context.write_bytes(buf_ptr, &x)?;
+
+        Ok(0)
+    } else {
+        Ok(-22) // M_E_BADRECID
+    }
 }
 
 async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
@@ -100,13 +116,13 @@ fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Databa
 pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
     vec![
         open_database.into_body(),
-        insert_record.into_body(),
-        list_record.into_body(),
+        read_record_single.into_body(),
+        write_record_single.into_body(),
         close_database.into_body(),
         gen_stub(4, "MC_dbSelectRecord"),
         gen_stub(5, "MC_dbUpdateRecord"),
         delete_record.into_body(),
-        gen_stub(7, "MC_dbListRecords"),
+        list_record.into_body(),
         gen_stub(8, "MC_dbSortRecords"),
         gen_stub(9, "MC_dbGetAccessMode"),
         gen_stub(10, "MC_dbGetNumberOfRecords"),

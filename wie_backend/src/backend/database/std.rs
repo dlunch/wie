@@ -60,7 +60,7 @@ impl Database {
         Ok(id)
     }
 
-    pub fn get(&mut self, id: RecordId) -> anyhow::Result<Vec<u8>> {
+    pub fn get(&self, id: RecordId) -> anyhow::Result<Vec<u8>> {
         let path = self.get_path_for_record(id);
 
         tracing::trace!("Read record {} from database {:?}", id, &self.base_path);
