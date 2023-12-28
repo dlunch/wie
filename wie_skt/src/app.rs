@@ -43,6 +43,6 @@ impl App for SktApp {
     }
 
     fn crash_dump(&self) -> String {
-        todo!()
+        "".into() // TODO
     }
 }
