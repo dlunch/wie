@@ -30,13 +30,13 @@ impl Display {
                     "getDisplay",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
                     Self::get_display,
-                    JavaMethodFlag::NONE,
+                    JavaMethodFlag::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getDefaultDisplay",
                     "()Lorg/kwis/msp/lcdui/Display;",
                     Self::get_default_display,
-                    JavaMethodFlag::NONE,
+                    JavaMethodFlag::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getDockedCard",
