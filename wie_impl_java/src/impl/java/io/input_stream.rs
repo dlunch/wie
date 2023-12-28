@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     JavaContext, JavaMethodFlag, JavaResult,
 };
 
@@ -33,7 +33,7 @@ impl InputStream {
         Ok(())
     }
 
-    async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, b: JvmClassInstanceProxy<i8>) -> JavaResult<i32> {
+    async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, b: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<i32> {
         tracing::debug!("java.lang.InputStream::read({:?}, {:?})", &this, &b);
 
         let array_length = context.jvm().array_length(b.class_instance.as_ref().unwrap())?;

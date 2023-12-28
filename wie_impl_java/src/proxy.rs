@@ -7,6 +7,8 @@ use jvm::{ClassInstanceRef, JavaValue};
 
 use crate::{base::JavaContext, method::TypeConverter};
 
+pub struct Array<T>(PhantomData<T>);
+
 pub struct JvmClassInstanceProxy<T> {
     pub class_instance: Option<ClassInstanceRef>,
     _phantom: PhantomData<T>,

@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     r#impl::java::lang::String,
 };
 
@@ -93,7 +93,7 @@ impl DataBase {
     async fn insert_record(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        data: JvmClassInstanceProxy<i8>,
+        data: JvmClassInstanceProxy<Array<i8>>,
         offset: i32,
         num_bytes: i32,
     ) -> JavaResult<i32> {

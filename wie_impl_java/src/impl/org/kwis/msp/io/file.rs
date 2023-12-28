@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     r#impl::java::lang::String,
     JavaContext, JavaMethodFlag, JavaResult,
 };
@@ -57,7 +57,7 @@ impl File {
     async fn write(
         _context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        buf: JvmClassInstanceProxy<JvmClassInstanceProxy<u8>>,
+        buf: JvmClassInstanceProxy<JvmClassInstanceProxy<Array<i8>>>,
         offset: i32,
         len: i32,
     ) -> JavaResult<i32> {
