@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use jvm::{ClassInstanceRef, Jvm};
+use jvm::{ClassInstanceRef, JavaValue, Jvm};
 
 use wie_backend::{task::SleepFuture, Backend};
 
@@ -76,7 +76,7 @@ impl JavaMethodProto {
 
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for AbstractCall {
-            async fn call(&self, _: &mut dyn JavaContext, _: &[JavaWord]) -> Result<JavaWord, JavaError> {
+            async fn call(&self, _: &mut dyn JavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 // TODO throw java.lang.AbstractMethodError
                 anyhow::bail!("Call to abstract function {}{}", self.name, self.descriptor)
             }
@@ -172,19 +172,39 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
 }
 
 impl TypeConverter<i32> for i32 {
-    fn to_rust(_: &mut dyn JavaContext, raw: JavaWord) -> i32 {
-        raw as i32
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i32 {
+        raw.as_int()
     }
 
-    fn from_rust(_: &mut dyn JavaContext, rust: i32) -> JavaWord {
-        rust as JavaWord
+    fn from_rust(_: &mut dyn JavaContext, rust: i32) -> JavaValue {
+        JavaValue::Int(rust)
+    }
+}
+
+impl TypeConverter<i64> for i64 {
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i64 {
+        raw.as_long()
+    }
+
+    fn from_rust(_: &mut dyn JavaContext, rust: i64) -> JavaValue {
+        JavaValue::Long(rust)
+    }
+}
+
+impl TypeConverter<bool> for bool {
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> bool {
+        raw.as_boolean()
+    }
+
+    fn from_rust(_: &mut dyn JavaContext, rust: bool) -> JavaValue {
+        JavaValue::Boolean(rust)
     }
 }
 
 impl TypeConverter<()> for () {
-    fn to_rust(_: &mut dyn JavaContext, _: JavaWord) {}
+    fn to_rust(_: &mut dyn JavaContext, _: JavaValue) {}
 
-    fn from_rust(_: &mut dyn JavaContext, _: ()) -> JavaWord {
-        0
+    fn from_rust(_: &mut dyn JavaContext, _: ()) -> JavaValue {
+        JavaValue::Void
     }
 }

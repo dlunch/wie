@@ -6,12 +6,12 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{JavaValue, Jvm, JvmResult, Method};
+use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::Backend;
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
-use wie_impl_java::{JavaMethodBody, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord};
+use wie_impl_java::{JavaMethodBody, JavaMethodFlag, JavaMethodProto, JavaResult};
 
 use super::{value::JavaValueExt, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
 
@@ -72,7 +72,13 @@ impl JavaMethod {
         let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
         core.write_bytes(ptr_name, &full_name_bytes)?;
 
-        let fn_method = Self::register_java_method(core, proto.body, proto.flag == JavaMethodFlag::NATIVE)?;
+        let fn_method = Self::register_java_method(
+            core,
+            proto.body,
+            &full_name.descriptor,
+            proto.flag == JavaMethodFlag::STATIC,
+            proto.flag == JavaMethodFlag::NATIVE,
+        )?;
         let (fn_body, fn_body_native) = if proto.flag == JavaMethodFlag::NATIVE {
             (0, fn_method)
         } else {
@@ -133,15 +139,20 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method(core: &mut ArmCore, body: JavaMethodBody, native: bool) -> JavaResult<u32> {
+    fn register_java_method(core: &mut ArmCore, body: JavaMethodBody, descriptor: &str, is_static: bool, native: bool) -> JavaResult<u32> {
         struct JavaMethodProxy {
             body: JavaMethodBody,
+            parameter_types: Vec<JavaType>,
             native: bool,
         }
 
         impl JavaMethodProxy {
-            pub fn new(body: JavaMethodBody, native: bool) -> Self {
-                Self { body, native }
+            pub fn new(body: JavaMethodBody, parameter_types: Vec<JavaType>, native: bool) -> Self {
+                Self {
+                    body,
+                    parameter_types,
+                    native,
+                }
             }
         }
 
@@ -161,17 +172,32 @@ impl JavaMethod {
                     vec![a1, a2, a3, a4, a5, a6]
                 };
 
+                let args = args
+                    .into_iter()
+                    .zip(self.parameter_types.iter())
+                    .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core))
+                    .collect::<Vec<_>>();
+
                 let mut context = KtfJavaContext::new(core, backend);
 
-                let args = args.into_iter().map(|x| x as JavaWord).collect::<Vec<_>>();
+                let result = self.body.call(&mut context, args.into_boxed_slice()).await?;
 
-                let result = self.body.call(&mut context, &args).await?; // TODO do we need arg proxy?
-
-                Ok(result as _)
+                Ok(result.as_raw())
             }
         }
 
-        let proxy = JavaMethodProxy::new(body, native);
+        let mut parameter_types = if let JavaType::Method(x, _) = JavaType::parse(descriptor) {
+            x
+        } else {
+            panic!("Should be method type")
+        };
+
+        if !is_static && !native {
+            // TODO proper flag handling
+            parameter_types.insert(0, JavaType::Class("".into())); // TODO name
+        }
+
+        let proxy = JavaMethodProxy::new(body, parameter_types, native);
 
         core.register_function(proxy)
     }
@@ -193,9 +219,13 @@ impl Method for JavaMethod {
 
     async fn run(&self, _jvm: &mut Jvm, args: &[JavaValue]) -> JvmResult<JavaValue> {
         let result = self.run(args).await?;
-        let return_type = &self.descriptor()[self.descriptor().find(')').unwrap() + 1..];
+        let return_type = if let JavaType::Method(_, x) = JavaType::parse(&self.descriptor()) {
+            x
+        } else {
+            panic!("Should be method type")
+        };
 
-        Ok(JavaValue::from_raw(result, return_type, &self.core))
+        Ok(JavaValue::from_raw(result, &return_type, &self.core))
     }
 }
 

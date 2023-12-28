@@ -3,20 +3,17 @@ use core::{
     marker::PhantomData,
 };
 
-use jvm::ClassInstanceRef;
+use jvm::{ClassInstanceRef, JavaValue};
 
-use crate::{
-    base::{JavaContext, JavaWord},
-    method::TypeConverter,
-};
+use crate::{base::JavaContext, method::TypeConverter};
 
 pub struct JvmClassInstanceProxy<T> {
-    pub class_instance: ClassInstanceRef,
+    pub class_instance: Option<ClassInstanceRef>,
     _phantom: PhantomData<T>,
 }
 
 impl<T> JvmClassInstanceProxy<T> {
-    pub fn new(class_instance: ClassInstanceRef) -> Self {
+    pub fn new(class_instance: Option<ClassInstanceRef>) -> Self {
         Self {
             class_instance,
             _phantom: PhantomData,
@@ -25,28 +22,32 @@ impl<T> JvmClassInstanceProxy<T> {
 }
 
 impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
-    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> JvmClassInstanceProxy<T> {
-        JvmClassInstanceProxy::new(context.instance_from_raw(raw))
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> JvmClassInstanceProxy<T> {
+        JvmClassInstanceProxy::new(raw.as_object())
     }
 
-    fn from_rust(context: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaWord {
-        context.instance_raw(&value.class_instance)
+    fn from_rust(_: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaValue {
+        JavaValue::Object(value.class_instance)
     }
 }
 
 impl<T> Debug for JvmClassInstanceProxy<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.class_instance.borrow())
+        if let Some(x) = &self.class_instance {
+            write!(f, "{:?}", x.borrow())
+        } else {
+            write!(f, "null")
+        }
     }
 }
 
 pub struct JvmArrayClassInstanceProxy<T> {
-    pub class_instance: ClassInstanceRef,
+    pub class_instance: Option<ClassInstanceRef>,
     _phantom: PhantomData<T>,
 }
 
 impl<T> JvmArrayClassInstanceProxy<T> {
-    pub fn new(class_instance: ClassInstanceRef) -> Self {
+    pub fn new(class_instance: Option<ClassInstanceRef>) -> Self {
         Self {
             class_instance,
             _phantom: PhantomData,
@@ -55,17 +56,21 @@ impl<T> JvmArrayClassInstanceProxy<T> {
 }
 
 impl<T> TypeConverter<JvmArrayClassInstanceProxy<T>> for JvmArrayClassInstanceProxy<T> {
-    fn to_rust(context: &mut dyn JavaContext, raw: JavaWord) -> JvmArrayClassInstanceProxy<T> {
-        JvmArrayClassInstanceProxy::new(context.array_instance_from_raw(raw))
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> JvmArrayClassInstanceProxy<T> {
+        JvmArrayClassInstanceProxy::new(raw.as_object())
     }
 
-    fn from_rust(context: &mut dyn JavaContext, value: JvmArrayClassInstanceProxy<T>) -> JavaWord {
-        context.instance_raw(&value.class_instance)
+    fn from_rust(_: &mut dyn JavaContext, value: JvmArrayClassInstanceProxy<T>) -> JavaValue {
+        JavaValue::Object(value.class_instance)
     }
 }
 
 impl<T> Debug for JvmArrayClassInstanceProxy<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.class_instance.borrow())
+        if let Some(x) = &self.class_instance {
+            write!(f, "{:?}", x.borrow())
+        } else {
+            write!(f, "null")
+        }
     }
 }

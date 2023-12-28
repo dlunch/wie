@@ -71,7 +71,7 @@ impl Display {
 
         let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
         context.jvm().put_field(
-            &this.class_instance,
+            this.class_instance.as_ref().unwrap(),
             "cards",
             "[Lorg/kwis/msp/lcdui/Card;",
             JavaValue::Object(Some(cards)),
@@ -81,8 +81,12 @@ impl Display {
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 
-        context.jvm().put_field(&this.class_instance, "m_w", "I", JavaValue::Int(width as _))?;
-        context.jvm().put_field(&this.class_instance, "m_h", "I", JavaValue::Int(height as _))?;
+        context
+            .jvm()
+            .put_field(this.class_instance.as_ref().unwrap(), "m_w", "I", JavaValue::Int(width as _))?;
+        context
+            .jvm()
+            .put_field(this.class_instance.as_ref().unwrap(), "m_h", "I", JavaValue::Int(height as _))?;
 
         Ok(())
     }
@@ -99,7 +103,7 @@ impl Display {
             .jvm()
             .get_field(&jlet.as_object().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
-        Ok(JvmClassInstanceProxy::new(display.as_object_ref().unwrap().clone()))
+        Ok(JvmClassInstanceProxy::new(Some(display.as_object_ref().unwrap().clone())))
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
@@ -115,23 +119,25 @@ impl Display {
             )
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(result.as_object().unwrap()))
+        Ok(JvmClassInstanceProxy::new(Some(result.as_object().unwrap())))
     }
 
-    async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<i32> {
+    async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Card>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
-        Ok(0) // TODO return type
+        Ok(JvmClassInstanceProxy::new(None))
     }
 
     async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
-        let cards = context.jvm().get_field(&this.class_instance, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let cards = context
+            .jvm()
+            .get_field(&this.class_instance.unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
 
         if card.as_object_ref().is_none() {
-            let value = JavaValue::Object(Some(c.class_instance.clone()));
+            let value = JavaValue::Object(c.class_instance.clone());
             context.jvm().store_array(cards.as_object_ref().unwrap(), 0, &[value])?;
         }
 

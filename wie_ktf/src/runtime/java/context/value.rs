@@ -8,16 +8,14 @@ use wie_core_arm::ArmCore;
 use super::{array_class_instance::JavaArrayClassInstance, class_instance::JavaClassInstance, KtfJvmWord};
 
 pub trait JavaValueExt {
-    fn from_raw(raw: KtfJvmWord, descriptor: &str, core: &ArmCore) -> JavaValue;
+    fn from_raw(raw: KtfJvmWord, r#type: &JavaType, core: &ArmCore) -> JavaValue;
     fn as_raw(&self) -> KtfJvmWord;
 }
 
 impl JavaValueExt for JavaValue {
-    fn from_raw(raw: KtfJvmWord, descriptor: &str, core: &ArmCore) -> JavaValue {
-        let r#type = JavaType::parse(descriptor);
-
+    fn from_raw(raw: KtfJvmWord, r#type: &JavaType, core: &ArmCore) -> JavaValue {
         match r#type {
-            JavaType::Void => JavaValue::Boolean(true), // TODO
+            JavaType::Void => JavaValue::Void,
             JavaType::Boolean => JavaValue::Boolean(raw != 0),
             JavaType::Byte => JavaValue::Byte(raw as i8),
             JavaType::Short => JavaValue::Short(raw as i16),
@@ -50,6 +48,7 @@ impl JavaValueExt for JavaValue {
 
     fn as_raw(&self) -> KtfJvmWord {
         match self {
+            JavaValue::Void => 0,
             JavaValue::Boolean(x) => *x as _,
             JavaValue::Byte(x) => *x as _,
             JavaValue::Short(x) => *x as _,

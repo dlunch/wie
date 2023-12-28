@@ -135,7 +135,7 @@ impl EventQueue {
                 };
                 let event_data = event_data.into_iter().map(JavaValue::Int).collect::<Vec<_>>();
 
-                context.jvm().store_array(&event.class_instance, 0, &event_data)?;
+                context.jvm().store_array(&event.class_instance.unwrap(), 0, &event_data)?;
 
                 break;
             } else {
@@ -155,7 +155,7 @@ impl EventQueue {
 
         let event = context
             .jvm()
-            .load_array(&event.class_instance, 0, 4)?
+            .load_array(&event.class_instance.unwrap(), 0, 4)?
             .into_iter()
             .map(|x| x.as_int())
             .collect::<Vec<_>>();

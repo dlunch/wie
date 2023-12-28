@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use wie_backend::{
     task::{self, SleepFuture},
@@ -72,7 +72,9 @@ impl WIPICContext for KtfWIPICContext<'_> {
 
                 let mut context = KtfWIPICContext::new(core, backend);
 
-                self.body.call(&mut context, &[a0, a1, a2, a3, a4, a5, a6, a7, a8]).await
+                self.body
+                    .call(&mut context, vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
+                    .await
             }
         }
 
@@ -102,7 +104,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
             async fn call(mut self) -> Result<WIPICWord, WIPICError> {
                 let mut context = KtfWIPICContext::new(&mut self.core, &mut self.backend);
 
-                self.callback.call(&mut context, &[]).await
+                self.callback.call(&mut context, Box::new([])).await
             }
         }
 

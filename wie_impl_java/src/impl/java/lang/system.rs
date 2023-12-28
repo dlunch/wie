@@ -45,7 +45,7 @@ impl System {
         Ok(())
     }
 
-    async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<i32> {
+    async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<i64> {
         tracing::debug!("java.lang.System::currentTimeMillis()");
 
         Ok(context.backend().time().now().raw() as _)
@@ -74,9 +74,13 @@ impl System {
             length
         );
 
+        // TODO XXX
+        let src = context.array_instance_from_raw(context.instance_raw(&src.class_instance.unwrap()));
+        let dest = context.array_instance_from_raw(context.instance_raw(&dest.class_instance.unwrap()));
+
         // TODO i think we can make it faster
-        let src = context.jvm().load_array(&src.class_instance, src_pos as _, length as _)?;
-        context.jvm().store_array(&dest.class_instance, dest_pos as _, &src)?;
+        let src = context.jvm().load_array(&src, src_pos as _, length as _)?;
+        context.jvm().store_array(&dest, dest_pos as _, &src)?;
 
         Ok(())
     }

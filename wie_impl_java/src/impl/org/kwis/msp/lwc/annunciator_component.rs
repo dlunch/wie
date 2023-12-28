@@ -21,7 +21,7 @@ impl AnnunciatorComponent {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<AnnunciatorComponent>, a0: i32) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", &this, a0);
 
         Ok(())

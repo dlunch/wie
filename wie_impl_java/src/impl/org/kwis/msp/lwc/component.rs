@@ -22,10 +22,10 @@ impl Component {
         }
     }
 
-    async fn key_notify(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#type: i32, chr: i32) -> JavaResult<i32> {
+    async fn key_notify(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#type: i32, chr: i32) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::keyNotify({:?}, {:?}, {:?})", &this, r#type, chr);
 
-        Ok(1)
+        Ok(true)
     }
 
     async fn set_focus(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {

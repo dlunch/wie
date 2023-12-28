@@ -7,7 +7,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{ArrayClassInstance, ClassInstance, Field, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
@@ -135,7 +135,8 @@ impl ClassInstance for JavaClassInstance {
 
         let result = self.read_field(field)?;
 
-        Ok(JavaValue::from_raw(result, &field.descriptor(), &self.core))
+        let r#type = JavaType::parse(&field.descriptor());
+        Ok(JavaValue::from_raw(result, &r#type, &self.core))
     }
 
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {

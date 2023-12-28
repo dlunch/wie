@@ -28,7 +28,7 @@ impl PrintStream {
     async fn println(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, str: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::warn!("stub java.lang.PrintStream::println({:?}, {:?})", &this, &str);
 
-        let rust_str = String::to_rust_string(context, &str.class_instance)?;
+        let rust_str = String::to_rust_string(context, &str.class_instance.unwrap())?;
         tracing::info!("println: {}", rust_str);
 
         Ok(())

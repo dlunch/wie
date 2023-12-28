@@ -5,7 +5,7 @@ use jvm::JavaValue;
 use wie_backend::task;
 
 use crate::{
-    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
+    base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     method::MethodBody,
     proxy::JvmClassInstanceProxy,
     r#impl::java::lang::Runnable,
@@ -35,10 +35,10 @@ impl Thread {
         tracing::debug!("Thread::<init>({:?}, {:?})", &this, &target);
 
         context.jvm().put_field(
-            &this.class_instance,
+            this.class_instance.as_ref().unwrap(),
             "target",
             "Ljava/lang/Runnable;",
-            JavaValue::Object(Some(target.class_instance)),
+            JavaValue::Object(target.class_instance),
         )?;
 
         Ok(())
@@ -55,30 +55,32 @@ impl Thread {
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for ThreadStartProxy {
             #[tracing::instrument(name = "thread", fields(thread = self.thread_id), skip_all)]
-            async fn call(&self, context: &mut dyn JavaContext, _: &[JavaWord]) -> Result<JavaWord, JavaError> {
+            async fn call(&self, context: &mut dyn JavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 tracing::trace!("Thread start");
 
                 context
                     .jvm()
-                    .invoke_method(&self.runnable.class_instance, "java/lang/Runnable", "run", "()V", &[])
+                    .invoke_method(self.runnable.class_instance.as_ref().unwrap(), "java/lang/Runnable", "run", "()V", &[])
                     .await?;
 
-                Ok(0)
+                Ok(JavaValue::Void)
             }
         }
 
-        let target = context.jvm().get_field(&this.class_instance, "target", "Ljava/lang/Runnable;")?;
+        let target = context
+            .jvm()
+            .get_field(this.class_instance.as_ref().unwrap(), "target", "Ljava/lang/Runnable;")?;
 
         context.spawn(Box::new(ThreadStartProxy {
             thread_id: context.instance_raw(target.as_object_ref().unwrap()),
-            runnable: JvmClassInstanceProxy::new(target.as_object().unwrap()),
+            runnable: JvmClassInstanceProxy::new(Some(target.as_object().unwrap())),
         }))?;
 
         Ok(())
     }
 
-    async fn sleep(context: &mut dyn JavaContext, a0: i32, a1: i32) -> JavaResult<i32> {
-        tracing::debug!("Thread::sleep({:?}, {:?})", a0, a1);
+    async fn sleep(context: &mut dyn JavaContext, a0: i64) -> JavaResult<i32> {
+        tracing::debug!("Thread::sleep({:?})", a0);
         context.sleep(a0 as u64).await;
 
         Ok(0)

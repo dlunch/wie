@@ -11,7 +11,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{Class, ClassInstance, Field, JavaValue, JvmResult, Method};
+use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
 use wie_base::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
@@ -295,7 +295,8 @@ impl Class for JavaClass {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field)?;
 
-        Ok(JavaValue::from_raw(value, &field.descriptor(), &self.core))
+        let r#type = JavaType::parse(&field.descriptor());
+        Ok(JavaValue::from_raw(value, &r#type, &self.core))
     }
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
