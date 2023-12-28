@@ -1,6 +1,9 @@
-use core::mem::size_of;
-
 use alloc::string::String;
+use core::{
+    fmt::{self, Debug, Formatter},
+    mem::size_of,
+};
+
 use bytemuck::{Pod, Zeroable};
 
 use jvm::{Field, JavaType};
@@ -119,5 +122,11 @@ impl Field for JavaField {
 
     fn r#type(&self) -> JavaType {
         todo!()
+    }
+}
+
+impl Debug for JavaField {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
     }
 }

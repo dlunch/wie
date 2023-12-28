@@ -1,5 +1,9 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{iter, mem::size_of};
+use core::{
+    fmt::{self, Debug, Formatter},
+    iter,
+    mem::size_of,
+};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -146,5 +150,11 @@ impl ClassInstance for JavaClassInstance {
 
     fn as_array_instance_mut(&mut self) -> Option<&mut dyn ArrayClassInstance> {
         None
+    }
+}
+
+impl Debug for JavaClassInstance {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaClassInstance").field("ptr_raw", &self.ptr_raw).finish()
     }
 }

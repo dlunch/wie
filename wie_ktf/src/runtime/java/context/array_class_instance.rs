@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
+use core::fmt::{self, Debug, Formatter};
 
 use jvm::{ArrayClassInstance, ClassInstance, Field, JavaValue, JvmResult};
 
@@ -140,5 +141,13 @@ impl ArrayClassInstance for JavaArrayClassInstance {
 
     fn length(&self) -> usize {
         self.array_length().unwrap()
+    }
+}
+
+impl Debug for JavaArrayClassInstance {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaArrayClassInstance")
+            .field("class_instance", &self.class_instance)
+            .finish()
     }
 }

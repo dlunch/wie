@@ -1,5 +1,8 @@
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
-use core::mem::size_of;
+use core::{
+    fmt::{self, Debug, Formatter},
+    mem::size_of,
+};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -193,5 +196,11 @@ impl Method for JavaMethod {
         let return_type = &self.descriptor()[self.descriptor().find(')').unwrap() + 1..];
 
         Ok(JavaValue::from_raw(result, return_type, &self.core))
+    }
+}
+
+impl Debug for JavaMethod {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
     }
 }
