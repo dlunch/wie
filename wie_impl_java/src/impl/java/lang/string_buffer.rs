@@ -46,12 +46,8 @@ impl StringBuffer {
         tracing::debug!("java.lang.StringBuffer::<init>({:?})", &this);
 
         let array = context.jvm().instantiate_array("C", 16).await?;
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "value", "[C", JavaValue::Object(Some(array)))?;
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "count", "I", JavaValue::Int(0))?;
+        context.jvm().put_field(&this, "value", "[C", JavaValue::Object(Some(array)))?;
+        context.jvm().put_field(&this, "count", "I", JavaValue::Int(0))?;
 
         Ok(())
     }
@@ -63,15 +59,11 @@ impl StringBuffer {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.StringBuffer::<init>({:?}, {:?})", &this, &string,);
 
-        let value_array = context.jvm().get_field(&string.class_instance.unwrap(), "value", "[C")?;
+        let value_array = context.jvm().get_field(&string, "value", "[C")?;
         let length = context.jvm().array_length(value_array.as_object_ref().unwrap())?;
 
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "value", "[C", value_array)?;
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "count", "I", JavaValue::Int(length as _))?;
+        context.jvm().put_field(&this, "value", "[C", value_array)?;
+        context.jvm().put_field(&this, "count", "I", JavaValue::Int(length as _))?;
 
         Ok(())
     }
@@ -83,7 +75,7 @@ impl StringBuffer {
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, &string,);
 
-        let string = String::to_rust_string(context, &string.class_instance.unwrap())?;
+        let string = String::to_rust_string(context, &string)?;
 
         Self::append(context, &this, &string).await?;
 
@@ -132,8 +124,8 @@ impl StringBuffer {
     async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<String>> {
         tracing::debug!("java.lang.StringBuffer::toString({:?})", &this);
 
-        let java_value = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "value", "[C")?;
-        let count = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "count", "I")?;
+        let java_value = context.jvm().get_field(&this, "value", "[C")?;
+        let count = context.jvm().get_field(&this, "count", "I")?;
 
         let string = context.jvm().instantiate_class("java/lang/String").await?;
         context
@@ -145,7 +137,7 @@ impl StringBuffer {
     }
 
     async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: usize) -> JavaResult<()> {
-        let java_value_array = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "value", "[C")?;
+        let java_value_array = context.jvm().get_field(this, "value", "[C")?;
         let current_capacity = context.jvm().array_length(java_value_array.as_object_ref().unwrap())?;
 
         if current_capacity < capacity {
@@ -153,12 +145,9 @@ impl StringBuffer {
             let new_capacity = capacity * 2;
 
             let java_new_value_array = context.jvm().instantiate_array("C", new_capacity).await?;
-            context.jvm().put_field(
-                this.class_instance.as_ref().unwrap(),
-                "value",
-                "[C",
-                JavaValue::Object(Some(java_new_value_array.clone())),
-            )?;
+            context
+                .jvm()
+                .put_field(this, "value", "[C", JavaValue::Object(Some(java_new_value_array.clone())))?;
             context.jvm().store_array(&java_new_value_array, 0, &old_values)?;
         }
 
@@ -166,23 +155,20 @@ impl StringBuffer {
     }
 
     async fn append(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, string: &str) -> JavaResult<()> {
-        let current_count = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "count", "I")?.as_int();
+        let current_count = context.jvm().get_field(this, "count", "I")?.as_int();
 
         let value_to_add = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
         let count_to_add = value_to_add.len() as i32;
 
         StringBuffer::ensure_capacity(context, this, (current_count + count_to_add) as _).await?;
 
-        let java_value_array = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "value", "[C")?;
+        let java_value_array = context.jvm().get_field(this, "value", "[C")?;
         context
             .jvm()
             .store_array(java_value_array.as_object_ref().unwrap(), current_count as _, &value_to_add)?;
-        context.jvm().put_field(
-            this.class_instance.as_ref().unwrap(),
-            "count",
-            "I",
-            JavaValue::Int(current_count + count_to_add),
-        )?;
+        context
+            .jvm()
+            .put_field(this, "count", "I", JavaValue::Int(current_count + count_to_add))?;
 
         Ok(())
     }

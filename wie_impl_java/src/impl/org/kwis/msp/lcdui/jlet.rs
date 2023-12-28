@@ -53,19 +53,13 @@ impl Jlet {
                 "org/kwis/msp/lcdui/Display",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
-                &[
-                    JavaValue::Object(Some(this.class_instance.as_ref().unwrap().clone())),
-                    JavaValue::Object(None),
-                ],
+                &[JavaValue::Object(Some(this.clone())), JavaValue::Object(None)],
             )
             .await?;
 
-        context.jvm().put_field(
-            this.class_instance.as_ref().unwrap(),
-            "dis",
-            "Lorg/kwis/msp/lcdui/Display;",
-            JavaValue::Object(Some(display)),
-        )?;
+        context
+            .jvm()
+            .put_field(&this, "dis", "Lorg/kwis/msp/lcdui/Display;", JavaValue::Object(Some(display)))?;
 
         let event_queue = context.jvm().instantiate_class("org/kwis/msp/lcdui/EventQueue").await?;
         context
@@ -75,16 +69,13 @@ impl Jlet {
                 "org/kwis/msp/lcdui/EventQueue",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;)V",
-                &[JavaValue::Object(Some(this.class_instance.as_ref().unwrap().clone()))],
+                &[JavaValue::Object(Some(this.clone()))],
             )
             .await?;
 
-        context.jvm().put_field(
-            this.class_instance.as_ref().unwrap(),
-            "eq",
-            "Lorg/kwis/msp/lcdui/EventQueue;",
-            JavaValue::Object(Some(event_queue)),
-        )?;
+        context
+            .jvm()
+            .put_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", JavaValue::Object(Some(event_queue)))?;
 
         context
             .jvm()
@@ -92,7 +83,7 @@ impl Jlet {
                 "org/kwis/msp/lcdui/Jlet",
                 "qtletActive",
                 "Lorg/kwis/msp/lcdui/Jlet;",
-                JavaValue::Object(Some(this.class_instance.unwrap())),
+                JavaValue::Object(this.class_instance),
             )
             .await?;
 
@@ -113,9 +104,7 @@ impl Jlet {
     async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
-        let eq = context
-            .jvm()
-            .get_field(&this.class_instance.unwrap(), "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
+        let eq = context.jvm().get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
 
         Ok(JvmClassInstanceProxy::new(Some(eq.as_object_ref().unwrap().clone())))
     }

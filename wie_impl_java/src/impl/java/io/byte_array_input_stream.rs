@@ -32,12 +32,8 @@ impl ByteArrayInputStream {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "buf", "[B", JavaValue::Object(data.class_instance))?;
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "pos", "I", JavaValue::Int(0))?;
+        context.jvm().put_field(&this, "buf", "[B", JavaValue::Object(data.class_instance))?;
+        context.jvm().put_field(&this, "pos", "I", JavaValue::Int(0))?;
 
         Ok(())
     }
@@ -45,8 +41,8 @@ impl ByteArrayInputStream {
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::available({:?})", &this);
 
-        let buf = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "buf", "[B")?;
-        let pos = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "pos", "I")?.as_int();
+        let buf = context.jvm().get_field(&this, "buf", "[B")?;
+        let pos = context.jvm().get_field(&this, "pos", "I")?.as_int();
         let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())? as i32;
 
         Ok((buf_length - pos) as _)
@@ -61,9 +57,9 @@ impl ByteArrayInputStream {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
-        let buf = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "buf", "[B")?;
+        let buf = context.jvm().get_field(&this, "buf", "[B")?;
         let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())?;
-        let pos = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "pos", "I")?.as_int();
+        let pos = context.jvm().get_field(&this, "pos", "I")?.as_int();
 
         let available = (buf_length as i32 - pos) as _;
         let len_to_read = if len > available { available } else { len };
@@ -87,9 +83,7 @@ impl ByteArrayInputStream {
             )
             .await?;
 
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "pos", "I", JavaValue::Int(pos + len))?;
+        context.jvm().put_field(&this, "pos", "I", JavaValue::Int(pos + len))?;
 
         Ok(len)
     }

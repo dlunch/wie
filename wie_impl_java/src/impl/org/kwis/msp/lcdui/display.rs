@@ -70,23 +70,16 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
         let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
-        context.jvm().put_field(
-            this.class_instance.as_ref().unwrap(),
-            "cards",
-            "[Lorg/kwis/msp/lcdui/Card;",
-            JavaValue::Object(Some(cards)),
-        )?;
+        context
+            .jvm()
+            .put_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;", JavaValue::Object(Some(cards)))?;
 
         let screen_canvas = context.backend().screen_canvas();
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "m_w", "I", JavaValue::Int(width as _))?;
-        context
-            .jvm()
-            .put_field(this.class_instance.as_ref().unwrap(), "m_h", "I", JavaValue::Int(height as _))?;
+        context.jvm().put_field(&this, "m_w", "I", JavaValue::Int(width as _))?;
+        context.jvm().put_field(&this, "m_h", "I", JavaValue::Int(height as _))?;
 
         Ok(())
     }
@@ -131,13 +124,11 @@ impl Display {
     async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
-        let cards = context
-            .jvm()
-            .get_field(&this.class_instance.unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
 
         if card.as_object_ref().is_none() {
-            let value = JavaValue::Object(c.class_instance.clone());
+            let value = JavaValue::Object(c.class_instance);
             context.jvm().store_array(cards.as_object_ref().unwrap(), 0, &[value])?;
         }
 

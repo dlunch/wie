@@ -36,12 +36,12 @@ impl InputStream {
     async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, b: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<i32> {
         tracing::debug!("java.lang.InputStream::read({:?}, {:?})", &this, &b);
 
-        let array_length = context.jvm().array_length(b.class_instance.as_ref().unwrap())?;
+        let array_length = context.jvm().array_length(&b)?;
 
         Ok(context
             .jvm()
             .invoke_method(
-                this.class_instance.as_ref().unwrap(),
+                &this,
                 "java/io/InputStream",
                 "read",
                 "([BII)I",

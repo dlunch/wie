@@ -44,7 +44,7 @@ impl Class {
         this: JvmClassInstanceProxy<Self>,
         name: JvmClassInstanceProxy<String>,
     ) -> JavaResult<JvmClassInstanceProxy<InputStream>> {
-        let name = String::to_rust_string(context, &name.class_instance.unwrap())?;
+        let name = String::to_rust_string(context, &name)?;
         tracing::debug!("java.lang.Class::getResourceAsStream({:?}, {})", &this, name);
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };

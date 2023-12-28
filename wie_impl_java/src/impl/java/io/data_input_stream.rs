@@ -29,12 +29,9 @@ impl DataInputStream {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#in: JvmClassInstanceProxy<InputStream>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::<init>({:?}, {:?})", &this, &r#in);
 
-        context.jvm().put_field(
-            this.class_instance.as_ref().unwrap(),
-            "in",
-            "Ljava/io/InputStream;",
-            JavaValue::Object(Some(r#in.class_instance.unwrap())),
-        )?;
+        context
+            .jvm()
+            .put_field(&this, "in", "Ljava/io/InputStream;", JavaValue::Object(r#in.class_instance))?;
 
         Ok(())
     }
@@ -42,9 +39,7 @@ impl DataInputStream {
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::available({:?})", &this);
 
-        let r#in = context
-            .jvm()
-            .get_field(this.class_instance.as_ref().unwrap(), "in", "Ljava/io/InputStream;")?;
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let available = context
             .jvm()
             .invoke_method(r#in.as_object_ref().unwrap(), "java/io/InputStream", "available", "()I", &[])
@@ -62,9 +57,7 @@ impl DataInputStream {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
-        let r#in = context
-            .jvm()
-            .get_field(this.class_instance.as_ref().unwrap(), "in", "Ljava/io/InputStream;")?;
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let result = context
             .jvm()
             .invoke_method(
@@ -82,9 +75,7 @@ impl DataInputStream {
     async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::close({:?})", &this);
 
-        let r#in = context
-            .jvm()
-            .get_field(this.class_instance.as_ref().unwrap(), "in", "Ljava/io/InputStream;")?;
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         context
             .jvm()
             .invoke_method(r#in.as_object_ref().unwrap(), "java/io/InputStream", "close", "()V", &[])

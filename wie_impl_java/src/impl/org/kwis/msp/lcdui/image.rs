@@ -87,7 +87,7 @@ impl Image {
     async fn create_image_from_file(context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
 
-        let name = String::to_rust_string(context, &name.class_instance.unwrap())?;
+        let name = String::to_rust_string(context, &name)?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
         let id = context.backend().resource().id(normalized_name).unwrap();
@@ -108,7 +108,7 @@ impl Image {
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
-        let image_data = context.jvm().load_array(&data.class_instance.unwrap(), offset as _, length as _)?;
+        let image_data = context.jvm().load_array(&data, offset as _, length as _)?;
         let image_data = image_data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
         let image = decode_image(&image_data)?;
 
@@ -118,8 +118,8 @@ impl Image {
     async fn get_graphics(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
 
-        let width = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "w", "I")?;
-        let height = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "h", "I")?;
+        let width = context.jvm().get_field(&this, "w", "I")?;
+        let height = context.jvm().get_field(&this, "h", "I")?;
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
         context
@@ -129,13 +129,7 @@ impl Image {
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                &[
-                    JavaValue::Object(Some(this.class_instance.unwrap().clone())),
-                    JavaValue::Int(0),
-                    JavaValue::Int(0),
-                    width,
-                    height,
-                ],
+                &[JavaValue::Object(Some(this.clone())), JavaValue::Int(0), JavaValue::Int(0), width, height],
             )
             .await?;
 
@@ -145,13 +139,13 @@ impl Image {
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
 
-        Ok(context.jvm().get_field(&this.class_instance.unwrap(), "w", "I")?.as_int() as _)
+        Ok(context.jvm().get_field(&this, "w", "I")?.as_int() as _)
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
 
-        Ok(context.jvm().get_field(&this.class_instance.unwrap(), "h", "I")?.as_int() as _)
+        Ok(context.jvm().get_field(&this, "h", "I")?.as_int() as _)
     }
 
     pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
