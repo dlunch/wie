@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
 };
 
 // class java.lang.Runtime
@@ -30,14 +30,13 @@ impl Runtime {
         Ok(())
     }
 
-    async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Runtime>> {
+    async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.Runtime::get_runtime");
 
         let instance = context.jvm().instantiate_class("java/lang/Runtime").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
-        context.call_method(&instance.cast(), "<init>", "()V", &[]).await?;
+        context.jvm().invoke_method(&instance, "java/lang/Runtime", "<init>", "()V", &[]).await?;
 
-        Ok(instance)
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 
     async fn total_memory(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<i32> {

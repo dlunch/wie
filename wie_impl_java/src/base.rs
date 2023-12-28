@@ -4,11 +4,7 @@ use jvm::{ClassInstanceRef, Jvm};
 
 use wie_backend::{task::SleepFuture, Backend};
 
-use crate::{
-    method::{MethodBody, MethodImpl, TypeConverter},
-    proxy::JavaObjectProxy,
-    r#impl::java::lang::Object,
-};
+use crate::method::{MethodBody, MethodImpl, TypeConverter};
 
 pub struct JavaClassProto {
     pub parent_class: Option<&'static str>,
@@ -104,14 +100,6 @@ pub trait JavaContext {
     fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord; // TODO will be removed
     fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
     fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
-    async fn call_method(
-        &mut self,
-        instance: &JavaObjectProxy<Object>,
-        method_name: &str,
-        descriptor: &str,
-        args: &[JavaWord],
-    ) -> JavaResult<JavaWord>; // invokespecial/invokevirtual
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord>; // invokestatic
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;

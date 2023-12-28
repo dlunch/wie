@@ -10,7 +10,7 @@ use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 use wie_impl_java::{JavaMethodBody, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord};
 
-use super::{vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
+use super::{value::JavaValueExt, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -106,7 +106,7 @@ impl JavaMethod {
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, args: &[JavaWord]) -> JavaResult<u32> {
+    pub async fn run(&self, args: &[JavaValue]) -> JavaResult<u32> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         let mut core = self.core.clone();
@@ -114,7 +114,7 @@ impl JavaMethod {
         if raw.flag.contains(JavaMethodFlagBit::NATIVE) {
             let arg_container = Allocator::alloc(&mut core, (args.len() as u32) * 4)?;
             for (i, arg) in args.iter().enumerate() {
-                write_generic(&mut core, arg_container + (i * 4) as u32, *arg as u32)?;
+                write_generic(&mut core, arg_container + (i * 4) as u32, arg.as_raw())?;
             }
 
             let result = core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
@@ -124,7 +124,7 @@ impl JavaMethod {
             result
         } else {
             let mut params = vec![0];
-            params.extend(args.iter().map(|&x| x as u32));
+            params.extend(args.iter().map(|x| x.as_raw()));
 
             core.run_function(raw.fn_body, &params).await
         }
@@ -189,9 +189,9 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, _jvm: &mut Jvm, args: &[JavaValue]) -> JvmResult<JavaValue> {
-        let args = args.iter().map(|x| x.as_long() as _).collect::<Vec<_>>();
-        let result = self.run(&args).await?;
+        let result = self.run(args).await?;
+        let return_type = &self.descriptor()[self.descriptor().find(')').unwrap() + 1..];
 
-        Ok(JavaValue::Long(result as _))
+        Ok(JavaValue::from_raw(result, return_type, &self.core))
     }
 }

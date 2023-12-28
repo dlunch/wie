@@ -10,7 +10,7 @@ mod name;
 mod value;
 mod vtable_builder;
 
-use alloc::{borrow::ToOwned, boxed::Box, format, rc::Rc};
+use alloc::{boxed::Box, format, rc::Rc};
 use core::cell::RefCell;
 
 use bytemuck::{Pod, Zeroable};
@@ -22,13 +22,15 @@ use wie_backend::{
     AsyncCallable, Backend,
 };
 use wie_core_arm::ArmCore;
-use wie_impl_java::{r#impl::java::lang::Object, JavaContext, JavaError, JavaMethodBody, JavaObjectProxy, JavaResult, JavaWord};
+use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult, JavaWord};
 
 pub use self::name::JavaFullName;
 use self::{
     array_class::JavaArrayClass, array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance,
     class_loader::ClassLoader, context_data::JavaContextData,
 };
+
+pub type KtfJvmWord = u32;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -112,10 +114,10 @@ impl<'a> KtfJavaContext<'a> {
             descriptor: "()V".into(),
         })?;
 
-        if let Some(mut x) = clinit {
+        if let Some(x) = clinit {
             tracing::trace!("Call <clinit>");
 
-            class.invoke_static_method(&mut x, &[]).await?;
+            x.run(&[]).await?;
         }
 
         Ok(())
@@ -149,39 +151,6 @@ impl JavaContext for KtfJavaContext<'_> {
 
     fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef {
         Rc::new(RefCell::new(Box::new(JavaArrayClassInstance::from_raw(raw as _, self.core))))
-    }
-
-    async fn call_method(&mut self, proxy: &JavaObjectProxy<Object>, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
-        let instance = JavaClassInstance::from_raw(proxy.ptr_instance as _, self.core);
-        let class = instance.class()?;
-
-        tracing::trace!("Call {}::{}({})", class.name()?, method_name, descriptor);
-
-        let mut method = class
-            .method(&JavaFullName {
-                tag: 0,
-                name: method_name.to_owned(),
-                descriptor: descriptor.to_owned(),
-            })?
-            .unwrap();
-
-        Ok(instance.invoke_method(&mut method, args).await? as _)
-    }
-
-    async fn call_static_method(&mut self, class_name: &str, method_name: &str, descriptor: &str, args: &[JavaWord]) -> JavaResult<JavaWord> {
-        tracing::trace!("Call {}::{}({})", class_name, method_name, descriptor);
-
-        let class = self.load_class(class_name).await?.unwrap();
-
-        let mut method = class
-            .method(&JavaFullName {
-                tag: 0,
-                name: method_name.to_owned(),
-                descriptor: descriptor.to_owned(),
-            })?
-            .unwrap();
-
-        Ok(class.invoke_static_method(&mut method, args).await? as _)
     }
 
     fn backend(&mut self) -> &mut Backend {

@@ -72,20 +72,11 @@ impl JavaArrayClassInstance {
         let base_address = self.class_instance.field_address(4)?;
 
         let element_size = self.element_size()?;
-        let element_type = self.element_type_descriptor()?;
 
         let raw_values = match element_size {
-            1 => values.iter().map(|x| x.as_raw(&element_type) as u8).collect::<Vec<_>>(),
-            2 => values
-                .iter()
-                .map(|x| x.as_raw(&element_type) as u16)
-                .flat_map(u16::to_le_bytes)
-                .collect::<Vec<_>>(),
-            4 => values
-                .iter()
-                .map(|x| x.as_raw(&element_type) as u32)
-                .flat_map(u32::to_le_bytes)
-                .collect::<Vec<_>>(),
+            1 => values.iter().map(|x| x.as_raw() as u8).collect::<Vec<_>>(),
+            2 => values.iter().map(|x| x.as_raw() as u16).flat_map(u16::to_le_bytes).collect::<Vec<_>>(),
+            4 => values.iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
             _ => todo!(),
         };
 

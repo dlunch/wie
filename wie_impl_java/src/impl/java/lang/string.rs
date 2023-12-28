@@ -62,9 +62,20 @@ impl String {
 
         let count = context.jvm().array_length(&value.class_instance)?;
 
-        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
-        let value = context.instance_raw(&value.class_instance);
-        context.call_method(&this, "<init>", "([BII)V", &[value, 0, count as _]).await?;
+        context
+            .jvm()
+            .invoke_method(
+                &this.class_instance,
+                "java/lang/String",
+                "<init>",
+                "([BII)V",
+                &[
+                    JavaValue::Object(Some(value.class_instance)),
+                    JavaValue::Int(0),
+                    JavaValue::Int(count as _),
+                ],
+            )
+            .await?;
 
         Ok(())
     }
@@ -82,9 +93,20 @@ impl String {
 
         let count = context.jvm().array_length(&value.class_instance)?;
 
-        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
-        let value = context.instance_raw(&value.class_instance);
-        context.call_method(&this, "<init>", "([CII)V", &[value, 0, count as _]).await?;
+        context
+            .jvm()
+            .invoke_method(
+                &this.class_instance,
+                "java/lang/String",
+                "<init>",
+                "([CII)V",
+                &[
+                    JavaValue::Object(Some(value.class_instance)),
+                    JavaValue::Int(0),
+                    JavaValue::Int(count as _),
+                ],
+            )
+            .await?;
 
         Ok(())
     }
@@ -138,9 +160,16 @@ impl String {
         let array = context.jvm().instantiate_array("C", utf16.len()).await?;
         context.jvm().store_array(&array, 0, &utf16)?;
 
-        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
-        let array = context.instance_raw(&array);
-        context.call_method(&this, "<init>", "([C)V", &[array]).await?;
+        context
+            .jvm()
+            .invoke_method(
+                &this.class_instance,
+                "java/lang/String",
+                "<init>",
+                "([C)V",
+                &[JavaValue::Object(Some(array))],
+            )
+            .await?;
 
         Ok(())
     }
@@ -323,11 +352,12 @@ impl String {
         context.jvm().store_array(&java_value, 0, &data)?;
 
         let instance = context.jvm().instantiate_class("java/lang/String").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
 
-        let java_value = context.instance_raw(&java_value);
-        context.call_method(&instance, "<init>", "([C)V", &[java_value]).await?;
+        context
+            .jvm()
+            .invoke_method(&instance, "java/lang/String", "<init>", "([C)V", &[JavaValue::Object(Some(java_value))])
+            .await?;
 
-        Ok(JvmClassInstanceProxy::new(context.instance_from_raw(instance.ptr_instance)))
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 }

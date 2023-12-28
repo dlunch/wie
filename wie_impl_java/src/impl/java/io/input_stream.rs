@@ -1,9 +1,11 @@
 use alloc::vec;
 
+use jvm::JavaValue;
+
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
     proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class java.io.InputStream
@@ -40,8 +42,20 @@ impl InputStream {
 
         let array_length = context.jvm().array_length(&b.class_instance)?;
 
-        let this = JavaObjectProxy::new(context.instance_raw(&this.class_instance));
-        let b = context.instance_raw(&b.class_instance);
-        Ok(context.call_method(&this, "read", "([BII)I", &[b, 0, array_length as _]).await? as _)
+        Ok(context
+            .jvm()
+            .invoke_method(
+                &this.class_instance,
+                "java/io/InputStream",
+                "read",
+                "([BII)I",
+                &[
+                    JavaValue::Object(Some(b.class_instance)),
+                    JavaValue::Int(0),
+                    JavaValue::Int(array_length as _),
+                ],
+            )
+            .await?
+            .as_int())
     }
 }

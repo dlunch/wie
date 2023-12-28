@@ -41,11 +41,15 @@ impl Class {
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref https://github.com/rust-lang/rust-clippy/issues/6353
     async fn get_resource_as_stream(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<Class>,
+        this: JvmClassInstanceProxy<Self>,
         name: JvmClassInstanceProxy<String>,
-    ) -> JavaResult<JavaObjectProxy<InputStream>> {
+    ) -> JavaResult<JvmClassInstanceProxy<InputStream>> {
         let name = String::to_rust_string(context, &name.class_instance)?;
-        tracing::debug!("java.lang.Class::getResourceAsStream({:#x}, {})", this.ptr_instance, name);
+        tracing::debug!(
+            "java.lang.Class::getResourceAsStream({:#x}, {})",
+            context.instance_raw(&this.class_instance),
+            name
+        );
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
@@ -61,13 +65,20 @@ impl Class {
             drop(data);
 
             let result = context.jvm().instantiate_class("java/io/ByteArrayInputStream").await?;
-            let result = JavaObjectProxy::new(context.instance_raw(&result));
-            let array = context.instance_raw(&array);
-            context.call_method(&result.cast(), "<init>", "([B)V", &[array]).await?;
+            context
+                .jvm()
+                .invoke_method(
+                    &result,
+                    "java/io/ByteArrayInputStream",
+                    "<init>",
+                    "([B)V",
+                    &[JavaValue::Object(Some(array))],
+                )
+                .await?;
 
-            Ok(result)
+            Ok(JvmClassInstanceProxy::new(result))
         } else {
-            Ok(JavaObjectProxy::new(0))
+            anyhow::bail!("No such instance") // TODO return null
         }
     }
 }

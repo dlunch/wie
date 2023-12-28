@@ -82,18 +82,18 @@ impl ByteArrayInputStream {
             return Ok(0);
         }
 
-        let b = context.instance_raw(&b.class_instance);
         context
-            .call_static_method(
+            .jvm()
+            .invoke_static_method(
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                 &[
-                    context.instance_raw(buf.as_object_ref().unwrap()),
-                    pos as _,
-                    b,
-                    off as _,
-                    len_to_read as _,
+                    buf,
+                    JavaValue::Int(pos as _),
+                    JavaValue::Object(Some(b.class_instance)),
+                    JavaValue::Int(off as _),
+                    JavaValue::Int(len_to_read as _),
                 ],
             )
             .await?;

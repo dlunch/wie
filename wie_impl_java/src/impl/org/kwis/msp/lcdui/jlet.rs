@@ -45,16 +45,17 @@ impl Jlet {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:#x})", context.instance_raw(&this.class_instance));
 
         let display = context.jvm().instantiate_class("org/kwis/msp/lcdui/Display").await?;
-        let display = JavaObjectProxy::new(context.instance_raw(&display));
+
         context
-            .call_method(
+            .jvm()
+            .invoke_method(
                 &display,
+                "org/kwis/msp/lcdui/Display",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
-                &[context.instance_raw(&this.class_instance), 0],
+                &[JavaValue::Object(Some(this.class_instance.clone())), JavaValue::Int(0)],
             )
             .await?;
-        let display = context.instance_from_raw(display.ptr_instance);
 
         context.jvm().put_field(
             &this.class_instance,
@@ -64,17 +65,17 @@ impl Jlet {
         )?;
 
         let event_queue = context.jvm().instantiate_class("org/kwis/msp/lcdui/EventQueue").await?;
-        let event_queue = JavaObjectProxy::new(context.instance_raw(&event_queue));
         context
-            .call_method(
+            .jvm()
+            .invoke_method(
                 &event_queue,
+                "org/kwis/msp/lcdui/EventQueue",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;)V",
-                &[context.instance_raw(&this.class_instance)],
+                &[JavaValue::Object(Some(this.class_instance.clone()))],
             )
             .await?;
 
-        let event_queue = context.instance_from_raw(event_queue.ptr_instance);
         context.jvm().put_field(
             &this.class_instance,
             "eq",
@@ -120,15 +121,22 @@ impl Jlet {
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
         let main_class_name = main_class_name.replace('.', "/");
-        let ptr_main_class = context.jvm().instantiate_class(&main_class_name).await?;
-        let ptr_main_class = JavaObjectProxy::new(context.instance_raw(&ptr_main_class));
-        context.call_method(&ptr_main_class, "<init>", "()V", &[]).await?;
+        let main_class = context.jvm().instantiate_class(&main_class_name).await?;
+        context.jvm().invoke_method(&main_class, &main_class_name, "<init>", "()V", &[]).await?;
 
-        tracing::debug!("Main class instance: {:#x}", ptr_main_class.ptr_instance);
+        tracing::debug!("Main class instance: {:#x}", context.instance_raw(&main_class));
 
         let arg = context.jvm().instantiate_array("Ljava/lang/String;", 0).await?;
-        let arg = context.instance_raw(&arg);
-        context.call_method(&ptr_main_class, "startApp", "([Ljava/lang/String;)V", &[arg]).await?;
+        context
+            .jvm()
+            .invoke_method(
+                &main_class,
+                &main_class_name,
+                "startApp",
+                "([Ljava/lang/String;)V",
+                &[JavaValue::Object(Some(arg))],
+            )
+            .await?;
 
         struct StartProxy {}
 
@@ -137,7 +145,8 @@ impl Jlet {
             #[tracing::instrument(name = "main", skip_all)]
             async fn call(&self, context: &mut dyn JavaContext, _: &[usize]) -> Result<usize, JavaError> {
                 context
-                    .call_static_method("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", &[])
+                    .jvm()
+                    .invoke_static_method("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", &[])
                     .await?;
 
                 Ok(0)

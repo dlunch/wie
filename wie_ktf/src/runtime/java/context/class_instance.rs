@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
@@ -11,7 +11,7 @@ use wie_impl_java::{JavaResult, JavaWord};
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
-use super::{class::JavaClass, field::JavaField, method::JavaMethod, value::JavaValueExt};
+use super::{class::JavaClass, field::JavaField, value::JavaValueExt, KtfJvmWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -62,29 +62,22 @@ impl JavaClassInstance {
         Ok(JavaClass::from_raw(raw.ptr_class, &self.core))
     }
 
-    pub fn read_field(&self, field: &JavaField) -> JavaResult<JavaWord> {
+    pub fn read_field(&self, field: &JavaField) -> JavaResult<KtfJvmWord> {
         let offset = field.offset()?;
 
         let address = self.field_address(offset)?;
 
-        let value: u32 = read_generic(&self.core, address)?;
+        let value: KtfJvmWord = read_generic(&self.core, address)?;
 
-        Ok(value as _)
+        Ok(value)
     }
 
-    pub fn write_field(&mut self, field: &JavaField, value: JavaWord) -> JavaResult<()> {
+    pub fn write_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JavaResult<()> {
         let offset = field.offset()?;
 
         let address = self.field_address(offset)?;
 
-        write_generic(&mut self.core, address, value as u32)
-    }
-
-    pub async fn invoke_method(&self, method: &mut JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
-        let mut params = vec![self.ptr_raw as _];
-        params.extend(args);
-
-        method.run(&params).await
+        write_generic(&mut self.core, address, value)
     }
 
     pub(super) fn field_address(&self, offset: u32) -> JavaResult<u32> {
@@ -144,7 +137,7 @@ impl ClassInstance for JavaClassInstance {
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
 
-        self.write_field(field, value.as_raw(&field.descriptor()))
+        self.write_field(field, value.as_raw())
     }
 
     fn as_array_instance(&self) -> Option<&dyn ArrayClassInstance> {
