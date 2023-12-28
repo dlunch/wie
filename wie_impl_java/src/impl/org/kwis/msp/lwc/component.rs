@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::JvmClassInstanceProxy,
 };
 
 // class org.kwis.msp.lwc.Component
@@ -22,25 +22,20 @@ impl Component {
         }
     }
 
-    async fn key_notify(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>, r#type: i32, chr: i32) -> JavaResult<i32> {
-        tracing::warn!(
-            "stub org.kwis.msp.lwc.Component::keyNotify({:?}, {:?}, {:?})",
-            this.ptr_instance,
-            r#type,
-            chr
-        );
+    async fn key_notify(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#type: i32, chr: i32) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::keyNotify({:?}, {:?}, {:?})", &this, r#type, chr);
 
         Ok(1)
     }
 
-    async fn set_focus(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::setFocus({:?})", this.ptr_instance,);
+    async fn set_focus(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::setFocus({:?})", &this,);
 
         Ok(())
     }
 
-    async fn get_height(_: &mut dyn JavaContext, this: JavaObjectProxy<Component>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({:?})", this.ptr_instance,);
+    async fn get_height(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({:?})", &this,);
 
         Ok(0)
     }

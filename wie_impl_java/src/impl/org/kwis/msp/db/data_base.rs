@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::java::lang::String,
 };
 
@@ -84,8 +84,8 @@ impl DataBase {
         Ok(count as _)
     }
 
-    async fn close_data_base(_: &mut dyn JavaContext, this: JavaObjectProxy<DataBase>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", this.ptr_instance);
+    async fn close_data_base(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<DataBase>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
         Ok(())
     }

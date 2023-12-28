@@ -7,7 +7,7 @@ use crate::{
     method::MethodBody,
     proxy::JvmClassInstanceProxy,
     r#impl::org::kwis::msp::lcdui::EventQueue,
-    JavaFieldAccessFlag, JavaObjectProxy,
+    JavaFieldAccessFlag,
 };
 
 // class org.kwis.msp.lcdui.Jlet
@@ -96,16 +96,15 @@ impl Jlet {
         Ok(())
     }
 
-    async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Jlet>> {
+    async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
         let jlet = context
             .jvm()
             .get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;")
             .await?;
-        let instance = context.instance_raw(jlet.as_object_ref().unwrap());
 
-        Ok(JavaObjectProxy::new(instance))
+        Ok(JvmClassInstanceProxy::new(jlet.as_object().unwrap()))
     }
 
     async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<EventQueue>> {

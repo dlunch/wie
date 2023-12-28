@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::JvmClassInstanceProxy,
 };
 
 // class org.kwis.msp.lwc.AnnunciatorComponent
@@ -21,8 +21,8 @@ impl AnnunciatorComponent {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<AnnunciatorComponent>, a0: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", this.ptr_instance, a0);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<AnnunciatorComponent>, a0: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", &this, a0);
 
         Ok(())
     }

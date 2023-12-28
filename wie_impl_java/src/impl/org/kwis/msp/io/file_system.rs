@@ -2,8 +2,9 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class org.kwis.msp.io.FileSystem
@@ -24,26 +25,26 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", name.ptr_instance);
+    async fn is_file(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
         Ok(0)
     }
 
-    async fn is_directory(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>, flag: i32) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", name.ptr_instance, flag);
+    async fn is_directory(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>, flag: i32) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
 
         Ok(1)
     }
 
-    async fn exists(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", name.ptr_instance);
+    async fn exists(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
         Ok(0)
     }
 
-    async fn available(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::available({:?})", name.ptr_instance);
+    async fn available(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::available({:?})", &name);
 
         Ok(0x1000000) // TODO temp
     }

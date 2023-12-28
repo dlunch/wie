@@ -12,7 +12,7 @@ use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
     proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::java::lang::Object,
-    JavaContext, JavaFieldAccessFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaFieldAccessFlag, JavaResult,
 };
 
 // class java.lang.String
@@ -255,8 +255,8 @@ impl String {
         Self::from_rust_string(context, &string).await
     }
 
-    async fn value_of_object(context: &mut dyn JavaContext, value: JavaObjectProxy<Object>) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::warn!("stub java.lang.String::valueOf({:?})", value.ptr_instance);
+    async fn value_of_object(context: &mut dyn JavaContext, value: JvmClassInstanceProxy<Object>) -> JavaResult<JvmClassInstanceProxy<Self>> {
+        tracing::warn!("stub java.lang.String::valueOf({:?})", &value);
 
         // TODO Object.toString()
 

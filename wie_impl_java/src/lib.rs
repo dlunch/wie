@@ -8,10 +8,7 @@ pub mod r#impl;
 mod method;
 mod proxy;
 
-pub use self::{
-    base::{
-        get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodFlag,
-        JavaMethodProto, JavaResult, JavaWord,
-    },
-    proxy::JavaObjectProxy,
+pub use self::base::{
+    get_class_proto, JavaClassProto, JavaContext, JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodFlag, JavaMethodProto,
+    JavaResult, JavaWord,
 };

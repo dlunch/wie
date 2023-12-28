@@ -7,7 +7,7 @@ use wie_backend::task;
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::MethodBody,
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::Runnable,
     JavaError,
 };
@@ -91,8 +91,8 @@ impl Thread {
         Ok(0)
     }
 
-    async fn set_priority(_: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, new_priority: i32) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Thread::setPriority({:?}, {:?})", this.ptr_instance, new_priority);
+    async fn set_priority(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Thread>, new_priority: i32) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.Thread::setPriority({:?}, {:?})", &this, new_priority);
 
         Ok(())
     }

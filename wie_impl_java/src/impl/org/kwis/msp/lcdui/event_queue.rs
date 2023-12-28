@@ -5,7 +5,7 @@ use wie_base::KeyCode;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::org::kwis::msp::lcdui::{Image as JavaImage, Jlet},
 };
 
@@ -101,8 +101,8 @@ impl EventQueue {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<EventQueue>, jlet: JavaObjectProxy<Jlet>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", this.ptr_instance, jlet.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<EventQueue>, jlet: JvmClassInstanceProxy<Jlet>) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
     }

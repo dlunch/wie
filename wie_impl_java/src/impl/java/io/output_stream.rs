@@ -2,7 +2,8 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    proxy::JvmClassInstanceProxy,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class java.io.OutputStream
@@ -18,8 +19,8 @@ impl OutputStream {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<OutputStream>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.OutputStream::<init>({:?})", this.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.OutputStream::<init>({:?})", &this);
 
         Ok(())
     }

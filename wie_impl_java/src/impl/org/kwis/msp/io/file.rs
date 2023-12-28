@@ -4,7 +4,7 @@ use crate::{
     base::{JavaClassProto, JavaMethodProto},
     proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class org.kwis.msp.io.File
@@ -25,8 +25,13 @@ impl File {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JavaObjectProxy<File>, filename: JvmClassInstanceProxy<String>, mode: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", this.ptr_instance, &filename, mode);
+    async fn init(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        filename: JvmClassInstanceProxy<String>,
+        mode: i32,
+    ) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
 
         let filename = String::to_rust_string(context, &filename.class_instance)?;
         tracing::debug!("filename: {}", filename);
@@ -36,18 +41,12 @@ impl File {
 
     async fn init_with_flag(
         context: &mut dyn JavaContext,
-        this: JavaObjectProxy<File>,
+        this: JvmClassInstanceProxy<Self>,
         filename: JvmClassInstanceProxy<String>,
         mode: i32,
         flag: i32,
     ) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})",
-            this.ptr_instance,
-            &filename,
-            mode,
-            flag
-        );
+        tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
         let filename = String::to_rust_string(context, &filename.class_instance)?;
         tracing::debug!("filename: {}", filename);
@@ -57,24 +56,18 @@ impl File {
 
     async fn write(
         _context: &mut dyn JavaContext,
-        this: JavaObjectProxy<File>,
-        buf: JavaObjectProxy<JavaObjectProxy<u8>>,
+        this: JvmClassInstanceProxy<Self>,
+        buf: JvmClassInstanceProxy<JvmClassInstanceProxy<u8>>,
         offset: i32,
         len: i32,
     ) -> JavaResult<i32> {
-        tracing::warn!(
-            "stub org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})",
-            this.ptr_instance,
-            buf.ptr_instance,
-            offset,
-            len
-        );
+        tracing::warn!("stub org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})", &this, &buf, offset, len);
 
         Ok(len)
     }
 
-    async fn close(_context: &mut dyn JavaContext, this: JavaObjectProxy<File>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.io.File::close({:?})", this.ptr_instance);
+    async fn close(_context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())
     }

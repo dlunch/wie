@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
 };
 
@@ -21,14 +21,14 @@ impl TextFieldComponent {
 
     async fn init(
         _: &mut dyn JavaContext,
-        this: JavaObjectProxy<TextFieldComponent>,
-        data: JavaObjectProxy<String>,
+        this: JvmClassInstanceProxy<TextFieldComponent>,
+        data: JvmClassInstanceProxy<String>,
         constraint: i32,
     ) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {:?}, {:?})",
-            this.ptr_instance,
-            data.ptr_instance,
+            &this,
+            &data,
             constraint
         );
 

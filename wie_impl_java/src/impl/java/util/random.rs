@@ -2,7 +2,8 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    proxy::JvmClassInstanceProxy,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class java.util.Random
@@ -18,8 +19,8 @@ impl Random {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Random>) -> JavaResult<()> {
-        tracing::warn!("stub java.util.Random::<init>({:?})", this.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub java.util.Random::<init>({:?})", &this);
 
         Ok(())
     }

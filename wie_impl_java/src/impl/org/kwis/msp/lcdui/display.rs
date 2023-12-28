@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::{
         java::lang::{Object, String},
         org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
@@ -64,15 +64,10 @@ impl Display {
     async fn init(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        jlet: JavaObjectProxy<Jlet>,
-        display_proxy: JavaObjectProxy<Object>,
+        jlet: JvmClassInstanceProxy<Jlet>,
+        display_proxy: JvmClassInstanceProxy<Object>,
     ) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})",
-            &this,
-            jlet.ptr_instance,
-            display_proxy.ptr_instance
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
         let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
         context.jvm().put_field(
@@ -92,8 +87,8 @@ impl Display {
         Ok(())
     }
 
-    async fn get_display(context: &mut dyn JavaContext, str: JavaObjectProxy<String>) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:?})", str.ptr_instance);
+    async fn get_display(context: &mut dyn JavaContext, str: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<Self>> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:?})", &str);
 
         let jlet = context
             .jvm()
@@ -123,10 +118,10 @@ impl Display {
         Ok(JvmClassInstanceProxy::new(result.as_object().unwrap()))
     }
 
-    async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Card>> {
+    async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
-        Ok(JavaObjectProxy::new(0))
+        Ok(0) // TODO return type
     }
 
     async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
@@ -151,14 +146,10 @@ impl Display {
 
     async fn add_jlet_event_listener(
         _: &mut dyn JavaContext,
-        this: JavaObjectProxy<Display>,
-        qel: JavaObjectProxy<JletEventListener>,
+        this: JvmClassInstanceProxy<Display>,
+        qel: JvmClassInstanceProxy<JletEventListener>,
     ) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Display::addJletEventListener({:?}, {:?})",
-            this.ptr_instance,
-            qel.ptr_instance
-        );
+        tracing::warn!("stub org.kwis.msp.lcdui.Display::addJletEventListener({:?}, {:?})", &this, &qel);
 
         Ok(())
     }
