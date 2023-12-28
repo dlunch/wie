@@ -59,7 +59,7 @@ impl TestContext {
 
                 impl<'a> JavaContext for InnerContext<'a> {
                     fn jvm(&mut self) -> &mut Jvm {
-                        &mut self.jvm
+                        self.jvm
                     }
 
                     fn backend(&mut self) -> &mut Backend {
