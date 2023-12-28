@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, rc::Rc};
 use core::cell::RefCell;
 
-use jvm::{JavaType, JavaValue};
+use jvm::{ClassInstance, JavaType, JavaValue};
 
 use wie_core_arm::ArmCore;
 
@@ -27,8 +27,12 @@ impl JavaValueExt for JavaValue {
             JavaType::Class(_) => {
                 if raw != 0 {
                     let instance = JavaClassInstance::from_raw(raw, core);
-
-                    JavaValue::Object(Some(Rc::new(RefCell::new(Box::new(instance)))))
+                    if instance.class_name().starts_with('[') {
+                        let instance = JavaArrayClassInstance::from_raw(raw, core);
+                        JavaValue::Object(Some(Rc::new(RefCell::new(Box::new(instance)))))
+                    } else {
+                        JavaValue::Object(Some(Rc::new(RefCell::new(Box::new(instance)))))
+                    }
                 } else {
                     JavaValue::Object(None)
                 }
