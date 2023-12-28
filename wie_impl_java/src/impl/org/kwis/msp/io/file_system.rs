@@ -43,8 +43,8 @@ impl FileSystem {
         Ok(false)
     }
 
-    async fn available(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::available({:?})", &name);
+    async fn available(_context: &mut dyn JavaContext) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::available()");
 
         Ok(0x1000000) // TODO temp
     }
