@@ -126,6 +126,7 @@ impl JavaMethod {
                 write_generic(&mut core, arg_container + (i * 4) as u32, arg.as_raw())?;
             }
 
+            tracing::trace!("Calling native method: {:#x}", raw.fn_body_native_or_exception_table);
             let result = core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
 
             Allocator::free(&mut core, arg_container)?;
@@ -135,6 +136,7 @@ impl JavaMethod {
             let mut params = vec![0];
             params.extend(args.iter().map(|x| x.as_raw()));
 
+            tracing::trace!("Calling method: {:#x}", raw.fn_body);
             core.run_function(raw.fn_body, &params).await
         }
     }
