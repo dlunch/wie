@@ -59,7 +59,7 @@ impl JavaContextData {
 
     pub fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
         let context_data = Self::read(core)?;
-        let ptr_classes: alloc::vec::Vec<u32> = read_null_terminated_table(core, context_data.classes_base)?;
+        let ptr_classes = read_null_terminated_table(core, context_data.classes_base)?;
         if ptr_classes.contains(&class.ptr_raw) {
             return Ok(());
         }
@@ -69,6 +69,13 @@ impl JavaContextData {
             context_data.classes_base + (ptr_classes.len() * size_of::<u32>()) as u32,
             class.ptr_raw,
         )
+    }
+
+    pub fn has_class(core: &ArmCore, class: &JavaClass) -> JavaResult<bool> {
+        let context_data = Self::read(core)?;
+        let ptr_classes = read_null_terminated_table(core, context_data.classes_base)?;
+
+        Ok(ptr_classes.contains(&class.ptr_raw))
     }
 
     pub fn find_class(core: &ArmCore, name: &str) -> JavaResult<Option<JavaClass>> {
