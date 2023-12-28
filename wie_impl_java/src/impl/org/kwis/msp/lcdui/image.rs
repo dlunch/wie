@@ -10,7 +10,7 @@ use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendI
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::{java::lang::String, org::kwis::msp::lcdui::Graphics},
     JavaFieldAccessFlag,
 };
@@ -51,8 +51,8 @@ impl Image {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Image>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::<init>({:?})", this.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Image>) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::<init>({:?})", &this);
 
         Ok(())
     }

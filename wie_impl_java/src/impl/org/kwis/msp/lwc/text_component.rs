@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
+    proxy::JvmClassInstanceProxy,
 };
 
 // class org.kwis.msp.lwc.TextComponent
@@ -18,12 +18,8 @@ impl TextComponent {
         }
     }
 
-    async fn set_max_length(_: &mut dyn JavaContext, this: JavaObjectProxy<TextComponent>, max_length: i32) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {})",
-            this.ptr_instance,
-            max_length
-        );
+    async fn set_max_length(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<TextComponent>, max_length: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {})", &this, max_length);
 
         Ok(())
     }

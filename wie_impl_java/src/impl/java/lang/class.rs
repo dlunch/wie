@@ -8,7 +8,7 @@ use crate::{
     base::{JavaClassProto, JavaMethodProto},
     proxy::JvmClassInstanceProxy,
     r#impl::java::{io::InputStream, lang::String},
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class java.lang.Class
@@ -32,8 +32,8 @@ impl Class {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Class>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Class::<init>({:?})", this.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.Class::<init>({:?})", &this);
 
         Ok(())
     }

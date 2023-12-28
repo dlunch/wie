@@ -7,7 +7,7 @@ use wie_backend::canvas::{PixelType, Rgb8Pixel};
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JavaWord},
     method::TypeConverter,
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::{
         java::lang::String,
         org::kwis::msp::lcdui::{Display, Font, Image},
@@ -121,8 +121,8 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JvmClassInstanceProxy<Font>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:?})", this.ptr_instance);
+    async fn get_font(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>) -> JavaResult<JvmClassInstanceProxy<Font>> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:?})", &this);
 
         let font = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
         context
@@ -151,26 +151,22 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_font(_context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, font: JavaObjectProxy<Font>) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.lcdui.Graphics::setFont({:?}, {:?})",
-            this.ptr_instance,
-            font.ptr_instance
-        );
+    async fn set_font(_context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, font: JvmClassInstanceProxy<Font>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setFont({:?}, {:?})", &this, &font);
 
         Ok(())
     }
 
-    async fn set_alpha(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, a1: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", this.ptr_instance, a1);
+    async fn set_alpha(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, a1: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", &this, a1);
 
         Ok(())
     }
 
-    async fn set_clip(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
+    async fn set_clip(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Graphics::setClip({:?}, {}, {}, {}, {})",
-            this.ptr_instance,
+            &this,
             x,
             y,
             width,
@@ -180,10 +176,10 @@ impl Graphics {
         Ok(())
     }
 
-    async fn clip_rect(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
+    async fn clip_rect(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Graphics::clipRect({:?}, {}, {}, {}, {})",
-            this.ptr_instance,
+            &this,
             x,
             y,
             width,
@@ -305,14 +301,14 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_clip_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:?})", this.ptr_instance);
+    async fn get_clip_x(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_clip_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:?})", this.ptr_instance);
+    async fn get_clip_y(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:?})", &this);
 
         Ok(0)
     }
@@ -333,20 +329,20 @@ impl Graphics {
         Ok(h as _)
     }
 
-    async fn get_translate_x(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:?})", this.ptr_instance);
+    async fn get_translate_x(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_translate_y(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:?})", this.ptr_instance);
+    async fn get_translate_y(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>) -> JavaResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:?})", &this);
 
         Ok(0)
     }
 
-    async fn translate(_: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>, x: i32, y: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:?}, {}, {})", this.ptr_instance, x, y);
+    async fn translate(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>, x: i32, y: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
 
         Ok(())
     }

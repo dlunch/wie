@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy},
+    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::{java::lang::String, org::kwis::msp::media::PlayListener},
 };
 
@@ -31,48 +31,38 @@ impl Clip {
 
     async fn init(
         _: &mut dyn JavaContext,
-        this: JavaObjectProxy<Clip>,
-        r#type: JavaObjectProxy<String>,
-        resource_name: JavaObjectProxy<String>,
+        this: JvmClassInstanceProxy<Self>,
+        r#type: JvmClassInstanceProxy<String>,
+        resource_name: JvmClassInstanceProxy<String>,
     ) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})",
-            this.ptr_instance,
-            r#type.ptr_instance,
-            resource_name.ptr_instance
-        );
+        tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
 
         Ok(())
     }
 
     async fn init_with_data(
         _: &mut dyn JavaContext,
-        this: JavaObjectProxy<Clip>,
-        r#type: JavaObjectProxy<String>,
+        this: JvmClassInstanceProxy<Self>,
+        r#type: JvmClassInstanceProxy<String>,
         data: JvmArrayClassInstanceProxy<i8>,
     ) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})",
-            this.ptr_instance,
-            r#type.ptr_instance,
-            &data
-        );
+        tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
 
         Ok(())
     }
 
-    async fn set_volume(_: &mut dyn JavaContext, this: JavaObjectProxy<Clip>, level: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", this.ptr_instance, level);
+    async fn set_volume(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Clip>, level: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", &this, level);
 
         Ok(())
     }
 
-    async fn set_listener(_: &mut dyn JavaContext, this: JavaObjectProxy<Clip>, listener: JavaObjectProxy<PlayListener>) -> JavaResult<()> {
-        tracing::warn!(
-            "stub org.kwis.msp.media.Clip::setListener({:?}, {:?})",
-            this.ptr_instance,
-            listener.ptr_instance
-        );
+    async fn set_listener(
+        _: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        listener: JvmClassInstanceProxy<PlayListener>,
+    ) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.media.Clip::setListener({:?}, {:?})", &this, &listener);
 
         Ok(())
     }

@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JavaObjectProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
 };
 
 // class org.kwis.msp.lcdui.Font
@@ -54,8 +54,8 @@ impl Font {
         Ok(())
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Font>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", this.ptr_instance);
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Font>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", &this);
 
         Ok(())
     }

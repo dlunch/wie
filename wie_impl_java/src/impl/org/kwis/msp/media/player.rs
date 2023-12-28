@@ -2,8 +2,9 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
+    proxy::JvmClassInstanceProxy,
     r#impl::org::kwis::msp::media::Clip,
-    JavaContext, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaMethodFlag, JavaResult,
 };
 
 // class org.kwis.msp.media.Player
@@ -22,14 +23,14 @@ impl Player {
         }
     }
 
-    async fn play(_: &mut dyn JavaContext, clip: JavaObjectProxy<Clip>, repeat: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Player::play({:?}, {})", clip.ptr_instance, repeat);
+    async fn play(_: &mut dyn JavaContext, clip: JvmClassInstanceProxy<Clip>, repeat: i32) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.media.Player::play({:?}, {})", &clip, repeat);
 
         Ok(())
     }
 
-    async fn stop(_: &mut dyn JavaContext, clip: JavaObjectProxy<Clip>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Player::stop({:?})", clip.ptr_instance,);
+    async fn stop(_: &mut dyn JavaContext, clip: JvmClassInstanceProxy<Clip>) -> JavaResult<()> {
+        tracing::warn!("stub org.kwis.msp.media.Player::stop({:?})", &clip,);
 
         Ok(())
     }
