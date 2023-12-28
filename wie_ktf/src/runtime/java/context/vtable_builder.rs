@@ -1,12 +1,13 @@
-use alloc::{borrow::ToOwned, vec::Vec};
+use alloc::{borrow::ToOwned, string::String, vec::Vec};
 
 use wie_impl_java::JavaResult;
 
-use super::{class::JavaClass, name::JavaFullName};
+use super::class::JavaClass;
 
 struct JavaVtableMethod {
     ptr_method: u32,
-    name: JavaFullName,
+    name: String,
+    descriptor: String,
 }
 
 pub struct JavaVtableBuilder {
@@ -24,11 +25,12 @@ impl JavaVtableBuilder {
         Ok(Self { items })
     }
 
-    pub fn add(&mut self, ptr_method: u32, name: &JavaFullName) -> usize {
-        if let Some(index) = self.items.iter().position(|x| x.name == *name) {
+    pub fn add(&mut self, ptr_method: u32, name: &str, descriptor: &str) -> usize {
+        if let Some(index) = self.items.iter().position(|x| x.name == name && x.descriptor == descriptor) {
             self.items[index] = JavaVtableMethod {
                 ptr_method,
                 name: name.to_owned(),
+                descriptor: descriptor.to_owned(),
             };
 
             index
@@ -36,6 +38,7 @@ impl JavaVtableBuilder {
             self.items.push(JavaVtableMethod {
                 ptr_method,
                 name: name.to_owned(),
+                descriptor: descriptor.to_owned(),
             });
 
             self.items.len() - 1
@@ -57,15 +60,18 @@ impl JavaVtableBuilder {
             let items = methods
                 .into_iter()
                 .map(|x| {
+                    let name = x.name()?;
+
                     anyhow::Ok(JavaVtableMethod {
                         ptr_method: x.ptr_raw,
-                        name: x.name()?,
+                        name: name.name,
+                        descriptor: name.descriptor,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
             for item in items {
-                if let Some(index) = vtable.iter().position(|x| x.name == item.name) {
+                if let Some(index) = vtable.iter().position(|x| x.name == item.name && x.descriptor == item.descriptor) {
                     vtable[index] = item;
                 } else {
                     vtable.push(item);

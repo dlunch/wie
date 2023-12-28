@@ -117,11 +117,7 @@ impl<'a> KtfJavaContext<'a> {
 
         JavaContextData::register_class(core, class)?;
 
-        let clinit = class.method(&JavaFullName {
-            tag: 0,
-            name: "<clinit>".into(),
-            descriptor: "()V".into(),
-        })?;
+        let clinit = class.method("<clinit>", "()V")?;
 
         if let Some(x) = clinit {
             tracing::trace!("Call <clinit>");
