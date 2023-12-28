@@ -16,7 +16,7 @@ impl Font {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, JavaMethodFlag::STATIC),
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
@@ -35,8 +35,8 @@ impl Font {
         }
     }
 
-    async fn cl_init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>({:?})", &this);
+    async fn cl_init(context: &mut dyn JavaContext) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
         context
             .jvm()
