@@ -15,7 +15,7 @@ impl Runtime {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getRuntime", "()Ljava/lang/Runtime;", Self::get_runtime, JavaMethodFlag::STATIC),
                 JavaMethodProto::new("totalMemory", "()J", Self::total_memory, JavaMethodFlag::NONE),
                 JavaMethodProto::new("freeMemory", "()J", Self::free_memory, JavaMethodFlag::NONE),
                 JavaMethodProto::new("gc", "()V", Self::gc, JavaMethodFlag::NONE),
@@ -31,7 +31,7 @@ impl Runtime {
     }
 
     async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::debug!("java.lang.Runtime::get_runtime");
+        tracing::debug!("java.lang.Runtime::getRuntime");
 
         let instance = context.jvm().instantiate_class("java/lang/Runtime").await?;
         context.jvm().invoke_method(&instance, "java/lang/Runtime", "<init>", "()V", &[]).await?;
