@@ -61,8 +61,10 @@ impl Image {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        context
+            .jvm()
+            .invoke_method(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", &[])
+            .await?;
 
         let bytes_per_pixel = 4;
 
@@ -113,24 +115,31 @@ impl Image {
         Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
-    async fn get_graphics(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JavaObjectProxy<Graphics>> {
+    async fn get_graphics(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:#x})", context.instance_raw(&this.class_instance));
 
-        let width = context.jvm().get_field(&this.class_instance, "w", "I")?.as_int();
-        let height = context.jvm().get_field(&this.class_instance, "h", "I")?.as_int();
+        let width = context.jvm().get_field(&this.class_instance, "w", "I")?;
+        let height = context.jvm().get_field(&this.class_instance, "h", "I")?;
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
         context
-            .call_method(
-                &instance.cast(),
+            .jvm()
+            .invoke_method(
+                &instance,
+                "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                &[context.instance_raw(&this.class_instance), 0, 0, width as _, height as _],
+                &[
+                    JavaValue::Object(Some(this.class_instance.clone())),
+                    JavaValue::Int(0),
+                    JavaValue::Int(0),
+                    width,
+                    height,
+                ],
             )
             .await?;
 
-        Ok(instance)
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
@@ -195,15 +204,16 @@ impl Image {
         bytes_per_pixel: u32,
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        context
+            .jvm()
+            .invoke_method(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", &[])
+            .await?;
 
         let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
         let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&data_array, 0, &data)?;
 
-        let instance = context.instance_from_raw(instance.ptr_instance);
         context.jvm().put_field(&instance, "w", "I", JavaValue::Int(width as _))?;
         context.jvm().put_field(&instance, "h", "I", JavaValue::Int(height as _))?;
         context.jvm().put_field(&instance, "imgData", "[B", JavaValue::Object(Some(data_array)))?;

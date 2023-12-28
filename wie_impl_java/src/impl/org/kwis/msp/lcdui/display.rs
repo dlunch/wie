@@ -96,28 +96,31 @@ impl Display {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:#x})", str.ptr_instance);
 
         let jlet = context
-            .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .jvm()
+            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
             .await?;
-        let jlet = context.instance_from_raw(jlet);
 
-        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = context
+            .jvm()
+            .get_field(&jlet.as_object().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
         Ok(JvmClassInstanceProxy::new(display.as_object_ref().unwrap().clone()))
     }
 
-    async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Display>> {
+    async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
-        let ptr_instance = context
-            .call_static_method(
+        let result = context
+            .jvm()
+            .invoke_static_method(
                 "org/kwis/msp/lcdui/Display",
                 "getDisplay",
                 "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
-                &[0],
+                &[JavaValue::Object(None)],
             )
             .await?;
 
-        Ok(JavaObjectProxy::new(ptr_instance))
+        Ok(JvmClassInstanceProxy::new(result.as_object().unwrap()))
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Card>> {

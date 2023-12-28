@@ -190,11 +190,13 @@ impl EventQueue {
 
     async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
         let jlet = context
-            .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .jvm()
+            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
             .await?;
-        let jlet = context.instance_from_raw(jlet);
 
-        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = context
+            .jvm()
+            .get_field(jlet.as_object_ref().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
         if display.as_object_ref().is_none() {
             return Ok(());
         }
@@ -207,19 +209,29 @@ impl EventQueue {
             return Ok(());
         }
 
-        let card = JavaObjectProxy::new(context.instance_raw(card.as_object_ref().unwrap()));
-        context.call_method(&card, "keyNotify", "(II)Z", &[event_type as _, code as _]).await?;
+        context
+            .jvm()
+            .invoke_method(
+                card.as_object_ref().unwrap(),
+                "org/kwis/msp/lcdui/Card",
+                "keyNotify",
+                "(II)Z",
+                &[JavaValue::Int(event_type as _), JavaValue::Int(code)],
+            )
+            .await?;
 
         Ok(())
     }
 
     async fn repaint(context: &mut dyn JavaContext) -> JavaResult<()> {
         let jlet = context
-            .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .jvm()
+            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
             .await?;
-        let jlet = context.instance_from_raw(jlet);
 
-        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = context
+            .jvm()
+            .get_field(&jlet.as_object().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
         if display.as_object_ref().is_none() {
             return Ok(());
         }
@@ -231,24 +243,30 @@ impl EventQueue {
         if card.as_object_ref().is_none() {
             return Ok(());
         }
-        let card = JavaObjectProxy::new(context.instance_raw(card.as_object_ref().unwrap()));
 
         let graphics = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
-        let graphics = JavaObjectProxy::new(context.instance_raw(&graphics));
         context
-            .call_method(
+            .jvm()
+            .invoke_method(
                 &graphics,
+                "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Display;)V",
-                &[context.instance_raw(display.as_object_ref().unwrap())],
+                &[JavaValue::Object(display.as_object())],
             )
             .await?;
 
         context
-            .call_method(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", &[graphics.ptr_instance])
+            .jvm()
+            .invoke_method(
+                card.as_object_ref().unwrap(),
+                "org/kwis/msp/lcdui/Card",
+                "paint",
+                "(Lorg/kwis/msp/lcdui/Graphics;)V",
+                &[JavaValue::Object(Some(graphics.clone()))],
+            )
             .await?;
 
-        let graphics = context.instance_from_raw(graphics.ptr_instance);
         let java_image = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
         if java_image.as_object_ref().is_some() {

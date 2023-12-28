@@ -18,7 +18,7 @@ use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
 
 use super::{
     class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
-    vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext,
+    vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext, KtfJvmWord,
 };
 
 #[repr(C)]
@@ -245,21 +245,17 @@ impl JavaClass {
         Ok(None)
     }
 
-    pub fn read_static_field(&self, field: &JavaField) -> JavaResult<JavaWord> {
+    pub fn read_static_field(&self, field: &JavaField) -> JavaResult<KtfJvmWord> {
         let address = field.static_address()?;
-        let result: u32 = read_generic(&self.core, address)?;
+        let result: KtfJvmWord = read_generic(&self.core, address)?;
 
         Ok(result as _)
     }
 
-    pub fn write_static_field(&mut self, field: &JavaField, value: JavaWord) -> JavaResult<()> {
+    pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JavaResult<()> {
         let address = field.static_address()?;
 
-        write_generic(&mut self.core, address, value as u32)
-    }
-
-    pub async fn invoke_static_method(&self, method: &mut JavaMethod, args: &[JavaWord]) -> JavaResult<u32> {
-        method.run(args).await
+        write_generic(&mut self.core, address, value)
     }
 }
 
@@ -301,7 +297,7 @@ impl Class for JavaClass {
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let value = value.as_raw(&field.descriptor());
+        let value = value.as_raw();
 
         self.write_static_field(field, value as _)
     }

@@ -2,8 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JavaObjectProxy,
-    r#impl::java::lang::Class,
+    proxy::JvmClassInstanceProxy,
 };
 
 // class java.lang.Object
@@ -22,20 +21,19 @@ impl Object {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<()> {
-        tracing::debug!("java.lang.Object::<init>({:#x})", this.ptr_instance);
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::debug!("java.lang.Object::<init>({:#x})", context.instance_raw(&this.class_instance));
 
         Ok(())
     }
 
-    async fn get_class(context: &mut dyn JavaContext, this: JavaObjectProxy<Object>) -> JavaResult<JavaObjectProxy<Class>> {
-        tracing::warn!("stub java.lang.Object::get_class({:#x})", this.ptr_instance);
+    async fn get_class(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Self>> {
+        tracing::warn!("stub java.lang.Object::get_class({:#x})", context.instance_raw(&this.class_instance));
 
         let result = context.jvm().instantiate_class("java/lang/Class").await?;
-        let result = JavaObjectProxy::new(context.instance_raw(&result));
 
-        context.call_method(&result, "<init>", "()V", &[]).await?;
+        context.jvm().invoke_method(&result, "java/lang/Class", "<init>", "()V", &[]).await?;
 
-        Ok(result.cast())
+        Ok(JvmClassInstanceProxy::new(result))
     }
 }

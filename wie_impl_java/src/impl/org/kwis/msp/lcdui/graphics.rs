@@ -125,14 +125,16 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JavaObjectProxy<Font>> {
+    async fn get_font(context: &mut dyn JavaContext, this: JavaObjectProxy<Graphics>) -> JavaResult<JvmClassInstanceProxy<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:#x})", this.ptr_instance);
 
         let font = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
-        let font = JavaObjectProxy::new(context.instance_raw(&font));
-        context.call_method(&font, "<init>", "()V", &[]).await?;
+        context
+            .jvm()
+            .invoke_method(&font, "org/kwis/msp/lcdui/Font", "<init>", "()V", &[])
+            .await?;
 
-        Ok(font.cast())
+        Ok(JvmClassInstanceProxy::new(font))
     }
 
     async fn set_color(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, rgb: i32) -> JavaResult<()> {
@@ -396,24 +398,27 @@ impl Graphics {
         if image.as_object_ref().is_some() {
             Ok(JvmClassInstanceProxy::new(image.as_object_ref().unwrap().clone()))
         } else {
-            let width = context.jvm().get_field(this, "w", "I")?.as_int();
-            let height = context.jvm().get_field(this, "h", "I")?.as_int();
+            let width = context.jvm().get_field(this, "w", "I")?;
+            let height = context.jvm().get_field(this, "h", "I")?;
 
             let image = context
-                .call_static_method(
+                .jvm()
+                .invoke_static_method(
                     "org/kwis/msp/lcdui/Image",
                     "createImage",
                     "(II)Lorg/kwis/msp/lcdui/Image;",
-                    &[width as _, height as _],
+                    &[width, height],
                 )
                 .await?;
-            let image = context.instance_from_raw(image);
 
-            context
-                .jvm()
-                .put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(Some(image.clone())))?;
+            context.jvm().put_field(
+                this,
+                "img",
+                "Lorg/kwis/msp/lcdui/Image;",
+                JavaValue::Object(Some(image.as_object_ref().unwrap().clone())),
+            )?;
 
-            Ok(JvmClassInstanceProxy::new(image))
+            Ok(JvmClassInstanceProxy::new(image.as_object().unwrap()))
         }
     }
 }

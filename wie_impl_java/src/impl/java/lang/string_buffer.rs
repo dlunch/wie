@@ -10,7 +10,7 @@ use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaWord},
     proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
-    JavaContext, JavaObjectProxy, JavaResult,
+    JavaContext, JavaResult,
 };
 
 // class java.lang.StringBuffer
@@ -144,24 +144,19 @@ impl StringBuffer {
         Ok(this)
     }
 
-    async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JavaObjectProxy<String>> {
+    async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<String>> {
         tracing::debug!("java.lang.StringBuffer::toString({:#x})", context.instance_raw(&this.class_instance));
 
         let java_value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
         let count = context.jvm().get_field(&this.class_instance, "count", "I")?;
 
         let string = context.jvm().instantiate_class("java/lang/String").await?;
-        let string = JavaObjectProxy::new(context.instance_raw(&string));
         context
-            .call_method(
-                &string.cast(),
-                "<init>",
-                "([CII)V",
-                &[context.instance_raw(java_value.as_object_ref().unwrap()), 0, count.as_int() as _],
-            )
+            .jvm()
+            .invoke_method(&string, "java/lang/String", "<init>", "([CII)V", &[java_value, JavaValue::Int(0), count])
             .await?;
 
-        Ok(string)
+        Ok(JvmClassInstanceProxy::new(string))
     }
 
     async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: JavaWord) -> JavaResult<()> {

@@ -1,5 +1,7 @@
 use alloc::vec;
 
+use jvm::JavaValue;
+
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::{JavaObjectProxy, JvmArrayClassInstanceProxy},
@@ -35,23 +37,44 @@ impl Main {
             context.instance_raw(&args.class_instance)
         );
 
-        let jlet = JavaObjectProxy::new(
-            context
-                .call_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
-                .await?,
-        );
-        let event_queue = JavaObjectProxy::new(
-            context
-                .call_method(&jlet, "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", &[])
-                .await?,
-        );
+        let jlet = context
+            .jvm()
+            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .await?;
+        let event_queue = context
+            .jvm()
+            .invoke_method(
+                &jlet.as_object().unwrap(),
+                "org/kwis/msp/lcdui/Jlet",
+                "getEventQueue",
+                "()Lorg/kwis/msp/lcdui/EventQueue;",
+                &[],
+            )
+            .await?;
 
         let event = context.jvm().instantiate_array("I", 4).await?;
-        let event = context.instance_raw(&event);
 
         loop {
-            context.call_method(&event_queue, "getNextEvent", "([I)V", &[event]).await?;
-            context.call_method(&event_queue, "dispatchEvent", "([I)V", &[event]).await?;
+            context
+                .jvm()
+                .invoke_method(
+                    event_queue.as_object_ref().unwrap(),
+                    "org/kwis/lcdui/EventQueue",
+                    "getNextEvent",
+                    "([I)V",
+                    &[JavaValue::Object(Some(event.clone()))],
+                )
+                .await?;
+            context
+                .jvm()
+                .invoke_method(
+                    event_queue.as_object_ref().unwrap(),
+                    "org/kwis/lcdui/EventQueue",
+                    "dispatchEvent",
+                    "([I)V",
+                    &[JavaValue::Object(Some(event.clone()))],
+                )
+                .await?;
         }
     }
 }

@@ -66,23 +66,27 @@ impl Font {
         Ok(12) // TODO: hardcoded
     }
 
-    async fn get_default_font(context: &mut dyn JavaContext) -> JavaResult<JavaObjectProxy<Font>> {
+    async fn get_default_font(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        context
+            .jvm()
+            .invoke_method(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", &[])
+            .await?;
 
-        Ok(instance.cast())
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 
-    async fn get_font(context: &mut dyn JavaContext, face: i32, style: i32, size: i32) -> JavaResult<JavaObjectProxy<Font>> {
+    async fn get_font(context: &mut dyn JavaContext, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceProxy<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:#x}, {:#x}, {:#x})", face, style, size);
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
-        context.call_method(&instance, "<init>", "()V", &[]).await?;
+        context
+            .jvm()
+            .invoke_method(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", &[])
+            .await?;
 
-        Ok(instance.cast())
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 }

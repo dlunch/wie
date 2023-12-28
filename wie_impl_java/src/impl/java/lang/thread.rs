@@ -52,25 +52,31 @@ impl Thread {
         tracing::debug!("Thread::start({:#x})", context.instance_raw(&this.class_instance));
 
         struct ThreadStartProxy {
-            runnable: JavaObjectProxy<Runnable>,
+            thread_id: usize,
+            runnable: JvmClassInstanceProxy<Runnable>,
         }
 
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for ThreadStartProxy {
-            #[tracing::instrument(name = "thread", fields(thread = self.runnable.ptr_instance), skip_all)]
+            #[tracing::instrument(name = "thread", fields(thread = self.thread_id), skip_all)]
             async fn call(&self, context: &mut dyn JavaContext, _: &[JavaWord]) -> Result<JavaWord, JavaError> {
                 tracing::trace!("Thread start");
 
-                context.call_method(&self.runnable.cast(), "run", "()V", &[]).await?;
+                context
+                    .jvm()
+                    .invoke_method(&self.runnable.class_instance, "java/lang/Runnable", "run", "()V", &[])
+                    .await?;
 
                 Ok(0)
             }
         }
 
         let target = context.jvm().get_field(&this.class_instance, "target", "Ljava/lang/Runnable;")?;
-        let target = JavaObjectProxy::new(context.instance_raw(target.as_object_ref().unwrap()));
 
-        context.spawn(Box::new(ThreadStartProxy { runnable: target }))?;
+        context.spawn(Box::new(ThreadStartProxy {
+            thread_id: context.instance_raw(target.as_object_ref().unwrap()),
+            runnable: JvmClassInstanceProxy::new(target.as_object().unwrap()),
+        }))?;
 
         Ok(())
     }

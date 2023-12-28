@@ -51,24 +51,30 @@ impl DataBase {
 
     async fn open_data_base(
         context: &mut dyn JavaContext,
-        data_base_name: JavaObjectProxy<String>,
+        data_base_name: JvmClassInstanceProxy<String>,
         record_size: i32,
         create: i32,
-    ) -> JavaResult<JavaObjectProxy<DataBase>> {
+    ) -> JavaResult<JvmClassInstanceProxy<DataBase>> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:#x}, {}, {})",
-            data_base_name.ptr_instance,
+            context.instance_raw(&data_base_name.class_instance),
             record_size,
             create
         );
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/db/DataBase").await?;
-        let instance = JavaObjectProxy::new(context.instance_raw(&instance));
         context
-            .call_method(&instance.cast(), "<init>", "()V", &[data_base_name.ptr_instance])
+            .jvm()
+            .invoke_method(
+                &instance,
+                "org/kwis/msp/db/DataBase",
+                "<init>",
+                "()V",
+                &[JavaValue::Object(Some(data_base_name.class_instance))],
+            )
             .await?;
 
-        Ok(instance)
+        Ok(JvmClassInstanceProxy::new(instance))
     }
 
     async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {

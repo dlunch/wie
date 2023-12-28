@@ -5,7 +5,7 @@ use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
     proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
     r#impl::java::io::InputStream,
-    JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaObjectProxy, JavaResult,
+    JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaResult,
 };
 
 // class java.io.DataInputStream
@@ -48,15 +48,11 @@ impl DataInputStream {
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         let available = context
-            .call_method(
-                &JavaObjectProxy::new(context.instance_raw(r#in.as_object_ref().unwrap())),
-                "available",
-                "()I",
-                &[],
-            )
+            .jvm()
+            .invoke_method(r#in.as_object_ref().unwrap(), "java/io/InputStream", "available", "()I", &[])
             .await?;
 
-        Ok(available as _)
+        Ok(available.as_int())
     }
 
     async fn read(
@@ -75,17 +71,18 @@ impl DataInputStream {
         );
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
-        let b = context.instance_raw(&b.class_instance);
         let result = context
-            .call_method(
-                &JavaObjectProxy::new(context.instance_raw(r#in.as_object_ref().unwrap())),
+            .jvm()
+            .invoke_method(
+                r#in.as_object_ref().unwrap(),
+                "java/io/InputStream",
                 "read",
                 "([BII)I",
-                &[b, off as _, len as _],
+                &[JavaValue::Object(Some(b.class_instance)), JavaValue::Int(off), JavaValue::Int(len)],
             )
             .await?;
 
-        Ok(result as _)
+        Ok(result.as_int())
     }
 
     async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
@@ -93,12 +90,8 @@ impl DataInputStream {
 
         let r#in = context.jvm().get_field(&this.class_instance, "in", "Ljava/io/InputStream;")?;
         context
-            .call_method(
-                &JavaObjectProxy::new(context.instance_raw(r#in.as_object_ref().unwrap())),
-                "close",
-                "()V",
-                &[],
-            )
+            .jvm()
+            .invoke_method(r#in.as_object_ref().unwrap(), "java/io/InputStream", "close", "()V", &[])
             .await?;
 
         Ok(())
