@@ -125,7 +125,7 @@ impl Jlet {
         let main_class = context.jvm().instantiate_class(&main_class_name).await?;
         context.jvm().invoke_method(&main_class, &main_class_name, "<init>", "()V", &[]).await?;
 
-        tracing::debug!("Main class instance: {:?}", context.instance_raw(&main_class));
+        tracing::debug!("Main class instance: {:?}", &main_class);
 
         let arg = context.jvm().instantiate_array("Ljava/lang/String;", 0).await?;
         context

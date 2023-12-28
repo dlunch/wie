@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use jvm::{ClassInstanceRef, JavaValue, Jvm};
+use jvm::{JavaValue, Jvm};
 
 use wie_backend::{task::SleepFuture, Backend};
 
@@ -97,9 +97,6 @@ impl JavaMethodProto {
 #[async_trait::async_trait(?Send)]
 pub trait JavaContext {
     fn jvm(&mut self) -> &mut Jvm;
-    fn instance_raw(&self, instance: &ClassInstanceRef) -> JavaWord; // TODO will be removed
-    fn instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
-    fn array_instance_from_raw(&self, raw: JavaWord) -> ClassInstanceRef; // TODO will be removed
     fn backend(&mut self) -> &mut Backend;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
