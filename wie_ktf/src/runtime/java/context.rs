@@ -111,6 +111,10 @@ impl<'a> KtfJavaContext<'a> {
     }
 
     pub async fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
+        if JavaContextData::has_class(core, class)? {
+            return Ok(());
+        }
+
         JavaContextData::register_class(core, class)?;
 
         let clinit = class.method(&JavaFullName {
