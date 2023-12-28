@@ -104,7 +104,7 @@ impl ArmCore {
             inner.engine.reg_write(ArmRegister::R3, params[3]);
         }
         if params.len() > 4 {
-            for param in params[4..].iter() {
+            for param in params[4..].iter().rev() {
                 let sp = inner.engine.reg_read(ArmRegister::SP) - 4;
 
                 inner.engine.mem_write(sp, &param.to_le_bytes())?;
