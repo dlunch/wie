@@ -14,3 +14,7 @@ jvm = { git = "https://github.com/dlunch/jvm.git" }
 
 wie_base = { path = "../wie_base" }
 wie_backend = { path = "../wie_backend" }
+
+[dev-dependencies]
+futures-test = { version = "^0.3" }
+jvm_impl = { git = "https://github.com/dlunch/jvm.git" }

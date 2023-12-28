@@ -625,7 +625,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/jvm.git#722594153203a6f00dadae166bc723acb598b45c"
+source = "git+https://github.com/dlunch/jvm.git#b51d23108191dd918b248c503636a0d13da5e066"
 dependencies = [
  "anyhow",
  "bitflags 2.4.1",
@@ -1274,6 +1274,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38d84fa142264698cdce1a9f9172cf383a0c82de1bddcf3092901442c4097004"
 
 [[package]]
+name = "futures-test"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce388237b32ac42eca0df1ba55ed3bbda4eaf005d7d4b5dbc0b20ab962928ac9"
+dependencies = [
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-macro",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "pin-project",
+ "pin-utils",
+]
+
+[[package]]
 name = "futures-util"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1806,7 +1823,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/jvm.git#722594153203a6f00dadae166bc723acb598b45c"
+source = "git+https://github.com/dlunch/jvm.git#b51d23108191dd918b248c503636a0d13da5e066"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1817,7 +1834,7 @@ dependencies = [
 [[package]]
 name = "jvm_impl"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/jvm.git#722594153203a6f00dadae166bc723acb598b45c"
+source = "git+https://github.com/dlunch/jvm.git#b51d23108191dd918b248c503636a0d13da5e066"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2433,6 +2450,26 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "xi-unicode",
+]
+
+[[package]]
+name = "pin-project"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fda4ed1c6c173e3fc7a83629421152e01d7b1f9b7f65fb301e490e8cfc656422"
+dependencies = [
+ "pin-project-internal",
+]
+
+[[package]]
+name = "pin-project-internal"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4359fd9c9171ec6e8c62926d6faaf553a8dc3f64e1507e76da7911b4f6a04405"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.43",
 ]
 
 [[package]]
@@ -3646,7 +3683,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bitflags 2.4.1",
+ "futures-test",
  "jvm",
+ "jvm_impl",
  "tracing",
  "wie_backend",
  "wie_base",
