@@ -105,6 +105,23 @@ async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr:
     }
 }
 
+async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
+    tracing::debug!("MC_dbSelectRecord({:#x}, {}, {:#x}, {})", db_id, rec_id, buf_ptr, buf_len);
+
+    let db = get_database_from_db_id(context, db_id);
+
+    if let Ok(x) = db.get(rec_id as _) {
+        if buf_len < x.len() as _ {
+            return Ok(-18); // M_E_SHORTBUF
+        }
+        context.write_bytes(buf_ptr, &x)?;
+
+        Ok(0)
+    } else {
+        Ok(-22) // M_E_BADRECID
+    }
+}
+
 async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
     tracing::warn!("stub MC_dbUnk16()");
 
@@ -126,7 +143,7 @@ pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
         read_record_single.into_body(),
         write_record_single.into_body(),
         close_database.into_body(),
-        gen_stub(4, "MC_dbSelectRecord"),
+        select_record.into_body(),
         gen_stub(5, "MC_dbUpdateRecord"),
         delete_record.into_body(),
         list_record.into_body(),
