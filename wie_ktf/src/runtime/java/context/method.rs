@@ -134,7 +134,7 @@ impl JavaMethod {
             result
         } else {
             let mut params = vec![0];
-            params.extend(args.iter().map(|x| x.as_raw()));
+            params.extend(args.iter().map(|x| x.as_raw())); // TODO double/long handling
 
             tracing::trace!("Calling method: {:#x}", raw.fn_body);
             core.run_function(raw.fn_body, &params).await
@@ -177,7 +177,7 @@ impl JavaMethod {
                 let args = args
                     .into_iter()
                     .zip(self.parameter_types.iter())
-                    .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core))
+                    .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
                     .collect::<Vec<_>>();
 
                 let mut context = KtfJavaContext::new(core, backend);
