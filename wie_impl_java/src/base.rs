@@ -15,7 +15,6 @@ pub struct JavaClassProto {
 
 pub type JavaError = anyhow::Error;
 pub type JavaResult<T> = anyhow::Result<T>;
-pub type JavaWord = usize;
 
 #[derive(Eq, PartialEq)]
 pub enum JavaMethodFlag {

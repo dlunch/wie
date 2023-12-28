@@ -5,7 +5,7 @@ use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResu
 
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
-use wie_impl_java::{JavaResult, JavaWord};
+use wie_impl_java::JavaResult;
 
 use super::{array_class::JavaArrayClass, class_instance::JavaClassInstance, value::JavaValueExt};
 
@@ -22,7 +22,7 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClass, count: JavaWord) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClass, count: usize) -> JavaResult<Self> {
         let element_size = array_class.element_size()?;
         let class_instance = JavaClassInstance::instantiate(core, &array_class.class, count * element_size + 4)?;
 
@@ -32,7 +32,7 @@ impl JavaArrayClassInstance {
         Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
-    pub fn load_array(&self, offset: JavaWord, count: JavaWord) -> JavaResult<Vec<JavaValue>> {
+    pub fn load_array(&self, offset: usize, count: usize) -> JavaResult<Vec<JavaValue>> {
         let array_length = self.array_length()?;
         if offset + count > array_length {
             anyhow::bail!("Array index out of bounds");
@@ -64,9 +64,9 @@ impl JavaArrayClassInstance {
         })
     }
 
-    pub fn store_array(&mut self, offset: JavaWord, values: &[JavaValue]) -> JavaResult<()> {
+    pub fn store_array(&mut self, offset: usize, values: &[JavaValue]) -> JavaResult<()> {
         let array_length = self.array_length()?;
-        if offset + values.len() as JavaWord > array_length {
+        if offset + values.len() > array_length {
             anyhow::bail!("Array index out of bounds");
         }
 
@@ -84,7 +84,7 @@ impl JavaArrayClassInstance {
         self.core.write_bytes(base_address + (element_size * offset) as u32, &raw_values)
     }
 
-    pub fn array_length(&self) -> JavaResult<JavaWord> {
+    pub fn array_length(&self) -> JavaResult<usize> {
         let length_address = self.class_instance.field_address(0)?;
         let result: u32 = read_generic(&self.core, length_address)?;
 

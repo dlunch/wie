@@ -7,7 +7,7 @@ use alloc::{
 use jvm::JavaValue;
 
 use crate::{
-    base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaWord},
+    base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
     proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
     JavaContext, JavaResult,
@@ -144,7 +144,7 @@ impl StringBuffer {
         Ok(JvmClassInstanceProxy::new(Some(string)))
     }
 
-    async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: JavaWord) -> JavaResult<()> {
+    async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: usize) -> JavaResult<()> {
         let java_value_array = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "value", "[C")?;
         let current_capacity = context.jvm().array_length(java_value_array.as_object_ref().unwrap())?;
 

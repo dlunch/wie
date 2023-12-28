@@ -17,7 +17,7 @@ use wie_base::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
 };
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult, JavaWord};
+use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult};
 
 use super::{
     class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
@@ -170,7 +170,7 @@ impl JavaClass {
         Ok(raw.ptr_vtable)
     }
 
-    pub fn field_size(&self) -> JavaResult<JavaWord> {
+    pub fn field_size(&self) -> JavaResult<usize> {
         let class_hierarchy = self.read_class_hierarchy()?;
 
         Ok(class_hierarchy
@@ -179,7 +179,7 @@ impl JavaClass {
                 let raw: RawJavaClass = read_generic(&self.core, x.ptr_raw).unwrap();
                 let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor).unwrap();
 
-                descriptor.fields_size as JavaWord
+                descriptor.fields_size as usize
             })
             .sum())
     }

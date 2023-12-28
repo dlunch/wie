@@ -11,7 +11,7 @@ use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResu
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{JavaResult, JavaWord};
+use wie_impl_java::JavaResult;
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
@@ -90,7 +90,7 @@ impl JavaClassInstance {
         Ok(raw.ptr_fields + offset + 4)
     }
 
-    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClass, field_size: JavaWord) -> JavaResult<Self> {
+    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClass, field_size: usize) -> JavaResult<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as _)?;
         let ptr_fields = Allocator::alloc(core, (field_size + 4) as _)?;
 

@@ -22,7 +22,7 @@ use wie_backend::{
     AsyncCallable, Backend,
 };
 use wie_core_arm::ArmCore;
-use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult, JavaWord};
+use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult};
 
 pub use self::name::JavaFullName;
 use self::{
@@ -132,14 +132,14 @@ impl<'a> KtfJavaContext<'a> {
         JavaClass::from_raw(ptr_class, self.core)
     }
 
-    pub fn class_raw(&self, instance: &ClassInstanceRef) -> JavaWord {
+    pub fn class_raw(&self, instance: &ClassInstanceRef) -> u32 {
         let instance = instance.borrow();
         if let Some(x) = instance.as_any().downcast_ref::<JavaClassInstance>() {
-            x.ptr_raw as _
+            x.ptr_raw
         } else {
             let instance = instance.as_any().downcast_ref::<JavaArrayClassInstance>().unwrap();
 
-            instance.class_instance.ptr_raw as _
+            instance.class_instance.ptr_raw
         }
     }
 }
