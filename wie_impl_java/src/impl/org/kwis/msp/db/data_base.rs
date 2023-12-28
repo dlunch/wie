@@ -35,12 +35,9 @@ impl DataBase {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data_base_name: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
-        context.jvm().put_field(
-            &this.class_instance.unwrap(),
-            "dbName",
-            "Ljava/lang/String;",
-            JavaValue::Object(Some(data_base_name.class_instance.unwrap())),
-        )?;
+        context
+            .jvm()
+            .put_field(&this, "dbName", "Ljava/lang/String;", JavaValue::Object(data_base_name.class_instance))?;
 
         Ok(())
     }
@@ -66,7 +63,7 @@ impl DataBase {
                 "org/kwis/msp/db/DataBase",
                 "<init>",
                 "(Ljava/lang/String;)V",
-                &[JavaValue::Object(Some(data_base_name.class_instance.unwrap()))],
+                &[JavaValue::Object(data_base_name.class_instance)],
             )
             .await?;
 
@@ -76,7 +73,7 @@ impl DataBase {
     async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
-        let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
+        let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let count = context.backend().database().open(&db_name_str)?.count()?;
@@ -105,10 +102,10 @@ impl DataBase {
             num_bytes
         );
 
-        let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
+        let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
-        let data = context.jvm().load_array(&data.class_instance.unwrap(), offset as _, num_bytes as _)?;
+        let data = context.jvm().load_array(&data, offset as _, num_bytes as _)?;
         let data_raw = data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
 
         let id = context.backend().database().open(&db_name_str)?.add(&data_raw)?;
@@ -123,7 +120,7 @@ impl DataBase {
     ) -> JavaResult<JvmClassInstanceProxy<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
-        let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
+        let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;

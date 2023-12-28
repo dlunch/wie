@@ -34,12 +34,9 @@ impl Thread {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, target: JvmClassInstanceProxy<Runnable>) -> JavaResult<()> {
         tracing::debug!("Thread::<init>({:?}, {:?})", &this, &target);
 
-        context.jvm().put_field(
-            this.class_instance.as_ref().unwrap(),
-            "target",
-            "Ljava/lang/Runnable;",
-            JavaValue::Object(target.class_instance),
-        )?;
+        context
+            .jvm()
+            .put_field(&this, "target", "Ljava/lang/Runnable;", JavaValue::Object(target.class_instance))?;
 
         Ok(())
     }
@@ -60,16 +57,14 @@ impl Thread {
 
                 context
                     .jvm()
-                    .invoke_method(self.runnable.class_instance.as_ref().unwrap(), "java/lang/Runnable", "run", "()V", &[])
+                    .invoke_method(&self.runnable, "java/lang/Runnable", "run", "()V", &[])
                     .await?;
 
                 Ok(JavaValue::Void)
             }
         }
 
-        let target = context
-            .jvm()
-            .get_field(this.class_instance.as_ref().unwrap(), "target", "Ljava/lang/Runnable;")?;
+        let target = context.jvm().get_field(&this, "target", "Ljava/lang/Runnable;")?;
         let runnable = JvmClassInstanceProxy::new(Some(target.as_object().unwrap()));
 
         context.spawn(Box::new(ThreadStartProxy {

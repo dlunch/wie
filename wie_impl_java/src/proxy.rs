@@ -1,6 +1,7 @@
 use core::{
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
+    ops::Deref,
 };
 
 use jvm::{ClassInstanceRef, JavaValue};
@@ -40,5 +41,12 @@ impl<T> Debug for JvmClassInstanceProxy<T> {
         } else {
             write!(f, "null")
         }
+    }
+}
+
+impl<T> Deref for JvmClassInstanceProxy<T> {
+    type Target = ClassInstanceRef;
+    fn deref(&self) -> &Self::Target {
+        self.class_instance.as_ref().unwrap()
     }
 }
