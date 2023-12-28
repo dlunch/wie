@@ -10,7 +10,7 @@ use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendI
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::{java::lang::String, org::kwis::msp::lcdui::Graphics},
     JavaFieldAccessFlag,
 };
@@ -102,7 +102,7 @@ impl Image {
 
     async fn create_image_from_bytes(
         context: &mut dyn JavaContext,
-        data: JvmArrayClassInstanceProxy<i8>,
+        data: JvmClassInstanceProxy<i8>,
         offset: i32,
         length: i32,
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {

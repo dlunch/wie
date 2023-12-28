@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::{java::lang::String, org::kwis::msp::media::PlayListener},
 };
 
@@ -44,7 +44,7 @@ impl Clip {
         _: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
         r#type: JvmClassInstanceProxy<String>,
-        data: JvmArrayClassInstanceProxy<i8>,
+        data: JvmClassInstanceProxy<i8>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
 

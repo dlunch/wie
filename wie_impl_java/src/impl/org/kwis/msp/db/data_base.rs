@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
 };
 
@@ -93,7 +93,7 @@ impl DataBase {
     async fn insert_record(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        data: JvmArrayClassInstanceProxy<i8>,
+        data: JvmClassInstanceProxy<i8>,
         offset: i32,
         num_bytes: i32,
     ) -> JavaResult<i32> {
@@ -120,7 +120,7 @@ impl DataBase {
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
         record_id: i32,
-    ) -> JavaResult<JvmArrayClassInstanceProxy<i8>> {
+    ) -> JavaResult<JvmClassInstanceProxy<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
         let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
@@ -132,6 +132,6 @@ impl DataBase {
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&array, 0, &data)?;
 
-        Ok(JvmArrayClassInstanceProxy::new(Some(array)))
+        Ok(JvmClassInstanceProxy::new(Some(array)))
     }
 }

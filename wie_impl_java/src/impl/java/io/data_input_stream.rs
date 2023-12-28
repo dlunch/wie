@@ -3,7 +3,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::io::InputStream,
     JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaResult,
 };
@@ -56,7 +56,7 @@ impl DataInputStream {
     async fn read(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        b: JvmArrayClassInstanceProxy<i8>,
+        b: JvmClassInstanceProxy<i8>,
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
