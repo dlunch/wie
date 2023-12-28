@@ -92,15 +92,10 @@ impl StringBuffer {
         Ok(this)
     }
 
-    async fn append_long(
-        context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        value_low: i32,
-        value_high: i32,
-    ) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::debug!("java.lang.StringBuffer::append({:?}, {:?}, {:?})", &this, value_low, value_high);
+    async fn append_long(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, value: i64) -> JavaResult<JvmClassInstanceProxy<Self>> {
+        tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, value);
 
-        let digits = ((value_high as i64) << 32 | (value_low as i64)).to_string();
+        let digits = value.to_string();
 
         Self::append(context, &this, &digits).await?;
 
