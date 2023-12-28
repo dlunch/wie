@@ -17,12 +17,12 @@ impl DataBase {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new(
                     "openDataBase",
                     "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
                     Self::open_data_base,
-                    JavaMethodFlag::NONE,
+                    JavaMethodFlag::STATIC,
                 ),
                 JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodFlag::NONE),
                 JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodFlag::NONE),
@@ -36,10 +36,10 @@ impl DataBase {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
         context.jvm().put_field(
-            &this.class_instance,
+            &this.class_instance.unwrap(),
             "dbName",
             "Ljava/lang/String;",
-            JavaValue::Object(Some(data_base_name.class_instance)),
+            JavaValue::Object(Some(data_base_name.class_instance.unwrap())),
         )?;
 
         Ok(())
@@ -49,7 +49,7 @@ impl DataBase {
         context: &mut dyn JavaContext,
         data_base_name: JvmClassInstanceProxy<String>,
         record_size: i32,
-        create: i32,
+        create: bool,
     ) -> JavaResult<JvmClassInstanceProxy<DataBase>> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
@@ -65,18 +65,18 @@ impl DataBase {
                 &instance,
                 "org/kwis/msp/db/DataBase",
                 "<init>",
-                "()V",
-                &[JavaValue::Object(Some(data_base_name.class_instance))],
+                "(Ljava/lang/String;)V",
+                &[JavaValue::Object(Some(data_base_name.class_instance.unwrap()))],
             )
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(instance))
+        Ok(JvmClassInstanceProxy::new(Some(instance)))
     }
 
     async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
-        let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
+        let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let count = context.backend().database().open(&db_name_str)?.count()?;
@@ -105,10 +105,10 @@ impl DataBase {
             num_bytes
         );
 
-        let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
+        let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
-        let data = context.jvm().load_array(&data.class_instance, offset as _, num_bytes as _)?;
+        let data = context.jvm().load_array(&data.class_instance.unwrap(), offset as _, num_bytes as _)?;
         let data_raw = data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
 
         let id = context.backend().database().open(&db_name_str)?.add(&data_raw)?;
@@ -123,7 +123,7 @@ impl DataBase {
     ) -> JavaResult<JvmArrayClassInstanceProxy<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
-        let db_name = context.jvm().get_field(&this.class_instance, "dbName", "Ljava/lang/String;")?;
+        let db_name = context.jvm().get_field(&this.class_instance.unwrap(), "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
@@ -132,6 +132,6 @@ impl DataBase {
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&array, 0, &data)?;
 
-        Ok(JvmArrayClassInstanceProxy::new(array))
+        Ok(JvmArrayClassInstanceProxy::new(Some(array)))
     }
 }

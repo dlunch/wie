@@ -44,7 +44,7 @@ impl Class {
         this: JvmClassInstanceProxy<Self>,
         name: JvmClassInstanceProxy<String>,
     ) -> JavaResult<JvmClassInstanceProxy<InputStream>> {
-        let name = String::to_rust_string(context, &name.class_instance)?;
+        let name = String::to_rust_string(context, &name.class_instance.unwrap())?;
         tracing::debug!("java.lang.Class::getResourceAsStream({:?}, {})", &this, name);
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
@@ -72,9 +72,9 @@ impl Class {
                 )
                 .await?;
 
-            Ok(JvmClassInstanceProxy::new(result))
+            Ok(JvmClassInstanceProxy::new(Some(result)))
         } else {
-            anyhow::bail!("No such instance") // TODO return null
+            Ok(JvmClassInstanceProxy::new(None))
         }
     }
 }

@@ -34,6 +34,6 @@ impl Object {
 
         context.jvm().invoke_method(&result, "java/lang/Class", "<init>", "()V", &[]).await?;
 
-        Ok(JvmClassInstanceProxy::new(result))
+        Ok(JvmClassInstanceProxy::new(Some(result)))
     }
 }

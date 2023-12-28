@@ -82,7 +82,7 @@ async fn set_timer(
     #[async_trait::async_trait(?Send)]
     impl MethodBody<WIPICError> for TimerCallback {
         #[tracing::instrument(name = "timer", skip_all)]
-        async fn call(&self, context: &mut dyn WIPICContext, _: &[WIPICWord]) -> Result<WIPICWord, WIPICError> {
+        async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICWord, WIPICError> {
             let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
             context.sleep(self.timeout).await;
 

@@ -25,22 +25,22 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+    async fn is_file(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
-        Ok(0)
+        Ok(false)
     }
 
-    async fn is_directory(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>, flag: i32) -> JavaResult<i32> {
+    async fn is_directory(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>, flag: i32) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
 
-        Ok(1)
+        Ok(true)
     }
 
-    async fn exists(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+    async fn exists(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
-        Ok(0)
+        Ok(false)
     }
 
     async fn available(_context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<i32> {

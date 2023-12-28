@@ -33,7 +33,7 @@ impl File {
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
 
-        let filename = String::to_rust_string(context, &filename.class_instance)?;
+        let filename = String::to_rust_string(context, &filename.class_instance.unwrap())?;
         tracing::debug!("filename: {}", filename);
 
         Ok(())
@@ -48,7 +48,7 @@ impl File {
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
-        let filename = String::to_rust_string(context, &filename.class_instance)?;
+        let filename = String::to_rust_string(context, &filename.class_instance.unwrap())?;
         tracing::debug!("filename: {}", filename);
 
         Ok(())

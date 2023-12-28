@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::fmt::{self, Debug, Formatter};
 
-use jvm::{ArrayClassInstance, ClassInstance, Field, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
@@ -45,7 +45,7 @@ impl JavaArrayClassInstance {
             .core
             .read_bytes(base_address + (element_size * offset) as u32, (count * element_size) as _)?;
 
-        let element_type = self.element_type_descriptor()?;
+        let element_type = self.element_type()?;
 
         Ok(match element_size {
             1 => values_raw
@@ -97,10 +97,10 @@ impl JavaArrayClassInstance {
         array_class.element_size()
     }
 
-    fn element_type_descriptor(&self) -> JavaResult<String> {
+    fn element_type(&self) -> JavaResult<JavaType> {
         let array_class = JavaArrayClass::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
-        array_class.element_type_descriptor()
+        Ok(JavaType::parse(&array_class.element_type_descriptor()?))
     }
 }
 

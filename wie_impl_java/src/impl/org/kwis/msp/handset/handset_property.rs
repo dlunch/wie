@@ -25,7 +25,7 @@ impl HandsetProperty {
     }
 
     async fn get_system_property(context: &mut dyn JavaContext, name: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<String>> {
-        let name = String::to_rust_string(context, &name.class_instance)?;
+        let name = String::to_rust_string(context, &name.class_instance.unwrap())?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
         let result = String::from_rust_string(context, "").await?;

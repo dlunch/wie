@@ -23,15 +23,15 @@ impl Player {
         }
     }
 
-    async fn play(_: &mut dyn JavaContext, clip: JvmClassInstanceProxy<Clip>, repeat: i32) -> JavaResult<()> {
+    async fn play(_: &mut dyn JavaContext, clip: JvmClassInstanceProxy<Clip>, repeat: bool) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::play({:?}, {})", &clip, repeat);
 
-        Ok(())
+        Ok(false)
     }
 
-    async fn stop(_: &mut dyn JavaContext, clip: JvmClassInstanceProxy<Clip>) -> JavaResult<()> {
+    async fn stop(_: &mut dyn JavaContext, clip: JvmClassInstanceProxy<Clip>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::stop({:?})", &clip,);
 
-        Ok(())
+        Ok(false)
     }
 }

@@ -36,7 +36,7 @@ impl Runtime {
         let instance = context.jvm().instantiate_class("java/lang/Runtime").await?;
         context.jvm().invoke_method(&instance, "java/lang/Runtime", "<init>", "()V", &[]).await?;
 
-        Ok(JvmClassInstanceProxy::new(instance))
+        Ok(JvmClassInstanceProxy::new(Some(instance)))
     }
 
     async fn total_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i32> {

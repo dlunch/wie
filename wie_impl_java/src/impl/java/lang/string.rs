@@ -56,17 +56,17 @@ impl String {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?})", &this, &value);
 
-        let count = context.jvm().array_length(&value.class_instance)?;
+        let count = context.jvm().array_length(value.class_instance.as_ref().unwrap())?;
 
         context
             .jvm()
             .invoke_method(
-                &this.class_instance,
+                this.class_instance.as_ref().unwrap(),
                 "java/lang/String",
                 "<init>",
                 "([BII)V",
                 &[
-                    JavaValue::Object(Some(value.class_instance)),
+                    JavaValue::Object(Some(value.class_instance.unwrap())),
                     JavaValue::Int(0),
                     JavaValue::Int(count as _),
                 ],
@@ -83,17 +83,17 @@ impl String {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?})", &this, &value);
 
-        let count = context.jvm().array_length(&value.class_instance)?;
+        let count = context.jvm().array_length(value.class_instance.as_ref().unwrap())?;
 
         context
             .jvm()
             .invoke_method(
-                &this.class_instance,
+                this.class_instance.as_ref().unwrap(),
                 "java/lang/String",
                 "<init>",
                 "([CII)V",
                 &[
-                    JavaValue::Object(Some(value.class_instance)),
+                    JavaValue::Object(Some(value.class_instance.unwrap())),
                     JavaValue::Int(0),
                     JavaValue::Int(count as _),
                 ],
@@ -113,11 +113,14 @@ impl String {
         tracing::debug!("java.lang.String::<init>({:?}, {:?}, {}, {})", &this, &value, offset, count);
 
         let array = context.jvm().instantiate_array("C", count as _).await?;
-        context
-            .jvm()
-            .put_field(&this.class_instance, "value", "[C", JavaValue::Object(Some(array.clone())))?;
+        context.jvm().put_field(
+            this.class_instance.as_ref().unwrap(),
+            "value",
+            "[C",
+            JavaValue::Object(Some(array.clone())),
+        )?;
 
-        let data = context.jvm().load_array(&value.class_instance, offset as _, count as _)?;
+        let data = context.jvm().load_array(&value.class_instance.unwrap(), offset as _, count as _)?;
         context.jvm().store_array(&array, 0, &data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
@@ -132,7 +135,7 @@ impl String {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?}, {}, {})", &this, &value, offset, count);
 
-        let bytes = context.jvm().load_array(&value.class_instance, offset as _, count as _)?;
+        let bytes = context.jvm().load_array(&value.class_instance.unwrap(), offset as _, count as _)?;
         let string = decode_str(&bytes.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>());
 
         let utf16 = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
@@ -143,7 +146,7 @@ impl String {
         context
             .jvm()
             .invoke_method(
-                &this.class_instance,
+                this.class_instance.as_ref().unwrap(),
                 "java/lang/String",
                 "<init>",
                 "([C)V",
@@ -154,25 +157,25 @@ impl String {
         Ok(())
     }
 
-    async fn equals(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, other: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+    async fn equals(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, other: JvmClassInstanceProxy<Self>) -> JavaResult<bool> {
         tracing::debug!("java.lang.String::equals({:?}, {:?})", &this, &other);
 
         // TODO Object.equals()
 
-        let other_string = Self::to_rust_string(context, &other.class_instance)?;
-        let this_string = Self::to_rust_string(context, &this.class_instance)?;
+        let other_string = Self::to_rust_string(context, &other.class_instance.unwrap())?;
+        let this_string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
 
         if this_string == other_string {
-            Ok(1)
+            Ok(true)
         } else {
-            Ok(0) // TODO boolean type
+            Ok(false)
         }
     }
 
     async fn char_at(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, index: i32) -> JavaResult<i32> {
         tracing::debug!("java.lang.String::charAt({:?}, {})", &this, index);
 
-        let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
+        let value = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "value", "[C")?;
 
         Ok(context.jvm().load_array(value.as_object_ref().unwrap(), index as _, 1)?[0].as_char() as _)
     }
@@ -184,8 +187,8 @@ impl String {
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.String::concat({:?}, {:?})", &this, &other);
 
-        let this_string = Self::to_rust_string(context, &this.class_instance)?;
-        let other_string = Self::to_rust_string(context, &other.class_instance)?;
+        let this_string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
+        let other_string = Self::to_rust_string(context, &other.class_instance.unwrap())?;
 
         let concat = this_string + &other_string;
 
@@ -195,7 +198,7 @@ impl String {
     async fn get_bytes(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmArrayClassInstanceProxy<i8>> {
         tracing::debug!("java.lang.String::getBytes({:?})", &this);
 
-        let string = Self::to_rust_string(context, &this.class_instance)?;
+        let string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
 
         let bytes = encode_str(&string);
         let bytes = bytes.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
@@ -203,13 +206,13 @@ impl String {
         let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
         context.jvm().store_array(&byte_array, 0, &bytes)?;
 
-        Ok(JvmArrayClassInstanceProxy::new(byte_array))
+        Ok(JvmArrayClassInstanceProxy::new(Some(byte_array)))
     }
 
     async fn length(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.String::length({:?})", &this);
 
-        let value = context.jvm().get_field(&this.class_instance, "value", "[C")?;
+        let value = context.jvm().get_field(this.class_instance.as_ref().unwrap(), "value", "[C")?;
 
         Ok(context.jvm().array_length(value.as_object_ref().unwrap())? as _)
     }
@@ -221,7 +224,7 @@ impl String {
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.String::substring({:?}, {})", &this, begin_index);
 
-        let string = Self::to_rust_string(context, &this.class_instance)?;
+        let string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
 
         let substr = string.chars().skip(begin_index as usize).collect::<RustString>(); // TODO buffer sharing
 
@@ -236,7 +239,7 @@ impl String {
     ) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.String::substring({:?}, {}, {})", &this, begin_index, end_index);
 
-        let string = Self::to_rust_string(context, &this.class_instance)?;
+        let string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
 
         let substr = string
             .chars()
@@ -271,8 +274,8 @@ impl String {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.String::indexOf({:?}, {:?})", &this, &str);
 
-        let this_string = Self::to_rust_string(context, &this.class_instance)?;
-        let str_string = Self::to_rust_string(context, &str.class_instance)?;
+        let this_string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
+        let str_string = Self::to_rust_string(context, &str.class_instance.unwrap())?;
 
         let index = this_string[from_index as usize..].find(&str_string).map(|x| x as i32 + from_index);
 
@@ -282,7 +285,7 @@ impl String {
     async fn trim(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.String::trim({:?})", &this);
 
-        let string = Self::to_rust_string(context, &this.class_instance)?;
+        let string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;
 
         let trimmed = string.trim().to_string();
 
@@ -317,6 +320,6 @@ impl String {
             .invoke_method(&instance, "java/lang/String", "<init>", "([C)V", &[JavaValue::Object(Some(java_value))])
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(instance))
+        Ok(JvmClassInstanceProxy::new(Some(instance)))
     }
 }

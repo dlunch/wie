@@ -126,7 +126,7 @@ async fn register_java_string(core: &mut ArmCore, backend: &mut Backend, offset:
     let mut context = KtfJavaContext::new(core, backend);
     let instance = JavaString::from_utf16(&mut context, &bytes_u16).await?;
 
-    Ok(context.instance_raw(&instance.class_instance) as _)
+    Ok(context.instance_raw(&instance.class_instance.unwrap()) as _)
 }
 
 async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32, field_name: u32) -> anyhow::Result<u32> {

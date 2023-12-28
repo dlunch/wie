@@ -169,8 +169,9 @@ impl JavaContext for KtfJavaContext<'_> {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
             async fn call(mut self) -> Result<u32, JavaError> {
                 let mut context = KtfJavaContext::new(&mut self.core, &mut self.backend);
+                let _ = self.callback.call(&mut context, Box::new([])).await?;
 
-                Ok(self.callback.call(&mut context, &[]).await? as _)
+                Ok(0) // TODO resturn value
             }
         }
 
