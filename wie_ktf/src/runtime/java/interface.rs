@@ -86,7 +86,12 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
 
     let context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    let method = class.method(&fullname)?.unwrap();
+    let method = class.method(&fullname)?;
+
+    if method.is_none() {
+        anyhow::bail!("Method {} not found from {}", fullname, class.name()?);
+    }
+    let method = method.unwrap();
 
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
