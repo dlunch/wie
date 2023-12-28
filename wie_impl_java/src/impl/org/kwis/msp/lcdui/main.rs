@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{JvmArrayClassInstanceProxy, JvmClassInstanceProxy},
+    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::String,
 };
 
@@ -30,7 +30,7 @@ impl Main {
         Ok(())
     }
 
-    async fn main(context: &mut dyn JavaContext, args: JvmArrayClassInstanceProxy<String>) -> JavaResult<()> {
+    async fn main(context: &mut dyn JavaContext, args: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = context
