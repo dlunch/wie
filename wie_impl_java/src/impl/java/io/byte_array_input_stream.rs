@@ -30,11 +30,7 @@ impl ByteArrayInputStream {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmArrayClassInstanceProxy<i8>) -> JavaResult<()> {
-        tracing::debug!(
-            "java.lang.ByteArrayInputStream::<init>({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&data.class_instance)
-        );
+        tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
         context
             .jvm()
@@ -45,10 +41,7 @@ impl ByteArrayInputStream {
     }
 
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
-        tracing::debug!(
-            "java.lang.ByteArrayInputStream::available({:#x})",
-            context.instance_raw(&this.class_instance)
-        );
+        tracing::debug!("java.lang.ByteArrayInputStream::available({:?})", &this);
 
         let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
         let pos = context.jvm().get_field(&this.class_instance, "pos", "I")?.as_int();
@@ -64,13 +57,7 @@ impl ByteArrayInputStream {
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
-        tracing::debug!(
-            "java.lang.ByteArrayInputStream::read({:#x}, {:#x}, {}, {})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&b.class_instance),
-            off,
-            len
-        );
+        tracing::debug!("java.lang.ByteArrayInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
         let buf = context.jvm().get_field(&this.class_instance, "buf", "[B")?;
         let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())?;
@@ -104,7 +91,7 @@ impl ByteArrayInputStream {
     }
 
     async fn close(_: &mut dyn JavaContext, this: JavaObjectProxy<ByteArrayInputStream>) -> JavaResult<()> {
-        tracing::debug!("java.lang.ByteArrayInputStream::close({:#x})", this.ptr_instance);
+        tracing::debug!("java.lang.ByteArrayInputStream::close({:?})", this.ptr_instance);
 
         Ok(())
     }

@@ -28,19 +28,19 @@ impl Card {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn init_1(_: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:#x}, {})", this.ptr_instance, a0);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", this.ptr_instance, a0);
 
         Ok(())
     }
 
     async fn get_width(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas();
 
@@ -48,7 +48,7 @@ impl Card {
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", this.ptr_instance);
 
         let screen_canvas = context.backend().screen_canvas();
 
@@ -56,7 +56,7 @@ impl Card {
     }
 
     async fn repaint(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", this.ptr_instance);
 
         context.backend().window().request_redraw()?;
 
@@ -65,7 +65,7 @@ impl Card {
 
     async fn repaint_with_area(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>, a0: i32, a1: i32, a2: i32, a3: i32) -> JavaResult<()> {
         tracing::warn!(
-            "stub org.kwis.msp.lcdui.Card::repaint({:#x}, {}, {}, {}, {})",
+            "stub org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})",
             this.ptr_instance,
             a0,
             a1,
@@ -79,7 +79,7 @@ impl Card {
     }
 
     async fn service_repaints(context: &mut dyn JavaContext, this: JavaObjectProxy<Card>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:#x})", this.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", this.ptr_instance);
 
         context.backend().window().request_redraw()?;
 

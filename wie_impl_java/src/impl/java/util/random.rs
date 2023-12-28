@@ -19,7 +19,7 @@ impl Random {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Random>) -> JavaResult<()> {
-        tracing::warn!("stub java.util.Random::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.util.Random::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }

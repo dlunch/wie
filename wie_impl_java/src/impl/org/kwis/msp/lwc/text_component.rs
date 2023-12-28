@@ -20,7 +20,7 @@ impl TextComponent {
 
     async fn set_max_length(_: &mut dyn JavaContext, this: JavaObjectProxy<TextComponent>, max_length: i32) -> JavaResult<()> {
         tracing::warn!(
-            "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:#x}, {})",
+            "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {})",
             this.ptr_instance,
             max_length
         );

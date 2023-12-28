@@ -21,14 +21,14 @@ impl Object {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("java.lang.Object::<init>({:#x})", context.instance_raw(&this.class_instance));
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::debug!("java.lang.Object::<init>({:?})", &this);
 
         Ok(())
     }
 
     async fn get_class(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Self>> {
-        tracing::warn!("stub java.lang.Object::get_class({:#x})", context.instance_raw(&this.class_instance));
+        tracing::warn!("stub java.lang.Object::get_class({:?})", &this);
 
         let result = context.jvm().instantiate_class("java/lang/Class").await?;
 

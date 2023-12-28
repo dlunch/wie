@@ -27,18 +27,14 @@ impl InputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.InputStream::<init>({:#x})", context.instance_raw(&this.class_instance));
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.InputStream::<init>({:?})", &this);
 
         Ok(())
     }
 
     async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, b: JvmArrayClassInstanceProxy<i8>) -> JavaResult<i32> {
-        tracing::debug!(
-            "java.lang.InputStream::read({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&b.class_instance)
-        );
+        tracing::debug!("java.lang.InputStream::read({:?}, {:?})", &this, &b);
 
         let array_length = context.jvm().array_length(&b.class_instance)?;
 

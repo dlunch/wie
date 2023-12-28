@@ -102,11 +102,7 @@ impl EventQueue {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<EventQueue>, jlet: JavaObjectProxy<Jlet>) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.EventQueue::<init>({:#x}, {:#x})",
-            this.ptr_instance,
-            jlet.ptr_instance
-        );
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", this.ptr_instance, jlet.ptr_instance);
 
         Ok(())
     }
@@ -116,11 +112,7 @@ impl EventQueue {
         this: JvmClassInstanceProxy<Self>,
         event: JvmArrayClassInstanceProxy<i32>,
     ) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.EventQueue::getNextEvent({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&event.class_instance)
-        );
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
         loop {
             let maybe_event = context.backend().pop_event();
@@ -159,11 +151,7 @@ impl EventQueue {
         this: JvmClassInstanceProxy<Self>,
         event: JvmArrayClassInstanceProxy<i32>,
     ) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.EventQueue::dispatchEvent({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&event.class_instance)
-        );
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
         let event = context
             .jvm()

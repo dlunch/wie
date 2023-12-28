@@ -25,25 +25,25 @@ impl FileSystem {
     }
 
     async fn is_file(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:#x})", name.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", name.ptr_instance);
 
         Ok(0)
     }
 
     async fn is_directory(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>, flag: i32) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:#x}, {:#x})", name.ptr_instance, flag);
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", name.ptr_instance, flag);
 
         Ok(1)
     }
 
     async fn exists(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:#x})", name.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", name.ptr_instance);
 
         Ok(0)
     }
 
     async fn available(_context: &mut dyn JavaContext, name: JavaObjectProxy<String>) -> JavaResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::available({:#x})", name.ptr_instance);
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::available({:?})", name.ptr_instance);
 
         Ok(0x1000000) // TODO temp
     }

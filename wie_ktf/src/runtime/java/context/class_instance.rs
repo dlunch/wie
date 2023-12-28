@@ -155,6 +155,6 @@ impl ClassInstance for JavaClassInstance {
 
 impl Debug for JavaClassInstance {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("JavaClassInstance").field("ptr_raw", &self.ptr_raw).finish()
+        write!(f, "{:#x}", self.ptr_raw)
     }
 }

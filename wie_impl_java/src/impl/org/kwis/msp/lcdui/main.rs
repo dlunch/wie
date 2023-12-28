@@ -25,17 +25,13 @@ impl Main {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Main>) -> JavaResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:#x})", this.ptr_instance);
+        tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }
 
     async fn main(context: &mut dyn JavaContext, this: JavaObjectProxy<Main>, args: JvmArrayClassInstanceProxy<String>) -> JavaResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.lcdui.Main::<init>({:#x}, {:#x})",
-            this.ptr_instance,
-            context.instance_raw(&args.class_instance)
-        );
+        tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?}, {:?})", this.ptr_instance, &args);
 
         let jlet = context
             .jvm()

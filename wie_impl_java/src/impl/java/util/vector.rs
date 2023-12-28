@@ -19,7 +19,7 @@ impl Vector {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Vector>) -> JavaResult<()> {
-        tracing::warn!("stub java.util.Vector::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.util.Vector::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }

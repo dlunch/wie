@@ -32,11 +32,7 @@ impl Thread {
     }
 
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, target: JvmClassInstanceProxy<Runnable>) -> JavaResult<()> {
-        tracing::debug!(
-            "Thread::<init>({:#x}, {:#x})",
-            context.instance_raw(&this.class_instance),
-            context.instance_raw(&target.class_instance)
-        );
+        tracing::debug!("Thread::<init>({:?}, {:?})", &this, &target);
 
         context.jvm().put_field(
             &this.class_instance,
@@ -49,7 +45,7 @@ impl Thread {
     }
 
     async fn start(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
-        tracing::debug!("Thread::start({:#x})", context.instance_raw(&this.class_instance));
+        tracing::debug!("Thread::start({:?})", &this);
 
         struct ThreadStartProxy {
             thread_id: usize,
@@ -82,7 +78,7 @@ impl Thread {
     }
 
     async fn sleep(context: &mut dyn JavaContext, a0: i32, a1: i32) -> JavaResult<i32> {
-        tracing::debug!("Thread::sleep({:#x}, {:#x})", a0, a1);
+        tracing::debug!("Thread::sleep({:?}, {:?})", a0, a1);
         context.sleep(a0 as u64).await;
 
         Ok(0)
@@ -96,7 +92,7 @@ impl Thread {
     }
 
     async fn set_priority(_: &mut dyn JavaContext, this: JavaObjectProxy<Thread>, new_priority: i32) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Thread::setPriority({:#x}, {:#x})", this.ptr_instance, new_priority);
+        tracing::warn!("stub java.lang.Thread::setPriority({:?}, {:?})", this.ptr_instance, new_priority);
 
         Ok(())
     }

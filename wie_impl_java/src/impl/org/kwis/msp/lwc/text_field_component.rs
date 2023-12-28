@@ -26,7 +26,7 @@ impl TextFieldComponent {
         constraint: i32,
     ) -> JavaResult<()> {
         tracing::warn!(
-            "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:#x}, {:#x}, {:#x})",
+            "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {:?}, {:?})",
             this.ptr_instance,
             data.ptr_instance,
             constraint

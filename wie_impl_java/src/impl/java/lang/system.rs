@@ -66,10 +66,10 @@ impl System {
         length: i32,
     ) -> JavaResult<()> {
         tracing::debug!(
-            "java.lang.System::arraycopy({:#x}, {}, {:#x}, {}, {})",
-            context.instance_raw(&src.class_instance),
+            "java.lang.System::arraycopy({:?}, {}, {:?}, {}, {})",
+            &src,
             src_pos,
-            context.instance_raw(&dest.class_instance),
+            &dest,
             dest_pos,
             length
         );

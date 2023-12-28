@@ -146,8 +146,6 @@ impl ArrayClassInstance for JavaArrayClassInstance {
 
 impl Debug for JavaArrayClassInstance {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("JavaArrayClassInstance")
-            .field("class_instance", &self.class_instance)
-            .finish()
+        write!(f, "{:#x}", self.class_instance.ptr_raw)
     }
 }

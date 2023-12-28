@@ -25,7 +25,7 @@ impl Runtime {
     }
 
     async fn init(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Runtime::<init>({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Runtime::<init>({:?})", this.ptr_instance);
 
         Ok(())
     }
@@ -40,19 +40,19 @@ impl Runtime {
     }
 
     async fn total_memory(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<i32> {
-        tracing::warn!("stub java.lang.Runtime::totalMemory({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Runtime::totalMemory({:?})", this.ptr_instance);
 
         Ok(0x100000) // TODO: hardcoded
     }
 
     async fn free_memory(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<i32> {
-        tracing::warn!("stub java.lang.Runtime::freeMemory({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Runtime::freeMemory({:?})", this.ptr_instance);
 
         Ok(0x100000) // TODO: hardcoded
     }
 
     async fn gc(_: &mut dyn JavaContext, this: JavaObjectProxy<Runtime>) -> JavaResult<()> {
-        tracing::warn!("stub java.lang.Runtime::gc({:#x})", this.ptr_instance);
+        tracing::warn!("stub java.lang.Runtime::gc({:?})", this.ptr_instance);
 
         Ok(())
     }
