@@ -96,7 +96,7 @@ impl Display {
             .jvm()
             .get_field(&jlet.as_object().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
-        Ok(JvmClassInstanceProxy::new(Some(display.as_object_ref().unwrap().clone())))
+        Ok(JvmClassInstanceProxy::new(display.as_object()))
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
