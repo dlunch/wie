@@ -64,9 +64,14 @@ impl JvmDetail for KtfJvmDetail {
 
     async fn load_array_class(&mut self, element_type_name: &str) -> JvmResult<Option<Box<dyn ArrayClass>>> {
         let class_name = format!("[{}", element_type_name);
-        let class = JavaArrayClass::new(&mut self.core, &class_name).await?;
+        if let Some(x) = JavaContextData::find_class(&self.core, &class_name)? {
+            let class = JavaArrayClass::from_raw(x.ptr_raw, &self.core);
+            return Ok(Some(Box::new(class)));
+        } else {
+            let class = JavaArrayClass::new(&mut self.core, &class_name).await?;
 
-        Ok(Some(Box::new(class)))
+            Ok(Some(Box::new(class)))
+        }
     }
 
     fn get_class(&self, class_name: &str) -> JvmResult<Option<ClassRef>> {
