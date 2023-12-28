@@ -19,6 +19,12 @@ members = [
 default-members = ["wie"]
 
 [profile.dev]
+opt-level = 0
+
+[profile.dev.package.wie_core_arm]
+opt-level = 1
+
+[profile.dev.package.armv4t_emu]
 opt-level = 1
 
 [profile.release]
@@ -34,9 +40,5 @@ license = "MIT"
 anyhow = { version = "^1.0" }
 async-trait = { version = "^0.1", default-features = false }
 bitflags = { version = "^2.4", default-features = false }
-bytemuck = { version = "^1.13", default-features = false, features = [
-    "derive",
-] }
-tracing = { version = "^0.1", default-features = false, features = [
-    "attributes",
-] }
+bytemuck = { version = "^1.13", default-features = false, features = ["derive"] }
+tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
