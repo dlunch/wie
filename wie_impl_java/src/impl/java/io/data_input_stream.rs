@@ -31,7 +31,7 @@ impl DataInputStream {
 
         context
             .jvm()
-            .put_field(&this, "in", "Ljava/io/InputStream;", JavaValue::Object(r#in.class_instance))?;
+            .put_field(&this, "in", "Ljava/io/InputStream;", JavaValue::Object(r#in.instance))?;
 
         Ok(())
     }
@@ -65,7 +65,7 @@ impl DataInputStream {
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
-                &[JavaValue::Object(b.class_instance), JavaValue::Int(off), JavaValue::Int(len)],
+                &[JavaValue::Object(b.instance), JavaValue::Int(off), JavaValue::Int(len)],
             )
             .await?;
 

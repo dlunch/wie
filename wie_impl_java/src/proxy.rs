@@ -11,14 +11,14 @@ use crate::{base::JavaContext, method::TypeConverter};
 pub struct Array<T>(PhantomData<T>);
 
 pub struct JvmClassInstanceProxy<T> {
-    pub class_instance: Option<ClassInstanceRef>,
+    pub instance: Option<ClassInstanceRef>,
     _phantom: PhantomData<T>,
 }
 
 impl<T> JvmClassInstanceProxy<T> {
-    pub fn new(class_instance: Option<ClassInstanceRef>) -> Self {
+    pub fn new(instance: Option<ClassInstanceRef>) -> Self {
         Self {
-            class_instance,
+            instance,
             _phantom: PhantomData,
         }
     }
@@ -30,13 +30,13 @@ impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
     }
 
     fn from_rust(_: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaValue {
-        JavaValue::Object(value.class_instance)
+        JavaValue::Object(value.instance)
     }
 }
 
 impl<T> Debug for JvmClassInstanceProxy<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if let Some(x) = &self.class_instance {
+        if let Some(x) = &self.instance {
             write!(f, "{:?}", x.borrow())
         } else {
             write!(f, "null")
@@ -47,6 +47,6 @@ impl<T> Debug for JvmClassInstanceProxy<T> {
 impl<T> Deref for JvmClassInstanceProxy<T> {
     type Target = ClassInstanceRef;
     fn deref(&self) -> &Self::Target {
-        self.class_instance.as_ref().unwrap()
+        self.instance.as_ref().unwrap()
     }
 }

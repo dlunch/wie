@@ -37,7 +37,7 @@ impl DataBase {
 
         context
             .jvm()
-            .put_field(&this, "dbName", "Ljava/lang/String;", JavaValue::Object(data_base_name.class_instance))?;
+            .put_field(&this, "dbName", "Ljava/lang/String;", JavaValue::Object(data_base_name.instance))?;
 
         Ok(())
     }
@@ -63,7 +63,7 @@ impl DataBase {
                 "org/kwis/msp/db/DataBase",
                 "<init>",
                 "(Ljava/lang/String;)V",
-                &[JavaValue::Object(data_base_name.class_instance)],
+                &[JavaValue::Object(data_base_name.instance)],
             )
             .await?;
 

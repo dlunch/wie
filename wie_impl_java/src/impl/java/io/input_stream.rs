@@ -45,7 +45,7 @@ impl InputStream {
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
-                &[JavaValue::Object(b.class_instance), JavaValue::Int(0), JavaValue::Int(array_length as _)],
+                &[JavaValue::Object(b.instance), JavaValue::Int(0), JavaValue::Int(array_length as _)],
             )
             .await?
             .as_int())

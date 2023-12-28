@@ -65,7 +65,7 @@ impl String {
                 "java/lang/String",
                 "<init>",
                 "([BII)V",
-                &[JavaValue::Object(value.class_instance), JavaValue::Int(0), JavaValue::Int(count as _)],
+                &[JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
             )
             .await?;
 
@@ -88,7 +88,7 @@ impl String {
                 "java/lang/String",
                 "<init>",
                 "([CII)V",
-                &[JavaValue::Object(value.class_instance), JavaValue::Int(0), JavaValue::Int(count as _)],
+                &[JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
             )
             .await?;
 

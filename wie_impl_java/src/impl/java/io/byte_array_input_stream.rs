@@ -32,7 +32,7 @@ impl ByteArrayInputStream {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
-        context.jvm().put_field(&this, "buf", "[B", JavaValue::Object(data.class_instance))?;
+        context.jvm().put_field(&this, "buf", "[B", JavaValue::Object(data.instance))?;
         context.jvm().put_field(&this, "pos", "I", JavaValue::Int(0))?;
 
         Ok(())
@@ -76,7 +76,7 @@ impl ByteArrayInputStream {
                 &[
                     buf,
                     JavaValue::Int(pos as _),
-                    JavaValue::Object(b.class_instance),
+                    JavaValue::Object(b.instance),
                     JavaValue::Int(off as _),
                     JavaValue::Int(len_to_read as _),
                 ],

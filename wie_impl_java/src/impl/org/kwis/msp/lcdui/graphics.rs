@@ -111,7 +111,7 @@ impl Graphics {
 
         context
             .jvm()
-            .put_field(&this, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(image.class_instance))?;
+            .put_field(&this, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(image.instance))?;
         context.jvm().put_field(&this, "w", "I", JavaValue::Int(width as _))?;
         context.jvm().put_field(&this, "h", "I", JavaValue::Int(height as _))?;
 
