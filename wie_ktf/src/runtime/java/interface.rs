@@ -86,7 +86,7 @@ async fn get_java_method(core: &mut ArmCore, backend: &mut Backend, ptr_class: u
 
     let context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    let method = class.method(&fullname)?;
+    let method = class.method(&fullname.name, &fullname.descriptor)?;
 
     if method.is_none() {
         anyhow::bail!("Method {} not found from {}", fullname, class.name()?);
@@ -141,7 +141,7 @@ async fn get_static_field(core: &mut ArmCore, backend: &mut Backend, ptr_class: 
 
     let context = KtfJavaContext::new(core, backend);
     let class = context.class_from_raw(ptr_class);
-    let field = class.field(&field_name.name)?.unwrap();
+    let field = class.field(&field_name.name, &field_name.descriptor, true)?.unwrap();
 
     Ok(field.ptr_raw)
 }

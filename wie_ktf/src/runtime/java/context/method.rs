@@ -86,7 +86,7 @@ impl JavaMethod {
         };
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
-        let index_in_vtable = vtable_builder.add(ptr_raw, &full_name) as u16;
+        let index_in_vtable = vtable_builder.add(ptr_raw, &full_name.name, &full_name.descriptor) as u16;
 
         let flag = JavaMethodFlagBit::from_flag(proto.flag);
 

@@ -1,9 +1,4 @@
-use alloc::{
-    boxed::Box,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -21,7 +16,7 @@ use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult};
 
 use super::{
     class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
-    vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext, KtfJvmWord,
+    vtable_builder::JavaVtableBuilder, KtfJavaContext, KtfJvmWord,
 };
 
 #[repr(C)]
@@ -220,27 +215,29 @@ impl JavaClass {
         }
     }
 
-    pub fn method(&self, fullname: &JavaFullName) -> JavaResult<Option<JavaMethod>> {
+    pub fn method(&self, name: &str, descriptor: &str) -> JavaResult<Option<JavaMethod>> {
         let methods = self.methods()?;
 
         for method in methods {
-            if method.name()? == *fullname {
+            let full_name = method.name()?;
+            if full_name.name == name && full_name.descriptor == descriptor {
                 return Ok(Some(method));
             }
         }
 
         if let Some(x) = self.parent_class()? {
-            x.method(fullname)
+            x.method(name, descriptor)
         } else {
             Ok(None)
         }
     }
 
-    pub fn field(&self, name: &str) -> JavaResult<Option<JavaField>> {
+    pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> JavaResult<Option<JavaField>> {
         let fields = self.fields()?;
 
         for field in fields {
-            if field.name()?.name == name {
+            let full_name = field.name()?;
+            if full_name.name == name && full_name.descriptor == descriptor && field.is_static() == is_static {
                 return Ok(Some(field));
             }
         }
@@ -278,17 +275,11 @@ impl Class for JavaClass {
     }
 
     fn method(&self, name: &str, descriptor: &str) -> Option<Box<dyn Method>> {
-        self.method(&JavaFullName {
-            name: name.to_string(),
-            descriptor: descriptor.to_string(),
-            tag: 0,
-        })
-        .unwrap()
-        .map(|x| Box::new(x) as _)
+        self.method(name, descriptor).unwrap().map(|x| Box::new(x) as _)
     }
 
-    fn field(&self, name: &str, _descriptor: &str, _is_static: bool) -> Option<Box<dyn Field>> {
-        self.field(name).unwrap().map(|x| Box::new(x) as _)
+    fn field(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Field>> {
+        self.field(name, descriptor, is_static).unwrap().map(|x| Box::new(x) as _)
     }
 
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
