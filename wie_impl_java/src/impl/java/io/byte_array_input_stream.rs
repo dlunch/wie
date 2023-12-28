@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaResult,
 };
 
@@ -29,7 +29,7 @@ impl ByteArrayInputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<i8>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
         context
@@ -55,7 +55,7 @@ impl ByteArrayInputStream {
     async fn read(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        b: JvmClassInstanceProxy<i8>,
+        b: JvmClassInstanceProxy<Array<i8>>,
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {

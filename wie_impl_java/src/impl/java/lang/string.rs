@@ -10,7 +10,7 @@ use wie_backend::{decode_str, encode_str};
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     r#impl::java::lang::Object,
     JavaContext, JavaFieldAccessFlag, JavaResult,
 };
@@ -52,7 +52,7 @@ impl String {
     async fn init_with_byte_array(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        value: JvmClassInstanceProxy<i8>,
+        value: JvmClassInstanceProxy<Array<i8>>,
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?})", &this, &value);
 
@@ -79,7 +79,7 @@ impl String {
     async fn init_with_char_array(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        value: JvmClassInstanceProxy<u16>,
+        value: JvmClassInstanceProxy<Array<u16>>,
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?})", &this, &value);
 
@@ -106,7 +106,7 @@ impl String {
     async fn init_with_partial_char_array(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        value: JvmClassInstanceProxy<u16>,
+        value: JvmClassInstanceProxy<Array<u16>>,
         offset: i32,
         count: i32,
     ) -> JavaResult<()> {
@@ -129,7 +129,7 @@ impl String {
     async fn init_with_partial_byte_array(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceProxy<Self>,
-        value: JvmClassInstanceProxy<i8>,
+        value: JvmClassInstanceProxy<Array<i8>>,
         offset: i32,
         count: i32,
     ) -> JavaResult<()> {
@@ -195,7 +195,7 @@ impl String {
         Self::from_rust_string(context, &concat).await
     }
 
-    async fn get_bytes(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<i8>> {
+    async fn get_bytes(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Array<i8>>> {
         tracing::debug!("java.lang.String::getBytes({:?})", &this);
 
         let string = Self::to_rust_string(context, this.class_instance.as_ref().unwrap())?;

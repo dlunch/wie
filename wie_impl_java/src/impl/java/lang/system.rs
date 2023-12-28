@@ -4,7 +4,7 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     JavaFieldAccessFlag,
 };
 
@@ -59,9 +59,9 @@ impl System {
 
     async fn arraycopy(
         context: &mut dyn JavaContext,
-        src: JvmClassInstanceProxy<usize>,
+        src: JvmClassInstanceProxy<Array<()>>, // Any Array
         src_pos: i32,
-        dest: JvmClassInstanceProxy<usize>,
+        dest: JvmClassInstanceProxy<Array<()>>,
         dest_pos: i32,
         length: i32,
     ) -> JavaResult<()> {

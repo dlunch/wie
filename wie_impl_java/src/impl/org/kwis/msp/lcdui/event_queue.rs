@@ -5,7 +5,7 @@ use wie_base::KeyCode;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     r#impl::org::kwis::msp::lcdui::{Image as JavaImage, Jlet},
 };
 
@@ -107,7 +107,11 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn get_next_event(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, event: JvmClassInstanceProxy<i32>) -> JavaResult<()> {
+    async fn get_next_event(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        event: JvmClassInstanceProxy<Array<i32>>,
+    ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
         loop {
@@ -142,7 +146,11 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn dispatch_event(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, event: JvmClassInstanceProxy<i32>) -> JavaResult<()> {
+    async fn dispatch_event(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceProxy<Self>,
+        event: JvmClassInstanceProxy<Array<i32>>,
+    ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
         let event = context
