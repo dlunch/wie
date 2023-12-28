@@ -33,7 +33,7 @@ impl Database {
         Ok(0)
     }
 
-    pub fn get(&mut self, _id: RecordId) -> anyhow::Result<Vec<u8>> {
+    pub fn get(&self, _id: RecordId) -> anyhow::Result<Vec<u8>> {
         Ok(Vec::new())
     }
 
