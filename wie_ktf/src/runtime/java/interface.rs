@@ -198,7 +198,7 @@ pub async fn java_new(core: &mut ArmCore, backend: &mut Backend, ptr_class: u32)
     let instance = context.jvm().instantiate_class(&class_name).await?;
     let raw = context.class_raw(&instance);
 
-    Ok(raw as u32)
+    Ok(raw)
 }
 
 pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_type: u32, count: u32) -> anyhow::Result<u32> {
@@ -217,7 +217,7 @@ pub async fn java_array_new(core: &mut ArmCore, backend: &mut Backend, element_t
     let instance = java_context.jvm().instantiate_array(&element_type_name, count as _).await?;
     let raw = java_context.class_raw(&instance);
 
-    Ok(raw as u32)
+    Ok(raw)
 }
 
 pub async fn java_check_cast(_: &mut ArmCore, _: &mut Backend, ptr_class: u32, ptr_instance: u32) -> anyhow::Result<u32> {
