@@ -1,5 +1,6 @@
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -219,6 +220,10 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> WIPICR
                 'c' => {
                     let byte = arg_iter.next().unwrap();
                     result.push(*byte as u8 as char)
+                }
+                'x' => {
+                    let byte = arg_iter.next().unwrap();
+                    result += &format!("{:x}", byte)
                 }
                 _ => panic!("Unknown format: {}", format),
             }
