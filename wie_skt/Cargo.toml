@@ -15,3 +15,5 @@ wie_base = { path = "../wie_base" }
 wie_core_jvm = { path = "../wie_core_jvm" }
 wie_impl_wipi_c = { path = "../wie_impl_wipi_c" }
 wie_impl_java = { path = "../wie_impl_java" }
+
+jvm = { git = "https://github.com/dlunch/jvm.git" }

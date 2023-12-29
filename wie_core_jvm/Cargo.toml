@@ -15,3 +15,4 @@ jvm_impl = { git = "https://github.com/dlunch/jvm.git" }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
+wie_impl_java = { path = "../wie_impl_java" }

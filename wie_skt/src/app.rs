@@ -1,5 +1,7 @@
 use alloc::string::{String, ToString};
 
+use jvm::JavaValue;
+
 use wie_backend::{App, Backend};
 use wie_core_jvm::JvmCore;
 
@@ -23,9 +25,13 @@ impl SktApp {
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
-        let result = core.invoke_static(&main_class_name, "startApp", "([Ljava/lang/String;)V").await;
+        let result = core
+            .jvm()
+            .invoke_static(&main_class_name, "startApp", "([Ljava/lang/String;)V", [JavaValue::Object(None)])
+            .await;
         if result.is_err() {
-            core.invoke_static(&main_class_name, "startApp", "()V").await?; // both startapp exists in wild.. TODO check this elegantly
+            core.jvm().invoke_static(&main_class_name, "startApp", "()V", []).await?;
+            // both startapp exists in wild.. TODO check this elegantly
         }
 
         Ok(())
