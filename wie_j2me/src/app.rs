@@ -22,8 +22,9 @@ impl J2MEApp {
 
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
+    #[allow(clippy::await_holding_refcell_ref)]
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
-        core.invoke_static(&main_class_name, "startApp", "()V").await?;
+        core.jvm().invoke_static(&main_class_name, "startApp", "()V", []).await?;
 
         Ok(())
     }
