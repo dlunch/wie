@@ -28,6 +28,7 @@ impl JvmCore {
     fn get_class_loader(backend: &Backend) -> impl Fn(&str) -> JvmResult<Option<Box<dyn Class>>> {
         let backend = backend.clone();
         move |class_name| {
+            tracing::debug!("Loading class {}", class_name);
             let path = format!("{}.class", class_name.replace('.', "/"));
 
             let resource = backend.resource();
