@@ -235,6 +235,12 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> WIPICR
     Ok(result)
 }
 
+async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
+    tracing::warn!("stub MC_knlGetCurProgramID()");
+
+    Ok(1)
+}
+
 pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<WIPICMethodBody>
 where
     M: MethodImpl<F, R, WIPICError, P>,
@@ -249,7 +255,7 @@ where
         gen_stub(6, "MC_knlMLoad"),
         gen_stub(7, "MC_knlExit"),
         gen_stub(8, "MC_knlProgramStop"),
-        gen_stub(9, "MC_knlGetCurProgramID"),
+        get_cur_program_id.into_body(),
         gen_stub(10, "MC_knlGetParentProgramID"),
         gen_stub(11, "MC_knlGetAppManagerID"),
         gen_stub(12, "MC_knlGetProgramInfo"),
