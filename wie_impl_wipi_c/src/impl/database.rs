@@ -122,10 +122,10 @@ async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, 
     }
 }
 
-async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
+async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<i32> {
     tracing::warn!("stub MC_dbUnk16()");
 
-    Ok(())
+    Ok(1)
 }
 
 fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Database {
