@@ -73,7 +73,7 @@ impl JvmCore {
     }
 
     fn load_class_from_resource(backend: &Backend, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
-        let path = format!("{}.class", class_name.replace('/', "."));
+        let path = format!("{}.class", class_name);
         let resource = backend.resource();
 
         if let Some(x) = resource.id(&path) {

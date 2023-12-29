@@ -24,7 +24,9 @@ impl J2MEApp {
     #[allow(unused_variables)]
     #[allow(clippy::await_holding_refcell_ref)]
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
-        core.jvm().invoke_static(&main_class_name, "startApp", "()V", []).await?;
+        let normalized_class_name = main_class_name.replace('.', "/");
+
+        core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;
 
         Ok(())
     }
