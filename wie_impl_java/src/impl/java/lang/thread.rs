@@ -57,7 +57,7 @@ impl Thread {
 
                 context
                     .jvm()
-                    .invoke_method(&self.runnable, "java/lang/Runnable", "run", "()V", &[])
+                    .invoke_virtual(&self.runnable, "java/lang/Runnable", "run", "()V", [])
                     .await?;
 
                 Ok(JavaValue::Void)

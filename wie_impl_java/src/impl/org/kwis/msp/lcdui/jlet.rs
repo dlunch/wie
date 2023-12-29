@@ -48,12 +48,12 @@ impl Jlet {
 
         context
             .jvm()
-            .invoke_method(
+            .invoke_special(
                 &display,
                 "org/kwis/msp/lcdui/Display",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
-                &[JavaValue::Object(Some(this.clone())), JavaValue::Object(None)],
+                [JavaValue::Object(Some(this.clone())), JavaValue::Object(None)],
             )
             .await?;
 
@@ -64,12 +64,12 @@ impl Jlet {
         let event_queue = context.jvm().instantiate_class("org/kwis/msp/lcdui/EventQueue").await?;
         context
             .jvm()
-            .invoke_method(
+            .invoke_special(
                 &event_queue,
                 "org/kwis/msp/lcdui/EventQueue",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;)V",
-                &[JavaValue::Object(Some(this.clone()))],
+                [JavaValue::Object(Some(this.clone()))],
             )
             .await?;
 
@@ -112,19 +112,19 @@ impl Jlet {
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
         let main_class_name = main_class_name.replace('.', "/");
         let main_class = context.jvm().instantiate_class(&main_class_name).await?;
-        context.jvm().invoke_method(&main_class, &main_class_name, "<init>", "()V", &[]).await?;
+        context.jvm().invoke_special(&main_class, &main_class_name, "<init>", "()V", []).await?;
 
         tracing::debug!("Main class instance: {:?}", &main_class);
 
         let arg = context.jvm().instantiate_array("Ljava/lang/String;", 0).await?;
         context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 &main_class,
                 &main_class_name,
                 "startApp",
                 "([Ljava/lang/String;)V",
-                &[JavaValue::Object(Some(arg))],
+                [JavaValue::Object(Some(arg))],
             )
             .await?;
 
@@ -136,7 +136,7 @@ impl Jlet {
             async fn call(&self, context: &mut dyn JavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 context
                     .jvm()
-                    .invoke_static_method("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", &[JavaValue::Object(None)])
+                    .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [JavaValue::Object(None)])
                     .await?;
 
                 Ok(JavaValue::Void)

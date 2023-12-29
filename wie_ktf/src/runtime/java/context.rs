@@ -122,7 +122,7 @@ impl<'a> KtfJavaContext<'a> {
         if let Some(x) = clinit {
             tracing::trace!("Call <clinit>");
 
-            x.run(&[]).await?;
+            x.run(Box::new([])).await?;
         }
 
         Ok(())

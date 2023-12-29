@@ -34,7 +34,7 @@ impl Runtime {
         tracing::debug!("java.lang.Runtime::getRuntime");
 
         let instance = context.jvm().instantiate_class("java/lang/Runtime").await?;
-        context.jvm().invoke_method(&instance, "java/lang/Runtime", "<init>", "()V", &[]).await?;
+        context.jvm().invoke_special(&instance, "java/lang/Runtime", "<init>", "()V", []).await?;
 
         Ok(JvmClassInstanceProxy::new(Some(instance)))
     }

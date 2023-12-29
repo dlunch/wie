@@ -68,7 +68,7 @@ impl Image {
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
         context
             .jvm()
-            .invoke_method(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", &[])
+            .invoke_virtual(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", [])
             .await?;
 
         let bytes_per_pixel = 4;
@@ -124,12 +124,12 @@ impl Image {
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
         context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 &instance,
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                &[JavaValue::Object(Some(this.clone())), JavaValue::Int(0), JavaValue::Int(0), width, height],
+                [JavaValue::Object(Some(this.clone())), JavaValue::Int(0), JavaValue::Int(0), width, height],
             )
             .await?;
 
@@ -200,7 +200,7 @@ impl Image {
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
         context
             .jvm()
-            .invoke_method(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", &[])
+            .invoke_virtual(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", [])
             .await?;
 
         let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();

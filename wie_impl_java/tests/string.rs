@@ -25,12 +25,12 @@ async fn test_string_concat() -> anyhow::Result<()> {
 
     let result = context
         .jvm()
-        .invoke_method(
+        .invoke_virtual(
             &string1,
             "java/lang/String",
             "concat",
             "(Ljava/lang/String;)Ljava/lang/String;",
-            &[JavaValue::Object(string2.instance)],
+            [JavaValue::Object(string2.instance)],
         )
         .await?;
 

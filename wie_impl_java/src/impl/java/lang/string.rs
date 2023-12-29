@@ -60,12 +60,12 @@ impl String {
 
         context
             .jvm()
-            .invoke_method(
+            .invoke_special(
                 &this,
                 "java/lang/String",
                 "<init>",
                 "([BII)V",
-                &[JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
+                [JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
             )
             .await?;
 
@@ -83,12 +83,12 @@ impl String {
 
         context
             .jvm()
-            .invoke_method(
+            .invoke_special(
                 &this,
                 "java/lang/String",
                 "<init>",
                 "([CII)V",
-                &[JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
+                [JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
             )
             .await?;
 
@@ -132,7 +132,7 @@ impl String {
 
         context
             .jvm()
-            .invoke_method(&this, "java/lang/String", "<init>", "([C)V", &[JavaValue::Object(Some(array))])
+            .invoke_special(&this, "java/lang/String", "<init>", "([C)V", [JavaValue::Object(Some(array))])
             .await?;
 
         Ok(())
@@ -298,7 +298,7 @@ impl String {
 
         context
             .jvm()
-            .invoke_method(&instance, "java/lang/String", "<init>", "([C)V", &[JavaValue::Object(Some(java_value))])
+            .invoke_special(&instance, "java/lang/String", "<init>", "([C)V", [JavaValue::Object(Some(java_value))])
             .await?;
 
         Ok(JvmClassInstanceProxy::new(Some(instance)))

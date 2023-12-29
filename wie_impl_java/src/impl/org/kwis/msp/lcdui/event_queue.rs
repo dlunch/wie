@@ -179,7 +179,7 @@ impl EventQueue {
     async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
         let jlet = context
             .jvm()
-            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
         let display = context
@@ -199,12 +199,12 @@ impl EventQueue {
 
         context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 card.as_object_ref().unwrap(),
                 "org/kwis/msp/lcdui/Card",
                 "keyNotify",
                 "(II)Z",
-                &[JavaValue::Int(event_type as _), JavaValue::Int(code)],
+                [JavaValue::Int(event_type as _), JavaValue::Int(code)],
             )
             .await?;
 
@@ -214,7 +214,7 @@ impl EventQueue {
     async fn repaint(context: &mut dyn JavaContext) -> JavaResult<()> {
         let jlet = context
             .jvm()
-            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
         let display = context
@@ -235,23 +235,23 @@ impl EventQueue {
         let graphics = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
         context
             .jvm()
-            .invoke_method(
+            .invoke_special(
                 &graphics,
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Display;)V",
-                &[JavaValue::Object(display.as_object())],
+                [JavaValue::Object(display.as_object())],
             )
             .await?;
 
         context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 card.as_object_ref().unwrap(),
                 "org/kwis/msp/lcdui/Card",
                 "paint",
                 "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                &[JavaValue::Object(Some(graphics.clone()))],
+                [JavaValue::Object(Some(graphics.clone()))],
             )
             .await?;
 
