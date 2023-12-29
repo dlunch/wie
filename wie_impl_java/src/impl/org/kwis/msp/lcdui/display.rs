@@ -89,7 +89,7 @@ impl Display {
 
         let jlet = context
             .jvm()
-            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
         let display = context
@@ -104,11 +104,11 @@ impl Display {
 
         let result = context
             .jvm()
-            .invoke_static_method(
+            .invoke_static(
                 "org/kwis/msp/lcdui/Display",
                 "getDisplay",
                 "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
-                &[JavaValue::Object(None)],
+                [JavaValue::Object(None)],
             )
             .await?;
 

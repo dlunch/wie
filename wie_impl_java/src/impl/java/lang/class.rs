@@ -63,12 +63,12 @@ impl Class {
             let result = context.jvm().instantiate_class("java/io/ByteArrayInputStream").await?;
             context
                 .jvm()
-                .invoke_method(
+                .invoke_special(
                     &result,
                     "java/io/ByteArrayInputStream",
                     "<init>",
                     "([B)V",
-                    &[JavaValue::Object(Some(array))],
+                    [JavaValue::Object(Some(array))],
                 )
                 .await?;
 

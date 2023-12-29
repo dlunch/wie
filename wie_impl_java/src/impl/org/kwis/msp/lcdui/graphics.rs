@@ -124,7 +124,7 @@ impl Graphics {
         let font = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
         context
             .jvm()
-            .invoke_method(&font, "org/kwis/msp/lcdui/Font", "<init>", "()V", &[])
+            .invoke_special(&font, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
             .await?;
 
         Ok(JvmClassInstanceProxy::new(Some(font)))
@@ -355,11 +355,11 @@ impl Graphics {
 
             let image = context
                 .jvm()
-                .invoke_static_method(
+                .invoke_static(
                     "org/kwis/msp/lcdui/Image",
                     "createImage",
                     "(II)Lorg/kwis/msp/lcdui/Image;",
-                    &[width, height],
+                    [width, height],
                 )
                 .await?;
 

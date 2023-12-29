@@ -35,16 +35,16 @@ impl Main {
 
         let jlet = context
             .jvm()
-            .invoke_static_method("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", &[])
+            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
         let event_queue = context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 &jlet.as_object().unwrap(),
                 "org/kwis/msp/lcdui/Jlet",
                 "getEventQueue",
                 "()Lorg/kwis/msp/lcdui/EventQueue;",
-                &[],
+                [],
             )
             .await?;
 
@@ -53,22 +53,22 @@ impl Main {
         loop {
             context
                 .jvm()
-                .invoke_method(
+                .invoke_virtual(
                     event_queue.as_object_ref().unwrap(),
                     "org/kwis/lcdui/EventQueue",
                     "getNextEvent",
                     "([I)V",
-                    &[JavaValue::Object(Some(event.clone()))],
+                    [JavaValue::Object(Some(event.clone()))],
                 )
                 .await?;
             context
                 .jvm()
-                .invoke_method(
+                .invoke_virtual(
                     event_queue.as_object_ref().unwrap(),
                     "org/kwis/lcdui/EventQueue",
                     "dispatchEvent",
                     "([I)V",
-                    &[JavaValue::Object(Some(event.clone()))],
+                    [JavaValue::Object(Some(event.clone()))],
                 )
                 .await?;
         }

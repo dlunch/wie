@@ -40,12 +40,12 @@ impl InputStream {
 
         Ok(context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 &this,
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
-                &[JavaValue::Object(b.instance), JavaValue::Int(0), JavaValue::Int(array_length as _)],
+                [JavaValue::Object(b.instance), JavaValue::Int(0), JavaValue::Int(array_length as _)],
             )
             .await?
             .as_int())

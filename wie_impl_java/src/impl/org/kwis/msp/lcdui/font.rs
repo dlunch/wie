@@ -72,7 +72,7 @@ impl Font {
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
         context
             .jvm()
-            .invoke_method(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", &[])
+            .invoke_special(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
             .await?;
 
         Ok(JvmClassInstanceProxy::new(Some(instance)))
@@ -84,7 +84,7 @@ impl Font {
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
         context
             .jvm()
-            .invoke_method(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", &[])
+            .invoke_special(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
             .await?;
 
         Ok(JvmClassInstanceProxy::new(Some(instance)))

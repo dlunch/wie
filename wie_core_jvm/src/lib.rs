@@ -52,10 +52,10 @@ impl JvmCore {
     }
 
     #[allow(clippy::await_holding_refcell_ref)]
-    pub async fn invoke_static_method(&mut self, main_class_name: &str, method_name: &str, descriptor: &str) -> JvmCoreResult<()> {
+    pub async fn invoke_static(&mut self, main_class_name: &str, method_name: &str, descriptor: &str) -> JvmCoreResult<()> {
         let mut jvm = self.jvm.borrow_mut();
 
-        jvm.invoke_static_method(main_class_name, method_name, descriptor, &[]).await?;
+        jvm.invoke_static(main_class_name, method_name, descriptor, []).await?;
 
         Ok(())
     }

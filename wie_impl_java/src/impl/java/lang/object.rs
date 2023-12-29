@@ -32,7 +32,7 @@ impl Object {
 
         let result = context.jvm().instantiate_class("java/lang/Class").await?;
 
-        context.jvm().invoke_method(&result, "java/lang/Class", "<init>", "()V", &[]).await?;
+        context.jvm().invoke_special(&result, "java/lang/Class", "<init>", "()V", []).await?;
 
         Ok(JvmClassInstanceProxy::new(Some(result)))
     }

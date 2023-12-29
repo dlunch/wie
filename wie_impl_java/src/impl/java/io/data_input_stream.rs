@@ -42,7 +42,7 @@ impl DataInputStream {
         let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let available = context
             .jvm()
-            .invoke_method(r#in.as_object_ref().unwrap(), "java/io/InputStream", "available", "()I", &[])
+            .invoke_virtual(r#in.as_object_ref().unwrap(), "java/io/InputStream", "available", "()I", [])
             .await?;
 
         Ok(available.as_int())
@@ -60,12 +60,12 @@ impl DataInputStream {
         let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let result = context
             .jvm()
-            .invoke_method(
+            .invoke_virtual(
                 r#in.as_object_ref().unwrap(),
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
-                &[JavaValue::Object(b.instance), JavaValue::Int(off), JavaValue::Int(len)],
+                [JavaValue::Object(b.instance), JavaValue::Int(off), JavaValue::Int(len)],
             )
             .await?;
 
@@ -78,7 +78,7 @@ impl DataInputStream {
         let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         context
             .jvm()
-            .invoke_method(r#in.as_object_ref().unwrap(), "java/io/InputStream", "close", "()V", &[])
+            .invoke_virtual(r#in.as_object_ref().unwrap(), "java/io/InputStream", "close", "()V", [])
             .await?;
 
         Ok(())

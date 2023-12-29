@@ -58,12 +58,12 @@ impl DataBase {
         let instance = context.jvm().instantiate_class("org/kwis/msp/db/DataBase").await?;
         context
             .jvm()
-            .invoke_method(
+            .invoke_special(
                 &instance,
                 "org/kwis/msp/db/DataBase",
                 "<init>",
                 "(Ljava/lang/String;)V",
-                &[JavaValue::Object(data_base_name.instance)],
+                [JavaValue::Object(data_base_name.instance)],
             )
             .await?;
 

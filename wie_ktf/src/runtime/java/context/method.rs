@@ -115,7 +115,7 @@ impl JavaMethod {
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, args: &[JavaValue]) -> JavaResult<u32> {
+    pub async fn run(&self, args: Box<[JavaValue]>) -> JavaResult<u32> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         let mut core = self.core.clone();
@@ -219,7 +219,7 @@ impl Method for JavaMethod {
         name.descriptor
     }
 
-    async fn run(&self, _jvm: &mut Jvm, args: &[JavaValue]) -> JvmResult<JavaValue> {
+    async fn run(&self, _jvm: &mut Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
         let result = self.run(args).await?;
         let return_type = if let JavaType::Method(_, x) = JavaType::parse(&self.descriptor()) {
             x

@@ -69,11 +69,11 @@ impl ByteArrayInputStream {
 
         context
             .jvm()
-            .invoke_static_method(
+            .invoke_static(
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
-                &[
+                [
                     buf,
                     JavaValue::Int(pos as _),
                     JavaValue::Object(b.instance),
