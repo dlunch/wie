@@ -41,10 +41,10 @@ impl KeyboardEventType {
 #[allow(clippy::upper_case_acronyms)]
 enum WIPIKeyCode {
     UP = -1,
-    DOWN = -6,
-    LEFT = -2,
-    RIGHT = -5,
-    FIRE = -8, // Ok
+    DOWN = -2,
+    LEFT = -3,
+    RIGHT = -4,
+    FIRE = -5, // Ok
 
     NUM0 = 48,
     NUM1 = 49,
