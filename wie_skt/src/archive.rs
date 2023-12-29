@@ -26,7 +26,7 @@ impl SktArchive {
 
     pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
         let msd = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
-        let msd = SktMsd::parse(msd.1);
+        let msd = SktMsd::parse(msd.0, msd.1);
 
         tracing::info!("Loading app {}, mclass {}", msd.id, msd.main_class);
 
@@ -62,9 +62,9 @@ struct SktMsd {
 }
 
 impl SktMsd {
-    pub fn parse(data: &[u8]) -> Self {
+    pub fn parse(filename: &str, data: &[u8]) -> Self {
         let mut main_class = String::new();
-        let mut id = String::new();
+        let mut id = filename[..filename.find('.').unwrap()].into();
 
         let mut lines = data.split(|x| *x == b'\n');
 
