@@ -24,6 +24,7 @@ impl SktApp {
 
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
+    #[allow(clippy::await_holding_refcell_ref)]
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
         let result = core
             .jvm()
