@@ -26,12 +26,14 @@ impl SktApp {
     #[allow(unused_variables)]
     #[allow(clippy::await_holding_refcell_ref)]
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
+        let normalized_class_name = main_class_name.replace('.', "/");
+
         let result = core
             .jvm()
-            .invoke_static(&main_class_name, "startApp", "([Ljava/lang/String;)V", [JavaValue::Object(None)])
+            .invoke_static(&normalized_class_name, "startApp", "([Ljava/lang/String;)V", [JavaValue::Object(None)])
             .await;
         if result.is_err() {
-            core.jvm().invoke_static(&main_class_name, "startApp", "()V", []).await?;
+            core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;
             // both startapp exists in wild.. TODO check this elegantly
         }
 
