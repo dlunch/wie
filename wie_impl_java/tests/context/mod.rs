@@ -52,7 +52,7 @@ impl TestContext {
 
         #[async_trait::async_trait(?Send)]
         impl RustMethodBody<anyhow::Error, JavaValue> for MethodProxy {
-            async fn call(&self, jvm: &mut Jvm, args: &[JavaValue]) -> Result<JavaValue, anyhow::Error> {
+            async fn call(&self, jvm: &mut Jvm, args: Box<[JavaValue]>) -> Result<JavaValue, anyhow::Error> {
                 struct InnerContext<'a> {
                     jvm: &'a mut Jvm,
                 }
