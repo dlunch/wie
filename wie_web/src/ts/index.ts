@@ -18,7 +18,7 @@ const main = () => {
           const wie_web = new WieWeb(new Uint8Array(data), canvas);
 
           for (const button of document.querySelectorAll("button[data-key]")) {
-            button.addEventListener("click", (e) => {
+            button.addEventListener("mousedown", (e) => {
               const key = (e.target as HTMLButtonElement).dataset.key;
               wie_web.send_key(key);
             });
