@@ -5,6 +5,7 @@ mod window;
 use std::{fs, io::stderr};
 
 use clap::Parser;
+use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie_backend::{extract_zip, Archive, Backend, Executor};
 use wie_base::{Event, KeyCode};
@@ -75,25 +76,25 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     })
 }
 
-fn convert_key(key_code: u32) -> Option<KeyCode> {
-    match key_code {
-        2 => Some(KeyCode::NUM1),
-        3 => Some(KeyCode::NUM2),
-        4 => Some(KeyCode::NUM3),
-        16 => Some(KeyCode::NUM4), // Q
-        17 => Some(KeyCode::NUM5), // W
-        18 => Some(KeyCode::NUM6), // E
-        30 => Some(KeyCode::NUM7), // A
-        31 => Some(KeyCode::NUM8), // S
-        32 => Some(KeyCode::NUM9), // D
-        44 => Some(KeyCode::STAR), // Z
-        45 => Some(KeyCode::NUM0), // X
-        46 => Some(KeyCode::HASH), // C
-        57 => Some(KeyCode::OK),   // Space
-        103 => Some(KeyCode::UP),
-        108 => Some(KeyCode::DOWN),
-        105 => Some(KeyCode::LEFT),
-        106 => Some(KeyCode::RIGHT),
+fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
+    match key {
+        PhysicalKey::Code(WinitKeyCode::Digit1) => Some(KeyCode::NUM1),
+        PhysicalKey::Code(WinitKeyCode::Digit2) => Some(KeyCode::NUM2),
+        PhysicalKey::Code(WinitKeyCode::Digit3) => Some(KeyCode::NUM3),
+        PhysicalKey::Code(WinitKeyCode::KeyQ) => Some(KeyCode::NUM4),
+        PhysicalKey::Code(WinitKeyCode::KeyW) => Some(KeyCode::NUM5),
+        PhysicalKey::Code(WinitKeyCode::KeyE) => Some(KeyCode::NUM6),
+        PhysicalKey::Code(WinitKeyCode::KeyA) => Some(KeyCode::NUM7),
+        PhysicalKey::Code(WinitKeyCode::KeyS) => Some(KeyCode::NUM8),
+        PhysicalKey::Code(WinitKeyCode::KeyD) => Some(KeyCode::NUM9),
+        PhysicalKey::Code(WinitKeyCode::KeyZ) => Some(KeyCode::STAR),
+        PhysicalKey::Code(WinitKeyCode::KeyX) => Some(KeyCode::NUM0),
+        PhysicalKey::Code(WinitKeyCode::KeyC) => Some(KeyCode::HASH),
+        PhysicalKey::Code(WinitKeyCode::Space) => Some(KeyCode::OK),
+        PhysicalKey::Code(WinitKeyCode::ArrowUp) => Some(KeyCode::UP),
+        PhysicalKey::Code(WinitKeyCode::ArrowDown) => Some(KeyCode::DOWN),
+        PhysicalKey::Code(WinitKeyCode::ArrowLeft) => Some(KeyCode::LEFT),
+        PhysicalKey::Code(WinitKeyCode::ArrowRight) => Some(KeyCode::RIGHT),
         _ => None,
     }
 }
