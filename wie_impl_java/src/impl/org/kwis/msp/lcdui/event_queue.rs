@@ -211,16 +211,9 @@ impl EventQueue {
             return Ok(());
         }
 
-        let graphics = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
-        context
+        let graphics = context
             .jvm()
-            .invoke_special(
-                &graphics,
-                "org/kwis/msp/lcdui/Graphics",
-                "<init>",
-                "(Lorg/kwis/msp/lcdui/Display;)V",
-                [display.into()],
-            )
+            .new_class("org/kwis/msp/lcdui/Graphics", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
             .await?;
 
         context

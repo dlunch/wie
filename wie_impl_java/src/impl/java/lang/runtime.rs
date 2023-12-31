@@ -33,8 +33,7 @@ impl Runtime {
     async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::debug!("java.lang.Runtime::getRuntime");
 
-        let instance = context.jvm().instantiate_class("java/lang/Runtime").await?;
-        context.jvm().invoke_special(&instance, "java/lang/Runtime", "<init>", "()V", []).await?;
+        let instance = context.jvm().new_class("java/lang/Runtime", "()V", []).await?;
 
         Ok(instance.into())
     }

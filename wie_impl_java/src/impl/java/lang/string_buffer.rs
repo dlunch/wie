@@ -122,11 +122,7 @@ impl StringBuffer {
         let java_value: JvmClassInstanceProxy<Array<JavaChar>> = context.jvm().get_field(&this, "value", "[C")?;
         let count: i32 = context.jvm().get_field(&this, "count", "I")?;
 
-        let string = context.jvm().instantiate_class("java/lang/String").await?;
-        context
-            .jvm()
-            .invoke_special(&string, "java/lang/String", "<init>", "([CII)V", (java_value, 0, count))
-            .await?;
+        let string = context.jvm().new_class("java/lang/String", "([CII)V", (java_value, 0, count)).await?;
 
         Ok(string.into())
     }

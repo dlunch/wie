@@ -15,14 +15,18 @@ impl PrintStream {
         JavaClassProto {
             parent_class: Some("java/io/OutputStream"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "println",
-                "(Ljava/lang/String;)V",
-                Self::println,
-                JavaMethodFlag::NONE,
-            )],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("println", "(Ljava/lang/String;)V", Self::println, JavaMethodFlag::NONE),
+            ],
             fields: vec![],
         }
+    }
+
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+        tracing::warn!("stub java.lang.JavaContext::<init>({:?})", &this);
+
+        Ok(())
     }
 
     async fn println(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, str: JvmClassInstanceProxy<String>) -> JavaResult<()> {

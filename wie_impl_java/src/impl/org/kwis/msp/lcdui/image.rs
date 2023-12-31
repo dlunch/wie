@@ -65,12 +65,6 @@ impl Image {
     async fn create_image(context: &mut dyn JavaContext, width: i32, height: i32) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
-        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
-        context
-            .jvm()
-            .invoke_virtual(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", [])
-            .await?;
-
         let bytes_per_pixel = 4;
 
         Self::create_image_instance(
@@ -120,13 +114,10 @@ impl Image {
         let width: i32 = context.jvm().get_field(&this, "w", "I")?;
         let height: i32 = context.jvm().get_field(&this, "h", "I")?;
 
-        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
-        context
+        let instance = context
             .jvm()
-            .invoke_virtual(
-                &instance,
+            .new_class(
                 "org/kwis/msp/lcdui/Graphics",
-                "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
                 (this.clone(), 0, 0, width, height),
             )
@@ -195,11 +186,7 @@ impl Image {
         data: &[u8],
         bytes_per_pixel: u32,
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {
-        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Image").await?;
-        context
-            .jvm()
-            .invoke_virtual(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", [])
-            .await?;
+        let instance = context.jvm().new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
 
         let data: Vec<i8> = cast_vec(data.to_vec());
 

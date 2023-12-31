@@ -30,9 +30,7 @@ impl Object {
     async fn get_class(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::warn!("stub java.lang.Object::get_class({:?})", &this);
 
-        let result = context.jvm().instantiate_class("java/lang/Class").await?;
-
-        context.jvm().invoke_special(&result, "java/lang/Class", "<init>", "()V", []).await?;
+        let result = context.jvm().new_class("java/lang/Class", "()V", []).await?;
 
         Ok(result.into())
     }

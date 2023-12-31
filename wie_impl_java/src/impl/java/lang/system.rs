@@ -34,7 +34,7 @@ impl System {
     async fn cl_init(context: &mut dyn JavaContext) -> JavaResult<()> {
         tracing::debug!("java.lang.System::<clinit>()");
 
-        let out = context.jvm().instantiate_class("java/io/PrintStream").await?;
+        let out = context.jvm().new_class("java/io/PrintStream", "()V", []).await?;
         // TODO call constructor with dummy output stream?
 
         context
