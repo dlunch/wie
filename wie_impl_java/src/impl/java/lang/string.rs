@@ -276,10 +276,10 @@ impl String {
     pub async fn from_rust_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JvmClassInstanceProxy<Self>> {
         let utf16 = string.encode_utf16().collect::<Vec<_>>();
 
-        Self::from_utf16(context, &utf16).await
+        Self::from_utf16(context, utf16).await
     }
 
-    pub async fn from_utf16(context: &mut dyn JavaContext, data: &[u16]) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    pub async fn from_utf16(context: &mut dyn JavaContext, data: Vec<u16>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         let java_value = context.jvm().instantiate_array("C", data.len()).await?;
 
         context.jvm().store_array(&java_value, 0, data.to_vec())?;
