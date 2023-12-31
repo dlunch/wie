@@ -196,7 +196,7 @@ impl EventQueue {
                 "org/kwis/msp/lcdui/Card",
                 "keyNotify",
                 "(II)Z",
-                [(event_type as i32).into(), code.into()],
+                (event_type as i32, code),
             )
             .await?;
 

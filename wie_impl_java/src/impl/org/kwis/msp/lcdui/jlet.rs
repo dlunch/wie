@@ -53,7 +53,7 @@ impl Jlet {
                 "org/kwis/msp/lcdui/Display",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
-                [this.clone().into(), None.into()],
+                (this.clone(), None),
             )
             .await?;
 

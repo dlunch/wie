@@ -125,13 +125,7 @@ impl StringBuffer {
         let string = context.jvm().instantiate_class("java/lang/String").await?;
         context
             .jvm()
-            .invoke_special(
-                &string,
-                "java/lang/String",
-                "<init>",
-                "([CII)V",
-                [java_value.into(), 0.into(), count.into()],
-            )
+            .invoke_special(&string, "java/lang/String", "<init>", "([CII)V", (java_value, 0, count))
             .await?;
 
         Ok(JvmClassInstanceProxy::new(Some(string)))
