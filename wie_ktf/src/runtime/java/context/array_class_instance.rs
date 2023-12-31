@@ -64,7 +64,7 @@ impl JavaArrayClassInstance {
         })
     }
 
-    pub fn store_array(&mut self, offset: usize, values: &[JavaValue]) -> JavaResult<()> {
+    pub fn store_array(&mut self, offset: usize, values: Vec<JavaValue>) -> JavaResult<()> {
         let array_length = self.array_length()?;
         if offset + values.len() > array_length {
             anyhow::bail!("Array index out of bounds");
@@ -75,9 +75,13 @@ impl JavaArrayClassInstance {
         let element_size = self.element_size()?;
 
         let raw_values = match element_size {
-            1 => values.iter().map(|x| x.as_raw() as u8).collect::<Vec<_>>(),
-            2 => values.iter().map(|x| x.as_raw() as u16).flat_map(u16::to_le_bytes).collect::<Vec<_>>(),
-            4 => values.iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
+            1 => values.into_iter().map(|x| x.as_raw() as u8).collect::<Vec<_>>(),
+            2 => values
+                .into_iter()
+                .map(|x| x.as_raw() as u16)
+                .flat_map(u16::to_le_bytes)
+                .collect::<Vec<_>>(),
+            4 => values.into_iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
             _ => todo!(),
         };
 
@@ -131,8 +135,8 @@ impl ClassInstance for JavaArrayClassInstance {
 }
 
 impl ArrayClassInstance for JavaArrayClassInstance {
-    fn store(&mut self, offset: usize, values: &[JavaValue]) -> JvmResult<()> {
-        self.store_array(offset as _, values)
+    fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
+        self.store_array(offset as _, values.to_vec())
     }
 
     fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {

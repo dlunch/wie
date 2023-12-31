@@ -143,7 +143,7 @@ impl StringBuffer {
             context
                 .jvm()
                 .put_field(this, "value", "[C", JavaValue::Object(Some(java_new_value_array.clone())))?;
-            context.jvm().store_array(&java_new_value_array, 0, &old_values)?;
+            context.jvm().store_array(&java_new_value_array, 0, old_values)?;
         }
 
         Ok(())
@@ -152,7 +152,7 @@ impl StringBuffer {
     async fn append(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, string: &str) -> JavaResult<()> {
         let current_count = context.jvm().get_field(this, "count", "I")?.as_int();
 
-        let value_to_add = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
+        let value_to_add = string.encode_utf16().collect::<Vec<_>>();
         let count_to_add = value_to_add.len() as i32;
 
         StringBuffer::ensure_capacity(context, this, (current_count + count_to_add) as _).await?;
@@ -160,7 +160,7 @@ impl StringBuffer {
         let java_value_array = context.jvm().get_field(this, "value", "[C")?;
         context
             .jvm()
-            .store_array(java_value_array.as_object_ref().unwrap(), current_count as _, &value_to_add)?;
+            .store_array(java_value_array.as_object_ref().unwrap(), current_count as _, value_to_add)?;
         context
             .jvm()
             .put_field(this, "count", "I", JavaValue::Int(current_count + count_to_add))?;

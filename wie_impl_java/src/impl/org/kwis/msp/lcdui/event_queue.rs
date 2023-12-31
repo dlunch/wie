@@ -133,9 +133,8 @@ impl EventQueue {
                         0,
                     ],
                 };
-                let event_data = event_data.into_iter().map(JavaValue::Int).collect::<Vec<_>>();
 
-                context.jvm().store_array(&event, 0, &event_data)?;
+                context.jvm().store_array(&event, 0, event_data)?;
 
                 break;
             } else {

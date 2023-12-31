@@ -56,9 +56,8 @@ impl Class {
 
             let array = context.jvm().instantiate_array("B", data.len() as _).await?;
 
-            let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
-            context.jvm().store_array(&array, 0, &data)?;
-            drop(data);
+            let data = data.iter().map(|&x| x as i8).collect::<Vec<_>>();
+            context.jvm().store_array(&array, 0, data)?;
 
             let result = context.jvm().instantiate_class("java/io/ByteArrayInputStream").await?;
             context
