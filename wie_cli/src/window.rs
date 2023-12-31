@@ -4,8 +4,9 @@ use core::{fmt::Debug, num::NonZeroU32};
 use softbuffer::{Context, Surface};
 use winit::{
     dpi::PhysicalSize,
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
+    keyboard::PhysicalKey,
     window::{Window as WinitWindow, WindowBuilder},
 };
 
@@ -20,8 +21,8 @@ pub enum WindowInternalEvent {
 pub enum WindowCallbackEvent {
     Update,
     Redraw,
-    Keydown(u32),
-    Keyup(u32),
+    Keydown(PhysicalKey),
+    Keyup(PhysicalKey),
 }
 
 pub struct WindowProxy {
@@ -68,7 +69,7 @@ pub struct WindowImpl {
 
 impl WindowImpl {
     pub fn new(width: u32, height: u32) -> anyhow::Result<Self> {
-        let event_loop = EventLoopBuilder::<WindowInternalEvent>::with_user_event().build();
+        let event_loop = EventLoopBuilder::<WindowInternalEvent>::with_user_event().build()?;
 
         let size = PhysicalSize::new(width, height);
 
@@ -89,7 +90,7 @@ impl WindowImpl {
         }
     }
 
-    fn callback<C, E>(event: WindowCallbackEvent, control_flow: &mut ControlFlow, callback: &mut C)
+    fn callback<C, E>(event: WindowCallbackEvent, elwt: &EventLoopWindowTarget<WindowInternalEvent>, callback: &mut C)
     where
         C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
@@ -98,17 +99,17 @@ impl WindowImpl {
         if let Err(x) = result {
             tracing::error!(target: "wie", "{:?}", x);
 
-            *control_flow = ControlFlow::Exit;
+            elwt.exit();
         }
     }
 
-    pub fn run<C, E>(self, mut callback: C) -> !
+    pub fn run<C, E>(self, mut callback: C) -> anyhow::Result<()>
     where
         C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
     {
-        let context = unsafe { Context::new(self.window.as_ref()).unwrap() };
-        let mut surface = unsafe { Surface::new(&context, self.window.as_ref()).unwrap() };
+        let context = Context::new(self.window.clone()).unwrap();
+        let mut surface = Surface::new(&context, self.window.clone()).unwrap();
 
         let size = self.window.inner_size();
 
@@ -116,7 +117,7 @@ impl WindowImpl {
             .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
             .unwrap();
 
-        self.event_loop.run(move |event, _, control_flow| match event {
+        self.event_loop.run(move |event, elwt| match event {
             Event::UserEvent(x) => match x {
                 WindowInternalEvent::RequestRedraw => {
                     self.window.request_redraw();
@@ -130,41 +131,41 @@ impl WindowImpl {
             },
 
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit;
-                }
+                WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            scancode,
+                    event:
+                        KeyEvent {
+                            physical_key,
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Keydown(scancode), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keydown(physical_key), elwt, &mut callback);
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            scancode,
+                    event:
+                        KeyEvent {
+                            physical_key,
                             state: ElementState::Released,
                             ..
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Keyup(scancode), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keyup(physical_key), elwt, &mut callback);
+                }
+                WindowEvent::RedrawRequested => {
+                    Self::callback(WindowCallbackEvent::Redraw, elwt, &mut callback);
                 }
                 _ => {}
             },
-            Event::MainEventsCleared => {
-                Self::callback(WindowCallbackEvent::Update, control_flow, &mut callback);
+            Event::AboutToWait => {
+                Self::callback(WindowCallbackEvent::Update, elwt, &mut callback);
+                elwt.set_control_flow(ControlFlow::Poll);
             }
-            Event::RedrawRequested(_) => {
-                Self::callback(WindowCallbackEvent::Redraw, control_flow, &mut callback);
-            }
-
             _ => {}
-        })
+        })?;
+
+        Ok(())
     }
 }
