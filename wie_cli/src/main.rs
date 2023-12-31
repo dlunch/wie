@@ -2,10 +2,7 @@ extern crate alloc;
 
 mod window;
 
-use std::{
-    fs::File,
-    io::{stderr, Read},
-};
+use std::{fs, io::stderr};
 
 use clap::Parser;
 
@@ -32,10 +29,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub fn start(filename: &str) -> anyhow::Result<()> {
-    let mut file = File::open(filename)?;
-
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf)?;
+    let buf = fs::read(filename)?;
 
     let files = extract_zip(&buf)?;
 
