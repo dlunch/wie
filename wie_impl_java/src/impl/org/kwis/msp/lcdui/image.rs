@@ -6,8 +6,6 @@ use core::{
 
 use bytemuck::cast_vec;
 
-use jvm::ClassInstanceRef;
-
 use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
 
 use crate::{
@@ -149,7 +147,7 @@ impl Image {
         context.jvm().get_field(&this, "h", "I")
     }
 
-    pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
+    pub fn buf(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>) -> JavaResult<Vec<u8>> {
         let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
         let img_data_len = context.jvm().array_length(&java_img_data)?;
 
@@ -158,11 +156,11 @@ impl Image {
         Ok(cast_vec(img_data))
     }
 
-    pub fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn BackendImage>> {
+    pub fn image(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>) -> JavaResult<Box<dyn BackendImage>> {
         Ok(Self::create_canvas(context, this)?.image())
     }
 
-    pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a ClassInstanceRef) -> JavaResult<ImageCanvas<'a>> {
+    pub fn canvas<'a>(context: &'a mut dyn JavaContext, this: &'a JvmClassInstanceProxy<Self>) -> JavaResult<ImageCanvas<'a>> {
         let canvas = Self::create_canvas(context, this)?;
 
         Ok(ImageCanvas {
@@ -172,7 +170,7 @@ impl Image {
         })
     }
 
-    fn create_canvas(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn Canvas>> {
+    fn create_canvas(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>) -> JavaResult<Box<dyn Canvas>> {
         let buf = Self::buf(context, this)?;
 
         let width: i32 = context.jvm().get_field(this, "w", "I")?;
@@ -218,7 +216,7 @@ impl Image {
 }
 
 pub struct ImageCanvas<'a> {
-    image: &'a ClassInstanceRef,
+    image: &'a JvmClassInstanceProxy<Image>,
     context: &'a mut dyn JavaContext,
     canvas: Box<dyn Canvas>,
 }

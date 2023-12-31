@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, format, string::String, vec};
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::JavaValue;
 
 use wie_backend::task;
 
@@ -62,8 +62,7 @@ impl Thread {
             }
         }
 
-        let target: ClassInstanceRef = context.jvm().get_field(&this, "target", "Ljava/lang/Runnable;")?;
-        let runnable = target.into();
+        let runnable = context.jvm().get_field(&this, "target", "Ljava/lang/Runnable;")?;
 
         context.spawn(Box::new(ThreadStartProxy {
             thread_id: format!("{:?}", &runnable),

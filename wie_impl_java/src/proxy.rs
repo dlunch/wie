@@ -15,6 +15,12 @@ pub struct JvmClassInstanceProxy<T> {
     _phantom: PhantomData<T>,
 }
 
+impl<T> JvmClassInstanceProxy<T> {
+    pub fn is_null(&self) -> bool {
+        self.instance.is_none()
+    }
+}
+
 impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> JvmClassInstanceProxy<T> {
         Self {
@@ -66,5 +72,20 @@ impl<T> From<Option<ClassInstanceRef>> for JvmClassInstanceProxy<T> {
             instance: value,
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<T> From<JavaValue> for JvmClassInstanceProxy<T> {
+    fn from(val: JavaValue) -> Self {
+        JvmClassInstanceProxy {
+            instance: val.into(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T> From<JvmClassInstanceProxy<T>> for ClassInstanceRef {
+    fn from(value: JvmClassInstanceProxy<T>) -> Self {
+        value.instance.unwrap()
     }
 }

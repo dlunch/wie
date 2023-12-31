@@ -4,11 +4,11 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::{ClassInstanceRef, JavaChar};
+use jvm::JavaChar;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    proxy::{Array, JvmClassInstanceProxy},
     r#impl::java::lang::String,
     JavaContext, JavaResult,
 };
@@ -119,7 +119,7 @@ impl StringBuffer {
     async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<String>> {
         tracing::debug!("java.lang.StringBuffer::toString({:?})", &this);
 
-        let java_value: ClassInstanceRef = context.jvm().get_field(&this, "value", "[C")?;
+        let java_value: JvmClassInstanceProxy<Array<JavaChar>> = context.jvm().get_field(&this, "value", "[C")?;
         let count: i32 = context.jvm().get_field(&this, "count", "I")?;
 
         let string = context.jvm().instantiate_class("java/lang/String").await?;
