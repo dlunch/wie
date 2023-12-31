@@ -1,6 +1,5 @@
 use alloc::rc::Rc;
 use core::{fmt::Debug, num::NonZeroU32};
-use std::time::{Duration, Instant};
 
 use softbuffer::{Context, Surface};
 use winit::{
@@ -119,7 +118,7 @@ impl WindowImpl {
             .unwrap();
 
         #[cfg(not(target_arch = "wasm32"))]
-        let mut last_update = Instant::now();
+        let mut last_update = std::time::Instant::now();
 
         self.event_loop.run(move |event, elwt| match event {
             Event::UserEvent(x) => match x {
@@ -167,18 +166,19 @@ impl WindowImpl {
                 #[cfg(target_arch = "wasm32")]
                 {
                     Self::callback(WindowCallbackEvent::Update, elwt, &mut callback);
+                    elwt.set_control_flow(ControlFlow::Wait);
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    let now = Instant::now();
-                    let next_update = last_update + Duration::from_millis(16);
+                    let now = std::time::Instant::now();
+                    let next_update = last_update + std::time::Duration::from_millis(16);
                     if now < next_update {
                         elwt.set_control_flow(ControlFlow::WaitUntil(next_update));
                     } else {
                         Self::callback(WindowCallbackEvent::Update, elwt, &mut callback);
 
                         last_update = now;
-                        let next_update = last_update + Duration::from_millis(16);
+                        let next_update = last_update + std::time::Duration::from_millis(16);
                         elwt.set_control_flow(ControlFlow::WaitUntil(next_update));
                     }
                 }
