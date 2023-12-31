@@ -1,5 +1,7 @@
 use alloc::{vec, vec::Vec};
 
+use bytemuck::cast_vec;
+
 use jvm::JavaValue;
 
 use crate::{
@@ -124,7 +126,7 @@ impl DataBase {
         let db_name_str = String::to_rust_string(context, db_name.as_object_ref().unwrap())?;
 
         let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
-        let data = data.into_iter().map(|x| x as i8).collect::<Vec<_>>();
+        let data: Vec<i8> = cast_vec(data);
 
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&array, 0, data)?;

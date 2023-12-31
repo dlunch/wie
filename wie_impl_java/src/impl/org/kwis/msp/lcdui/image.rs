@@ -4,6 +4,8 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+use bytemuck::cast_vec;
+
 use jvm::{ClassInstanceRef, JavaValue};
 
 use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
@@ -229,7 +231,7 @@ impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
 
-        let values = self.canvas.raw().iter().map(|&x| x as i8).collect::<Vec<_>>();
+        let values: Vec<i8> = cast_vec(self.canvas.raw().to_vec());
 
         self.context.jvm().store_array(data.as_object_ref().unwrap(), 0, values).unwrap();
     }

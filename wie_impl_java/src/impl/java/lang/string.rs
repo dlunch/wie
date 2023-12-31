@@ -5,7 +5,10 @@ use alloc::{
     vec::Vec,
 };
 
+use bytemuck::cast_vec;
+
 use jvm::{ClassInstanceRef, JavaValue};
+
 use wie_backend::{decode_str, encode_str};
 
 use crate::{
@@ -182,7 +185,7 @@ impl String {
         let string = Self::to_rust_string(context, &this)?;
 
         let bytes = encode_str(&string);
-        let bytes = bytes.into_iter().map(|x| x as i8).collect::<Vec<_>>();
+        let bytes: Vec<i8> = cast_vec(bytes);
 
         let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
         context.jvm().store_array(&byte_array, 0, bytes)?;
