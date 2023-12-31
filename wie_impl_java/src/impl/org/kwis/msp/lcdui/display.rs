@@ -128,8 +128,7 @@ impl Display {
         let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
 
         if card.as_object_ref().is_none() {
-            let value = JavaValue::Object(c.instance);
-            context.jvm().store_array(cards.as_object_ref().unwrap(), 0, &[value])?;
+            context.jvm().store_array(cards.as_object_ref().unwrap(), 0, [c.instance])?;
         }
 
         Ok(())

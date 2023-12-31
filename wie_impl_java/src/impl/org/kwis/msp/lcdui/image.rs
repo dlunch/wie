@@ -206,7 +206,7 @@ impl Image {
         let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
 
         let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_array(&data_array, 0, &data)?;
+        context.jvm().store_array(&data_array, 0, data)?;
 
         context.jvm().put_field(&instance, "w", "I", JavaValue::Int(width as _))?;
         context.jvm().put_field(&instance, "h", "I", JavaValue::Int(height as _))?;
@@ -229,9 +229,9 @@ impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
 
-        let values = self.canvas.raw().iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
+        let values = self.canvas.raw().iter().map(|&x| x as i8).collect::<Vec<_>>();
 
-        self.context.jvm().store_array(data.as_object_ref().unwrap(), 0, &values).unwrap();
+        self.context.jvm().store_array(data.as_object_ref().unwrap(), 0, values).unwrap();
     }
 }
 

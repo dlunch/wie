@@ -108,7 +108,7 @@ impl String {
         context.jvm().put_field(&this, "value", "[C", JavaValue::Object(Some(array.clone())))?;
 
         let data = context.jvm().load_array(&value, offset as _, count as _)?;
-        context.jvm().store_array(&array, 0, &data)?; // TODO we should store value, offset, count like in java
+        context.jvm().store_array(&array, 0, data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
     }
@@ -125,10 +125,10 @@ impl String {
         let bytes = context.jvm().load_array(&value, offset as _, count as _)?;
         let string = decode_str(&bytes.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>());
 
-        let utf16 = string.encode_utf16().map(JavaValue::Char).collect::<Vec<_>>();
+        let utf16 = string.encode_utf16().collect::<Vec<_>>();
 
         let array = context.jvm().instantiate_array("C", utf16.len()).await?;
-        context.jvm().store_array(&array, 0, &utf16)?;
+        context.jvm().store_array(&array, 0, utf16)?;
 
         context
             .jvm()
@@ -182,10 +182,10 @@ impl String {
         let string = Self::to_rust_string(context, &this)?;
 
         let bytes = encode_str(&string);
-        let bytes = bytes.into_iter().map(|x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
+        let bytes = bytes.into_iter().map(|x| x as i8).collect::<Vec<_>>();
 
         let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
-        context.jvm().store_array(&byte_array, 0, &bytes)?;
+        context.jvm().store_array(&byte_array, 0, bytes)?;
 
         Ok(JvmClassInstanceProxy::new(Some(byte_array)))
     }
@@ -291,8 +291,7 @@ impl String {
     pub async fn from_utf16(context: &mut dyn JavaContext, data: &[u16]) -> JavaResult<JvmClassInstanceProxy<Self>> {
         let java_value = context.jvm().instantiate_array("C", data.len()).await?;
 
-        let data = data.iter().map(|&x| JavaValue::Char(x)).collect::<Vec<_>>();
-        context.jvm().store_array(&java_value, 0, &data)?;
+        context.jvm().store_array(&java_value, 0, data.to_vec())?;
 
         let instance = context.jvm().instantiate_class("java/lang/String").await?;
 
