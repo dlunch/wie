@@ -58,11 +58,7 @@ impl Font {
     async fn get_default_font(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
 
-        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
-        context
-            .jvm()
-            .invoke_special(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
-            .await?;
+        let instance = context.jvm().new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
 
         Ok(instance.into())
     }
@@ -70,11 +66,7 @@ impl Font {
     async fn get_font(context: &mut dyn JavaContext, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceProxy<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
 
-        let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Font").await?;
-        context
-            .jvm()
-            .invoke_special(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
-            .await?;
+        let instance = context.jvm().new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
 
         Ok(instance.into())
     }

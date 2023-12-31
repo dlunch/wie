@@ -284,12 +284,7 @@ impl String {
 
         context.jvm().store_array(&java_value, 0, data.to_vec())?;
 
-        let instance = context.jvm().instantiate_class("java/lang/String").await?;
-
-        context
-            .jvm()
-            .invoke_special(&instance, "java/lang/String", "<init>", "([C)V", [java_value.into()])
-            .await?;
+        let instance = context.jvm().new_class("java/lang/String", "([C)V", (java_value,)).await?;
 
         Ok(instance.into())
     }

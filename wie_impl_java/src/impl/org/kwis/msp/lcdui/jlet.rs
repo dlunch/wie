@@ -44,14 +44,10 @@ impl Jlet {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
-        let display = context.jvm().instantiate_class("org/kwis/msp/lcdui/Display").await?;
-
-        context
+        let display = context
             .jvm()
-            .invoke_special(
-                &display,
+            .new_class(
                 "org/kwis/msp/lcdui/Display",
-                "<init>",
                 "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
                 (this.clone(), None),
             )
@@ -59,16 +55,9 @@ impl Jlet {
 
         context.jvm().put_field(&this, "dis", "Lorg/kwis/msp/lcdui/Display;", display)?;
 
-        let event_queue = context.jvm().instantiate_class("org/kwis/msp/lcdui/EventQueue").await?;
-        context
+        let event_queue = context
             .jvm()
-            .invoke_special(
-                &event_queue,
-                "org/kwis/msp/lcdui/EventQueue",
-                "<init>",
-                "(Lorg/kwis/msp/lcdui/Jlet;)V",
-                [this.clone().into()],
-            )
+            .new_class("org/kwis/msp/lcdui/EventQueue", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
             .await?;
 
         context.jvm().put_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue)?;
@@ -102,8 +91,8 @@ impl Jlet {
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {
         let main_class_name = main_class_name.replace('.', "/");
-        let main_class = context.jvm().instantiate_class(&main_class_name).await?;
-        context.jvm().invoke_special(&main_class, &main_class_name, "<init>", "()V", []).await?;
+
+        let main_class = context.jvm().new_class(&main_class_name, "()V", []).await?;
 
         tracing::debug!("Main class instance: {:?}", &main_class);
 

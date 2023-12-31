@@ -59,11 +59,7 @@ impl Class {
             let data: Vec<i8> = cast_vec(data.to_vec());
             context.jvm().store_array(&array, 0, data)?;
 
-            let result = context.jvm().instantiate_class("java/io/ByteArrayInputStream").await?;
-            context
-                .jvm()
-                .invoke_special(&result, "java/io/ByteArrayInputStream", "<init>", "([B)V", [array.into()])
-                .await?;
+            let result = context.jvm().new_class("java/io/ByteArrayInputStream", "([B)V", (array,)).await?;
 
             Ok(result.into())
         } else {

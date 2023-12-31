@@ -27,8 +27,7 @@ impl Calendar {
     async fn get_instance(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Calendar>> {
         tracing::warn!("stub java.util.Calendar::getInstance()");
 
-        let instance = context.jvm().instantiate_class("java/util/GregorianCalendar").await?;
-        // TODO call <init>
+        let instance = context.jvm().new_class("java/util/GregorianCalendar", "()V", []).await?;
 
         Ok(instance.into())
     }
