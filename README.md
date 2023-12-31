@@ -19,7 +19,7 @@ Can load app, but not working.
 
 ## Screenshot
 
-![](https://github.com/dlunch/wie/blob/main/screenshots/images/Trivial%20games%20playable.png)
+![](https://github.com/dlunch/wie/blob/main/screenshots/Trivial%20games%20playable.png)
 
 ## Executing app with detailed log
 
