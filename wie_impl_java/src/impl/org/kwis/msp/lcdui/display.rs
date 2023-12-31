@@ -124,7 +124,7 @@ impl Display {
         let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
 
         if card.is_none() {
-            context.jvm().store_array(&cards, 0, [c.instance])?;
+            context.jvm().store_array(&cards, 0, [c])?;
         }
 
         Ok(())

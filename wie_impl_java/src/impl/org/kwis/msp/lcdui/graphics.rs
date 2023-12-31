@@ -110,7 +110,7 @@ impl Graphics {
             height
         );
 
-        context.jvm().put_field(&this, "img", "Lorg/kwis/msp/lcdui/Image;", image.instance)?;
+        context.jvm().put_field(&this, "img", "Lorg/kwis/msp/lcdui/Image;", image)?;
         context.jvm().put_field(&this, "w", "I", width)?;
         context.jvm().put_field(&this, "h", "I", height)?;
 
