@@ -130,7 +130,7 @@ impl Image {
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                [this.clone().into(), 0.into(), 0.into(), width.into(), height.into()],
+                (this.clone(), 0, 0, width, height),
             )
             .await?;
 

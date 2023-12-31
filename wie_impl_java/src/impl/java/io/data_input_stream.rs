@@ -55,13 +55,7 @@ impl DataInputStream {
         let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let result: i32 = context
             .jvm()
-            .invoke_virtual(
-                &r#in,
-                "java/io/InputStream",
-                "read",
-                "([BII)I",
-                [b.instance.into(), off.into(), len.into()],
-            )
+            .invoke_virtual(&r#in, "java/io/InputStream", "read", "([BII)I", (b.instance, off, len))
             .await?;
 
         Ok(result)

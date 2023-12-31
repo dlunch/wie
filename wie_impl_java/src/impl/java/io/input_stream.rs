@@ -38,13 +38,7 @@ impl InputStream {
 
         context
             .jvm()
-            .invoke_virtual(
-                &this,
-                "java/io/InputStream",
-                "read",
-                "([BII)I",
-                [b.instance.into(), 0.into(), array_length.into()],
-            )
+            .invoke_virtual(&this, "java/io/InputStream", "read", "([BII)I", (b.instance, 0, array_length))
             .await
     }
 }

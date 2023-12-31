@@ -63,13 +63,7 @@ impl String {
 
         context
             .jvm()
-            .invoke_special(
-                &this,
-                "java/lang/String",
-                "<init>",
-                "([BII)V",
-                [value.instance.into(), 0.into(), count.into()],
-            )
+            .invoke_special(&this, "java/lang/String", "<init>", "([BII)V", (value.instance, 0, count))
             .await?;
 
         Ok(())
@@ -86,13 +80,7 @@ impl String {
 
         context
             .jvm()
-            .invoke_special(
-                &this,
-                "java/lang/String",
-                "<init>",
-                "([CII)V",
-                [value.instance.into(), 0.into(), count.into()],
-            )
+            .invoke_special(&this, "java/lang/String", "<init>", "([CII)V", (value.instance, 0, count))
             .await?;
 
         Ok(())

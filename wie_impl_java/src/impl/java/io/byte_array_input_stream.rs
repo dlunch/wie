@@ -73,7 +73,7 @@ impl ByteArrayInputStream {
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
-                [buf.into(), pos.into(), b.instance.into(), off.into(), len_to_read.into()],
+                (buf, pos, b.instance, off, len_to_read),
             )
             .await?;
 
