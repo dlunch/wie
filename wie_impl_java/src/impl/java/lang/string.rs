@@ -7,7 +7,7 @@ use alloc::{
 
 use bytemuck::{cast_slice, cast_vec};
 
-use jvm::{ClassInstanceRef, JavaChar};
+use jvm::JavaChar;
 
 use wie_backend::{decode_str, encode_str};
 
@@ -264,7 +264,7 @@ impl String {
         Self::from_rust_string(context, &trimmed).await // TODO buffer sharing
     }
 
-    pub fn to_rust_string(context: &mut dyn JavaContext, instance: &ClassInstanceRef) -> JavaResult<RustString> {
+    pub fn to_rust_string(context: &mut dyn JavaContext, instance: &JvmClassInstanceProxy<String>) -> JavaResult<RustString> {
         let value = context.jvm().get_field(instance, "value", "[C")?;
 
         let length = context.jvm().array_length(&value)?;

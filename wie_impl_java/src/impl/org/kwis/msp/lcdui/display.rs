@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use jvm::ClassInstanceRef;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JvmClassInstanceProxy,
@@ -90,15 +88,15 @@ impl Display {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display: ClassInstanceRef = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
-        Ok(display.into())
+        Ok(display)
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
-        let result: ClassInstanceRef = context
+        let result = context
             .jvm()
             .invoke_static(
                 "org/kwis/msp/lcdui/Display",
@@ -108,7 +106,7 @@ impl Display {
             )
             .await?;
 
-        Ok(result.into())
+        Ok(result)
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Card>> {
@@ -121,9 +119,9 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
         let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card: &JvmClassInstanceProxy<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
 
-        if card.is_none() {
+        if card.is_null() {
             context.jvm().store_array(&cards, 0, [c])?;
         }
 

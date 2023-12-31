@@ -1,6 +1,6 @@
 use alloc::{format, vec};
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::JavaValue;
 
 use wie_backend::canvas::{PixelType, Rgb8Pixel};
 
@@ -343,16 +343,16 @@ impl Graphics {
         Ok(())
     }
 
-    async fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<JvmClassInstanceProxy<Image>> {
-        let image: Option<ClassInstanceRef> = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+    async fn image(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Graphics>) -> JavaResult<JvmClassInstanceProxy<Image>> {
+        let image: JvmClassInstanceProxy<Image> = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if image.is_some() {
-            Ok(image.into())
+        if !image.is_null() {
+            Ok(image)
         } else {
             let width = context.jvm().get_field(this, "w", "I")?;
             let height = context.jvm().get_field(this, "h", "I")?;
 
-            let image: ClassInstanceRef = context
+            let image: JvmClassInstanceProxy<Image> = context
                 .jvm()
                 .invoke_static(
                     "org/kwis/msp/lcdui/Image",
@@ -364,7 +364,7 @@ impl Graphics {
 
             context.jvm().put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", image.clone())?;
 
-            Ok(image.into())
+            Ok(image)
         }
     }
 }

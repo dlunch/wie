@@ -1,12 +1,11 @@
 use alloc::vec;
 
-use jvm::ClassInstanceRef;
 use wie_base::KeyCode;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::{Array, JvmClassInstanceProxy},
-    r#impl::org::kwis::msp::lcdui::{Image as JavaImage, Jlet},
+    r#impl::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
 };
 
 #[repr(i32)]
@@ -176,28 +175,20 @@ impl EventQueue {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display: Option<ClassInstanceRef> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        if display.is_none() {
+        let display: JvmClassInstanceProxy<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        if display.is_null() {
             return Ok(());
         }
 
-        let cards = context
-            .jvm()
-            .get_field(display.as_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
-        if card.is_none() {
+        let cards = context.jvm().get_field(&display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card: &JvmClassInstanceProxy<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        if card.is_null() {
             return Ok(());
         }
 
         let _: bool = context
             .jvm()
-            .invoke_virtual(
-                card.as_ref().unwrap(),
-                "org/kwis/msp/lcdui/Card",
-                "keyNotify",
-                "(II)Z",
-                (event_type as i32, code),
-            )
+            .invoke_virtual(card, "org/kwis/msp/lcdui/Card", "keyNotify", "(II)Z", (event_type as i32, code))
             .await?;
 
         Ok(())
@@ -209,16 +200,14 @@ impl EventQueue {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display: Option<ClassInstanceRef> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        if display.is_none() {
+        let display: JvmClassInstanceProxy<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        if display.is_null() {
             return Ok(());
         }
 
-        let cards = context
-            .jvm()
-            .get_field(display.as_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
-        if card.is_none() {
+        let cards = context.jvm().get_field(&display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card: &JvmClassInstanceProxy<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        if card.is_null() {
             return Ok(());
         }
 
@@ -237,7 +226,7 @@ impl EventQueue {
         context
             .jvm()
             .invoke_virtual(
-                card.as_ref().unwrap(),
+                card,
                 "org/kwis/msp/lcdui/Card",
                 "paint",
                 "(Lorg/kwis/msp/lcdui/Graphics;)V",
@@ -245,15 +234,15 @@ impl EventQueue {
             )
             .await?;
 
-        let java_image: Option<ClassInstanceRef> = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let java_image: JvmClassInstanceProxy<Image> = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if java_image.is_some() {
-            let image = JavaImage::image(context, java_image.as_ref().unwrap())?;
+        if java_image.is_null() {
+            let image = Image::image(context, &java_image)?;
 
             // TODO temporary until we have correct gc
-            let image_data = context.jvm().get_field(java_image.as_ref().unwrap(), "imgData", "[B")?;
+            let image_data = context.jvm().get_field(&java_image, "imgData", "[B")?;
             context.jvm().destroy(image_data)?;
-            context.jvm().destroy(java_image.unwrap())?;
+            context.jvm().destroy(java_image.into())?;
             context.jvm().put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
 
             let mut canvas = context.backend().screen_canvas();
