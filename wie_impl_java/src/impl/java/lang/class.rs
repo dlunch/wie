@@ -65,9 +65,9 @@ impl Class {
                 .invoke_special(&result, "java/io/ByteArrayInputStream", "<init>", "([B)V", [array.into()])
                 .await?;
 
-            Ok(JvmClassInstanceProxy::new(Some(result)))
+            Ok(result.into())
         } else {
-            Ok(JvmClassInstanceProxy::new(None))
+            Ok(None.into())
         }
     }
 }

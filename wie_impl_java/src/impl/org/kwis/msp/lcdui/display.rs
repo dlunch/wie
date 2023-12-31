@@ -90,15 +90,15 @@ impl Display {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display: ClassInstanceRef = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
-        Ok(JvmClassInstanceProxy::new(Some(display)))
+        Ok(display.into())
     }
 
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
-        let result = context
+        let result: ClassInstanceRef = context
             .jvm()
             .invoke_static(
                 "org/kwis/msp/lcdui/Display",
@@ -108,13 +108,13 @@ impl Display {
             )
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(result)))
+        Ok(result.into())
     }
 
     async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Card>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
-        Ok(JvmClassInstanceProxy::new(None))
+        Ok(None.into())
     }
 
     async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
