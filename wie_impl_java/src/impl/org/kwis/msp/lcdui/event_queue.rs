@@ -189,7 +189,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        context
+        let _: bool = context
             .jvm()
             .invoke_virtual(
                 card.as_ref().unwrap(),
