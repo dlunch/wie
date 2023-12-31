@@ -4,8 +4,6 @@ use alloc::{vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
-use jvm::JavaValue;
-
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
     proxy::JvmClassInstanceProxy,
@@ -64,13 +62,7 @@ impl Class {
             let result = context.jvm().instantiate_class("java/io/ByteArrayInputStream").await?;
             context
                 .jvm()
-                .invoke_special(
-                    &result,
-                    "java/io/ByteArrayInputStream",
-                    "<init>",
-                    "([B)V",
-                    [JavaValue::Object(Some(array))],
-                )
+                .invoke_special(&result, "java/io/ByteArrayInputStream", "<init>", "([B)V", [array.into()])
                 .await?;
 
             Ok(JvmClassInstanceProxy::new(Some(result)))

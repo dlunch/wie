@@ -7,7 +7,7 @@ use alloc::{
 
 use bytemuck::{cast_slice, cast_vec};
 
-use jvm::{ClassInstanceRef, JavaChar, JavaValue};
+use jvm::{ClassInstanceRef, JavaChar};
 
 use wie_backend::{decode_str, encode_str};
 
@@ -59,7 +59,7 @@ impl String {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?})", &this, &value);
 
-        let count = context.jvm().array_length(&value)?;
+        let count = context.jvm().array_length(&value)? as i32;
 
         context
             .jvm()
@@ -68,7 +68,7 @@ impl String {
                 "java/lang/String",
                 "<init>",
                 "([BII)V",
-                [JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
+                [value.instance.into(), 0.into(), count.into()],
             )
             .await?;
 
@@ -82,7 +82,7 @@ impl String {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?})", &this, &value);
 
-        let count = context.jvm().array_length(&value)?;
+        let count = context.jvm().array_length(&value)? as i32;
 
         context
             .jvm()
@@ -91,7 +91,7 @@ impl String {
                 "java/lang/String",
                 "<init>",
                 "([CII)V",
-                [JavaValue::Object(value.instance), JavaValue::Int(0), JavaValue::Int(count as _)],
+                [value.instance.into(), 0.into(), count.into()],
             )
             .await?;
 
@@ -108,7 +108,7 @@ impl String {
         tracing::debug!("java.lang.String::<init>({:?}, {:?}, {}, {})", &this, &value, offset, count);
 
         let array = context.jvm().instantiate_array("C", count as _).await?;
-        context.jvm().put_field(&this, "value", "[C", JavaValue::Object(Some(array.clone())))?;
+        context.jvm().put_field(&this, "value", "[C", array.clone())?;
 
         let data: Vec<JavaChar> = context.jvm().load_array(&value, offset as _, count as _)?;
         context.jvm().store_array(&array, 0, data)?; // TODO we should store value, offset, count like in java
@@ -135,7 +135,7 @@ impl String {
 
         context
             .jvm()
-            .invoke_special(&this, "java/lang/String", "<init>", "([C)V", [JavaValue::Object(Some(array))])
+            .invoke_special(&this, "java/lang/String", "<init>", "([C)V", [array.into()])
             .await?;
 
         Ok(())
@@ -300,7 +300,7 @@ impl String {
 
         context
             .jvm()
-            .invoke_special(&instance, "java/lang/String", "<init>", "([C)V", [JavaValue::Object(Some(java_value))])
+            .invoke_special(&instance, "java/lang/String", "<init>", "([C)V", [java_value.into()])
             .await?;
 
         Ok(JvmClassInstanceProxy::new(Some(instance)))

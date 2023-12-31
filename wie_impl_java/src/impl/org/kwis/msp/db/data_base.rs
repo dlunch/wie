@@ -2,7 +2,7 @@ use alloc::{vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -37,9 +37,7 @@ impl DataBase {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data_base_name: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
-        context
-            .jvm()
-            .put_field(&this, "dbName", "Ljava/lang/String;", JavaValue::Object(data_base_name.instance))?;
+        context.jvm().put_field(&this, "dbName", "Ljava/lang/String;", data_base_name.instance)?;
 
         Ok(())
     }
@@ -65,7 +63,7 @@ impl DataBase {
                 "org/kwis/msp/db/DataBase",
                 "<init>",
                 "(Ljava/lang/String;)V",
-                [JavaValue::Object(data_base_name.instance)],
+                [data_base_name.instance.into()],
             )
             .await?;
 

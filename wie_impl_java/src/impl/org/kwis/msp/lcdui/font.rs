@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use jvm::JavaValue;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JvmClassInstanceProxy,
@@ -38,18 +36,9 @@ impl Font {
     async fn cl_init(context: &mut dyn JavaContext) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
-        context
-            .jvm()
-            .put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", JavaValue::Int(0))
-            .await?;
-        context
-            .jvm()
-            .put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", JavaValue::Int(0))
-            .await?;
-        context
-            .jvm()
-            .put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", JavaValue::Int(8))
-            .await?;
+        context.jvm().put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", 0).await?;
+        context.jvm().put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", 0).await?;
+        context.jvm().put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", 8).await?;
 
         Ok(())
     }

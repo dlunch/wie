@@ -30,7 +30,7 @@ impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
     }
 
     fn from_rust(_: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaValue {
-        JavaValue::Object(value.instance)
+        value.instance.into()
     }
 }
 

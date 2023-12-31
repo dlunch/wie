@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 use wie_base::KeyCode;
 
 use crate::{
@@ -196,7 +196,7 @@ impl EventQueue {
                 "org/kwis/msp/lcdui/Card",
                 "keyNotify",
                 "(II)Z",
-                [JavaValue::Int(event_type as _), JavaValue::Int(code)],
+                [(event_type as i32).into(), code.into()],
             )
             .await?;
 
@@ -230,7 +230,7 @@ impl EventQueue {
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Display;)V",
-                [JavaValue::Object(display)],
+                [display.into()],
             )
             .await?;
 
@@ -241,7 +241,7 @@ impl EventQueue {
                 "org/kwis/msp/lcdui/Card",
                 "paint",
                 "(Lorg/kwis/msp/lcdui/Graphics;)V",
-                [JavaValue::Object(Some(graphics.clone()))],
+                [graphics.clone().into()],
             )
             .await?;
 
@@ -254,9 +254,7 @@ impl EventQueue {
             let image_data: ClassInstanceRef = context.jvm().get_field(java_image.as_ref().unwrap(), "imgData", "[B")?;
             context.jvm().destroy(image_data)?;
             context.jvm().destroy(java_image.unwrap())?;
-            context
-                .jvm()
-                .put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(None))?;
+            context.jvm().put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
 
             let mut canvas = context.backend().screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());

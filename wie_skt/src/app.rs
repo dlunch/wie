@@ -1,7 +1,5 @@
 use alloc::string::{String, ToString};
 
-use jvm::JavaValue;
-
 use wie_backend::{App, Backend};
 use wie_core_jvm::JvmCore;
 
@@ -30,7 +28,7 @@ impl SktApp {
 
         let result: anyhow::Result<()> = core
             .jvm()
-            .invoke_static(&normalized_class_name, "startApp", "([Ljava/lang/String;)V", [JavaValue::Object(None)])
+            .invoke_static(&normalized_class_name, "startApp", "([Ljava/lang/String;)V", [None.into()])
             .await;
         if result.is_err() {
             core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;
