@@ -1,6 +1,5 @@
 mod context;
 
-use jvm::ClassInstanceRef;
 use wie_impl_java::{r#impl::java::lang::String, JavaContext};
 
 #[futures_test::test]
@@ -23,7 +22,7 @@ async fn test_string_concat() -> anyhow::Result<()> {
     let string1 = String::from_rust_string(&mut context, "test1").await?;
     let string2 = String::from_rust_string(&mut context, "test2").await?;
 
-    let result: ClassInstanceRef = context
+    let result = context
         .jvm()
         .invoke_virtual(
             &string1,

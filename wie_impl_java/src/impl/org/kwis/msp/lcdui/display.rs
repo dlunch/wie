@@ -85,12 +85,12 @@ impl Display {
     async fn get_display(context: &mut dyn JavaContext, str: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:?})", &str);
 
-        let jlet: ClassInstanceRef = context
+        let jlet = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display: ClassInstanceRef = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
 
         Ok(JvmClassInstanceProxy::new(Some(display)))
     }
@@ -98,7 +98,7 @@ impl Display {
     async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
-        let result: ClassInstanceRef = context
+        let result = context
             .jvm()
             .invoke_static(
                 "org/kwis/msp/lcdui/Display",
@@ -120,7 +120,7 @@ impl Display {
     async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
-        let cards: ClassInstanceRef = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
 
         if card.is_none() {

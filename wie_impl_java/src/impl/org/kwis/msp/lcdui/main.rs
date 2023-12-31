@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use jvm::ClassInstanceRef;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
     proxy::JvmClassInstanceProxy,
@@ -33,11 +31,11 @@ impl Main {
     async fn main(context: &mut dyn JavaContext, args: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
-        let jlet: ClassInstanceRef = context
+        let jlet = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
-        let event_queue: ClassInstanceRef = context
+        let event_queue = context
             .jvm()
             .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
             .await?;

@@ -147,7 +147,7 @@ impl String {
     async fn char_at(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, index: i32) -> JavaResult<u16> {
         tracing::debug!("java.lang.String::charAt({:?}, {})", &this, index);
 
-        let value: ClassInstanceRef = context.jvm().get_field(&this, "value", "[C")?;
+        let value = context.jvm().get_field(&this, "value", "[C")?;
 
         Ok(context.jvm().load_array(&value, index as _, 1)?[0])
     }
@@ -184,7 +184,7 @@ impl String {
     async fn length(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.String::length({:?})", &this);
 
-        let value: ClassInstanceRef = context.jvm().get_field(&this, "value", "[C")?;
+        let value = context.jvm().get_field(&this, "value", "[C")?;
 
         Ok(context.jvm().array_length(&value)? as _)
     }
@@ -265,7 +265,7 @@ impl String {
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &ClassInstanceRef) -> JavaResult<RustString> {
-        let value: ClassInstanceRef = context.jvm().get_field(instance, "value", "[C")?;
+        let value = context.jvm().get_field(instance, "value", "[C")?;
 
         let length = context.jvm().array_length(&value)?;
         let string: Vec<JavaChar> = context.jvm().load_array(&value, 0, length)?;

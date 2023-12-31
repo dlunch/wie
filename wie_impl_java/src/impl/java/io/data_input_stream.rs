@@ -1,5 +1,4 @@
 use alloc::vec;
-use jvm::ClassInstanceRef;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
@@ -37,7 +36,7 @@ impl DataInputStream {
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::available({:?})", &this);
 
-        let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let available: i32 = context.jvm().invoke_virtual(&r#in, "java/io/InputStream", "available", "()I", []).await?;
 
         Ok(available)
@@ -52,7 +51,7 @@ impl DataInputStream {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
-        let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let result: i32 = context
             .jvm()
             .invoke_virtual(&r#in, "java/io/InputStream", "read", "([BII)I", (b, off, len))
@@ -64,7 +63,7 @@ impl DataInputStream {
     async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::close({:?})", &this);
 
-        let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         context.jvm().invoke_virtual(&r#in, "java/io/InputStream", "close", "()V", []).await?;
 
         Ok(())
