@@ -6,7 +6,7 @@ use core::{
 
 use bytemuck::cast_vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 
 use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
 
@@ -119,8 +119,8 @@ impl Image {
     async fn get_graphics(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
 
-        let width = context.jvm().get_field(&this, "w", "I")?;
-        let height = context.jvm().get_field(&this, "h", "I")?;
+        let width: i32 = context.jvm().get_field(&this, "w", "I")?;
+        let height: i32 = context.jvm().get_field(&this, "h", "I")?;
 
         let instance = context.jvm().instantiate_class("org/kwis/msp/lcdui/Graphics").await?;
         context
@@ -130,7 +130,7 @@ impl Image {
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                [JavaValue::Object(Some(this.clone())), JavaValue::Int(0), JavaValue::Int(0), width, height],
+                [this.clone().into(), 0.into(), 0.into(), width.into(), height.into()],
             )
             .await?;
 
@@ -208,12 +208,10 @@ impl Image {
         let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&data_array, 0, data)?;
 
-        context.jvm().put_field(&instance, "w", "I", JavaValue::Int(width as _))?;
-        context.jvm().put_field(&instance, "h", "I", JavaValue::Int(height as _))?;
-        context.jvm().put_field(&instance, "imgData", "[B", JavaValue::Object(Some(data_array)))?;
-        context
-            .jvm()
-            .put_field(&instance, "bpl", "I", JavaValue::Int((width * bytes_per_pixel) as _))?;
+        context.jvm().put_field(&instance, "w", "I", width as i32)?;
+        context.jvm().put_field(&instance, "h", "I", height as i32)?;
+        context.jvm().put_field(&instance, "imgData", "[B", data_array)?;
+        context.jvm().put_field(&instance, "bpl", "I", (width * bytes_per_pixel) as i32)?;
 
         Ok(JvmClassInstanceProxy::new(Some(instance)))
     }

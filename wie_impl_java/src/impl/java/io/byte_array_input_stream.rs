@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
@@ -32,8 +32,8 @@ impl ByteArrayInputStream {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
-        context.jvm().put_field(&this, "buf", "[B", JavaValue::Object(data.instance))?;
-        context.jvm().put_field(&this, "pos", "I", JavaValue::Int(0))?;
+        context.jvm().put_field(&this, "buf", "[B", data.instance)?;
+        context.jvm().put_field(&this, "pos", "I", 0)?;
 
         Ok(())
     }
@@ -73,17 +73,11 @@ impl ByteArrayInputStream {
                 "java/lang/System",
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
-                [
-                    buf.into(),
-                    JavaValue::Int(pos as _),
-                    JavaValue::Object(b.instance),
-                    JavaValue::Int(off as _),
-                    JavaValue::Int(len_to_read as _),
-                ],
+                [buf.into(), pos.into(), b.instance.into(), off.into(), len_to_read.into()],
             )
             .await?;
 
-        context.jvm().put_field(&this, "pos", "I", JavaValue::Int(pos + len))?;
+        context.jvm().put_field(&this, "pos", "I", pos + len)?;
 
         Ok(len)
     }

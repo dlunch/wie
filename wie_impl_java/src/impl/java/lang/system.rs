@@ -39,7 +39,7 @@ impl System {
 
         context
             .jvm()
-            .put_static_field("java/lang/System", "out", "Ljava/io/PrintStream;", JavaValue::Object(Some(out)))
+            .put_static_field("java/lang/System", "out", "Ljava/io/PrintStream;", out)
             .await?;
 
         Ok(())

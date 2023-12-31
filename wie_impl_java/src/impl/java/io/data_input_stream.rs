@@ -1,5 +1,5 @@
 use alloc::vec;
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
@@ -29,9 +29,7 @@ impl DataInputStream {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#in: JvmClassInstanceProxy<InputStream>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::<init>({:?}, {:?})", &this, &r#in);
 
-        context
-            .jvm()
-            .put_field(&this, "in", "Ljava/io/InputStream;", JavaValue::Object(r#in.instance))?;
+        context.jvm().put_field(&this, "in", "Ljava/io/InputStream;", r#in.instance)?;
 
         Ok(())
     }
@@ -62,7 +60,7 @@ impl DataInputStream {
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
-                [JavaValue::Object(b.instance), JavaValue::Int(off), JavaValue::Int(len)],
+                [b.instance.into(), off.into(), len.into()],
             )
             .await?;
 

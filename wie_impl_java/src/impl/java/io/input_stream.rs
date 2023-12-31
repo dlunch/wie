@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use jvm::JavaValue;
-
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
     proxy::{Array, JvmClassInstanceProxy},
@@ -36,7 +34,7 @@ impl InputStream {
     async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, b: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<i32> {
         tracing::debug!("java.lang.InputStream::read({:?}, {:?})", &this, &b);
 
-        let array_length = context.jvm().array_length(&b)?;
+        let array_length = context.jvm().array_length(&b)? as i32;
 
         context
             .jvm()
@@ -45,7 +43,7 @@ impl InputStream {
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
-                [JavaValue::Object(b.instance), JavaValue::Int(0), JavaValue::Int(array_length as _)],
+                [b.instance.into(), 0.into(), array_length.into()],
             )
             .await
     }

@@ -173,7 +173,7 @@ impl TypeConverter<i32> for i32 {
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: i32) -> JavaValue {
-        JavaValue::Int(rust)
+        rust.into()
     }
 }
 
@@ -183,7 +183,7 @@ impl TypeConverter<JavaChar> for JavaChar {
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: JavaChar) -> JavaValue {
-        JavaValue::Char(rust)
+        rust.into()
     }
 }
 
@@ -193,7 +193,7 @@ impl TypeConverter<i64> for i64 {
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: i64) -> JavaValue {
-        JavaValue::Long(rust)
+        rust.into()
     }
 }
 
@@ -203,7 +203,7 @@ impl TypeConverter<bool> for bool {
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: bool) -> JavaValue {
-        JavaValue::Boolean(rust)
+        rust.into()
     }
 }
 

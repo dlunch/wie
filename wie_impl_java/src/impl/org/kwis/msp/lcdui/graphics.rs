@@ -34,7 +34,7 @@ impl TypeConverter<Anchor> for Anchor {
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: Anchor) -> JavaValue {
-        JavaValue::Int(rust.bits() as _)
+        rust.bits().into()
     }
 }
 
@@ -110,11 +110,9 @@ impl Graphics {
             height
         );
 
-        context
-            .jvm()
-            .put_field(&this, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(image.instance))?;
-        context.jvm().put_field(&this, "w", "I", JavaValue::Int(width as _))?;
-        context.jvm().put_field(&this, "h", "I", JavaValue::Int(height as _))?;
+        context.jvm().put_field(&this, "img", "Lorg/kwis/msp/lcdui/Image;", image.instance)?;
+        context.jvm().put_field(&this, "w", "I", width)?;
+        context.jvm().put_field(&this, "h", "I", height)?;
 
         Ok(())
     }
@@ -134,7 +132,7 @@ impl Graphics {
     async fn set_color(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, rgb: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
 
-        context.jvm().put_field(&this, "rgb", "I", JavaValue::Int(rgb as _))?;
+        context.jvm().put_field(&this, "rgb", "I", rgb)?;
 
         Ok(())
     }
@@ -144,7 +142,7 @@ impl Graphics {
 
         let rgb = (r << 16) | (g << 8) | b;
 
-        context.jvm().put_field(&this, "rgb", "I", JavaValue::Int(rgb as _))?;
+        context.jvm().put_field(&this, "rgb", "I", rgb)?;
 
         Ok(())
     }

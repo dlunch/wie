@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -70,16 +70,14 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
         let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
-        context
-            .jvm()
-            .put_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;", JavaValue::Object(Some(cards)))?;
+        context.jvm().put_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards)?;
 
         let screen_canvas = context.backend().screen_canvas();
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 
-        context.jvm().put_field(&this, "m_w", "I", JavaValue::Int(width as _))?;
-        context.jvm().put_field(&this, "m_h", "I", JavaValue::Int(height as _))?;
+        context.jvm().put_field(&this, "m_w", "I", width as i32)?;
+        context.jvm().put_field(&this, "m_h", "I", height as i32)?;
 
         Ok(())
     }
@@ -106,7 +104,7 @@ impl Display {
                 "org/kwis/msp/lcdui/Display",
                 "getDisplay",
                 "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
-                [JavaValue::Object(None)],
+                [None.into()],
             )
             .await?;
 

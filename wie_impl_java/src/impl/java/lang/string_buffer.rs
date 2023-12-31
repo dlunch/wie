@@ -4,7 +4,7 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::{ClassInstanceRef, JavaChar, JavaValue};
+use jvm::{ClassInstanceRef, JavaChar};
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
@@ -46,8 +46,8 @@ impl StringBuffer {
         tracing::debug!("java.lang.StringBuffer::<init>({:?})", &this);
 
         let array = context.jvm().instantiate_array("C", 16).await?;
-        context.jvm().put_field(&this, "value", "[C", JavaValue::Object(Some(array)))?;
-        context.jvm().put_field(&this, "count", "I", JavaValue::Int(0))?;
+        context.jvm().put_field(&this, "value", "[C", array)?;
+        context.jvm().put_field(&this, "count", "I", 0)?;
 
         Ok(())
     }
@@ -60,10 +60,10 @@ impl StringBuffer {
         tracing::debug!("java.lang.StringBuffer::<init>({:?}, {:?})", &this, &string,);
 
         let value_array: ClassInstanceRef = context.jvm().get_field(&string, "value", "[C")?;
-        let length = context.jvm().array_length(&value_array)?;
+        let length = context.jvm().array_length(&value_array)? as i32;
 
         context.jvm().put_field(&this, "value", "[C", value_array)?;
-        context.jvm().put_field(&this, "count", "I", JavaValue::Int(length as _))?;
+        context.jvm().put_field(&this, "count", "I", length)?;
 
         Ok(())
     }
@@ -130,7 +130,7 @@ impl StringBuffer {
                 "java/lang/String",
                 "<init>",
                 "([CII)V",
-                [java_value.into(), JavaValue::Int(0), count.into()],
+                [java_value.into(), 0.into(), count.into()],
             )
             .await?;
 
@@ -146,9 +146,7 @@ impl StringBuffer {
             let new_capacity = capacity * 2;
 
             let java_new_value_array = context.jvm().instantiate_array("C", new_capacity).await?;
-            context
-                .jvm()
-                .put_field(this, "value", "[C", JavaValue::Object(Some(java_new_value_array.clone())))?;
+            context.jvm().put_field(this, "value", "[C", java_new_value_array.clone())?;
             context.jvm().store_array(&java_new_value_array, 0, old_values)?;
         }
 
@@ -165,9 +163,7 @@ impl StringBuffer {
 
         let java_value_array: ClassInstanceRef = context.jvm().get_field(this, "value", "[C")?;
         context.jvm().store_array(&java_value_array, current_count as _, value_to_add)?;
-        context
-            .jvm()
-            .put_field(this, "count", "I", JavaValue::Int(current_count + count_to_add))?;
+        context.jvm().put_field(this, "count", "I", current_count + count_to_add)?;
 
         Ok(())
     }

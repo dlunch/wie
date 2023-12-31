@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::ClassInstanceRef;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -47,13 +47,7 @@ impl Main {
         loop {
             context
                 .jvm()
-                .invoke_virtual(
-                    &event_queue,
-                    "org/kwis/lcdui/EventQueue",
-                    "getNextEvent",
-                    "([I)V",
-                    [JavaValue::Object(Some(event.clone()))],
-                )
+                .invoke_virtual(&event_queue, "org/kwis/lcdui/EventQueue", "getNextEvent", "([I)V", [event.clone().into()])
                 .await?;
             context
                 .jvm()
@@ -62,7 +56,7 @@ impl Main {
                     "org/kwis/lcdui/EventQueue",
                     "dispatchEvent",
                     "([I)V",
-                    [JavaValue::Object(Some(event.clone()))],
+                    [event.clone().into()],
                 )
                 .await?;
         }

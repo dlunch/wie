@@ -1,6 +1,6 @@
 mod context;
 
-use jvm::JavaValue;
+use jvm::ClassInstanceRef;
 use wie_impl_java::{r#impl::java::lang::String, JavaContext};
 
 #[futures_test::test]
@@ -23,18 +23,18 @@ async fn test_string_concat() -> anyhow::Result<()> {
     let string1 = String::from_rust_string(&mut context, "test1").await?;
     let string2 = String::from_rust_string(&mut context, "test2").await?;
 
-    let result = context
+    let result: ClassInstanceRef = context
         .jvm()
         .invoke_virtual(
             &string1,
             "java/lang/String",
             "concat",
             "(Ljava/lang/String;)Ljava/lang/String;",
-            [JavaValue::Object(string2.instance)],
+            [string2.clone().into()],
         )
         .await?;
 
-    let string = String::to_rust_string(&mut context, result.as_object_ref().unwrap()).unwrap();
+    let string = String::to_rust_string(&mut context, &result).unwrap();
 
     assert_eq!(string, "test1test2");
 

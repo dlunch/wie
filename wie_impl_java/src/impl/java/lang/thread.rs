@@ -34,9 +34,7 @@ impl Thread {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, target: JvmClassInstanceProxy<Runnable>) -> JavaResult<()> {
         tracing::debug!("Thread::<init>({:?}, {:?})", &this, &target);
 
-        context
-            .jvm()
-            .put_field(&this, "target", "Ljava/lang/Runnable;", JavaValue::Object(target.instance))?;
+        context.jvm().put_field(&this, "target", "Ljava/lang/Runnable;", target.instance)?;
 
         Ok(())
     }
