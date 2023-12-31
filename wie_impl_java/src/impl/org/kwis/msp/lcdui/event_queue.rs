@@ -236,7 +236,7 @@ impl EventQueue {
 
         let java_image: JvmClassInstanceProxy<Image> = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if java_image.is_null() {
+        if !java_image.is_null() {
             let image = Image::image(context, &java_image)?;
 
             // TODO temporary until we have correct gc
