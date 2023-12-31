@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, vec};
 
-use jvm::JavaValue;
+use jvm::{ClassInstanceRef, JavaValue};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -93,20 +93,20 @@ impl Jlet {
     async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
-        let jlet = context
+        let jlet: ClassInstanceRef = context
             .jvm()
             .get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;")
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(jlet.as_object().unwrap())))
+        Ok(JvmClassInstanceProxy::new(Some(jlet)))
     }
 
     async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
-        let eq = context.jvm().get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
+        let eq: ClassInstanceRef = context.jvm().get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
 
-        Ok(JvmClassInstanceProxy::new(Some(eq.as_object_ref().unwrap().clone())))
+        Ok(JvmClassInstanceProxy::new(Some(eq)))
     }
 
     pub async fn start(context: &mut dyn JavaContext, main_class_name: &str) -> JavaResult<()> {

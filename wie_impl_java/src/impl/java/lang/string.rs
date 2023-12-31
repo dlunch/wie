@@ -5,9 +5,9 @@ use alloc::{
     vec::Vec,
 };
 
-use bytemuck::cast_vec;
+use bytemuck::{cast_slice, cast_vec};
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::{ClassInstanceRef, JavaChar, JavaValue};
 
 use wie_backend::{decode_str, encode_str};
 
@@ -110,7 +110,7 @@ impl String {
         let array = context.jvm().instantiate_array("C", count as _).await?;
         context.jvm().put_field(&this, "value", "[C", JavaValue::Object(Some(array.clone())))?;
 
-        let data = context.jvm().load_array(&value, offset as _, count as _)?;
+        let data: Vec<JavaChar> = context.jvm().load_array(&value, offset as _, count as _)?;
         context.jvm().store_array(&array, 0, data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
@@ -125,8 +125,8 @@ impl String {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?}, {}, {})", &this, &value, offset, count);
 
-        let bytes = context.jvm().load_array(&value, offset as _, count as _)?;
-        let string = decode_str(&bytes.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>());
+        let bytes: Vec<i8> = context.jvm().load_array(&value, offset as _, count as _)?;
+        let string = decode_str(cast_slice(&bytes));
 
         let utf16 = string.encode_utf16().collect::<Vec<_>>();
 
@@ -159,9 +159,9 @@ impl String {
     async fn char_at(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, index: i32) -> JavaResult<u16> {
         tracing::debug!("java.lang.String::charAt({:?}, {})", &this, index);
 
-        let value = context.jvm().get_field(&this, "value", "[C")?;
+        let value: ClassInstanceRef = context.jvm().get_field(&this, "value", "[C")?;
 
-        Ok(context.jvm().load_array(value.as_object_ref().unwrap(), index as _, 1)?[0].as_char())
+        Ok(context.jvm().load_array(&value, index as _, 1)?[0])
     }
 
     async fn concat(
@@ -196,9 +196,9 @@ impl String {
     async fn length(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.String::length({:?})", &this);
 
-        let value = context.jvm().get_field(&this, "value", "[C")?;
+        let value: ClassInstanceRef = context.jvm().get_field(&this, "value", "[C")?;
 
-        Ok(context.jvm().array_length(value.as_object_ref().unwrap())? as _)
+        Ok(context.jvm().array_length(&value)? as _)
     }
 
     async fn substring(
@@ -277,12 +277,12 @@ impl String {
     }
 
     pub fn to_rust_string(context: &mut dyn JavaContext, instance: &ClassInstanceRef) -> JavaResult<RustString> {
-        let value = context.jvm().get_field(instance, "value", "[C")?;
+        let value: ClassInstanceRef = context.jvm().get_field(instance, "value", "[C")?;
 
-        let length = context.jvm().array_length(value.as_object_ref().unwrap())?;
-        let string = context.jvm().load_array(value.as_object_ref().unwrap(), 0, length)?;
+        let length = context.jvm().array_length(&value)?;
+        let string: Vec<JavaChar> = context.jvm().load_array(&value, 0, length)?;
 
-        Ok(RustString::from_utf16(&string.into_iter().map(|x| x.as_char()).collect::<Vec<_>>())?)
+        Ok(RustString::from_utf16(&string)?)
     }
 
     pub async fn from_rust_string(context: &mut dyn JavaContext, string: &str) -> JavaResult<JvmClassInstanceProxy<Self>> {

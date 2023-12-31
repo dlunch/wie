@@ -110,9 +110,8 @@ impl Image {
     ) -> JavaResult<JvmClassInstanceProxy<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
-        let image_data = context.jvm().load_array(&data, offset as _, length as _)?;
-        let image_data = image_data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
-        let image = decode_image(&image_data)?;
+        let image_data: Vec<i8> = context.jvm().load_array(&data, offset as _, length as _)?;
+        let image = decode_image(&cast_vec(image_data))?;
 
         Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
@@ -141,23 +140,22 @@ impl Image {
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
 
-        Ok(context.jvm().get_field(&this, "w", "I")?.as_int() as _)
+        context.jvm().get_field(&this, "w", "I")
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
 
-        Ok(context.jvm().get_field(&this, "h", "I")?.as_int() as _)
+        context.jvm().get_field(&this, "h", "I")
     }
 
     pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
-        let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
-        let img_data_len = context.jvm().array_length(java_img_data.as_object_ref().unwrap())?;
+        let java_img_data: ClassInstanceRef = context.jvm().get_field(this, "imgData", "[B")?;
+        let img_data_len = context.jvm().array_length(&java_img_data)?;
 
-        let img_data = context.jvm().load_array(java_img_data.as_object_ref().unwrap(), 0, img_data_len)?;
-        let img_data = img_data.into_iter().map(|x| x.as_byte() as u8).collect::<Vec<_>>();
+        let img_data: Vec<i8> = context.jvm().load_array(&java_img_data, 0, img_data_len)?;
 
-        Ok(img_data)
+        Ok(cast_vec(img_data))
     }
 
     pub fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn BackendImage>> {
@@ -177,9 +175,9 @@ impl Image {
     fn create_canvas(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Box<dyn Canvas>> {
         let buf = Self::buf(context, this)?;
 
-        let width = context.jvm().get_field(this, "w", "I")?.as_int();
-        let height = context.jvm().get_field(this, "h", "I")?.as_int();
-        let bpl = context.jvm().get_field(this, "bpl", "I")?.as_int();
+        let width: i32 = context.jvm().get_field(this, "w", "I")?;
+        let height: i32 = context.jvm().get_field(this, "h", "I")?;
+        let bpl: i32 = context.jvm().get_field(this, "bpl", "I")?;
 
         let bytes_per_pixel = bpl / width;
 
@@ -229,11 +227,11 @@ pub struct ImageCanvas<'a> {
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
-        let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
+        let data: ClassInstanceRef = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
 
         let values: Vec<i8> = cast_vec(self.canvas.raw().to_vec());
 
-        self.context.jvm().store_array(data.as_object_ref().unwrap(), 0, values).unwrap();
+        self.context.jvm().store_array(&data, 0, values).unwrap();
     }
 }
 

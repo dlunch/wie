@@ -38,7 +38,7 @@ impl InputStream {
 
         let array_length = context.jvm().array_length(&b)?;
 
-        Ok(context
+        context
             .jvm()
             .invoke_virtual(
                 &this,
@@ -47,7 +47,6 @@ impl InputStream {
                 "([BII)I",
                 [JavaValue::Object(b.instance), JavaValue::Int(0), JavaValue::Int(array_length as _)],
             )
-            .await?
-            .as_int())
+            .await
     }
 }

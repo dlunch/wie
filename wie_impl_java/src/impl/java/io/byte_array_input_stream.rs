@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::JavaValue;
+use jvm::{ClassInstanceRef, JavaValue};
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
@@ -41,9 +41,9 @@ impl ByteArrayInputStream {
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::available({:?})", &this);
 
-        let buf = context.jvm().get_field(&this, "buf", "[B")?;
-        let pos = context.jvm().get_field(&this, "pos", "I")?.as_int();
-        let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())? as i32;
+        let buf: ClassInstanceRef = context.jvm().get_field(&this, "buf", "[B")?;
+        let pos: i32 = context.jvm().get_field(&this, "pos", "I")?;
+        let buf_length = context.jvm().array_length(&buf)? as i32;
 
         Ok((buf_length - pos) as _)
     }
@@ -57,9 +57,9 @@ impl ByteArrayInputStream {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
-        let buf = context.jvm().get_field(&this, "buf", "[B")?;
-        let buf_length = context.jvm().array_length(buf.as_object_ref().unwrap())?;
-        let pos = context.jvm().get_field(&this, "pos", "I")?.as_int();
+        let buf: ClassInstanceRef = context.jvm().get_field(&this, "buf", "[B")?;
+        let buf_length = context.jvm().array_length(&buf)?;
+        let pos: i32 = context.jvm().get_field(&this, "pos", "I")?;
 
         let available = (buf_length as i32 - pos) as _;
         let len_to_read = if len > available { available } else { len };
@@ -74,7 +74,7 @@ impl ByteArrayInputStream {
                 "arraycopy",
                 "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                 [
-                    buf,
+                    buf.into(),
                     JavaValue::Int(pos as _),
                     JavaValue::Object(b.instance),
                     JavaValue::Int(off as _),

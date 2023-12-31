@@ -1,5 +1,5 @@
 use alloc::vec;
-use jvm::JavaValue;
+use jvm::{ClassInstanceRef, JavaValue};
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
@@ -39,13 +39,10 @@ impl DataInputStream {
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::available({:?})", &this);
 
-        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
-        let available = context
-            .jvm()
-            .invoke_virtual(r#in.as_object_ref().unwrap(), "java/io/InputStream", "available", "()I", [])
-            .await?;
+        let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        let available: i32 = context.jvm().invoke_virtual(&r#in, "java/io/InputStream", "available", "()I", []).await?;
 
-        Ok(available.as_int())
+        Ok(available)
     }
 
     async fn read(
@@ -57,11 +54,11 @@ impl DataInputStream {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
-        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
-        let result = context
+        let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        let result: i32 = context
             .jvm()
             .invoke_virtual(
-                r#in.as_object_ref().unwrap(),
+                &r#in,
                 "java/io/InputStream",
                 "read",
                 "([BII)I",
@@ -69,17 +66,14 @@ impl DataInputStream {
             )
             .await?;
 
-        Ok(result.as_int())
+        Ok(result)
     }
 
     async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::close({:?})", &this);
 
-        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
-        context
-            .jvm()
-            .invoke_virtual(r#in.as_object_ref().unwrap(), "java/io/InputStream", "close", "()V", [])
-            .await?;
+        let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        context.jvm().invoke_virtual(&r#in, "java/io/InputStream", "close", "()V", []).await?;
 
         Ok(())
     }
