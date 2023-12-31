@@ -13,7 +13,6 @@ members = [
     "wie_ktf",
     "wie_lgt",
     "wie_skt",
-    "wie_web",
 ]
 
 default-members = ["wie"]
