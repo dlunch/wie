@@ -2,12 +2,11 @@ use alloc::rc::Rc;
 use core::{fmt::Debug, num::NonZeroU32};
 
 use softbuffer::{Context, Surface};
-use tao::{
+use winit::{
     dpi::PhysicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
-    keyboard::KeyCode,
-    window::{Window as TaoWindow, WindowBuilder},
+    window::{Window as WinitWindow, WindowBuilder},
 };
 
 use wie_backend::{canvas::Canvas, Window};
@@ -21,12 +20,12 @@ pub enum WindowInternalEvent {
 pub enum WindowCallbackEvent {
     Update,
     Redraw,
-    Keydown(KeyCode),
-    Keyup(KeyCode),
+    Keydown(u32),
+    Keyup(u32),
 }
 
 pub struct WindowProxy {
-    window: Rc<TaoWindow>,
+    window: Rc<WinitWindow>,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
@@ -63,7 +62,7 @@ impl Window for WindowProxy {
 }
 
 pub struct WindowImpl {
-    window: Rc<TaoWindow>,
+    window: Rc<WinitWindow>,
     event_loop: EventLoop<WindowInternalEvent>,
 }
 
@@ -108,9 +107,8 @@ impl WindowImpl {
         C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
         E: Debug,
     {
-        // TODO we need to render to gtk window instead of whole wayland window to make decoration work on linux
-        let context = Context::new(self.window.clone()).unwrap();
-        let mut surface = Surface::new(&context, self.window.clone()).unwrap();
+        let context = unsafe { Context::new(self.window.as_ref()).unwrap() };
+        let mut surface = unsafe { Surface::new(&context, self.window.as_ref()).unwrap() };
 
         let size = self.window.inner_size();
 
@@ -136,26 +134,26 @@ impl WindowImpl {
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            physical_key,
+                    input:
+                        KeyboardInput {
+                            scancode,
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Keydown(physical_key), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keydown(scancode), control_flow, &mut callback);
                 }
                 WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            physical_key,
+                    input:
+                        KeyboardInput {
+                            scancode,
                             state: ElementState::Released,
                             ..
                         },
                     ..
                 } => {
-                    Self::callback(WindowCallbackEvent::Keyup(physical_key), control_flow, &mut callback);
+                    Self::callback(WindowCallbackEvent::Keyup(scancode), control_flow, &mut callback);
                 }
                 _ => {}
             },

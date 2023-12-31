@@ -4,24 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "wie_cli"
-path = "src/main.rs"
-
 [dependencies]
 tracing = { workspace = true }
 
 anyhow = { version = "^1.0", features = ["backtrace"] }
 clap = { version = "^4.4", features = ["derive"] }
-softbuffer = { version = "^0.4" }
+softbuffer = { version = "^0.3" }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
+winit = { version = "^0.28" }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
 wie_ktf = { path = "../wie_ktf" }
 wie_lgt = { path = "../wie_lgt" }
 wie_skt = { path = "../wie_skt" }
-
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tao = { version = "^0.24" }
