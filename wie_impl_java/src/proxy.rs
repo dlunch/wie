@@ -11,7 +11,7 @@ use crate::{base::JavaContext, method::TypeConverter};
 pub struct Array<T>(PhantomData<T>);
 
 pub struct JvmClassInstanceProxy<T> {
-    pub instance: Option<ClassInstanceRef>,
+    instance: Option<ClassInstanceRef>,
     _phantom: PhantomData<T>,
 }
 
@@ -48,5 +48,11 @@ impl<T> Deref for JvmClassInstanceProxy<T> {
     type Target = ClassInstanceRef;
     fn deref(&self) -> &Self::Target {
         self.instance.as_ref().unwrap()
+    }
+}
+
+impl<T> From<JvmClassInstanceProxy<T>> for JavaValue {
+    fn from(value: JvmClassInstanceProxy<T>) -> Self {
+        value.instance.into()
     }
 }

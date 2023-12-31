@@ -29,7 +29,7 @@ impl DataInputStream {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#in: JvmClassInstanceProxy<InputStream>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::<init>({:?}, {:?})", &this, &r#in);
 
-        context.jvm().put_field(&this, "in", "Ljava/io/InputStream;", r#in.instance)?;
+        context.jvm().put_field(&this, "in", "Ljava/io/InputStream;", r#in)?;
 
         Ok(())
     }
@@ -55,7 +55,7 @@ impl DataInputStream {
         let r#in: ClassInstanceRef = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
         let result: i32 = context
             .jvm()
-            .invoke_virtual(&r#in, "java/io/InputStream", "read", "([BII)I", (b.instance, off, len))
+            .invoke_virtual(&r#in, "java/io/InputStream", "read", "([BII)I", (b, off, len))
             .await?;
 
         Ok(result)

@@ -37,7 +37,7 @@ impl DataBase {
     async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data_base_name: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
-        context.jvm().put_field(&this, "dbName", "Ljava/lang/String;", data_base_name.instance)?;
+        context.jvm().put_field(&this, "dbName", "Ljava/lang/String;", data_base_name)?;
 
         Ok(())
     }
@@ -63,7 +63,7 @@ impl DataBase {
                 "org/kwis/msp/db/DataBase",
                 "<init>",
                 "(Ljava/lang/String;)V",
-                [data_base_name.instance.into()],
+                (data_base_name,),
             )
             .await?;
 
