@@ -118,7 +118,9 @@ impl WindowImpl {
             .resize(NonZeroU32::new(size.width).unwrap(), NonZeroU32::new(size.height).unwrap())
             .unwrap();
 
+        #[cfg(not(target_arch = "wasm32"))]
         let mut last_update = Instant::now();
+
         self.event_loop.run(move |event, elwt| match event {
             Event::UserEvent(x) => match x {
                 WindowInternalEvent::RequestRedraw => {
@@ -162,16 +164,23 @@ impl WindowImpl {
                 _ => {}
             },
             Event::AboutToWait => {
-                let now = Instant::now();
-                let next_update = last_update + Duration::from_millis(16);
-                if now < next_update {
-                    elwt.set_control_flow(ControlFlow::WaitUntil(next_update));
-                } else {
+                #[cfg(target_arch = "wasm32")]
+                {
                     Self::callback(WindowCallbackEvent::Update, elwt, &mut callback);
-
-                    last_update = now;
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let now = Instant::now();
                     let next_update = last_update + Duration::from_millis(16);
-                    elwt.set_control_flow(ControlFlow::WaitUntil(next_update));
+                    if now < next_update {
+                        elwt.set_control_flow(ControlFlow::WaitUntil(next_update));
+                    } else {
+                        Self::callback(WindowCallbackEvent::Update, elwt, &mut callback);
+
+                        last_update = now;
+                        let next_update = last_update + Duration::from_millis(16);
+                        elwt.set_control_flow(ControlFlow::WaitUntil(next_update));
+                    }
                 }
             }
             _ => {}
