@@ -1,6 +1,6 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec;
 
-use jvm::JavaValue;
+use jvm::{ClassInstanceRef, JavaValue};
 use wie_base::KeyCode;
 
 use crate::{
@@ -152,12 +152,7 @@ impl EventQueue {
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
-        let event = context
-            .jvm()
-            .load_array(&event, 0, 4)?
-            .into_iter()
-            .map(|x| x.as_int())
-            .collect::<Vec<_>>();
+        let event = context.jvm().load_array(&event, 0, 4)?;
 
         match EventQueueEvent::from_raw(event[0]) {
             EventQueueEvent::RepaintEvent => {
@@ -176,30 +171,28 @@ impl EventQueue {
     }
 
     async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
-        let jlet = context
+        let jlet: ClassInstanceRef = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display = context
-            .jvm()
-            .get_field(jlet.as_object_ref().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        if display.as_object_ref().is_none() {
+        let display: Option<ClassInstanceRef> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        if display.is_none() {
             return Ok(());
         }
 
-        let cards = context
+        let cards: ClassInstanceRef = context
             .jvm()
-            .get_field(display.as_object_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
-        if card.as_object_ref().is_none() {
+            .get_field(display.as_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        if card.is_none() {
             return Ok(());
         }
 
         context
             .jvm()
             .invoke_virtual(
-                card.as_object_ref().unwrap(),
+                card.as_ref().unwrap(),
                 "org/kwis/msp/lcdui/Card",
                 "keyNotify",
                 "(II)Z",
@@ -211,23 +204,21 @@ impl EventQueue {
     }
 
     async fn repaint(context: &mut dyn JavaContext) -> JavaResult<()> {
-        let jlet = context
+        let jlet: ClassInstanceRef = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display = context
-            .jvm()
-            .get_field(&jlet.as_object().unwrap(), "dis", "Lorg/kwis/msp/lcdui/Display;")?;
-        if display.as_object_ref().is_none() {
+        let display: Option<ClassInstanceRef> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        if display.is_none() {
             return Ok(());
         }
 
-        let cards = context
+        let cards: ClassInstanceRef = context
             .jvm()
-            .get_field(display.as_object_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card = &context.jvm().load_array(cards.as_object_ref().unwrap(), 0, 1)?[0];
-        if card.as_object_ref().is_none() {
+            .get_field(display.as_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        if card.is_none() {
             return Ok(());
         }
 
@@ -239,14 +230,14 @@ impl EventQueue {
                 "org/kwis/msp/lcdui/Graphics",
                 "<init>",
                 "(Lorg/kwis/msp/lcdui/Display;)V",
-                [JavaValue::Object(display.as_object())],
+                [JavaValue::Object(display)],
             )
             .await?;
 
         context
             .jvm()
             .invoke_virtual(
-                card.as_object_ref().unwrap(),
+                card.as_ref().unwrap(),
                 "org/kwis/msp/lcdui/Card",
                 "paint",
                 "(Lorg/kwis/msp/lcdui/Graphics;)V",
@@ -254,15 +245,15 @@ impl EventQueue {
             )
             .await?;
 
-        let java_image = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let java_image: Option<ClassInstanceRef> = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if java_image.as_object_ref().is_some() {
-            let image = JavaImage::image(context, java_image.as_object_ref().unwrap())?;
+        if java_image.is_some() {
+            let image = JavaImage::image(context, java_image.as_ref().unwrap())?;
 
             // TODO temporary until we have correct gc
-            let image_data = context.jvm().get_field(java_image.as_object_ref().unwrap(), "imgData", "[B")?;
-            context.jvm().destroy(image_data.as_object().unwrap())?;
-            context.jvm().destroy(java_image.as_object().unwrap())?;
+            let image_data: ClassInstanceRef = context.jvm().get_field(java_image.as_ref().unwrap(), "imgData", "[B")?;
+            context.jvm().destroy(image_data)?;
+            context.jvm().destroy(java_image.unwrap())?;
             context
                 .jvm()
                 .put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", JavaValue::Object(None))?;

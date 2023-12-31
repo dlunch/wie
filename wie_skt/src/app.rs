@@ -28,7 +28,7 @@ impl SktApp {
     async fn do_start(core: &mut JvmCore, backend: &mut Backend, main_class_name: String) -> anyhow::Result<()> {
         let normalized_class_name = main_class_name.replace('.', "/");
 
-        let result = core
+        let result: anyhow::Result<()> = core
             .jvm()
             .invoke_static(&normalized_class_name, "startApp", "([Ljava/lang/String;)V", [JavaValue::Object(None)])
             .await;

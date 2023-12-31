@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use jvm::{JavaValue, Jvm};
+use jvm::{JavaChar, JavaValue, Jvm};
 
 use wie_backend::{task::SleepFuture, Backend};
 
@@ -169,7 +169,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
 
 impl TypeConverter<i32> for i32 {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i32 {
-        raw.as_int()
+        raw.into()
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: i32) -> JavaValue {
@@ -177,20 +177,19 @@ impl TypeConverter<i32> for i32 {
     }
 }
 
-//char type
-impl TypeConverter<u16> for u16 {
-    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> u16 {
-        raw.as_char()
+impl TypeConverter<JavaChar> for JavaChar {
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> JavaChar {
+        raw.into()
     }
 
-    fn from_rust(_: &mut dyn JavaContext, rust: u16) -> JavaValue {
+    fn from_rust(_: &mut dyn JavaContext, rust: JavaChar) -> JavaValue {
         JavaValue::Char(rust)
     }
 }
 
 impl TypeConverter<i64> for i64 {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i64 {
-        raw.as_long()
+        raw.into()
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: i64) -> JavaValue {
@@ -200,7 +199,7 @@ impl TypeConverter<i64> for i64 {
 
 impl TypeConverter<bool> for bool {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> bool {
-        raw.as_boolean()
+        raw.into()
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: bool) -> JavaValue {

@@ -29,7 +29,8 @@ bitflags::bitflags! {
 
 impl TypeConverter<Anchor> for Anchor {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> Anchor {
-        Anchor::from_bits_retain(raw.as_int() as _)
+        let raw: i32 = raw.into();
+        Anchor::from_bits_retain(raw)
     }
 
     fn from_rust(_: &mut dyn JavaContext, rust: Anchor) -> JavaValue {
@@ -81,8 +82,8 @@ impl Graphics {
         let log = format!("org.kwis.msp.lcdui.Graphics::<init>({:?}, {:?})", &this, &display);
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
-        let width = context.jvm().get_field(&display, "m_w", "I")?;
-        let height = context.jvm().get_field(&display, "m_h", "I")?;
+        let width: i32 = context.jvm().get_field(&display, "m_w", "I")?;
+        let height: i32 = context.jvm().get_field(&display, "m_h", "I")?;
 
         context.jvm().put_field(&this, "w", "I", width)?;
         context.jvm().put_field(&this, "h", "I", height)?;
@@ -189,7 +190,7 @@ impl Graphics {
     async fn fill_rect(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
-        let rgb = context.jvm().get_field(&this, "rgb", "I")?.as_int();
+        let rgb: i32 = context.jvm().get_field(&this, "rgb", "I")?;
 
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
@@ -202,7 +203,7 @@ impl Graphics {
     async fn draw_rect(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x: i32, y: i32, width: i32, height: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
-        let rgb = context.jvm().get_field(&this, "rgb", "I")?.as_int();
+        let rgb: i32 = context.jvm().get_field(&this, "rgb", "I")?;
 
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
@@ -242,7 +243,7 @@ impl Graphics {
     async fn draw_line(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
-        let rgb = context.jvm().get_field(&this, "rgb", "I")?.as_int();
+        let rgb: i32 = context.jvm().get_field(&this, "rgb", "I")?;
 
         let image = Self::image(context, &this).await?;
         let mut canvas = Image::canvas(context, &image)?;
@@ -313,17 +314,17 @@ impl Graphics {
     async fn get_clip_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:?})", &this);
 
-        let w = context.jvm().get_field(&this, "w", "I")?.as_int();
+        let w: i32 = context.jvm().get_field(&this, "w", "I")?;
 
-        Ok(w as _)
+        Ok(w)
     }
 
     async fn get_clip_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:?})", &this);
 
-        let h = context.jvm().get_field(&this, "h", "I")?.as_int();
+        let h: i32 = context.jvm().get_field(&this, "h", "I")?;
 
-        Ok(h as _)
+        Ok(h)
     }
 
     async fn get_translate_x(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Graphics>) -> JavaResult<i32> {
@@ -345,15 +346,15 @@ impl Graphics {
     }
 
     async fn image(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<JvmClassInstanceProxy<Image>> {
-        let image = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let image: Option<ClassInstanceRef> = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
-        if image.as_object_ref().is_some() {
-            Ok(JvmClassInstanceProxy::new(Some(image.as_object_ref().unwrap().clone())))
+        if image.is_some() {
+            Ok(JvmClassInstanceProxy::new(image))
         } else {
             let width = context.jvm().get_field(this, "w", "I")?;
             let height = context.jvm().get_field(this, "h", "I")?;
 
-            let image = context
+            let image: ClassInstanceRef = context
                 .jvm()
                 .invoke_static(
                     "org/kwis/msp/lcdui/Image",
@@ -363,14 +364,9 @@ impl Graphics {
                 )
                 .await?;
 
-            context.jvm().put_field(
-                this,
-                "img",
-                "Lorg/kwis/msp/lcdui/Image;",
-                JavaValue::Object(Some(image.as_object_ref().unwrap().clone())),
-            )?;
+            context.jvm().put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", image.clone())?;
 
-            Ok(JvmClassInstanceProxy::new(Some(image.as_object().unwrap())))
+            Ok(JvmClassInstanceProxy::new(Some(image)))
         }
     }
 }

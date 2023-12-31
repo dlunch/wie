@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use jvm::JavaValue;
 
@@ -75,7 +75,7 @@ impl System {
         );
 
         // TODO i think we can make it faster
-        let src = context.jvm().load_array(&src, src_pos as _, length as _)?;
+        let src: Vec<JavaValue> = context.jvm().load_array(&src, src_pos as _, length as _)?;
         context.jvm().store_array(&dest, dest_pos as _, src)?;
 
         Ok(())

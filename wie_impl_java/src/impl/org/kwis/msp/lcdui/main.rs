@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use jvm::JavaValue;
+use jvm::{ClassInstanceRef, JavaValue};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -33,19 +33,13 @@ impl Main {
     async fn main(context: &mut dyn JavaContext, args: JvmClassInstanceProxy<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
-        let jlet = context
+        let jlet: ClassInstanceRef = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
-        let event_queue = context
+        let event_queue: ClassInstanceRef = context
             .jvm()
-            .invoke_virtual(
-                &jlet.as_object().unwrap(),
-                "org/kwis/msp/lcdui/Jlet",
-                "getEventQueue",
-                "()Lorg/kwis/msp/lcdui/EventQueue;",
-                [],
-            )
+            .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
             .await?;
 
         let event = context.jvm().instantiate_array("I", 4).await?;
@@ -54,7 +48,7 @@ impl Main {
             context
                 .jvm()
                 .invoke_virtual(
-                    event_queue.as_object_ref().unwrap(),
+                    &event_queue,
                     "org/kwis/lcdui/EventQueue",
                     "getNextEvent",
                     "([I)V",
@@ -64,7 +58,7 @@ impl Main {
             context
                 .jvm()
                 .invoke_virtual(
-                    event_queue.as_object_ref().unwrap(),
+                    &event_queue,
                     "org/kwis/lcdui/EventQueue",
                     "dispatchEvent",
                     "([I)V",
