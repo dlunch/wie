@@ -205,7 +205,7 @@ impl Image {
             .invoke_virtual(&instance, "org/kwis/msp/lcdui/Image", "<init>", "()V", [])
             .await?;
 
-        let data = data.iter().map(|&x| JavaValue::Byte(x as _)).collect::<Vec<_>>();
+        let data: Vec<i8> = cast_vec(data.to_vec());
 
         let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&data_array, 0, data)?;
