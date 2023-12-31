@@ -64,7 +64,7 @@ impl Font {
             .invoke_special(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 
     async fn get_font(context: &mut dyn JavaContext, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceProxy<Font>> {
@@ -76,6 +76,6 @@ impl Font {
             .invoke_special(&instance, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 }

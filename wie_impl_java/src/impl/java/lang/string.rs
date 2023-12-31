@@ -178,7 +178,7 @@ impl String {
         let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
         context.jvm().store_array(&byte_array, 0, bytes)?;
 
-        Ok(JvmClassInstanceProxy::new(Some(byte_array)))
+        Ok(byte_array.into())
     }
 
     async fn length(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
@@ -291,6 +291,6 @@ impl String {
             .invoke_special(&instance, "java/lang/String", "<init>", "([C)V", [java_value.into()])
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 }

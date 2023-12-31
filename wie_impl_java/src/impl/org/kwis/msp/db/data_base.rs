@@ -65,7 +65,7 @@ impl DataBase {
             )
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 
     async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
@@ -127,6 +127,6 @@ impl DataBase {
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&array, 0, data)?;
 
-        Ok(JvmClassInstanceProxy::new(Some(array)))
+        Ok(array.into())
     }
 }

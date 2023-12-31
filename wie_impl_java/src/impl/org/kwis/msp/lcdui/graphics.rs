@@ -126,7 +126,7 @@ impl Graphics {
             .invoke_special(&font, "org/kwis/msp/lcdui/Font", "<init>", "()V", [])
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(font)))
+        Ok(font.into())
     }
 
     async fn set_color(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, rgb: i32) -> JavaResult<()> {
@@ -347,7 +347,7 @@ impl Graphics {
         let image: Option<ClassInstanceRef> = context.jvm().get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
         if image.is_some() {
-            Ok(JvmClassInstanceProxy::new(image))
+            Ok(image.into())
         } else {
             let width = context.jvm().get_field(this, "w", "I")?;
             let height = context.jvm().get_field(this, "h", "I")?;
@@ -364,7 +364,7 @@ impl Graphics {
 
             context.jvm().put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", image.clone())?;
 
-            Ok(JvmClassInstanceProxy::new(Some(image)))
+            Ok(image.into())
         }
     }
 }

@@ -30,6 +30,6 @@ impl Calendar {
         let instance = context.jvm().instantiate_class("java/util/GregorianCalendar").await?;
         // TODO call <init>
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 }

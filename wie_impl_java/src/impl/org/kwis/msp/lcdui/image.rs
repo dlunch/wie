@@ -134,7 +134,7 @@ impl Image {
             )
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
@@ -213,7 +213,7 @@ impl Image {
         context.jvm().put_field(&instance, "imgData", "[B", data_array)?;
         context.jvm().put_field(&instance, "bpl", "I", (width * bytes_per_pixel) as i32)?;
 
-        Ok(JvmClassInstanceProxy::new(Some(instance)))
+        Ok(instance.into())
     }
 }
 

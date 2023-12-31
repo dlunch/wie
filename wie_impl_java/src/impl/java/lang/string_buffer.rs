@@ -128,7 +128,7 @@ impl StringBuffer {
             .invoke_special(&string, "java/lang/String", "<init>", "([CII)V", (java_value, 0, count))
             .await?;
 
-        Ok(JvmClassInstanceProxy::new(Some(string)))
+        Ok(string.into())
     }
 
     async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: usize) -> JavaResult<()> {
