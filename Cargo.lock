@@ -3559,23 +3559,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "clap",
- "softbuffer",
- "tao",
- "tracing",
- "tracing-subscriber",
- "wie_backend",
- "wie_base",
- "wie_ktf",
- "wie_lgt",
- "wie_skt",
-]
-
-[[package]]
 name = "wie_backend"
 version = "0.0.1"
 dependencies = [
@@ -3604,6 +3587,23 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "tracing",
+]
+
+[[package]]
+name = "wie_cli"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "softbuffer",
+ "tao",
+ "tracing",
+ "tracing-subscriber",
+ "wie_backend",
+ "wie_base",
+ "wie_ktf",
+ "wie_lgt",
+ "wie_skt",
 ]
 
 [[package]]

@@ -1,11 +1,11 @@
 [package]
-name = "wie"
+name = "wie_cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "wie"
+name = "wie_cli"
 path = "src/main.rs"
 
 [dependencies]

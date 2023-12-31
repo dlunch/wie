@@ -16,5 +16,5 @@ fn main() -> anyhow::Result<()> {
     #[cfg(target_arch = "wasm32")]
     unimplemented!();
     #[cfg(not(target_arch = "wasm32"))]
-    wie::start(&Args::parse().filename)
+    wie_cli::start(&Args::parse().filename)
 }
