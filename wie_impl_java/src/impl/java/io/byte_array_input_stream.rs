@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use jvm::ClassInstanceRef;
-
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
     proxy::{Array, JvmClassInstanceProxy},
@@ -41,7 +39,7 @@ impl ByteArrayInputStream {
     async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::available({:?})", &this);
 
-        let buf: ClassInstanceRef = context.jvm().get_field(&this, "buf", "[B")?;
+        let buf = context.jvm().get_field(&this, "buf", "[B")?;
         let pos: i32 = context.jvm().get_field(&this, "pos", "I")?;
         let buf_length = context.jvm().array_length(&buf)? as i32;
 
@@ -57,7 +55,7 @@ impl ByteArrayInputStream {
     ) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::read({:?}, {:?}, {}, {})", &this, &b, off, len);
 
-        let buf: ClassInstanceRef = context.jvm().get_field(&this, "buf", "[B")?;
+        let buf = context.jvm().get_field(&this, "buf", "[B")?;
         let buf_length = context.jvm().array_length(&buf)?;
         let pos: i32 = context.jvm().get_field(&this, "pos", "I")?;
 

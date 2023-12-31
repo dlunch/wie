@@ -59,7 +59,7 @@ impl StringBuffer {
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.StringBuffer::<init>({:?}, {:?})", &this, &string,);
 
-        let value_array: ClassInstanceRef = context.jvm().get_field(&string, "value", "[C")?;
+        let value_array = context.jvm().get_field(&string, "value", "[C")?;
         let length = context.jvm().array_length(&value_array)? as i32;
 
         context.jvm().put_field(&this, "value", "[C", value_array)?;
@@ -132,7 +132,7 @@ impl StringBuffer {
     }
 
     async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: usize) -> JavaResult<()> {
-        let java_value_array: ClassInstanceRef = context.jvm().get_field(this, "value", "[C")?;
+        let java_value_array = context.jvm().get_field(this, "value", "[C")?;
         let current_capacity = context.jvm().array_length(&java_value_array)?;
 
         if current_capacity < capacity {
@@ -155,7 +155,7 @@ impl StringBuffer {
 
         StringBuffer::ensure_capacity(context, this, (current_count + count_to_add) as _).await?;
 
-        let java_value_array: ClassInstanceRef = context.jvm().get_field(this, "value", "[C")?;
+        let java_value_array = context.jvm().get_field(this, "value", "[C")?;
         context.jvm().store_array(&java_value_array, current_count as _, value_to_add)?;
         context.jvm().put_field(this, "count", "I", current_count + count_to_add)?;
 

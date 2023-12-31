@@ -150,7 +150,7 @@ impl Image {
     }
 
     pub fn buf(context: &mut dyn JavaContext, this: &ClassInstanceRef) -> JavaResult<Vec<u8>> {
-        let java_img_data: ClassInstanceRef = context.jvm().get_field(this, "imgData", "[B")?;
+        let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
         let img_data_len = context.jvm().array_length(&java_img_data)?;
 
         let img_data: Vec<i8> = context.jvm().load_array(&java_img_data, 0, img_data_len)?;
@@ -225,7 +225,7 @@ pub struct ImageCanvas<'a> {
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
-        let data: ClassInstanceRef = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
+        let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
 
         let values: Vec<i8> = cast_vec(self.canvas.raw().to_vec());
 

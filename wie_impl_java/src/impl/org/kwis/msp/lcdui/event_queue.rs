@@ -171,7 +171,7 @@ impl EventQueue {
     }
 
     async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
-        let jlet: ClassInstanceRef = context
+        let jlet = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
@@ -181,7 +181,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let cards: ClassInstanceRef = context
+        let cards = context
             .jvm()
             .get_field(display.as_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
@@ -204,7 +204,7 @@ impl EventQueue {
     }
 
     async fn repaint(context: &mut dyn JavaContext) -> JavaResult<()> {
-        let jlet: ClassInstanceRef = context
+        let jlet = context
             .jvm()
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
@@ -214,7 +214,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let cards: ClassInstanceRef = context
+        let cards = context
             .jvm()
             .get_field(display.as_ref().unwrap(), "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card: &Option<ClassInstanceRef> = &context.jvm().load_array(&cards, 0, 1)?[0];
@@ -251,7 +251,7 @@ impl EventQueue {
             let image = JavaImage::image(context, java_image.as_ref().unwrap())?;
 
             // TODO temporary until we have correct gc
-            let image_data: ClassInstanceRef = context.jvm().get_field(java_image.as_ref().unwrap(), "imgData", "[B")?;
+            let image_data = context.jvm().get_field(java_image.as_ref().unwrap(), "imgData", "[B")?;
             context.jvm().destroy(image_data)?;
             context.jvm().destroy(java_image.unwrap())?;
             context.jvm().put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
