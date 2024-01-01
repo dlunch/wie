@@ -48,7 +48,7 @@ impl System {
     async fn current_time_millis(context: &mut dyn JavaContext) -> JavaResult<i64> {
         tracing::debug!("java.lang.System::currentTimeMillis()");
 
-        Ok(context.system().time().now().raw() as _)
+        Ok(context.system().platform().now().raw() as _)
     }
 
     async fn gc(_: &mut dyn JavaContext) -> JavaResult<i32> {

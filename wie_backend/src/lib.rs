@@ -5,11 +5,13 @@ mod executor;
 mod platform;
 mod system;
 pub mod task;
+mod time;
 
 pub use self::{
     executor::AsyncCallable,
     platform::Platform,
-    system::{database::Database, screen::Screen, time::Instant, System, SystemHandle},
+    system::{database::Database, screen::Screen, System, SystemHandle},
+    time::Instant,
 };
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String};

@@ -7,7 +7,7 @@ use core::{
 
 use crate::{
     executor::{AsyncCallable, Executor},
-    system::time::Instant,
+    time::Instant,
 };
 
 pub fn sleep(until: Instant) -> SleepFuture {

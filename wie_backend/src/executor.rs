@@ -8,7 +8,7 @@ use core::{
 };
 use std::collections::HashMap;
 
-use crate::system::time::Instant;
+use crate::time::Instant;
 
 thread_local! {
     #[allow(clippy::type_complexity)]

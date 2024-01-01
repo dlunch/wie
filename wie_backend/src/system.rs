@@ -2,7 +2,6 @@ mod audio;
 pub mod database;
 mod resource;
 pub mod screen;
-pub mod time;
 
 use alloc::{collections::VecDeque, rc::Rc};
 use core::cell::{Ref, RefCell, RefMut};
@@ -11,7 +10,7 @@ use wie_base::Event;
 
 use crate::{executor::Executor, extract_zip, platform::Platform};
 
-use self::{audio::Audio, database::DatabaseRepository, resource::Resource, time::Time};
+use self::{audio::Audio, database::DatabaseRepository, resource::Resource};
 
 pub struct SystemInner {
     platform: Box<dyn Platform>,
@@ -68,10 +67,6 @@ impl SystemHandle {
 
     pub fn resource(&self) -> Ref<'_, Resource> {
         Ref::map(self.system_inner.borrow(), |s| &s.resource)
-    }
-
-    pub fn time(&self) -> Time {
-        Time::new(self.clone())
     }
 
     pub fn platform(&self) -> RefMut<'_, Box<dyn Platform>> {

@@ -1,4 +1,4 @@
-use crate::{system::time::Instant, Screen};
+use crate::{time::Instant, Screen};
 
 pub trait Platform {
     fn screen(&mut self) -> &mut dyn Screen;

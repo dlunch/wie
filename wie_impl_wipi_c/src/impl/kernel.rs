@@ -38,7 +38,7 @@ fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
 async fn current_time(context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
     tracing::debug!("MC_knlCurrentTime()");
 
-    Ok(context.system().time().now().raw() as WIPICWord)
+    Ok(context.system().platform().now().raw() as WIPICWord)
 }
 
 async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> WIPICResult<i32> {

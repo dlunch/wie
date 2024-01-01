@@ -142,7 +142,7 @@ impl<'a> JavaContext for JvmCoreContext<'a> {
     }
 
     fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.system.time().now() + duration;
+        let until = self.system.platform().now() + duration;
 
         task::sleep(until)
     }
