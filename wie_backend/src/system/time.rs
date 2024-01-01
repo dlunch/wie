@@ -1,4 +1,5 @@
 use core::ops::{Add, Sub};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::Platform;
 
@@ -33,16 +34,16 @@ impl Sub for Instant {
     }
 }
 
-pub struct Time<'a> {
-    platform: &'a dyn Platform,
+pub struct Time {
+    platform: Rc<RefCell<Box<dyn Platform>>>,
 }
 
-impl<'a> Time<'a> {
-    pub fn new(platform: &'a dyn Platform) -> Self {
+impl Time {
+    pub fn new(platform: Rc<RefCell<Box<dyn Platform>>>) -> Self {
         Self { platform }
     }
 
     pub fn now(&self) -> Instant {
-        self.platform.now()
+        self.platform.borrow().now()
     }
 }

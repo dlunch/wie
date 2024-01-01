@@ -17,13 +17,12 @@ use self::{
     canvas::{ArgbPixel, Canvas, ImageBuffer},
     database::DatabaseRepository,
     resource::Resource,
-    screen::Screen,
     time::Time,
 };
 
 #[derive(Clone)]
 pub struct System {
-    platform: Rc<Box<dyn Platform>>,
+    platform: Rc<RefCell<Box<dyn Platform>>>,
     database: Rc<RefCell<DatabaseRepository>>,
     resource: Rc<RefCell<Resource>>,
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
@@ -32,12 +31,12 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(app_id: &str, platform: Box<dyn Platform>) -> Self {
+    pub fn new(app_id: &str, mut platform: Box<dyn Platform>) -> Self {
         let screen = platform.screen();
         let screen_canvas = ImageBuffer::<ArgbPixel>::new(screen.width(), screen.height());
 
         Self {
-            platform: Rc::new(platform),
+            platform: Rc::new(RefCell::new(platform)),
             database: Rc::new(RefCell::new(DatabaseRepository::new(app_id))),
             resource: Rc::new(RefCell::new(Resource::new())),
             screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
@@ -54,16 +53,18 @@ impl System {
         (*self.resource).borrow()
     }
 
-    pub fn time(&self) -> Time<'_> {
-        Time::new(&**self.platform)
+    pub fn time(&self) -> Time {
+        Time::new(self.platform.clone())
     }
 
     pub fn screen_canvas(&self) -> RefMut<'_, Box<dyn Canvas>> {
         (*self.screen_canvas).borrow_mut()
     }
 
-    pub fn screen(&self) -> &dyn Screen {
-        self.platform.screen()
+    pub fn screen(&self) -> ScreenHandle {
+        ScreenHandle {
+            platform: self.platform.clone(),
+        }
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
@@ -91,5 +92,19 @@ impl System {
         }
 
         Ok(())
+    }
+}
+
+pub struct ScreenHandle {
+    platform: Rc<RefCell<Box<dyn Platform>>>,
+}
+
+impl ScreenHandle {
+    pub fn repaint(&self, canvas: &dyn Canvas) -> anyhow::Result<()> {
+        self.platform.borrow_mut().screen().repaint(canvas)
+    }
+
+    pub fn request_redraw(&self) -> anyhow::Result<()> {
+        self.platform.borrow_mut().screen().request_redraw()
     }
 }
