@@ -1,5 +1,6 @@
 extern crate alloc;
 
+mod audio_sink;
 pub mod canvas;
 mod database;
 mod executor;
@@ -10,6 +11,7 @@ pub mod task;
 mod time;
 
 pub use self::{
+    audio_sink::AudioSink,
     database::{Database, DatabaseRepository, RecordId},
     executor::AsyncCallable,
     platform::Platform,

@@ -27,13 +27,15 @@ pub struct System {
 
 impl System {
     pub fn new(platform: Box<dyn Platform>) -> Self {
+        let audio_sink = platform.audio_sink();
+
         Self {
             executor: Executor::new(),
             inner: Rc::new(RefCell::new(SystemInner {
                 platform,
                 resource: Resource::new(),
                 events: VecDeque::new(),
-                audio: Audio::new(),
+                audio: Audio::new(audio_sink),
             })),
         }
     }

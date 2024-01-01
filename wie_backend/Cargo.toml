@@ -15,7 +15,6 @@ image = { version = "^0.24", features = ["bmp", "png"], default-features = false
 num-traits = { version = "^0.2" }
 piet = { version = "^0.6" }
 piet-common = { version = "^0.6" }
-rodio = { version = "^0.17", default-features = false }
 zip = { version = "^0.6", features = ["deflate"], default-features = false }
 
 smaf = { git = "https://github.com/dlunch/smaf.git" }
