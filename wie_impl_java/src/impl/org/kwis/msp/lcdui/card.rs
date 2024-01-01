@@ -44,9 +44,8 @@ impl Card {
 
         let mut platform = context.system().platform();
         let screen = platform.screen();
-        let screen_canvas = screen.canvas();
 
-        Ok(screen_canvas.width() as _)
+        Ok(screen.width() as _)
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
@@ -54,9 +53,8 @@ impl Card {
 
         let mut platform = context.system().platform();
         let screen = platform.screen();
-        let screen_canvas = screen.canvas();
 
-        Ok(screen_canvas.height() as _)
+        Ok(screen.height() as _)
     }
 
     async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {

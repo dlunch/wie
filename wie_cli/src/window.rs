@@ -10,10 +10,7 @@ use winit::{
     window::{Window as WinitWindow, WindowBuilder},
 };
 
-use wie_backend::{
-    canvas::{ArgbPixel, Canvas, Image, ImageBuffer},
-    Screen,
-};
+use wie_backend::{canvas::Image, Screen};
 
 #[derive(Debug)]
 pub enum WindowInternalEvent {
@@ -29,7 +26,8 @@ pub enum WindowCallbackEvent {
 }
 
 pub struct WindowHandle {
-    canvas: ImageBuffer<ArgbPixel>,
+    width: u32,
+    height: u32,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
@@ -46,27 +44,22 @@ impl Screen for WindowHandle {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
 
-    fn repaint(&self) -> anyhow::Result<()> {
-        let data = self
-            .canvas
+    fn width(&self) -> u32 {
+        self.width
+    }
+
+    fn height(&self) -> u32 {
+        self.height
+    }
+
+    fn paint(&mut self, image: &dyn Image) {
+        let data = image
             .colors()
             .iter()
             .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
             .collect::<Vec<_>>();
 
-        self.send_event(WindowInternalEvent::Paint(data))
-    }
-
-    fn width(&self) -> u32 {
-        self.canvas.width()
-    }
-
-    fn height(&self) -> u32 {
-        self.canvas.height()
-    }
-
-    fn canvas(&mut self) -> &mut dyn Canvas {
-        &mut self.canvas
+        self.send_event(WindowInternalEvent::Paint(data)).unwrap()
     }
 }
 
@@ -92,10 +85,9 @@ impl WindowImpl {
     }
 
     pub fn handle(&self) -> WindowHandle {
-        let canvas = ImageBuffer::<ArgbPixel>::new(self.window.inner_size().width, self.window.inner_size().height);
-
         WindowHandle {
-            canvas,
+            width: self.window.inner_size().width,
+            height: self.window.inner_size().height,
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }

@@ -240,13 +240,8 @@ impl EventQueue {
 
             let mut platform = context.system().platform();
             let screen = platform.screen();
-            let canvas = screen.canvas();
 
-            let (width, height) = (canvas.width(), canvas.height());
-
-            canvas.draw(0, 0, width, height, &*image, 0, 0);
-
-            screen.repaint()?;
+            screen.paint(&*image);
         }
 
         Ok(())
