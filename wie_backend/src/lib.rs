@@ -4,6 +4,7 @@ pub mod canvas;
 mod database;
 mod executor;
 mod platform;
+mod screen;
 mod system;
 pub mod task;
 mod time;
@@ -12,7 +13,8 @@ pub use self::{
     database::{Database, DatabaseRepository, RecordId},
     executor::AsyncCallable,
     platform::Platform,
-    system::{screen::Screen, System, SystemHandle},
+    screen::Screen,
+    system::{System, SystemHandle},
     time::Instant,
 };
 
