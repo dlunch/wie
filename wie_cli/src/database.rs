@@ -1,0 +1,107 @@
+use std::{fs, path::PathBuf};
+
+use directories::ProjectDirs;
+
+use wie_backend::RecordId;
+
+pub struct DatabaseRepository {
+    base_path: PathBuf,
+}
+
+impl DatabaseRepository {
+    pub fn new(app_id: &str) -> Self {
+        let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
+
+        let base_path = base_dir.data_dir().join(app_id);
+
+        Self { base_path }
+    }
+
+    fn get_path_for_database(&self, name: &str) -> PathBuf {
+        self.base_path.join(name)
+    }
+}
+
+impl wie_backend::DatabaseRepository for DatabaseRepository {
+    fn open(&self, name: &str) -> Box<dyn wie_backend::Database> {
+        let path = self.get_path_for_database(name);
+
+        Box::new(Database::new(path).unwrap())
+    }
+}
+
+pub struct Database {
+    base_path: PathBuf,
+}
+
+impl Database {
+    pub fn new(base_path: PathBuf) -> anyhow::Result<Self> {
+        tracing::trace!("Opening database at {:?}", base_path);
+
+        fs::create_dir_all(&base_path)?;
+
+        Ok(Self { base_path })
+    }
+
+    fn find_empty_record_id(&mut self) -> RecordId {
+        let mut record_id = 0;
+
+        loop {
+            let path = self.base_path.join(record_id.to_string());
+
+            if !path.exists() {
+                return record_id;
+            }
+
+            record_id += 1;
+        }
+    }
+    fn get_path_for_record(&self, id: RecordId) -> PathBuf {
+        self.base_path.join(id.to_string())
+    }
+}
+
+impl wie_backend::Database for Database {
+    fn add(&mut self, data: &[u8]) -> RecordId {
+        let id = self.find_empty_record_id();
+
+        tracing::trace!("Adding record {} to database {:?}", id, &self.base_path);
+
+        let path = self.get_path_for_record(id);
+        fs::write(path, data).unwrap();
+
+        id
+    }
+
+    fn get(&self, id: RecordId) -> Option<Vec<u8>> {
+        let path = self.get_path_for_record(id);
+
+        tracing::trace!("Read record {} from database {:?}", id, &self.base_path);
+
+        fs::read(path).ok()
+    }
+
+    fn set(&mut self, id: RecordId, data: &[u8]) -> bool {
+        let path = self.get_path_for_record(id);
+
+        tracing::trace!("Set record {} to database {:?}", id, &self.base_path);
+
+        fs::write(path, data).is_ok()
+    }
+
+    fn delete(&mut self, id: RecordId) -> bool {
+        let path = self.get_path_for_record(id);
+
+        tracing::trace!("Delete record {} from database {:?}", id, &self.base_path);
+
+        fs::remove_file(path).is_ok()
+    }
+
+    fn get_record_ids(&self) -> Vec<RecordId> {
+        fs::read_dir(&self.base_path)
+            .unwrap()
+            .filter(|x| x.as_ref().unwrap().path().is_file())
+            .map(|x| x.unwrap().file_name().to_str().unwrap().parse().unwrap())
+            .collect()
+    }
+}

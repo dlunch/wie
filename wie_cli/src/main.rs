@@ -1,5 +1,6 @@
 extern crate alloc;
 
+mod database;
 mod window;
 
 use std::{
@@ -17,15 +18,22 @@ use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
 use wie_skt::SktArchive;
 
-use self::window::{WindowCallbackEvent, WindowImpl};
+use self::{
+    database::DatabaseRepository,
+    window::{WindowCallbackEvent, WindowImpl},
+};
 
 struct WieCliPlatform {
+    database_repository: DatabaseRepository,
     window: Box<dyn Screen>,
 }
 
 impl WieCliPlatform {
-    fn new(window: Box<dyn Screen>) -> Self {
-        Self { window }
+    fn new(app_id: &str, window: Box<dyn Screen>) -> Self {
+        Self {
+            database_repository: DatabaseRepository::new(app_id),
+            window,
+        }
     }
 }
 
@@ -39,6 +47,10 @@ impl Platform for WieCliPlatform {
         let since_the_epoch = now.duration_since(UNIX_EPOCH).unwrap();
 
         Instant::from_epoch_millis(since_the_epoch.as_millis() as _)
+    }
+
+    fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {
+        &self.database_repository
     }
 }
 
@@ -72,9 +84,9 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     };
 
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
-    let platform = WieCliPlatform::new(Box::new(window.handle()));
+    let platform = WieCliPlatform::new(&archive.id(), Box::new(window.handle()));
 
-    let mut system = System::new(&archive.id(), Box::new(platform));
+    let mut system = System::new(Box::new(platform));
     let mut system_handle = system.handle();
     let mut app = archive.load_app(&mut system_handle)?;
 

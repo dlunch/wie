@@ -1,5 +1,4 @@
 mod audio;
-pub mod database;
 mod resource;
 pub mod screen;
 
@@ -13,10 +12,9 @@ use wie_base::Event;
 
 use crate::{executor::Executor, extract_zip, platform::Platform, AsyncCallable};
 
-use self::{audio::Audio, database::DatabaseRepository, resource::Resource};
+use self::{audio::Audio, resource::Resource};
 
 pub struct SystemInner {
-    database: DatabaseRepository,
     resource: Resource,
     events: VecDeque<Event>,
     audio: Audio,
@@ -29,14 +27,13 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(app_id: &str, platform: Box<dyn Platform>) -> Self {
+    pub fn new(platform: Box<dyn Platform>) -> Self {
         let platform = Rc::new(RefCell::new(platform));
 
         Self {
             executor: Executor::new(),
             platform,
             inner: Rc::new(RefCell::new(SystemInner {
-                database: DatabaseRepository::new(app_id),
                 resource: Resource::new(),
                 events: VecDeque::new(),
                 audio: Audio::new(),
@@ -75,10 +72,6 @@ impl SystemHandle {
     {
         let mut executor = Executor::current();
         executor.spawn(callable);
-    }
-
-    pub fn database(&self) -> RefMut<'_, DatabaseRepository> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.database)
     }
 
     pub fn resource(&self) -> Ref<'_, Resource> {
