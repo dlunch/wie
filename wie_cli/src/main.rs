@@ -1,5 +1,6 @@
 extern crate alloc;
 
+mod audio_sink;
 mod database;
 mod window;
 
@@ -19,6 +20,7 @@ use wie_lgt::LgtArchive;
 use wie_skt::SktArchive;
 
 use self::{
+    audio_sink::AudioSink,
     database::DatabaseRepository,
     window::{WindowCallbackEvent, WindowImpl},
 };
@@ -51,6 +53,10 @@ impl Platform for WieCliPlatform {
 
     fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {
         &self.database_repository
+    }
+
+    fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
+        Box::new(AudioSink)
     }
 }
 

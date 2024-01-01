@@ -411,13 +411,13 @@ checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "clang-sys"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c688fc74432808e3eb684cae8830a86be1d66a2bd58e1f248ed0960a590baf6f"
+checksum = "67523a3b4be3ce1989d607a828d036249522dd9c1c8de7f4dd2dae43a37369d1"
 dependencies = [
  "glob",
  "libc",
- "libloading 0.7.4",
+ "libloading 0.8.1",
 ]
 
 [[package]]
@@ -2737,7 +2737,6 @@ dependencies = [
  "num-traits",
  "piet",
  "piet-common",
- "rodio",
  "smaf",
  "smaf_player",
  "tracing",
@@ -2761,6 +2760,7 @@ dependencies = [
  "anyhow",
  "clap",
  "directories",
+ "rodio",
  "softbuffer",
  "tracing",
  "tracing-subscriber",

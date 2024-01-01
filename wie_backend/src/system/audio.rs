@@ -1,19 +1,17 @@
 use alloc::collections::BTreeMap;
 
-use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
-
 use smaf::Smaf;
 use smaf_player::{play_smaf, AudioBackend};
 
-struct AudioBackendImpl;
+use crate::audio_sink::AudioSink;
+
+struct AudioBackendImpl {
+    sink: Box<dyn AudioSink>,
+}
 
 impl AudioBackend for AudioBackendImpl {
     fn play_wave(&self, channel: u8, sampling_rate: u32, wave_data: &[i16]) {
-        let buffer = SamplesBuffer::new(channel as _, sampling_rate as _, wave_data);
-
-        let (_output_stream, stream_handle) = OutputStream::try_default().unwrap();
-        let sink = Sink::try_new(&stream_handle).unwrap();
-        sink.append(buffer);
+        self.sink.play_wave(channel, sampling_rate, wave_data);
     }
 }
 
@@ -23,15 +21,16 @@ enum AudioFile {
     Smaf(Vec<u8>),
 }
 
-#[derive(Default)]
 pub struct Audio {
+    backend: AudioBackendImpl,
     files: BTreeMap<AudioHandle, AudioFile>,
     last_audio_handle: AudioHandle,
 }
 
 impl Audio {
-    pub fn new() -> Self {
+    pub fn new(sink: Box<dyn AudioSink>) -> Self {
         Self {
+            backend: AudioBackendImpl { sink },
             files: BTreeMap::new(),
             last_audio_handle: 0,
         }
@@ -50,7 +49,7 @@ impl Audio {
         match self.files.get(&audio_handle) {
             Some(AudioFile::Smaf(data)) => {
                 let smaf = Smaf::parse(data)?;
-                play_smaf(&smaf, &AudioBackendImpl);
+                play_smaf(&smaf, &self.backend);
             }
             None => {
                 anyhow::bail!("audio handle not found");
