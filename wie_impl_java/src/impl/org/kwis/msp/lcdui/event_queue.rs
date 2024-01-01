@@ -114,7 +114,7 @@ impl EventQueue {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
         loop {
-            let maybe_event = context.system().pop_event();
+            let maybe_event = context.system().event_queue().pop();
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
