@@ -76,9 +76,13 @@ impl Card {
     async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
-        let mut platform = context.system().platform();
-        let screen = platform.screen();
-        screen.request_redraw()?;
+        let width: i32 = context.jvm().get_field(&this, "w", "I")?;
+        let height: i32 = context.jvm().get_field(&this, "h", "I")?;
+
+        context
+            .jvm()
+            .invoke_virtual(&this, "org/kwis/msp/lcdui/Card", "repaint", "(IIII)V", (0, 0, width, height))
+            .await?;
 
         Ok(())
     }
