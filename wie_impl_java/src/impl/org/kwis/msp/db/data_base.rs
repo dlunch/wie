@@ -1,6 +1,7 @@
-use alloc::{vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use bytemuck::cast_vec;
+use wie_backend::Database;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -68,16 +69,9 @@ impl DataBase {
     async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
-        let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(context, &db_name)?;
+        let database = Self::get_database(context, &this)?;
 
-        let count = context
-            .system()
-            .platform()
-            .database_repository()
-            .open(&db_name_str)
-            .get_record_ids()
-            .len();
+        let count = database.get_record_ids().len();
 
         Ok(count as _)
     }
@@ -103,13 +97,12 @@ impl DataBase {
             num_bytes
         );
 
-        let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(context, &db_name)?;
+        let mut database = Self::get_database(context, &this)?;
 
         let data: Vec<i8> = context.jvm().load_array(&data, offset as _, num_bytes as _)?;
         let data_raw = cast_vec(data);
 
-        let id = context.system().platform().database_repository().open(&db_name_str).add(&data_raw);
+        let id = database.add(&data_raw);
 
         Ok(id as _)
     }
@@ -121,21 +114,21 @@ impl DataBase {
     ) -> JavaResult<JvmClassInstanceHandle<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
-        let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(context, &db_name)?;
+        let database = Self::get_database(context, &this)?;
 
-        let data = context
-            .system()
-            .platform()
-            .database_repository()
-            .open(&db_name_str)
-            .get(record_id as _)
-            .unwrap();
+        let data = database.get(record_id as _).unwrap();
         let data: Vec<i8> = cast_vec(data);
 
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;
         context.jvm().store_array(&array, 0, data)?;
 
         Ok(array.into())
+    }
+
+    fn get_database(context: &mut dyn JavaContext, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Box<dyn Database>> {
+        let db_name = context.jvm().get_field(this, "dbName", "Ljava/lang/String;")?;
+        let db_name_str = String::to_rust_string(context, &db_name)?;
+
+        Ok(context.system().platform().database_repository().open(&db_name_str))
     }
 }
