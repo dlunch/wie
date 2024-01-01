@@ -16,20 +16,18 @@ use wie_skt::SktArchive;
 use self::window::{WindowCallbackEvent, WindowImpl};
 
 struct WieCliPlatform {
-    window: WindowImpl,
+    window: Box<dyn Window>,
 }
 
 impl WieCliPlatform {
-    fn new() -> Self {
-        Self {
-            window: WindowImpl::new(240, 320).unwrap(), // TODO hardcoded size
-        }
+    fn new(window: Box<dyn Window>) -> Self {
+        Self { window }
     }
 }
 
 impl Platform for WieCliPlatform {
-    fn create_window(&self) -> Box<dyn Window> {
-        Box::new(self.window.proxy())
+    fn window(&self) -> &dyn Window {
+        self.window.as_ref()
     }
 }
 
@@ -62,15 +60,16 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         anyhow::bail!("Unknown archive format");
     };
 
-    let mut platform = WieCliPlatform::new();
+    let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
+    let platform = WieCliPlatform::new(Box::new(window.proxy()));
 
-    let mut system = System::new(&archive.id(), &mut platform);
+    let mut system = System::new(&archive.id(), Box::new(platform));
     let mut app = archive.load_app(&mut system)?;
 
     let mut executor = Executor::new();
     app.start()?;
 
-    platform.window.run(move |event| {
+    window.run(move |event| {
         match event {
             WindowCallbackEvent::Update => executor
                 .tick(&system.time())

@@ -23,27 +23,27 @@ use self::{
 
 #[derive(Clone)]
 pub struct System {
+    platform: Rc<Box<dyn Platform>>,
     database: Rc<RefCell<DatabaseRepository>>,
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
-    window: Rc<RefCell<Box<dyn Window>>>,
     audio: Rc<RefCell<Audio>>,
 }
 
 impl System {
-    pub fn new(app_id: &str, platform: &mut dyn Platform) -> Self {
-        let window = platform.create_window();
+    pub fn new(app_id: &str, platform: Box<dyn Platform>) -> Self {
+        let window = platform.window();
         let screen_canvas = ImageBuffer::<ArgbPixel>::new(window.width(), window.height());
 
         Self {
+            platform: Rc::new(platform),
             database: Rc::new(RefCell::new(DatabaseRepository::new(app_id))),
             resource: Rc::new(RefCell::new(Resource::new())),
             time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
-            window: Rc::new(RefCell::new(window)),
             audio: Rc::new(RefCell::new(Audio::new())),
         }
     }
@@ -64,8 +64,8 @@ impl System {
         (*self.screen_canvas).borrow_mut()
     }
 
-    pub fn window(&self) -> RefMut<'_, Box<dyn Window>> {
-        (*self.window).borrow_mut()
+    pub fn window(&self) -> &dyn Window {
+        self.platform.window()
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
