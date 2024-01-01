@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
 use core::{cell::RefCell, fmt::Debug, mem::size_of};
 
-use wie_backend::{task, AsyncCallable, SystemHandle};
+use wie_backend::{AsyncCallable, SystemHandle};
 use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
@@ -139,7 +139,7 @@ impl ArmCore {
         E: Debug + 'static,
     {
         let self_cloned = self.clone();
-        task::spawn(move || SpawnFuture::new(self_cloned, callable));
+        self.inner.borrow().system.spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
     pub fn register_function<F, P, E, R>(&mut self, function: F) -> ArmEngineResult<u32>

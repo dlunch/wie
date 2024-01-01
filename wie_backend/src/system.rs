@@ -4,11 +4,14 @@ mod resource;
 pub mod screen;
 
 use alloc::{collections::VecDeque, rc::Rc};
-use core::cell::{Ref, RefCell, RefMut};
+use core::{
+    cell::{Ref, RefCell, RefMut},
+    fmt::Debug,
+};
 
 use wie_base::Event;
 
-use crate::{executor::Executor, extract_zip, platform::Platform};
+use crate::{executor::Executor, extract_zip, platform::Platform, AsyncCallable};
 
 use self::{audio::Audio, database::DatabaseRepository, resource::Resource};
 
@@ -61,6 +64,15 @@ pub struct SystemHandle {
 }
 
 impl SystemHandle {
+    pub fn spawn<C, R, E>(&self, callable: C)
+    where
+        C: AsyncCallable<R, E> + 'static,
+        E: Debug,
+    {
+        let mut executor = Executor::current();
+        executor.spawn(callable);
+    }
+
     pub fn database(&self) -> RefMut<'_, DatabaseRepository> {
         RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.database)
     }

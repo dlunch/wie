@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, fmt::Debug, format, rc::Rc, vec::Vec};
+use alloc::{boxed::Box, format, rc::Rc, vec::Vec};
 use core::cell::{RefCell, RefMut};
 
 use jvm::{Class, JavaValue, Jvm, JvmResult};
@@ -9,7 +9,7 @@ use jvm_impl::{ClassImpl, FieldImpl, JvmDetailImpl, MethodBody, MethodImpl, Rust
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, SystemHandle,
+    SystemHandle,
 };
 use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
 
@@ -107,15 +107,6 @@ impl JvmCore {
             body,
             system: system.clone(),
         }))
-    }
-
-    pub fn spawn<C, R, E>(&mut self, callable: C)
-    where
-        C: AsyncCallable<R, E> + 'static,
-        R: 'static,
-        E: Debug + 'static,
-    {
-        task::spawn(callable)
     }
 
     pub fn jvm(&mut self) -> RefMut<'_, Jvm> {

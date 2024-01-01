@@ -1,14 +1,10 @@
 use core::{
-    fmt::Debug,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use crate::{
-    executor::{AsyncCallable, Executor},
-    time::Instant,
-};
+use crate::{executor::Executor, time::Instant};
 
 pub fn sleep(until: Instant) -> SleepFuture {
     SleepFuture::new(until)
@@ -16,15 +12,6 @@ pub fn sleep(until: Instant) -> SleepFuture {
 
 pub fn yield_now() -> YieldFuture {
     YieldFuture {}
-}
-
-pub fn spawn<C, R, E>(callable: C)
-where
-    C: AsyncCallable<R, E> + 'static,
-    E: Debug,
-{
-    let mut executor = Executor::current();
-    executor.spawn(callable);
 }
 
 pub struct YieldFuture {}

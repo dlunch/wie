@@ -46,7 +46,7 @@ impl App for SktApp {
 
         let main_class_name = self.main_class_name.clone();
 
-        self.core
+        self.system
             .spawn(move || async move { Self::do_start(&mut core, &mut system_clone, main_class_name).await });
 
         Ok(())
