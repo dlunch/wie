@@ -120,13 +120,6 @@ impl PixelType for AbgrPixel {
     }
 }
 
-pub enum PixelFormat {
-    Rgb565,
-    Rgb8,
-    Argb,
-    Abgr,
-}
-
 pub struct ImageBuffer<T>
 where
     T: PixelType,
@@ -252,7 +245,7 @@ where
 
         let image_buf = bitmap_target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
 
-        let canvas = create_canvas(image_buf.width() as _, image_buf.height() as _, PixelFormat::Abgr, image_buf.raw_pixels()).unwrap();
+        let canvas = create_canvas::<ArgbPixel>(image_buf.width() as _, image_buf.height() as _, image_buf.raw_pixels()).unwrap();
 
         self.draw(x, y, bound.width() as _, bound.height() as _, &*canvas.image(), 0, 0);
     }
@@ -304,15 +297,13 @@ pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
 
     let data = rgba.pixels().flat_map(|x| [x.0[2], x.0[1], x.0[0], x.0[3]]).collect::<Vec<_>>();
 
-    Ok(create_canvas(rgba.width(), rgba.height(), PixelFormat::Argb, &data)?.image())
+    Ok(create_canvas::<ArgbPixel>(rgba.width(), rgba.height(), &data)?.image())
 }
 
-pub fn create_canvas(width: u32, height: u32, format: PixelFormat, data: &[u8]) -> anyhow::Result<Box<dyn Canvas>> {
+pub fn create_canvas<T>(width: u32, height: u32, data: &[u8]) -> anyhow::Result<Box<dyn Canvas>>
+where
+    T: PixelType + 'static,
+{
     // TODO we can remove copy
-    Ok(match format {
-        PixelFormat::Rgb565 => Box::new(ImageBuffer::<Rgb565Pixel>::from_raw(width, height, pod_collect_to_vec(data))),
-        PixelFormat::Rgb8 => Box::new(ImageBuffer::<Rgb8Pixel>::from_raw(width, height, pod_collect_to_vec(data))),
-        PixelFormat::Argb => Box::new(ImageBuffer::<ArgbPixel>::from_raw(width, height, pod_collect_to_vec(data))),
-        PixelFormat::Abgr => Box::new(ImageBuffer::<AbgrPixel>::from_raw(width, height, pod_collect_to_vec(data))),
-    })
+    Ok(Box::new(ImageBuffer::<T>::from_raw(width, height, pod_collect_to_vec(data))))
 }
