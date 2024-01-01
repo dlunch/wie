@@ -2766,6 +2766,7 @@ dependencies = [
  "tracing-subscriber",
  "wie_backend",
  "wie_base",
+ "wie_j2me",
  "wie_ktf",
  "wie_lgt",
  "wie_skt",

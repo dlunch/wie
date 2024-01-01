@@ -48,7 +48,7 @@ impl App for J2MEApp {
     }
 
     fn crash_dump(&self) -> String {
-        todo!()
+        "".into() // TODO
     }
 
     fn on_event(&mut self, event: Event) {
