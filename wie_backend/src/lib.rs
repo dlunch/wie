@@ -24,12 +24,14 @@ use alloc::{boxed::Box, collections::BTreeMap, string::String};
 
 pub trait App {
     fn start(&mut self) -> anyhow::Result<()>;
+    fn on_event(&mut self, event: wie_base::Event);
+    fn tick(&mut self) -> anyhow::Result<()>;
     fn crash_dump(&self) -> String;
 }
 
 pub trait Archive {
     fn id(&self) -> String;
-    fn load_app(&self, system: &mut SystemHandle) -> anyhow::Result<Box<dyn App>>;
+    fn load_app(&self, system: System) -> anyhow::Result<Box<dyn App>>;
 }
 
 pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {

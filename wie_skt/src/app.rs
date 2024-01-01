@@ -1,21 +1,22 @@
 use alloc::string::{String, ToString};
 
-use wie_backend::{App, SystemHandle};
+use wie_backend::{App, System, SystemHandle};
+use wie_base::Event;
 use wie_core_jvm::JvmCore;
 
 pub struct SktApp {
     core: JvmCore,
-    system: SystemHandle,
+    system: System,
     main_class_name: String,
 }
 
 impl SktApp {
-    pub fn new(main_class_name: &str, system: &SystemHandle) -> anyhow::Result<Self> {
-        let core = JvmCore::new(system);
+    pub fn new(main_class_name: &str, system: System) -> anyhow::Result<Self> {
+        let core = JvmCore::new(&system.handle());
 
         Ok(Self {
             core,
-            system: system.clone(),
+            system,
             main_class_name: main_class_name.to_string(),
         })
     }
@@ -42,17 +43,26 @@ impl SktApp {
 impl App for SktApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
-        let mut system_clone = self.system.clone();
+        let mut system_handle = self.system.handle();
 
         let main_class_name = self.main_class_name.clone();
 
         self.system
-            .spawn(move || async move { Self::do_start(&mut core, &mut system_clone, main_class_name).await });
+            .handle()
+            .spawn(move || async move { Self::do_start(&mut core, &mut system_handle, main_class_name).await });
 
         Ok(())
     }
 
     fn crash_dump(&self) -> String {
         "".into() // TODO
+    }
+
+    fn on_event(&mut self, event: Event) {
+        self.system.handle().event_queue().push(event)
+    }
+
+    fn tick(&mut self) -> anyhow::Result<()> {
+        self.system.tick()
     }
 }
