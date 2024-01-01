@@ -10,7 +10,10 @@ use winit::{
     window::{Window as WinitWindow, WindowBuilder},
 };
 
-use wie_backend::{canvas::Canvas, Screen};
+use wie_backend::{
+    canvas::{ArgbPixel, Canvas, Image, ImageBuffer},
+    Screen,
+};
 
 #[derive(Debug)]
 pub enum WindowInternalEvent {
@@ -26,7 +29,7 @@ pub enum WindowCallbackEvent {
 }
 
 pub struct WindowProxy {
-    window: Rc<WinitWindow>,
+    canvas: ImageBuffer<ArgbPixel>,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
@@ -43,8 +46,9 @@ impl Screen for WindowProxy {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
 
-    fn repaint(&self, canvas: &dyn Canvas) -> anyhow::Result<()> {
-        let data = canvas
+    fn repaint(&self) -> anyhow::Result<()> {
+        let data = self
+            .canvas
             .colors()
             .iter()
             .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
@@ -54,11 +58,15 @@ impl Screen for WindowProxy {
     }
 
     fn width(&self) -> u32 {
-        self.window.inner_size().width
+        self.canvas.width()
     }
 
     fn height(&self) -> u32 {
-        self.window.inner_size().height
+        self.canvas.height()
+    }
+
+    fn canvas(&mut self) -> &mut dyn Canvas {
+        &mut self.canvas
     }
 }
 
@@ -84,8 +92,10 @@ impl WindowImpl {
     }
 
     pub fn proxy(&self) -> WindowProxy {
+        let canvas = ImageBuffer::<ArgbPixel>::new(self.window.inner_size().width, self.window.inner_size().height);
+
         WindowProxy {
-            window: self.window.clone(),
+            canvas,
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }

@@ -70,9 +70,11 @@ impl Display {
         let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
         context.jvm().put_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards)?;
 
-        let screen_canvas = context.system().screen_canvas();
-        let (width, height) = (screen_canvas.width(), screen_canvas.height());
-        drop(screen_canvas);
+        let (width, height) = {
+            let mut platform = context.system().platform();
+            let screen = platform.screen();
+            (screen.width(), screen.height())
+        };
 
         context.jvm().put_field(&this, "m_w", "I", width as i32)?;
         context.jvm().put_field(&this, "m_h", "I", height as i32)?;
