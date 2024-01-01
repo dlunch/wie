@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::canvas::{create_canvas, Canvas, Image, PixelFormat};
+use wie_backend::canvas::{create_canvas, ArgbPixel, Canvas, Image, Rgb565Pixel};
 
 use crate::base::{WIPICContext, WIPICMemoryId, WIPICWord};
 
@@ -78,15 +78,11 @@ impl WIPICFramebuffer {
     }
 
     pub fn image(&self, context: &mut dyn WIPICContext) -> anyhow::Result<Box<dyn Image>> {
-        let data = self.data(context)?;
-
-        Ok(create_canvas(self.width, self.height, self.pixel_format(), &data)?.image())
+        Ok(self.create_canvas(context)?.image())
     }
 
     pub fn canvas<'a>(&'a self, context: &'a mut dyn WIPICContext) -> anyhow::Result<FramebufferCanvas<'a>> {
-        let data = self.data(context)?;
-
-        let canvas = create_canvas(self.width, self.height, self.pixel_format(), &data)?;
+        let canvas = self.create_canvas(context)?;
 
         Ok(FramebufferCanvas {
             framebuffer: self,
@@ -99,10 +95,12 @@ impl WIPICFramebuffer {
         context.write_bytes(context.data_ptr(self.buf)?, data)
     }
 
-    fn pixel_format(&self) -> PixelFormat {
+    fn create_canvas(&self, context: &dyn WIPICContext) -> anyhow::Result<Box<dyn Canvas>> {
+        let data = self.data(context)?;
+
         match self.bpp {
-            16 => PixelFormat::Rgb565,
-            32 => PixelFormat::Argb,
+            16 => create_canvas::<Rgb565Pixel>(self.width, self.height, &data),
+            32 => create_canvas::<ArgbPixel>(self.width, self.height, &data),
             _ => panic!("Unsupported pixel format: {}", self.bpp),
         }
     }

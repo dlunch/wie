@@ -6,7 +6,7 @@ use core::{
 
 use bytemuck::cast_vec;
 
-use wie_backend::canvas::{create_canvas, decode_image, Canvas, Image as BackendImage, PixelFormat};
+use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
@@ -173,13 +173,11 @@ impl Image {
 
         let bytes_per_pixel = bpl / width;
 
-        let pixel_format = match bytes_per_pixel {
-            2 => PixelFormat::Rgb565,
-            4 => PixelFormat::Argb,
+        match bytes_per_pixel {
+            2 => create_canvas::<Rgb565Pixel>(width as _, height as _, &buf),
+            4 => create_canvas::<ArgbPixel>(width as _, height as _, &buf),
             _ => panic!("Unsupported pixel format: {}", bytes_per_pixel),
-        };
-
-        create_canvas(width as _, height as _, pixel_format, &buf)
+        }
     }
 
     async fn create_image_instance(
