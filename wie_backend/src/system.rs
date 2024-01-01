@@ -1,22 +1,21 @@
 mod audio;
+mod event_queue;
 mod resource;
 
-use alloc::{collections::VecDeque, rc::Rc};
+use alloc::rc::Rc;
 use core::{
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
 };
 
-use wie_base::Event;
-
 use crate::{executor::Executor, extract_zip, platform::Platform, AsyncCallable};
 
-use self::{audio::Audio, resource::Resource};
+use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
 
 pub struct SystemInner {
     platform: Box<dyn Platform>,
     resource: Resource,
-    events: VecDeque<Event>,
+    event_queue: EventQueue,
     audio: Audio,
 }
 
@@ -34,7 +33,7 @@ impl System {
             inner: Rc::new(RefCell::new(SystemInner {
                 platform,
                 resource: Resource::new(),
-                events: VecDeque::new(),
+                event_queue: EventQueue::new(),
                 audio: Audio::new(audio_sink),
             })),
         }
@@ -83,12 +82,8 @@ impl SystemHandle {
         RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.audio)
     }
 
-    pub fn pop_event(&self) -> Option<Event> {
-        self.system_inner.borrow_mut().events.pop_front()
-    }
-
-    pub fn push_event(&self, event: Event) {
-        self.system_inner.borrow_mut().events.push_back(event);
+    pub fn event_queue(&self) -> RefMut<'_, EventQueue> {
+        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.event_queue)
     }
 
     pub fn mount_zip(&self, zip: &[u8]) -> anyhow::Result<()> {

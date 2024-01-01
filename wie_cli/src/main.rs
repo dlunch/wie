@@ -101,15 +101,15 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     window.run(move |event| {
         match event {
             WindowCallbackEvent::Update => system.tick().map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
-            WindowCallbackEvent::Redraw => system_handle.push_event(Event::Redraw),
+            WindowCallbackEvent::Redraw => system_handle.event_queue().push(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    system_handle.push_event(Event::Keydown(keycode));
+                    system_handle.event_queue().push(Event::Keydown(keycode));
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    system_handle.push_event(Event::Keyup(keycode));
+                    system_handle.event_queue().push(Event::Keyup(keycode));
                 }
             }
         }
