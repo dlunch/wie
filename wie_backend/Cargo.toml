@@ -23,9 +23,5 @@ smaf_player = { git = "https://github.com/dlunch/smaf.git" }
 
 wie_base = { path = "../wie_base" }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-time = { version = "^0.3", features = ["wasm-bindgen"] }
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-time = { version = "^0.3" }
 directories = { version = "^5.0" }

@@ -2,12 +2,16 @@ extern crate alloc;
 
 mod window;
 
-use std::{fs, io::stderr};
+use std::{
+    fs,
+    io::stderr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use clap::Parser;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Executor, Platform, System, Window};
+use wie_backend::{extract_zip, Archive, Executor, Instant, Platform, System, Window};
 use wie_base::{Event, KeyCode};
 use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
@@ -28,6 +32,13 @@ impl WieCliPlatform {
 impl Platform for WieCliPlatform {
     fn window(&self) -> &dyn Window {
         self.window.as_ref()
+    }
+
+    fn now(&self) -> Instant {
+        let now = SystemTime::now();
+        let since_the_epoch = now.duration_since(UNIX_EPOCH).unwrap();
+
+        Instant::from_epoch_millis(since_the_epoch.as_millis() as _)
     }
 }
 

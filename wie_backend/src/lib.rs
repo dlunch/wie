@@ -8,7 +8,7 @@ pub mod task;
 pub use self::{
     executor::{AsyncCallable, Executor},
     platform::Platform,
-    system::{canvas, database::Database, window::Window, System},
+    system::{canvas, database::Database, time::Instant, window::Window, System},
 };
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String};

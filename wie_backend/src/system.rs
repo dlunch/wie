@@ -26,7 +26,6 @@ pub struct System {
     platform: Rc<Box<dyn Platform>>,
     database: Rc<RefCell<DatabaseRepository>>,
     resource: Rc<RefCell<Resource>>,
-    time: Rc<RefCell<Time>>,
     screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
     audio: Rc<RefCell<Audio>>,
@@ -41,7 +40,6 @@ impl System {
             platform: Rc::new(platform),
             database: Rc::new(RefCell::new(DatabaseRepository::new(app_id))),
             resource: Rc::new(RefCell::new(Resource::new())),
-            time: Rc::new(RefCell::new(Time::new())),
             screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
             audio: Rc::new(RefCell::new(Audio::new())),
@@ -56,8 +54,8 @@ impl System {
         (*self.resource).borrow()
     }
 
-    pub fn time(&self) -> Ref<'_, Time> {
-        (*self.time).borrow()
+    pub fn time(&self) -> Time<'_> {
+        Time::new(&**self.platform)
     }
 
     pub fn screen_canvas(&self) -> RefMut<'_, Box<dyn Canvas>> {
