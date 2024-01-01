@@ -23,12 +23,34 @@ impl Card {
                 JavaMethodProto::new("repaint", "()V", Self::repaint, JavaMethodFlag::NONE),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, JavaMethodFlag::NONE),
             ],
-            fields: vec![JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::NONE)],
+            fields: vec![
+                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
+            ],
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
+
+        let display = context
+            .jvm()
+            .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
+            .await?;
+
+        let width: i32 = context
+            .jvm()
+            .invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getWidth", "()I", [])
+            .await?;
+        let height: i32 = context
+            .jvm()
+            .invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getHeight", "()I", [])
+            .await?;
+
+        context.jvm().put_field(&this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
+        context.jvm().put_field(&this, "w", "I", width)?;
+        context.jvm().put_field(&this, "h", "I", height)?;
 
         Ok(())
     }
@@ -42,19 +64,13 @@ impl Card {
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
-        let mut platform = context.system().platform();
-        let screen = platform.screen();
-
-        Ok(screen.width() as _)
+        context.jvm().get_field(&this, "w", "I")
     }
 
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
-        let mut platform = context.system().platform();
-        let screen = platform.screen();
-
-        Ok(screen.height() as _)
+        context.jvm().get_field(&this, "h", "I")
     }
 
     async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {

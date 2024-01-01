@@ -50,6 +50,8 @@ impl Display {
                     Self::add_jlet_event_listener,
                     JavaMethodFlag::NONE,
                 ),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
@@ -144,5 +146,21 @@ impl Display {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::addJletEventListener({:?}, {:?})", &this, &qel);
 
         Ok(())
+    }
+
+    async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::getWidth({:?})", &this);
+
+        let width: i32 = context.jvm().get_field(&this, "m_w", "I")?;
+
+        Ok(width)
+    }
+
+    async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::getHeight({:?})", &this);
+
+        let height: i32 = context.jvm().get_field(&this, "m_h", "I")?;
+
+        Ok(height)
     }
 }
