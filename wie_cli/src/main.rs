@@ -30,8 +30,8 @@ impl WieCliPlatform {
 }
 
 impl Platform for WieCliPlatform {
-    fn screen(&self) -> &dyn Screen {
-        self.window.as_ref()
+    fn screen(&mut self) -> &mut dyn Screen {
+        self.window.as_mut()
     }
 
     fn now(&self) -> Instant {
