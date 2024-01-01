@@ -7,7 +7,7 @@ mod system;
 pub mod task;
 
 pub use self::{
-    executor::{AsyncCallable, Executor},
+    executor::AsyncCallable,
     platform::Platform,
     system::{database::Database, screen::Screen, time::Instant, System, SystemHandle},
 };

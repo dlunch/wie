@@ -8,7 +8,7 @@ use core::{
 };
 use std::collections::HashMap;
 
-use crate::system::time::{Instant, Time};
+use crate::system::time::Instant;
 
 thread_local! {
     #[allow(clippy::type_complexity)]
@@ -95,10 +95,13 @@ impl Executor {
         })
     }
 
-    pub fn tick(&mut self, time: &Time) -> anyhow::Result<()> {
-        let end = time.now() + 8; // TODO hardcoded
+    pub fn tick<T>(&mut self, now: T) -> anyhow::Result<()>
+    where
+        T: Fn() -> Instant,
+    {
+        let end = now() + 8; // TODO hardcoded
         loop {
-            let now = time.now();
+            let now = now();
 
             if now > end {
                 break;
