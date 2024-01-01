@@ -134,7 +134,7 @@ fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Databa
     let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
     let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
 
-    context.backend().database().open(db_name).unwrap()
+    context.system().database().open(db_name).unwrap()
 }
 
 pub fn get_database_method_table() -> Vec<WIPICMethodBody> {

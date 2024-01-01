@@ -49,10 +49,10 @@ impl Class {
 
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-        let id = context.backend().resource().id(normalized_name);
+        let id = context.system().resource().id(normalized_name);
         if let Some(id) = id {
-            let backend1 = context.backend().clone();
-            let data = Ref::map(backend1.resource(), |x| x.data(id));
+            let system_clone = context.system().clone();
+            let data = Ref::map(system_clone.resource(), |x| x.data(id));
 
             let array = context.jvm().instantiate_array("B", data.len() as _).await?;
 

@@ -114,7 +114,7 @@ impl EventQueue {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
         loop {
-            let maybe_event = context.backend().pop_event();
+            let maybe_event = context.system().pop_event();
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
@@ -238,13 +238,13 @@ impl EventQueue {
             context.jvm().destroy(java_image.into())?;
             context.jvm().put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
 
-            let mut canvas = context.backend().screen_canvas();
+            let mut canvas = context.system().screen_canvas();
             let (width, height) = (canvas.width(), canvas.height());
 
             canvas.draw(0, 0, width, height, &*image, 0, 0);
             drop(canvas);
 
-            context.backend().repaint()?;
+            context.system().repaint()?;
         }
 
         Ok(())

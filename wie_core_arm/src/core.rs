@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
 use core::{cell::RefCell, fmt::Debug, mem::size_of};
 
-use wie_backend::{task, AsyncCallable, Backend};
+use wie_backend::{task, AsyncCallable, System};
 use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
@@ -18,7 +18,7 @@ pub const PEB_BASE: u32 = 0x7ff00000;
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
-    backend: Backend,
+    system: System,
     functions: BTreeMap<u32, Rc<Box<dyn RegisteredFunction>>>,
     functions_count: usize,
 }
@@ -29,7 +29,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new(backend: Backend) -> ArmEngineResult<Self> {
+    pub fn new(system: System) -> ArmEngineResult<Self> {
         #[cfg(any(target_arch = "wasm32", target_os = "linux"))]
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
         #[cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))]
@@ -40,7 +40,7 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
-            backend,
+            system,
             functions: BTreeMap::new(),
             functions_count: 0,
         };
@@ -71,13 +71,13 @@ impl ArmCore {
 
         if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
             let mut self1 = self.clone();
-            let mut backend1 = inner.backend.clone();
+            let mut system_clone = inner.system.clone();
 
             let function = inner.functions.get(&cur_pc).unwrap().clone();
 
             drop(inner);
 
-            function.call(&mut self1, &mut backend1).await?;
+            function.call(&mut self1, &mut system_clone).await?;
         }
 
         Ok(())

@@ -1,14 +1,14 @@
 extern crate alloc;
 
-mod backend;
 mod executor;
 mod platform;
+mod system;
 pub mod task;
 
 pub use self::{
-    backend::{canvas, database::Database, window::Window, Backend},
     executor::{AsyncCallable, Executor},
     platform::Platform,
+    system::{canvas, database::Database, window::Window, System},
 };
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String};
@@ -20,7 +20,7 @@ pub trait App {
 
 pub trait Archive {
     fn id(&self) -> String;
-    fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>>;
+    fn load_app(&self, system: &mut System) -> anyhow::Result<Box<dyn App>>;
 }
 
 pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
