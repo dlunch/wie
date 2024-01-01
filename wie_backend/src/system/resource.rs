@@ -1,5 +1,7 @@
 use alloc::string::String;
 
+use crate::extract_zip;
+
 pub struct Resource {
     files: Vec<(String, Vec<u8>)>,
 }
@@ -45,5 +47,15 @@ impl Resource {
 
     pub fn files(&self) -> impl Iterator<Item = &str> {
         self.files.iter().map(|file| file.0.as_ref())
+    }
+
+    pub fn mount_zip(&mut self, zip: &[u8]) -> anyhow::Result<()> {
+        let files = extract_zip(zip)?;
+
+        for (path, data) in files {
+            self.add(&path, data);
+        }
+
+        Ok(())
     }
 }

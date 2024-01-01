@@ -43,7 +43,7 @@ impl Archive for LgtArchive {
     }
 
     fn load_app(&self, system: &mut SystemHandle) -> anyhow::Result<Box<dyn App>> {
-        system.mount_zip(&self.jar)?;
+        system.resource_mut().mount_zip(&self.jar)?;
 
         Ok(Box::new(LgtApp::new(&self.main_class_name, system)?))
     }
