@@ -1,5 +1,6 @@
 extern crate alloc;
 
+pub mod canvas;
 mod executor;
 mod platform;
 mod system;
@@ -8,7 +9,7 @@ pub mod task;
 pub use self::{
     executor::{AsyncCallable, Executor},
     platform::Platform,
-    system::{canvas, database::Database, time::Instant, screen::Screen, System},
+    system::{database::Database, screen::Screen, time::Instant, System},
 };
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String};
