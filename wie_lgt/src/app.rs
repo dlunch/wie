@@ -38,8 +38,7 @@ impl LgtApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    #[allow(unused_variables)]
-    async fn do_start(core: &mut ArmCore, system: &mut SystemHandle, entrypoint: u32, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, _system: &mut SystemHandle, entrypoint: u32, _main_class_name: String) -> anyhow::Result<()> {
         core.run_function(entrypoint + 1, &[]).await?;
 
         todo!()

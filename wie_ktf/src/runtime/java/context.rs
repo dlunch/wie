@@ -160,7 +160,6 @@ impl JavaContext for KtfJavaContext<'_> {
 
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, JavaError> for SpawnProxy {
-            #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
             async fn call(mut self) -> Result<u32, JavaError> {
                 let mut context = KtfJavaContext::new(&mut self.core, &mut self.system);
                 let _ = self.callback.call(&mut context, Box::new([])).await?;
