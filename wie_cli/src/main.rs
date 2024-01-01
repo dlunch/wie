@@ -72,7 +72,7 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     };
 
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
-    let platform = WieCliPlatform::new(Box::new(window.proxy()));
+    let platform = WieCliPlatform::new(Box::new(window.handle()));
 
     let mut system = System::new(&archive.id(), Box::new(platform));
     let mut system_handle = system.handle();

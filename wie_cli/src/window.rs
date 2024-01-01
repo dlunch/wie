@@ -28,12 +28,12 @@ pub enum WindowCallbackEvent {
     Keyup(PhysicalKey),
 }
 
-pub struct WindowProxy {
+pub struct WindowHandle {
     canvas: ImageBuffer<ArgbPixel>,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
-impl WindowProxy {
+impl WindowHandle {
     fn send_event(&self, event: WindowInternalEvent) -> anyhow::Result<()> {
         self.event_loop_proxy.send_event(event)?;
 
@@ -41,7 +41,7 @@ impl WindowProxy {
     }
 }
 
-impl Screen for WindowProxy {
+impl Screen for WindowHandle {
     fn request_redraw(&self) -> anyhow::Result<()> {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
@@ -91,10 +91,10 @@ impl WindowImpl {
         })
     }
 
-    pub fn proxy(&self) -> WindowProxy {
+    pub fn handle(&self) -> WindowHandle {
         let canvas = ImageBuffer::<ArgbPixel>::new(self.window.inner_size().width, self.window.inner_size().height);
 
-        WindowProxy {
+        WindowHandle {
             canvas,
             event_loop_proxy: self.event_loop.create_proxy(),
         }
