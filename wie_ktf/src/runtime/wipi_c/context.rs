@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec, vec::Vec};
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, Backend,
+    AsyncCallable, System,
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
@@ -10,12 +10,12 @@ use wie_impl_wipi_c::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, 
 
 pub struct KtfWIPICContext<'a> {
     core: &'a mut ArmCore,
-    backend: &'a mut Backend,
+    system: &'a mut System,
 }
 
 impl<'a> KtfWIPICContext<'a> {
-    pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
-        Self { core, backend }
+    pub fn new(core: &'a mut ArmCore, system: &'a mut System) -> Self {
+        Self { core, system }
     }
 }
 
@@ -59,7 +59,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
 
         #[async_trait::async_trait(?Send)]
         impl EmulatedFunction<(), ArmEngineError, u32> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, backend: &mut Backend) -> Result<u32, ArmEngineError> {
+            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmEngineError> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
@@ -70,7 +70,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
                 let a7 = u32::get(core, 7);
                 let a8 = u32::get(core, 8); // TODO create arg proxy
 
-                let mut context = KtfWIPICContext::new(core, backend);
+                let mut context = KtfWIPICContext::new(core, system);
 
                 self.body
                     .call(&mut context, vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
@@ -83,8 +83,8 @@ impl WIPICContext for KtfWIPICContext<'_> {
         self.core.register_function(proxy)
     }
 
-    fn backend(&mut self) -> &mut Backend {
-        self.backend
+    fn system(&mut self) -> &mut System {
+        self.system
     }
 
     async fn call_method(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord> {
@@ -94,7 +94,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
     fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()> {
         struct SpawnProxy {
             core: ArmCore,
-            backend: Backend,
+            system: System,
             callback: WIPICMethodBody,
         }
 
@@ -102,17 +102,17 @@ impl WIPICContext for KtfWIPICContext<'_> {
         impl AsyncCallable<WIPICWord, WIPICError> for SpawnProxy {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
             async fn call(mut self) -> Result<WIPICWord, WIPICError> {
-                let mut context = KtfWIPICContext::new(&mut self.core, &mut self.backend);
+                let mut context = KtfWIPICContext::new(&mut self.core, &mut self.system);
 
                 self.callback.call(&mut context, Box::new([])).await
             }
         }
 
-        let backend = self.backend.clone();
+        let system = self.system.clone();
 
         self.core.spawn(SpawnProxy {
             core: self.core.clone(),
-            backend,
+            system,
             callback,
         });
 
@@ -120,7 +120,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
     }
 
     fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.backend.time().now() + duration;
+        let until = self.system.time().now() + duration;
 
         task::sleep(until)
     }

@@ -70,7 +70,7 @@ impl Display {
         let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
         context.jvm().put_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards)?;
 
-        let screen_canvas = context.backend().screen_canvas();
+        let screen_canvas = context.system().screen_canvas();
         let (width, height) = (screen_canvas.width(), screen_canvas.height());
         drop(screen_canvas);
 

@@ -32,7 +32,7 @@ fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
 async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> WIPICResult<WIPICMemoryId> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
-    let screen_canvas = context.backend().screen_canvas();
+    let screen_canvas = context.system().screen_canvas();
     let (width, height) = (screen_canvas.width(), screen_canvas.height());
     drop(screen_canvas);
 
@@ -197,12 +197,12 @@ async fn flush(
 
     let src_canvas = framebuffer.image(context)?;
 
-    let mut screen_canvas = context.backend().screen_canvas();
+    let mut screen_canvas = context.system().screen_canvas();
 
     screen_canvas.draw(0, 0, framebuffer.width, framebuffer.height, &*src_canvas, 0, 0);
     drop(screen_canvas);
 
-    context.backend().repaint()?;
+    context.system().repaint()?;
 
     Ok(())
 }
@@ -227,7 +227,7 @@ async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, o
     tracing::debug!("MC_grpGetDisplayInfo({:#x}, {:#x})", reserved, out_ptr);
 
     assert_eq!(reserved, 0);
-    let canvas = context.backend().screen_canvas();
+    let canvas = context.system().screen_canvas();
 
     let info = WIPICDisplayInfo {
         bpp: FRAMEBUFFER_DEPTH,

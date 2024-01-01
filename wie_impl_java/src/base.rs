@@ -2,7 +2,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 
 use jvm::{JavaChar, JavaValue, Jvm};
 
-use wie_backend::{task::SleepFuture, Backend};
+use wie_backend::{task::SleepFuture, System};
 
 use crate::method::{MethodBody, MethodImpl, TypeConverter};
 
@@ -96,7 +96,7 @@ impl JavaMethodProto {
 #[async_trait::async_trait(?Send)]
 pub trait JavaContext {
     fn jvm(&mut self) -> &mut Jvm;
-    fn backend(&mut self) -> &mut Backend;
+    fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;
 }

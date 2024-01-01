@@ -3,23 +3,23 @@ use alloc::string::String;
 use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
-use wie_backend::{App, Backend};
+use wie_backend::{App, System};
 use wie_core_arm::{Allocator, ArmCore};
 
 pub struct LgtApp {
     core: ArmCore,
-    backend: Backend,
+    system: System,
     entrypoint: u32,
     main_class_name: String,
 }
 
 impl LgtApp {
-    pub fn new(main_class_name: &str, backend: &Backend) -> anyhow::Result<Self> {
-        let mut core = ArmCore::new(backend.clone())?;
+    pub fn new(main_class_name: &str, system: &System) -> anyhow::Result<Self> {
+        let mut core = ArmCore::new(system.clone())?;
 
         Allocator::init(&mut core)?;
 
-        let resource = backend.resource();
+        let resource = system.resource();
         let data = resource.data(resource.id("binary.mod").context("Resource not found")?);
 
         let entrypoint = Self::load(&mut core, data)?;
@@ -28,7 +28,7 @@ impl LgtApp {
 
         Ok(Self {
             core,
-            backend: backend.clone(),
+            system: system.clone(),
             entrypoint,
             main_class_name,
         })
@@ -36,7 +36,7 @@ impl LgtApp {
 
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
-    async fn do_start(core: &mut ArmCore, backend: &mut Backend, entrypoint: u32, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, system: &mut System, entrypoint: u32, main_class_name: String) -> anyhow::Result<()> {
         core.run_function(entrypoint + 1, &[]).await?;
 
         todo!()
@@ -77,13 +77,13 @@ impl LgtApp {
 impl App for LgtApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
-        let mut backend = self.backend.clone();
+        let mut system_clone = self.system.clone();
 
         let entrypoint = self.entrypoint;
         let main_class_name = self.main_class_name.clone();
 
         self.core
-            .spawn(move || async move { Self::do_start(&mut core, &mut backend, entrypoint, main_class_name).await });
+            .spawn(move || async move { Self::do_start(&mut core, &mut system_clone, entrypoint, main_class_name).await });
 
         Ok(())
     }

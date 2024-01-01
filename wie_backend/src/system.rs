@@ -22,7 +22,7 @@ use self::{
 };
 
 #[derive(Clone)]
-pub struct Backend {
+pub struct System {
     database: Rc<RefCell<DatabaseRepository>>,
     resource: Rc<RefCell<Resource>>,
     time: Rc<RefCell<Time>>,
@@ -32,7 +32,7 @@ pub struct Backend {
     audio: Rc<RefCell<Audio>>,
 }
 
-impl Backend {
+impl System {
     pub fn new(app_id: &str, platform: &mut dyn Platform) -> Self {
         let window = platform.create_window();
         let screen_canvas = ImageBuffer::<ArgbPixel>::new(window.width(), window.height());

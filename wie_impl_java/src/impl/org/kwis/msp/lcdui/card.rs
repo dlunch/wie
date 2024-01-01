@@ -42,7 +42,7 @@ impl Card {
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
-        let screen_canvas = context.backend().screen_canvas();
+        let screen_canvas = context.system().screen_canvas();
 
         Ok(screen_canvas.width() as _)
     }
@@ -50,7 +50,7 @@ impl Card {
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
-        let screen_canvas = context.backend().screen_canvas();
+        let screen_canvas = context.system().screen_canvas();
 
         Ok(screen_canvas.height() as _)
     }
@@ -58,7 +58,7 @@ impl Card {
     async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
-        context.backend().window().request_redraw()?;
+        context.system().window().request_redraw()?;
 
         Ok(())
     }
@@ -73,7 +73,7 @@ impl Card {
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, a0, a1, a2, a3);
 
-        context.backend().window().request_redraw()?;
+        context.system().window().request_redraw()?;
 
         Ok(())
     }
@@ -81,7 +81,7 @@ impl Card {
     async fn service_repaints(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
-        context.backend().window().request_redraw()?;
+        context.system().window().request_redraw()?;
 
         Ok(())
     }

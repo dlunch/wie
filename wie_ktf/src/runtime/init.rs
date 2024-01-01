@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::Backend;
+use wie_backend::System;
 use wie_base::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 
@@ -218,11 +218,11 @@ pub async fn init(core: &mut ArmCore, wipi_exe: u32) -> anyhow::Result<u32> {
     Ok(wipi_exe.fn_init)
 }
 
-async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: String) -> anyhow::Result<u32> {
+async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String) -> anyhow::Result<u32> {
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core, backend),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core, system),
         "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             tracing::warn!("Unknown {}", r#struct);
@@ -232,7 +232,7 @@ async fn get_interface(core: &mut ArmCore, backend: &mut Backend, r#struct: Stri
     }
 }
 
-async fn alloc(core: &mut ArmCore, _: &mut Backend, a0: u32) -> anyhow::Result<u32> {
+async fn alloc(core: &mut ArmCore, _: &mut System, a0: u32) -> anyhow::Result<u32> {
     tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)

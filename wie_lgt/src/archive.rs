@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use anyhow::Context;
 
-use wie_backend::{App, Archive, Backend};
+use wie_backend::{App, Archive, System};
 
 use crate::app::LgtApp;
 
@@ -42,10 +42,10 @@ impl Archive for LgtArchive {
         self.id.to_owned()
     }
 
-    fn load_app(&self, backend: &mut Backend) -> anyhow::Result<Box<dyn App>> {
-        backend.mount_zip(&self.jar)?;
+    fn load_app(&self, system: &mut System) -> anyhow::Result<Box<dyn App>> {
+        system.mount_zip(&self.jar)?;
 
-        Ok(Box::new(LgtApp::new(&self.main_class_name, backend)?))
+        Ok(Box::new(LgtApp::new(&self.main_class_name, system)?))
     }
 }
 

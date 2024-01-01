@@ -67,7 +67,7 @@ impl DataBase {
         let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, &db_name)?;
 
-        let count = context.backend().database().open(&db_name_str)?.count()?;
+        let count = context.system().database().open(&db_name_str)?.count()?;
 
         Ok(count as _)
     }
@@ -99,7 +99,7 @@ impl DataBase {
         let data: Vec<i8> = context.jvm().load_array(&data, offset as _, num_bytes as _)?;
         let data_raw = cast_vec(data);
 
-        let id = context.backend().database().open(&db_name_str)?.add(&data_raw)?;
+        let id = context.system().database().open(&db_name_str)?.add(&data_raw)?;
 
         Ok(id as _)
     }
@@ -114,7 +114,7 @@ impl DataBase {
         let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(context, &db_name)?;
 
-        let data = context.backend().database().open(&db_name_str)?.get(record_id as _)?;
+        let data = context.system().database().open(&db_name_str)?.get(record_id as _)?;
         let data: Vec<i8> = cast_vec(data);
 
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;

@@ -19,7 +19,7 @@ use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Jvm, JvmDetail, JvmResu
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, Backend,
+    AsyncCallable, System,
 };
 use wie_core_arm::ArmCore;
 use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult};
@@ -87,7 +87,7 @@ impl JvmDetail for KtfJvmDetail {
 
 pub struct KtfJavaContext<'a> {
     core: &'a mut ArmCore,
-    backend: &'a mut Backend,
+    system: &'a mut System,
     jvm: Jvm,
 }
 
@@ -96,10 +96,10 @@ impl<'a> KtfJavaContext<'a> {
         JavaContextData::init(core, ptr_vtables_base, fn_get_class)
     }
 
-    pub fn new(core: &'a mut ArmCore, backend: &'a mut Backend) -> Self {
+    pub fn new(core: &'a mut ArmCore, system: &'a mut System) -> Self {
         let jvm = Jvm::new(KtfJvmDetail::new(core));
 
-        Self { core, backend, jvm }
+        Self { core, system, jvm }
     }
 
     pub async fn load_class(&mut self, name: &str) -> JavaResult<Option<JavaClass>> {
@@ -150,14 +150,14 @@ impl JavaContext for KtfJavaContext<'_> {
         &mut self.jvm
     }
 
-    fn backend(&mut self) -> &mut Backend {
-        self.backend
+    fn system(&mut self) -> &mut System {
+        self.system
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         struct SpawnProxy {
             core: ArmCore,
-            backend: Backend,
+            system: System,
             callback: JavaMethodBody,
         }
 
@@ -165,18 +165,18 @@ impl JavaContext for KtfJavaContext<'_> {
         impl AsyncCallable<u32, JavaError> for SpawnProxy {
             #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
             async fn call(mut self) -> Result<u32, JavaError> {
-                let mut context = KtfJavaContext::new(&mut self.core, &mut self.backend);
+                let mut context = KtfJavaContext::new(&mut self.core, &mut self.system);
                 let _ = self.callback.call(&mut context, Box::new([])).await?;
 
                 Ok(0) // TODO resturn value
             }
         }
 
-        let backend = self.backend.clone();
+        let system = self.system.clone();
 
         self.core.spawn(SpawnProxy {
             core: self.core.clone(),
-            backend,
+            system,
             callback,
         });
 
@@ -184,7 +184,7 @@ impl JavaContext for KtfJavaContext<'_> {
     }
 
     fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.backend.time().now() + duration;
+        let until = self.system.time().now() + duration;
 
         task::sleep(until)
     }

@@ -7,7 +7,7 @@ use std::{fs, io::stderr};
 use clap::Parser;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Backend, Executor, Platform, Window};
+use wie_backend::{extract_zip, Archive, Executor, Platform, System, Window};
 use wie_base::{Event, KeyCode};
 use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
@@ -64,8 +64,8 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
 
     let mut platform = WieCliPlatform::new();
 
-    let mut backend = Backend::new(&archive.id(), &mut platform);
-    let mut app = archive.load_app(&mut backend)?;
+    let mut system = System::new(&archive.id(), &mut platform);
+    let mut app = archive.load_app(&mut system)?;
 
     let mut executor = Executor::new();
     app.start()?;
@@ -73,17 +73,17 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     platform.window.run(move |event| {
         match event {
             WindowCallbackEvent::Update => executor
-                .tick(&backend.time())
+                .tick(&system.time())
                 .map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
-            WindowCallbackEvent::Redraw => backend.push_event(Event::Redraw),
+            WindowCallbackEvent::Redraw => system.push_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    backend.push_event(Event::Keydown(keycode));
+                    system.push_event(Event::Keydown(keycode));
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    backend.push_event(Event::Keyup(keycode));
+                    system.push_event(Event::Keyup(keycode));
                 }
             }
         }

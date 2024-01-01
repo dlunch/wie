@@ -84,9 +84,9 @@ impl Image {
         let name = String::to_rust_string(context, &name)?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-        let id = context.backend().resource().id(normalized_name).unwrap();
-        let backend1 = context.backend().clone();
-        let image_data = Ref::map(backend1.resource(), |x| x.data(id));
+        let id = context.system().resource().id(normalized_name).unwrap();
+        let system_clone = context.system().clone();
+        let image_data = Ref::map(system_clone.resource(), |x| x.data(id));
 
         let image = decode_image(&image_data)?;
         drop(image_data);

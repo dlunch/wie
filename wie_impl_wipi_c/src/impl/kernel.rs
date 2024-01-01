@@ -38,7 +38,7 @@ fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
 async fn current_time(context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
     tracing::debug!("MC_knlCurrentTime()");
 
-    Ok(context.backend().time().now().raw() as WIPICWord)
+    Ok(context.system().time().now().raw() as WIPICWord)
 }
 
 async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> WIPICResult<i32> {
@@ -139,12 +139,12 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
     // strip path
     let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-    let id = context.backend().resource().id(normalized_name);
+    let id = context.system().resource().id(normalized_name);
     if id.is_none() {
         return Ok(-1);
     }
     let id = id.unwrap();
-    let size = context.backend().resource().size(id);
+    let size = context.system().resource().size(id);
 
     write_generic(context, ptr_size, size)?;
 
@@ -154,14 +154,14 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
 async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICMemoryId, buf_size: WIPICWord) -> WIPICResult<i32> {
     tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
-    let size = context.backend().resource().size(id);
+    let size = context.system().resource().size(id);
 
     if size > buf_size {
         return Ok(-1);
     }
 
-    let backend1 = context.backend().clone();
-    let data = Ref::map(backend1.resource(), |x| x.data(id));
+    let system_clone = context.system().clone();
+    let data = Ref::map(system_clone.resource(), |x| x.data(id));
 
     context.write_bytes(context.data_ptr(buf)?, &data)?;
 

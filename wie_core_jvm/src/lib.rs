@@ -9,7 +9,7 @@ use jvm_impl::{ClassImpl, FieldImpl, JvmDetailImpl, MethodBody, MethodImpl, Rust
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, Backend,
+    AsyncCallable, System,
 };
 use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
 
@@ -21,31 +21,31 @@ pub struct JvmCore {
 }
 
 impl JvmCore {
-    pub fn new(backend: &Backend) -> Self {
-        let jvm = Jvm::new(JvmDetailImpl::new(Self::get_class_loader(backend)));
+    pub fn new(system: &System) -> Self {
+        let jvm = Jvm::new(JvmDetailImpl::new(Self::get_class_loader(system)));
 
         Self {
             jvm: Rc::new(RefCell::new(jvm)),
         }
     }
 
-    fn get_class_loader(backend: &Backend) -> impl Fn(&str) -> JvmResult<Option<Box<dyn Class>>> {
-        let backend = backend.clone();
+    fn get_class_loader(system: &System) -> impl Fn(&str) -> JvmResult<Option<Box<dyn Class>>> {
+        let system_clone = system.clone();
         move |class_name| {
             tracing::debug!("Loading class {}", class_name);
 
-            if let Some(x) = Self::load_class_from_impl(&backend, class_name)? {
+            if let Some(x) = Self::load_class_from_impl(&system_clone, class_name)? {
                 Ok(Some(x))
             } else {
-                Self::load_class_from_resource(&backend, class_name)
+                Self::load_class_from_resource(&system_clone, class_name)
             }
         }
     }
 
-    fn load_class_from_impl(backend: &Backend, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
+    fn load_class_from_impl(system: &System, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
         let class_proto = get_class_proto(class_name);
         if let Some(x) = class_proto {
-            let class = ClassImpl::new(class_name, Self::load_methods(backend, x.methods), Self::load_fields(x.fields));
+            let class = ClassImpl::new(class_name, Self::load_methods(system, x.methods), Self::load_fields(x.fields));
 
             Ok(Some(Box::new(class)))
         } else {
@@ -53,10 +53,10 @@ impl JvmCore {
         }
     }
 
-    fn load_methods(backend: &Backend, methods: Vec<JavaMethodProto>) -> Vec<MethodImpl> {
+    fn load_methods(system: &System, methods: Vec<JavaMethodProto>) -> Vec<MethodImpl> {
         methods
             .into_iter()
-            .map(|x| MethodImpl::new(&x.name, &x.descriptor, Self::load_method_body(backend, x.body)))
+            .map(|x| MethodImpl::new(&x.name, &x.descriptor, Self::load_method_body(system, x.body)))
             .collect()
     }
 
@@ -72,9 +72,9 @@ impl JvmCore {
             .collect()
     }
 
-    fn load_class_from_resource(backend: &Backend, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
+    fn load_class_from_resource(system: &System, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
         let path = format!("{}.class", class_name);
-        let resource = backend.resource();
+        let resource = system.resource();
 
         if let Some(x) = resource.id(&path) {
             let class_data = resource.data(x);
@@ -85,17 +85,17 @@ impl JvmCore {
         }
     }
 
-    fn load_method_body(backend: &Backend, body: JavaMethodBody) -> MethodBody {
+    fn load_method_body(system: &System, body: JavaMethodBody) -> MethodBody {
         struct MethodProxy {
             body: JavaMethodBody,
-            backend: Backend,
+            system: System,
         }
 
         #[async_trait::async_trait(?Send)]
         impl RustMethodBody<anyhow::Error, JavaValue> for MethodProxy {
             async fn call(&self, jvm: &mut Jvm, args: Box<[JavaValue]>) -> Result<JavaValue, anyhow::Error> {
                 let mut context = JvmCoreContext {
-                    backend: self.backend.clone(),
+                    system: self.system.clone(),
                     jvm,
                 };
 
@@ -105,7 +105,7 @@ impl JvmCore {
 
         MethodBody::Rust(Box::new(MethodProxy {
             body,
-            backend: backend.clone(),
+            system: system.clone(),
         }))
     }
 
@@ -124,7 +124,7 @@ impl JvmCore {
 }
 
 struct JvmCoreContext<'a> {
-    backend: Backend,
+    system: System,
     jvm: &'a mut Jvm,
 }
 
@@ -133,8 +133,8 @@ impl<'a> JavaContext for JvmCoreContext<'a> {
         self.jvm
     }
 
-    fn backend(&mut self) -> &mut Backend {
-        &mut self.backend
+    fn system(&mut self) -> &mut System {
+        &mut self.system
     }
 
     fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
@@ -142,7 +142,7 @@ impl<'a> JavaContext for JvmCoreContext<'a> {
     }
 
     fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.backend.time().now() + duration;
+        let until = self.system.time().now() + duration;
 
         task::sleep(until)
     }
