@@ -1,7 +1,5 @@
 use core::ops::{Add, Sub};
 
-use crate::SystemHandle;
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
     value: u64,
@@ -30,19 +28,5 @@ impl Sub for Instant {
 
     fn sub(self, rhs: Instant) -> Self::Output {
         self.value - rhs.value
-    }
-}
-
-pub struct Time {
-    system: SystemHandle,
-}
-
-impl Time {
-    pub fn new(system: SystemHandle) -> Self {
-        Self { system }
-    }
-
-    pub fn now(&self) -> Instant {
-        self.system.platform().now()
     }
 }
