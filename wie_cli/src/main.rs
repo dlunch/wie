@@ -15,6 +15,7 @@ use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie_backend::{extract_zip, Archive, Instant, Platform, Screen, System};
 use wie_base::{Event, KeyCode};
+use wie_j2me::J2MEArchive;
 use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
 use wie_skt::SktArchive;
@@ -75,18 +76,27 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub fn start(filename: &str) -> anyhow::Result<()> {
-    let buf = fs::read(filename)?;
+    let archive: Box<dyn Archive> = if filename.ends_with("jar") {
+        let buf = fs::read(filename)?;
 
-    let files = extract_zip(&buf)?;
+        let files = extract_zip(&buf)?;
 
-    let archive: Box<dyn Archive> = if KtfArchive::is_ktf_archive(&files) {
-        Box::new(KtfArchive::from_zip(files)?)
-    } else if LgtArchive::is_lgt_archive(&files) {
-        Box::new(LgtArchive::from_zip(files)?)
-    } else if SktArchive::is_skt_archive(&files) {
-        Box::new(SktArchive::from_zip(files)?)
+        if KtfArchive::is_ktf_archive(&files) {
+            Box::new(KtfArchive::from_zip(files)?)
+        } else if LgtArchive::is_lgt_archive(&files) {
+            Box::new(LgtArchive::from_zip(files)?)
+        } else if SktArchive::is_skt_archive(&files) {
+            Box::new(SktArchive::from_zip(files)?)
+        } else {
+            anyhow::bail!("Unknown archive format");
+        }
+    } else if filename.ends_with("jad") {
+        let jar = filename.replace(".jad", ".jar");
+        let buf = fs::read(jar)?;
+
+        Box::new(J2MEArchive::from_jar(buf))
     } else {
-        anyhow::bail!("Unknown archive format");
+        anyhow::bail!("Unknown file format");
     };
 
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
