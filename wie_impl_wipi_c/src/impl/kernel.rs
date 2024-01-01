@@ -87,7 +87,7 @@ async fn set_timer(
             let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
             context.sleep(self.timeout).await;
 
-            context.call_method(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
+            context.call_function(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
 
             Ok(0)
         }

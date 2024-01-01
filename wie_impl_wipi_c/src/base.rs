@@ -24,7 +24,7 @@ pub trait WIPICContext: ByteRead + ByteWrite {
     fn free_raw(&mut self, address: WIPICWord) -> WIPICResult<()>;
     fn data_ptr(&self, memory: WIPICMemoryId) -> WIPICResult<WIPICWord>;
     fn register_function(&mut self, method: WIPICMethodBody) -> WIPICResult<WIPICWord>;
-    async fn call_method(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord>;
+    async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord>;
     fn system(&mut self) -> &mut SystemHandle;
     fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()>;
     fn sleep(&mut self, duration: u64) -> SleepFuture;

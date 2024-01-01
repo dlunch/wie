@@ -87,7 +87,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
         self.system
     }
 
-    async fn call_method(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord> {
+    async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord> {
         self.core.run_function(address, args).await
     }
 
