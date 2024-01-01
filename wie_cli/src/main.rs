@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub fn start(filename: &str) -> anyhow::Result<()> {
-    let archive: Box<dyn Archive> = if filename.ends_with("jar") {
+    let archive: Box<dyn Archive> = if filename.ends_with("zip") {
         let buf = fs::read(filename)?;
 
         let files = extract_zip(&buf)?;
