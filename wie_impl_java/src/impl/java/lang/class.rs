@@ -6,7 +6,7 @@ use bytemuck::cast_vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     r#impl::java::{io::InputStream, lang::String},
     JavaContext, JavaMethodFlag, JavaResult,
 };
@@ -32,7 +32,7 @@ impl Class {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::warn!("stub java.lang.Class::<init>({:?})", &this);
 
         Ok(())
@@ -41,9 +41,9 @@ impl Class {
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref https://github.com/rust-lang/rust-clippy/issues/6353
     async fn get_resource_as_stream(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        name: JvmClassInstanceProxy<String>,
-    ) -> JavaResult<JvmClassInstanceProxy<InputStream>> {
+        this: JvmClassInstanceHandle<Self>,
+        name: JvmClassInstanceHandle<String>,
+    ) -> JavaResult<JvmClassInstanceHandle<InputStream>> {
         let name = String::to_rust_string(context, &name)?;
         tracing::debug!("java.lang.Class::getResourceAsStream({:?}, {})", &this, name);
 

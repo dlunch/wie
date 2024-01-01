@@ -10,31 +10,31 @@ use crate::{base::JavaContext, method::TypeConverter};
 
 pub struct Array<T>(PhantomData<T>);
 
-pub struct JvmClassInstanceProxy<T> {
+pub struct JvmClassInstanceHandle<T> {
     instance: Option<ClassInstanceRef>,
     _phantom: PhantomData<T>,
 }
 
-impl<T> JvmClassInstanceProxy<T> {
+impl<T> JvmClassInstanceHandle<T> {
     pub fn is_null(&self) -> bool {
         self.instance.is_none()
     }
 }
 
-impl<T> TypeConverter<JvmClassInstanceProxy<T>> for JvmClassInstanceProxy<T> {
-    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> JvmClassInstanceProxy<T> {
+impl<T> TypeConverter<JvmClassInstanceHandle<T>> for JvmClassInstanceHandle<T> {
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> JvmClassInstanceHandle<T> {
         Self {
             instance: raw.into(),
             _phantom: PhantomData,
         }
     }
 
-    fn from_rust(_: &mut dyn JavaContext, value: JvmClassInstanceProxy<T>) -> JavaValue {
+    fn from_rust(_: &mut dyn JavaContext, value: JvmClassInstanceHandle<T>) -> JavaValue {
         value.instance.into()
     }
 }
 
-impl<T> Debug for JvmClassInstanceProxy<T> {
+impl<T> Debug for JvmClassInstanceHandle<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(x) = &self.instance {
             write!(f, "{:?}", x.borrow())
@@ -44,20 +44,20 @@ impl<T> Debug for JvmClassInstanceProxy<T> {
     }
 }
 
-impl<T> Deref for JvmClassInstanceProxy<T> {
+impl<T> Deref for JvmClassInstanceHandle<T> {
     type Target = ClassInstanceRef;
     fn deref(&self) -> &Self::Target {
         self.instance.as_ref().unwrap()
     }
 }
 
-impl<T> From<JvmClassInstanceProxy<T>> for JavaValue {
-    fn from(value: JvmClassInstanceProxy<T>) -> Self {
+impl<T> From<JvmClassInstanceHandle<T>> for JavaValue {
+    fn from(value: JvmClassInstanceHandle<T>) -> Self {
         value.instance.into()
     }
 }
 
-impl<T> From<ClassInstanceRef> for JvmClassInstanceProxy<T> {
+impl<T> From<ClassInstanceRef> for JvmClassInstanceHandle<T> {
     fn from(value: ClassInstanceRef) -> Self {
         Self {
             instance: Some(value),
@@ -66,7 +66,7 @@ impl<T> From<ClassInstanceRef> for JvmClassInstanceProxy<T> {
     }
 }
 
-impl<T> From<Option<ClassInstanceRef>> for JvmClassInstanceProxy<T> {
+impl<T> From<Option<ClassInstanceRef>> for JvmClassInstanceHandle<T> {
     fn from(value: Option<ClassInstanceRef>) -> Self {
         Self {
             instance: value,
@@ -75,17 +75,17 @@ impl<T> From<Option<ClassInstanceRef>> for JvmClassInstanceProxy<T> {
     }
 }
 
-impl<T> From<JavaValue> for JvmClassInstanceProxy<T> {
+impl<T> From<JavaValue> for JvmClassInstanceHandle<T> {
     fn from(val: JavaValue) -> Self {
-        JvmClassInstanceProxy {
+        JvmClassInstanceHandle {
             instance: val.into(),
             _phantom: PhantomData,
         }
     }
 }
 
-impl<T> From<JvmClassInstanceProxy<T>> for ClassInstanceRef {
-    fn from(value: JvmClassInstanceProxy<T>) -> Self {
+impl<T> From<JvmClassInstanceHandle<T>> for ClassInstanceRef {
+    fn from(value: JvmClassInstanceHandle<T>) -> Self {
         value.instance.unwrap()
     }
 }

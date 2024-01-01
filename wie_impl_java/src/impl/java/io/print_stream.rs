@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     r#impl::java::lang::String,
     JavaContext, JavaMethodFlag, JavaResult,
 };
@@ -23,13 +23,13 @@ impl PrintStream {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::warn!("stub java.lang.JavaContext::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn println(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, str: JvmClassInstanceProxy<String>) -> JavaResult<()> {
+    async fn println(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, str: JvmClassInstanceHandle<String>) -> JavaResult<()> {
         tracing::warn!("stub java.lang.PrintStream::println({:?}, {:?})", &this, &str);
 
         let rust_str = String::to_rust_string(context, &str)?;

@@ -6,8 +6,8 @@ use wie_backend::task;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    handle::JvmClassInstanceHandle,
     method::MethodBody,
-    proxy::JvmClassInstanceProxy,
     r#impl::java::lang::Runnable,
     JavaError,
 };
@@ -31,7 +31,7 @@ impl Thread {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, target: JvmClassInstanceProxy<Runnable>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, target: JvmClassInstanceHandle<Runnable>) -> JavaResult<()> {
         tracing::debug!("Thread::<init>({:?}, {:?})", &this, &target);
 
         context.jvm().put_field(&this, "target", "Ljava/lang/Runnable;", target)?;
@@ -39,12 +39,12 @@ impl Thread {
         Ok(())
     }
 
-    async fn start(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn start(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("Thread::start({:?})", &this);
 
         struct ThreadStartProxy {
             thread_id: String,
-            runnable: JvmClassInstanceProxy<Runnable>,
+            runnable: JvmClassInstanceHandle<Runnable>,
         }
 
         #[async_trait::async_trait(?Send)]
@@ -86,7 +86,7 @@ impl Thread {
         Ok(0)
     }
 
-    async fn set_priority(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Thread>, new_priority: i32) -> JavaResult<()> {
+    async fn set_priority(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Thread>, new_priority: i32) -> JavaResult<()> {
         tracing::warn!("stub java.lang.Thread::setPriority({:?}, {:?})", &this, new_priority);
 
         Ok(())

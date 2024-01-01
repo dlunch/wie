@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
 };
 
 // class java.lang.Runtime
@@ -24,13 +24,13 @@ impl Runtime {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Runtime>) -> JavaResult<()> {
         tracing::warn!("stub java.lang.Runtime::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    async fn get_runtime(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::debug!("java.lang.Runtime::getRuntime");
 
         let instance = context.jvm().new_class("java/lang/Runtime", "()V", []).await?;
@@ -38,19 +38,19 @@ impl Runtime {
         Ok(instance.into())
     }
 
-    async fn total_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i64> {
+    async fn total_memory(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Runtime>) -> JavaResult<i64> {
         tracing::warn!("stub java.lang.Runtime::totalMemory({:?})", &this);
 
         Ok(0x100000) // TODO: hardcoded
     }
 
-    async fn free_memory(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<i64> {
+    async fn free_memory(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Runtime>) -> JavaResult<i64> {
         tracing::warn!("stub java.lang.Runtime::freeMemory({:?})", &this);
 
         Ok(0x100000) // TODO: hardcoded
     }
 
-    async fn gc(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Runtime>) -> JavaResult<()> {
+    async fn gc(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Runtime>) -> JavaResult<()> {
         tracing::warn!("stub java.lang.Runtime::gc({:?})", &this);
 
         Ok(())

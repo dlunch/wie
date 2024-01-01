@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     r#impl::java::io::InputStream,
     JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaResult,
 };
@@ -25,7 +25,7 @@ impl DataInputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, r#in: JvmClassInstanceProxy<InputStream>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, r#in: JvmClassInstanceHandle<InputStream>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::<init>({:?}, {:?})", &this, &r#in);
 
         context.jvm().put_field(&this, "in", "Ljava/io/InputStream;", r#in)?;
@@ -33,7 +33,7 @@ impl DataInputStream {
         Ok(())
     }
 
-    async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+    async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.DataInputStream::available({:?})", &this);
 
         let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
@@ -44,8 +44,8 @@ impl DataInputStream {
 
     async fn read(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        b: JvmClassInstanceProxy<Array<i8>>,
+        this: JvmClassInstanceHandle<Self>,
+        b: JvmClassInstanceHandle<Array<i8>>,
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
@@ -60,7 +60,7 @@ impl DataInputStream {
         Ok(result)
     }
 
-    async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::close({:?})", &this);
 
         let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;

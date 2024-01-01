@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use crate::{base::JavaClassProto, proxy::JvmClassInstanceProxy, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult};
+use crate::{base::JavaClassProto, handle::JvmClassInstanceHandle, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult};
 
 // class java.util.GregorianCalendar
 pub struct GregorianCalendar {}
@@ -15,7 +15,7 @@ impl GregorianCalendar {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::warn!("stub java.util.GregorianCalendar::<init>({:?})", &this);
 
         Ok(())

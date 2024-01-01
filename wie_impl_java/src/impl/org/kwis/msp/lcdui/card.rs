@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     JavaFieldAccessFlag,
 };
 
@@ -27,19 +27,19 @@ impl Card {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn init_1(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>, a0: i32) -> JavaResult<()> {
+    async fn init_1(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>, a0: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
 
         Ok(())
     }
 
-    async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<i32> {
+    async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
         let mut platform = context.system().platform();
@@ -49,7 +49,7 @@ impl Card {
         Ok(screen_canvas.width() as _)
     }
 
-    async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<i32> {
+    async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
         let mut platform = context.system().platform();
@@ -59,7 +59,7 @@ impl Card {
         Ok(screen_canvas.height() as _)
     }
 
-    async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
+    async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
         let mut platform = context.system().platform();
@@ -71,7 +71,7 @@ impl Card {
 
     async fn repaint_with_area(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Card>,
+        this: JvmClassInstanceHandle<Card>,
         a0: i32,
         a1: i32,
         a2: i32,
@@ -86,7 +86,7 @@ impl Card {
         Ok(())
     }
 
-    async fn service_repaints(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
+    async fn service_repaints(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
         let mut platform = context.system().platform();

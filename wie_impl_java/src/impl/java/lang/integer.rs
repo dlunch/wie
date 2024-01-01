@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     r#impl::java::lang::String,
     JavaContext, JavaMethodFlag, JavaResult,
 };
@@ -25,7 +25,7 @@ impl Integer {
         }
     }
 
-    async fn parse_int(context: &mut dyn JavaContext, s: JvmClassInstanceProxy<String>) -> JavaResult<i32> {
+    async fn parse_int(context: &mut dyn JavaContext, s: JvmClassInstanceHandle<String>) -> JavaResult<i32> {
         tracing::debug!("java.lang.Integer::parseInt({:?})", &s);
 
         let s = String::to_rust_string(context, &s)?;

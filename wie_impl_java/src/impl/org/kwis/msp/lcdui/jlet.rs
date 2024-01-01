@@ -4,8 +4,8 @@ use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaError, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
+    handle::JvmClassInstanceHandle,
     method::MethodBody,
-    proxy::JvmClassInstanceProxy,
     r#impl::org::kwis::msp::lcdui::EventQueue,
     JavaFieldAccessFlag,
 };
@@ -41,7 +41,7 @@ impl Jlet {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = context
@@ -70,7 +70,7 @@ impl Jlet {
         Ok(())
     }
 
-    async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Jlet>> {
+    async fn get_active_jlet(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceHandle<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
         let jlet = context
@@ -81,7 +81,7 @@ impl Jlet {
         Ok(jlet)
     }
 
-    async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<EventQueue>> {
+    async fn get_event_queue(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<JvmClassInstanceHandle<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
         let eq = context.jvm().get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;

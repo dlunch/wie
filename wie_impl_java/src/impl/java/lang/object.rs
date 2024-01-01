@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
 };
 
 // class java.lang.Object
@@ -21,13 +21,13 @@ impl Object {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.Object::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn get_class(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    async fn get_class(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::warn!("stub java.lang.Object::get_class({:?})", &this);
 
         let result = context.jvm().new_class("java/lang/Class", "()V", []).await?;

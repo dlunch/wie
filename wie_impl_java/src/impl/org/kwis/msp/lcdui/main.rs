@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     r#impl::java::lang::String,
 };
 
@@ -22,13 +22,13 @@ impl Main {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Main>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Main>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn main(context: &mut dyn JavaContext, args: JvmClassInstanceProxy<String>) -> JavaResult<()> {
+    async fn main(context: &mut dyn JavaContext, args: JvmClassInstanceHandle<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = context

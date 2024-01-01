@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodProto},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     JavaContext, JavaFieldAccessFlag, JavaMethodFlag, JavaResult,
 };
 
@@ -27,7 +27,7 @@ impl ByteArrayInputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data: JvmClassInstanceProxy<Array<i8>>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, data: JvmClassInstanceHandle<Array<i8>>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
         context.jvm().put_field(&this, "buf", "[B", data)?;
@@ -36,7 +36,7 @@ impl ByteArrayInputStream {
         Ok(())
     }
 
-    async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+    async fn available(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("java.lang.ByteArrayInputStream::available({:?})", &this);
 
         let buf = context.jvm().get_field(&this, "buf", "[B")?;
@@ -48,8 +48,8 @@ impl ByteArrayInputStream {
 
     async fn read(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        b: JvmClassInstanceProxy<Array<i8>>,
+        this: JvmClassInstanceHandle<Self>,
+        b: JvmClassInstanceHandle<Array<i8>>,
         off: i32,
         len: i32,
     ) -> JavaResult<i32> {
@@ -80,7 +80,7 @@ impl ByteArrayInputStream {
         Ok(len)
     }
 
-    async fn close(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<ByteArrayInputStream>) -> JavaResult<()> {
+    async fn close(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<ByteArrayInputStream>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::close({:?})", &this);
 
         Ok(())
