@@ -8,7 +8,7 @@ use bytemuck::{Pod, Zeroable};
 
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
-use wie_backend::System;
+use wie_backend::SystemHandle;
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 use wie_impl_java::{JavaMethodBody, JavaMethodFlag, JavaMethodProto, JavaResult};
@@ -160,7 +160,7 @@ impl JavaMethod {
 
         #[async_trait::async_trait(?Send)]
         impl EmulatedFunction<(), ArmEngineError, u32> for JavaMethodProxy {
-            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmEngineError> {
+            async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
                 let a3 = u32::get(core, 3);

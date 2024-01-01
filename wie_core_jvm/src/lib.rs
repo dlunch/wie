@@ -9,7 +9,7 @@ use jvm_impl::{ClassImpl, FieldImpl, JvmDetailImpl, MethodBody, MethodImpl, Rust
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, System,
+    AsyncCallable, SystemHandle,
 };
 use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
 
@@ -21,7 +21,7 @@ pub struct JvmCore {
 }
 
 impl JvmCore {
-    pub fn new(system: &System) -> Self {
+    pub fn new(system: &SystemHandle) -> Self {
         let jvm = Jvm::new(JvmDetailImpl::new(Self::get_class_loader(system)));
 
         Self {
@@ -29,7 +29,7 @@ impl JvmCore {
         }
     }
 
-    fn get_class_loader(system: &System) -> impl Fn(&str) -> JvmResult<Option<Box<dyn Class>>> {
+    fn get_class_loader(system: &SystemHandle) -> impl Fn(&str) -> JvmResult<Option<Box<dyn Class>>> {
         let system_clone = system.clone();
         move |class_name| {
             tracing::debug!("Loading class {}", class_name);
@@ -42,7 +42,7 @@ impl JvmCore {
         }
     }
 
-    fn load_class_from_impl(system: &System, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
+    fn load_class_from_impl(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
         let class_proto = get_class_proto(class_name);
         if let Some(x) = class_proto {
             let class = ClassImpl::new(class_name, Self::load_methods(system, x.methods), Self::load_fields(x.fields));
@@ -53,7 +53,7 @@ impl JvmCore {
         }
     }
 
-    fn load_methods(system: &System, methods: Vec<JavaMethodProto>) -> Vec<MethodImpl> {
+    fn load_methods(system: &SystemHandle, methods: Vec<JavaMethodProto>) -> Vec<MethodImpl> {
         methods
             .into_iter()
             .map(|x| MethodImpl::new(&x.name, &x.descriptor, Self::load_method_body(system, x.body)))
@@ -72,7 +72,7 @@ impl JvmCore {
             .collect()
     }
 
-    fn load_class_from_resource(system: &System, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
+    fn load_class_from_resource(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
         let path = format!("{}.class", class_name);
         let resource = system.resource();
 
@@ -85,10 +85,10 @@ impl JvmCore {
         }
     }
 
-    fn load_method_body(system: &System, body: JavaMethodBody) -> MethodBody {
+    fn load_method_body(system: &SystemHandle, body: JavaMethodBody) -> MethodBody {
         struct MethodProxy {
             body: JavaMethodBody,
-            system: System,
+            system: SystemHandle,
         }
 
         #[async_trait::async_trait(?Send)]
@@ -124,7 +124,7 @@ impl JvmCore {
 }
 
 struct JvmCoreContext<'a> {
-    system: System,
+    system: SystemHandle,
     jvm: &'a mut Jvm,
 }
 
@@ -133,7 +133,7 @@ impl<'a> JavaContext for JvmCoreContext<'a> {
         self.jvm
     }
 
-    fn system(&mut self) -> &mut System {
+    fn system(&mut self) -> &mut SystemHandle {
         &mut self.system
     }
 

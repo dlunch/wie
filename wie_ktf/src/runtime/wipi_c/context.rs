@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec, vec::Vec};
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, System,
+    AsyncCallable, SystemHandle,
 };
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
@@ -10,11 +10,11 @@ use wie_impl_wipi_c::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, 
 
 pub struct KtfWIPICContext<'a> {
     core: &'a mut ArmCore,
-    system: &'a mut System,
+    system: &'a mut SystemHandle,
 }
 
 impl<'a> KtfWIPICContext<'a> {
-    pub fn new(core: &'a mut ArmCore, system: &'a mut System) -> Self {
+    pub fn new(core: &'a mut ArmCore, system: &'a mut SystemHandle) -> Self {
         Self { core, system }
     }
 }
@@ -59,7 +59,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
 
         #[async_trait::async_trait(?Send)]
         impl EmulatedFunction<(), ArmEngineError, u32> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmEngineError> {
+            async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
@@ -83,7 +83,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
         self.core.register_function(proxy)
     }
 
-    fn system(&mut self) -> &mut System {
+    fn system(&mut self) -> &mut SystemHandle {
         self.system
     }
 
@@ -94,7 +94,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
     fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()> {
         struct SpawnProxy {
             core: ArmCore,
-            system: System,
+            system: SystemHandle,
             callback: WIPICMethodBody,
         }
 

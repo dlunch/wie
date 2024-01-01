@@ -1,4 +1,4 @@
-use wie_backend::{task::SleepFuture, System};
+use wie_backend::{task::SleepFuture, SystemHandle};
 use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
 
 use jvm::{Class, JavaValue, Jvm, JvmResult};
@@ -62,7 +62,7 @@ impl TestContext {
                         self.jvm
                     }
 
-                    fn system(&mut self) -> &mut System {
+                    fn system(&mut self) -> &mut SystemHandle {
                         todo!()
                     }
 
@@ -90,7 +90,7 @@ impl JavaContext for TestContext {
         &mut self.jvm
     }
 
-    fn system(&mut self) -> &mut System {
+    fn system(&mut self) -> &mut SystemHandle {
         todo!()
     }
 

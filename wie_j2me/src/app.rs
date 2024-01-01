@@ -1,16 +1,16 @@
 use alloc::string::{String, ToString};
 
-use wie_backend::{App, System};
+use wie_backend::{App, SystemHandle};
 use wie_core_jvm::JvmCore;
 
 pub struct J2MEApp {
     core: JvmCore,
-    system: System,
+    system: SystemHandle,
     main_class_name: String,
 }
 
 impl J2MEApp {
-    pub fn new(main_class_name: &str, system: &System) -> anyhow::Result<Self> {
+    pub fn new(main_class_name: &str, system: &SystemHandle) -> anyhow::Result<Self> {
         let core = JvmCore::new(system);
 
         Ok(Self {
@@ -23,7 +23,7 @@ impl J2MEApp {
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
     #[allow(clippy::await_holding_refcell_ref)]
-    async fn do_start(core: &mut JvmCore, system: &mut System, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut JvmCore, system: &mut SystemHandle, main_class_name: String) -> anyhow::Result<()> {
         let normalized_class_name = main_class_name.replace('.', "/");
 
         core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;

@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec};
 use core::{cell::RefCell, fmt::Debug, mem::size_of};
 
-use wie_backend::{task, AsyncCallable, System};
+use wie_backend::{task, AsyncCallable, SystemHandle};
 use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
@@ -18,7 +18,7 @@ pub const PEB_BASE: u32 = 0x7ff00000;
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
-    system: System,
+    system: SystemHandle,
     functions: BTreeMap<u32, Rc<Box<dyn RegisteredFunction>>>,
     functions_count: usize,
 }
@@ -29,7 +29,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new(system: System) -> ArmEngineResult<Self> {
+    pub fn new(system: SystemHandle) -> ArmEngineResult<Self> {
         #[cfg(any(target_arch = "wasm32", target_os = "linux"))]
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
         #[cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))]
