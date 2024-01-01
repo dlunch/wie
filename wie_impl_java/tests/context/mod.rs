@@ -1,4 +1,4 @@
-use wie_backend::{task::SleepFuture, SystemHandle};
+use wie_backend::SystemHandle;
 use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
 
 use jvm::{Class, JavaValue, Jvm, JvmResult};
@@ -69,10 +69,6 @@ impl TestContext {
                     fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
                         todo!()
                     }
-
-                    fn sleep(&mut self, _duration: u64) -> SleepFuture {
-                        todo!()
-                    }
                 }
 
                 let args = args.iter().cloned().collect();
@@ -95,10 +91,6 @@ impl JavaContext for TestContext {
     }
 
     fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
-        todo!()
-    }
-
-    fn sleep(&mut self, _duration: u64) -> SleepFuture {
         todo!()
     }
 }
