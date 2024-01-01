@@ -2,7 +2,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 
 use jvm::{JavaChar, JavaValue, Jvm};
 
-use wie_backend::{task::SleepFuture, SystemHandle};
+use wie_backend::SystemHandle;
 
 use crate::method::{MethodBody, MethodImpl, TypeConverter};
 
@@ -98,7 +98,6 @@ pub trait JavaContext {
     fn jvm(&mut self) -> &mut Jvm;
     fn system(&mut self) -> &mut SystemHandle;
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
-    fn sleep(&mut self, duration: u64) -> SleepFuture;
 }
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {

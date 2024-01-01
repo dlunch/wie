@@ -9,6 +9,7 @@ use core::{cell::Ref, iter};
 
 use bytemuck::{Pod, Zeroable};
 
+use wie_backend::Instant;
 use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
 
 use crate::{
@@ -76,7 +77,7 @@ async fn set_timer(
 
     struct TimerCallback {
         ptr_timer: u32,
-        timeout: u64,
+        wakeup: Instant,
         param: WIPICWord,
     }
 
@@ -85,7 +86,8 @@ async fn set_timer(
         #[tracing::instrument(name = "timer", skip_all)]
         async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICWord, WIPICError> {
             let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
-            context.sleep(self.timeout).await;
+
+            context.system().sleep(self.wakeup).await;
 
             context.call_function(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
 
@@ -93,11 +95,9 @@ async fn set_timer(
         }
     }
 
-    context.spawn(Box::new(TimerCallback {
-        ptr_timer,
-        timeout: ((timeout_high as u64) << 32) | (timeout_low as u64),
-        param,
-    }))?;
+    let wakeup = context.system().platform().now() + (((timeout_high as u64) << 32) | (timeout_low as u64)) as _;
+
+    context.spawn(Box::new(TimerCallback { ptr_timer, wakeup, param }))?;
 
     Ok(())
 }

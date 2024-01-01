@@ -1,9 +1,6 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use wie_backend::{
-    task::{self, SleepFuture},
-    AsyncCallable, SystemHandle,
-};
+use wie_backend::{AsyncCallable, SystemHandle};
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 use wie_impl_wipi_c::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
@@ -117,12 +114,6 @@ impl WIPICContext for KtfWIPICContext<'_> {
         });
 
         Ok(())
-    }
-
-    fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.system.platform().now() + duration;
-
-        task::sleep(until)
     }
 }
 

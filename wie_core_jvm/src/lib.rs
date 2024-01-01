@@ -7,10 +7,7 @@ use core::cell::{RefCell, RefMut};
 use jvm::{Class, JavaValue, Jvm, JvmResult};
 use jvm_impl::{ClassImpl, FieldImpl, JvmDetailImpl, MethodBody, MethodImpl, RustMethodBody};
 
-use wie_backend::{
-    task::{self, SleepFuture},
-    SystemHandle,
-};
+use wie_backend::SystemHandle;
 use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
@@ -130,11 +127,5 @@ impl<'a> JavaContext for JvmCoreContext<'a> {
 
     fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
         todo!()
-    }
-
-    fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.system.platform().now() + duration;
-
-        task::sleep(until)
     }
 }

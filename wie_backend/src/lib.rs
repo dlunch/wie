@@ -7,7 +7,7 @@ mod executor;
 mod platform;
 mod screen;
 mod system;
-pub mod task;
+mod task;
 mod time;
 
 pub use self::{
