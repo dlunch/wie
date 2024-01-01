@@ -2,7 +2,7 @@ use alloc::string::{String, ToString};
 
 use anyhow::Context;
 
-use wie_backend::{App, System};
+use wie_backend::{App, SystemHandle};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::r#impl::org::kwis::msp::lcdui::Jlet;
 
@@ -12,13 +12,13 @@ const IMAGE_BASE: u32 = 0x100000;
 
 pub struct KtfApp {
     core: ArmCore,
-    system: System,
+    system: SystemHandle,
     bss_size: u32,
     main_class_name: String,
 }
 
 impl KtfApp {
-    pub fn new(main_class_name: &str, system: &System) -> anyhow::Result<Self> {
+    pub fn new(main_class_name: &str, system: &SystemHandle) -> anyhow::Result<Self> {
         let mut core = ArmCore::new(system.clone())?;
 
         Allocator::init(&mut core)?;
@@ -38,7 +38,7 @@ impl KtfApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, system: &mut System, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, system: &mut SystemHandle, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
         let wipi_exe = crate::runtime::start(core, IMAGE_BASE, bss_size).await?;
         tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 

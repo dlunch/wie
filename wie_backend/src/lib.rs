@@ -9,7 +9,7 @@ pub mod task;
 pub use self::{
     executor::{AsyncCallable, Executor},
     platform::Platform,
-    system::{database::Database, screen::Screen, time::Instant, System},
+    system::{database::Database, screen::Screen, time::Instant, System, SystemHandle},
 };
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String};
@@ -21,7 +21,7 @@ pub trait App {
 
 pub trait Archive {
     fn id(&self) -> String;
-    fn load_app(&self, system: &mut System) -> anyhow::Result<Box<dyn App>>;
+    fn load_app(&self, system: &mut SystemHandle) -> anyhow::Result<Box<dyn App>>;
 }
 
 pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {

@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::System;
+use wie_backend::SystemHandle;
 use wie_base::util::write_generic;
 use wie_core_arm::ArmCore;
 use wie_impl_wipi_c::{
@@ -53,7 +53,7 @@ fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) 
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut SystemHandle) -> anyhow::Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
     let mut context = KtfWIPICContext::new(core, system);

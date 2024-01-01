@@ -3,18 +3,18 @@ use alloc::string::String;
 use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
-use wie_backend::{App, System};
+use wie_backend::{App, SystemHandle};
 use wie_core_arm::{Allocator, ArmCore};
 
 pub struct LgtApp {
     core: ArmCore,
-    system: System,
+    system: SystemHandle,
     entrypoint: u32,
     main_class_name: String,
 }
 
 impl LgtApp {
-    pub fn new(main_class_name: &str, system: &System) -> anyhow::Result<Self> {
+    pub fn new(main_class_name: &str, system: &SystemHandle) -> anyhow::Result<Self> {
         let mut core = ArmCore::new(system.clone())?;
 
         Allocator::init(&mut core)?;
@@ -36,7 +36,7 @@ impl LgtApp {
 
     #[tracing::instrument(name = "start", skip_all)]
     #[allow(unused_variables)]
-    async fn do_start(core: &mut ArmCore, system: &mut System, entrypoint: u32, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, system: &mut SystemHandle, entrypoint: u32, main_class_name: String) -> anyhow::Result<()> {
         core.run_function(entrypoint + 1, &[]).await?;
 
         todo!()

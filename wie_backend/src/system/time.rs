@@ -1,7 +1,6 @@
 use core::ops::{Add, Sub};
-use std::{cell::RefCell, rc::Rc};
 
-use crate::Platform;
+use crate::SystemHandle;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -35,15 +34,15 @@ impl Sub for Instant {
 }
 
 pub struct Time {
-    platform: Rc<RefCell<Box<dyn Platform>>>,
+    system: SystemHandle,
 }
 
 impl Time {
-    pub fn new(platform: Rc<RefCell<Box<dyn Platform>>>) -> Self {
-        Self { platform }
+    pub fn new(system: SystemHandle) -> Self {
+        Self { system }
     }
 
     pub fn now(&self) -> Instant {
-        self.platform.borrow().now()
+        self.system.platform().now()
     }
 }

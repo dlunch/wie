@@ -19,7 +19,7 @@ use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Jvm, JvmDetail, JvmResu
 
 use wie_backend::{
     task::{self, SleepFuture},
-    AsyncCallable, System,
+    AsyncCallable, SystemHandle,
 };
 use wie_core_arm::ArmCore;
 use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult};
@@ -87,7 +87,7 @@ impl JvmDetail for KtfJvmDetail {
 
 pub struct KtfJavaContext<'a> {
     core: &'a mut ArmCore,
-    system: &'a mut System,
+    system: &'a mut SystemHandle,
     jvm: Jvm,
 }
 
@@ -96,7 +96,7 @@ impl<'a> KtfJavaContext<'a> {
         JavaContextData::init(core, ptr_vtables_base, fn_get_class)
     }
 
-    pub fn new(core: &'a mut ArmCore, system: &'a mut System) -> Self {
+    pub fn new(core: &'a mut ArmCore, system: &'a mut SystemHandle) -> Self {
         let jvm = Jvm::new(KtfJvmDetail::new(core));
 
         Self { core, system, jvm }
@@ -150,14 +150,14 @@ impl JavaContext for KtfJavaContext<'_> {
         &mut self.jvm
     }
 
-    fn system(&mut self) -> &mut System {
+    fn system(&mut self) -> &mut SystemHandle {
         self.system
     }
 
     fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
         struct SpawnProxy {
             core: ArmCore,
-            system: System,
+            system: SystemHandle,
             callback: JavaMethodBody,
         }
 
