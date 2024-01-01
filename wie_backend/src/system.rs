@@ -16,7 +16,6 @@ use crate::{executor::Executor, extract_zip, platform::Platform, AsyncCallable};
 use self::{audio::Audio, database::DatabaseRepository, resource::Resource};
 
 pub struct SystemInner {
-    platform: Box<dyn Platform>,
     database: DatabaseRepository,
     resource: Resource,
     events: VecDeque<Event>,
@@ -25,15 +24,18 @@ pub struct SystemInner {
 
 pub struct System {
     executor: Executor,
+    platform: Rc<RefCell<Box<dyn Platform>>>,
     inner: Rc<RefCell<SystemInner>>,
 }
 
 impl System {
     pub fn new(app_id: &str, platform: Box<dyn Platform>) -> Self {
+        let platform = Rc::new(RefCell::new(platform));
+
         Self {
             executor: Executor::new(),
+            platform,
             inner: Rc::new(RefCell::new(SystemInner {
-                platform,
                 database: DatabaseRepository::new(app_id),
                 resource: Resource::new(),
                 events: VecDeque::new(),
@@ -43,16 +45,17 @@ impl System {
     }
 
     pub fn tick(&mut self) -> anyhow::Result<()> {
-        let inner = self.inner.clone();
+        let platform = self.platform.clone();
         self.executor.tick(move || {
-            let inner = inner.borrow();
+            let platform = platform.borrow();
 
-            inner.platform.now()
+            platform.now()
         })
     }
 
     pub fn handle(&self) -> SystemHandle {
         SystemHandle {
+            platform: self.platform.clone(),
             system_inner: self.inner.clone(),
         }
     }
@@ -60,6 +63,7 @@ impl System {
 
 #[derive(Clone)]
 pub struct SystemHandle {
+    platform: Rc<RefCell<Box<dyn Platform>>>,
     system_inner: Rc<RefCell<SystemInner>>,
 }
 
@@ -82,7 +86,7 @@ impl SystemHandle {
     }
 
     pub fn platform(&self) -> RefMut<'_, Box<dyn Platform>> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.platform)
+        self.platform.borrow_mut()
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
