@@ -58,7 +58,7 @@ impl Card {
     async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
-        context.system().window().request_redraw()?;
+        context.system().screen().request_redraw()?;
 
         Ok(())
     }
@@ -73,7 +73,7 @@ impl Card {
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, a0, a1, a2, a3);
 
-        context.system().window().request_redraw()?;
+        context.system().screen().request_redraw()?;
 
         Ok(())
     }
@@ -81,7 +81,7 @@ impl Card {
     async fn service_repaints(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
-        context.system().window().request_redraw()?;
+        context.system().screen().request_redraw()?;
 
         Ok(())
     }

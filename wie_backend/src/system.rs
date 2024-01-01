@@ -2,8 +2,8 @@ mod audio;
 pub mod canvas;
 pub mod database;
 mod resource;
+pub mod screen;
 pub mod time;
-pub mod window;
 
 use alloc::{collections::VecDeque, rc::Rc};
 use core::cell::{Ref, RefCell, RefMut};
@@ -17,8 +17,8 @@ use self::{
     canvas::{ArgbPixel, Canvas, ImageBuffer},
     database::DatabaseRepository,
     resource::Resource,
+    screen::Screen,
     time::Time,
-    window::Window,
 };
 
 #[derive(Clone)]
@@ -33,8 +33,8 @@ pub struct System {
 
 impl System {
     pub fn new(app_id: &str, platform: Box<dyn Platform>) -> Self {
-        let window = platform.window();
-        let screen_canvas = ImageBuffer::<ArgbPixel>::new(window.width(), window.height());
+        let screen = platform.screen();
+        let screen_canvas = ImageBuffer::<ArgbPixel>::new(screen.width(), screen.height());
 
         Self {
             platform: Rc::new(platform),
@@ -62,8 +62,8 @@ impl System {
         (*self.screen_canvas).borrow_mut()
     }
 
-    pub fn window(&self) -> &dyn Window {
-        self.platform.window()
+    pub fn screen(&self) -> &dyn Screen {
+        self.platform.screen()
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
@@ -79,7 +79,7 @@ impl System {
     }
 
     pub fn repaint(&self) -> anyhow::Result<()> {
-        self.window().repaint(&**self.screen_canvas())
+        self.screen().repaint(&**self.screen_canvas())
     }
 
     pub fn mount_zip(&self, zip: &[u8]) -> anyhow::Result<()> {

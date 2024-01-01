@@ -11,7 +11,7 @@ use std::{
 use clap::Parser;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Executor, Instant, Platform, System, Window};
+use wie_backend::{extract_zip, Archive, Executor, Instant, Platform, Screen, System};
 use wie_base::{Event, KeyCode};
 use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
@@ -20,17 +20,17 @@ use wie_skt::SktArchive;
 use self::window::{WindowCallbackEvent, WindowImpl};
 
 struct WieCliPlatform {
-    window: Box<dyn Window>,
+    window: Box<dyn Screen>,
 }
 
 impl WieCliPlatform {
-    fn new(window: Box<dyn Window>) -> Self {
+    fn new(window: Box<dyn Screen>) -> Self {
         Self { window }
     }
 }
 
 impl Platform for WieCliPlatform {
-    fn window(&self) -> &dyn Window {
+    fn screen(&self) -> &dyn Screen {
         self.window.as_ref()
     }
 
