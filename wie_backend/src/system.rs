@@ -1,6 +1,5 @@
 mod audio;
 mod resource;
-pub mod screen;
 
 use alloc::{collections::VecDeque, rc::Rc};
 use core::{

@@ -1,4 +1,4 @@
-use crate::{database::DatabaseRepository, time::Instant, Screen};
+use crate::{database::DatabaseRepository, screen::Screen, time::Instant};
 
 pub trait Platform {
     fn screen(&mut self) -> &mut dyn Screen;
