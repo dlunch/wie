@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     r#impl::java::lang::String,
 };
 
@@ -21,8 +21,8 @@ impl TextFieldComponent {
 
     async fn init(
         _: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<TextFieldComponent>,
-        data: JvmClassInstanceProxy<String>,
+        this: JvmClassInstanceHandle<TextFieldComponent>,
+        data: JvmClassInstanceHandle<String>,
         constraint: i32,
     ) -> JavaResult<()> {
         tracing::warn!(

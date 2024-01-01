@@ -4,7 +4,7 @@ use bytemuck::cast_vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     r#impl::java::lang::String,
 };
 
@@ -32,7 +32,11 @@ impl DataBase {
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", JavaFieldAccessFlag::NONE)],
         }
     }
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, data_base_name: JvmClassInstanceProxy<String>) -> JavaResult<()> {
+    async fn init(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceHandle<Self>,
+        data_base_name: JvmClassInstanceHandle<String>,
+    ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
         context.jvm().put_field(&this, "dbName", "Ljava/lang/String;", data_base_name)?;
@@ -42,10 +46,10 @@ impl DataBase {
 
     async fn open_data_base(
         context: &mut dyn JavaContext,
-        data_base_name: JvmClassInstanceProxy<String>,
+        data_base_name: JvmClassInstanceHandle<String>,
         record_size: i32,
         create: bool,
-    ) -> JavaResult<JvmClassInstanceProxy<DataBase>> {
+    ) -> JavaResult<JvmClassInstanceHandle<DataBase>> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
             &data_base_name,
@@ -61,7 +65,7 @@ impl DataBase {
         Ok(instance.into())
     }
 
-    async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<i32> {
+    async fn get_number_of_records(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
         let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;
@@ -72,7 +76,7 @@ impl DataBase {
         Ok(count as _)
     }
 
-    async fn close_data_base(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<DataBase>) -> JavaResult<()> {
+    async fn close_data_base(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<DataBase>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
         Ok(())
@@ -80,8 +84,8 @@ impl DataBase {
 
     async fn insert_record(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        data: JvmClassInstanceProxy<Array<i8>>,
+        this: JvmClassInstanceHandle<Self>,
+        data: JvmClassInstanceHandle<Array<i8>>,
         offset: i32,
         num_bytes: i32,
     ) -> JavaResult<i32> {
@@ -106,9 +110,9 @@ impl DataBase {
 
     async fn select_record(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
+        this: JvmClassInstanceHandle<Self>,
         record_id: i32,
-    ) -> JavaResult<JvmClassInstanceProxy<i8>> {
+    ) -> JavaResult<JvmClassInstanceHandle<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
         let db_name = context.jvm().get_field(&this, "dbName", "Ljava/lang/String;")?;

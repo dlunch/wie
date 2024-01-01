@@ -8,7 +8,7 @@ use jvm::JavaChar;
 
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     r#impl::java::lang::String,
     JavaContext, JavaResult,
 };
@@ -42,7 +42,7 @@ impl StringBuffer {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("java.lang.StringBuffer::<init>({:?})", &this);
 
         let array = context.jvm().instantiate_array("C", 16).await?;
@@ -54,8 +54,8 @@ impl StringBuffer {
 
     async fn init_with_string(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        string: JvmClassInstanceProxy<String>,
+        this: JvmClassInstanceHandle<Self>,
+        string: JvmClassInstanceHandle<String>,
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.StringBuffer::<init>({:?}, {:?})", &this, &string,);
 
@@ -70,9 +70,9 @@ impl StringBuffer {
 
     async fn append_string(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        string: JvmClassInstanceProxy<String>,
-    ) -> JavaResult<JvmClassInstanceProxy<Self>> {
+        this: JvmClassInstanceHandle<Self>,
+        string: JvmClassInstanceHandle<String>,
+    ) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, &string,);
 
         let string = String::to_rust_string(context, &string)?;
@@ -82,7 +82,11 @@ impl StringBuffer {
         Ok(this)
     }
 
-    async fn append_integer(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, value: i32) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    async fn append_integer(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceHandle<Self>,
+        value: i32,
+    ) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, value);
 
         let digits = value.to_string();
@@ -92,7 +96,7 @@ impl StringBuffer {
         Ok(this)
     }
 
-    async fn append_long(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, value: i64) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    async fn append_long(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, value: i64) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, value);
 
         let digits = value.to_string();
@@ -104,9 +108,9 @@ impl StringBuffer {
 
     async fn append_character(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
+        this: JvmClassInstanceHandle<Self>,
         value: u16,
-    ) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    ) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::debug!("java.lang.StringBuffer::append({:?}, {:?})", &this, value);
 
         let value = RustString::from_utf16(&[value])?;
@@ -116,10 +120,10 @@ impl StringBuffer {
         Ok(this)
     }
 
-    async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<JvmClassInstanceProxy<String>> {
+    async fn to_string(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<JvmClassInstanceHandle<String>> {
         tracing::debug!("java.lang.StringBuffer::toString({:?})", &this);
 
-        let java_value: JvmClassInstanceProxy<Array<JavaChar>> = context.jvm().get_field(&this, "value", "[C")?;
+        let java_value: JvmClassInstanceHandle<Array<JavaChar>> = context.jvm().get_field(&this, "value", "[C")?;
         let count: i32 = context.jvm().get_field(&this, "count", "I")?;
 
         let string = context.jvm().new_class("java/lang/String", "([CII)V", (java_value, 0, count)).await?;
@@ -127,7 +131,7 @@ impl StringBuffer {
         Ok(string.into())
     }
 
-    async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, capacity: usize) -> JavaResult<()> {
+    async fn ensure_capacity(context: &mut dyn JavaContext, this: &JvmClassInstanceHandle<Self>, capacity: usize) -> JavaResult<()> {
         let java_value_array = context.jvm().get_field(this, "value", "[C")?;
         let current_capacity = context.jvm().array_length(&java_value_array)?;
 
@@ -143,7 +147,7 @@ impl StringBuffer {
         Ok(())
     }
 
-    async fn append(context: &mut dyn JavaContext, this: &JvmClassInstanceProxy<Self>, string: &str) -> JavaResult<()> {
+    async fn append(context: &mut dyn JavaContext, this: &JvmClassInstanceHandle<Self>, string: &str) -> JavaResult<()> {
         let current_count: i32 = context.jvm().get_field(this, "count", "I")?;
 
         let value_to_add = string.encode_utf16().collect::<Vec<_>>();

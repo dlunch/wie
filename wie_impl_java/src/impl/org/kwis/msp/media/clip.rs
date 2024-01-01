@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     r#impl::{java::lang::String, org::kwis::msp::media::PlayListener},
 };
 
@@ -31,9 +31,9 @@ impl Clip {
 
     async fn init(
         _: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        r#type: JvmClassInstanceProxy<String>,
-        resource_name: JvmClassInstanceProxy<String>,
+        this: JvmClassInstanceHandle<Self>,
+        r#type: JvmClassInstanceHandle<String>,
+        resource_name: JvmClassInstanceHandle<String>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
 
@@ -42,16 +42,16 @@ impl Clip {
 
     async fn init_with_data(
         _: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        r#type: JvmClassInstanceProxy<String>,
-        data: JvmClassInstanceProxy<Array<i8>>,
+        this: JvmClassInstanceHandle<Self>,
+        r#type: JvmClassInstanceHandle<String>,
+        data: JvmClassInstanceHandle<Array<i8>>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
 
         Ok(())
     }
 
-    async fn set_volume(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<Clip>, level: i32) -> JavaResult<()> {
+    async fn set_volume(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Clip>, level: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", &this, level);
 
         Ok(())
@@ -59,8 +59,8 @@ impl Clip {
 
     async fn set_listener(
         _: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        listener: JvmClassInstanceProxy<PlayListener>,
+        this: JvmClassInstanceHandle<Self>,
+        listener: JvmClassInstanceHandle<PlayListener>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setListener({:?}, {:?})", &this, &listener);
 

@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::JvmClassInstanceProxy,
+    handle::JvmClassInstanceHandle,
     r#impl::{
         java::lang::{Object, String},
         org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
@@ -61,9 +61,9 @@ impl Display {
 
     async fn init(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        jlet: JvmClassInstanceProxy<Jlet>,
-        display_proxy: JvmClassInstanceProxy<Object>,
+        this: JvmClassInstanceHandle<Self>,
+        jlet: JvmClassInstanceHandle<Jlet>,
+        display_proxy: JvmClassInstanceHandle<Object>,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
@@ -82,7 +82,7 @@ impl Display {
         Ok(())
     }
 
-    async fn get_display(context: &mut dyn JavaContext, str: JvmClassInstanceProxy<String>) -> JavaResult<JvmClassInstanceProxy<Self>> {
+    async fn get_display(context: &mut dyn JavaContext, str: JvmClassInstanceHandle<String>) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:?})", &str);
 
         let jlet = context
@@ -95,7 +95,7 @@ impl Display {
         Ok(display)
     }
 
-    async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Display>> {
+    async fn get_default_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceHandle<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let result = context
@@ -111,17 +111,17 @@ impl Display {
         Ok(result)
     }
 
-    async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceProxy<Card>> {
+    async fn get_docked_card(_: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceHandle<Card>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
         Ok(None.into())
     }
 
-    async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>, c: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
+    async fn push_card(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, c: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
         let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &JvmClassInstanceProxy<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card: &JvmClassInstanceHandle<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
 
         if card.is_null() {
             context.jvm().store_array(&cards, 0, [c])?;
@@ -138,8 +138,8 @@ impl Display {
 
     async fn add_jlet_event_listener(
         _: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Display>,
-        qel: JvmClassInstanceProxy<JletEventListener>,
+        this: JvmClassInstanceHandle<Display>,
+        qel: JvmClassInstanceHandle<JletEventListener>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::addJletEventListener({:?}, {:?})", &this, &qel);
 

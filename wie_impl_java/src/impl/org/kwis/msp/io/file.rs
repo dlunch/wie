@@ -2,7 +2,7 @@ use alloc::vec;
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     r#impl::java::lang::String,
     JavaContext, JavaMethodFlag, JavaResult,
 };
@@ -27,8 +27,8 @@ impl File {
 
     async fn init(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        filename: JvmClassInstanceProxy<String>,
+        this: JvmClassInstanceHandle<Self>,
+        filename: JvmClassInstanceHandle<String>,
         mode: i32,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
@@ -41,8 +41,8 @@ impl File {
 
     async fn init_with_flag(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        filename: JvmClassInstanceProxy<String>,
+        this: JvmClassInstanceHandle<Self>,
+        filename: JvmClassInstanceHandle<String>,
         mode: i32,
         flag: i32,
     ) -> JavaResult<()> {
@@ -56,8 +56,8 @@ impl File {
 
     async fn write(
         _context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        buf: JvmClassInstanceProxy<JvmClassInstanceProxy<Array<i8>>>,
+        this: JvmClassInstanceHandle<Self>,
+        buf: JvmClassInstanceHandle<JvmClassInstanceHandle<Array<i8>>>,
         offset: i32,
         len: i32,
     ) -> JavaResult<i32> {
@@ -66,7 +66,7 @@ impl File {
         Ok(len)
     }
 
-    async fn close(_context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Self>) -> JavaResult<()> {
+    async fn close(_context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())

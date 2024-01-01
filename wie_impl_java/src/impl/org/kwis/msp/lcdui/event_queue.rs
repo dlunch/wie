@@ -4,7 +4,7 @@ use wie_base::KeyCode;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaMethodFlag, JavaMethodProto, JavaResult},
-    proxy::{Array, JvmClassInstanceProxy},
+    handle::{Array, JvmClassInstanceHandle},
     r#impl::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
 };
 
@@ -100,7 +100,7 @@ impl EventQueue {
         }
     }
 
-    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceProxy<EventQueue>, jlet: JvmClassInstanceProxy<Jlet>) -> JavaResult<()> {
+    async fn init(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<EventQueue>, jlet: JvmClassInstanceHandle<Jlet>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
@@ -108,8 +108,8 @@ impl EventQueue {
 
     async fn get_next_event(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        event: JvmClassInstanceProxy<Array<i32>>,
+        this: JvmClassInstanceHandle<Self>,
+        event: JvmClassInstanceHandle<Array<i32>>,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
@@ -146,8 +146,8 @@ impl EventQueue {
 
     async fn dispatch_event(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceProxy<Self>,
-        event: JvmClassInstanceProxy<Array<i32>>,
+        this: JvmClassInstanceHandle<Self>,
+        event: JvmClassInstanceHandle<Array<i32>>,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
@@ -175,13 +175,13 @@ impl EventQueue {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display: JvmClassInstanceProxy<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display: JvmClassInstanceHandle<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
         if display.is_null() {
             return Ok(());
         }
 
         let cards = context.jvm().get_field(&display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &JvmClassInstanceProxy<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card: &JvmClassInstanceHandle<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
         if card.is_null() {
             return Ok(());
         }
@@ -200,13 +200,13 @@ impl EventQueue {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display: JvmClassInstanceProxy<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display: JvmClassInstanceHandle<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
         if display.is_null() {
             return Ok(());
         }
 
         let cards = context.jvm().get_field(&display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &JvmClassInstanceProxy<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card: &JvmClassInstanceHandle<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
         if card.is_null() {
             return Ok(());
         }
@@ -227,7 +227,7 @@ impl EventQueue {
             )
             .await?;
 
-        let java_image: JvmClassInstanceProxy<Image> = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let java_image: JvmClassInstanceHandle<Image> = context.jvm().get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
         if !java_image.is_null() {
             let image = Image::image(context, &java_image)?;
