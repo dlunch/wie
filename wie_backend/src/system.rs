@@ -12,34 +12,23 @@ use wie_base::Event;
 
 use crate::{extract_zip, platform::Platform};
 
-use self::{
-    audio::Audio,
-    canvas::{ArgbPixel, Canvas, ImageBuffer},
-    database::DatabaseRepository,
-    resource::Resource,
-    time::Time,
-};
+use self::{audio::Audio, database::DatabaseRepository, resource::Resource, time::Time};
 
 #[derive(Clone)]
 pub struct System {
     platform: Rc<RefCell<Box<dyn Platform>>>,
     database: Rc<RefCell<DatabaseRepository>>,
     resource: Rc<RefCell<Resource>>,
-    screen_canvas: Rc<RefCell<Box<dyn Canvas>>>,
     events: Rc<RefCell<VecDeque<Event>>>,
     audio: Rc<RefCell<Audio>>,
 }
 
 impl System {
-    pub fn new(app_id: &str, mut platform: Box<dyn Platform>) -> Self {
-        let screen = platform.screen();
-        let screen_canvas = ImageBuffer::<ArgbPixel>::new(screen.width(), screen.height());
-
+    pub fn new(app_id: &str, platform: Box<dyn Platform>) -> Self {
         Self {
             platform: Rc::new(RefCell::new(platform)),
             database: Rc::new(RefCell::new(DatabaseRepository::new(app_id))),
             resource: Rc::new(RefCell::new(Resource::new())),
-            screen_canvas: Rc::new(RefCell::new(Box::new(screen_canvas))),
             events: Rc::new(RefCell::new(VecDeque::new())),
             audio: Rc::new(RefCell::new(Audio::new())),
         }
@@ -57,14 +46,8 @@ impl System {
         Time::new(self.platform.clone())
     }
 
-    pub fn screen_canvas(&self) -> RefMut<'_, Box<dyn Canvas>> {
-        (*self.screen_canvas).borrow_mut()
-    }
-
-    pub fn screen(&self) -> ScreenHandle {
-        ScreenHandle {
-            platform: self.platform.clone(),
-        }
+    pub fn platform(&self) -> RefMut<'_, Box<dyn Platform>> {
+        (*self.platform).borrow_mut()
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
@@ -79,10 +62,6 @@ impl System {
         (*self.events).borrow_mut().push_back(event);
     }
 
-    pub fn repaint(&self) -> anyhow::Result<()> {
-        self.screen().repaint(&**self.screen_canvas())
-    }
-
     pub fn mount_zip(&self, zip: &[u8]) -> anyhow::Result<()> {
         let files = extract_zip(zip)?;
 
@@ -92,19 +71,5 @@ impl System {
         }
 
         Ok(())
-    }
-}
-
-pub struct ScreenHandle {
-    platform: Rc<RefCell<Box<dyn Platform>>>,
-}
-
-impl ScreenHandle {
-    pub fn repaint(&self, canvas: &dyn Canvas) -> anyhow::Result<()> {
-        self.platform.borrow_mut().screen().repaint(canvas)
-    }
-
-    pub fn request_redraw(&self) -> anyhow::Result<()> {
-        self.platform.borrow_mut().screen().request_redraw()
     }
 }

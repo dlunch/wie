@@ -238,13 +238,15 @@ impl EventQueue {
             context.jvm().destroy(java_image.into())?;
             context.jvm().put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
 
-            let mut canvas = context.system().screen_canvas();
+            let mut platform = context.system().platform();
+            let screen = platform.screen();
+            let canvas = screen.canvas();
+
             let (width, height) = (canvas.width(), canvas.height());
 
             canvas.draw(0, 0, width, height, &*image, 0, 0);
-            drop(canvas);
 
-            context.system().repaint()?;
+            screen.repaint()?;
         }
 
         Ok(())

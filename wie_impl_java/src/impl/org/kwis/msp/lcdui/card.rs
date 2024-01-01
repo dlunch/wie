@@ -42,7 +42,9 @@ impl Card {
     async fn get_width(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
-        let screen_canvas = context.system().screen_canvas();
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        let screen_canvas = screen.canvas();
 
         Ok(screen_canvas.width() as _)
     }
@@ -50,7 +52,9 @@ impl Card {
     async fn get_height(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
-        let screen_canvas = context.system().screen_canvas();
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        let screen_canvas = screen.canvas();
 
         Ok(screen_canvas.height() as _)
     }
@@ -58,7 +62,9 @@ impl Card {
     async fn repaint(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
-        context.system().screen().request_redraw()?;
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw()?;
 
         Ok(())
     }
@@ -73,7 +79,9 @@ impl Card {
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, a0, a1, a2, a3);
 
-        context.system().screen().request_redraw()?;
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw()?;
 
         Ok(())
     }
@@ -81,7 +89,9 @@ impl Card {
     async fn service_repaints(context: &mut dyn JavaContext, this: JvmClassInstanceProxy<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
-        context.system().screen().request_redraw()?;
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw()?;
 
         Ok(())
     }
