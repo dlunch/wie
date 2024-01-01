@@ -1,9 +1,8 @@
-use crate::canvas::Canvas;
+use crate::canvas::Image;
 
 pub trait Screen {
     fn request_redraw(&self) -> anyhow::Result<()>;
-    fn repaint(&self) -> anyhow::Result<()>;
-    fn canvas(&mut self) -> &mut dyn Canvas;
+    fn paint(&mut self, image: &dyn Image);
     fn width(&self) -> u32;
     fn height(&self) -> u32;
 }

@@ -201,11 +201,8 @@ async fn flush(
 
     let mut platform = context.system().platform();
     let screen = platform.screen();
-    let canvas = screen.canvas();
 
-    canvas.draw(0, 0, framebuffer.width, framebuffer.height, &*src_canvas, 0, 0);
-
-    screen.repaint()?;
+    screen.paint(&*src_canvas);
 
     Ok(())
 }
@@ -233,14 +230,13 @@ async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, o
 
     let mut platform = context.system().platform();
     let screen = platform.screen();
-    let canvas = screen.canvas();
 
     let info = WIPICDisplayInfo {
         bpp: FRAMEBUFFER_DEPTH,
         depth: 16,
-        width: canvas.width(),
-        height: canvas.height(),
-        bpl: 2 * canvas.width(),
+        width: screen.width(),
+        height: screen.height(),
+        bpl: 2 * screen.width(),
         color_type: 1, // 1==MC_GRP_DIRECT_COLOR_TYPE
         red_mask: 0xf800,
         green_mask: 0x7e0,
