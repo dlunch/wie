@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use anyhow::Context;
 
-use wie_backend::{App, Archive, SystemHandle};
+use wie_backend::{App, Archive, System};
 
 use crate::app::KtfApp;
 
@@ -44,8 +44,8 @@ impl Archive for KtfArchive {
         self.id.to_owned()
     }
 
-    fn load_app(&self, system: &mut SystemHandle) -> anyhow::Result<Box<dyn App>> {
-        system.resource_mut().mount_zip(&self.jar)?;
+    fn load_app(&self, system: System) -> anyhow::Result<Box<dyn App>> {
+        system.handle().resource_mut().mount_zip(&self.jar)?;
 
         Ok(Box::new(KtfApp::new(&self.main_class_name, system)?))
     }

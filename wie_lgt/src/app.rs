@@ -3,23 +3,26 @@ use alloc::string::String;
 use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
-use wie_backend::{App, SystemHandle};
+use wie_backend::{App, System, SystemHandle};
+use wie_base::Event;
 use wie_core_arm::{Allocator, ArmCore};
 
 pub struct LgtApp {
     core: ArmCore,
-    system: SystemHandle,
+    system: System,
     entrypoint: u32,
     main_class_name: String,
 }
 
 impl LgtApp {
-    pub fn new(main_class_name: &str, system: &SystemHandle) -> anyhow::Result<Self> {
-        let mut core = ArmCore::new(system.clone())?;
+    pub fn new(main_class_name: &str, system: System) -> anyhow::Result<Self> {
+        let system_handle = system.handle();
+
+        let mut core = ArmCore::new(system_handle.clone())?;
 
         Allocator::init(&mut core)?;
 
-        let resource = system.resource();
+        let resource = system_handle.resource();
         let data = resource.data(resource.id("binary.mod").context("Resource not found")?);
 
         let entrypoint = Self::load(&mut core, data)?;
@@ -28,7 +31,7 @@ impl LgtApp {
 
         Ok(Self {
             core,
-            system: system.clone(),
+            system,
             entrypoint,
             main_class_name,
         })
@@ -77,18 +80,26 @@ impl LgtApp {
 impl App for LgtApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
-        let mut system_clone = self.system.clone();
+        let mut system_handle = self.system.handle();
 
         let entrypoint = self.entrypoint;
         let main_class_name = self.main_class_name.clone();
 
         self.core
-            .spawn(move || async move { Self::do_start(&mut core, &mut system_clone, entrypoint, main_class_name).await });
+            .spawn(move || async move { Self::do_start(&mut core, &mut system_handle, entrypoint, main_class_name).await });
 
         Ok(())
     }
 
     fn crash_dump(&self) -> String {
         self.core.dump_reg_stack(0)
+    }
+
+    fn on_event(&mut self, event: Event) {
+        self.system.handle().event_queue().push(event)
+    }
+
+    fn tick(&mut self) -> anyhow::Result<()> {
+        self.system.tick()
     }
 }

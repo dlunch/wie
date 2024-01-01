@@ -92,24 +92,23 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
     let platform = WieCliPlatform::new(&archive.id(), Box::new(window.handle()));
 
-    let mut system = System::new(Box::new(platform));
-    let mut system_handle = system.handle();
-    let mut app = archive.load_app(&mut system_handle)?;
+    let system = System::new(Box::new(platform));
+    let mut app = archive.load_app(system)?;
 
     app.start()?;
 
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => system.tick().map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
-            WindowCallbackEvent::Redraw => system_handle.event_queue().push(Event::Redraw),
+            WindowCallbackEvent::Update => app.tick().map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
+            WindowCallbackEvent::Redraw => app.on_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    system_handle.event_queue().push(Event::Keydown(keycode));
+                    app.on_event(Event::Keydown(keycode));
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    system_handle.event_queue().push(Event::Keyup(keycode));
+                    app.on_event(Event::Keyup(keycode));
                 }
             }
         }
