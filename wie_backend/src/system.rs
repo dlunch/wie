@@ -4,10 +4,9 @@ mod resource;
 
 use alloc::rc::Rc;
 use core::{
-    cell::{RefCell, RefMut},
+    cell::{Ref, RefCell, RefMut},
     fmt::Debug,
 };
-use std::cell::Ref;
 
 use crate::{
     executor::Executor,

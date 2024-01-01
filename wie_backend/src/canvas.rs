@@ -1,5 +1,4 @@
 use core::mem::size_of;
-use std::io::Cursor;
 
 use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
 use image::io::Reader as ImageReader;
@@ -298,6 +297,8 @@ where
 }
 
 pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
+    use std::io::Cursor;
+
     let image = ImageReader::new(Cursor::new(&data)).with_guessed_format()?.decode()?;
     let rgba = image.into_rgba8();
 
