@@ -9,8 +9,6 @@ use bytemuck::{cast_slice, cast_vec};
 
 use jvm::JavaChar;
 
-use wie_backend::{decode_str, encode_str};
-
 use crate::{
     base::{JavaClassProto, JavaFieldProto, JavaMethodFlag, JavaMethodProto},
     handle::{Array, JvmClassInstanceHandle},
@@ -114,7 +112,7 @@ impl String {
         tracing::debug!("java.lang.String::<init>({:?}, {:?}, {}, {})", &this, &value, offset, count);
 
         let bytes: Vec<i8> = context.jvm().load_array(&value, offset as _, count as _)?;
-        let string = decode_str(cast_slice(&bytes));
+        let string = context.system().decode_str(cast_slice(&bytes));
 
         let utf16 = string.encode_utf16().collect::<Vec<_>>();
 
@@ -172,7 +170,7 @@ impl String {
 
         let string = Self::to_rust_string(context, &this)?;
 
-        let bytes = encode_str(&string);
+        let bytes = context.system().encode_str(&string);
         let bytes: Vec<i8> = cast_vec(bytes);
 
         let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;

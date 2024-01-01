@@ -49,16 +49,3 @@ pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
         })
         .collect::<anyhow::Result<_>>()
 }
-
-// assume system encoding is euc-kr
-pub fn encode_str(string: &str) -> Vec<u8> {
-    use encoding_rs::EUC_KR;
-
-    EUC_KR.encode(string).0.to_vec()
-}
-
-pub fn decode_str(bytes: &[u8]) -> String {
-    use encoding_rs::EUC_KR;
-
-    EUC_KR.decode(bytes).0.to_string()
-}
