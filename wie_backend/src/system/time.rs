@@ -1,6 +1,6 @@
 use core::ops::{Add, Sub};
 
-use time::OffsetDateTime;
+use crate::Platform;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant {
@@ -8,9 +8,8 @@ pub struct Instant {
 }
 
 impl Instant {
-    pub fn from_systemtime(now: OffsetDateTime) -> Self {
-        let epoch = now.unix_timestamp_nanos() / 1000000; // to millis
-        Self { value: epoch as u64 }
+    pub fn from_epoch_millis(epoch: u64) -> Self {
+        Self { value: epoch }
     }
 
     pub fn raw(&self) -> u64 {
@@ -34,17 +33,16 @@ impl Sub for Instant {
     }
 }
 
-#[derive(Default)]
-pub struct Time {}
+pub struct Time<'a> {
+    platform: &'a dyn Platform,
+}
 
-impl Time {
-    pub fn new() -> Self {
-        Self {}
+impl<'a> Time<'a> {
+    pub fn new(platform: &'a dyn Platform) -> Self {
+        Self { platform }
     }
 
     pub fn now(&self) -> Instant {
-        let now = OffsetDateTime::now_utc();
-
-        Instant::from_systemtime(now)
+        self.platform.now()
     }
 }
