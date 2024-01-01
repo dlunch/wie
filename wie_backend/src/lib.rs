@@ -1,6 +1,7 @@
 extern crate alloc;
 
 pub mod canvas;
+mod database;
 mod executor;
 mod platform;
 mod system;
@@ -8,9 +9,10 @@ pub mod task;
 mod time;
 
 pub use self::{
+    database::{Database, DatabaseRepository, RecordId},
     executor::AsyncCallable,
     platform::Platform,
-    system::{database::Database, screen::Screen, System, SystemHandle},
+    system::{screen::Screen, System, SystemHandle},
     time::Instant,
 };
 

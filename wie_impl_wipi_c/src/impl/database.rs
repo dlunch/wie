@@ -1,9 +1,9 @@
-use alloc::{str, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, str, string::String, vec, vec::Vec};
 use core::mem::size_of;
+use wie_backend::Database;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::Database;
 use wie_base::util::{read_generic, write_generic};
 
 use crate::{
@@ -52,7 +52,7 @@ async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICW
     tracing::debug!("MC_dbListRecords({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let db = get_database_from_db_id(context, db_id);
-    let ids = db.get_record_ids()?;
+    let ids = db.get_record_ids();
 
     let mut cursor = 0;
     for &id in &ids {
@@ -69,7 +69,7 @@ async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr
     let data = context.read_bytes(buf_ptr, buf_len)?;
     let mut db = get_database_from_db_id(context, db_id);
 
-    db.set(1, &data)?;
+    db.set(1, &data);
 
     Ok(1)
 }
@@ -81,7 +81,7 @@ async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) 
 
     let result = db.delete(rec_id as _);
 
-    if result.is_ok() {
+    if result {
         Ok(0) // success
     } else {
         Ok(-22) // M_E_BADRECID
@@ -93,7 +93,7 @@ async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr:
 
     let db = get_database_from_db_id(context, db_id);
 
-    if let Ok(x) = db.get(1) {
+    if let Some(x) = db.get(1) {
         if buf_len < x.len() as _ {
             return Ok(-18); // M_E_SHORTBUF
         }
@@ -110,7 +110,7 @@ async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, 
 
     let db = get_database_from_db_id(context, db_id);
 
-    if let Ok(x) = db.get(rec_id as _) {
+    if let Some(x) = db.get(rec_id as _) {
         if buf_len < x.len() as _ {
             return Ok(-18); // M_E_SHORTBUF
         }
@@ -128,13 +128,13 @@ async fn unk16(_context: &mut dyn WIPICContext) -> WIPICResult<i32> {
     Ok(1)
 }
 
-fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Database {
+fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Box<dyn Database> {
     let handle: DatabaseHandle = read_generic(context, db_id as _).unwrap();
 
     let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
     let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
 
-    context.system().database().open(db_name).unwrap()
+    context.system().platform().database_repository().open(db_name)
 }
 
 pub fn get_database_method_table() -> Vec<WIPICMethodBody> {

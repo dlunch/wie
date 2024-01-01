@@ -2732,7 +2732,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytemuck",
- "directories",
  "encoding_rs",
  "image",
  "num-traits",
@@ -2761,6 +2760,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
+ "directories",
  "softbuffer",
  "tracing",
  "tracing-subscriber",
