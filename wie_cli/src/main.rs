@@ -7,13 +7,31 @@ use std::{fs, io::stderr};
 use clap::Parser;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Backend, Executor};
+use wie_backend::{extract_zip, Archive, Backend, Executor, Platform, Window};
 use wie_base::{Event, KeyCode};
 use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
 use wie_skt::SktArchive;
 
 use self::window::{WindowCallbackEvent, WindowImpl};
+
+struct WieCliPlatform {
+    window: WindowImpl,
+}
+
+impl WieCliPlatform {
+    fn new() -> Self {
+        Self {
+            window: WindowImpl::new(240, 320).unwrap(), // TODO hardcoded size
+        }
+    }
+}
+
+impl Platform for WieCliPlatform {
+    fn create_window(&self) -> Box<dyn Window> {
+        Box::new(self.window.proxy())
+    }
+}
 
 #[derive(Parser)]
 struct Args {
@@ -44,17 +62,15 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         anyhow::bail!("Unknown archive format");
     };
 
-    let window = WindowImpl::new(240, 320)?; // TODO hardcoded size
+    let mut platform = WieCliPlatform::new();
 
-    let window_proxy = window.proxy();
-
-    let mut backend = Backend::new(&archive.id(), Box::new(window_proxy));
+    let mut backend = Backend::new(&archive.id(), &mut platform);
     let mut app = archive.load_app(&mut backend)?;
 
     let mut executor = Executor::new();
     app.start()?;
 
-    window.run(move |event| {
+    platform.window.run(move |event| {
         match event {
             WindowCallbackEvent::Update => executor
                 .tick(&backend.time())

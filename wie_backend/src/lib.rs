@@ -2,11 +2,13 @@ extern crate alloc;
 
 mod backend;
 mod executor;
+mod platform;
 pub mod task;
 
 pub use self::{
     backend::{canvas, database::Database, window::Window, Backend},
     executor::{AsyncCallable, Executor},
+    platform::Platform,
 };
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String};

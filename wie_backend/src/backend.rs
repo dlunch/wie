@@ -10,7 +10,7 @@ use core::cell::{Ref, RefCell, RefMut};
 
 use wie_base::Event;
 
-use crate::extract_zip;
+use crate::{extract_zip, platform::Platform};
 
 use self::{
     audio::Audio,
@@ -33,7 +33,8 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub fn new(app_id: &str, window: Box<dyn Window>) -> Self {
+    pub fn new(app_id: &str, platform: &mut dyn Platform) -> Self {
+        let window = platform.create_window();
         let screen_canvas = ImageBuffer::<ArgbPixel>::new(window.width(), window.height());
 
         Self {
