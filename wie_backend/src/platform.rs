@@ -1,6 +1,6 @@
-use crate::{system::time::Instant, Window};
+use crate::{system::time::Instant, Screen};
 
 pub trait Platform {
-    fn window(&self) -> &dyn Window;
+    fn screen(&self) -> &dyn Screen;
     fn now(&self) -> Instant;
 }

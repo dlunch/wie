@@ -10,7 +10,7 @@ use winit::{
     window::{Window as WinitWindow, WindowBuilder},
 };
 
-use wie_backend::{canvas::Canvas, Window};
+use wie_backend::{canvas::Canvas, Screen};
 
 #[derive(Debug)]
 pub enum WindowInternalEvent {
@@ -38,7 +38,7 @@ impl WindowProxy {
     }
 }
 
-impl Window for WindowProxy {
+impl Screen for WindowProxy {
     fn request_redraw(&self) -> anyhow::Result<()> {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
