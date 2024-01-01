@@ -1,5 +1,4 @@
 mod audio;
-pub mod canvas;
 pub mod database;
 mod resource;
 pub mod screen;
