@@ -20,7 +20,7 @@ impl Archive for J2MEArchive {
     }
 
     fn load_app(&self, system: &mut SystemHandle) -> anyhow::Result<Box<dyn App>> {
-        system.mount_zip(&self.jar)?;
+        system.resource_mut().mount_zip(&self.jar)?;
 
         Ok(Box::new(J2MEApp::new("", system)?))
     }

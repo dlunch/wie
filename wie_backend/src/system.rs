@@ -4,11 +4,12 @@ mod resource;
 
 use alloc::rc::Rc;
 use core::{
-    cell::{Ref, RefCell, RefMut},
+    cell::{RefCell, RefMut},
     fmt::Debug,
 };
+use std::cell::Ref;
 
-use crate::{executor::Executor, extract_zip, platform::Platform, AsyncCallable};
+use crate::{executor::Executor, platform::Platform, AsyncCallable};
 
 use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
 
@@ -74,6 +75,10 @@ impl SystemHandle {
         Ref::map(self.system_inner.borrow(), |s| &s.resource)
     }
 
+    pub fn resource_mut(&self) -> RefMut<'_, Resource> {
+        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.resource)
+    }
+
     pub fn platform(&self) -> RefMut<'_, Box<dyn Platform>> {
         RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.platform)
     }
@@ -84,16 +89,5 @@ impl SystemHandle {
 
     pub fn event_queue(&self) -> RefMut<'_, EventQueue> {
         RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.event_queue)
-    }
-
-    pub fn mount_zip(&self, zip: &[u8]) -> anyhow::Result<()> {
-        let files = extract_zip(zip)?;
-
-        let resource = &mut self.system_inner.borrow_mut().resource;
-        for (path, data) in files {
-            resource.add(&path, data);
-        }
-
-        Ok(())
     }
 }
