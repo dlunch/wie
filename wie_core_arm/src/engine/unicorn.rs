@@ -28,8 +28,6 @@ impl UnicornEngine {
     }
 
     #[allow(dead_code)]
-    #[allow(unknown_lints)]
-    #[allow(clippy::needless_pass_by_ref_mut)]
     fn code_hook(uc: &mut Unicorn<'_, ()>, address: u64, size: u32) {
         let insn = uc.mem_read_as_vec(address, size as usize).unwrap();
         let cpsr = uc.reg_read(RegisterARM::CPSR).unwrap();
@@ -57,8 +55,6 @@ impl UnicornEngine {
         tracing::trace!("{}\n{}", insn_str, ArmCore::dump_regs_inner(&engine));
     }
 
-    #[allow(unknown_lints)]
-    #[allow(clippy::needless_pass_by_ref_mut)]
     fn mem_hook(uc: &mut Unicorn<'_, ()>, mem_type: MemType, address: u64, size: usize, value: i64) -> bool {
         let pc = uc.reg_read(RegisterARM::PC).unwrap();
         let lr = uc.reg_read(RegisterARM::LR).unwrap();

@@ -22,9 +22,8 @@ impl J2MEApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    #[allow(unused_variables)]
     #[allow(clippy::await_holding_refcell_ref)]
-    async fn do_start(core: &mut JvmCore, system: &mut SystemHandle, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut JvmCore, _system: &mut SystemHandle, main_class_name: String) -> anyhow::Result<()> {
         let normalized_class_name = main_class_name.replace('.', "/");
 
         core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;
