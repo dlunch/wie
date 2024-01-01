@@ -6,14 +6,6 @@ use core::{
 
 use crate::{executor::Executor, time::Instant};
 
-pub fn sleep(until: Instant) -> SleepFuture {
-    SleepFuture::new(until)
-}
-
-pub fn yield_now() -> YieldFuture {
-    YieldFuture {}
-}
-
 pub struct YieldFuture {}
 
 impl Future for YieldFuture {

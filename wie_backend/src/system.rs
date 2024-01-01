@@ -9,7 +9,12 @@ use core::{
 };
 use std::cell::Ref;
 
-use crate::{executor::Executor, platform::Platform, AsyncCallable};
+use crate::{
+    executor::Executor,
+    platform::Platform,
+    task::{SleepFuture, YieldFuture},
+    AsyncCallable, Instant,
+};
 
 use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
 
@@ -69,6 +74,14 @@ impl SystemHandle {
     {
         let mut executor = Executor::current();
         executor.spawn(callable);
+    }
+
+    pub fn sleep(&self, until: Instant) -> SleepFuture {
+        SleepFuture::new(until)
+    }
+
+    pub fn yield_now(&self) -> YieldFuture {
+        YieldFuture {}
     }
 
     // TODO add encoding configuration..

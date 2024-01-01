@@ -2,8 +2,6 @@ use alloc::{boxed::Box, format, string::String, vec};
 
 use jvm::JavaValue;
 
-use wie_backend::task;
-
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     handle::JvmClassInstanceHandle,
@@ -72,16 +70,18 @@ impl Thread {
         Ok(())
     }
 
-    async fn sleep(context: &mut dyn JavaContext, a0: i64) -> JavaResult<i32> {
-        tracing::debug!("Thread::sleep({:?})", a0);
-        context.sleep(a0 as u64).await;
+    async fn sleep(context: &mut dyn JavaContext, duration: i64) -> JavaResult<i32> {
+        tracing::debug!("Thread::sleep({:?})", duration);
+
+        let until = context.system().platform().now() + duration as _;
+        context.system().sleep(until).await;
 
         Ok(0)
     }
 
-    async fn r#yield(_: &mut dyn JavaContext) -> JavaResult<i32> {
+    async fn r#yield(context: &mut dyn JavaContext) -> JavaResult<i32> {
         tracing::debug!("Thread::yield()");
-        task::yield_now().await;
+        context.system().yield_now().await;
 
         Ok(0)
     }

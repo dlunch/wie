@@ -17,10 +17,7 @@ use bytemuck::{Pod, Zeroable};
 
 use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
-use wie_backend::{
-    task::{self, SleepFuture},
-    AsyncCallable, SystemHandle,
-};
+use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
 use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult};
 
@@ -181,11 +178,5 @@ impl JavaContext for KtfJavaContext<'_> {
         });
 
         Ok(())
-    }
-
-    fn sleep(&mut self, duration: u64) -> SleepFuture {
-        let until = self.system.platform().now() + duration;
-
-        task::sleep(until)
     }
 }

@@ -137,7 +137,8 @@ impl EventQueue {
 
                 break;
             } else {
-                context.sleep(16).await; // TODO we need to wait for events
+                let until = context.system().platform().now() + 16;
+                context.system().sleep(until).await; // TODO we need to wait for events
             }
         }
 
