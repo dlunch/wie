@@ -1,5 +1,6 @@
 mod audio;
 mod event_queue;
+mod random;
 mod resource;
 
 use alloc::rc::Rc;
@@ -15,13 +16,14 @@ use crate::{
     AsyncCallable, Instant,
 };
 
-use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
+use self::{audio::Audio, event_queue::EventQueue, random::Random, resource::Resource};
 
 pub struct SystemInner {
     platform: Box<dyn Platform>,
     resource: Resource,
     event_queue: EventQueue,
     audio: Audio,
+    random: Random,
 }
 
 pub struct System {
@@ -32,6 +34,7 @@ pub struct System {
 impl System {
     pub fn new(platform: Box<dyn Platform>) -> Self {
         let audio_sink = platform.audio_sink();
+        let seed = 12341234; // TODO get seed from outside
 
         Self {
             executor: Executor::new(),
@@ -40,6 +43,7 @@ impl System {
                 resource: Resource::new(),
                 event_queue: EventQueue::new(),
                 audio: Audio::new(audio_sink),
+                random: Random::new(seed),
             })),
         }
     }
@@ -115,5 +119,9 @@ impl SystemHandle {
 
     pub fn event_queue(&self) -> RefMut<'_, EventQueue> {
         RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.event_queue)
+    }
+
+    pub fn random(&self) -> RefMut<'_, Random> {
+        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.random)
     }
 }
