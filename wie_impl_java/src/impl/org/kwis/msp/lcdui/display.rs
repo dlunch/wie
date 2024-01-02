@@ -1,12 +1,16 @@
-use alloc::vec;
+use alloc::{boxed::Box, vec};
+
+use jvm::JavaValue;
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
     handle::JvmClassInstanceHandle,
+    method::MethodBody,
     r#impl::{
-        java::lang::{Object, String},
+        java::lang::{Object, Runnable, String},
         org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
     },
+    JavaError,
 };
 
 // class org.kwis.msp.lcdui.Display
@@ -52,6 +56,7 @@ impl Display {
                 ),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
+                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
@@ -162,5 +167,31 @@ impl Display {
         let height: i32 = context.jvm().get_field(&this, "m_h", "I")?;
 
         Ok(height)
+    }
+
+    async fn call_serially(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, r: JvmClassInstanceHandle<Runnable>) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({:?}, {:?})", &this, &r);
+
+        // TODO this method have to queue runnable in event queue, but for now we'll spawn new task
+
+        struct SpawnProxy {
+            runnable: JvmClassInstanceHandle<Runnable>,
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl MethodBody<JavaError> for SpawnProxy {
+            async fn call(&self, context: &mut dyn JavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+                context
+                    .jvm()
+                    .invoke_virtual(&self.runnable, "java/lang/Runnable", "run", "()V", ())
+                    .await?;
+
+                Ok(JavaValue::Void)
+            }
+        }
+
+        context.spawn(Box::new(SpawnProxy { runnable: r }))?;
+
+        Ok(())
     }
 }
