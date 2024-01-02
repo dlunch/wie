@@ -18,6 +18,7 @@ impl ByteArrayInputStream {
                 JavaMethodProto::new("<init>", "([B)V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("available", "()I", Self::available, JavaMethodFlag::NONE),
                 JavaMethodProto::new("read", "([BII)I", Self::read, JavaMethodFlag::NONE),
+                JavaMethodProto::new("read", "()I", Self::read_byte, JavaMethodFlag::NONE),
                 JavaMethodProto::new("close", "()V", Self::close, JavaMethodFlag::NONE),
             ],
             fields: vec![
@@ -78,6 +79,24 @@ impl ByteArrayInputStream {
         context.jvm().put_field(&this, "pos", "I", pos + len)?;
 
         Ok(len)
+    }
+
+    async fn read_byte(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i8> {
+        tracing::debug!("java.lang.ByteArrayInputStream::readByte({:?})", &this);
+
+        let buf = context.jvm().get_field(&this, "buf", "[B")?;
+        let buf_length = context.jvm().array_length(&buf)?;
+        let pos: i32 = context.jvm().get_field(&this, "pos", "I")?;
+
+        if pos as usize >= buf_length {
+            return Ok(-1);
+        }
+
+        let result: i8 = context.jvm().load_array(&buf, pos as _, 1)?[0];
+
+        context.jvm().put_field(&this, "pos", "I", pos + 1)?;
+
+        Ok(result)
     }
 
     async fn close(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<ByteArrayInputStream>) -> JavaResult<()> {

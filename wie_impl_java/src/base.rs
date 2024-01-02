@@ -167,6 +167,16 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     })
 }
 
+impl TypeConverter<i8> for i8 {
+    fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i8 {
+        raw.into()
+    }
+
+    fn from_rust(_: &mut dyn JavaContext, rust: i8) -> JavaValue {
+        rust.into()
+    }
+}
+
 impl TypeConverter<i32> for i32 {
     fn to_rust(_: &mut dyn JavaContext, raw: JavaValue) -> i32 {
         raw.into()
