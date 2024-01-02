@@ -115,6 +115,7 @@ pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
         "java/lang/IndexOutOfBoundsException" => crate::r#impl::java::lang::IndexOutOfBoundsException::as_proto(),
         "java/lang/Integer" => crate::r#impl::java::lang::Integer::as_proto(),
         "java/lang/InterruptedException" => crate::r#impl::java::lang::InterruptedException::as_proto(),
+        "java/lang/Math" => crate::r#impl::java::lang::Math::as_proto(),
         "java/lang/NullPointerException" => crate::r#impl::java::lang::NullPointerException::as_proto(),
         "java/lang/Object" => crate::r#impl::java::lang::Object::as_proto(),
         "java/lang/Runnable" => crate::r#impl::java::lang::Runnable::as_proto(),
