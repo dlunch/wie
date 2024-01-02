@@ -12,3 +12,6 @@ tracing = { workspace = true }
 
 wie_base = { path = "../wie_base" }
 wie_backend = { path = "../wie_backend" }
+
+[dev-dependencies]
+futures-test = { version = "^0.3" }
