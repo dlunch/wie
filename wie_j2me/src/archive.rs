@@ -31,12 +31,12 @@ impl Archive for J2MEArchive {
         self.manifest.name.clone()
     }
 
-    fn load_app(&self, system: System) -> anyhow::Result<Box<dyn App>> {
+    fn load_app(self: Box<Self>, system: System) -> anyhow::Result<Box<dyn App>> {
         let system_handle = system.handle();
         let mut resource = system_handle.resource_mut();
 
-        for (path, data) in &self.files {
-            resource.add(path, data.clone());
+        for (path, data) in self.files {
+            resource.add(&path, data);
         }
 
         Ok(Box::new(J2MEApp::new(&self.manifest.main_class_name, system)?))
