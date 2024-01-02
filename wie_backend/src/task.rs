@@ -17,13 +17,14 @@ impl Future for YieldFuture {
 }
 
 pub struct SleepFuture {
-    until: Instant,
-    registered: bool,
+    polled: bool,
 }
 
 impl SleepFuture {
-    pub fn new(until: Instant) -> Self {
-        Self { until, registered: false }
+    pub fn new(until: Instant, executor: &mut Executor) -> Self {
+        executor.sleep(until);
+
+        Self { polled: false }
     }
 }
 
@@ -31,10 +32,8 @@ impl Future for SleepFuture {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.registered {
-            Executor::current().sleep(self.until);
-
-            self.registered = true;
+        if !self.polled {
+            self.polled = true;
 
             Poll::Pending
         } else {

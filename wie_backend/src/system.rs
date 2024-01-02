@@ -76,7 +76,7 @@ impl SystemHandle {
     }
 
     pub fn sleep(&self, until: Instant) -> SleepFuture {
-        SleepFuture::new(until)
+        SleepFuture::new(until, &mut Executor::current())
     }
 
     pub fn yield_now(&self) -> YieldFuture {
