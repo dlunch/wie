@@ -24,6 +24,7 @@ impl File {
                 JavaMethodProto::new("write", "([BII)I", Self::write, JavaMethodFlag::NONE),
                 JavaMethodProto::new("read", "([B)I", Self::read, JavaMethodFlag::NONE),
                 JavaMethodProto::new("close", "()V", Self::close, JavaMethodFlag::NONE),
+                JavaMethodProto::new("sizeOf", "()I", Self::size_of, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("data", "[B", JavaFieldAccessFlag::NONE),
@@ -116,5 +117,14 @@ impl File {
         tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())
+    }
+
+    async fn size_of(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
+
+        let data_array = context.jvm().get_field(&this, "data", "[B")?;
+        let data_len = context.jvm().array_length(&data_array)?;
+
+        Ok(data_len as _)
     }
 }
