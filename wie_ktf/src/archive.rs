@@ -10,6 +10,7 @@ pub struct KtfArchive {
     jar: Vec<u8>,
     id: String,
     main_class_name: String,
+    additional_files: BTreeMap<String, Vec<u8>>,
 }
 
 impl KtfArchive {
@@ -25,16 +26,17 @@ impl KtfArchive {
 
         let jar = files.remove(&format!("{}.jar", adf.aid)).context("Invalid format")?;
 
-        // TODO load resource on P directory
+        let additional_files = files.into_iter().filter(|x| x.0.starts_with("P/")).collect();
 
-        Ok(Self::from_jar(jar, &adf.aid, &adf.mclass))
+        Ok(Self::from_jar(jar, adf.aid, adf.mclass, additional_files))
     }
 
-    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: &str) -> Self {
+    pub fn from_jar(data: Vec<u8>, id: String, main_class_name: String, additional_files: BTreeMap<String, Vec<u8>>) -> Self {
         Self {
             jar: data,
-            id: id.into(),
-            main_class_name: main_class_name.into(),
+            id,
+            main_class_name,
+            additional_files,
         }
     }
 }
@@ -46,6 +48,10 @@ impl Archive for KtfArchive {
 
     fn load_app(&self, system: System) -> anyhow::Result<Box<dyn App>> {
         system.handle().resource_mut().mount_zip(&self.jar)?;
+
+        for (path, data) in &self.additional_files {
+            system.handle().resource_mut().add(path, data.clone());
+        }
 
         Ok(Box::new(KtfApp::new(&self.main_class_name, system)?))
     }
