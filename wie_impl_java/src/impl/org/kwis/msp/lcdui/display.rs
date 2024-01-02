@@ -57,6 +57,7 @@ impl Display {
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, JavaMethodFlag::STATIC),
             ],
             fields: vec![
                 JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
@@ -196,5 +197,20 @@ impl Display {
         context.spawn(Box::new(SpawnProxy { runnable: r }))?;
 
         Ok(())
+    }
+
+    async fn get_game_action(_: &mut dyn JavaContext, key: i32) -> JavaResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::getGameAction({})", key);
+
+        let action = match key {
+            -1 => 1, // UP
+            -2 => 6, // DOWN
+            -3 => 2, // LEFT
+            -4 => 5, // RIGHT
+            -5 => 8, // FIRE,
+            _ => 0,
+        };
+
+        Ok(action)
     }
 }
