@@ -19,6 +19,7 @@ impl DataInputStream {
                 JavaMethodProto::new("<init>", "(Ljava/io/InputStream;)V", Self::init, JavaMethodFlag::NONE),
                 JavaMethodProto::new("available", "()I", Self::available, JavaMethodFlag::NONE),
                 JavaMethodProto::new("read", "([BII)I", Self::read, JavaMethodFlag::NONE),
+                JavaMethodProto::new("readByte", "()B", Self::read_byte, JavaMethodFlag::NONE),
                 JavaMethodProto::new("close", "()V", Self::close, JavaMethodFlag::NONE),
             ],
             fields: vec![JavaFieldProto::new("in", "Ljava/io/InputStream;", JavaFieldAccessFlag::NONE)],
@@ -58,6 +59,15 @@ impl DataInputStream {
             .await?;
 
         Ok(result)
+    }
+
+    async fn read_byte(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i8> {
+        tracing::debug!("java.lang.DataInputStream::readByte({:?})", &this);
+
+        let r#in = context.jvm().get_field(&this, "in", "Ljava/io/InputStream;")?;
+        let result: i32 = context.jvm().invoke_virtual(&r#in, "java/io/InputStream", "read", "()I", []).await?;
+
+        Ok(result as _)
     }
 
     async fn close(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
