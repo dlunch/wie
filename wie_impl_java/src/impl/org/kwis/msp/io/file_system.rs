@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{format, vec};
 
 use crate::{
     base::{JavaClassProto, JavaMethodProto},
@@ -37,10 +37,17 @@ impl FileSystem {
         Ok(true)
     }
 
-    async fn exists(_context: &mut dyn JavaContext, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
+    async fn exists(context: &mut dyn JavaContext, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
-        Ok(false)
+        let filename = String::to_rust_string(context, &name)?;
+
+        // emulating filesystem by resource..
+        let filename_on_resource = format!("P{}", filename);
+
+        let id = context.system().resource().id(&filename_on_resource);
+
+        Ok(id.is_some())
     }
 
     async fn available(_context: &mut dyn JavaContext) -> JavaResult<i32> {
