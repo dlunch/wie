@@ -2856,6 +2856,7 @@ dependencies = [
  "async-trait",
  "bitflags 2.4.1",
  "bytemuck",
+ "futures-test",
  "jvm",
  "tracing",
  "wie_backend",
