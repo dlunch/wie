@@ -10,11 +10,6 @@ use std::collections::HashMap;
 
 use crate::time::Instant;
 
-thread_local! {
-    #[allow(clippy::type_complexity)]
-    pub static GLOBAL_EXECUTOR: RefCell<Option<Rc<RefCell<ExecutorInner>>>> = RefCell::new(None);
-}
-
 type Task = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
 
 pub struct ExecutorInner {
@@ -42,26 +37,20 @@ where
 }
 
 // Executor polling every future until it is ready to implement generator using async ecosystem
+#[derive(Clone)]
 pub struct Executor {
     inner: Rc<RefCell<ExecutorInner>>,
 }
 
 impl Executor {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        assert!(GLOBAL_EXECUTOR.with(|f| f.borrow().is_none()));
-
         let inner = Rc::new(RefCell::new(ExecutorInner {
             current_task_id: None,
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
             last_task_id: 0,
         }));
-
-        let inner1 = inner.clone();
-
-        GLOBAL_EXECUTOR.with(|f| {
-            f.borrow_mut().replace(inner1);
-        });
 
         Self { inner }
     }
@@ -86,13 +75,6 @@ impl Executor {
         self.inner.borrow_mut().tasks.insert(task_id, Box::pin(fut));
 
         task_id
-    }
-
-    pub(crate) fn current() -> Executor {
-        GLOBAL_EXECUTOR.with(|f| {
-            let inner = f.borrow().as_ref().unwrap().clone();
-            Self { inner }
-        })
     }
 
     pub fn tick<T>(&mut self, now: T) -> anyhow::Result<()>
@@ -179,21 +161,5 @@ impl Executor {
         }
 
         unsafe { Waker::from_raw(noop_raw_waker()) }
-    }
-}
-
-impl Default for Executor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Drop for Executor {
-    fn drop(&mut self) {
-        if Rc::strong_count(&self.inner) == 2 {
-            GLOBAL_EXECUTOR.with(|f| {
-                f.borrow_mut().take();
-            });
-        }
     }
 }
