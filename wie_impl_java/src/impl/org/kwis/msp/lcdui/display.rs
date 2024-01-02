@@ -185,6 +185,9 @@ impl Display {
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for SpawnProxy {
             async fn call(&self, context: &mut dyn JavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+                let until = context.system().platform().now() + 8;
+                context.system().sleep(until).await;
+
                 context
                     .jvm()
                     .invoke_virtual(&self.runnable, "java/lang/Runnable", "run", "()V", ())
