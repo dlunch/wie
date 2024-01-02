@@ -137,8 +137,11 @@ impl Display {
         Ok(())
     }
 
-    async fn remove_all_cards(_: &mut dyn JavaContext) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Display::removeAllCards");
+    async fn remove_all_cards(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards");
+
+        let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        context.jvm().store_array(&cards, 0, [None])?;
 
         Ok(())
     }
