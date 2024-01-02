@@ -46,11 +46,11 @@ impl Archive for KtfArchive {
         self.id.to_owned()
     }
 
-    fn load_app(&self, system: System) -> anyhow::Result<Box<dyn App>> {
+    fn load_app(self: Box<Self>, system: System) -> anyhow::Result<Box<dyn App>> {
         system.handle().resource_mut().mount_zip(&self.jar)?;
 
-        for (path, data) in &self.additional_files {
-            system.handle().resource_mut().add(path, data.clone());
+        for (path, data) in self.additional_files {
+            system.handle().resource_mut().add(&path, data.clone());
         }
 
         Ok(Box::new(KtfApp::new(&self.main_class_name, system)?))

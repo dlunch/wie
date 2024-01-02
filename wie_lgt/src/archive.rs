@@ -42,7 +42,7 @@ impl Archive for LgtArchive {
         self.id.to_owned()
     }
 
-    fn load_app(&self, system: System) -> anyhow::Result<Box<dyn App>> {
+    fn load_app(self: Box<Self>, system: System) -> anyhow::Result<Box<dyn App>> {
         system.handle().resource_mut().mount_zip(&self.jar)?;
 
         Ok(Box::new(LgtApp::new(&self.main_class_name, system)?))
