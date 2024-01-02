@@ -55,6 +55,7 @@ impl System {
 
     pub fn handle(&self) -> SystemHandle {
         SystemHandle {
+            executor: self.executor.clone(),
             system_inner: self.inner.clone(),
         }
     }
@@ -62,21 +63,21 @@ impl System {
 
 #[derive(Clone)]
 pub struct SystemHandle {
+    executor: Executor,
     system_inner: Rc<RefCell<SystemInner>>,
 }
 
 impl SystemHandle {
-    pub fn spawn<C, R, E>(&self, callable: C)
+    pub fn spawn<C, R, E>(&mut self, callable: C)
     where
         C: AsyncCallable<R, E> + 'static,
         E: Debug,
     {
-        let mut executor = Executor::current();
-        executor.spawn(callable);
+        self.executor.spawn(callable);
     }
 
-    pub fn sleep(&self, until: Instant) -> SleepFuture {
-        SleepFuture::new(until, &mut Executor::current())
+    pub fn sleep(&mut self, until: Instant) -> SleepFuture {
+        SleepFuture::new(until, &mut self.executor)
     }
 
     pub fn yield_now(&self) -> YieldFuture {
