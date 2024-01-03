@@ -92,7 +92,7 @@ impl ByteArrayInputStream {
             return Ok(-1);
         }
 
-        let result: i8 = context.jvm().load_array(&buf, pos as _, 1)?[0];
+        let result = context.jvm().load_byte_array(&buf, pos as _, 1)?[0];
 
         context.jvm().put_field(&this, "pos", "I", pos + 1)?;
 

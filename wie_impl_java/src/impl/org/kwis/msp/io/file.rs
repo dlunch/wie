@@ -1,4 +1,4 @@
-use alloc::{format, vec, vec::Vec};
+use alloc::{format, vec};
 use core::cmp::min;
 
 use bytemuck::cast_slice;
@@ -70,11 +70,11 @@ impl File {
         let resource = context.system().resource();
         let data = resource.data(resource.id(&filename_on_resource).unwrap());
 
-        let data: Vec<i8> = cast_slice(data).to_vec();
+        let data = cast_slice(data).to_vec();
         drop(resource);
 
         let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_array(&data_array, 0, data)?;
+        context.jvm().store_byte_array(&data_array, 0, data)?;
 
         context.jvm().put_field(&this, "data", "[B", data_array)?;
         context.jvm().put_field(&this, "pos", "I", 0)?;
@@ -105,8 +105,8 @@ impl File {
 
         let length_to_read = min(data_len - pos as usize, buf_len);
 
-        let data: Vec<i8> = context.jvm().load_array(&data_array, pos as _, length_to_read)?;
-        context.jvm().store_array(&buf, 0, data)?;
+        let data = context.jvm().load_byte_array(&data_array, pos as _, length_to_read)?;
+        context.jvm().store_byte_array(&buf, 0, data)?;
 
         context.jvm().put_field(&this, "pos", "I", pos + length_to_read as i32)?;
 

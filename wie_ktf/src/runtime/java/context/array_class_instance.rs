@@ -1,6 +1,8 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::fmt::{self, Debug, Formatter};
 
+use bytemuck::cast_vec;
+
 use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
@@ -32,7 +34,7 @@ impl JavaArrayClassInstance {
         Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
-    pub fn load_array(&self, offset: usize, count: usize) -> JavaResult<Vec<JavaValue>> {
+    pub fn load_array(&self, offset: usize, count: usize) -> JavaResult<Vec<u8>> {
         let array_length = self.array_length()?;
         if offset + count > array_length {
             anyhow::bail!("Array index out of bounds");
@@ -45,47 +47,19 @@ impl JavaArrayClassInstance {
             .core
             .read_bytes(base_address + (element_size * offset) as u32, (count * element_size) as _)?;
 
-        let element_type = self.element_type()?;
-
-        Ok(match element_size {
-            1 => values_raw
-                .into_iter()
-                .map(|x| JavaValue::from_raw(x as _, &element_type, &self.core))
-                .collect::<Vec<_>>(),
-            2 => values_raw
-                .chunks(2)
-                .map(|x| JavaValue::from_raw(u16::from_le_bytes(x.try_into().unwrap()) as _, &element_type, &self.core))
-                .collect::<Vec<_>>(),
-            4 => values_raw
-                .chunks(4)
-                .map(|x| JavaValue::from_raw(u32::from_le_bytes(x.try_into().unwrap()) as _, &element_type, &self.core))
-                .collect::<Vec<_>>(),
-            _ => todo!(),
-        })
+        Ok(values_raw)
     }
 
-    pub fn store_array(&mut self, offset: usize, values: Vec<JavaValue>) -> JavaResult<()> {
+    pub fn store_array(&mut self, offset: usize, count: usize, values_raw: Vec<u8>) -> JavaResult<()> {
         let array_length = self.array_length()?;
-        if offset + values.len() > array_length {
+        if offset + count > array_length {
             anyhow::bail!("Array index out of bounds");
         }
 
         let base_address = self.class_instance.field_address(4)?;
-
         let element_size = self.element_size()?;
 
-        let raw_values = match element_size {
-            1 => values.into_iter().map(|x| x.as_raw() as u8).collect::<Vec<_>>(),
-            2 => values
-                .into_iter()
-                .map(|x| x.as_raw() as u16)
-                .flat_map(u16::to_le_bytes)
-                .collect::<Vec<_>>(),
-            4 => values.into_iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
-            _ => todo!(),
-        };
-
-        self.core.write_bytes(base_address + (element_size * offset) as u32, &raw_values)
+        self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)
     }
 
     pub fn array_length(&self) -> JavaResult<usize> {
@@ -136,11 +110,59 @@ impl ClassInstance for JavaArrayClassInstance {
 
 impl ArrayClassInstance for JavaArrayClassInstance {
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
-        self.store_array(offset as _, values.to_vec())
+        let element_size = self.element_size()?;
+
+        let values = values.to_vec();
+        let count = values.len();
+
+        let raw_values = match element_size {
+            1 => values.into_iter().map(|x| x.as_raw() as u8).collect::<Vec<_>>(),
+            2 => values
+                .into_iter()
+                .map(|x| x.as_raw() as u16)
+                .flat_map(u16::to_le_bytes)
+                .collect::<Vec<_>>(),
+            4 => values.into_iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
+            _ => todo!(),
+        };
+
+        self.store_array(offset as _, count, raw_values)
     }
 
     fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
-        self.load_array(offset as _, count as _)
+        let values_raw = self.load_array(offset as _, count as _)?;
+
+        let element_type = self.element_type()?;
+        let element_size = self.element_size()?;
+
+        Ok(match element_size {
+            1 => values_raw
+                .into_iter()
+                .map(|x| JavaValue::from_raw(x as _, &element_type, &self.core))
+                .collect::<Vec<_>>(),
+            2 => values_raw
+                .chunks(2)
+                .map(|x| JavaValue::from_raw(u16::from_le_bytes(x.try_into().unwrap()) as _, &element_type, &self.core))
+                .collect::<Vec<_>>(),
+            4 => values_raw
+                .chunks(4)
+                .map(|x| JavaValue::from_raw(u32::from_le_bytes(x.try_into().unwrap()) as _, &element_type, &self.core))
+                .collect::<Vec<_>>(),
+            _ => todo!(),
+        })
+    }
+
+    fn store_bytes(&mut self, offset: usize, values: Box<[i8]>) -> JvmResult<()> {
+        let values = values.to_vec();
+        let count = values.len();
+
+        self.store_array(offset as _, count, cast_vec(values))
+    }
+
+    fn load_bytes(&self, offset: usize, count: usize) -> JvmResult<Vec<i8>> {
+        let values_raw = self.load_array(offset as _, count as _)?;
+
+        Ok(cast_vec(values_raw))
     }
 
     fn length(&self) -> usize {
