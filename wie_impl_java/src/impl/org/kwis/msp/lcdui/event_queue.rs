@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use wie_base::KeyCode;
 
@@ -171,43 +171,31 @@ impl EventQueue {
     }
 
     async fn key_event(context: &mut dyn JavaContext, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
-        let jlet = context
-            .jvm()
-            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
-            .await?;
-
-        let display: JvmClassInstanceHandle<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = Self::get_current_display(context).await?;
         if display.is_null() {
             return Ok(());
         }
 
-        let cards = context.jvm().get_field(&display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &JvmClassInstanceHandle<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card = Self::get_top_card(context, &display)?;
         if card.is_null() {
             return Ok(());
         }
 
         let _: bool = context
             .jvm()
-            .invoke_virtual(card, "org/kwis/msp/lcdui/Card", "keyNotify", "(II)Z", (event_type as i32, code))
+            .invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "keyNotify", "(II)Z", (event_type as i32, code))
             .await?;
 
         Ok(())
     }
 
     async fn repaint(context: &mut dyn JavaContext) -> JavaResult<()> {
-        let jlet = context
-            .jvm()
-            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
-            .await?;
-
-        let display: JvmClassInstanceHandle<Display> = context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = Self::get_current_display(context).await?;
         if display.is_null() {
             return Ok(());
         }
 
-        let cards = context.jvm().get_field(&display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &JvmClassInstanceHandle<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card = Self::get_top_card(context, &display)?;
         if card.is_null() {
             return Ok(());
         }
@@ -220,7 +208,7 @@ impl EventQueue {
         context
             .jvm()
             .invoke_virtual(
-                card,
+                &card,
                 "org/kwis/msp/lcdui/Card",
                 "paint",
                 "(Lorg/kwis/msp/lcdui/Graphics;)V",
@@ -246,5 +234,26 @@ impl EventQueue {
         }
 
         Ok(())
+    }
+
+    async fn get_current_display(context: &mut dyn JavaContext) -> JavaResult<JvmClassInstanceHandle<Display>> {
+        let jlet = context
+            .jvm()
+            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
+            .await?;
+
+        context.jvm().get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")
+    }
+
+    fn get_top_card(context: &mut dyn JavaContext, display: &JvmClassInstanceHandle<Display>) -> JavaResult<JvmClassInstanceHandle<Card>> {
+        let cards = context.jvm().get_field(display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
+        let card_size: i32 = context.jvm().get_field(display, "szCard", "I")?;
+
+        if card_size > 0 {
+            let card_data: Vec<JvmClassInstanceHandle<Card>> = context.jvm().load_array(&cards, 0, card_size as _)?;
+            Ok(card_data[card_size as usize - 1].clone().into())
+        } else {
+            Ok(None.into())
+        }
     }
 }
