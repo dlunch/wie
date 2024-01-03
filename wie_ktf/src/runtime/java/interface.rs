@@ -173,6 +173,8 @@ async fn jb_unk8(_: &mut ArmCore, _: &mut SystemHandle, a0: u32) -> anyhow::Resu
 async fn call_native(core: &mut ArmCore, _: &mut SystemHandle, address: u32, ptr_data: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
+    anyhow::ensure!(address != 0, "jump native address is null");
+
     let result = core.run_function::<u32>(address, &[ptr_data]).await?;
 
     write_generic(core, ptr_data, result)?;
