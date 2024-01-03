@@ -1,4 +1,5 @@
-use alloc::{boxed::Box, vec};
+use alloc::{boxed::Box, vec, vec::Vec};
+use core::iter;
 
 use jvm::JavaValue;
 
@@ -61,6 +62,7 @@ impl Display {
             ],
             fields: vec![
                 JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("szCard", "I", JavaFieldAccessFlag::NONE),
                 JavaFieldProto::new("m_w", "I", JavaFieldAccessFlag::NONE),
                 JavaFieldProto::new("m_h", "I", JavaFieldAccessFlag::NONE),
             ],
@@ -75,8 +77,9 @@ impl Display {
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
-        let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 1).await?;
+        let cards = context.jvm().instantiate_array("Lorg/kwis/msp/lcdui/Card;", 10).await?;
         context.jvm().put_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards)?;
+        context.jvm().put_field(&this, "szCard", "I", 0)?;
 
         let (width, height) = {
             let mut platform = context.system().platform();
@@ -129,11 +132,13 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
         let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card: &JvmClassInstanceHandle<Card> = &context.jvm().load_array(&cards, 0, 1)?[0];
+        let card_size: i32 = context.jvm().get_field(&this, "szCard", "I")?;
 
-        if card.is_null() {
-            context.jvm().store_array(&cards, 0, [c])?;
-        }
+        let cards_data = context.jvm().load_array(&cards, 0, card_size as usize)?;
+        let cards_data = cards_data.into_iter().chain(iter::once(c)).collect::<Vec<_>>();
+
+        context.jvm().store_array(&cards, 0, cards_data)?;
+        context.jvm().put_field(&this, "szCard", "I", card_size + 1)?;
 
         Ok(())
     }
@@ -141,8 +146,7 @@ impl Display {
     async fn remove_all_cards(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards");
 
-        let cards = context.jvm().get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        context.jvm().store_array(&cards, 0, [None])?;
+        context.jvm().put_field(&this, "szCard", "I", 0)?;
 
         Ok(())
     }
