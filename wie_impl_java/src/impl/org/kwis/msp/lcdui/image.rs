@@ -105,7 +105,7 @@ impl Image {
     ) -> JavaResult<JvmClassInstanceHandle<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
-        let image_data: Vec<i8> = context.jvm().load_array(&data, offset as _, length as _)?;
+        let image_data = context.jvm().load_byte_array(&data, offset as _, length as _)?;
         let image = decode_image(&cast_vec(image_data))?;
 
         Self::create_image_instance(context, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
@@ -145,7 +145,7 @@ impl Image {
         let java_img_data = context.jvm().get_field(this, "imgData", "[B")?;
         let img_data_len = context.jvm().array_length(&java_img_data)?;
 
-        let img_data: Vec<i8> = context.jvm().load_array(&java_img_data, 0, img_data_len)?;
+        let img_data = context.jvm().load_byte_array(&java_img_data, 0, img_data_len)?;
 
         Ok(cast_vec(img_data))
     }
@@ -189,10 +189,8 @@ impl Image {
     ) -> JavaResult<JvmClassInstanceHandle<Image>> {
         let instance = context.jvm().new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
 
-        let data: Vec<i8> = cast_vec(data.to_vec());
-
         let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_array(&data_array, 0, data)?;
+        context.jvm().store_byte_array(&data_array, 0, cast_vec(data.to_vec()))?;
 
         context.jvm().put_field(&instance, "w", "I", width as i32)?;
         context.jvm().put_field(&instance, "h", "I", height as i32)?;
@@ -213,9 +211,10 @@ impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
 
-        let values: Vec<i8> = cast_vec(self.canvas.raw().to_vec());
-
-        self.context.jvm().store_array(&data, 0, values).unwrap();
+        self.context
+            .jvm()
+            .store_byte_array(&data, 0, cast_vec(self.canvas.raw().to_vec()))
+            .unwrap();
     }
 }
 

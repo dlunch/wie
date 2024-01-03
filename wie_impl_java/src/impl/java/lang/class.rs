@@ -1,6 +1,6 @@
 use core::cell::Ref;
 
-use alloc::{vec, vec::Vec};
+use alloc::vec;
 
 use bytemuck::cast_vec;
 
@@ -56,8 +56,7 @@ impl Class {
 
             let array = context.jvm().instantiate_array("B", data.len() as _).await?;
 
-            let data: Vec<i8> = cast_vec(data.to_vec());
-            context.jvm().store_array(&array, 0, data)?;
+            context.jvm().store_byte_array(&array, 0, cast_vec(data.to_vec()))?;
 
             let result = context.jvm().new_class("java/io/ByteArrayInputStream", "([B)V", (array,)).await?;
 

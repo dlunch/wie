@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec};
 
 use bytemuck::cast_vec;
 use wie_backend::Database;
@@ -99,7 +99,7 @@ impl DataBase {
 
         let mut database = Self::get_database(context, &this)?;
 
-        let data: Vec<i8> = context.jvm().load_array(&data, offset as _, num_bytes as _)?;
+        let data = context.jvm().load_byte_array(&data, offset as _, num_bytes as _)?;
         let data_raw = cast_vec(data);
 
         let id = database.add(&data_raw);
@@ -117,10 +117,9 @@ impl DataBase {
         let database = Self::get_database(context, &this)?;
 
         let data = database.get(record_id as _).unwrap();
-        let data: Vec<i8> = cast_vec(data);
 
         let array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_array(&array, 0, data)?;
+        context.jvm().store_byte_array(&array, 0, cast_vec(data))?;
 
         Ok(array.into())
     }
