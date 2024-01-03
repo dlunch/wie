@@ -5,6 +5,7 @@ mod database;
 mod window;
 
 use std::{
+    collections::HashSet,
     fs,
     io::stderr,
     time::{SystemTime, UNIX_EPOCH},
@@ -107,17 +108,24 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
 
     app.start()?;
 
+    let mut key_events = HashSet::new();
     window.run(move |event| {
         match event {
             WindowCallbackEvent::Update => app.tick().map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
             WindowCallbackEvent::Redraw => app.on_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    app.on_event(Event::Keydown(keycode));
+                    if !key_events.contains(&keycode) {
+                        app.on_event(Event::Keydown(keycode));
+                        key_events.insert(keycode);
+                    }
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(keycode) = convert_key(x) {
+                    if key_events.contains(&keycode) {
+                        key_events.remove(&keycode);
+                    }
                     app.on_event(Event::Keyup(keycode));
                 }
             }
