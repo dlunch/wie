@@ -57,7 +57,7 @@ impl Display {
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, JavaMethodFlag::STATIC),
+                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, JavaMethodFlag::NATIVE),
             ],
             fields: vec![
                 JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
