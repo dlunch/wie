@@ -1,12 +1,13 @@
-use alloc::{format, vec};
+use alloc::{format, vec, vec::Vec};
 
+use bytemuck::cast_vec;
 use jvm::JavaValue;
 
-use wie_backend::canvas::{PixelType, Rgb8Pixel};
+use wie_backend::canvas::{ImageBuffer, PixelType, Rgb8Pixel};
 
 use crate::{
     base::{JavaClassProto, JavaContext, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult},
-    handle::JvmClassInstanceHandle,
+    handle::{Array, JvmClassInstanceHandle},
     method::TypeConverter,
     r#impl::{
         java::lang::String,
@@ -68,6 +69,7 @@ impl Graphics {
                 JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, JavaMethodFlag::NONE),
                 JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, JavaMethodFlag::NONE),
                 JavaMethodProto::new("translate", "(II)V", Self::translate, JavaMethodFlag::NONE),
+                JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, JavaMethodFlag::NONE),
             ],
             fields: vec![
                 JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", JavaFieldAccessFlag::NONE),
@@ -335,6 +337,41 @@ impl Graphics {
 
     async fn translate(_: &mut dyn JavaContext, this: JvmClassInstanceHandle<Graphics>, x: i32, y: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn set_rgb_pixels(
+        context: &mut dyn JavaContext,
+        this: JvmClassInstanceHandle<Graphics>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        rgb_pixels: JvmClassInstanceHandle<Array<i32>>,
+        offset: i32,
+        bpl: i32,
+    ) -> JavaResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::setRGBPixels({:?}, {}, {}, {}, {}, {:?}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            &rgb_pixels,
+            offset,
+            bpl
+        );
+
+        let pixel_data: Vec<i32> = context.jvm().load_array(&rgb_pixels, offset as _, (width * height) as _)?;
+        let src_image = ImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
+
+        let image = Self::image(context, &this).await?;
+        let mut canvas = Image::canvas(context, &image)?;
+
+        canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0);
 
         Ok(())
     }

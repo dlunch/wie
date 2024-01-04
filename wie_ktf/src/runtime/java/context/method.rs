@@ -167,11 +167,13 @@ impl JavaMethod {
                 let a4 = u32::get(core, 4);
                 let a5 = u32::get(core, 5);
                 let a6 = u32::get(core, 6);
+                let a7 = u32::get(core, 7);
+                let a8 = u32::get(core, 8);
 
                 let args = if self.native {
-                    (0..6).map(|x| read_generic(core, a1 + x * 4)).collect::<JavaResult<Vec<u32>>>()?
+                    (0..8).map(|x| read_generic(core, a1 + x * 4)).collect::<JavaResult<Vec<u32>>>()?
                 } else {
-                    vec![a1, a2, a3, a4, a5, a6]
+                    vec![a1, a2, a3, a4, a5, a6, a7, a8]
                 };
 
                 let args = args
