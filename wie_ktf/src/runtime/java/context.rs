@@ -107,6 +107,7 @@ impl<'a> KtfJavaContext<'a> {
         ClassLoader::load_array_class(self.core, name).await
     }
 
+    #[async_recursion::async_recursion(?Send)]
     pub async fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
         if JavaContextData::has_class(core, class)? {
             return Ok(());
@@ -120,6 +121,11 @@ impl<'a> KtfJavaContext<'a> {
             tracing::trace!("Call <clinit>");
 
             x.run(Box::new([])).await?;
+        }
+
+        if let Some(x) = class.super_class_name() {
+            let super_class = ClassLoader::get_or_load_class(core, &x).await?.unwrap();
+            Self::register_class(core, &super_class).await?;
         }
 
         Ok(())
