@@ -35,12 +35,12 @@ impl DataBase {
     }
     async fn init(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceHandle<Self>,
+        mut this: JvmClassInstanceHandle<Self>,
         data_base_name: JvmClassInstanceHandle<String>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
-        context.jvm().put_field(&this, "dbName", "Ljava/lang/String;", data_base_name)?;
+        context.jvm().put_field(&mut this, "dbName", "Ljava/lang/String;", data_base_name)?;
 
         Ok(())
     }
@@ -118,8 +118,8 @@ impl DataBase {
 
         let data = database.get(record_id as _).unwrap();
 
-        let array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_byte_array(&array, 0, cast_vec(data))?;
+        let mut array = context.jvm().instantiate_array("B", data.len() as _).await?;
+        context.jvm().store_byte_array(&mut array, 0, cast_vec(data))?;
 
         Ok(array.into())
     }

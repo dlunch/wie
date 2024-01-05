@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     iter,
@@ -7,7 +7,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
@@ -31,6 +31,7 @@ struct RawJavaClassInstanceFields {
     fields: [u32; 1],
 }
 
+#[derive(Clone)]
 pub struct JavaClassInstance {
     pub(crate) ptr_raw: u32,
     core: ArmCore,
@@ -126,8 +127,8 @@ impl ClassInstance for JavaClassInstance {
         (*self).destroy().unwrap()
     }
 
-    fn class_name(&self) -> String {
-        self.class().unwrap().name().unwrap()
+    fn class(&self) -> Box<dyn Class> {
+        Box::new(self.class().unwrap())
     }
 
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {

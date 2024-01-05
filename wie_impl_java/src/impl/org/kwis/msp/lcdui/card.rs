@@ -31,7 +31,7 @@ impl Card {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, mut this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
 
         let display = context
@@ -48,9 +48,9 @@ impl Card {
             .invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getHeight", "()I", [])
             .await?;
 
-        context.jvm().put_field(&this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
-        context.jvm().put_field(&this, "w", "I", width)?;
-        context.jvm().put_field(&this, "h", "I", height)?;
+        context.jvm().put_field(&mut this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
+        context.jvm().put_field(&mut this, "w", "I", width)?;
+        context.jvm().put_field(&mut this, "h", "I", height)?;
 
         Ok(())
     }

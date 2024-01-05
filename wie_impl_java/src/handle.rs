@@ -1,17 +1,18 @@
+use alloc::boxed::Box;
 use core::{
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
-    ops::Deref,
+    ops::{Deref, DerefMut},
 };
 
-use jvm::{ClassInstanceRef, JavaValue};
+use jvm::{ClassInstance, JavaValue};
 
 use crate::{base::JavaContext, method::TypeConverter};
 
 pub struct Array<T>(PhantomData<T>);
 
 pub struct JvmClassInstanceHandle<T> {
-    instance: Option<ClassInstanceRef>,
+    instance: Option<Box<dyn ClassInstance>>,
     _phantom: PhantomData<T>,
 }
 
@@ -37,7 +38,7 @@ impl<T> TypeConverter<JvmClassInstanceHandle<T>> for JvmClassInstanceHandle<T> {
 impl<T> Debug for JvmClassInstanceHandle<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(x) = &self.instance {
-            write!(f, "{:?}", x.borrow())
+            write!(f, "{:?}", x)
         } else {
             write!(f, "null")
         }
@@ -45,9 +46,15 @@ impl<T> Debug for JvmClassInstanceHandle<T> {
 }
 
 impl<T> Deref for JvmClassInstanceHandle<T> {
-    type Target = ClassInstanceRef;
+    type Target = Box<dyn ClassInstance>;
     fn deref(&self) -> &Self::Target {
         self.instance.as_ref().unwrap()
+    }
+}
+
+impl<T> DerefMut for JvmClassInstanceHandle<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.instance.as_mut().unwrap()
     }
 }
 
@@ -57,8 +64,8 @@ impl<T> From<JvmClassInstanceHandle<T>> for JavaValue {
     }
 }
 
-impl<T> From<ClassInstanceRef> for JvmClassInstanceHandle<T> {
-    fn from(value: ClassInstanceRef) -> Self {
+impl<T> From<Box<dyn ClassInstance>> for JvmClassInstanceHandle<T> {
+    fn from(value: Box<dyn ClassInstance>) -> Self {
         Self {
             instance: Some(value),
             _phantom: PhantomData,
@@ -66,8 +73,8 @@ impl<T> From<ClassInstanceRef> for JvmClassInstanceHandle<T> {
     }
 }
 
-impl<T> From<Option<ClassInstanceRef>> for JvmClassInstanceHandle<T> {
-    fn from(value: Option<ClassInstanceRef>) -> Self {
+impl<T> From<Option<Box<dyn ClassInstance>>> for JvmClassInstanceHandle<T> {
+    fn from(value: Option<Box<dyn ClassInstance>>) -> Self {
         Self {
             instance: value,
             _phantom: PhantomData,
@@ -84,7 +91,7 @@ impl<T> From<JavaValue> for JvmClassInstanceHandle<T> {
     }
 }
 
-impl<T> From<JvmClassInstanceHandle<T>> for ClassInstanceRef {
+impl<T> From<JvmClassInstanceHandle<T>> for Box<dyn ClassInstance> {
     fn from(value: JvmClassInstanceHandle<T>) -> Self {
         value.instance.unwrap()
     }

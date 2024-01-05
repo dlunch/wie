@@ -42,7 +42,13 @@ impl JvmCore {
     fn load_class_from_impl(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
         let class_proto = get_class_proto(class_name);
         if let Some(x) = class_proto {
-            let class = ClassImpl::new(class_name, Self::load_methods(system, x.methods), Self::load_fields(x.fields));
+            let super_class = None; // TODO
+            let class = ClassImpl::new(
+                class_name,
+                super_class,
+                Self::load_methods(system, x.methods),
+                Self::load_fields(x.fields),
+            );
 
             Ok(Some(Box::new(class)))
         } else {

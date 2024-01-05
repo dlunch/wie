@@ -10,12 +10,11 @@ mod name;
 mod value;
 mod vtable_builder;
 
-use alloc::{boxed::Box, format, rc::Rc};
-use core::cell::RefCell;
+use alloc::{boxed::Box, format};
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{ArrayClass, Class, ClassInstanceRef, ClassRef, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
+use jvm::{ArrayClass, Class, ClassInstance, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
 use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
@@ -53,10 +52,10 @@ impl KtfJvmDetail {
 
 #[async_trait::async_trait(?Send)]
 impl JvmDetail for KtfJvmDetail {
-    async fn load_class(&mut self, class_name: &str) -> JvmResult<Option<ClassRef>> {
+    async fn load_class(&mut self, class_name: &str) -> JvmResult<Option<Box<dyn Class>>> {
         let class = ClassLoader::get_or_load_class(&mut self.core, class_name).await?;
 
-        Ok(class.map(|x| Rc::new(RefCell::new(Box::new(x) as Box<dyn Class>))))
+        Ok(class.map(|x| Box::new(x) as _))
     }
 
     async fn load_array_class(&mut self, element_type_name: &str) -> JvmResult<Option<Box<dyn ArrayClass>>> {
@@ -71,10 +70,10 @@ impl JvmDetail for KtfJvmDetail {
         }
     }
 
-    fn get_class(&self, class_name: &str) -> JvmResult<Option<ClassRef>> {
+    fn get_class(&self, class_name: &str) -> JvmResult<Option<Box<dyn Class>>> {
         let class = JavaContextData::find_class(&self.core, class_name)?;
 
-        Ok(class.map(|x| Rc::new(RefCell::new(Box::new(x) as Box<dyn Class>))))
+        Ok(class.map(|x| Box::new(x) as _))
     }
 
     fn thread_context(&mut self, _thread_id: ThreadId) -> &mut dyn ThreadContext {
@@ -123,8 +122,8 @@ impl<'a> KtfJavaContext<'a> {
             x.run(Box::new([])).await?;
         }
 
-        if let Some(x) = class.super_class_name() {
-            let super_class = ClassLoader::get_or_load_class(core, &x).await?.unwrap();
+        if let Some(x) = class.super_class() {
+            let super_class = ClassLoader::get_or_load_class(core, &x.name()).await?.unwrap(); // TODO we can use superclass as-is
             Self::register_class(core, &super_class).await?;
         }
 
@@ -135,8 +134,8 @@ impl<'a> KtfJavaContext<'a> {
         JavaClass::from_raw(ptr_class, self.core)
     }
 
-    pub fn class_raw(&self, instance: &ClassInstanceRef) -> u32 {
-        let instance = instance.borrow();
+    #[allow(clippy::borrowed_box)]
+    pub fn class_raw(&self, instance: &Box<dyn ClassInstance>) -> u32 {
         if let Some(x) = instance.as_any().downcast_ref::<JavaClassInstance>() {
             x.ptr_raw
         } else {

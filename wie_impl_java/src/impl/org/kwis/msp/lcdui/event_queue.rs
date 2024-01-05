@@ -109,7 +109,7 @@ impl EventQueue {
     async fn get_next_event(
         context: &mut dyn JavaContext,
         this: JvmClassInstanceHandle<Self>,
-        event: JvmClassInstanceHandle<Array<i32>>,
+        mut event: JvmClassInstanceHandle<Array<i32>>,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
@@ -133,7 +133,7 @@ impl EventQueue {
                     ],
                 };
 
-                context.jvm().store_array(&event, 0, event_data)?;
+                context.jvm().store_array(&mut event, 0, event_data)?;
 
                 break;
             } else {
@@ -200,7 +200,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let graphics = context
+        let mut graphics = context
             .jvm()
             .new_class("org/kwis/msp/lcdui/Graphics", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
             .await?;
@@ -225,7 +225,7 @@ impl EventQueue {
             let image_data = context.jvm().get_field(&java_image, "imgData", "[B")?;
             context.jvm().destroy(image_data)?;
             context.jvm().destroy(java_image.into())?;
-            context.jvm().put_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
+            context.jvm().put_field(&mut graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
 
             let mut platform = context.system().platform();
             let screen = platform.screen();

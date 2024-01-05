@@ -29,10 +29,10 @@ impl Thread {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, target: JvmClassInstanceHandle<Runnable>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, mut this: JvmClassInstanceHandle<Self>, target: JvmClassInstanceHandle<Runnable>) -> JavaResult<()> {
         tracing::debug!("Thread::<init>({:?}, {:?})", &this, &target);
 
-        context.jvm().put_field(&this, "target", "Ljava/lang/Runnable;", target)?;
+        context.jvm().put_field(&mut this, "target", "Ljava/lang/Runnable;", target)?;
 
         Ok(())
     }

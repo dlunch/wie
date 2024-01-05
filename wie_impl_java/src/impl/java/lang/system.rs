@@ -61,7 +61,7 @@ impl System {
         context: &mut dyn JavaContext,
         src: JvmClassInstanceHandle<Array<()>>, // Any Array
         src_pos: i32,
-        dest: JvmClassInstanceHandle<Array<()>>,
+        mut dest: JvmClassInstanceHandle<Array<()>>,
         dest_pos: i32,
         length: i32,
     ) -> JavaResult<()> {
@@ -76,7 +76,7 @@ impl System {
 
         // TODO i think we can make it faster
         let src: Vec<JavaValue> = context.jvm().load_array(&src, src_pos as _, length as _)?;
-        context.jvm().store_array(&dest, dest_pos as _, src)?;
+        context.jvm().store_array(&mut dest, dest_pos as _, src)?;
 
         Ok(())
     }

@@ -21,6 +21,7 @@ use super::{
     context_data::JavaContextData,
 };
 
+#[derive(Clone)]
 pub struct JavaArrayClass {
     pub(crate) class: JavaClass,
     core: ArmCore,
@@ -121,8 +122,8 @@ impl Class for JavaArrayClass {
         self.class.name().unwrap()
     }
 
-    fn super_class_name(&self) -> Option<String> {
-        Some("java/lang/Object".into())
+    fn super_class(&self) -> Option<Box<dyn Class>> {
+        None // TODO
     }
 
     fn instantiate(&self) -> Box<dyn ClassInstance> {

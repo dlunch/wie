@@ -52,7 +52,7 @@ impl File {
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn init_with_flag(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceHandle<Self>,
+        mut this: JvmClassInstanceHandle<Self>,
         filename: JvmClassInstanceHandle<String>,
         mode: i32,
         flag: i32,
@@ -73,11 +73,11 @@ impl File {
         let data = cast_slice(data).to_vec();
         drop(resource);
 
-        let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_byte_array(&data_array, 0, data)?;
+        let mut data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
+        context.jvm().store_byte_array(&mut data_array, 0, data)?;
 
-        context.jvm().put_field(&this, "data", "[B", data_array)?;
-        context.jvm().put_field(&this, "pos", "I", 0)?;
+        context.jvm().put_field(&mut this, "data", "[B", data_array)?;
+        context.jvm().put_field(&mut this, "pos", "I", 0)?;
 
         Ok(())
     }
@@ -94,7 +94,11 @@ impl File {
         Ok(0)
     }
 
-    async fn read(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, buf: JvmClassInstanceHandle<Array<i8>>) -> JavaResult<i32> {
+    async fn read(
+        context: &mut dyn JavaContext,
+        mut this: JvmClassInstanceHandle<Self>,
+        mut buf: JvmClassInstanceHandle<Array<i8>>,
+    ) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
         let data_array = context.jvm().get_field(&this, "data", "[B")?;
@@ -106,9 +110,9 @@ impl File {
         let length_to_read = min(data_len - pos as usize, buf_len);
 
         let data = context.jvm().load_byte_array(&data_array, pos as _, length_to_read)?;
-        context.jvm().store_byte_array(&buf, 0, data)?;
+        context.jvm().store_byte_array(&mut buf, 0, data)?;
 
-        context.jvm().put_field(&this, "pos", "I", pos + length_to_read as i32)?;
+        context.jvm().put_field(&mut this, "pos", "I", pos + length_to_read as i32)?;
 
         Ok(length_to_read as _)
     }
