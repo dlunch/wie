@@ -41,7 +41,7 @@ impl Jlet {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, mut this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = context
@@ -53,14 +53,14 @@ impl Jlet {
             )
             .await?;
 
-        context.jvm().put_field(&this, "dis", "Lorg/kwis/msp/lcdui/Display;", display)?;
+        context.jvm().put_field(&mut this, "dis", "Lorg/kwis/msp/lcdui/Display;", display)?;
 
         let event_queue = context
             .jvm()
             .new_class("org/kwis/msp/lcdui/EventQueue", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
             .await?;
 
-        context.jvm().put_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue)?;
+        context.jvm().put_field(&mut this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue)?;
 
         context
             .jvm()

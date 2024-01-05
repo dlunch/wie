@@ -187,15 +187,15 @@ impl Image {
         data: &[u8],
         bytes_per_pixel: u32,
     ) -> JavaResult<JvmClassInstanceHandle<Image>> {
-        let instance = context.jvm().new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
+        let mut instance = context.jvm().new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
 
-        let data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
-        context.jvm().store_byte_array(&data_array, 0, cast_vec(data.to_vec()))?;
+        let mut data_array = context.jvm().instantiate_array("B", data.len() as _).await?;
+        context.jvm().store_byte_array(&mut data_array, 0, cast_vec(data.to_vec()))?;
 
-        context.jvm().put_field(&instance, "w", "I", width as i32)?;
-        context.jvm().put_field(&instance, "h", "I", height as i32)?;
-        context.jvm().put_field(&instance, "imgData", "[B", data_array)?;
-        context.jvm().put_field(&instance, "bpl", "I", (width * bytes_per_pixel) as i32)?;
+        context.jvm().put_field(&mut instance, "w", "I", width as i32)?;
+        context.jvm().put_field(&mut instance, "h", "I", height as i32)?;
+        context.jvm().put_field(&mut instance, "imgData", "[B", data_array)?;
+        context.jvm().put_field(&mut instance, "bpl", "I", (width * bytes_per_pixel) as i32)?;
 
         Ok(instance.into())
     }
@@ -209,11 +209,11 @@ pub struct ImageCanvas<'a> {
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
-        let data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
+        let mut data = self.context.jvm().get_field(self.image, "imgData", "[B").unwrap();
 
         self.context
             .jvm()
-            .store_byte_array(&data, 0, cast_vec(self.canvas.raw().to_vec()))
+            .store_byte_array(&mut data, 0, cast_vec(self.canvas.raw().to_vec()))
             .unwrap();
     }
 }

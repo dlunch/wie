@@ -1,7 +1,6 @@
-use alloc::{boxed::Box, rc::Rc};
-use core::cell::RefCell;
+use alloc::boxed::Box;
 
-use jvm::{ClassInstance, JavaType, JavaValue};
+use jvm::{JavaType, JavaValue};
 
 use wie_core_arm::ArmCore;
 
@@ -27,11 +26,11 @@ impl JavaValueExt for JavaValue {
             JavaType::Class(_) => {
                 if raw != 0 {
                     let instance = JavaClassInstance::from_raw(raw, core);
-                    if instance.class_name().starts_with('[') {
+                    if instance.class().unwrap().name().unwrap().starts_with('[') {
                         let instance = JavaArrayClassInstance::from_raw(raw, core);
-                        JavaValue::Object(Some(Rc::new(RefCell::new(Box::new(instance)))))
+                        JavaValue::Object(Some(Box::new(instance)))
                     } else {
-                        JavaValue::Object(Some(Rc::new(RefCell::new(Box::new(instance)))))
+                        JavaValue::Object(Some(Box::new(instance)))
                     }
                 } else {
                     JavaValue::Object(None)
@@ -41,7 +40,7 @@ impl JavaValueExt for JavaValue {
                 if raw != 0 {
                     let instance = JavaArrayClassInstance::from_raw(raw, core);
 
-                    JavaValue::Object(Some(Rc::new(RefCell::new(Box::new(instance)))))
+                    JavaValue::Object(Some(Box::new(instance)))
                 } else {
                     JavaValue::Object(None)
                 }
@@ -63,10 +62,9 @@ impl JavaValueExt for JavaValue {
             JavaValue::Char(x) => *x as _,
             JavaValue::Object(x) => {
                 if let Some(x) = x {
-                    let instance = x.as_ref().borrow();
-                    if let Some(x) = instance.as_any().downcast_ref::<JavaClassInstance>() {
+                    if let Some(x) = x.as_any().downcast_ref::<JavaClassInstance>() {
                         x.ptr_raw as _
-                    } else if let Some(x) = instance.as_any().downcast_ref::<JavaArrayClassInstance>() {
+                    } else if let Some(x) = x.as_any().downcast_ref::<JavaArrayClassInstance>() {
                         x.class_instance.ptr_raw as _
                     } else {
                         panic!("Unknown instance type")

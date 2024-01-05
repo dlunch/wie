@@ -86,18 +86,18 @@ impl String {
 
     async fn init_with_partial_char_array(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceHandle<Self>,
+        mut this: JvmClassInstanceHandle<Self>,
         value: JvmClassInstanceHandle<Array<u16>>,
         offset: i32,
         count: i32,
     ) -> JavaResult<()> {
         tracing::debug!("java.lang.String::<init>({:?}, {:?}, {}, {})", &this, &value, offset, count);
 
-        let array = context.jvm().instantiate_array("C", count as _).await?;
-        context.jvm().put_field(&this, "value", "[C", array.clone())?;
+        let mut array = context.jvm().instantiate_array("C", count as _).await?;
+        context.jvm().put_field(&mut this, "value", "[C", array.clone())?;
 
         let data: Vec<JavaChar> = context.jvm().load_array(&value, offset as _, count as _)?;
-        context.jvm().store_array(&array, 0, data)?; // TODO we should store value, offset, count like in java
+        context.jvm().store_array(&mut array, 0, data)?; // TODO we should store value, offset, count like in java
 
         Ok(())
     }
@@ -116,8 +116,8 @@ impl String {
 
         let utf16 = string.encode_utf16().collect::<Vec<_>>();
 
-        let array = context.jvm().instantiate_array("C", utf16.len()).await?;
-        context.jvm().store_array(&array, 0, utf16)?;
+        let mut array = context.jvm().instantiate_array("C", utf16.len()).await?;
+        context.jvm().store_array(&mut array, 0, utf16)?;
 
         context
             .jvm()
@@ -173,8 +173,8 @@ impl String {
         let bytes = context.system().encode_str(&string);
         let bytes: Vec<i8> = cast_vec(bytes);
 
-        let byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
-        context.jvm().store_array(&byte_array, 0, bytes)?;
+        let mut byte_array = context.jvm().instantiate_array("B", bytes.len()).await?;
+        context.jvm().store_array(&mut byte_array, 0, bytes)?;
 
         Ok(byte_array.into())
     }
@@ -278,9 +278,9 @@ impl String {
     }
 
     pub async fn from_utf16(context: &mut dyn JavaContext, data: Vec<u16>) -> JavaResult<JvmClassInstanceHandle<Self>> {
-        let java_value = context.jvm().instantiate_array("C", data.len()).await?;
+        let mut java_value = context.jvm().instantiate_array("C", data.len()).await?;
 
-        context.jvm().store_array(&java_value, 0, data.to_vec())?;
+        context.jvm().store_array(&mut java_value, 0, data.to_vec())?;
 
         let instance = context.jvm().new_class("java/lang/String", "([C)V", (java_value,)).await?;
 

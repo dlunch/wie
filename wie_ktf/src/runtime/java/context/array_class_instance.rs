@@ -1,9 +1,9 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use core::fmt::{self, Debug, Formatter};
 
 use bytemuck::cast_vec;
 
-use jvm::{ArrayClassInstance, ClassInstance, Field, JavaType, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
@@ -11,6 +11,7 @@ use wie_impl_java::JavaResult;
 
 use super::{array_class::JavaArrayClass, class_instance::JavaClassInstance, value::JavaValueExt};
 
+#[derive(Clone)]
 pub struct JavaArrayClassInstance {
     pub(crate) class_instance: JavaClassInstance,
     core: ArmCore,
@@ -87,8 +88,8 @@ impl ClassInstance for JavaArrayClassInstance {
         self.class_instance.destroy().unwrap()
     }
 
-    fn class_name(&self) -> String {
-        self.class_instance.class_name()
+    fn class(&self) -> Box<dyn Class> {
+        Box::new(self.class_instance.class().unwrap())
     }
 
     fn get_field(&self, _field: &dyn Field) -> JvmResult<JavaValue> {

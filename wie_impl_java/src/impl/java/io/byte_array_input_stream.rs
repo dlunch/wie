@@ -28,11 +28,11 @@ impl ByteArrayInputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, data: JvmClassInstanceHandle<Array<i8>>) -> JavaResult<()> {
+    async fn init(context: &mut dyn JavaContext, mut this: JvmClassInstanceHandle<Self>, data: JvmClassInstanceHandle<Array<i8>>) -> JavaResult<()> {
         tracing::debug!("java.lang.ByteArrayInputStream::<init>({:?}, {:?})", &this, &data);
 
-        context.jvm().put_field(&this, "buf", "[B", data)?;
-        context.jvm().put_field(&this, "pos", "I", 0)?;
+        context.jvm().put_field(&mut this, "buf", "[B", data)?;
+        context.jvm().put_field(&mut this, "pos", "I", 0)?;
 
         Ok(())
     }
@@ -49,7 +49,7 @@ impl ByteArrayInputStream {
 
     async fn read(
         context: &mut dyn JavaContext,
-        this: JvmClassInstanceHandle<Self>,
+        mut this: JvmClassInstanceHandle<Self>,
         b: JvmClassInstanceHandle<Array<i8>>,
         off: i32,
         len: i32,
@@ -76,12 +76,12 @@ impl ByteArrayInputStream {
             )
             .await?;
 
-        context.jvm().put_field(&this, "pos", "I", pos + len)?;
+        context.jvm().put_field(&mut this, "pos", "I", pos + len)?;
 
         Ok(len)
     }
 
-    async fn read_byte(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i8> {
+    async fn read_byte(context: &mut dyn JavaContext, mut this: JvmClassInstanceHandle<Self>) -> JavaResult<i8> {
         tracing::debug!("java.lang.ByteArrayInputStream::readByte({:?})", &this);
 
         let buf = context.jvm().get_field(&this, "buf", "[B")?;
@@ -94,7 +94,7 @@ impl ByteArrayInputStream {
 
         let result = context.jvm().load_byte_array(&buf, pos as _, 1)?[0];
 
-        context.jvm().put_field(&this, "pos", "I", pos + 1)?;
+        context.jvm().put_field(&mut this, "pos", "I", pos + 1)?;
 
         Ok(result)
     }

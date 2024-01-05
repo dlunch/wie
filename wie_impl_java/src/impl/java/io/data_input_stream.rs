@@ -26,10 +26,14 @@ impl DataInputStream {
         }
     }
 
-    async fn init(context: &mut dyn JavaContext, this: JvmClassInstanceHandle<Self>, r#in: JvmClassInstanceHandle<InputStream>) -> JavaResult<()> {
+    async fn init(
+        context: &mut dyn JavaContext,
+        mut this: JvmClassInstanceHandle<Self>,
+        r#in: JvmClassInstanceHandle<InputStream>,
+    ) -> JavaResult<()> {
         tracing::debug!("java.lang.DataInputStream::<init>({:?}, {:?})", &this, &r#in);
 
-        context.jvm().put_field(&this, "in", "Ljava/io/InputStream;", r#in)?;
+        context.jvm().put_field(&mut this, "in", "Ljava/io/InputStream;", r#in)?;
 
         Ok(())
     }

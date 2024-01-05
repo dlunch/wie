@@ -47,6 +47,7 @@ pub(super) struct RawJavaClassDescriptor {
     pub(super) unk8: u16,
 }
 
+#[derive(Clone)]
 pub struct JavaClass {
     pub(crate) ptr_raw: u32,
     core: ArmCore,
@@ -264,8 +265,8 @@ impl Class for JavaClass {
         self.name().unwrap()
     }
 
-    fn super_class_name(&self) -> Option<String> {
-        self.parent_class().unwrap().map(|x| x.name().unwrap())
+    fn super_class(&self) -> Option<Box<dyn Class>> {
+        self.parent_class().unwrap().map(|x| Box::new(x) as _)
     }
 
     fn instantiate(&self) -> Box<dyn ClassInstance> {

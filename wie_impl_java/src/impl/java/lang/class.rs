@@ -54,9 +54,9 @@ impl Class {
             let system_clone = context.system().clone();
             let data = Ref::map(system_clone.resource(), |x| x.data(id));
 
-            let array = context.jvm().instantiate_array("B", data.len() as _).await?;
+            let mut array = context.jvm().instantiate_array("B", data.len() as _).await?;
 
-            context.jvm().store_byte_array(&array, 0, cast_vec(data.to_vec()))?;
+            context.jvm().store_byte_array(&mut array, 0, cast_vec(data.to_vec()))?;
 
             let result = context.jvm().new_class("java/io/ByteArrayInputStream", "([B)V", (array,)).await?;
 
