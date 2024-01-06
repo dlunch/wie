@@ -10,8 +10,8 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
-jvm = { git = "https://github.com/dlunch/jvm.git" }
-jvm_impl = { git = "https://github.com/dlunch/jvm.git" }
+jvm = { git = "https://github.com/dlunch/RustJava.git" }
+jvm_impl = { git = "https://github.com/dlunch/RustJava.git" }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }
