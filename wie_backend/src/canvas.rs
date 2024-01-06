@@ -204,8 +204,8 @@ where
 
     // TODO change it to bresenham's or something..
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
-        let dx = (x2 as f32) - (x1 as f32);
-        let dy = (y2 as f32) - (y1 as f32);
+        let dx = ((x2 + 1) as f32) - (x1 as f32);
+        let dy = ((y2 + 1) as f32) - (y1 as f32);
 
         let mut x = x1 as f32;
         let mut y = y1 as f32;
