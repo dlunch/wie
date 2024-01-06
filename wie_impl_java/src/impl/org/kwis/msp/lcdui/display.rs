@@ -189,7 +189,7 @@ impl Display {
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError> for SpawnProxy {
             async fn call(&self, context: &mut dyn JavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
-                let until = context.system().platform().now() + 8;
+                let until = context.system().platform().now() + 16; // TODO
                 context.system().sleep(until).await;
 
                 context
