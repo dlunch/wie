@@ -379,6 +379,7 @@ impl Graphics {
             bpl
         );
 
+        // TODO we need imagebuffer proxy, as it's not optimal to copy entire image from java/c buffer to rust every time
         let pixel_data: Vec<i32> = context.jvm().load_array(&rgb_pixels, offset as _, (width * height) as _)?;
         let src_image = ImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
 
