@@ -13,7 +13,7 @@ use java_runtime_base::{
 use jvm::Jvm;
 
 use crate::{
-    org::kwis::msp::lcdui::{Display, Font, Image},
+    classes::org::kwis::msp::lcdui::{Display, Font, Image},
     JavaClassProto, JavaContextArg,
 };
 

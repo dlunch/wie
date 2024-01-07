@@ -3,7 +3,7 @@ use alloc::vec;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{org::kwis::msp::media::Clip, JavaClassProto, JavaContextArg};
+use crate::{classes::org::kwis::msp::media::Clip, JavaClassProto, JavaContextArg};
 
 // class org.kwis.msp.media.Player
 pub struct Player {}
