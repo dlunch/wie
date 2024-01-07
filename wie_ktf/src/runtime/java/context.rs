@@ -7,7 +7,7 @@ mod context_data;
 mod field;
 mod method;
 mod name;
-mod platform;
+mod runtime;
 mod value;
 mod vtable_builder;
 

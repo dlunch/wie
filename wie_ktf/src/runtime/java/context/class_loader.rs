@@ -8,7 +8,7 @@ use wie_base::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::get_class_proto as get_wie_class_proto;
 
-use super::{array_class::JavaArrayClass, class::JavaClass, context_data::JavaContextData, platform::KtfRuntime, KtfJavaContext};
+use super::{array_class::JavaArrayClass, class::JavaClass, context_data::JavaContextData, runtime::KtfRuntime, KtfJavaContext};
 
 pub struct ClassLoader {}
 
