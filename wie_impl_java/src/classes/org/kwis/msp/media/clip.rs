@@ -4,7 +4,7 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{Array, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{org::kwis::msp::media::PlayListener, JavaClassProto, JavaContextArg};
+use crate::{classes::org::kwis::msp::media::PlayListener, JavaClassProto, JavaContextArg};
 
 // class org.kwis.msp.media.Clip
 pub struct Clip {}

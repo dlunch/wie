@@ -6,7 +6,7 @@ use jvm::Jvm;
 use wie_base::KeyCode;
 
 use crate::{
-    org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
+    classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
     JavaClassProto, JavaContextArg,
 };
 

@@ -5,7 +5,7 @@ use java_runtime_base::{
 };
 use jvm::{JavaValue, Jvm};
 
-use crate::{org::kwis::msp::lcdui::EventQueue, JavaClassProto, JavaContextArg};
+use crate::{classes::org::kwis::msp::lcdui::EventQueue, JavaClassProto, JavaContextArg};
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet {}

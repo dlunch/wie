@@ -8,7 +8,7 @@ use java_runtime_base::{
 use jvm::{JavaValue, Jvm};
 
 use crate::{
-    org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
+    classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
     JavaClassProto, JavaContextArg,
 };
 

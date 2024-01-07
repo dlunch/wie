@@ -12,7 +12,7 @@ use jvm::Jvm;
 
 use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
 
-use crate::{org::kwis::msp::lcdui::Graphics, JavaClassProto, JavaContextArg};
+use crate::{classes::org::kwis::msp::lcdui::Graphics, JavaClassProto, JavaContextArg};
 
 // class org.kwis.msp.lcdui.Image
 pub struct Image {}
