@@ -18,7 +18,7 @@ use super::{
     class::JavaClass,
     class::{RawJavaClass, RawJavaClassDescriptor},
     class_loader::ClassLoader,
-    context_data::JavaContextData,
+    KtfJvm,
 };
 
 #[derive(Clone)]
@@ -88,7 +88,7 @@ impl JavaArrayClass {
 
         let class = JavaArrayClass::from_raw(ptr_raw, core);
 
-        JavaContextData::register_class(core, &class.class)?;
+        KtfJvm::register_class(core, system, &class.class).await?;
 
         Ok(class)
     }

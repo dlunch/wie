@@ -1,13 +1,13 @@
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::time::Duration;
+
+use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
 
 use java_runtime::Runtime;
 use jvm::JvmCallback;
 
-use wie_backend::{AsyncCallable, SystemHandle};
-
-use crate::runtime::KtfJavaContext;
+use super::jvm::KtfJvm;
 
 #[derive(Clone)]
 pub struct KtfRuntime {
@@ -44,8 +44,7 @@ impl Runtime for KtfRuntime {
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
-                let context = KtfJavaContext::new(&mut self.core, &mut self.system);
-                let mut jvm = context.jvm();
+                let mut jvm = KtfJvm::new(&self.core, &self.system).jvm();
 
                 self.callback.call(&mut jvm, vec![].into_boxed_slice()).await?;
 
