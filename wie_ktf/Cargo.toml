@@ -25,3 +25,5 @@ wie_impl_java = { path = "../wie_impl_java" }
 
 [dev-dependencies]
 futures-test = { version = "^0.3" }
+
+test_utils = { path = "../test_utils" }
