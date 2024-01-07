@@ -26,12 +26,16 @@ impl SktApp {
     async fn do_start(core: &mut JvmCore, _system: &mut SystemHandle, main_class_name: String) -> anyhow::Result<()> {
         let normalized_class_name = main_class_name.replace('.', "/");
 
+        let main_class = core.jvm().new_class(&normalized_class_name, "()V", []).await?;
+
         let result: anyhow::Result<()> = core
             .jvm()
-            .invoke_static(&normalized_class_name, "startApp", "([Ljava/lang/String;)V", [None.into()])
+            .invoke_virtual(&main_class, &normalized_class_name, "startApp", "([Ljava/lang/String;)V", [None.into()])
             .await;
         if result.is_err() {
-            core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;
+            core.jvm()
+                .invoke_virtual(&main_class, &normalized_class_name, "startApp", "()V", [])
+                .await?;
             // both startapp exists in wild.. TODO check this elegantly
         }
 
