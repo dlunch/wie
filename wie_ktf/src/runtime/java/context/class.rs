@@ -6,13 +6,14 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
+use java_runtime_base::{JavaClassProto, JavaFieldAccessFlag};
 use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
+use wie_backend::SystemHandle;
 use wie_base::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
 };
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{JavaClassProto, JavaFieldAccessFlag, JavaResult};
 
 use super::{
     class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
@@ -58,9 +59,12 @@ impl JavaClass {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new(core: &mut ArmCore, name: &str, proto: JavaClassProto) -> JavaResult<Self> {
+    pub async fn new<C>(core: &mut ArmCore, system: &mut SystemHandle, name: &str, proto: JavaClassProto<C>, context: C) -> JvmResult<Self>
+    where
+        C: Clone + 'static,
+    {
         let parent_class = if let Some(x) = proto.parent_class {
-            Some(ClassLoader::get_or_load_class(core, x).await?.unwrap())
+            Some(ClassLoader::get_or_load_class(core, system, x).await?.unwrap())
         } else {
             None
         };
@@ -71,7 +75,7 @@ impl JavaClass {
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(core, ptr_raw, method, &mut vtable_builder)?;
+            let method = JavaMethod::new(core, ptr_raw, method, &mut vtable_builder, context.clone())?;
 
             methods.push(method.ptr_raw);
         }
@@ -135,12 +139,12 @@ impl JavaClass {
 
         let result = Self::from_raw(ptr_raw, core);
 
-        KtfJavaContext::register_class(core, &result).await?;
+        KtfJavaContext::register_class(core, system, &result).await?;
 
         Ok(result)
     }
 
-    pub fn read_class_hierarchy(&self) -> JavaResult<Vec<JavaClass>> {
+    pub fn read_class_hierarchy(&self) -> JvmResult<Vec<JavaClass>> {
         let mut result = vec![];
 
         let mut current_class = self.ptr_raw;
@@ -160,13 +164,13 @@ impl JavaClass {
         Ok(result)
     }
 
-    pub fn ptr_vtable(&self) -> JavaResult<u32> {
+    pub fn ptr_vtable(&self) -> JvmResult<u32> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
 
         Ok(raw.ptr_vtable)
     }
 
-    pub fn field_size(&self) -> JavaResult<usize> {
+    pub fn field_size(&self) -> JvmResult<usize> {
         let class_hierarchy = self.read_class_hierarchy()?;
 
         Ok(class_hierarchy
@@ -180,7 +184,7 @@ impl JavaClass {
             .sum())
     }
 
-    pub fn methods(&self) -> JavaResult<Vec<JavaMethod>> {
+    pub fn methods(&self) -> JvmResult<Vec<JavaMethod>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
@@ -189,7 +193,7 @@ impl JavaClass {
         Ok(ptr_methods.into_iter().map(|x| JavaMethod::from_raw(x, &self.core)).collect())
     }
 
-    pub fn fields(&self) -> JavaResult<Vec<JavaField>> {
+    pub fn fields(&self) -> JvmResult<Vec<JavaField>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
@@ -198,14 +202,14 @@ impl JavaClass {
         Ok(ptr_fields.into_iter().map(|x| JavaField::from_raw(x, &self.core)).collect())
     }
 
-    pub fn name(&self) -> JavaResult<String> {
+    pub fn name(&self) -> JvmResult<String> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
         read_null_terminated_string(&self.core, descriptor.ptr_name)
     }
 
-    pub fn parent_class(&self) -> JavaResult<Option<JavaClass>> {
+    pub fn parent_class(&self) -> JvmResult<Option<JavaClass>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
@@ -216,7 +220,7 @@ impl JavaClass {
         }
     }
 
-    pub fn method(&self, name: &str, descriptor: &str) -> JavaResult<Option<JavaMethod>> {
+    pub fn method(&self, name: &str, descriptor: &str) -> JvmResult<Option<JavaMethod>> {
         let methods = self.methods()?;
 
         for method in methods {
@@ -233,7 +237,7 @@ impl JavaClass {
         }
     }
 
-    pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> JavaResult<Option<JavaField>> {
+    pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> JvmResult<Option<JavaField>> {
         let fields = self.fields()?;
 
         for field in fields {
@@ -246,14 +250,14 @@ impl JavaClass {
         Ok(None)
     }
 
-    pub fn read_static_field(&self, field: &JavaField) -> JavaResult<KtfJvmWord> {
+    pub fn read_static_field(&self, field: &JavaField) -> JvmResult<KtfJvmWord> {
         let address = field.static_address()?;
         let result: KtfJvmWord = read_generic(&self.core, address)?;
 
         Ok(result as _)
     }
 
-    pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JavaResult<()> {
+    pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JvmResult<()> {
         let address = field.static_address()?;
 
         write_generic(&mut self.core, address, value)

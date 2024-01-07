@@ -6,11 +6,11 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{Field, JavaType};
+use java_runtime_base::{JavaFieldAccessFlag, JavaFieldProto};
+use jvm::{Field, JavaType, JvmResult};
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{JavaFieldAccessFlag, JavaFieldProto, JavaResult};
 
 use super::JavaFullName;
 
@@ -49,7 +49,7 @@ impl JavaField {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> JvmResult<Self> {
         let full_name = (JavaFullName {
             tag: 0,
             name: proto.name,
@@ -76,13 +76,13 @@ impl JavaField {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub fn name(&self) -> JavaResult<JavaFullName> {
+    pub fn name(&self) -> JvmResult<JavaFullName> {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub fn offset(&self) -> JavaResult<u32> {
+    pub fn offset(&self) -> JvmResult<u32> {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
         anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
@@ -90,7 +90,7 @@ impl JavaField {
         Ok(raw.offset_or_value)
     }
 
-    pub fn static_address(&self) -> JavaResult<u32> {
+    pub fn static_address(&self) -> JvmResult<u32> {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
         anyhow::ensure!(raw.access_flag & 0x0008 != 0, "Field is not static");

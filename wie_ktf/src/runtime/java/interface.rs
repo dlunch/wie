@@ -6,10 +6,11 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
+use java_runtime::java::lang::String as JavaString;
+
 use wie_backend::SystemHandle;
 use wie_base::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{r#impl::java::lang::String as JavaString, JavaContext};
 
 use crate::runtime::java::context::{JavaFullName, KtfJavaContext};
 
@@ -101,6 +102,8 @@ async fn get_java_method(core: &mut ArmCore, system: &mut SystemHandle, ptr_clas
 async fn java_jump_1(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, address: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_jump_1({:#x}, {:#x})", arg1, address);
 
+    anyhow::ensure!(address != 0, "jump native address is null");
+
     core.run_function::<u32>(address, &[arg1]).await
 }
 
@@ -109,7 +112,7 @@ async fn register_class(core: &mut ArmCore, system: &mut SystemHandle, ptr_class
 
     let context = KtfJavaContext::new(core, system);
     let class = context.class_from_raw(ptr_class);
-    KtfJavaContext::register_class(core, &class).await?;
+    KtfJavaContext::register_class(core, system, &class).await?;
 
     Ok(())
 }
@@ -128,8 +131,10 @@ async fn register_java_string(core: &mut ArmCore, system: &mut SystemHandle, off
     let bytes = core.read_bytes(cursor, (length * 2) as _)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
 
-    let mut context = KtfJavaContext::new(core, system);
-    let instance = JavaString::from_utf16(&mut context, bytes_u16).await?;
+    let context = KtfJavaContext::new(core, system);
+    let mut jvm = context.jvm();
+
+    let instance = JavaString::from_utf16(&mut jvm, bytes_u16).await?;
 
     Ok(context.class_raw(&instance) as _)
 }
@@ -186,11 +191,15 @@ async fn call_native(core: &mut ArmCore, _: &mut SystemHandle, address: u32, ptr
 async fn java_jump_2(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, arg2: u32, address: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
+    anyhow::ensure!(address != 0, "jump native address is null");
+
     core.run_function::<u32>(address, &[arg1, arg2]).await
 }
 
 async fn java_jump_3(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, arg2: u32, arg3: u32, address: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_jump_3({:#x}, {:#x}, {:#x}, {:#x})", arg1, arg2, arg3, address);
+
+    anyhow::ensure!(address != 0, "jump native address is null");
 
     core.run_function::<u32>(address, &[arg1, arg2, arg3]).await
 }
@@ -198,11 +207,13 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, arg2: 
 pub async fn java_new(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_new({:#x})", ptr_class);
 
-    let mut context = KtfJavaContext::new(core, system);
+    let context = KtfJavaContext::new(core, system);
+    let mut jvm = context.jvm();
+
     let class = context.class_from_raw(ptr_class);
     let class_name = class.name()?;
 
-    let instance = context.jvm().instantiate_class(&class_name).await?;
+    let instance = jvm.instantiate_class(&class_name).await?;
     let raw = context.class_raw(&instance);
 
     Ok(raw)
@@ -211,18 +222,19 @@ pub async fn java_new(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: 
 pub async fn java_array_new(core: &mut ArmCore, system: &mut SystemHandle, element_type: u32, count: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    let mut java_context = KtfJavaContext::new(core, system);
+    let context = KtfJavaContext::new(core, system);
+    let mut jvm = context.jvm();
 
     let element_type_name = if element_type > 0x100 {
         // HACK: we don't have element type class
-        let class = java_context.class_from_raw(element_type);
+        let class = context.class_from_raw(element_type);
         class.name()?
     } else {
         (element_type as u8 as char).to_string()
     };
 
-    let instance = java_context.jvm().instantiate_array(&element_type_name, count as _).await?;
-    let raw = java_context.class_raw(&instance);
+    let instance = jvm.instantiate_array(&element_type_name, count as _).await?;
+    let raw = context.class_raw(&instance);
 
     Ok(raw)
 }

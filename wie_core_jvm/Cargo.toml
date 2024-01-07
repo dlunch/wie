@@ -10,6 +10,8 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
+java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
+java_runtime_base = { git = "https://github.com/dlunch/RustJava.git" }
 jvm = { git = "https://github.com/dlunch/RustJava.git" }
 jvm_impl = { git = "https://github.com/dlunch/RustJava.git" }
 

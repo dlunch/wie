@@ -11,7 +11,6 @@ use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, 
 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::JavaResult;
 
 use crate::runtime::java::context::context_data::JavaContextData;
 
@@ -42,7 +41,7 @@ impl JavaClassInstance {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(core: &mut ArmCore, class: &JavaClass) -> JavaResult<Self> {
+    pub fn new(core: &mut ArmCore, class: &JavaClass) -> JvmResult<Self> {
         let field_size = class.field_size()?;
 
         let instance = Self::instantiate(core, class, field_size)?;
@@ -52,7 +51,7 @@ impl JavaClassInstance {
         Ok(instance)
     }
 
-    pub fn destroy(mut self) -> JavaResult<()> {
+    pub fn destroy(mut self) -> JvmResult<()> {
         let raw = self.read_raw()?;
 
         Allocator::free(&mut self.core, raw.ptr_fields)?;
@@ -61,13 +60,13 @@ impl JavaClassInstance {
         Ok(())
     }
 
-    pub fn class(&self) -> JavaResult<JavaClass> {
+    pub fn class(&self) -> JvmResult<JavaClass> {
         let raw = self.read_raw()?;
 
         Ok(JavaClass::from_raw(raw.ptr_class, &self.core))
     }
 
-    pub fn read_field(&self, field: &JavaField) -> JavaResult<KtfJvmWord> {
+    pub fn read_field(&self, field: &JavaField) -> JvmResult<KtfJvmWord> {
         let offset = field.offset()?;
 
         let address = self.field_address(offset)?;
@@ -77,7 +76,7 @@ impl JavaClassInstance {
         Ok(value)
     }
 
-    pub fn write_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JavaResult<()> {
+    pub fn write_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JvmResult<()> {
         let offset = field.offset()?;
 
         let address = self.field_address(offset)?;
@@ -85,13 +84,13 @@ impl JavaClassInstance {
         write_generic(&mut self.core, address, value)
     }
 
-    pub(super) fn field_address(&self, offset: u32) -> JavaResult<u32> {
+    pub(super) fn field_address(&self, offset: u32) -> JvmResult<u32> {
         let raw = self.read_raw()?;
 
         Ok(raw.ptr_fields + offset + 4)
     }
 
-    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClass, field_size: usize) -> JavaResult<Self> {
+    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClass, field_size: usize) -> JvmResult<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as _)?;
         let ptr_fields = Allocator::alloc(core, (field_size + 4) as _)?;
 
@@ -115,7 +114,7 @@ impl JavaClassInstance {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    fn read_raw(&self) -> JavaResult<RawJavaClassInstance> {
+    fn read_raw(&self) -> JvmResult<RawJavaClassInstance> {
         let instance: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw as _)?;
 
         Ok(instance)

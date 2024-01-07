@@ -1,16 +1,58 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, format, rc::Rc, vec::Vec};
-use core::cell::{RefCell, RefMut};
+use alloc::{boxed::Box, format, rc::Rc, string::String, vec::Vec};
+use core::{
+    cell::{RefCell, RefMut},
+    time::Duration,
+};
 
-use jvm::{Class, JavaValue, Jvm, JvmResult};
-use jvm_impl::{ClassImpl, FieldImpl, JvmDetailImpl, MethodBody, MethodImpl, RustMethodBody};
+use java_runtime::get_class_proto;
+use java_runtime_base::{JavaResult, MethodBody, Platform};
+use jvm::{Class, Jvm, JvmCallback, JvmResult};
+use jvm_impl::{ClassImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
-use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
+use wie_impl_java::{get_class_proto as get_wie_class_proto, JavaContext};
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
+
+#[derive(Clone)]
+struct JvmCorePlatform;
+
+#[async_trait::async_trait(?Send)]
+impl Platform for JvmCorePlatform {
+    async fn sleep(&self, _duration: Duration) {
+        todo!()
+    }
+    async fn r#yield(&self) {
+        todo!()
+    }
+
+    fn spawn(&self, _callback: Box<dyn JvmCallback>) {
+        todo!()
+    }
+
+    fn now(&self) -> u64 {
+        todo!()
+    }
+
+    fn encode_str(&self, _s: &str) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode_str(&self, _bytes: &[u8]) -> String {
+        todo!()
+    }
+
+    fn load_resource(&self, _name: &str) -> Option<Vec<u8>> {
+        todo!()
+    }
+
+    fn println(&self, _s: &str) {
+        todo!()
+    }
+}
 
 #[derive(Clone)]
 pub struct JvmCore {
@@ -40,39 +82,19 @@ impl JvmCore {
     }
 
     fn load_class_from_impl(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
-        let class_proto = get_class_proto(class_name);
-        if let Some(x) = class_proto {
-            let super_class = None; // TODO
-            let class = ClassImpl::new(
-                class_name,
-                super_class,
-                Self::load_methods(system, x.methods),
-                Self::load_fields(x.fields),
-            );
+        if let Some(x) = get_class_proto(class_name) {
+            let class = ClassImpl::from_class_proto(class_name, x, Box::new(JvmCorePlatform));
+
+            Ok(Some(Box::new(class)))
+        } else if let Some(x) = get_wie_class_proto(class_name) {
+            let context = JvmCoreContext { system: system.clone() };
+
+            let class = ClassImpl::from_class_proto(class_name, x, Box::new(context));
 
             Ok(Some(Box::new(class)))
         } else {
             Ok(None)
         }
-    }
-
-    fn load_methods(system: &SystemHandle, methods: Vec<JavaMethodProto>) -> Vec<MethodImpl> {
-        methods
-            .into_iter()
-            .map(|x| MethodImpl::new(&x.name, &x.descriptor, Self::load_method_body(system, x.body)))
-            .collect()
-    }
-
-    fn load_fields(fields: Vec<JavaFieldProto>) -> Vec<FieldImpl> {
-        fields
-            .into_iter()
-            .scan(0, |index, x| {
-                let field = FieldImpl::new(&x.name, &x.descriptor, x.access_flag == JavaFieldAccessFlag::STATIC, *index);
-                *index += 1;
-
-                Some(field)
-            })
-            .collect()
     }
 
     fn load_class_from_resource(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
@@ -88,50 +110,22 @@ impl JvmCore {
         }
     }
 
-    fn load_method_body(system: &SystemHandle, body: JavaMethodBody) -> MethodBody {
-        struct MethodProxy {
-            body: JavaMethodBody,
-            system: SystemHandle,
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl RustMethodBody<anyhow::Error, JavaValue> for MethodProxy {
-            async fn call(&self, jvm: &mut Jvm, args: Box<[JavaValue]>) -> Result<JavaValue, anyhow::Error> {
-                let mut context = JvmCoreContext {
-                    system: self.system.clone(),
-                    jvm,
-                };
-
-                self.body.call(&mut context, args).await
-            }
-        }
-
-        MethodBody::Rust(Box::new(MethodProxy {
-            body,
-            system: system.clone(),
-        }))
-    }
-
     pub fn jvm(&mut self) -> RefMut<'_, Jvm> {
         self.jvm.borrow_mut()
     }
 }
 
-struct JvmCoreContext<'a> {
+#[derive(Clone)]
+struct JvmCoreContext {
     system: SystemHandle,
-    jvm: &'a mut Jvm,
 }
 
-impl<'a> JavaContext for JvmCoreContext<'a> {
-    fn jvm(&mut self) -> &mut Jvm {
-        self.jvm
-    }
-
+impl JavaContext for JvmCoreContext {
     fn system(&mut self) -> &mut SystemHandle {
         &mut self.system
     }
 
-    fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
+    fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, Box<dyn JavaContext>>>) -> JavaResult<()> {
         todo!()
     }
 }
