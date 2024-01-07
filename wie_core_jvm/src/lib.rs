@@ -13,7 +13,7 @@ use jvm::{Class, Jvm, JvmCallback, JvmResult};
 use jvm_impl::{ClassImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
-use wie_impl_wipi_java::{get_class_proto as get_wie_class_proto, WIPIJavaContextBase};
+use wie_impl_wipi_java::{get_class_proto as get_wipi_class_proto, WIPIJavaContextBase};
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
 
@@ -86,7 +86,7 @@ impl JvmCore {
             let class = ClassImpl::from_class_proto(class_name, x, Box::new(JvmCoreRuntime) as Box<_>);
 
             Ok(Some(Box::new(class)))
-        } else if let Some(x) = get_wie_class_proto(class_name) {
+        } else if let Some(x) = get_wipi_class_proto(class_name) {
             let context = JvmCoreContext { system: system.clone() };
 
             let class = ClassImpl::from_class_proto(class_name, x, Box::new(context) as Box<_>);

@@ -6,7 +6,7 @@ use jvm::JvmResult;
 use wie_backend::SystemHandle;
 use wie_base::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_wipi_java::get_class_proto as get_wie_class_proto;
+use wie_impl_wipi_java::get_class_proto as get_wipi_class_proto;
 
 use crate::runtime::java::{context::KtfWIPIJavaContext, runtime::KtfRuntime};
 
@@ -27,7 +27,7 @@ impl ClassLoader {
             let runtime = KtfRuntime::new(core.clone(), system.clone());
 
             Ok(Some(JavaClass::new(core, system, name, x, Box::new(runtime) as Box<_>).await?))
-        } else if let Some(x) = get_wie_class_proto(name) {
+        } else if let Some(x) = get_wipi_class_proto(name) {
             let context = KtfWIPIJavaContext::new(core, system);
 
             Ok(Some(JavaClass::new(core, system, name, x, Box::new(context) as Box<_>).await?))
