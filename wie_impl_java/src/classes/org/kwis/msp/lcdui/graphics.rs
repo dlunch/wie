@@ -467,13 +467,44 @@ impl Graphics {
 
 #[cfg(test)]
 mod test {
+    use java_runtime_base::JvmClassInstanceHandle;
+
     use test_utils::test_jvm_core;
+
+    use crate::classes::org::kwis::msp::lcdui::Image;
 
     #[futures_test::test]
     async fn test_graphics() -> anyhow::Result<()> {
         let mut core = test_jvm_core();
-        let mut _jvm = core.jvm();
+        let mut jvm = core.jvm();
 
-        Ok(()) // TODO
+        let image: JvmClassInstanceHandle<Image> = jvm
+            .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (100, 100))
+            .await?;
+
+        let graphics = jvm
+            .new_class(
+                "org/kwis/msp/lcdui/Graphics",
+                "(Lorg/kwis/msp/lcdui/Image;IIII)V",
+                (image.clone(), 0, 0, 100, 100),
+            )
+            .await?;
+
+        jvm.invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x00ff00,))
+            .await?;
+
+        jvm.invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
+            .await?;
+
+        let image = Image::image(&mut jvm, &image)?;
+
+        assert_eq!(image.width(), 100);
+        assert_eq!(image.height(), 100);
+
+        assert_eq!(image.raw()[0], 0);
+        assert_eq!(image.raw()[1], 255);
+        assert_eq!(image.raw()[2], 0);
+
+        Ok(())
     }
 }
