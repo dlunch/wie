@@ -13,7 +13,7 @@ use jvm::{Class, Jvm, JvmCallback, JvmResult};
 use jvm_impl::{ClassImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
-use wie_impl_java::{get_class_proto as get_wie_class_proto, WieContextBase};
+use wie_impl_wipi_java::{get_class_proto as get_wie_class_proto, WIPIJavaContextBase};
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
 
@@ -120,12 +120,12 @@ struct JvmCoreContext {
     system: SystemHandle,
 }
 
-impl WieContextBase for JvmCoreContext {
+impl WIPIJavaContextBase for JvmCoreContext {
     fn system(&mut self) -> &mut SystemHandle {
         &mut self.system
     }
 
-    fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn WieContextBase>>) -> JavaResult<()> {
+    fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
         todo!()
     }
 }
