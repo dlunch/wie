@@ -4,14 +4,14 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.handset.HandsetProperty
 pub struct HandsetProperty {}
 
 impl HandsetProperty {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new(
@@ -26,7 +26,7 @@ impl HandsetProperty {
 
     async fn get_system_property(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         name: JvmClassInstanceHandle<String>,
     ) -> JavaResult<JvmClassInstanceHandle<String>> {
         let name = String::to_rust_string(jvm, &name)?;

@@ -4,14 +4,14 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.lcdui.Main
 pub struct Main {}
 
 impl Main {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -22,13 +22,13 @@ impl Main {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Main>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Main>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn main(jvm: &mut Jvm, _: &mut JavaContextArg, args: JvmClassInstanceHandle<String>) -> JavaResult<()> {
+    async fn main(jvm: &mut Jvm, _: &mut WieContext, args: JvmClassInstanceHandle<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = jvm

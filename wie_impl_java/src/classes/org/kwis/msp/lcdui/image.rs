@@ -12,14 +12,14 @@ use jvm::Jvm;
 
 use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
 
-use crate::{classes::org::kwis::msp::lcdui::Graphics, JavaClassProto, JavaContextArg};
+use crate::{classes::org::kwis::msp::lcdui::Graphics, WieClassProto, WieContext};
 
 // class org.kwis.msp.lcdui.Image
 pub struct Image {}
 
 impl Image {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -55,13 +55,13 @@ impl Image {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Image>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Image>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn create_image(jvm: &mut Jvm, _: &mut JavaContextArg, width: i32, height: i32) -> JavaResult<JvmClassInstanceHandle<Image>> {
+    async fn create_image(jvm: &mut Jvm, _: &mut WieContext, width: i32, height: i32) -> JavaResult<JvmClassInstanceHandle<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let bytes_per_pixel = 4;
@@ -79,7 +79,7 @@ impl Image {
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn create_image_from_file(
         jvm: &mut Jvm,
-        context: &mut JavaContextArg,
+        context: &mut WieContext,
         name: JvmClassInstanceHandle<String>,
     ) -> JavaResult<JvmClassInstanceHandle<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
@@ -99,7 +99,7 @@ impl Image {
 
     async fn create_image_from_bytes(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         data: JvmClassInstanceHandle<Array<i8>>,
         offset: i32,
         length: i32,
@@ -112,7 +112,7 @@ impl Image {
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
-    async fn get_graphics(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<JvmClassInstanceHandle<Graphics>> {
+    async fn get_graphics(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<JvmClassInstanceHandle<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "w", "I")?;
@@ -129,13 +129,13 @@ impl Image {
         Ok(instance.into())
     }
 
-    async fn get_width(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_width(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
 
         jvm.get_field(&this, "w", "I")
     }
 
-    async fn get_height(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_height(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
 
         jvm.get_field(&this, "h", "I")

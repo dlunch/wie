@@ -3,14 +3,14 @@ use alloc::vec;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.lwc.AnnunciatorComponent
 pub struct AnnunciatorComponent {}
 
 impl AnnunciatorComponent {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
             interfaces: vec![],
             methods: vec![
@@ -21,13 +21,13 @@ impl AnnunciatorComponent {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", &this, a0);
 
         Ok(())
     }
 
-    async fn show(_: &mut Jvm, _: &mut JavaContextArg) -> JavaResult<()> {
+    async fn show(_: &mut Jvm, _: &mut WieContext) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::show");
 
         Ok(())

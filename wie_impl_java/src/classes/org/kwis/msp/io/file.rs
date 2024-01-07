@@ -7,14 +7,14 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{Array, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.io.File
 pub struct File {}
 
 impl File {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -34,7 +34,7 @@ impl File {
 
     async fn init(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         filename: JvmClassInstanceHandle<String>,
         mode: i32,
@@ -50,7 +50,7 @@ impl File {
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn init_with_flag(
         jvm: &mut Jvm,
-        context: &mut JavaContextArg,
+        context: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         filename: JvmClassInstanceHandle<String>,
         mode: i32,
@@ -83,7 +83,7 @@ impl File {
 
     async fn write(
         _jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         buf: JvmClassInstanceHandle<JvmClassInstanceHandle<Array<i8>>>,
         offset: i32,
@@ -96,7 +96,7 @@ impl File {
 
     async fn read(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         mut buf: JvmClassInstanceHandle<Array<i8>>,
     ) -> JavaResult<i32> {
@@ -118,13 +118,13 @@ impl File {
         Ok(length_to_read as _)
     }
 
-    async fn close(_jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
+    async fn close(_jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())
     }
 
-    async fn size_of(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn size_of(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;

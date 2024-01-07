@@ -20,7 +20,7 @@ use jvm::{ArrayClass, Class, ClassInstance, Jvm, JvmDetail, JvmResult, ThreadCon
 
 use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
-use wie_impl_java::JavaContext;
+use wie_impl_java::WieContextBase;
 
 pub use self::name::JavaFullName;
 use self::{
@@ -158,16 +158,16 @@ impl KtfJavaContext {
 }
 
 #[async_trait::async_trait(?Send)]
-impl JavaContext for KtfJavaContext {
+impl WieContextBase for KtfJavaContext {
     fn system(&mut self) -> &mut SystemHandle {
         &mut self.system
     }
 
-    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn JavaContext>>) -> JvmResult<()> {
+    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn WieContextBase>>) -> JvmResult<()> {
         struct SpawnProxy {
             core: ArmCore,
             system: SystemHandle,
-            callback: Box<dyn MethodBody<anyhow::Error, dyn JavaContext>>,
+            callback: Box<dyn MethodBody<anyhow::Error, dyn WieContextBase>>,
         }
 
         #[async_trait::async_trait(?Send)]

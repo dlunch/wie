@@ -3,14 +3,14 @@ use alloc::vec;
 use java_runtime_base::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.lcdui.Font
 pub struct Font {}
 
 impl Font {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -33,7 +33,7 @@ impl Font {
         }
     }
 
-    async fn cl_init(jvm: &mut Jvm, _: &mut JavaContextArg) -> JavaResult<()> {
+    async fn cl_init(jvm: &mut Jvm, _: &mut WieContext) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", 0).await?;
@@ -43,19 +43,19 @@ impl Font {
         Ok(())
     }
 
-    async fn init(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Font>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Font>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn get_height(_: &mut Jvm, _: &mut JavaContextArg) -> JavaResult<i32> {
+    async fn get_height(_: &mut Jvm, _: &mut WieContext) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getHeight");
 
         Ok(12) // TODO: hardcoded
     }
 
-    async fn get_default_font(jvm: &mut Jvm, _: &mut JavaContextArg) -> JavaResult<JvmClassInstanceHandle<Self>> {
+    async fn get_default_font(jvm: &mut Jvm, _: &mut WieContext) -> JavaResult<JvmClassInstanceHandle<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
@@ -63,7 +63,7 @@ impl Font {
         Ok(instance.into())
     }
 
-    async fn get_font(jvm: &mut Jvm, _: &mut JavaContextArg, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceHandle<Font>> {
+    async fn get_font(jvm: &mut Jvm, _: &mut WieContext, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceHandle<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;

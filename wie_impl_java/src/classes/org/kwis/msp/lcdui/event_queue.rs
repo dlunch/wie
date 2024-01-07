@@ -7,7 +7,7 @@ use wie_base::KeyCode;
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
-    JavaClassProto, JavaContextArg,
+    WieClassProto, WieContext,
 };
 
 #[repr(i32)]
@@ -89,8 +89,8 @@ impl WIPIKeyCode {
 pub struct EventQueue {}
 
 impl EventQueue {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -102,12 +102,7 @@ impl EventQueue {
         }
     }
 
-    async fn init(
-        _: &mut Jvm,
-        _: &mut JavaContextArg,
-        this: JvmClassInstanceHandle<EventQueue>,
-        jlet: JvmClassInstanceHandle<Jlet>,
-    ) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<EventQueue>, jlet: JvmClassInstanceHandle<Jlet>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
@@ -115,7 +110,7 @@ impl EventQueue {
 
     async fn get_next_event(
         jvm: &mut Jvm,
-        context: &mut JavaContextArg,
+        context: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         mut event: JvmClassInstanceHandle<Array<i32>>,
     ) -> JavaResult<()> {
@@ -155,7 +150,7 @@ impl EventQueue {
 
     async fn dispatch_event(
         jvm: &mut Jvm,
-        context: &mut JavaContextArg,
+        context: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         event: JvmClassInstanceHandle<Array<i32>>,
     ) -> JavaResult<()> {
@@ -197,7 +192,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn repaint(jvm: &mut Jvm, context: &mut JavaContextArg) -> JavaResult<()> {
+    async fn repaint(jvm: &mut Jvm, context: &mut WieContext) -> JavaResult<()> {
         let display = Self::get_current_display(jvm).await?;
         if display.is_null() {
             return Ok(());

@@ -7,14 +7,14 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{Array, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.db.DataBase
 pub struct DataBase {}
 
 impl DataBase {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -35,7 +35,7 @@ impl DataBase {
     }
     async fn init(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         data_base_name: JvmClassInstanceHandle<String>,
     ) -> JavaResult<()> {
@@ -48,7 +48,7 @@ impl DataBase {
 
     async fn open_data_base(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         data_base_name: JvmClassInstanceHandle<String>,
         record_size: i32,
         create: bool,
@@ -67,7 +67,7 @@ impl DataBase {
         Ok(instance.into())
     }
 
-    async fn get_number_of_records(jvm: &mut Jvm, context: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_number_of_records(jvm: &mut Jvm, context: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
         let database = Self::get_database(jvm, context, &this)?;
@@ -77,7 +77,7 @@ impl DataBase {
         Ok(count as _)
     }
 
-    async fn close_data_base(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<DataBase>) -> JavaResult<()> {
+    async fn close_data_base(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<DataBase>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
         Ok(())
@@ -85,7 +85,7 @@ impl DataBase {
 
     async fn insert_record(
         jvm: &mut Jvm,
-        context: &mut JavaContextArg,
+        context: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         data: JvmClassInstanceHandle<Array<i8>>,
         offset: i32,
@@ -111,7 +111,7 @@ impl DataBase {
 
     async fn select_record(
         jvm: &mut Jvm,
-        context: &mut JavaContextArg,
+        context: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         record_id: i32,
     ) -> JavaResult<JvmClassInstanceHandle<i8>> {
@@ -127,7 +127,7 @@ impl DataBase {
         Ok(array.into())
     }
 
-    fn get_database(jvm: &mut Jvm, context: &mut JavaContextArg, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Box<dyn Database>> {
+    fn get_database(jvm: &mut Jvm, context: &mut WieContext, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Box<dyn Database>> {
         let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(jvm, &db_name)?;
 
