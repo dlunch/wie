@@ -183,19 +183,15 @@ impl JavaMethod {
             Context: Deref<Target = C> + DerefMut + Clone + 'static,
         {
             async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
-                let a1 = u32::get(core, 1);
-                let a2 = u32::get(core, 2);
-                let a3 = u32::get(core, 3);
-                let a4 = u32::get(core, 4);
-                let a5 = u32::get(core, 5);
-                let a6 = u32::get(core, 6);
-                let a7 = u32::get(core, 7);
-                let a8 = u32::get(core, 8);
+                let param_count = self.parameter_types.len() as u32;
 
                 let args = if self.native {
-                    (0..8).map(|x| read_generic(core, a1 + x * 4)).collect::<JvmResult<Vec<u32>>>()?
+                    let param_base = u32::get(core, 1);
+                    (0..param_count)
+                        .map(|x| read_generic(core, param_base + x * 4))
+                        .collect::<JvmResult<Vec<u32>>>()?
                 } else {
-                    vec![a1, a2, a3, a4, a5, a6, a7, a8]
+                    (0..param_count).map(|x| u32::get(core, (x + 1) as _)).collect::<Vec<_>>()
                 };
 
                 let args = args
