@@ -18,3 +18,6 @@ wie_base = { path = "../wie_base" }
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))'.dependencies]
 unicorn-engine = { version = "^2.0" }
 capstone = { version = "^0.11" }
+
+[dev-dependencies]
+test_utils = { path = "../test_utils" }

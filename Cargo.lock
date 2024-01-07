@@ -2397,6 +2397,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69758bda2e78f098e4ccb393021a0963bb3442eac05f135c30f61b7370bbafae"
 
 [[package]]
+name = "test_utils"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "wie_backend",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2859,6 +2868,7 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "capstone",
+ "test_utils",
  "tracing",
  "unicorn-engine",
  "wie_backend",
@@ -2896,6 +2906,7 @@ dependencies = [
  "java_runtime_base",
  "jvm",
  "jvm_impl",
+ "test_utils",
  "tracing",
  "wie_backend",
  "wie_base",
@@ -2943,6 +2954,7 @@ dependencies = [
  "java_runtime",
  "java_runtime_base",
  "jvm",
+ "test_utils",
  "tracing",
  "wie_backend",
  "wie_base",
