@@ -7,7 +7,7 @@ use alloc::boxed::Box;
 
 use dyn_clone::{clone_trait_object, DynClone};
 
-use java_runtime_base::{JavaResult, MethodBody};
+use java_runtime_base::{JavaClassProto, JavaResult, MethodBody};
 
 use wie_backend::SystemHandle;
 
@@ -18,7 +18,7 @@ pub trait WieContextBase: DynClone {
 
 clone_trait_object!(WieContextBase);
 
-pub(crate) type WieClassProto = java_runtime_base::JavaClassProto<dyn WieContextBase>;
+pub(crate) type WieClassProto = JavaClassProto<dyn WieContextBase>;
 pub(crate) type WieContext = dyn WieContextBase;
 
 pub fn get_class_proto(name: &str) -> Option<WieClassProto> {
