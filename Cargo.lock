@@ -2402,9 +2402,11 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "java_runtime_base",
+ "jvm",
+ "jvm_impl",
  "wie_backend",
  "wie_core_arm",
- "wie_core_jvm",
 ]
 
 [[package]]
