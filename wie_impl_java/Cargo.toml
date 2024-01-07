@@ -23,7 +23,4 @@ wie_backend = { path = "../wie_backend" }
 [dev-dependencies]
 futures-test = { version = "^0.3" }
 
-jvm_impl = { git = "https://github.com/dlunch/RustJava.git" }
-
 test_utils = { path = "../test_utils" }
-wie_core_jvm = { path = "../wie_core_jvm" }

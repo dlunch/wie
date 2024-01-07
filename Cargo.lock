@@ -2907,12 +2907,10 @@ dependencies = [
  "java_runtime",
  "java_runtime_base",
  "jvm",
- "jvm_impl",
  "test_utils",
  "tracing",
  "wie_backend",
  "wie_base",
- "wie_core_jvm",
 ]
 
 [[package]]
