@@ -163,20 +163,19 @@ impl JavaContext for KtfJavaContext {
         &mut self.system
     }
 
-    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, Box<dyn JavaContext>>>) -> JvmResult<()> {
+    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn JavaContext>>) -> JvmResult<()> {
         struct SpawnProxy {
             core: ArmCore,
             system: SystemHandle,
-            callback: Box<dyn MethodBody<anyhow::Error, Box<dyn JavaContext>>>,
+            callback: Box<dyn MethodBody<anyhow::Error, dyn JavaContext>>,
         }
 
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
-                let context = KtfJavaContext::new(&mut self.core, &mut self.system);
+                let mut context = KtfJavaContext::new(&mut self.core, &mut self.system);
                 let mut jvm = context.jvm();
 
-                let mut context: Box<dyn JavaContext> = Box::new(context);
                 let _ = self.callback.call(&mut jvm, &mut context, Box::new([])).await?;
 
                 Ok(0) // TODO resturn value
@@ -199,7 +198,7 @@ impl JavaContext for KtfJavaContext {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::java::lang::String;
+    use java_runtime::classes::java::lang::String;
 
     use wie_backend::{AudioSink, Platform, System, SystemHandle};
     use wie_base::util::write_generic;

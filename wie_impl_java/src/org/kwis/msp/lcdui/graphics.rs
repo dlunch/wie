@@ -5,7 +5,7 @@ use jvm::JavaValue;
 
 use wie_backend::canvas::{ImageBuffer, PixelType, Rgb8Pixel};
 
-use java_runtime::java::lang::String;
+use java_runtime::classes::java::lang::String;
 use java_runtime_base::{
     Array, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle, TypeConverter,
 };

@@ -1,14 +1,11 @@
-use alloc::{
-    boxed::Box,
-    string::{String, ToString},
-};
+use alloc::string::{String, ToString};
 
 use anyhow::Context;
 
 use wie_backend::{App, System, SystemHandle};
 use wie_base::Event;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::{org::kwis::msp::lcdui::Jlet, JavaContext};
+use wie_impl_java::org::kwis::msp::lcdui::Jlet;
 
 use crate::runtime::KtfJavaContext;
 
@@ -54,10 +51,10 @@ impl KtfApp {
         let result = core.run_function::<u32>(fn_init, &[]).await?;
         anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
 
-        let context = Box::new(KtfJavaContext::new(core, system));
+        let mut context = KtfJavaContext::new(core, system);
         let mut jvm = context.jvm();
 
-        Jlet::start(&mut jvm, &mut (context as Box<dyn JavaContext>), &main_class_name).await?;
+        Jlet::start(&mut jvm, &mut context, &main_class_name).await?;
 
         Ok(())
     }

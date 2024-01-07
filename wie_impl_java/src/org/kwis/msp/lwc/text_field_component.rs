@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_runtime::java::lang::String;
+use java_runtime::classes::java::lang::String;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
