@@ -6,5 +6,5 @@ pub use self::{
     init::{
         KtfPeb, {init, start},
     },
-    java::{context::KtfWieContext, jvm::KtfJvm},
+    java::{context::KtfWIPIJavaContext, jvm::KtfJvm},
 };

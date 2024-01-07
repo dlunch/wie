@@ -7,7 +7,7 @@ members = [
     "wie_cli",
     "wie_core_arm",
     "wie_core_jvm",
-    "wie_impl_java",
+    "wie_impl_wipi_java",
     "wie_impl_wipi_c",
     "wie_j2me",
     "wie_ktf",
