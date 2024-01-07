@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-pub mod methods;
 pub mod util;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
