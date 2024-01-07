@@ -2,6 +2,7 @@ use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
+    ops::{Deref, DerefMut},
 };
 
 use bytemuck::{Pod, Zeroable};
@@ -59,9 +60,16 @@ impl JavaClass {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new<C>(core: &mut ArmCore, system: &mut SystemHandle, name: &str, proto: JavaClassProto<C>, context: C) -> JvmResult<Self>
+    pub async fn new<C, Context>(
+        core: &mut ArmCore,
+        system: &mut SystemHandle,
+        name: &str,
+        proto: JavaClassProto<C>,
+        context: Context,
+    ) -> JvmResult<Self>
     where
-        C: Clone + 'static,
+        C: ?Sized + 'static,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
         let parent_class = if let Some(x) = proto.parent_class {
             Some(ClassLoader::get_or_load_class(core, system, x).await?.unwrap())

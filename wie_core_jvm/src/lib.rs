@@ -7,8 +7,8 @@ use core::{
     time::Duration,
 };
 
-use java_runtime::get_class_proto;
-use java_runtime_base::{JavaResult, MethodBody, Platform};
+use java_runtime::{get_class_proto, Runtime};
+use java_runtime_base::{JavaResult, MethodBody};
 use jvm::{Class, Jvm, JvmCallback, JvmResult};
 use jvm_impl::{ClassImpl, JvmDetailImpl};
 
@@ -18,10 +18,10 @@ use wie_impl_java::{get_class_proto as get_wie_class_proto, JavaContext};
 pub type JvmCoreResult<T> = anyhow::Result<T>;
 
 #[derive(Clone)]
-struct JvmCorePlatform;
+struct JvmCoreRuntime;
 
 #[async_trait::async_trait(?Send)]
-impl Platform for JvmCorePlatform {
+impl Runtime for JvmCoreRuntime {
     async fn sleep(&self, _duration: Duration) {
         todo!()
     }
@@ -83,13 +83,13 @@ impl JvmCore {
 
     fn load_class_from_impl(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
         if let Some(x) = get_class_proto(class_name) {
-            let class = ClassImpl::from_class_proto(class_name, x, Box::new(JvmCorePlatform));
+            let class = ClassImpl::from_class_proto(class_name, x, Box::new(JvmCoreRuntime) as Box<_>);
 
             Ok(Some(Box::new(class)))
         } else if let Some(x) = get_wie_class_proto(class_name) {
             let context = JvmCoreContext { system: system.clone() };
 
-            let class = ClassImpl::from_class_proto(class_name, x, Box::new(context));
+            let class = ClassImpl::from_class_proto(class_name, x, Box::new(context) as Box<_>);
 
             Ok(Some(Box::new(class)))
         } else {
@@ -125,7 +125,7 @@ impl JavaContext for JvmCoreContext {
         &mut self.system
     }
 
-    fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, Box<dyn JavaContext>>>) -> JavaResult<()> {
+    fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn JavaContext>>) -> JavaResult<()> {
         todo!()
     }
 }

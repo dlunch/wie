@@ -2,6 +2,7 @@ use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
+    ops::{Deref, DerefMut},
 };
 
 use bytemuck::{Pod, Zeroable};
@@ -61,15 +62,16 @@ impl JavaMethod {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new<C>(
+    pub fn new<C, Context>(
         core: &mut ArmCore,
         ptr_class: u32,
         proto: JavaMethodProto<C>,
         vtable_builder: &mut JavaVtableBuilder,
-        context: C,
+        context: Context,
     ) -> JvmResult<Self>
     where
-        C: Clone + 'static,
+        C: ?Sized + 'static,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
         let full_name = JavaFullName {
             tag: 0,
@@ -151,31 +153,34 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method<C>(
+    fn register_java_method<C, Context>(
         core: &mut ArmCore,
         body: Box<dyn MethodBody<anyhow::Error, C>>,
-        context: C,
+        context: Context,
         descriptor: &str,
         is_static: bool,
         native: bool,
     ) -> JvmResult<u32>
     where
-        C: Clone + 'static,
+        C: ?Sized + 'static,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
-        struct JavaMethodProxy<C>
+        struct JavaMethodProxy<C, Context>
         where
-            C: Clone,
+            C: ?Sized,
+            Context: Deref<Target = C> + DerefMut + Clone,
         {
             body: Box<dyn MethodBody<anyhow::Error, C>>,
-            context: C,
+            context: Context,
             parameter_types: Vec<JavaType>,
             native: bool,
         }
 
         #[async_trait::async_trait(?Send)]
-        impl<C> EmulatedFunction<(), ArmEngineError, u32> for JavaMethodProxy<C>
+        impl<C, Context> EmulatedFunction<(), ArmEngineError, u32> for JavaMethodProxy<C, Context>
         where
-            C: Clone,
+            C: ?Sized,
+            Context: Deref<Target = C> + DerefMut + Clone + 'static,
         {
             async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
                 let a1 = u32::get(core, 1);

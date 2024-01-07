@@ -2,7 +2,7 @@ use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::time::Duration;
 use wie_core_arm::ArmCore;
 
-use java_runtime_base::Platform;
+use java_runtime::Runtime;
 use jvm::JvmCallback;
 
 use wie_backend::{AsyncCallable, SystemHandle};
@@ -10,19 +10,19 @@ use wie_backend::{AsyncCallable, SystemHandle};
 use crate::runtime::KtfJavaContext;
 
 #[derive(Clone)]
-pub struct KtfPlatform {
+pub struct KtfRuntime {
     core: ArmCore,
     system: SystemHandle,
 }
 
-impl KtfPlatform {
+impl KtfRuntime {
     pub fn new(core: ArmCore, system: SystemHandle) -> Self {
         Self { core, system }
     }
 }
 
 #[async_trait::async_trait(?Send)]
-impl Platform for KtfPlatform {
+impl Runtime for KtfRuntime {
     async fn sleep(&self, duration: Duration) {
         let now = self.system.platform().now();
         let until = now + duration.as_millis() as u64;

@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::iter;
 
-use java_runtime::java::lang::{Object, Runnable, String};
+use java_runtime::classes::java::lang::{Object, Runnable, String};
 use java_runtime_base::{
     JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle, MethodBody,
 };

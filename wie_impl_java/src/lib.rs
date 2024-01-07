@@ -18,9 +18,9 @@ pub trait JavaContext: DynClone {
 
 clone_trait_object!(JavaContext);
 
-pub(crate) type JavaClassProto = java_runtime_base::JavaClassProto<Box<dyn JavaContext>>;
+pub(crate) type JavaClassProto = java_runtime_base::JavaClassProto<dyn JavaContext>;
 pub(crate) type JavaMethodBody = Box<dyn MethodBody<anyhow::Error, JavaContextArg>>;
-pub(crate) type JavaContextArg = Box<dyn JavaContext>;
+pub(crate) type JavaContextArg = dyn JavaContext;
 
 pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
     Some(match name {
