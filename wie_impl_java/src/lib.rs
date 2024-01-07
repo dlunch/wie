@@ -11,18 +11,17 @@ use java_runtime_base::{JavaResult, MethodBody};
 
 use wie_backend::SystemHandle;
 
-pub trait JavaContext: DynClone {
+pub trait WieContextBase: DynClone {
     fn system(&mut self) -> &mut SystemHandle;
-    fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()>;
+    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, WieContext>>) -> JavaResult<()>;
 }
 
-clone_trait_object!(JavaContext);
+clone_trait_object!(WieContextBase);
 
-pub(crate) type JavaClassProto = java_runtime_base::JavaClassProto<dyn JavaContext>;
-pub(crate) type JavaMethodBody = Box<dyn MethodBody<anyhow::Error, JavaContextArg>>;
-pub(crate) type JavaContextArg = dyn JavaContext;
+pub(crate) type WieClassProto = java_runtime_base::JavaClassProto<dyn WieContextBase>;
+pub(crate) type WieContext = dyn WieContextBase;
 
-pub fn get_class_proto(name: &str) -> Option<JavaClassProto> {
+pub fn get_class_proto(name: &str) -> Option<WieClassProto> {
     Some(match name {
         "org/kwis/msf/io/Network" => crate::classes::org::kwis::msf::io::Network::as_proto(),
         "org/kwis/msp/db/DataBase" => crate::classes::org::kwis::msp::db::DataBase::as_proto(),

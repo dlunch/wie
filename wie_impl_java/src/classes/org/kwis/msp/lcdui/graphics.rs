@@ -14,7 +14,7 @@ use jvm::Jvm;
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Display, Font, Image},
-    JavaClassProto, JavaContextArg,
+    WieClassProto, WieContext,
 };
 
 bitflags::bitflags! {
@@ -44,8 +44,8 @@ impl TypeConverter<Anchor> for Anchor {
 pub struct Graphics {}
 
 impl Graphics {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -83,7 +83,7 @@ impl Graphics {
 
     async fn init(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         display: JvmClassInstanceHandle<Display>,
     ) -> JavaResult<()> {
@@ -102,7 +102,7 @@ impl Graphics {
     #[allow(clippy::too_many_arguments)]
     async fn init_with_image(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         image: JvmClassInstanceHandle<Image>,
         a0: i32,
@@ -127,7 +127,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_font(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<JvmClassInstanceHandle<Font>> {
+    async fn get_font(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<JvmClassInstanceHandle<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:?})", &this);
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
@@ -135,7 +135,7 @@ impl Graphics {
         Ok(instance.into())
     }
 
-    async fn set_color(jvm: &mut Jvm, _: &mut JavaContextArg, mut this: JvmClassInstanceHandle<Self>, rgb: i32) -> JavaResult<()> {
+    async fn set_color(jvm: &mut Jvm, _: &mut WieContext, mut this: JvmClassInstanceHandle<Self>, rgb: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
 
         jvm.put_field(&mut this, "rgb", "I", rgb)?;
@@ -145,7 +145,7 @@ impl Graphics {
 
     async fn set_color_by_rgb(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Graphics>,
         r: i32,
         g: i32,
@@ -162,7 +162,7 @@ impl Graphics {
 
     async fn set_font(
         _jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Graphics>,
         font: JvmClassInstanceHandle<Font>,
     ) -> JavaResult<()> {
@@ -171,7 +171,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_alpha(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>, a1: i32) -> JavaResult<()> {
+    async fn set_alpha(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>, a1: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", &this, a1);
 
         Ok(())
@@ -179,7 +179,7 @@ impl Graphics {
 
     async fn set_clip(
         _: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Graphics>,
         x: i32,
         y: i32,
@@ -200,7 +200,7 @@ impl Graphics {
 
     async fn clip_rect(
         _: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Graphics>,
         x: i32,
         y: i32,
@@ -221,7 +221,7 @@ impl Graphics {
 
     async fn fill_rect(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         x: i32,
         y: i32,
@@ -242,7 +242,7 @@ impl Graphics {
 
     async fn draw_rect(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         x: i32,
         y: i32,
@@ -263,7 +263,7 @@ impl Graphics {
 
     async fn draw_string(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         string: JvmClassInstanceHandle<String>,
         x: i32,
@@ -291,7 +291,7 @@ impl Graphics {
 
     async fn draw_line(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         x1: i32,
         y1: i32,
@@ -312,7 +312,7 @@ impl Graphics {
 
     async fn draw_image(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Self>,
         img: JvmClassInstanceHandle<Image>,
         x: i32,
@@ -357,19 +357,19 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_clip_x(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
+    async fn get_clip_x(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_clip_y(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
+    async fn get_clip_y(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_clip_width(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_clip_width(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:?})", &this);
 
         let w: i32 = jvm.get_field(&this, "w", "I")?;
@@ -377,7 +377,7 @@ impl Graphics {
         Ok(w)
     }
 
-    async fn get_clip_height(jvm: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_clip_height(jvm: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:?})", &this);
 
         let h: i32 = jvm.get_field(&this, "h", "I")?;
@@ -385,19 +385,19 @@ impl Graphics {
         Ok(h)
     }
 
-    async fn get_translate_x(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
+    async fn get_translate_x(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_translate_y(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
+    async fn get_translate_y(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:?})", &this);
 
         Ok(0)
     }
 
-    async fn translate(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Graphics>, x: i32, y: i32) -> JavaResult<()> {
+    async fn translate(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Graphics>, x: i32, y: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
 
         Ok(())
@@ -406,7 +406,7 @@ impl Graphics {
     #[allow(clippy::too_many_arguments)]
     async fn set_rgb_pixels(
         jvm: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         mut this: JvmClassInstanceHandle<Graphics>,
         x: i32,
         y: i32,

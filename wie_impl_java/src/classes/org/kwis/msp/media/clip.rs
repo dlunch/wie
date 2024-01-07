@@ -4,14 +4,14 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{Array, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{classes::org::kwis::msp::media::PlayListener, JavaClassProto, JavaContextArg};
+use crate::{classes::org::kwis::msp::media::PlayListener, WieClassProto, WieContext};
 
 // class org.kwis.msp.media.Clip
 pub struct Clip {}
 
 impl Clip {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -31,7 +31,7 @@ impl Clip {
 
     async fn init(
         _: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         r#type: JvmClassInstanceHandle<String>,
         resource_name: JvmClassInstanceHandle<String>,
@@ -43,7 +43,7 @@ impl Clip {
 
     async fn init_with_data(
         _: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         r#type: JvmClassInstanceHandle<String>,
         data: JvmClassInstanceHandle<Array<i8>>,
@@ -53,7 +53,7 @@ impl Clip {
         Ok(())
     }
 
-    async fn set_volume(_: &mut Jvm, _: &mut JavaContextArg, this: JvmClassInstanceHandle<Clip>, level: i32) -> JavaResult<()> {
+    async fn set_volume(_: &mut Jvm, _: &mut WieContext, this: JvmClassInstanceHandle<Clip>, level: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", &this, level);
 
         Ok(())
@@ -61,7 +61,7 @@ impl Clip {
 
     async fn set_listener(
         _: &mut Jvm,
-        _: &mut JavaContextArg,
+        _: &mut WieContext,
         this: JvmClassInstanceHandle<Self>,
         listener: JvmClassInstanceHandle<PlayListener>,
     ) -> JavaResult<()> {

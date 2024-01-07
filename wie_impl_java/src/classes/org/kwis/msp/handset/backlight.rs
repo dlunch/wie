@@ -3,14 +3,14 @@ use alloc::vec;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.handset.Backlight
 pub struct BackLight {}
 
 impl BackLight {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, JavaMethodFlag::NONE)],
@@ -18,7 +18,7 @@ impl BackLight {
         }
     }
 
-    async fn always_on(_: &mut Jvm, _: &mut JavaContextArg) -> JavaResult<()> {
+    async fn always_on(_: &mut Jvm, _: &mut WieContext) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.handset.Backlight::alwaysOn");
 
         Ok(())

@@ -4,14 +4,14 @@ use java_runtime::classes::java::lang::String;
 use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use crate::{JavaClassProto, JavaContextArg};
+use crate::{WieClassProto, WieContext};
 
 // class org.kwis.msp.io.FileSystem
 pub struct FileSystem {}
 
 impl FileSystem {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -24,19 +24,19 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(_jvm: &mut Jvm, _: &mut JavaContextArg, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
+    async fn is_file(_jvm: &mut Jvm, _: &mut WieContext, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
         Ok(false)
     }
 
-    async fn is_directory(_jvm: &mut Jvm, _: &mut JavaContextArg, name: JvmClassInstanceHandle<String>, flag: i32) -> JavaResult<bool> {
+    async fn is_directory(_jvm: &mut Jvm, _: &mut WieContext, name: JvmClassInstanceHandle<String>, flag: i32) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
 
         Ok(true)
     }
 
-    async fn exists(jvm: &mut Jvm, context: &mut JavaContextArg, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
+    async fn exists(jvm: &mut Jvm, context: &mut WieContext, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
         let filename = String::to_rust_string(jvm, &name)?;
@@ -49,7 +49,7 @@ impl FileSystem {
         Ok(id.is_some())
     }
 
-    async fn available(_: &mut Jvm, _: &mut JavaContextArg) -> JavaResult<i32> {
+    async fn available(_: &mut Jvm, _: &mut WieContext) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::available()");
 
         Ok(0x1000000) // TODO temp

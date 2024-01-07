@@ -1,13 +1,13 @@
 use alloc::vec;
 
-use crate::JavaClassProto;
+use crate::WieClassProto;
 
 // interface org.kwis.msp.media.PlayListener
 pub struct PlayListener {}
 
 impl PlayListener {
-    pub fn as_proto() -> JavaClassProto {
-        JavaClassProto {
+    pub fn as_proto() -> WieClassProto {
+        WieClassProto {
             parent_class: None,
             interfaces: vec![],
             methods: vec![],
