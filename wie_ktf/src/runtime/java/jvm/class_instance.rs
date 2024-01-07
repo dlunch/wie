@@ -12,9 +12,7 @@ use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, 
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 
-use crate::runtime::java::context::context_data::JavaContextData;
-
-use super::{class::JavaClass, field::JavaField, value::JavaValueExt, KtfJvmWord};
+use super::{class::JavaClass, context_data::JavaContextData, field::JavaField, value::JavaValueExt, KtfJvmWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

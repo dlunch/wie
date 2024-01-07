@@ -8,8 +8,10 @@ use wie_base::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 
 use crate::runtime::{
-    java::context::KtfJavaContext,
-    java::interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
+    java::{
+        interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
+        jvm::KtfJvm,
+    },
     wipi_c::interface::get_wipic_knl_interface,
 };
 
@@ -197,7 +199,7 @@ pub async fn init(core: &mut ArmCore, wipi_exe: u32) -> anyhow::Result<u32> {
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
     let ptr_vtables_base = ptr_param_2 + 12;
-    let ptr_java_context_data = KtfJavaContext::init(core, ptr_vtables_base, exe_interface_functions.fn_get_class)?;
+    let ptr_java_context_data = KtfJvm::init(core, ptr_vtables_base, exe_interface_functions.fn_get_class)?;
     init_peb(
         core,
         KtfPeb {

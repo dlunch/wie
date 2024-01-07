@@ -14,7 +14,7 @@ use wie_backend::SystemHandle;
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 
-use super::{value::JavaValueExt, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
+use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvm};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -204,8 +204,7 @@ impl JavaMethod {
                     .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
                     .collect::<Vec<_>>();
 
-                let context = KtfJavaContext::new(core, system);
-                let mut jvm = context.jvm();
+                let mut jvm = KtfJvm::new(core, system).jvm();
                 let mut context = self.context.clone();
 
                 let result = self.body.call(&mut jvm, &mut context, args.into_boxed_slice()).await?;

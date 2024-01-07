@@ -7,7 +7,7 @@ use wie_base::Event;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::classes::org::kwis::msp::lcdui::Jlet;
 
-use crate::runtime::KtfJavaContext;
+use crate::runtime::{KtfJvm, KtfWieContext};
 
 const IMAGE_BASE: u32 = 0x100000;
 
@@ -51,10 +51,10 @@ impl KtfApp {
         let result = core.run_function::<u32>(fn_init, &[]).await?;
         anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
 
-        let mut context = KtfJavaContext::new(core, system);
-        let mut jvm = context.jvm();
+        let mut jvm = KtfJvm::new(core, system).jvm();
+        let mut context = KtfWieContext::new(core, system);
 
-        Jlet::start(&mut jvm, &mut context, &main_class_name).await?;
+        Jlet::start(&mut jvm, &mut context, &main_class_name).await?; // TODO implement in java method
 
         Ok(())
     }

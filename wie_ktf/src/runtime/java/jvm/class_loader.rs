@@ -8,7 +8,9 @@ use wie_base::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_java::get_class_proto as get_wie_class_proto;
 
-use super::{array_class::JavaArrayClass, class::JavaClass, context_data::JavaContextData, runtime::KtfRuntime, KtfJavaContext};
+use crate::runtime::java::{context::KtfWieContext, runtime::KtfRuntime};
+
+use super::{array_class::JavaArrayClass, class::JavaClass, context_data::JavaContextData, KtfJvm};
 
 pub struct ClassLoader {}
 
@@ -26,7 +28,7 @@ impl ClassLoader {
 
             Ok(Some(JavaClass::new(core, system, name, x, Box::new(runtime) as Box<_>).await?))
         } else if let Some(x) = get_wie_class_proto(name) {
-            let context = KtfJavaContext::new(core, system);
+            let context = KtfWieContext::new(core, system);
 
             Ok(Some(JavaClass::new(core, system, name, x, Box::new(context) as Box<_>).await?))
         } else {
@@ -41,7 +43,7 @@ impl ClassLoader {
 
             if ptr_raw != 0 {
                 let class = JavaClass::from_raw(ptr_raw, core);
-                KtfJavaContext::register_class(core, system, &class).await?;
+                KtfJvm::register_class(core, system, &class).await?;
 
                 Ok(Some(class))
             } else {

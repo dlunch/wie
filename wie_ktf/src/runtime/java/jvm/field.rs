@@ -12,7 +12,7 @@ use jvm::{Field, JavaType, JvmResult};
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 
-use super::JavaFullName;
+use super::name::JavaFullName;
 
 bitflags::bitflags! {
     struct JavaFieldAccessFlagBit: u32 {

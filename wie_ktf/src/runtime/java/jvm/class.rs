@@ -18,7 +18,7 @@ use wie_core_arm::{Allocator, ArmCore};
 
 use super::{
     class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
-    vtable_builder::JavaVtableBuilder, KtfJavaContext, KtfJvmWord,
+    vtable_builder::JavaVtableBuilder, KtfJvm, KtfJvmWord,
 };
 
 #[repr(C)]
@@ -147,7 +147,7 @@ impl JavaClass {
 
         let result = Self::from_raw(ptr_raw, core);
 
-        KtfJavaContext::register_class(core, system, &result).await?;
+        KtfJvm::register_class(core, system, &result).await?;
 
         Ok(result)
     }
@@ -195,6 +195,10 @@ impl JavaClass {
     pub fn methods(&self) -> JvmResult<Vec<JavaMethod>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
+
+        if descriptor.ptr_methods == 0 {
+            return Ok(Vec::new());
+        }
 
         let ptr_methods = read_null_terminated_table(&self.core, descriptor.ptr_methods)?;
 
