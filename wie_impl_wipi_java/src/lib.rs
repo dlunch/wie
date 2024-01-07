@@ -54,3 +54,27 @@ pub fn get_class_proto(name: &str) -> Option<WIPIJavaClassProto> {
         _ => return None,
     })
 }
+
+#[cfg(test)]
+pub mod test {
+    use alloc::boxed::Box;
+
+    use java_runtime_base::{JavaResult, MethodBody};
+
+    use wie_backend::SystemHandle;
+
+    use crate::WIPIJavaContextBase;
+
+    #[derive(Clone)]
+    pub struct DummyContext;
+
+    impl WIPIJavaContextBase for DummyContext {
+        fn system(&mut self) -> &mut SystemHandle {
+            todo!()
+        }
+
+        fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
+            todo!()
+        }
+    }
+}

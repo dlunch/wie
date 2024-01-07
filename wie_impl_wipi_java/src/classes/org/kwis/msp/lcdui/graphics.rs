@@ -469,27 +469,15 @@ impl Graphics {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime_base::{JavaResult, JvmClassInstanceHandle, MethodBody};
+    use java_runtime_base::JvmClassInstanceHandle;
 
     use test_utils::test_jvm;
 
-    use crate::{classes::org::kwis::msp::lcdui::Image, get_class_proto, WIPIJavaContextBase};
-
-    #[derive(Clone)]
-    struct TestContext;
-    impl WIPIJavaContextBase for TestContext {
-        fn system(&mut self) -> &mut wie_backend::SystemHandle {
-            todo!()
-        }
-
-        fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
-            todo!()
-        }
-    }
+    use crate::{classes::org::kwis::msp::lcdui::Image, get_class_proto, test::DummyContext};
 
     #[futures_test::test]
     async fn test_graphics() -> anyhow::Result<()> {
-        let mut jvm = test_jvm(get_class_proto, Box::new(TestContext) as Box<_>);
+        let mut jvm = test_jvm(get_class_proto, Box::new(DummyContext) as Box<_>);
 
         let image: JvmClassInstanceHandle<Image> = jvm
             .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (100, 100))
