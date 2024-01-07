@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use wie_backend::{AudioSink, Platform};
 
 pub struct TestPlatform;

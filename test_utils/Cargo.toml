@@ -9,3 +9,5 @@ anyhow = { version = "^1.0", default-features = false }
 async-trait = { version = "^0.1", default-features = false }
 
 wie_backend = { path = "../wie_backend" }
+wie_core_arm = { path = "../wie_core_arm" }
+wie_core_jvm = { path = "../wie_core_jvm" }
