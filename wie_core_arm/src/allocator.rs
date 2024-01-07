@@ -99,3 +99,28 @@ impl Allocator {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use crate::{Allocator, ArmCore};
+
+    use test_utils::TestPlatform;
+
+    pub fn test_arm_core() -> ArmCore {
+        ArmCore::new(wie_backend::System::new(Box::new(TestPlatform)).handle()).unwrap()
+    }
+
+    #[test]
+    fn test_allocator() -> anyhow::Result<()> {
+        let mut core = test_arm_core();
+
+        Allocator::init(&mut core)?;
+        let address = Allocator::alloc(&mut core, 10)?;
+
+        assert_eq!(address, 0x40000004);
+
+        Ok(())
+    }
+}

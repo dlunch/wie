@@ -2406,7 +2406,6 @@ dependencies = [
  "jvm",
  "jvm_impl",
  "wie_backend",
- "wie_core_arm",
 ]
 
 [[package]]
