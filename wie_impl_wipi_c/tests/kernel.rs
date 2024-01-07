@@ -1,5 +1,5 @@
 use wie_base::util::{read_null_terminated_string, write_null_terminated_string};
-use wie_impl_wipi_c::{r#impl::kernel::get_kernel_method_table, WIPICContext};
+use wie_impl_wipi_c::{api::kernel::get_kernel_method_table, WIPICContext};
 
 mod context;
 
