@@ -14,6 +14,8 @@ tracing = { workspace = true }
 async-recursion = { version = "^1.0" }
 
 jvm = { git = "https://github.com/dlunch/RustJava.git" }
+java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
+java_runtime_base = { git = "https://github.com/dlunch/RustJava.git" }
 
 wie_backend = { path = "../wie_backend" }
 wie_base = { path = "../wie_base" }

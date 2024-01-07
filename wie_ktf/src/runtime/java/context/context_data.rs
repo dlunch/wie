@@ -2,9 +2,10 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
+use jvm::JvmResult;
+
 use wie_base::util::{read_generic, read_null_terminated_table, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-use wie_impl_java::JavaResult;
 
 use crate::runtime::KtfPeb;
 
@@ -21,7 +22,7 @@ struct RawJavaContextData {
 pub struct JavaContextData {}
 
 impl JavaContextData {
-    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JavaResult<u32> {
+    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JvmResult<u32> {
         let classes_base = Allocator::alloc(core, 0x1000)?;
         write_generic(core, classes_base, 0u32)?;
 
@@ -39,7 +40,7 @@ impl JavaContextData {
         Ok(ptr_java_context_data)
     }
 
-    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClass) -> JavaResult<u32> {
+    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClass) -> JvmResult<u32> {
         let context_data = Self::read(core)?;
         let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
 
@@ -57,7 +58,7 @@ impl JavaContextData {
         Ok(index as _)
     }
 
-    pub fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
+    pub fn register_class(core: &mut ArmCore, class: &JavaClass) -> JvmResult<()> {
         let context_data = Self::read(core)?;
         let ptr_classes = read_null_terminated_table(core, context_data.classes_base)?;
         if ptr_classes.contains(&class.ptr_raw) {
@@ -71,14 +72,14 @@ impl JavaContextData {
         )
     }
 
-    pub fn has_class(core: &ArmCore, class: &JavaClass) -> JavaResult<bool> {
+    pub fn has_class(core: &ArmCore, class: &JavaClass) -> JvmResult<bool> {
         let context_data = Self::read(core)?;
         let ptr_classes = read_null_terminated_table(core, context_data.classes_base)?;
 
         Ok(ptr_classes.contains(&class.ptr_raw))
     }
 
-    pub fn find_class(core: &ArmCore, name: &str) -> JavaResult<Option<JavaClass>> {
+    pub fn find_class(core: &ArmCore, name: &str) -> JvmResult<Option<JavaClass>> {
         let context_data = Self::read(core)?;
         let classes = read_null_terminated_table(core, context_data.classes_base)?;
         for ptr_raw in classes {
@@ -92,13 +93,13 @@ impl JavaContextData {
         Ok(None)
     }
 
-    pub fn fn_get_class(core: &ArmCore) -> JavaResult<u32> {
+    pub fn fn_get_class(core: &ArmCore) -> JvmResult<u32> {
         let context_data = Self::read(core)?;
 
         Ok(context_data.fn_get_class)
     }
 
-    fn read(core: &ArmCore) -> JavaResult<RawJavaContextData> {
+    fn read(core: &ArmCore) -> JvmResult<RawJavaContextData> {
         let peb: KtfPeb = read_generic(core, PEB_BASE)?;
 
         read_generic(core, peb.ptr_java_context_data)

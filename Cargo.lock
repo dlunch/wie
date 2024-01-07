@@ -463,7 +463,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0d961753d7acf768152fab07fa7542ac06811eaa"
+source = "git+https://github.com/dlunch/RustJava.git#5387aa7cb131b8cd02d5d05a2c4aa94330d46968"
 dependencies = [
  "anyhow",
  "bitflags 2.4.1",
@@ -1154,6 +1154,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "java_runtime"
+version = "0.0.1"
+source = "git+https://github.com/dlunch/RustJava.git#5387aa7cb131b8cd02d5d05a2c4aa94330d46968"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytemuck",
+ "java_runtime_base",
+ "jvm",
+ "tracing",
+]
+
+[[package]]
+name = "java_runtime_base"
+version = "0.0.1"
+source = "git+https://github.com/dlunch/RustJava.git#5387aa7cb131b8cd02d5d05a2c4aa94330d46968"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dyn-clone",
+ "jvm",
+]
+
+[[package]]
 name = "jni"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1224,7 +1248,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0d961753d7acf768152fab07fa7542ac06811eaa"
+source = "git+https://github.com/dlunch/RustJava.git#5387aa7cb131b8cd02d5d05a2c4aa94330d46968"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1236,12 +1260,13 @@ dependencies = [
 [[package]]
 name = "jvm_impl"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0d961753d7acf768152fab07fa7542ac06811eaa"
+source = "git+https://github.com/dlunch/RustJava.git#5387aa7cb131b8cd02d5d05a2c4aa94330d46968"
 dependencies = [
  "anyhow",
  "async-trait",
  "classfile",
  "dyn-clone",
+ "java_runtime_base",
  "jvm",
  "tracing",
 ]
@@ -2262,7 +2287,7 @@ dependencies = [
 [[package]]
 name = "smaf"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#ac68c1a89c6ea3523a0c0251ce0e95407efa84b2"
+source = "git+https://github.com/dlunch/smaf.git#14de64bdf410e3d752a02a74c125e87f9ed1b7d9"
 dependencies = [
  "anyhow",
  "nom",
@@ -2272,7 +2297,7 @@ dependencies = [
 [[package]]
 name = "smaf_player"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#ac68c1a89c6ea3523a0c0251ce0e95407efa84b2"
+source = "git+https://github.com/dlunch/smaf.git#14de64bdf410e3d752a02a74c125e87f9ed1b7d9"
 dependencies = [
  "smaf",
 ]
@@ -2846,6 +2871,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytemuck",
+ "java_runtime",
+ "java_runtime_base",
  "jvm",
  "jvm_impl",
  "tracing",
@@ -2862,12 +2889,16 @@ dependencies = [
  "async-trait",
  "bitflags 2.4.1",
  "bytemuck",
+ "dyn-clone",
  "futures-test",
+ "java_runtime",
+ "java_runtime_base",
  "jvm",
  "jvm_impl",
  "tracing",
  "wie_backend",
  "wie_base",
+ "wie_core_jvm",
 ]
 
 [[package]]
@@ -2908,6 +2939,8 @@ dependencies = [
  "bitflags 2.4.1",
  "bytemuck",
  "futures-test",
+ "java_runtime",
+ "java_runtime_base",
  "jvm",
  "tracing",
  "wie_backend",

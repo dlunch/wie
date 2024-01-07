@@ -7,6 +7,7 @@ mod context_data;
 mod field;
 mod method;
 mod name;
+mod platform;
 mod value;
 mod vtable_builder;
 
@@ -14,11 +15,12 @@ use alloc::{boxed::Box, format};
 
 use bytemuck::{Pod, Zeroable};
 
+use java_runtime_base::MethodBody;
 use jvm::{ArrayClass, Class, ClassInstance, Jvm, JvmDetail, JvmResult, ThreadContext, ThreadId};
 
 use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
-use wie_impl_java::{JavaContext, JavaError, JavaMethodBody, JavaResult};
+use wie_impl_java::JavaContext;
 
 pub use self::name::JavaFullName;
 use self::{
@@ -42,18 +44,22 @@ struct JavaExceptionHandler {
 
 struct KtfJvmDetail {
     core: ArmCore,
+    system: SystemHandle,
 }
 
 impl KtfJvmDetail {
-    pub fn new(core: &ArmCore) -> Self {
-        Self { core: core.clone() }
+    pub fn new(core: &ArmCore, system: SystemHandle) -> Self {
+        Self {
+            core: core.clone(),
+            system: system.clone(),
+        }
     }
 }
 
 #[async_trait::async_trait(?Send)]
 impl JvmDetail for KtfJvmDetail {
     async fn load_class(&mut self, class_name: &str) -> JvmResult<Option<Box<dyn Class>>> {
-        let class = ClassLoader::get_or_load_class(&mut self.core, class_name).await?;
+        let class = ClassLoader::get_or_load_class(&mut self.core, &mut self.system, class_name).await?;
 
         Ok(class.map(|x| Box::new(x) as _))
     }
@@ -64,7 +70,7 @@ impl JvmDetail for KtfJvmDetail {
             let class = JavaArrayClass::from_raw(x.ptr_raw, &self.core);
             return Ok(Some(Box::new(class)));
         } else {
-            let class = JavaArrayClass::new(&mut self.core, &class_name).await?;
+            let class = JavaArrayClass::new(&mut self.core, &mut self.system, &class_name).await?;
 
             Ok(Some(Box::new(class)))
         }
@@ -81,33 +87,38 @@ impl JvmDetail for KtfJvmDetail {
     }
 }
 
-pub struct KtfJavaContext<'a> {
-    core: &'a mut ArmCore,
-    system: &'a mut SystemHandle,
-    jvm: Jvm,
+#[derive(Clone)]
+pub struct KtfJavaContext {
+    core: ArmCore,
+    system: SystemHandle,
 }
 
-impl<'a> KtfJavaContext<'a> {
-    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JavaResult<u32> {
+impl KtfJavaContext {
+    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JvmResult<u32> {
         JavaContextData::init(core, ptr_vtables_base, fn_get_class)
     }
 
-    pub fn new(core: &'a mut ArmCore, system: &'a mut SystemHandle) -> Self {
-        let jvm = Jvm::new(KtfJvmDetail::new(core));
-
-        Self { core, system, jvm }
+    pub fn new(core: &mut ArmCore, system: &mut SystemHandle) -> Self {
+        Self {
+            core: core.clone(),
+            system: system.clone(),
+        }
     }
 
-    pub async fn load_class(&mut self, name: &str) -> JavaResult<Option<JavaClass>> {
-        ClassLoader::get_or_load_class(self.core, name).await
+    pub fn jvm(&self) -> Jvm {
+        Jvm::new(KtfJvmDetail::new(&self.core, self.system.clone()))
     }
 
-    pub async fn load_array_class(&mut self, name: &str) -> JavaResult<Option<JavaArrayClass>> {
-        ClassLoader::load_array_class(self.core, name).await
+    pub async fn load_class(&mut self, name: &str) -> JvmResult<Option<JavaClass>> {
+        ClassLoader::get_or_load_class(&mut self.core, &mut self.system, name).await
+    }
+
+    pub async fn load_array_class(&mut self, name: &str) -> JvmResult<Option<JavaArrayClass>> {
+        ClassLoader::load_array_class(&mut self.core, &mut self.system, name).await
     }
 
     #[async_recursion::async_recursion(?Send)]
-    pub async fn register_class(core: &mut ArmCore, class: &JavaClass) -> JavaResult<()> {
+    pub async fn register_class(core: &mut ArmCore, system: &mut SystemHandle, class: &JavaClass) -> JvmResult<()> {
         if JavaContextData::has_class(core, class)? {
             return Ok(());
         }
@@ -123,15 +134,15 @@ impl<'a> KtfJavaContext<'a> {
         }
 
         if let Some(x) = class.super_class() {
-            let super_class = ClassLoader::get_or_load_class(core, &x.name()).await?.unwrap(); // TODO we can use superclass as-is
-            Self::register_class(core, &super_class).await?;
+            let super_class = ClassLoader::get_or_load_class(core, system, &x.name()).await?.unwrap(); // TODO we can use superclass as-is
+            Self::register_class(core, system, &super_class).await?;
         }
 
         Ok(())
     }
 
     pub fn class_from_raw(&self, ptr_class: u32) -> JavaClass {
-        JavaClass::from_raw(ptr_class, self.core)
+        JavaClass::from_raw(ptr_class, &self.core)
     }
 
     #[allow(clippy::borrowed_box)]
@@ -147,27 +158,26 @@ impl<'a> KtfJavaContext<'a> {
 }
 
 #[async_trait::async_trait(?Send)]
-impl JavaContext for KtfJavaContext<'_> {
-    fn jvm(&mut self) -> &mut Jvm {
-        &mut self.jvm
-    }
-
+impl JavaContext for KtfJavaContext {
     fn system(&mut self) -> &mut SystemHandle {
-        self.system
+        &mut self.system
     }
 
-    fn spawn(&mut self, callback: JavaMethodBody) -> JavaResult<()> {
+    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, Box<dyn JavaContext>>>) -> JvmResult<()> {
         struct SpawnProxy {
             core: ArmCore,
             system: SystemHandle,
-            callback: JavaMethodBody,
+            callback: Box<dyn MethodBody<anyhow::Error, Box<dyn JavaContext>>>,
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, JavaError> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JavaError> {
-                let mut context = KtfJavaContext::new(&mut self.core, &mut self.system);
-                let _ = self.callback.call(&mut context, Box::new([])).await?;
+        impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, anyhow::Error> {
+                let context = KtfJavaContext::new(&mut self.core, &mut self.system);
+                let mut jvm = context.jvm();
+
+                let mut context: Box<dyn JavaContext> = Box::new(context);
+                let _ = self.callback.call(&mut jvm, &mut context, Box::new([])).await?;
 
                 Ok(0) // TODO resturn value
             }
@@ -189,10 +199,11 @@ impl JavaContext for KtfJavaContext<'_> {
 mod test {
     use alloc::boxed::Box;
 
+    use java_runtime::java::lang::String;
+
     use wie_backend::{AudioSink, Platform, System, SystemHandle};
     use wie_base::util::write_generic;
     use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
-    use wie_impl_java::{r#impl::java::lang::String, JavaContext};
 
     use crate::runtime::KtfPeb;
 
@@ -256,13 +267,13 @@ mod test {
         let mut system_handle = System::new(Box::new(TestPlatform)).handle();
         let mut core = test_core(&system_handle)?;
 
-        let mut context = KtfJavaContext::new(&mut core, &mut system_handle);
+        let context = KtfJavaContext::new(&mut core, &mut system_handle);
+        let mut jvm = context.jvm();
 
-        let string1 = String::from_rust_string(&mut context, "test1").await?;
-        let string2 = String::from_rust_string(&mut context, "test2").await?;
+        let string1 = String::from_rust_string(&mut jvm, "test1").await?;
+        let string2 = String::from_rust_string(&mut jvm, "test2").await?;
 
-        let string3 = context
-            .jvm()
+        let string3 = jvm
             .invoke_virtual(
                 &string1,
                 "java/lang/String",
@@ -272,7 +283,7 @@ mod test {
             )
             .await?;
 
-        assert_eq!(String::to_rust_string(&mut context, &string3)?, "test1test2");
+        assert_eq!(String::to_rust_string(&mut jvm, &string3)?, "test1test2");
 
         Ok(())
     }

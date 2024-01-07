@@ -1,97 +1,36 @@
-use wie_backend::SystemHandle;
-use wie_impl_java::{get_class_proto, JavaContext, JavaFieldAccessFlag, JavaFieldProto, JavaMethodBody, JavaMethodProto, JavaResult};
+use wie_backend::{AudioSink, Platform, System};
+use wie_core_jvm::JvmCore;
 
-use jvm::{Class, JavaValue, Jvm, JvmResult};
-use jvm_impl::{ClassImpl, FieldImpl, JvmDetailImpl, MethodBody, MethodImpl, RustMethodBody};
+struct TestPlatform;
 
-pub struct TestContext {
-    jvm: Jvm,
-}
-
-impl TestContext {
-    pub fn new() -> Self {
-        let jvm = Jvm::new(JvmDetailImpl::new(Self::load_class));
-
-        Self { jvm }
-    }
-
-    fn load_class(class_name: &str) -> JvmResult<Option<Box<dyn Class>>> {
-        let class_proto = get_class_proto(class_name);
-        if let Some(x) = class_proto {
-            let super_class = None; // TODO
-            let class = ClassImpl::new(class_name, super_class, Self::load_methods(x.methods), Self::load_fields(x.fields));
-
-            Ok(Some(Box::new(class)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn load_methods(methods: Vec<JavaMethodProto>) -> Vec<MethodImpl> {
-        methods
-            .into_iter()
-            .map(|x| MethodImpl::new(&x.name, &x.descriptor, Self::load_method_body(x.body)))
-            .collect()
-    }
-
-    fn load_fields(fields: Vec<JavaFieldProto>) -> Vec<FieldImpl> {
-        fields
-            .into_iter()
-            .scan(0, |index, x| {
-                let field = FieldImpl::new(&x.name, &x.descriptor, x.access_flag == JavaFieldAccessFlag::STATIC, *index);
-                *index += 1;
-
-                Some(field)
-            })
-            .collect()
-    }
-
-    fn load_method_body(body: JavaMethodBody) -> MethodBody {
-        struct MethodProxy {
-            body: JavaMethodBody,
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl RustMethodBody<anyhow::Error, JavaValue> for MethodProxy {
-            async fn call(&self, jvm: &mut Jvm, args: Box<[JavaValue]>) -> Result<JavaValue, anyhow::Error> {
-                struct InnerContext<'a> {
-                    jvm: &'a mut Jvm,
-                }
-
-                impl<'a> JavaContext for InnerContext<'a> {
-                    fn jvm(&mut self) -> &mut Jvm {
-                        self.jvm
-                    }
-
-                    fn system(&mut self) -> &mut SystemHandle {
-                        todo!()
-                    }
-
-                    fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
-                        todo!()
-                    }
-                }
-
-                let args = args.iter().cloned().collect();
-
-                self.body.call(&mut InnerContext { jvm }, args).await
-            }
-        }
-
-        MethodBody::Rust(Box::new(MethodProxy { body }))
-    }
-}
-
-impl JavaContext for TestContext {
-    fn jvm(&mut self) -> &mut Jvm {
-        &mut self.jvm
-    }
-
-    fn system(&mut self) -> &mut SystemHandle {
+impl Platform for TestPlatform {
+    fn screen(&mut self) -> &mut dyn wie_backend::Screen {
         todo!()
     }
 
-    fn spawn(&mut self, _callback: JavaMethodBody) -> JavaResult<()> {
+    fn now(&self) -> wie_backend::Instant {
         todo!()
     }
+
+    fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {
+        todo!()
+    }
+
+    fn audio_sink(&self) -> Box<dyn AudioSink> {
+        Box::new(TestAudioSink)
+    }
+}
+
+struct TestAudioSink;
+
+impl AudioSink for TestAudioSink {
+    fn play_wave(&self, _channel: u8, _sampling_rate: u32, _wave_data: &[i16]) {
+        todo!()
+    }
+}
+
+pub fn test_core() -> JvmCore {
+    let system_handle = System::new(Box::new(TestPlatform)).handle();
+
+    JvmCore::new(&system_handle)
 }

@@ -6,12 +6,12 @@ use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
 };
+use wie_backend::SystemHandle;
 
 use jvm::{ArrayClass, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
 use wie_base::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_impl_java::JavaResult;
 
 use super::{
     array_class_instance::JavaArrayClassInstance,
@@ -35,14 +35,14 @@ impl JavaArrayClass {
         }
     }
 
-    pub async fn new(core: &mut ArmCore, name: &str) -> JavaResult<Self> {
-        let ptr_parent_class = ClassLoader::get_or_load_class(core, "java/lang/Object").await?.unwrap();
+    pub async fn new(core: &mut ArmCore, system: &mut SystemHandle, name: &str) -> JvmResult<Self> {
+        let ptr_parent_class = ClassLoader::get_or_load_class(core, system, "java/lang/Object").await?.unwrap();
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type = if element_type_name.starts_with('L') {
             Some(
-                ClassLoader::get_or_load_class(core, &element_type_name[1..element_type_name.len() - 1])
+                ClassLoader::get_or_load_class(core, system, &element_type_name[1..element_type_name.len() - 1])
                     .await?
                     .unwrap(),
             )
@@ -93,13 +93,13 @@ impl JavaArrayClass {
         Ok(class)
     }
 
-    pub fn element_type_descriptor(&self) -> JavaResult<String> {
+    pub fn element_type_descriptor(&self) -> JvmResult<String> {
         let class_name = self.class.name()?;
 
         Ok(class_name[1..].to_string())
     }
 
-    pub fn element_size(&self) -> JavaResult<usize> {
+    pub fn element_size(&self) -> JvmResult<usize> {
         let r#type = JavaType::parse(&self.element_type_descriptor()?);
         Ok(match r#type {
             JavaType::Boolean => 1,

@@ -1,9 +1,10 @@
 use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
-use wie_core_arm::ArmCore;
+
+use jvm::JvmResult;
 
 use wie_base::util::{read_generic, read_null_terminated_string};
-use wie_impl_java::JavaResult;
+use wie_core_arm::ArmCore;
 
 #[derive(Clone)]
 pub struct JavaFullName {
@@ -13,7 +14,7 @@ pub struct JavaFullName {
 }
 
 impl JavaFullName {
-    pub fn from_ptr(core: &ArmCore, ptr: u32) -> JavaResult<Self> {
+    pub fn from_ptr(core: &ArmCore, ptr: u32) -> JvmResult<Self> {
         let tag = read_generic(core, ptr)?;
 
         let value = read_null_terminated_string(core, ptr + 1)?;

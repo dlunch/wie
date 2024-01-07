@@ -6,12 +6,12 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
+use java_runtime_base::{JavaMethodFlag, JavaMethodProto, MethodBody};
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::SystemHandle;
 use wie_base::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
-use wie_impl_java::{JavaMethodBody, JavaMethodFlag, JavaMethodProto, JavaResult};
 
 use super::{value::JavaValueExt, vtable_builder::JavaVtableBuilder, JavaFullName, KtfJavaContext};
 
@@ -61,7 +61,16 @@ impl JavaMethod {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaMethodProto, vtable_builder: &mut JavaVtableBuilder) -> JavaResult<Self> {
+    pub fn new<C>(
+        core: &mut ArmCore,
+        ptr_class: u32,
+        proto: JavaMethodProto<C>,
+        vtable_builder: &mut JavaVtableBuilder,
+        context: C,
+    ) -> JvmResult<Self>
+    where
+        C: Clone + 'static,
+    {
         let full_name = JavaFullName {
             tag: 0,
             name: proto.name,
@@ -75,6 +84,7 @@ impl JavaMethod {
         let fn_method = Self::register_java_method(
             core,
             proto.body,
+            context,
             &full_name.descriptor,
             proto.flag == JavaMethodFlag::STATIC,
             proto.flag == JavaMethodFlag::NATIVE,
@@ -109,13 +119,13 @@ impl JavaMethod {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub fn name(&self) -> JavaResult<JavaFullName> {
+    pub fn name(&self) -> JvmResult<JavaFullName> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, args: Box<[JavaValue]>) -> JavaResult<u32> {
+    pub async fn run(&self, args: Box<[JavaValue]>) -> JvmResult<u32> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         let mut core = self.core.clone();
@@ -141,25 +151,32 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method(core: &mut ArmCore, body: JavaMethodBody, descriptor: &str, is_static: bool, native: bool) -> JavaResult<u32> {
-        struct JavaMethodProxy {
-            body: JavaMethodBody,
+    fn register_java_method<C>(
+        core: &mut ArmCore,
+        body: Box<dyn MethodBody<anyhow::Error, C>>,
+        context: C,
+        descriptor: &str,
+        is_static: bool,
+        native: bool,
+    ) -> JvmResult<u32>
+    where
+        C: Clone + 'static,
+    {
+        struct JavaMethodProxy<C>
+        where
+            C: Clone,
+        {
+            body: Box<dyn MethodBody<anyhow::Error, C>>,
+            context: C,
             parameter_types: Vec<JavaType>,
             native: bool,
         }
 
-        impl JavaMethodProxy {
-            pub fn new(body: JavaMethodBody, parameter_types: Vec<JavaType>, native: bool) -> Self {
-                Self {
-                    body,
-                    parameter_types,
-                    native,
-                }
-            }
-        }
-
         #[async_trait::async_trait(?Send)]
-        impl EmulatedFunction<(), ArmEngineError, u32> for JavaMethodProxy {
+        impl<C> EmulatedFunction<(), ArmEngineError, u32> for JavaMethodProxy<C>
+        where
+            C: Clone,
+        {
             async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
@@ -171,7 +188,7 @@ impl JavaMethod {
                 let a8 = u32::get(core, 8);
 
                 let args = if self.native {
-                    (0..8).map(|x| read_generic(core, a1 + x * 4)).collect::<JavaResult<Vec<u32>>>()?
+                    (0..8).map(|x| read_generic(core, a1 + x * 4)).collect::<JvmResult<Vec<u32>>>()?
                 } else {
                     vec![a1, a2, a3, a4, a5, a6, a7, a8]
                 };
@@ -182,9 +199,11 @@ impl JavaMethod {
                     .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
                     .collect::<Vec<_>>();
 
-                let mut context = KtfJavaContext::new(core, system);
+                let context = KtfJavaContext::new(core, system);
+                let mut jvm = context.jvm();
+                let mut context = self.context.clone();
 
-                let result = self.body.call(&mut context, args.into_boxed_slice()).await?;
+                let result = self.body.call(&mut jvm, &mut context, args.into_boxed_slice()).await?;
 
                 Ok(result.as_raw())
             }
@@ -201,7 +220,12 @@ impl JavaMethod {
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
         }
 
-        let proxy = JavaMethodProxy::new(body, parameter_types, native);
+        let proxy = JavaMethodProxy {
+            body,
+            context,
+            parameter_types,
+            native,
+        };
 
         core.register_function(proxy)
     }
