@@ -463,7 +463,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ceac46d3393d07e8902d3a48a86eb070c25ef262"
+source = "git+https://github.com/dlunch/RustJava.git#0086e14c9e78e86ace4d61d675c34f2c1e0a3537"
 dependencies = [
  "anyhow",
  "bitflags 2.4.1",
@@ -1156,7 +1156,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ceac46d3393d07e8902d3a48a86eb070c25ef262"
+source = "git+https://github.com/dlunch/RustJava.git#0086e14c9e78e86ace4d61d675c34f2c1e0a3537"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1170,7 +1170,7 @@ dependencies = [
 [[package]]
 name = "java_runtime_base"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ceac46d3393d07e8902d3a48a86eb070c25ef262"
+source = "git+https://github.com/dlunch/RustJava.git#0086e14c9e78e86ace4d61d675c34f2c1e0a3537"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1249,7 +1249,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ceac46d3393d07e8902d3a48a86eb070c25ef262"
+source = "git+https://github.com/dlunch/RustJava.git#0086e14c9e78e86ace4d61d675c34f2c1e0a3537"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1261,7 +1261,7 @@ dependencies = [
 [[package]]
 name = "jvm_impl"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ceac46d3393d07e8902d3a48a86eb070c25ef262"
+source = "git+https://github.com/dlunch/RustJava.git#0086e14c9e78e86ace4d61d675c34f2c1e0a3537"
 dependencies = [
  "anyhow",
  "async-trait",
