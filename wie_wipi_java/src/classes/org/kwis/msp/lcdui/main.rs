@@ -4,7 +4,7 @@ use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm};
 
-use crate::{WIPIJavaClassProto, WIPIJavaContxt};
+use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
 // class org.kwis.msp.lcdui.Main
 pub struct Main {}
@@ -22,13 +22,13 @@ impl Main {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Main>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Main>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn main(jvm: &mut Jvm, _: &mut WIPIJavaContxt, args: ClassInstanceRef<String>) -> JavaResult<()> {
+    async fn main(jvm: &mut Jvm, _: &mut WIPIJavaContext, args: ClassInstanceRef<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = jvm

@@ -4,7 +4,7 @@ use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm};
 
-use crate::{WIPIJavaClassProto, WIPIJavaContxt};
+use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
 // class org.kwis.msp.lwc.TextFieldComponent
 pub struct TextFieldComponent {}
@@ -21,7 +21,7 @@ impl TextFieldComponent {
 
     async fn init(
         _: &mut Jvm,
-        _: &mut WIPIJavaContxt,
+        _: &mut WIPIJavaContext,
         this: ClassInstanceRef<TextFieldComponent>,
         data: ClassInstanceRef<String>,
         constraint: i32,
