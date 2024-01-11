@@ -10,7 +10,7 @@ use core::{cell::Ref, iter};
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::Instant;
-use wie_base::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
+use wie_common::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
 
 use crate::{
     base::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},

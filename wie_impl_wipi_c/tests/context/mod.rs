@@ -1,5 +1,5 @@
 use wie_backend::SystemHandle;
-use wie_base::util::{ByteRead, ByteWrite};
+use wie_common::util::{ByteRead, ByteWrite};
 use wie_impl_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 pub struct TestContext {

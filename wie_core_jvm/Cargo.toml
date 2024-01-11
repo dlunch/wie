@@ -16,5 +16,5 @@ jvm = { git = "https://github.com/dlunch/RustJava.git" }
 jvm_impl = { git = "https://github.com/dlunch/RustJava.git" }
 
 wie_backend = { path = "../wie_backend" }
-wie_base = { path = "../wie_base" }
+wie_common = { path = "../wie_common" }
 wie_impl_wipi_java = { path = "../wie_impl_wipi_java" }

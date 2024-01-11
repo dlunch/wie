@@ -11,7 +11,7 @@ use java_runtime_base::{JavaMethodFlag, JavaMethodProto, MethodBody};
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::SystemHandle;
-use wie_base::util::{read_generic, write_generic, ByteWrite};
+use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 
 use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvm};

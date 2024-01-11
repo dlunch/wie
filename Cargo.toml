@@ -3,8 +3,8 @@ resolver = "2"
 
 members = [
     "wie_backend",
-    "wie_base",
     "wie_cli",
+    "wie_common",
     "wie_core_arm",
     "wie_core_jvm",
     "wie_impl_wipi_java",

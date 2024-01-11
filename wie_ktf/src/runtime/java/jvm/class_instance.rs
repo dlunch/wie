@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
-use wie_base::util::{read_generic, write_generic, ByteWrite};
+use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 
 use super::{class::JavaClass, context_data::JavaContextData, field::JavaField, value::JavaValueExt, KtfJvmWord};

@@ -3,7 +3,7 @@ use alloc::{vec, vec::Vec};
 use java_runtime_base::{Array, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
 use jvm::Jvm;
 
-use wie_base::KeyCode;
+use wie_common::KeyCode;
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
@@ -126,14 +126,14 @@ impl EventQueue {
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
-                    wie_base::Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
-                    wie_base::Event::Keydown(x) => vec![
+                    wie_common::Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
+                    wie_common::Event::Keydown(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyPressed as _,
                         WIPIKeyCode::from_key_code(x) as _,
                         0,
                     ],
-                    wie_base::Event::Keyup(x) => vec![
+                    wie_common::Event::Keyup(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyReleased as _,
                         WIPIKeyCode::from_key_code(x) as _,

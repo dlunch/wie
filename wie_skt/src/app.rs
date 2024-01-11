@@ -1,7 +1,7 @@
 use alloc::string::{String, ToString};
 
 use wie_backend::{App, System, SystemHandle};
-use wie_base::Event;
+use wie_common::Event;
 use wie_core_jvm::JvmCore;
 
 pub struct SktApp {

@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::SystemHandle;
-use wie_base::util::write_generic;
+use wie_common::util::write_generic;
 use wie_core_arm::ArmCore;
 use wie_impl_wipi_c::{
     api::{

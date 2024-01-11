@@ -4,7 +4,7 @@ use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
 use wie_backend::{App, System, SystemHandle};
-use wie_base::Event;
+use wie_common::Event;
 use wie_core_arm::{Allocator, ArmCore};
 
 pub struct LgtApp {

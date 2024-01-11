@@ -1,5 +1,5 @@
 [package]
-name = "wie_base"
+name = "wie_common"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -18,7 +18,7 @@ java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
 java_runtime_base = { git = "https://github.com/dlunch/RustJava.git" }
 
 wie_backend = { path = "../wie_backend" }
-wie_base = { path = "../wie_base" }
+wie_common = { path = "../wie_common" }
 wie_core_arm = { path = "../wie_core_arm" }
 wie_impl_wipi_c = { path = "../wie_impl_wipi_c" }
 wie_impl_wipi_java = { path = "../wie_impl_wipi_java" }

@@ -11,7 +11,7 @@ use java_runtime_base::{JavaClassProto, JavaFieldAccessFlag};
 use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
 use wie_backend::SystemHandle;
-use wie_base::util::{
+use wie_common::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
 };
 use wie_core_arm::{Allocator, ArmCore};

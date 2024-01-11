@@ -4,7 +4,7 @@ use java_runtime::get_class_proto;
 use jvm::JvmResult;
 
 use wie_backend::SystemHandle;
-use wie_base::util::write_null_terminated_string;
+use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_wipi_java::get_class_proto as get_wipi_class_proto;
 

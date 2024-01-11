@@ -8,7 +8,7 @@ use core::mem::size_of;
 use bytemuck::Zeroable;
 
 use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
-use wie_base::util::{read_generic, write_generic};
+use wie_common::util::{read_generic, write_generic};
 
 use crate::{
     base::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},

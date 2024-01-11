@@ -10,7 +10,7 @@ use wie_backend::SystemHandle;
 
 use jvm::{ArrayClass, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
-use wie_base::util::{write_generic, write_null_terminated_string};
+use wie_common::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
 
 use super::{

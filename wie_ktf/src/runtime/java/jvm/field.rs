@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use java_runtime_base::{JavaFieldAccessFlag, JavaFieldProto};
 use jvm::{Field, JavaType, JvmResult};
 
-use wie_base::util::{read_generic, write_generic, ByteWrite};
+use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 
 use super::name::JavaFullName;

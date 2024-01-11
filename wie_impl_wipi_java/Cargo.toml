@@ -17,7 +17,7 @@ java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
 java_runtime_base = { git = "https://github.com/dlunch/RustJava.git" }
 jvm = { git = "https://github.com/dlunch/RustJava.git" }
 
-wie_base = { path = "../wie_base" }
+wie_common = { path = "../wie_common" }
 wie_backend = { path = "../wie_backend" }
 
 [dev-dependencies]

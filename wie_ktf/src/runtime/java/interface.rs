@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use java_runtime::classes::java::lang::String as JavaString;
 
 use wie_backend::SystemHandle;
-use wie_base::util::{read_generic, write_generic, ByteRead};
+use wie_common::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
 
 use crate::runtime::java::jvm::KtfJvm;
