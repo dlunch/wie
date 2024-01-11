@@ -118,7 +118,7 @@ mod test {
     use java_runtime::classes::java::lang::String;
 
     use wie_backend::{System, SystemHandle};
-    use wie_base::util::write_generic;
+    use wie_common::util::write_generic;
     use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 
     use crate::runtime::{java::jvm::KtfJvm, KtfPeb};

@@ -3,7 +3,7 @@ use alloc::string::{String, ToString};
 use anyhow::Context;
 
 use wie_backend::{App, System, SystemHandle};
-use wie_base::Event;
+use wie_common::Event;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_impl_wipi_java::classes::org::kwis::msp::lcdui::Jlet;
 

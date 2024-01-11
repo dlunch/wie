@@ -4,7 +4,7 @@ use core::mem::size_of;
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
-use wie_base::util::{read_generic, round_up, write_generic};
+use wie_common::util::{read_generic, round_up, write_generic};
 
 use crate::core::{ArmCore, HEAP_BASE};
 

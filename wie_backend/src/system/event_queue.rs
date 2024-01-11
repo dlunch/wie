@@ -1,6 +1,6 @@
 use alloc::collections::VecDeque;
 
-use wie_base::Event;
+use wie_common::Event;
 
 #[derive(Default)]
 pub struct EventQueue {

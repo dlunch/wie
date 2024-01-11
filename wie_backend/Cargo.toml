@@ -21,4 +21,4 @@ zip = { version = "^0.6", features = ["deflate"], default-features = false }
 smaf = { git = "https://github.com/dlunch/smaf.git" }
 smaf_player = { git = "https://github.com/dlunch/smaf.git" }
 
-wie_base = { path = "../wie_base" }
+wie_common = { path = "../wie_common" }

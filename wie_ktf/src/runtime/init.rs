@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::SystemHandle;
-use wie_base::util::{read_generic, write_generic};
+use wie_common::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 
 use crate::runtime::{

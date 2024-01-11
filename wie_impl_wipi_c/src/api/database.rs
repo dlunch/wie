@@ -4,7 +4,7 @@ use wie_backend::Database;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_base::util::{read_generic, write_generic};
+use wie_common::util::{read_generic, write_generic};
 
 use crate::{
     base::{WIPICContext, WIPICMethodBody, WIPICWord},

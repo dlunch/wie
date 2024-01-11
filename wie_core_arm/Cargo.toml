@@ -13,7 +13,7 @@ tracing = { workspace = true }
 armv4t_emu = { version = "^0.1" }
 
 wie_backend = { path = "../wie_backend" }
-wie_base = { path = "../wie_base" }
+wie_common = { path = "../wie_common" }
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))'.dependencies]
 unicorn-engine = { version = "^2.0" }

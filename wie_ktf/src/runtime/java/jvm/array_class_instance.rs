@@ -5,7 +5,7 @@ use bytemuck::cast_vec;
 
 use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
-use wie_base::util::{read_generic, write_generic, ByteRead, ByteWrite};
+use wie_common::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
 
 use super::{array_class::JavaArrayClass, class_instance::JavaClassInstance, value::JavaValueExt};

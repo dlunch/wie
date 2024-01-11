@@ -2814,17 +2814,8 @@ dependencies = [
  "smaf",
  "smaf_player",
  "tracing",
- "wie_base",
+ "wie_common",
  "zip",
-]
-
-[[package]]
-name = "wie_base"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "bytemuck",
- "tracing",
 ]
 
 [[package]]
@@ -2839,12 +2830,21 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wie_backend",
- "wie_base",
+ "wie_common",
  "wie_j2me",
  "wie_ktf",
  "wie_lgt",
  "wie_skt",
  "winit",
+]
+
+[[package]]
+name = "wie_common"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "tracing",
 ]
 
 [[package]]
@@ -2860,7 +2860,7 @@ dependencies = [
  "tracing",
  "unicorn-engine",
  "wie_backend",
- "wie_base",
+ "wie_common",
 ]
 
 [[package]]
@@ -2876,7 +2876,7 @@ dependencies = [
  "jvm_impl",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
  "wie_impl_wipi_java",
 ]
 
@@ -2890,7 +2890,7 @@ dependencies = [
  "futures-test",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
 ]
 
 [[package]]
@@ -2909,7 +2909,7 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
 ]
 
 [[package]]
@@ -2921,7 +2921,7 @@ dependencies = [
  "bytemuck",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
  "wie_core_jvm",
 ]
 
@@ -2941,7 +2941,7 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
  "wie_core_arm",
  "wie_impl_wipi_c",
  "wie_impl_wipi_java",
@@ -2957,7 +2957,7 @@ dependencies = [
  "elf",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
  "wie_core_arm",
  "wie_impl_wipi_c",
  "wie_impl_wipi_java",
@@ -2973,7 +2973,7 @@ dependencies = [
  "jvm",
  "tracing",
  "wie_backend",
- "wie_base",
+ "wie_common",
  "wie_core_jvm",
 ]
 

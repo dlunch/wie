@@ -3,7 +3,7 @@ use core::fmt::Display;
 
 use jvm::JvmResult;
 
-use wie_base::util::{read_generic, read_null_terminated_string};
+use wie_common::util::{read_generic, read_null_terminated_string};
 use wie_core_arm::ArmCore;
 
 #[derive(Clone)]

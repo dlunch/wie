@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, rc::Rc, 
 use core::{cell::RefCell, fmt::Debug, mem::size_of};
 
 use wie_backend::{AsyncCallable, SystemHandle};
-use wie_base::util::{read_generic, round_up, ByteRead, ByteWrite};
+use wie_common::util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
     context::ArmCoreContext,
