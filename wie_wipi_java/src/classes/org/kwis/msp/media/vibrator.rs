@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use jvm::Jvm;
 
-use crate::{WIPIJavaClassProto, WIPIJavaContxt};
+use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
 // class org.kwis.msp.media.Vibrator
 pub struct Vibrator {}
@@ -18,7 +18,7 @@ impl Vibrator {
         }
     }
 
-    async fn on(_: &mut Jvm, _: &mut WIPIJavaContxt, level: i32, duration: i32) -> JavaResult<()> {
+    async fn on(_: &mut Jvm, _: &mut WIPIJavaContext, level: i32, duration: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Vibrator::on({}, {})", level, duration);
 
         Ok(())

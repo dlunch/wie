@@ -4,7 +4,7 @@ use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm};
 
-use crate::{WIPIJavaClassProto, WIPIJavaContxt};
+use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
 // class org.kwis.msp.handset.HandsetProperty
 pub struct HandsetProperty {}
@@ -24,7 +24,7 @@ impl HandsetProperty {
         }
     }
 
-    async fn get_system_property(jvm: &mut Jvm, _: &mut WIPIJavaContxt, name: ClassInstanceRef<String>) -> JavaResult<ClassInstanceRef<String>> {
+    async fn get_system_property(jvm: &mut Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<ClassInstanceRef<String>> {
         let name = String::to_rust_string(jvm, &name)?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 

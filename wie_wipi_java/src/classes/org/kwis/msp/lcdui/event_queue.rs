@@ -7,7 +7,7 @@ use wie_common::KeyCode;
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
-    WIPIJavaClassProto, WIPIJavaContxt,
+    context::{WIPIJavaClassProto, WIPIJavaContext},
 };
 
 #[repr(i32)]
@@ -102,7 +102,7 @@ impl EventQueue {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
@@ -110,7 +110,7 @@ impl EventQueue {
 
     async fn get_next_event(
         jvm: &mut Jvm,
-        context: &mut WIPIJavaContxt,
+        context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JavaResult<()> {
@@ -150,7 +150,7 @@ impl EventQueue {
 
     async fn dispatch_event(
         jvm: &mut Jvm,
-        context: &mut WIPIJavaContxt,
+        context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JavaResult<()> {
@@ -192,7 +192,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn repaint(jvm: &mut Jvm, context: &mut WIPIJavaContxt) -> JavaResult<()> {
+    async fn repaint(jvm: &mut Jvm, context: &mut WIPIJavaContext) -> JavaResult<()> {
         let display = Self::get_current_display(jvm).await?;
         if display.is_null() {
             return Ok(());

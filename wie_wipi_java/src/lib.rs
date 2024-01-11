@@ -2,24 +2,9 @@
 extern crate alloc;
 
 pub mod classes;
+mod context;
 
-use alloc::boxed::Box;
-
-use dyn_clone::{clone_trait_object, DynClone};
-
-use java_class_proto::{JavaClassProto, JavaResult, MethodBody};
-
-use wie_backend::SystemHandle;
-
-pub trait WIPIJavaContextBase: DynClone {
-    fn system(&mut self) -> &mut SystemHandle;
-    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, WIPIJavaContxt>>) -> JavaResult<()>;
-}
-
-clone_trait_object!(WIPIJavaContextBase);
-
-pub(crate) type WIPIJavaClassProto = JavaClassProto<dyn WIPIJavaContextBase>;
-pub(crate) type WIPIJavaContxt = dyn WIPIJavaContextBase;
+pub use context::{WIPIJavaClassProto, WIPIJavaContextBase};
 
 pub fn get_class_proto(name: &str) -> Option<WIPIJavaClassProto> {
     Some(match name {
@@ -53,28 +38,4 @@ pub fn get_class_proto(name: &str) -> Option<WIPIJavaClassProto> {
 
         _ => return None,
     })
-}
-
-#[cfg(test)]
-pub mod test {
-    use alloc::boxed::Box;
-
-    use java_class_proto::{JavaResult, MethodBody};
-
-    use wie_backend::SystemHandle;
-
-    use crate::WIPIJavaContextBase;
-
-    #[derive(Clone)]
-    pub struct DummyContext;
-
-    impl WIPIJavaContextBase for DummyContext {
-        fn system(&mut self) -> &mut SystemHandle {
-            todo!()
-        }
-
-        fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
-            todo!()
-        }
-    }
 }

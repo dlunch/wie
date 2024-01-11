@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use crate::WIPIJavaClassProto;
+use crate::context::WIPIJavaClassProto;
 
 // interface org.kwis.msp.lcdui.JletEventListener
 pub struct JletEventListener {}

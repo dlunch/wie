@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use jvm::Jvm;
 
-use crate::{WIPIJavaClassProto, WIPIJavaContxt};
+use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
 // class org.kwis.msf.io.Network
 pub struct Network {}
@@ -18,7 +18,7 @@ impl Network {
         }
     }
 
-    async fn disconnect(_: &mut Jvm, _: &mut WIPIJavaContxt) -> JavaResult<()> {
+    async fn disconnect(_: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msf.io.Network::disconnect()");
 
         Ok(())

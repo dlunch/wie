@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use crate::WIPIJavaClassProto;
+use crate::context::WIPIJavaClassProto;
 
 // class org.kwis.msp.db.DataBaseRecordException
 pub struct DataBaseRecordException {}

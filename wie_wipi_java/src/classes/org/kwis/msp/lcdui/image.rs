@@ -12,7 +12,10 @@ use jvm::{Array, ClassInstanceRef, Jvm};
 
 use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
 
-use crate::{classes::org::kwis::msp::lcdui::Graphics, WIPIJavaClassProto, WIPIJavaContxt};
+use crate::{
+    classes::org::kwis::msp::lcdui::Graphics,
+    context::{WIPIJavaClassProto, WIPIJavaContext},
+};
 
 // class org.kwis.msp.lcdui.Image
 pub struct Image {}
@@ -55,13 +58,13 @@ impl Image {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Image>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Image>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn create_image(jvm: &mut Jvm, _: &mut WIPIJavaContxt, width: i32, height: i32) -> JavaResult<ClassInstanceRef<Image>> {
+    async fn create_image(jvm: &mut Jvm, _: &mut WIPIJavaContext, width: i32, height: i32) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let bytes_per_pixel = 4;
@@ -79,7 +82,7 @@ impl Image {
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn create_image_from_file(
         jvm: &mut Jvm,
-        context: &mut WIPIJavaContxt,
+        context: &mut WIPIJavaContext,
         name: ClassInstanceRef<String>,
     ) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
@@ -99,7 +102,7 @@ impl Image {
 
     async fn create_image_from_bytes(
         jvm: &mut Jvm,
-        _: &mut WIPIJavaContxt,
+        _: &mut WIPIJavaContext,
         data: ClassInstanceRef<Array<i8>>,
         offset: i32,
         length: i32,
@@ -112,7 +115,7 @@ impl Image {
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
-    async fn get_graphics(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<ClassInstanceRef<Graphics>> {
+    async fn get_graphics(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "w", "I")?;
@@ -129,13 +132,13 @@ impl Image {
         Ok(instance.into())
     }
 
-    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
 
         jvm.get_field(&this, "w", "I")
     }
 
-    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
 
         jvm.get_field(&this, "h", "I")
