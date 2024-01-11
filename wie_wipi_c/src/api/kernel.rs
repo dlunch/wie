@@ -13,7 +13,7 @@ use wie_backend::Instant;
 use wie_common::util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
 
 use crate::{
-    base::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
+    context::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
     method::{MethodBody, MethodImpl},
 };
 

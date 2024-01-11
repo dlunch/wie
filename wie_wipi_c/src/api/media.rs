@@ -2,7 +2,7 @@ use alloc::{string::String, vec, vec::Vec};
 use core::mem::size_of;
 
 use crate::{
-    base::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
+    context::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
     method::MethodImpl,
 };
 

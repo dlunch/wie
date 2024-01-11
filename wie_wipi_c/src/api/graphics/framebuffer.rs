@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_backend::canvas::{create_canvas, ArgbPixel, Canvas, Image, Rgb565Pixel};
 
-use crate::base::{WIPICContext, WIPICMemoryId, WIPICWord};
+use crate::context::{WIPICContext, WIPICMemoryId, WIPICWord};
 
 /// MC_GrpDisplayInfo
 #[repr(C)]
