@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use java_runtime_base::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -30,7 +30,7 @@ impl Card {
         }
     }
 
-    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContxt, mut this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
+    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContxt, mut this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
 
         let display = jvm
@@ -47,25 +47,25 @@ impl Card {
         Ok(())
     }
 
-    async fn init_1(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Card>, a0: i32) -> JavaResult<()> {
+    async fn init_1(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Card>, a0: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
 
         Ok(())
     }
 
-    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
+    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
         jvm.get_field(&this, "w", "I")
     }
 
-    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Card>) -> JavaResult<i32> {
+    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
         jvm.get_field(&this, "h", "I")
     }
 
-    async fn repaint(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
+    async fn repaint(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "w", "I")?;
@@ -80,7 +80,7 @@ impl Card {
     async fn repaint_with_area(
         _: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Card>,
+        this: ClassInstanceRef<Card>,
         a0: i32,
         a1: i32,
         a2: i32,
@@ -95,7 +95,7 @@ impl Card {
         Ok(())
     }
 
-    async fn service_repaints(_: &mut Jvm, context: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Card>) -> JavaResult<()> {
+    async fn service_repaints(_: &mut Jvm, context: &mut WIPIJavaContxt, this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
         let mut platform = context.system().platform();

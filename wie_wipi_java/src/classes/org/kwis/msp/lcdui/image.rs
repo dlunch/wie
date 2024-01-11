@@ -6,9 +6,9 @@ use core::{
 
 use bytemuck::cast_vec;
 
+use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{Array, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{Array, ClassInstanceRef, Jvm};
 
 use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
 
@@ -55,13 +55,13 @@ impl Image {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Image>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Image>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Image::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn create_image(jvm: &mut Jvm, _: &mut WIPIJavaContxt, width: i32, height: i32) -> JavaResult<JvmClassInstanceHandle<Image>> {
+    async fn create_image(jvm: &mut Jvm, _: &mut WIPIJavaContxt, width: i32, height: i32) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
 
         let bytes_per_pixel = 4;
@@ -80,8 +80,8 @@ impl Image {
     async fn create_image_from_file(
         jvm: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        name: JvmClassInstanceHandle<String>,
-    ) -> JavaResult<JvmClassInstanceHandle<Image>> {
+        name: ClassInstanceRef<String>,
+    ) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
 
         let name = String::to_rust_string(jvm, &name)?;
@@ -100,10 +100,10 @@ impl Image {
     async fn create_image_from_bytes(
         jvm: &mut Jvm,
         _: &mut WIPIJavaContxt,
-        data: JvmClassInstanceHandle<Array<i8>>,
+        data: ClassInstanceRef<Array<i8>>,
         offset: i32,
         length: i32,
-    ) -> JavaResult<JvmClassInstanceHandle<Image>> {
+    ) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
         let image_data = jvm.load_byte_array(&data, offset as _, length as _)?;
@@ -112,7 +112,7 @@ impl Image {
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
 
-    async fn get_graphics(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Self>) -> JavaResult<JvmClassInstanceHandle<Graphics>> {
+    async fn get_graphics(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "w", "I")?;
@@ -129,19 +129,19 @@ impl Image {
         Ok(instance.into())
     }
 
-    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
 
         jvm.get_field(&this, "w", "I")
     }
 
-    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
 
         jvm.get_field(&this, "h", "I")
     }
 
-    pub fn buf(jvm: &mut Jvm, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Vec<u8>> {
+    pub fn buf(jvm: &mut Jvm, this: &ClassInstanceRef<Self>) -> JavaResult<Vec<u8>> {
         let java_img_data = jvm.get_field(this, "imgData", "[B")?;
         let img_data_len = jvm.array_length(&java_img_data)?;
 
@@ -150,17 +150,17 @@ impl Image {
         Ok(cast_vec(img_data))
     }
 
-    pub fn image(jvm: &mut Jvm, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Box<dyn BackendImage>> {
+    pub fn image(jvm: &mut Jvm, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn BackendImage>> {
         Ok(Self::create_canvas(jvm, this)?.image())
     }
 
-    pub fn canvas<'a>(jvm: &'a mut Jvm, this: &'a JvmClassInstanceHandle<Self>) -> JavaResult<ImageCanvas<'a>> {
+    pub fn canvas<'a>(jvm: &'a mut Jvm, this: &'a ClassInstanceRef<Self>) -> JavaResult<ImageCanvas<'a>> {
         let canvas = Self::create_canvas(jvm, this)?;
 
         Ok(ImageCanvas { image: this, jvm, canvas })
     }
 
-    fn create_canvas(jvm: &mut Jvm, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Box<dyn Canvas>> {
+    fn create_canvas(jvm: &mut Jvm, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn Canvas>> {
         let buf = Self::buf(jvm, this)?;
 
         let width: i32 = jvm.get_field(this, "w", "I")?;
@@ -176,13 +176,7 @@ impl Image {
         }
     }
 
-    async fn create_image_instance(
-        jvm: &mut Jvm,
-        width: u32,
-        height: u32,
-        data: &[u8],
-        bytes_per_pixel: u32,
-    ) -> JavaResult<JvmClassInstanceHandle<Image>> {
+    async fn create_image_instance(jvm: &mut Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JavaResult<ClassInstanceRef<Image>> {
         let mut instance = jvm.new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
 
         let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
@@ -198,7 +192,7 @@ impl Image {
 }
 
 pub struct ImageCanvas<'a> {
-    image: &'a JvmClassInstanceHandle<Image>,
+    image: &'a ClassInstanceRef<Image>,
     jvm: &'a mut Jvm,
     canvas: Box<dyn Canvas>,
 }

@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 
-use java_runtime_base::{Array, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use jvm::{Array, ClassInstanceRef, Jvm};
 
 use wie_common::KeyCode;
 
@@ -102,12 +102,7 @@ impl EventQueue {
         }
     }
 
-    async fn init(
-        _: &mut Jvm,
-        _: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<EventQueue>,
-        jlet: JvmClassInstanceHandle<Jlet>,
-    ) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
@@ -116,8 +111,8 @@ impl EventQueue {
     async fn get_next_event(
         jvm: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
-        mut event: JvmClassInstanceHandle<Array<i32>>,
+        this: ClassInstanceRef<Self>,
+        mut event: ClassInstanceRef<Array<i32>>,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
@@ -156,8 +151,8 @@ impl EventQueue {
     async fn dispatch_event(
         jvm: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
-        event: JvmClassInstanceHandle<Array<i32>>,
+        this: ClassInstanceRef<Self>,
+        event: ClassInstanceRef<Array<i32>>,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
@@ -221,7 +216,7 @@ impl EventQueue {
         )
         .await?;
 
-        let java_image: JvmClassInstanceHandle<Image> = jvm.get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let java_image: ClassInstanceRef<Image> = jvm.get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 
         if !java_image.is_null() {
             let image = Image::image(jvm, &java_image)?;
@@ -241,7 +236,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn get_current_display(jvm: &mut Jvm) -> JavaResult<JvmClassInstanceHandle<Display>> {
+    async fn get_current_display(jvm: &mut Jvm) -> JavaResult<ClassInstanceRef<Display>> {
         let jlet = jvm
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
@@ -249,12 +244,12 @@ impl EventQueue {
         jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")
     }
 
-    fn get_top_card(jvm: &mut Jvm, display: &JvmClassInstanceHandle<Display>) -> JavaResult<JvmClassInstanceHandle<Card>> {
+    fn get_top_card(jvm: &mut Jvm, display: &ClassInstanceRef<Display>) -> JavaResult<ClassInstanceRef<Card>> {
         let cards = jvm.get_field(display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card_size: i32 = jvm.get_field(display, "szCard", "I")?;
 
         if card_size > 0 {
-            let card_data: Vec<JvmClassInstanceHandle<Card>> = jvm.load_array(&cards, 0, card_size as _)?;
+            let card_data: Vec<ClassInstanceRef<Card>> = jvm.load_array(&cards, 0, card_size as _)?;
             Ok(card_data[card_size as usize - 1].clone().into())
         } else {
             Ok(None.into())

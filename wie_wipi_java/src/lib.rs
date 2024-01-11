@@ -7,7 +7,7 @@ use alloc::boxed::Box;
 
 use dyn_clone::{clone_trait_object, DynClone};
 
-use java_runtime_base::{JavaClassProto, JavaResult, MethodBody};
+use java_class_proto::{JavaClassProto, JavaResult, MethodBody};
 
 use wie_backend::SystemHandle;
 
@@ -59,7 +59,7 @@ pub fn get_class_proto(name: &str) -> Option<WIPIJavaClassProto> {
 pub mod test {
     use alloc::boxed::Box;
 
-    use java_runtime_base::{JavaResult, MethodBody};
+    use java_class_proto::{JavaResult, MethodBody};
 
     use wie_backend::SystemHandle;
 

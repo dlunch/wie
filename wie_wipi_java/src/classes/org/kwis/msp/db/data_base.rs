@@ -3,9 +3,9 @@ use alloc::{boxed::Box, vec};
 use bytemuck::cast_vec;
 use wie_backend::Database;
 
+use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{Array, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{Array, ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -36,8 +36,8 @@ impl DataBase {
     async fn init(
         jvm: &mut Jvm,
         _: &mut WIPIJavaContxt,
-        mut this: JvmClassInstanceHandle<Self>,
-        data_base_name: JvmClassInstanceHandle<String>,
+        mut this: ClassInstanceRef<Self>,
+        data_base_name: ClassInstanceRef<String>,
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
@@ -49,10 +49,10 @@ impl DataBase {
     async fn open_data_base(
         jvm: &mut Jvm,
         _: &mut WIPIJavaContxt,
-        data_base_name: JvmClassInstanceHandle<String>,
+        data_base_name: ClassInstanceRef<String>,
         record_size: i32,
         create: bool,
-    ) -> JavaResult<JvmClassInstanceHandle<DataBase>> {
+    ) -> JavaResult<ClassInstanceRef<DataBase>> {
         tracing::warn!(
             "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
             &data_base_name,
@@ -67,7 +67,7 @@ impl DataBase {
         Ok(instance.into())
     }
 
-    async fn get_number_of_records(jvm: &mut Jvm, context: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn get_number_of_records(jvm: &mut Jvm, context: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
         let database = Self::get_database(jvm, context, &this)?;
@@ -77,7 +77,7 @@ impl DataBase {
         Ok(count as _)
     }
 
-    async fn close_data_base(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<DataBase>) -> JavaResult<()> {
+    async fn close_data_base(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<DataBase>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
         Ok(())
@@ -86,8 +86,8 @@ impl DataBase {
     async fn insert_record(
         jvm: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
-        data: JvmClassInstanceHandle<Array<i8>>,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<i8>>,
         offset: i32,
         num_bytes: i32,
     ) -> JavaResult<i32> {
@@ -112,9 +112,9 @@ impl DataBase {
     async fn select_record(
         jvm: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
+        this: ClassInstanceRef<Self>,
         record_id: i32,
-    ) -> JavaResult<JvmClassInstanceHandle<i8>> {
+    ) -> JavaResult<ClassInstanceRef<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
         let database = Self::get_database(jvm, context, &this)?;
@@ -127,7 +127,7 @@ impl DataBase {
         Ok(array.into())
     }
 
-    fn get_database(jvm: &mut Jvm, context: &mut WIPIJavaContxt, this: &JvmClassInstanceHandle<Self>) -> JavaResult<Box<dyn Database>> {
+    fn get_database(jvm: &mut Jvm, context: &mut WIPIJavaContxt, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn Database>> {
         let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(jvm, &db_name)?;
 

@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -18,7 +18,7 @@ impl TextComponent {
         }
     }
 
-    async fn set_max_length(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<TextComponent>, max_length: i32) -> JavaResult<()> {
+    async fn set_max_length(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {})", &this, max_length);
 
         Ok(())

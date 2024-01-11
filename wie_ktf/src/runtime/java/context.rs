@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use java_runtime_base::MethodBody;
+use java_class_proto::MethodBody;
 
 use jvm::JvmResult;
 use wie_backend::{AsyncCallable, SystemHandle};

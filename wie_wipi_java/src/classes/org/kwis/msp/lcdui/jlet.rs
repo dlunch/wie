@@ -1,9 +1,7 @@
 use alloc::{boxed::Box, vec};
 
-use java_runtime_base::{
-    JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle, MethodBody,
-};
-use jvm::{JavaValue, Jvm};
+use java_class_proto::{JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, MethodBody};
+use jvm::{ClassInstanceRef, JavaValue, Jvm};
 
 use crate::{classes::org::kwis::msp::lcdui::EventQueue, WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -38,7 +36,7 @@ impl Jlet {
         }
     }
 
-    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContxt, mut this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
+    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContxt, mut this: ClassInstanceRef<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = jvm
@@ -63,7 +61,7 @@ impl Jlet {
         Ok(())
     }
 
-    async fn get_active_jlet(jvm: &mut Jvm, _: &mut WIPIJavaContxt) -> JavaResult<JvmClassInstanceHandle<Jlet>> {
+    async fn get_active_jlet(jvm: &mut Jvm, _: &mut WIPIJavaContxt) -> JavaResult<ClassInstanceRef<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
         let jlet = jvm
@@ -73,11 +71,7 @@ impl Jlet {
         Ok(jlet)
     }
 
-    async fn get_event_queue(
-        jvm: &mut Jvm,
-        _: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
-    ) -> JavaResult<JvmClassInstanceHandle<EventQueue>> {
+    async fn get_event_queue(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<ClassInstanceRef<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
         let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
