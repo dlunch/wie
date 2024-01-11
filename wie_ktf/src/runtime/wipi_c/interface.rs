@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::SystemHandle;
 use wie_common::util::write_generic;
 use wie_core_arm::ArmCore;
-use wie_impl_wipi_c::{
+use wie_wipi_c::{
     api::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
         misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, uic::get_uic_method_table,

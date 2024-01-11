@@ -13,7 +13,7 @@ use jvm::{Class, Jvm, JvmCallback, JvmResult};
 use jvm_impl::{ClassImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
-use wie_impl_wipi_java::{get_class_proto as get_wipi_class_proto, WIPIJavaContextBase};
+use wie_wipi_java::{get_class_proto as get_wipi_class_proto, WIPIJavaContextBase};
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
 

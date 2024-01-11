@@ -1,5 +1,5 @@
 [package]
-name = "wie_impl_wipi_java"
+name = "wie_wipi_c"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,20 +7,11 @@ license.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-bitflags = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
-
-dyn-clone = { version = "^1.0", default-features = false }
-
-java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
-java_runtime_base = { git = "https://github.com/dlunch/RustJava.git" }
-jvm = { git = "https://github.com/dlunch/RustJava.git" }
 
 wie_common = { path = "../wie_common" }
 wie_backend = { path = "../wie_backend" }
 
 [dev-dependencies]
 futures-test = { version = "^0.3" }
-
-test_utils = { path = "../test_utils" }
