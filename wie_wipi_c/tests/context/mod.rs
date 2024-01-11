@@ -1,6 +1,6 @@
 use wie_backend::SystemHandle;
 use wie_common::util::{ByteRead, ByteWrite};
-use wie_impl_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 pub struct TestContext {
     memory: [u8; 0x10000],

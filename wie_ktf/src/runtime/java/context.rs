@@ -5,7 +5,7 @@ use java_runtime_base::MethodBody;
 use jvm::JvmResult;
 use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
-use wie_impl_wipi_java::WIPIJavaContextBase;
+use wie_wipi_java::WIPIJavaContextBase;
 
 use crate::runtime::java::jvm::KtfJvm;
 
