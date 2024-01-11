@@ -22,7 +22,7 @@ impl Jlet {
                     "getActiveJlet",
                     "()Lorg/kwis/msp/lcdui/Jlet;",
                     Self::get_active_jlet,
-                    JavaMethodFlag::NONE,
+                    JavaMethodFlag::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getEventQueue",
