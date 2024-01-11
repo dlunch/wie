@@ -7,7 +7,7 @@ use wie_backend::Database;
 use wie_common::util::{read_generic, write_generic};
 
 use crate::{
-    base::{WIPICContext, WIPICMethodBody, WIPICWord},
+    context::{WIPICContext, WIPICMethodBody, WIPICWord},
     method::MethodImpl,
     WIPICResult,
 };

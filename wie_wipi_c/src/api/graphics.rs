@@ -11,7 +11,7 @@ use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
 use wie_common::util::{read_generic, write_generic};
 
 use crate::{
-    base::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
+    context::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
     method::MethodImpl,
 };
 

@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_backend::canvas::decode_image;
 
-use crate::base::{WIPICContext, WIPICMemoryId, WIPICWord};
+use crate::context::{WIPICContext, WIPICMemoryId, WIPICWord};
 
 use super::WIPICFramebuffer;
 

@@ -2,7 +2,7 @@
 extern crate alloc;
 
 pub mod api;
-mod base;
+mod context;
 mod method;
 
-pub use self::base::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+pub use self::context::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};

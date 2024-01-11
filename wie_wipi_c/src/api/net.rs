@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    base::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
+    context::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
     method::MethodImpl,
 };
 
