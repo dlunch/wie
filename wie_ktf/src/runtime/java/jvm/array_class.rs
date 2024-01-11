@@ -8,7 +8,7 @@ use core::{
 };
 use wie_backend::SystemHandle;
 
-use jvm::{ArrayClass, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
+use jvm::{ArrayClass, ClassInstance, JavaType, JvmResult};
 
 use wie_common::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
@@ -114,36 +114,6 @@ impl JavaArrayClass {
             JavaType::Array(_) => 4,
             _ => panic!("Should not reach here"),
         })
-    }
-}
-
-impl Class for JavaArrayClass {
-    fn name(&self) -> String {
-        self.class.name().unwrap()
-    }
-
-    fn super_class_name(&self) -> Option<String> {
-        Some("java/lang/Object".into())
-    }
-
-    fn instantiate(&self) -> Box<dyn ClassInstance> {
-        panic!("Array class should not be instantiated here")
-    }
-
-    fn method(&self, _name: &str, _descriptor: &str) -> Option<Box<dyn Method>> {
-        panic!("Array class does not have methods")
-    }
-
-    fn field(&self, _name: &str, _descriptor: &str, _is_static: bool) -> Option<Box<dyn Field>> {
-        panic!("Array class does not have fields")
-    }
-
-    fn get_static_field(&self, _field: &dyn Field) -> JvmResult<JavaValue> {
-        panic!("Array class does not have fields")
-    }
-
-    fn put_static_field(&mut self, _field: &dyn Field, _value: JavaValue) -> JvmResult<()> {
-        panic!("Array class does not have fields")
     }
 }
 

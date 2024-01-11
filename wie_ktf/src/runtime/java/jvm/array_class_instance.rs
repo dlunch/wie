@@ -3,7 +3,7 @@ use core::fmt::{self, Debug, Formatter};
 
 use bytemuck::cast_vec;
 
-use jvm::{ArrayClassInstance, Class, ClassInstance, Field, JavaType, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, Class, JavaType, JavaValue, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
@@ -82,7 +82,7 @@ impl JavaArrayClassInstance {
     }
 }
 
-impl ClassInstance for JavaArrayClassInstance {
+impl ArrayClassInstance for JavaArrayClassInstance {
     fn destroy(self: Box<Self>) {
         self.class_instance.destroy().unwrap()
     }
@@ -91,24 +91,6 @@ impl ClassInstance for JavaArrayClassInstance {
         Box::new(self.class_instance.class().unwrap())
     }
 
-    fn get_field(&self, _field: &dyn Field) -> JvmResult<JavaValue> {
-        panic!("Array class instance does not have fields")
-    }
-
-    fn put_field(&mut self, _field: &dyn Field, _value: JavaValue) -> JvmResult<()> {
-        panic!("Array class instance does not have fields")
-    }
-
-    fn as_array_instance(&self) -> Option<&dyn ArrayClassInstance> {
-        Some(self)
-    }
-
-    fn as_array_instance_mut(&mut self) -> Option<&mut dyn ArrayClassInstance> {
-        Some(self)
-    }
-}
-
-impl ArrayClassInstance for JavaArrayClassInstance {
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.element_size()?;
 
