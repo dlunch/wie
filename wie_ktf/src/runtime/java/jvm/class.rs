@@ -7,7 +7,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_runtime_base::{JavaClassProto, JavaFieldAccessFlag};
+use java_class_proto::{JavaClassProto, JavaFieldAccessFlag};
 use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
 use wie_backend::SystemHandle;
@@ -281,8 +281,8 @@ impl Class for JavaClass {
         self.name().unwrap()
     }
 
-    fn super_class(&self) -> Option<Box<dyn Class>> {
-        self.parent_class().unwrap().map(|x| Box::new(x) as _)
+    fn super_class_name(&self) -> Option<String> {
+        self.parent_class().unwrap().map(|x| x.name().unwrap())
     }
 
     fn instantiate(&self) -> Box<dyn ClassInstance> {

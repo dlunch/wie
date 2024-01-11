@@ -1,8 +1,8 @@
 use alloc::vec;
 
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -22,13 +22,13 @@ impl Main {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Main>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Main>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn main(jvm: &mut Jvm, _: &mut WIPIJavaContxt, args: JvmClassInstanceHandle<String>) -> JavaResult<()> {
+    async fn main(jvm: &mut Jvm, _: &mut WIPIJavaContxt, args: ClassInstanceRef<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = jvm

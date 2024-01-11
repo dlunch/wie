@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use java_runtime_base::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -43,7 +43,7 @@ impl Font {
         Ok(())
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Font>) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Font>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", &this);
 
         Ok(())
@@ -55,7 +55,7 @@ impl Font {
         Ok(12) // TODO: hardcoded
     }
 
-    async fn get_default_font(jvm: &mut Jvm, _: &mut WIPIJavaContxt) -> JavaResult<JvmClassInstanceHandle<Self>> {
+    async fn get_default_font(jvm: &mut Jvm, _: &mut WIPIJavaContxt) -> JavaResult<ClassInstanceRef<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
@@ -63,7 +63,7 @@ impl Font {
         Ok(instance.into())
     }
 
-    async fn get_font(jvm: &mut Jvm, _: &mut WIPIJavaContxt, face: i32, style: i32, size: i32) -> JavaResult<JvmClassInstanceHandle<Font>> {
+    async fn get_font(jvm: &mut Jvm, _: &mut WIPIJavaContxt, face: i32, style: i32, size: i32) -> JavaResult<ClassInstanceRef<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;

@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use jvm::Jvm;
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};

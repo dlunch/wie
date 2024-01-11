@@ -79,8 +79,8 @@ impl KtfJvm {
             x.run(Box::new([])).await?;
         }
 
-        if let Some(x) = class.super_class() {
-            let super_class = ClassLoader::get_or_load_class(core, system, &x.name()).await?.unwrap(); // TODO we can use superclass as-is
+        if let Some(x) = class.super_class_name() {
+            let super_class = ClassLoader::get_or_load_class(core, system, &x).await?.unwrap();
             Self::register_class(core, system, &super_class).await?;
         }
 

@@ -1,8 +1,8 @@
 use alloc::{format, vec};
 
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -24,19 +24,19 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(_jvm: &mut Jvm, _: &mut WIPIJavaContxt, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
+    async fn is_file(_jvm: &mut Jvm, _: &mut WIPIJavaContxt, name: ClassInstanceRef<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
         Ok(false)
     }
 
-    async fn is_directory(_jvm: &mut Jvm, _: &mut WIPIJavaContxt, name: JvmClassInstanceHandle<String>, flag: i32) -> JavaResult<bool> {
+    async fn is_directory(_jvm: &mut Jvm, _: &mut WIPIJavaContxt, name: ClassInstanceRef<String>, flag: i32) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
 
         Ok(true)
     }
 
-    async fn exists(jvm: &mut Jvm, context: &mut WIPIJavaContxt, name: JvmClassInstanceHandle<String>) -> JavaResult<bool> {
+    async fn exists(jvm: &mut Jvm, context: &mut WIPIJavaContxt, name: ClassInstanceRef<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
         let filename = String::to_rust_string(jvm, &name)?;

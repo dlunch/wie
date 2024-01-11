@@ -7,10 +7,10 @@ use core::{
     time::Duration,
 };
 
+use java_class_proto::{JavaResult, MethodBody};
 use java_runtime::{get_class_proto, Runtime};
-use java_runtime_base::{JavaResult, MethodBody};
 use jvm::{Class, Jvm, JvmCallback, JvmResult};
-use jvm_impl::{ClassImpl, JvmDetailImpl};
+use jvm_rust::{ClassImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
 use wie_wipi_java::{get_class_proto as get_wipi_class_proto, WIPIJavaContextBase};

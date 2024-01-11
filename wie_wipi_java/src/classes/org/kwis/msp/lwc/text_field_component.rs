@@ -1,8 +1,8 @@
 use alloc::vec;
 
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -22,8 +22,8 @@ impl TextFieldComponent {
     async fn init(
         _: &mut Jvm,
         _: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<TextFieldComponent>,
-        data: JvmClassInstanceHandle<String>,
+        this: ClassInstanceRef<TextFieldComponent>,
+        data: ClassInstanceRef<String>,
         constraint: i32,
     ) -> JavaResult<()> {
         tracing::warn!(

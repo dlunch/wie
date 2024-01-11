@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -21,7 +21,7 @@ impl AnnunciatorComponent {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
+    async fn init(_: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", &this, a0);
 
         Ok(())

@@ -7,7 +7,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, MethodBody};
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, MethodBody};
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::SystemHandle;
@@ -251,6 +251,12 @@ impl Method for JavaMethod {
         let (_, return_type) = r#type.as_method();
 
         Ok(JavaValue::from_raw(result, return_type, &self.core))
+    }
+
+    fn is_static(&self) -> bool {
+        let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw).unwrap();
+
+        raw.flag.contains(JavaMethodFlagBit::STATIC)
     }
 }
 

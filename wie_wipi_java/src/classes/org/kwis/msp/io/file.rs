@@ -3,9 +3,9 @@ use core::cmp::min;
 
 use bytemuck::cast_slice;
 
+use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{Array, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{Array, ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -35,8 +35,8 @@ impl File {
     async fn init(
         jvm: &mut Jvm,
         _: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
-        filename: JvmClassInstanceHandle<String>,
+        this: ClassInstanceRef<Self>,
+        filename: ClassInstanceRef<String>,
         mode: i32,
     ) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
@@ -51,8 +51,8 @@ impl File {
     async fn init_with_flag(
         jvm: &mut Jvm,
         context: &mut WIPIJavaContxt,
-        mut this: JvmClassInstanceHandle<Self>,
-        filename: JvmClassInstanceHandle<String>,
+        mut this: ClassInstanceRef<Self>,
+        filename: ClassInstanceRef<String>,
         mode: i32,
         flag: i32,
     ) -> JavaResult<()> {
@@ -84,8 +84,8 @@ impl File {
     async fn write(
         _jvm: &mut Jvm,
         _: &mut WIPIJavaContxt,
-        this: JvmClassInstanceHandle<Self>,
-        buf: JvmClassInstanceHandle<JvmClassInstanceHandle<Array<i8>>>,
+        this: ClassInstanceRef<Self>,
+        buf: ClassInstanceRef<ClassInstanceRef<Array<i8>>>,
         offset: i32,
         len: i32,
     ) -> JavaResult<i32> {
@@ -94,12 +94,7 @@ impl File {
         Ok(0)
     }
 
-    async fn read(
-        jvm: &mut Jvm,
-        _: &mut WIPIJavaContxt,
-        mut this: JvmClassInstanceHandle<Self>,
-        mut buf: JvmClassInstanceHandle<Array<i8>>,
-    ) -> JavaResult<i32> {
+    async fn read(jvm: &mut Jvm, _: &mut WIPIJavaContxt, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;
@@ -118,13 +113,13 @@ impl File {
         Ok(length_to_read as _)
     }
 
-    async fn close(_jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Self>) -> JavaResult<()> {
+    async fn close(_jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())
     }
 
-    async fn size_of(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: JvmClassInstanceHandle<Self>) -> JavaResult<i32> {
+    async fn size_of(jvm: &mut Jvm, _: &mut WIPIJavaContxt, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;

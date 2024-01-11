@@ -6,7 +6,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_runtime_base::{JavaFieldAccessFlag, JavaFieldProto};
+use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto};
 use jvm::{Field, JavaType, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteWrite};

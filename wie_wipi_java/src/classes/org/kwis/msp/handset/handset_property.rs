@@ -1,8 +1,8 @@
 use alloc::vec;
 
+use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use java_runtime_base::{JavaMethodFlag, JavaMethodProto, JavaResult, JvmClassInstanceHandle};
-use jvm::Jvm;
+use jvm::{ClassInstanceRef, Jvm};
 
 use crate::{WIPIJavaClassProto, WIPIJavaContxt};
 
@@ -24,11 +24,7 @@ impl HandsetProperty {
         }
     }
 
-    async fn get_system_property(
-        jvm: &mut Jvm,
-        _: &mut WIPIJavaContxt,
-        name: JvmClassInstanceHandle<String>,
-    ) -> JavaResult<JvmClassInstanceHandle<String>> {
+    async fn get_system_property(jvm: &mut Jvm, _: &mut WIPIJavaContxt, name: ClassInstanceRef<String>) -> JavaResult<ClassInstanceRef<String>> {
         let name = String::to_rust_string(jvm, &name)?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
