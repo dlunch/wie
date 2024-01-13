@@ -10,11 +10,11 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
-java_class_proto = { git = "https://github.com/dlunch/RustJava.git" }
-java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
-jvm = { git = "https://github.com/dlunch/RustJava.git" }
-jvm_rust = { git = "https://github.com/dlunch/RustJava.git" }
+java_class_proto = { workspace = true }
+java_runtime = { workspace = true }
+jvm = { workspace = true }
+jvm_rust = { workspace = true }
 
-wie_backend = { path = "../wie_backend" }
-wie_common = { path = "../wie_common" }
-wie_wipi_java = { path = "../wie_wipi_java" }
+wie_backend = { workspace = true }
+wie_common = { workspace = true }
+wie_wipi_java = { workspace = true }
