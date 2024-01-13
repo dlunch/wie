@@ -38,6 +38,7 @@ impl Display {
                     Self::get_default_display,
                     MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, Default::default()),
                 JavaMethodProto::new("getDockedCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_docked_card, Default::default()),
                 JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, Default::default()),
                 JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, Default::default()),
@@ -117,6 +118,12 @@ impl Display {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
         Ok(None.into())
+    }
+
+    async fn is_double_buffered(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<bool> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Display::isDoubleBuffered({:?})", &this);
+
+        Ok(true)
     }
 
     async fn push_card(jvm: &mut Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JavaResult<()> {
