@@ -7,7 +7,8 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, MethodBody};
+use java_class_proto::{JavaMethodProto, MethodBody};
+use java_constants::MethodAccessFlags;
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::SystemHandle;
@@ -15,28 +16,6 @@ use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 
 use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvm};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaMethodFlagBit(u16);
-
-bitflags::bitflags! {
-    impl JavaMethodFlagBit: u16 {
-        const NONE = 0;
-        const STATIC = 8;
-        const NATIVE = 0x100;
-    }
-}
-
-impl JavaMethodFlagBit {
-    fn from_flag(flag: JavaMethodFlag) -> JavaMethodFlagBit {
-        match flag {
-            JavaMethodFlag::NONE => JavaMethodFlagBit::NONE,
-            JavaMethodFlag::STATIC => JavaMethodFlagBit::STATIC,
-            JavaMethodFlag::NATIVE => JavaMethodFlagBit::NATIVE,
-        }
-    }
-}
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -48,7 +27,7 @@ struct RawJavaMethod {
     exception_table_count: u16,
     unk3: u16,
     index_in_vtable: u16,
-    flag: JavaMethodFlagBit,
+    access_flags: u16,
     unk6: u32,
 }
 
@@ -88,10 +67,10 @@ impl JavaMethod {
             proto.body,
             context,
             &full_name.descriptor,
-            proto.flag == JavaMethodFlag::STATIC,
-            proto.flag == JavaMethodFlag::NATIVE,
+            proto.access_flags.contains(MethodAccessFlags::STATIC),
+            proto.access_flags.contains(MethodAccessFlags::NATIVE),
         )?;
-        let (fn_body, fn_body_native) = if proto.flag == JavaMethodFlag::NATIVE {
+        let (fn_body, fn_body_native) = if proto.access_flags.contains(MethodAccessFlags::NATIVE) {
             (0, fn_method)
         } else {
             (fn_method, 0)
@@ -99,8 +78,6 @@ impl JavaMethod {
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
         let index_in_vtable = vtable_builder.add(ptr_raw, &full_name.name, &full_name.descriptor) as u16;
-
-        let flag = JavaMethodFlagBit::from_flag(proto.flag);
 
         write_generic(
             core,
@@ -113,7 +90,7 @@ impl JavaMethod {
                 exception_table_count: 0,
                 unk3: 0,
                 index_in_vtable,
-                flag,
+                access_flags: proto.access_flags.bits(),
                 unk6: 0,
             },
         )?;
@@ -132,7 +109,9 @@ impl JavaMethod {
 
         let mut core = self.core.clone();
 
-        if raw.flag.contains(JavaMethodFlagBit::NATIVE) {
+        let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
+
+        if access_flags.contains(MethodAccessFlags::NATIVE) {
             let arg_container = Allocator::alloc(&mut core, (args.len() as u32) * 4)?;
             for (i, arg) in args.iter().enumerate() {
                 write_generic(&mut core, arg_container + (i * 4) as u32, arg.as_raw())?;
@@ -256,7 +235,9 @@ impl Method for JavaMethod {
     fn is_static(&self) -> bool {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw).unwrap();
 
-        raw.flag.contains(JavaMethodFlagBit::STATIC)
+        let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
+
+        access_flags.contains(MethodAccessFlags::STATIC)
     }
 }
 

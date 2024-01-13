@@ -1,7 +1,8 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::iter;
 
-use java_class_proto::{JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, MethodBody};
+use java_class_proto::{JavaError, JavaFieldProto, JavaMethodProto, JavaResult, MethodBody};
+use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::{Object, Runnable, String};
 use jvm::{ClassInstanceRef, JavaValue, Jvm};
 
@@ -23,44 +24,39 @@ impl Display {
                     "<init>",
                     "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
                     Self::init,
-                    JavaMethodFlag::NONE,
+                    Default::default(),
                 ),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
                     Self::get_display,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getDefaultDisplay",
                     "()Lorg/kwis/msp/lcdui/Display;",
                     Self::get_default_display,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new(
-                    "getDockedCard",
-                    "()Lorg/kwis/msp/lcdui/Card;",
-                    Self::get_docked_card,
-                    JavaMethodFlag::NONE,
-                ),
-                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, JavaMethodFlag::NONE),
-                JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getDockedCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_docked_card, Default::default()),
+                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, Default::default()),
+                JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, Default::default()),
                 JavaMethodProto::new(
                     "addJletEventListener",
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::add_jlet_event_listener,
-                    JavaMethodFlag::NONE,
+                    Default::default(),
                 ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
-                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, JavaMethodFlag::NATIVE),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
+                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, MethodAccessFlags::NATIVE),
             ],
             fields: vec![
-                JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("szCard", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("m_w", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("m_h", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", Default::default()),
+                JavaFieldProto::new("szCard", "I", Default::default()),
+                JavaFieldProto::new("m_w", "I", Default::default()),
+                JavaFieldProto::new("m_h", "I", Default::default()),
             ],
         }
     }

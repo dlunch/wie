@@ -3,7 +3,7 @@ use core::cmp::min;
 
 use bytemuck::cast_slice;
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm};
 
@@ -18,16 +18,16 @@ impl File {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, JavaMethodFlag::NONE),
-                JavaMethodProto::new("write", "([BII)I", Self::write, JavaMethodFlag::NONE),
-                JavaMethodProto::new("read", "([B)I", Self::read, JavaMethodFlag::NONE),
-                JavaMethodProto::new("close", "()V", Self::close, JavaMethodFlag::NONE),
-                JavaMethodProto::new("sizeOf", "()I", Self::size_of, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, Default::default()),
+                JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
+                JavaMethodProto::new("read", "([B)I", Self::read, Default::default()),
+                JavaMethodProto::new("close", "()V", Self::close, Default::default()),
+                JavaMethodProto::new("sizeOf", "()I", Self::size_of, Default::default()),
             ],
             fields: vec![
-                JavaFieldProto::new("data", "[B", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("pos", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("data", "[B", Default::default()),
+                JavaFieldProto::new("pos", "I", Default::default()),
             ],
         }
     }

@@ -14,6 +14,7 @@ tracing = { workspace = true }
 async-recursion = { version = "^1.0" }
 
 java_class_proto = { git = "https://github.com/dlunch/RustJava.git" }
+java_constants = { git = "https://github.com/dlunch/RustJava.git" }
 java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
 jvm = { git = "https://github.com/dlunch/RustJava.git" }
 

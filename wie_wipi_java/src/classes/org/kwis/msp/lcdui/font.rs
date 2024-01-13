@@ -1,6 +1,7 @@
 use alloc::vec;
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
+use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -14,21 +15,21 @@ impl Font {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, JavaMethodFlag::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new(
                     "getDefaultFont",
                     "()Lorg/kwis/msp/lcdui/Font;",
                     Self::get_default_font,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getFont", "(III)Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::STATIC),
+                JavaMethodProto::new("getFont", "(III)Lorg/kwis/msp/lcdui/Font;", Self::get_font, MethodAccessFlags::STATIC),
             ],
             fields: vec![
-                JavaFieldProto::new("FACE_SYSTEM", "I", JavaFieldAccessFlag::STATIC),
-                JavaFieldProto::new("STYLE_PLAIN", "I", JavaFieldAccessFlag::STATIC),
-                JavaFieldProto::new("SIZE_SMALL", "I", JavaFieldAccessFlag::STATIC),
+                JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
             ],
         }
     }

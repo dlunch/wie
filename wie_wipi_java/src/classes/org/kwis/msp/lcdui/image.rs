@@ -6,7 +6,8 @@ use core::{
 
 use bytemuck::cast_vec;
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
+use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm};
 
@@ -26,34 +27,34 @@ impl Image {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new(
                     "createImage",
                     "(II)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image_from_file,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "([BII)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image_from_bytes,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
             ],
             fields: vec![
-                JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("imgData", "[B", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("bpl", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("w", "I", Default::default()),
+                JavaFieldProto::new("h", "I", Default::default()),
+                JavaFieldProto::new("imgData", "[B", Default::default()),
+                JavaFieldProto::new("bpl", "I", Default::default()),
             ],
         }
     }

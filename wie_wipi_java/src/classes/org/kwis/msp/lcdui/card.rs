@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use jvm::{ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -14,18 +14,18 @@ impl Card {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("<init>", "(I)V", Self::init_1, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, JavaMethodFlag::NONE),
-                JavaMethodProto::new("repaint", "()V", Self::repaint, JavaMethodFlag::NONE),
-                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(I)V", Self::init_1, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
+                JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
+                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
             ],
             fields: vec![
-                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
+                JavaFieldProto::new("w", "I", Default::default()),
+                JavaFieldProto::new("h", "I", Default::default()),
             ],
         }
     }

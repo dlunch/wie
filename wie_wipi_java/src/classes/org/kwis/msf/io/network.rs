@@ -1,6 +1,7 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
+use java_constants::MethodAccessFlags;
 use jvm::Jvm;
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -13,7 +14,7 @@ impl Network {
         WIPIJavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("disconnect", "()V", Self::disconnect, JavaMethodFlag::NATIVE)],
+            methods: vec![JavaMethodProto::new("disconnect", "()V", Self::disconnect, MethodAccessFlags::NATIVE)],
             fields: vec![],
         }
     }

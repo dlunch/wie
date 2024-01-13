@@ -3,7 +3,8 @@ use alloc::{boxed::Box, vec};
 use bytemuck::cast_vec;
 use wie_backend::Database;
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
+use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm};
 
@@ -18,19 +19,19 @@ impl DataBase {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
                 JavaMethodProto::new(
                     "openDataBase",
                     "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
                     Self::open_data_base,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, JavaMethodFlag::NONE),
-                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, JavaMethodFlag::NONE),
-                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, JavaMethodFlag::NONE),
-                JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, JavaMethodFlag::NONE),
+                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, Default::default()),
+                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, Default::default()),
+                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, Default::default()),
+                JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", JavaFieldAccessFlag::NONE)],
+            fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
         }
     }
     async fn init(

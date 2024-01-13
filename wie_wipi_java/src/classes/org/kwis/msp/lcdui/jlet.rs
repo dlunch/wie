@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, vec};
 
-use java_class_proto::{JavaError, JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, MethodBody};
+use java_class_proto::{JavaError, JavaFieldProto, JavaMethodProto, JavaResult, MethodBody};
+use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, JavaValue, Jvm};
 
 use crate::{
@@ -17,24 +18,24 @@ impl Jlet {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new(
                     "getActiveJlet",
                     "()Lorg/kwis/msp/lcdui/Jlet;",
                     Self::get_active_jlet,
-                    JavaMethodFlag::STATIC,
+                    MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getEventQueue",
                     "()Lorg/kwis/msp/lcdui/EventQueue;",
                     Self::get_event_queue,
-                    JavaMethodFlag::NONE,
+                    Default::default(),
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", JavaFieldAccessFlag::STATIC),
+                JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
+                JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", Default::default()),
+                JavaFieldProto::new("qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
             ],
         }
     }

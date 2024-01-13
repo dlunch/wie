@@ -1,6 +1,7 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
+use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm};
 
@@ -18,7 +19,7 @@ impl HandsetProperty {
                 "getSystemProperty",
                 "(Ljava/lang/String;)Ljava/lang/String;",
                 Self::get_system_property,
-                JavaMethodFlag::STATIC,
+                MethodAccessFlags::STATIC,
             )],
             fields: vec![],
         }
