@@ -7,7 +7,8 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_class_proto::{JavaClassProto, JavaFieldAccessFlag};
+use java_class_proto::JavaClassProto;
+use java_constants::FieldAccessFlags;
 use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
 
 use wie_backend::SystemHandle;
@@ -92,7 +93,7 @@ impl JavaClass {
 
         let mut fields = Vec::new();
         for (index, field) in proto.fields.into_iter().enumerate() {
-            let offset_or_value = if field.access_flag == JavaFieldAccessFlag::STATIC {
+            let offset_or_value = if field.access_flags.contains(FieldAccessFlags::STATIC) {
                 0
             } else {
                 (index as u32) * 4

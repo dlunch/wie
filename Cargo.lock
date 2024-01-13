@@ -469,10 +469,10 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#be449b3f15857be19867733d02e686c6fddd17a6"
+source = "git+https://github.com/dlunch/RustJava.git#94e4400660b8765b69813861b7a2e625e3a44396"
 dependencies = [
  "anyhow",
- "bitflags 2.4.1",
+ "java_constants",
  "nom",
  "nom-derive",
 ]
@@ -1156,24 +1156,34 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#be449b3f15857be19867733d02e686c6fddd17a6"
+source = "git+https://github.com/dlunch/RustJava.git#94e4400660b8765b69813861b7a2e625e3a44396"
 dependencies = [
  "anyhow",
  "async-trait",
  "dyn-clone",
+ "java_constants",
  "jvm",
+]
+
+[[package]]
+name = "java_constants"
+version = "0.0.1"
+source = "git+https://github.com/dlunch/RustJava.git#94e4400660b8765b69813861b7a2e625e3a44396"
+dependencies = [
+ "bitflags 2.4.1",
 ]
 
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#be449b3f15857be19867733d02e686c6fddd17a6"
+source = "git+https://github.com/dlunch/RustJava.git#94e4400660b8765b69813861b7a2e625e3a44396"
 dependencies = [
  "anyhow",
  "async-trait",
  "bytemuck",
  "dyn-clone",
  "java_class_proto",
+ "java_constants",
  "jvm",
  "tracing",
 ]
@@ -1249,7 +1259,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#be449b3f15857be19867733d02e686c6fddd17a6"
+source = "git+https://github.com/dlunch/RustJava.git#94e4400660b8765b69813861b7a2e625e3a44396"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1262,13 +1272,14 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#be449b3f15857be19867733d02e686c6fddd17a6"
+source = "git+https://github.com/dlunch/RustJava.git#94e4400660b8765b69813861b7a2e625e3a44396"
 dependencies = [
  "anyhow",
  "async-trait",
  "classfile",
  "dyn-clone",
  "java_class_proto",
+ "java_constants",
  "jvm",
  "tracing",
 ]
@@ -2905,6 +2916,7 @@ dependencies = [
  "bytemuck",
  "futures-test",
  "java_class_proto",
+ "java_constants",
  "java_runtime",
  "jvm",
  "test_utils",
@@ -2970,6 +2982,7 @@ dependencies = [
  "dyn-clone",
  "futures-test",
  "java_class_proto",
+ "java_constants",
  "java_runtime",
  "jvm",
  "test_utils",

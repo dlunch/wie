@@ -6,7 +6,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto};
+use java_class_proto::JavaFieldProto;
 use jvm::{Field, JavaType, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteWrite};
@@ -14,26 +14,10 @@ use wie_core_arm::{Allocator, ArmCore};
 
 use super::name::JavaFullName;
 
-bitflags::bitflags! {
-    struct JavaFieldAccessFlagBit: u32 {
-        const NONE = 0;
-        const STATIC = 8;
-    }
-}
-
-impl JavaFieldAccessFlagBit {
-    fn from_access_flag(access_flag: JavaFieldAccessFlag) -> JavaFieldAccessFlagBit {
-        match access_flag {
-            JavaFieldAccessFlag::NONE => JavaFieldAccessFlagBit::NONE,
-            JavaFieldAccessFlag::STATIC => JavaFieldAccessFlagBit::STATIC,
-        }
-    }
-}
-
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct RawJavaField {
-    access_flag: u32,
+    access_flags: u32,
     ptr_class: u32,
     ptr_name: u32,
     offset_or_value: u32,
@@ -66,7 +50,7 @@ impl JavaField {
             core,
             ptr_raw,
             RawJavaField {
-                access_flag: JavaFieldAccessFlagBit::from_access_flag(proto.access_flag).bits(),
+                access_flags: proto.access_flags.bits() as _,
                 ptr_class,
                 ptr_name,
                 offset_or_value,
@@ -85,7 +69,7 @@ impl JavaField {
     pub fn offset(&self) -> JvmResult<u32> {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
-        anyhow::ensure!(raw.access_flag & 0x0008 == 0, "Field is static");
+        anyhow::ensure!(raw.access_flags & 0x0008 == 0, "Field is static");
 
         Ok(raw.offset_or_value)
     }
@@ -93,7 +77,7 @@ impl JavaField {
     pub fn static_address(&self) -> JvmResult<u32> {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw)?;
 
-        anyhow::ensure!(raw.access_flag & 0x0008 != 0, "Field is not static");
+        anyhow::ensure!(raw.access_flags & 0x0008 != 0, "Field is not static");
 
         let address = self.ptr_raw + 12; // offsetof offset_or_value
 
@@ -117,7 +101,7 @@ impl Field for JavaField {
     fn is_static(&self) -> bool {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw).unwrap();
 
-        raw.access_flag & 0x0008 != 0
+        raw.access_flags & 0x0008 != 0
     }
 
     fn r#type(&self) -> JavaType {

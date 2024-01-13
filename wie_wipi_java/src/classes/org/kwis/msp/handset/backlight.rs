@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
 use jvm::Jvm;
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -13,7 +13,7 @@ impl BackLight {
         WIPIJavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, JavaMethodFlag::NONE)],
+            methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, Default::default())],
             fields: vec![],
         }
     }

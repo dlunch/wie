@@ -5,7 +5,7 @@ use jvm::JavaValue;
 
 use wie_backend::canvas::{ImageBuffer, PixelType, Rgb8Pixel};
 
-use java_class_proto::{JavaFieldAccessFlag, JavaFieldProto, JavaMethodFlag, JavaMethodProto, JavaResult, TypeConverter};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult, TypeConverter};
 use java_runtime::classes::java::lang::String;
 
 use jvm::{Array, ClassInstanceRef, Jvm};
@@ -47,34 +47,34 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Image;IIII)V", Self::init_with_image, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setColor", "(I)V", Self::set_color, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, JavaMethodFlag::NONE),
-                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, JavaMethodFlag::NONE),
-                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, JavaMethodFlag::NONE),
-                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, JavaMethodFlag::NONE),
-                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, JavaMethodFlag::NONE),
-                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, JavaMethodFlag::NONE),
-                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, JavaMethodFlag::NONE),
-                JavaMethodProto::new("translate", "(II)V", Self::translate, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Image;IIII)V", Self::init_with_image, Default::default()),
+                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, Default::default()),
+                JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
+                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
+                JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, Default::default()),
+                JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, Default::default()),
+                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
+                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
+                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
+                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
+                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
+                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
+                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, Default::default()),
+                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, Default::default()),
+                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, Default::default()),
+                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, Default::default()),
+                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, Default::default()),
+                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, Default::default()),
+                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
+                JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
+                JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, Default::default()),
             ],
             fields: vec![
-                JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("w", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("h", "I", JavaFieldAccessFlag::NONE),
-                JavaFieldProto::new("rgb", "I", JavaFieldAccessFlag::NONE),
+                JavaFieldProto::new("img", "Lorg/kwis/msp/lcdui/Image;", Default::default()),
+                JavaFieldProto::new("w", "I", Default::default()),
+                JavaFieldProto::new("h", "I", Default::default()),
+                JavaFieldProto::new("rgb", "I", Default::default()),
             ],
         }
     }

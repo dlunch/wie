@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
 use jvm::{ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -13,7 +13,7 @@ impl TextComponent {
         WIPIJavaClassProto {
             parent_class: Some("org/kwis/msp/lwc/Component"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, JavaMethodFlag::NONE)],
+            methods: vec![JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, Default::default())],
             fields: vec![],
         }
     }

@@ -1,6 +1,7 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
+use java_constants::MethodAccessFlags;
 use jvm::Jvm;
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -13,7 +14,7 @@ impl Vibrator {
         WIPIJavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("on", "(II)V", Self::on, JavaMethodFlag::NATIVE)],
+            methods: vec![JavaMethodProto::new("on", "(II)V", Self::on, MethodAccessFlags::NATIVE)],
             fields: vec![],
         }
     }

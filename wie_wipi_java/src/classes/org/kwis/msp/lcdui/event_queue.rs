@@ -1,6 +1,6 @@
 use alloc::{vec, vec::Vec};
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
 use jvm::{Array, ClassInstanceRef, Jvm};
 
 use wie_common::KeyCode;
@@ -94,9 +94,9 @@ impl EventQueue {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, JavaMethodFlag::NONE),
-                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, Default::default()),
+                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, Default::default()),
+                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
             ],
             fields: vec![],
         }

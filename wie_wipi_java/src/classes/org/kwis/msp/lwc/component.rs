@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
 use jvm::{ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -14,9 +14,9 @@ impl Component {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, JavaMethodFlag::NONE),
-                JavaMethodProto::new("setFocus", "()V", Self::set_focus, JavaMethodFlag::NONE),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, JavaMethodFlag::NONE),
+                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
+                JavaMethodProto::new("setFocus", "()V", Self::set_focus, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
             ],
             fields: vec![],
         }

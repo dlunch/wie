@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodFlag, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaMethodProto, JavaResult};
 use jvm::{ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
@@ -14,8 +14,8 @@ impl AnnunciatorComponent {
             parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Z)V", Self::init, JavaMethodFlag::NONE),
-                JavaMethodProto::new("show", "()V", Self::show, JavaMethodFlag::NONE),
+                JavaMethodProto::new("<init>", "(Z)V", Self::init, Default::default()),
+                JavaMethodProto::new("show", "()V", Self::show, Default::default()),
             ],
             fields: vec![],
         }
