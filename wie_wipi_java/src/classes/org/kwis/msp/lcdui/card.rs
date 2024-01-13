@@ -1,9 +1,12 @@
-use alloc::vec;
+use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use jvm::{ClassInstanceRef, Jvm};
 
-use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
+use crate::{
+    classes::org::kwis::msp::lcdui::Display,
+    context::{WIPIJavaClassProto, WIPIJavaContext},
+};
 
 // class org.kwis.msp.lcdui.Card
 pub struct Card {}
@@ -15,7 +18,7 @@ impl Card {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("<init>", "(I)V", Self::init_1, Default::default()),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init_with_display, Default::default()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
@@ -30,12 +33,27 @@ impl Card {
         }
     }
 
-    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Card>) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
+    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+        tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
 
-        let display = jvm
+        let display: ClassInstanceRef<Display> = jvm
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
             .await?;
+
+        jvm.invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn init_with_display(
+        jvm: &mut Jvm,
+        _: &mut WIPIJavaContext,
+        mut this: ClassInstanceRef<Card>,
+        display: ClassInstanceRef<Display>,
+    ) -> JavaResult<()> {
+        let log = format!("org.kwis.msp.lcdui.Card::<init>({:?}, {:?})", &this, &display);
+        tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
         let width: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getWidth", "()I", []).await?;
         let height: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getHeight", "()I", []).await?;
@@ -43,12 +61,6 @@ impl Card {
         jvm.put_field(&mut this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
         jvm.put_field(&mut this, "w", "I", width)?;
         jvm.put_field(&mut this, "h", "I", height)?;
-
-        Ok(())
-    }
-
-    async fn init_1(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>, a0: i32) -> JavaResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
 
         Ok(())
     }
