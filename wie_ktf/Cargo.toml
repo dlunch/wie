@@ -11,20 +11,20 @@ bitflags = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
-async-recursion = { version = "^1.0" }
+async-recursion = { workspace = true }
 
-java_class_proto = { git = "https://github.com/dlunch/RustJava.git" }
-java_constants = { git = "https://github.com/dlunch/RustJava.git" }
-java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
-jvm = { git = "https://github.com/dlunch/RustJava.git" }
+java_class_proto = { workspace = true }
+java_constants = { workspace = true }
+java_runtime = { workspace = true }
+jvm = { workspace = true }
 
-wie_backend = { path = "../wie_backend" }
-wie_common = { path = "../wie_common" }
-wie_core_arm = { path = "../wie_core_arm" }
-wie_wipi_c = { path = "../wie_wipi_c" }
-wie_wipi_java = { path = "../wie_wipi_java" }
+wie_backend = { workspace = true }
+wie_common = { workspace = true }
+wie_core_arm = { workspace = true }
+wie_wipi_c = { workspace = true }
+wie_wipi_java = { workspace = true }
 
 [dev-dependencies]
-futures-test = { version = "^0.3" }
+futures-test = { workspace = true }
 
-test_utils = { path = "../test_utils" }
+test_utils = { workspace = true }

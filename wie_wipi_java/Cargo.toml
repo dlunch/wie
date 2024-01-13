@@ -9,19 +9,18 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
+dyn-clone = { workspace = true }
 tracing = { workspace = true }
 
-dyn-clone = { version = "^1.0", default-features = false }
+java_class_proto = { workspace = true }
+java_constants = { workspace = true }
+java_runtime = { workspace = true }
+jvm = { workspace = true }
 
-java_class_proto = { git = "https://github.com/dlunch/RustJava.git" }
-java_constants = { git = "https://github.com/dlunch/RustJava.git" }
-java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
-jvm = { git = "https://github.com/dlunch/RustJava.git" }
-
-wie_common = { path = "../wie_common" }
-wie_backend = { path = "../wie_backend" }
+wie_common = { workspace = true }
+wie_backend = { workspace = true }
 
 [dev-dependencies]
-futures-test = { version = "^0.3" }
+futures-test = { workspace = true }
 
-test_utils = { path = "../test_utils" }
+test_utils = { workspace = true }

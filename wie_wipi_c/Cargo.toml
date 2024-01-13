@@ -10,8 +10,8 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
-wie_common = { path = "../wie_common" }
-wie_backend = { path = "../wie_backend" }
+wie_common = { workspace = true }
+wie_backend = { workspace = true }
 
 [dev-dependencies]
-futures-test = { version = "^0.3" }
+futures-test = { workspace = true }

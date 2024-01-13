@@ -12,8 +12,8 @@ tracing = { workspace = true }
 
 elf = { version = "^0.7" }
 
-wie_backend = { path = "../wie_backend" }
-wie_common = { path = "../wie_common" }
-wie_core_arm = { path = "../wie_core_arm" }
-wie_wipi_c = { path = "../wie_wipi_c" }
-wie_wipi_java = { path = "../wie_wipi_java" }
+wie_backend = { workspace = true }
+wie_common = { workspace = true }
+wie_core_arm = { workspace = true }
+wie_wipi_c = { workspace = true }
+wie_wipi_java = { workspace = true }
