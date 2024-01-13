@@ -128,6 +128,12 @@ impl ClassInstance for JavaClassInstance {
         Box::new(self.class().unwrap())
     }
 
+    fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
+        let other_instance = other.as_any().downcast_ref::<JavaClassInstance>().unwrap();
+
+        Ok(self.ptr_raw == other_instance.ptr_raw)
+    }
+
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
 
