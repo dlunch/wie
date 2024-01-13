@@ -3,7 +3,7 @@ use core::fmt::{self, Debug, Formatter};
 
 use bytemuck::cast_vec;
 
-use jvm::{ArrayClassInstance, Class, JavaType, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, Class, ClassInstance, JavaType, JavaValue, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
@@ -89,6 +89,10 @@ impl ArrayClassInstance for JavaArrayClassInstance {
 
     fn class(&self) -> Box<dyn Class> {
         Box::new(self.class_instance.class().unwrap())
+    }
+
+    fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
+        self.class_instance.equals(other)
     }
 
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
