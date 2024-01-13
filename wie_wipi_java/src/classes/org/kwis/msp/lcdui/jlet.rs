@@ -2,6 +2,7 @@ use alloc::{boxed::Box, vec};
 
 use java_class_proto::{JavaError, JavaFieldProto, JavaMethodProto, JavaResult, MethodBody};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
+use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, JavaValue, Jvm};
 
 use crate::{
@@ -29,6 +30,12 @@ impl Jlet {
                     "getEventQueue",
                     "()Lorg/kwis/msp/lcdui/EventQueue;",
                     Self::get_event_queue,
+                    Default::default(),
+                ),
+                JavaMethodProto::new(
+                    "getAppProperty",
+                    "(Ljava/lang/String;)Ljava/lang/String;",
+                    Self::get_app_property,
                     Default::default(),
                 ),
             ],
@@ -81,6 +88,17 @@ impl Jlet {
         let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
 
         Ok(eq)
+    }
+
+    async fn get_app_property(
+        jvm: &mut Jvm,
+        _: &mut WIPIJavaContext,
+        this: ClassInstanceRef<Self>,
+        key: ClassInstanceRef<String>,
+    ) -> JavaResult<ClassInstanceRef<String>> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
+
+        String::from_rust_string(jvm, "").await
     }
 
     pub async fn start(jvm: &mut Jvm, context: &mut WIPIJavaContext, main_class_name: &str) -> JavaResult<()> {
