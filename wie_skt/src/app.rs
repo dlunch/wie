@@ -32,11 +32,15 @@ impl SktApp {
             .jvm()
             .invoke_virtual(&main_class, &normalized_class_name, "startApp", "([Ljava/lang/String;)V", [None.into()])
             .await;
-        if result.is_err() {
-            core.jvm()
-                .invoke_virtual(&main_class, &normalized_class_name, "startApp", "()V", [])
-                .await?;
-            // both startapp exists in wild.. TODO check this elegantly
+        if let Err(x) = result {
+            if !x.to_string().contains("No such method") {
+                core.jvm()
+                    .invoke_virtual(&main_class, &normalized_class_name, "startApp", "()V", [])
+                    .await?;
+                // both startapp exists in wild.. TODO check this elegantly
+            } else {
+                return Err(x);
+            }
         }
 
         Ok(())
