@@ -255,7 +255,7 @@ impl JavaClass {
 
         for field in fields {
             let full_name = field.name()?;
-            if full_name.name == name && full_name.descriptor == descriptor && field.is_static() == is_static {
+            if full_name.name == name && full_name.descriptor == descriptor && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static {
                 return Ok(Some(field));
             }
         }

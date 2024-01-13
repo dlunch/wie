@@ -7,6 +7,7 @@ use core::{
 use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaFieldProto;
+use java_constants::FieldAccessFlags;
 use jvm::{Field, JavaType, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteWrite};
@@ -98,10 +99,10 @@ impl Field for JavaField {
         name.descriptor.clone()
     }
 
-    fn is_static(&self) -> bool {
+    fn access_flags(&self) -> FieldAccessFlags {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw).unwrap();
 
-        raw.access_flags & 0x0008 != 0
+        FieldAccessFlags::from_bits_truncate(raw.access_flags as _)
     }
 
     fn r#type(&self) -> JavaType {

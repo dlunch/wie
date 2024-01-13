@@ -232,12 +232,10 @@ impl Method for JavaMethod {
         Ok(JavaValue::from_raw(result, return_type, &self.core))
     }
 
-    fn is_static(&self) -> bool {
+    fn access_flags(&self) -> MethodAccessFlags {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw).unwrap();
 
-        let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
-
-        access_flags.contains(MethodAccessFlags::STATIC)
+        MethodAccessFlags::from_bits_truncate(raw.access_flags)
     }
 }
 
