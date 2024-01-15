@@ -152,7 +152,7 @@ mod test {
 
     #[futures_test::test]
     async fn test_context() -> anyhow::Result<()> {
-        let system_handle = System::new(Box::new(TestPlatform)).handle();
+        let system_handle = System::new(Box::new(TestPlatform), Box::new(())).handle();
         let core = test_core(&system_handle)?;
 
         let mut jvm = KtfJvm::new(&core, &system_handle).jvm();

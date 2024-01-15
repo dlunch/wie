@@ -14,7 +14,7 @@ use std::{
 use clap::Parser;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Instant, Platform, Screen, System};
+use wie_backend::{extract_zip, Archive, Instant, Platform, Screen};
 use wie_common::{Event, KeyCode};
 use wie_j2me::J2MEArchive;
 use wie_ktf::KtfArchive;
@@ -103,8 +103,7 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
     let platform = WieCliPlatform::new(&archive.id(), Box::new(window.handle()));
 
-    let system = System::new(Box::new(platform));
-    let mut app = archive.load_app(system)?;
+    let mut app = archive.load_app(Box::new(platform))?;
 
     app.start()?;
 
