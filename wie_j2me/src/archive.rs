@@ -6,7 +6,7 @@ use alloc::{
     vec::Vec,
 };
 
-use wie_backend::{extract_zip, App, Archive, System};
+use wie_backend::{extract_zip, App, Archive, Platform, System};
 
 use crate::app::J2MEApp;
 
@@ -31,7 +31,9 @@ impl Archive for J2MEArchive {
         self.manifest.name.clone()
     }
 
-    fn load_app(self: Box<Self>, system: System) -> anyhow::Result<Box<dyn App>> {
+    fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
+        let system = System::new(platform, Box::new(()));
+
         let system_handle = system.handle();
         let mut resource = system_handle.resource_mut();
 

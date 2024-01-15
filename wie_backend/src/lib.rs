@@ -31,7 +31,7 @@ pub trait App {
 
 pub trait Archive {
     fn id(&self) -> String;
-    fn load_app(self: Box<Self>, system: System) -> anyhow::Result<Box<dyn App>>;
+    fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>>;
 }
 
 pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {

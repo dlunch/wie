@@ -5,6 +5,7 @@ mod resource;
 
 use alloc::rc::Rc;
 use core::{
+    any::Any,
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
 };
@@ -24,6 +25,7 @@ pub struct SystemInner {
     event_queue: EventQueue,
     audio: Audio,
     random: Random,
+    context: Box<dyn Any>,
 }
 
 pub struct System {
@@ -32,7 +34,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(platform: Box<dyn Platform>) -> Self {
+    pub fn new(platform: Box<dyn Platform>, context: Box<dyn Any>) -> Self {
         let audio_sink = platform.audio_sink();
         let seed = 12341234; // TODO get seed from outside
 
@@ -44,6 +46,7 @@ impl System {
                 event_queue: EventQueue::new(),
                 audio: Audio::new(audio_sink),
                 random: Random::new(seed),
+                context,
             })),
         }
     }
@@ -123,5 +126,9 @@ impl SystemHandle {
 
     pub fn random(&self) -> RefMut<'_, Random> {
         RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.random)
+    }
+
+    pub fn context(&self) -> RefMut<'_, Box<dyn Any>> {
+        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.context)
     }
 }
