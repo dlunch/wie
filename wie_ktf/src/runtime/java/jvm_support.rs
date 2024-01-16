@@ -2,7 +2,7 @@ mod array_class;
 mod array_class_instance;
 mod class;
 mod class_instance;
-mod class_loader;
+mod classes;
 mod context_data;
 mod detail;
 mod field;
@@ -22,15 +22,16 @@ use jvm::{Class, ClassInstance, Jvm, JvmResult};
 
 use crate::{
     context::KtfContextExt,
-    runtime::{
-        java::{jvm_support::class_loader::ClassLoaderContextBase, runtime::KtfRuntime},
-        KtfPeb, KtfWIPIJavaContext,
-    },
+    runtime::{java::runtime::KtfRuntime, KtfPeb, KtfWIPIJavaContext},
 };
 
 use self::{
-    array_class::JavaArrayClass, array_class_instance::JavaArrayClassInstance, class::JavaClass, class_instance::JavaClassInstance,
-    class_loader::KtfClassLoader, name::JavaFullName,
+    array_class::JavaArrayClass,
+    array_class_instance::JavaArrayClassInstance,
+    class::JavaClass,
+    class_instance::JavaClassInstance,
+    classes::wie::{ClassLoaderContextBase, KtfClassLoader},
+    name::JavaFullName,
 };
 
 pub type KtfJvmWord = u32;
