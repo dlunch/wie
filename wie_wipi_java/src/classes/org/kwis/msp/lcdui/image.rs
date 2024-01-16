@@ -80,7 +80,6 @@ impl Image {
         .await
     }
 
-    #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn create_image_from_file(jvm: &Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
 
@@ -89,10 +88,12 @@ impl Image {
 
         let id = context.system().resource().id(normalized_name).unwrap();
         let system_clone = context.system().clone();
-        let image_data = Ref::map(system_clone.resource(), |x| x.data(id));
 
-        let image = decode_image(&image_data)?;
-        drop(image_data);
+        let image = {
+            let image_data = Ref::map(system_clone.resource(), |x| x.data(id));
+
+            decode_image(&image_data)
+        }?;
 
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }

@@ -83,38 +83,38 @@ impl ArmCore {
         Ok(())
     }
 
-    #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
     pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> ArmEngineResult<R>
     where
         R: RunFunctionResult<R>,
     {
         let previous_context = self.save_context(); // do we have to save context?
-        let mut inner = self.inner.borrow_mut();
+        {
+            let mut inner = self.inner.borrow_mut();
 
-        if !params.is_empty() {
-            inner.engine.reg_write(ArmRegister::R0, params[0]);
-        }
-        if params.len() > 1 {
-            inner.engine.reg_write(ArmRegister::R1, params[1]);
-        }
-        if params.len() > 2 {
-            inner.engine.reg_write(ArmRegister::R2, params[2]);
-        }
-        if params.len() > 3 {
-            inner.engine.reg_write(ArmRegister::R3, params[3]);
-        }
-        if params.len() > 4 {
-            for param in params[4..].iter().rev() {
-                let sp = inner.engine.reg_read(ArmRegister::SP) - 4;
-
-                inner.engine.mem_write(sp, &param.to_le_bytes())?;
-                inner.engine.reg_write(ArmRegister::SP, sp);
+            if !params.is_empty() {
+                inner.engine.reg_write(ArmRegister::R0, params[0]);
             }
-        }
+            if params.len() > 1 {
+                inner.engine.reg_write(ArmRegister::R1, params[1]);
+            }
+            if params.len() > 2 {
+                inner.engine.reg_write(ArmRegister::R2, params[2]);
+            }
+            if params.len() > 3 {
+                inner.engine.reg_write(ArmRegister::R3, params[3]);
+            }
+            if params.len() > 4 {
+                for param in params[4..].iter().rev() {
+                    let sp = inner.engine.reg_read(ArmRegister::SP) - 4;
 
-        inner.engine.reg_write(ArmRegister::PC, address);
-        inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
-        drop(inner);
+                    inner.engine.mem_write(sp, &param.to_le_bytes())?;
+                    inner.engine.reg_write(ArmRegister::SP, sp);
+                }
+            }
+
+            inner.engine.reg_write(ArmRegister::PC, address);
+            inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
+        }
 
         loop {
             let (pc, _) = self.read_pc_lr().unwrap();

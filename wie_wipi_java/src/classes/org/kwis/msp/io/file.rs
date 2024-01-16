@@ -41,7 +41,6 @@ impl File {
         Ok(())
     }
 
-    #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn init_with_flag(
         jvm: &Jvm,
         context: &mut WIPIJavaContext,
@@ -60,11 +59,12 @@ impl File {
 
         let filename_on_resource = format!("P{}", filename);
 
-        let resource = context.system().resource();
-        let data = resource.data(resource.id(&filename_on_resource).unwrap());
+        let data = {
+            let resource = context.system().resource();
+            let data = resource.data(resource.id(&filename_on_resource).unwrap());
 
-        let data = cast_slice(data).to_vec();
-        drop(resource);
+            cast_slice(data).to_vec()
+        };
 
         let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
         jvm.store_byte_array(&mut data_array, 0, data)?;
