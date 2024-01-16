@@ -23,4 +23,6 @@ wie_backend = { workspace = true }
 [dev-dependencies]
 futures-test = { workspace = true }
 
+jvm_rust = { workspace = true }
+
 test_utils = { workspace = true }

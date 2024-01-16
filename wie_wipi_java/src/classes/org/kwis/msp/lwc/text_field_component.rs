@@ -20,7 +20,7 @@ impl TextFieldComponent {
     }
 
     async fn init(
-        _: &mut Jvm,
+        _: &Jvm,
         _: &mut WIPIJavaContext,
         this: ClassInstanceRef<TextFieldComponent>,
         data: ClassInstanceRef<String>,

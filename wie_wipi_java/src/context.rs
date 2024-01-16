@@ -13,8 +13,8 @@ pub trait WIPIJavaContextBase: DynClone {
 
 clone_trait_object!(WIPIJavaContextBase);
 
-pub type WIPIJavaClassProto = JavaClassProto<dyn WIPIJavaContextBase>;
-pub type WIPIJavaContext = dyn WIPIJavaContextBase;
+pub(crate) type WIPIJavaClassProto = JavaClassProto<dyn WIPIJavaContextBase>;
+pub(crate) type WIPIJavaContext = dyn WIPIJavaContextBase;
 
 #[cfg(test)]
 pub mod test {

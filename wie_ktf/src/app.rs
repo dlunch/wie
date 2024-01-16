@@ -45,16 +45,16 @@ impl KtfApp {
         let wipi_exe = crate::runtime::start(core, IMAGE_BASE, bss_size).await?;
         tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 
-        let fn_init = crate::runtime::init(core, wipi_exe).await?;
+        let fn_init = crate::runtime::init(core, system, wipi_exe).await?;
         tracing::debug!("Call wipi init at {:#x}", fn_init);
 
         let result = core.run_function::<u32>(fn_init, &[]).await?;
         anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
 
-        let mut jvm = KtfJvm::new(core, system).jvm();
         let mut context = KtfWIPIJavaContext::new(core, system);
+        let mut jvm = KtfJvm::new(core, system);
 
-        Jlet::start(&mut jvm, &mut context, &main_class_name).await?; // TODO implement in java method
+        Jlet::start(&jvm.jvm(), &mut context, &main_class_name).await?; // TODO implement in java method
 
         Ok(())
     }

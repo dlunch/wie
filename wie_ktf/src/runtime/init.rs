@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_backend::SystemHandle;
 use wie_common::util::{read_generic, write_generic};
-use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
+use wie_core_arm::{Allocator, ArmCore};
 
 use crate::runtime::{
     java::{
@@ -129,7 +129,7 @@ pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> anyhow
     core.run_function(image_base + 1, &[bss_size]).await
 }
 
-pub async fn init(core: &mut ArmCore, wipi_exe: u32) -> anyhow::Result<u32> {
+pub async fn init(core: &mut ArmCore, system: &mut SystemHandle, wipi_exe: u32) -> anyhow::Result<u32> {
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
@@ -199,14 +199,7 @@ pub async fn init(core: &mut ArmCore, wipi_exe: u32) -> anyhow::Result<u32> {
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
     let ptr_vtables_base = ptr_param_2 + 12;
-    let ptr_java_context_data = KtfJvm::init(core, ptr_vtables_base, exe_interface_functions.fn_get_class)?;
-    init_peb(
-        core,
-        KtfPeb {
-            ptr_java_context_data,
-            ptr_current_java_exception_handler: ptr_unk_struct + 32,
-        },
-    )?;
+    KtfJvm::init(core, system, ptr_vtables_base, exe_interface_functions.fn_get_class, ptr_unk_struct + 32).await?;
 
     tracing::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core
@@ -238,11 +231,4 @@ async fn alloc(core: &mut ArmCore, _: &mut SystemHandle, a0: u32) -> anyhow::Res
     tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)
-}
-
-fn init_peb(core: &mut ArmCore, peb: KtfPeb) -> anyhow::Result<()> {
-    core.map(PEB_BASE, 0x1000)?;
-    write_generic(core, PEB_BASE, peb)?;
-
-    Ok(())
 }

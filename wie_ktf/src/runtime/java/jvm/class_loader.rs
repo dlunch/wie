@@ -1,66 +1,82 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec};
 
-use java_runtime::get_class_proto;
-use jvm::JvmResult;
+use dyn_clone::{clone_trait_object, DynClone};
 
-use wie_backend::SystemHandle;
+use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto, JavaResult};
+use java_constants::FieldAccessFlags;
+use java_runtime::classes::java::lang::{Class, ClassLoader, String};
+use jvm::{ClassInstanceRef, Jvm};
+
 use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::get_class_proto as get_wipi_class_proto;
 
-use crate::runtime::java::{context::KtfWIPIJavaContext, runtime::KtfRuntime};
+use crate::runtime::java::jvm::{class::JavaClass, context_data::JavaContextData};
 
-use super::{array_class::JavaArrayClass, class::JavaClass, context_data::JavaContextData, KtfJvm};
+pub trait ClassLoaderContextBase: DynClone {
+    fn core(&mut self) -> &mut ArmCore;
+}
 
-pub struct ClassLoader {}
+clone_trait_object!(ClassLoaderContextBase);
 
-impl ClassLoader {
-    #[async_recursion::async_recursion(?Send)]
-    pub async fn get_or_load_class(core: &mut ArmCore, system: &mut SystemHandle, name: &str) -> JvmResult<Option<JavaClass>> {
-        anyhow::ensure!(name.as_bytes()[0] != b'[', "Should not be an array class");
+type ClassLoaderProto = JavaClassProto<dyn ClassLoaderContextBase>;
+type ClassLoaderContext = dyn ClassLoaderContextBase;
 
-        let class = JavaContextData::find_class(core, name)?;
+// class wie.KtfClassLoader
+pub struct KtfClassLoader {}
 
-        if let Some(class) = class {
-            Ok(Some(class))
-        } else if let Some(x) = get_class_proto(name) {
-            let runtime = KtfRuntime::new(core.clone(), system.clone());
-
-            Ok(Some(JavaClass::new(core, system, name, x, Box::new(runtime) as Box<_>).await?))
-        } else if let Some(x) = get_wipi_class_proto(name) {
-            let context = KtfWIPIJavaContext::new(core, system);
-
-            Ok(Some(JavaClass::new(core, system, name, x, Box::new(context) as Box<_>).await?))
-        } else {
-            // find from client.bin
-            let fn_get_class = JavaContextData::fn_get_class(core)?;
-
-            let ptr_name = Allocator::alloc(core, 50)?; // TODO size fix
-            write_null_terminated_string(core, ptr_name, name)?;
-
-            let ptr_raw = core.run_function(fn_get_class, &[ptr_name]).await?;
-            Allocator::free(core, ptr_name)?;
-
-            if ptr_raw != 0 {
-                let class = JavaClass::from_raw(ptr_raw, core);
-                KtfJvm::register_class(core, system, &class).await?;
-
-                Ok(Some(class))
-            } else {
-                Ok(None)
-            }
+impl KtfClassLoader {
+    pub fn as_proto() -> ClassLoaderProto {
+        ClassLoaderProto {
+            parent_class: Some("java/lang/ClassLoader"),
+            interfaces: vec![],
+            methods: vec![
+                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;)V", Self::init, Default::default()),
+                JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
+            ],
+            fields: vec![JavaFieldProto::new("classes", "[Ljava/lang/Class;", FieldAccessFlags::STATIC)],
         }
     }
 
-    pub async fn load_array_class(core: &mut ArmCore, system: &mut SystemHandle, name: &str) -> JvmResult<Option<JavaArrayClass>> {
-        anyhow::ensure!(name.as_bytes()[0] == b'[', "Not an array class");
+    async fn init(jvm: &Jvm, _: &mut ClassLoaderContext, this: ClassInstanceRef<Self>, parent: ClassInstanceRef<ClassLoader>) -> JavaResult<()> {
+        tracing::debug!("rustjava.RuntimeClassLoader::<init>({:?}, {:?})", &this, &parent);
 
-        let class = JavaContextData::find_class(core, name)?;
+        jvm.invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
+            .await?;
 
-        if let Some(class) = class {
-            Ok(Some(JavaArrayClass::from_raw(class.ptr_raw, core)))
-        } else {
-            Ok(Some(JavaArrayClass::new(core, system, name).await?))
+        Ok(())
+    }
+
+    async fn find_class(
+        jvm: &Jvm,
+        context: &mut ClassLoaderContext,
+        this: ClassInstanceRef<Self>,
+        name: ClassInstanceRef<String>,
+    ) -> JavaResult<ClassInstanceRef<Class>> {
+        tracing::debug!("rustjava.RuntimeClassLoader::findClass({:?}, {:?})", &this, name);
+
+        // find from client.bin
+
+        let name = String::to_rust_string(jvm, &name)?;
+
+        let core = context.core();
+        let fn_get_class = JavaContextData::fn_get_class(core)?;
+        if fn_get_class == 0 {
+            // we don't have get_class on testcases
+            return Ok(None.into());
         }
+
+        let ptr_name = Allocator::alloc(core, 50)?; // TODO size fix
+        write_null_terminated_string(core, ptr_name, &name)?;
+
+        let ptr_raw = core.run_function(fn_get_class, &[ptr_name]).await?;
+        Allocator::free(core, ptr_name)?;
+
+        if ptr_raw != 0 {
+            let class = JavaClass::from_raw(ptr_raw, core);
+
+            return Class::from_rust_class(jvm, Box::new(class)).await;
+        }
+
+        Ok(None.into())
     }
 }

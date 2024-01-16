@@ -25,13 +25,13 @@ impl Player {
         }
     }
 
-    async fn play(_: &mut Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JavaResult<bool> {
+    async fn play(_: &Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::play({:?}, {})", &clip, repeat);
 
         Ok(false)
     }
 
-    async fn stop(_: &mut Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>) -> JavaResult<bool> {
+    async fn stop(_: &Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::stop({:?})", &clip,);
 
         Ok(false)

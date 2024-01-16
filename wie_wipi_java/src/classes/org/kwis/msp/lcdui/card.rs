@@ -33,7 +33,7 @@ impl Card {
         }
     }
 
-    async fn init(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
 
         let display: ClassInstanceRef<Display> = jvm
@@ -47,7 +47,7 @@ impl Card {
     }
 
     async fn init_with_display(
-        jvm: &mut Jvm,
+        jvm: &Jvm,
         _: &mut WIPIJavaContext,
         mut this: ClassInstanceRef<Card>,
         display: ClassInstanceRef<Display>,
@@ -65,19 +65,19 @@ impl Card {
         Ok(())
     }
 
-    async fn get_width(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
+    async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
         jvm.get_field(&this, "w", "I")
     }
 
-    async fn get_height(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
+    async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
         jvm.get_field(&this, "h", "I")
     }
 
-    async fn repaint(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn repaint(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "w", "I")?;
@@ -90,7 +90,7 @@ impl Card {
     }
 
     async fn repaint_with_area(
-        _: &mut Jvm,
+        _: &Jvm,
         context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Card>,
         a0: i32,
@@ -107,7 +107,7 @@ impl Card {
         Ok(())
     }
 
-    async fn service_repaints(_: &mut Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn service_repaints(_: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
         let mut platform = context.system().platform();

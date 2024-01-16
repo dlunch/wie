@@ -19,7 +19,7 @@ impl BackLight {
         }
     }
 
-    async fn always_on(_: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
+    async fn always_on(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.handset.Backlight::alwaysOn");
 
         Ok(())
