@@ -35,21 +35,19 @@ impl JavaArrayClass {
     }
 
     pub async fn new(core: &mut ArmCore, system: &mut SystemHandle, name: &str) -> JvmResult<Self> {
-        let mut jvm = KtfJvm::new(core, system);
-        let java_lang_object = jvm.jvm().resolve_class("java/lang/Object").await?;
-        let java_lang_object_raw = jvm.class_raw(&*java_lang_object.unwrap());
+        let java_lang_object = KtfJvm::jvm(system).resolve_class("java/lang/Object").await?;
+        let java_lang_object_raw = KtfJvm::class_raw(&*java_lang_object.unwrap());
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type_raw = if element_type_name.starts_with('L') {
-            let java_class = jvm
-                .jvm()
+            let java_class = KtfJvm::jvm(system)
                 .resolve_class(&element_type_name[1..element_type_name.len() - 1])
                 .await?
                 .unwrap();
 
-            Some(jvm.class_raw(&*java_class))
+            Some(KtfJvm::class_raw(&*java_class))
         } else {
             None
         };

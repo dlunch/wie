@@ -41,9 +41,8 @@ impl WIPIJavaContextBase for KtfWIPIJavaContext {
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
                 let mut context = KtfWIPIJavaContext::new(&self.core, &self.system);
-                let mut jvm = KtfJvm::new(&self.core, &self.system);
 
-                let _ = self.callback.call(&jvm.jvm(), &mut context, Box::new([])).await?;
+                let _ = self.callback.call(&KtfJvm::jvm(&mut self.system), &mut context, Box::new([])).await?;
 
                 Ok(0) // TODO resturn value
             }

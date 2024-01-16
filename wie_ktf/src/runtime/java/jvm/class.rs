@@ -72,10 +72,8 @@ impl JavaClass {
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
-        let mut jvm = KtfJvm::new(core, system);
-
         let parent_class = if let Some(x) = proto.parent_class {
-            let jvm_class = jvm.jvm().resolve_class(x).await?.unwrap();
+            let jvm_class = KtfJvm::jvm(system).resolve_class(x).await?.unwrap();
 
             let class = jvm_class.as_any().downcast_ref::<JavaClass>().unwrap().clone();
 
