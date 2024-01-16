@@ -15,7 +15,9 @@ use wie_backend::SystemHandle;
 use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 
-use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvm};
+use crate::context::KtfContextExt;
+
+use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -181,7 +183,7 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.body.call(&KtfJvm::jvm(system), &mut context, args.into_boxed_slice()).await?;
+                let result = self.body.call(&system.jvm(), &mut context, args.into_boxed_slice()).await?;
 
                 Ok(result.as_raw())
             }

@@ -10,7 +10,7 @@ use jvm::{ClassInstanceRef, Jvm};
 use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 
-use crate::runtime::java::jvm::{class::JavaClass, context_data::JavaContextData};
+use crate::runtime::java::jvm_support::{class::JavaClass, context_data::JavaContextData};
 
 pub trait ClassLoaderContextBase: DynClone {
     fn core(&mut self) -> &mut ArmCore;

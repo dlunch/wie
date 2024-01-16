@@ -13,7 +13,7 @@ use wie_backend::SystemHandle;
 use wie_common::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
 
-use crate::runtime::java::jvm::KtfJvm;
+use crate::{context::KtfContextExt, runtime::java::jvm_support::KtfJvmSupport};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -59,10 +59,10 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
 pub async fn java_class_load(core: &mut ArmCore, system: &mut SystemHandle, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let class = KtfJvm::jvm(system).resolve_class(&name).await?;
+    let class = system.jvm().resolve_class(&name).await?;
 
     if let Some(x) = class {
-        let raw = KtfJvm::class_raw(&*x);
+        let raw = KtfJvmSupport::class_raw(&*x);
         write_generic(core, ptr_target, raw)?;
 
         Ok(0)
@@ -80,11 +80,11 @@ pub async fn java_throw(_: &mut ArmCore, _: &mut SystemHandle, error: String, a1
 }
 
 async fn get_java_method(core: &mut ArmCore, _system: &mut SystemHandle, ptr_class: u32, ptr_fullname: u32) -> anyhow::Result<u32> {
-    let fullname = KtfJvm::read_name(core, ptr_fullname)?;
+    let fullname = KtfJvmSupport::read_name(core, ptr_fullname)?;
 
     tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
 
-    let class = KtfJvm::class_from_raw(core, ptr_class);
+    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let method = class.method(&fullname.name, &fullname.descriptor)?;
 
     if method.is_none() {
@@ -108,8 +108,8 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, addres
 async fn register_class(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: u32) -> anyhow::Result<()> {
     tracing::trace!("register_class({:#x})", ptr_class);
 
-    let class = KtfJvm::class_from_raw(core, ptr_class);
-    KtfJvm::jvm(system).register_class(Box::new(class)).await?;
+    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
+    system.jvm().register_class(Box::new(class)).await?;
 
     Ok(())
 }
@@ -128,17 +128,17 @@ async fn register_java_string(core: &mut ArmCore, system: &mut SystemHandle, off
     let bytes = core.read_bytes(cursor, (length * 2) as _)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
 
-    let instance = JavaString::from_utf16(&KtfJvm::jvm(system), bytes_u16).await?;
+    let instance = JavaString::from_utf16(&system.jvm(), bytes_u16).await?;
 
-    Ok(KtfJvm::class_instance_raw(&instance) as _)
+    Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
 }
 
 async fn get_static_field(core: &mut ArmCore, _system: &mut SystemHandle, ptr_class: u32, field_name: u32) -> anyhow::Result<u32> {
     tracing::warn!("stub get_static_field({:#x}, {:#x})", ptr_class, field_name);
 
-    let field_name = KtfJvm::read_name(core, field_name)?;
+    let field_name = KtfJvmSupport::read_name(core, field_name)?;
 
-    let class = KtfJvm::class_from_raw(core, ptr_class);
+    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let field = class.field(&field_name.name, &field_name.descriptor, true)?.unwrap();
 
     Ok(field.ptr_raw)
@@ -200,11 +200,11 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, arg2: 
 pub async fn java_new(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_new({:#x})", ptr_class);
 
-    let class = KtfJvm::class_from_raw(core, ptr_class);
+    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
 
-    let instance = KtfJvm::jvm(system).instantiate_class(&class_name).await?;
-    let raw = KtfJvm::class_instance_raw(&instance);
+    let instance = system.jvm().instantiate_class(&class_name).await?;
+    let raw = KtfJvmSupport::class_instance_raw(&instance);
 
     Ok(raw)
 }
@@ -214,14 +214,14 @@ pub async fn java_array_new(core: &mut ArmCore, system: &mut SystemHandle, eleme
 
     let element_type_name = if element_type > 0x100 {
         // HACK: we don't have element type class
-        let class = KtfJvm::class_from_raw(core, element_type);
+        let class = KtfJvmSupport::class_from_raw(core, element_type);
         class.name()?
     } else {
         (element_type as u8 as char).to_string()
     };
 
-    let instance = KtfJvm::jvm(system).instantiate_array(&element_type_name, count as _).await?;
-    let raw = KtfJvm::class_instance_raw(&instance);
+    let instance = system.jvm().instantiate_array(&element_type_name, count as _).await?;
+    let raw = KtfJvmSupport::class_instance_raw(&instance);
 
     Ok(raw)
 }
