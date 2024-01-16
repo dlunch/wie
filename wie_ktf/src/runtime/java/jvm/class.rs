@@ -9,17 +9,15 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaClassProto;
 use java_constants::FieldAccessFlags;
-use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult, Method};
+use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, Jvm, JvmResult, Method};
 
-use wie_backend::SystemHandle;
 use wie_common::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
 };
 use wie_core_arm::{Allocator, ArmCore};
 
 use super::{
-    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvm,
-    KtfJvmWord,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmWord,
 };
 
 #[repr(C)]
@@ -61,19 +59,13 @@ impl JavaClass {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new<C, Context>(
-        core: &mut ArmCore,
-        system: &mut SystemHandle,
-        name: &str,
-        proto: JavaClassProto<C>,
-        context: Context,
-    ) -> JvmResult<Self>
+    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, name: &str, proto: JavaClassProto<C>, context: Context) -> JvmResult<Self>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
         let parent_class = if let Some(x) = proto.parent_class {
-            let jvm_class = KtfJvm::jvm(system).resolve_class(x).await?.unwrap();
+            let jvm_class = jvm.resolve_class(x).await?.unwrap();
 
             let class = jvm_class.as_any().downcast_ref::<JavaClass>().unwrap().clone();
 
