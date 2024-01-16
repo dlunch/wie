@@ -42,6 +42,9 @@ impl KtfApp {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, system: &mut SystemHandle, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
+        // we should reverse the order of initialization
+        // jvm should go first, and we load client.bin from jvm classloader on init
+
         let wipi_exe = crate::runtime::start(core, IMAGE_BASE, bss_size).await?;
         tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
 
