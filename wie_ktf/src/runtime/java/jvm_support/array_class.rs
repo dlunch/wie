@@ -16,7 +16,7 @@ use super::{
     array_class_instance::JavaArrayClassInstance,
     class::JavaClass,
     class::{RawJavaClass, RawJavaClassDescriptor},
-    KtfJvm,
+    KtfJvmSupport,
 };
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl JavaArrayClass {
 
     pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> JvmResult<Self> {
         let java_lang_object = jvm.resolve_class("java/lang/Object").await?;
-        let java_lang_object_raw = KtfJvm::class_raw(&*java_lang_object.unwrap());
+        let java_lang_object_raw = KtfJvmSupport::class_raw(&*java_lang_object.unwrap());
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
@@ -43,7 +43,7 @@ impl JavaArrayClass {
         let element_type_raw = if element_type_name.starts_with('L') {
             let java_class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap();
 
-            Some(KtfJvm::class_raw(&*java_class))
+            Some(KtfJvmSupport::class_raw(&*java_class))
         } else {
             None
         };

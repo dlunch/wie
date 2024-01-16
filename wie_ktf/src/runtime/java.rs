@@ -1,4 +1,4 @@
 pub mod context;
 pub mod interface;
-pub mod jvm;
+pub mod jvm_support;
 pub mod runtime;

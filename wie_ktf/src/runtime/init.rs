@@ -10,7 +10,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use crate::runtime::{
     java::{
         interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
-        jvm::KtfJvm,
+        jvm_support::KtfJvmSupport,
     },
     wipi_c::interface::get_wipic_knl_interface,
 };
@@ -199,7 +199,7 @@ pub async fn init(core: &mut ArmCore, system: &mut SystemHandle, wipi_exe: u32) 
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
     let ptr_vtables_base = ptr_param_2 + 12;
-    KtfJvm::init(core, system, ptr_vtables_base, exe_interface_functions.fn_get_class, ptr_unk_struct + 32).await?;
+    KtfJvmSupport::init(core, system, ptr_vtables_base, exe_interface_functions.fn_get_class, ptr_unk_struct + 32).await?;
 
     tracing::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core

@@ -21,9 +21,9 @@ use wie_core_arm::{ArmCore, PEB_BASE};
 use jvm::{Class, ClassInstance, Jvm, JvmResult};
 
 use crate::{
-    context::KtfContext,
+    context::KtfContextExt,
     runtime::{
-        java::{jvm::class_loader::ClassLoaderContextBase, runtime::KtfRuntime},
+        java::{jvm_support::class_loader::ClassLoaderContextBase, runtime::KtfRuntime},
         KtfPeb, KtfWIPIJavaContext,
     },
 };
@@ -47,9 +47,9 @@ struct JavaExceptionHandler {
     context: [u32; 11], // r4-lr
 }
 
-pub struct KtfJvm;
+pub struct KtfJvmSupport;
 
-impl KtfJvm {
+impl KtfJvmSupport {
     pub async fn init(
         core: &mut ArmCore,
         system: &mut SystemHandle,
@@ -68,11 +68,9 @@ impl KtfJvm {
                 ptr_current_java_exception_handler,
             },
         )?;
+        system.set_jvm(Jvm::new(detail::KtfJvmDetail::new(core)).await?);
 
-        let jvm = Jvm::new(detail::KtfJvmDetail::new(core)).await?;
-        KtfContext::set_jvm(system, jvm);
-
-        let jvm = KtfContext::jvm(system);
+        let jvm = system.jvm();
 
         let runtime = KtfRuntime::new(core, system, jvm.clone());
         let core_clone = core.clone();
@@ -172,10 +170,6 @@ impl KtfJvm {
             instance.class_instance.ptr_raw
         }
     }
-
-    pub fn jvm(system: &mut SystemHandle) -> Rc<Jvm> {
-        KtfContext::jvm(system)
-    }
 }
 
 #[cfg(test)]
@@ -188,7 +182,7 @@ mod test {
     use wie_backend::{System, SystemHandle};
     use wie_core_arm::{Allocator, ArmCore};
 
-    use crate::{context::KtfContext, runtime::java::jvm::KtfJvm};
+    use crate::{context::KtfContext, runtime::java::jvm_support::KtfJvmSupport};
 
     use test_utils::TestPlatform;
 
@@ -202,13 +196,13 @@ mod test {
         core.restore_context(&context);
 
         let ptr_vtables_base = Allocator::alloc(&mut core, 0x100)?;
-        let jvm = KtfJvm::init(&mut core, system, ptr_vtables_base, 0, 0).await?;
+        let jvm = KtfJvmSupport::init(&mut core, system, ptr_vtables_base, 0, 0).await?;
 
         Ok(jvm)
     }
 
     #[futures_test::test]
-    async fn test_jvm() -> anyhow::Result<()> {
+    async fn test_jvm_support() -> anyhow::Result<()> {
         let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new())).handle();
         let jvm = init_jvm(&mut system).await?;
 
