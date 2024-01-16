@@ -47,10 +47,7 @@ struct JavaExceptionHandler {
     context: [u32; 11], // r4-lr
 }
 
-pub struct KtfJvm {
-    core: ArmCore,
-    system: SystemHandle,
-}
+pub struct KtfJvm;
 
 impl KtfJvm {
     pub async fn init(
@@ -148,14 +145,7 @@ impl KtfJvm {
         Ok(())
     }
 
-    pub fn new(core: &ArmCore, system: &SystemHandle) -> Self {
-        Self {
-            core: core.clone(),
-            system: system.clone(),
-        }
-    }
-
-    pub fn class_raw(&self, class: &dyn Class) -> u32 {
+    pub fn class_raw(class: &dyn Class) -> u32 {
         if let Some(x) = class.as_any().downcast_ref::<JavaClass>() {
             x.ptr_raw
         } else {
@@ -165,16 +155,16 @@ impl KtfJvm {
         }
     }
 
-    pub fn class_from_raw(&self, ptr_class: u32) -> JavaClass {
-        JavaClass::from_raw(ptr_class, &self.core)
+    pub fn class_from_raw(core: &ArmCore, ptr_class: u32) -> JavaClass {
+        JavaClass::from_raw(ptr_class, core)
     }
 
-    pub fn read_name(&self, ptr_name: u32) -> JvmResult<JavaFullName> {
-        JavaFullName::from_ptr(&self.core, ptr_name)
+    pub fn read_name(core: &ArmCore, ptr_name: u32) -> JvmResult<JavaFullName> {
+        JavaFullName::from_ptr(core, ptr_name)
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn class_instance_raw(&self, instance: &Box<dyn ClassInstance>) -> u32 {
+    pub fn class_instance_raw(instance: &Box<dyn ClassInstance>) -> u32 {
         if let Some(x) = instance.as_any().downcast_ref::<JavaClassInstance>() {
             x.ptr_raw
         } else {
@@ -184,8 +174,8 @@ impl KtfJvm {
         }
     }
 
-    pub fn jvm(&mut self) -> Rc<Jvm> {
-        KtfContext::jvm(&mut self.system)
+    pub fn jvm(system: &mut SystemHandle) -> Rc<Jvm> {
+        KtfContext::jvm(system)
     }
 }
 
@@ -202,7 +192,7 @@ mod test {
 
     use test_utils::TestPlatform;
 
-    async fn test_core(system: &mut SystemHandle) -> anyhow::Result<ArmCore> {
+    async fn init_jvm(system: &mut SystemHandle) -> anyhow::Result<()> {
         let mut core = ArmCore::new(system.clone())?;
         Allocator::init(&mut core)?;
 
@@ -214,15 +204,15 @@ mod test {
         let ptr_vtables_base = Allocator::alloc(&mut core, 0x100)?;
         KtfJvm::init(&mut core, system, ptr_vtables_base, 0, 0).await?;
 
-        Ok(core)
+        Ok(())
     }
 
     #[futures_test::test]
     async fn test_jvm() -> anyhow::Result<()> {
         let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new())).handle();
-        let core = test_core(&mut system).await?;
+        init_jvm(&mut system).await?;
 
-        let jvm = KtfJvm::new(&core, &system).jvm();
+        let jvm = KtfJvm::jvm(&mut system);
 
         let string1 = String::from_rust_string(&jvm, "test1").await?;
         let string2 = String::from_rust_string(&jvm, "test2").await?;

@@ -39,7 +39,6 @@ impl Runtime for KtfRuntime {
 
     fn spawn(&self, callback: Box<dyn JvmCallback>) {
         struct SpawnProxy {
-            core: ArmCore,
             system: SystemHandle,
             callback: Box<dyn JvmCallback>,
         }
@@ -47,17 +46,13 @@ impl Runtime for KtfRuntime {
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
-                let mut jvm = KtfJvm::new(&self.core, &self.system);
-
-                self.callback.call(&jvm.jvm(), vec![].into_boxed_slice()).await?;
+                self.callback.call(&KtfJvm::jvm(&mut self.system), vec![].into_boxed_slice()).await?;
 
                 Ok(0) // TODO
             }
         }
 
         self.core.clone().spawn(SpawnProxy {
-            // TODO remove clone
-            core: self.core.clone(),
             system: self.system.clone(),
             callback,
         });

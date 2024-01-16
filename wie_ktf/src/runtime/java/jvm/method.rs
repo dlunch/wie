@@ -179,10 +179,9 @@ impl JavaMethod {
                     .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
                     .collect::<Vec<_>>();
 
-                let mut jvm = KtfJvm::new(core, system);
                 let mut context = self.context.clone();
 
-                let result = self.body.call(&jvm.jvm(), &mut context, args.into_boxed_slice()).await?;
+                let result = self.body.call(&KtfJvm::jvm(system), &mut context, args.into_boxed_slice()).await?;
 
                 Ok(result.as_raw())
             }
