@@ -18,6 +18,7 @@ impl Card {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(I)V", Self::init_int, Default::default()),
                 JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init_with_display, Default::default()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
@@ -35,6 +36,19 @@ impl Card {
 
     async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
+
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
+            .await?;
+
+        jvm.invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn init_int(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>, a0: i32) -> JavaResult<()> {
+        tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
 
         let display: ClassInstanceRef<Display> = jvm
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
