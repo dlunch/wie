@@ -34,7 +34,7 @@ impl Font {
         }
     }
 
-    async fn cl_init(jvm: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
+    async fn cl_init(jvm: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", 0).await?;
@@ -44,19 +44,19 @@ impl Font {
         Ok(())
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Font>) -> JavaResult<()> {
+    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Font>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn get_height(_: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<i32> {
+    async fn get_height(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getHeight");
 
         Ok(12) // TODO: hardcoded
     }
 
-    async fn get_default_font(jvm: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<ClassInstanceRef<Self>> {
+    async fn get_default_font(jvm: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<ClassInstanceRef<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
@@ -64,7 +64,7 @@ impl Font {
         Ok(instance.into())
     }
 
-    async fn get_font(jvm: &mut Jvm, _: &mut WIPIJavaContext, face: i32, style: i32, size: i32) -> JavaResult<ClassInstanceRef<Font>> {
+    async fn get_font(jvm: &Jvm, _: &mut WIPIJavaContext, face: i32, style: i32, size: i32) -> JavaResult<ClassInstanceRef<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;

@@ -18,8 +18,8 @@ use wie_common::util::{
 use wie_core_arm::{Allocator, ArmCore};
 
 use super::{
-    class_instance::JavaClassInstance, class_loader::ClassLoader, field::JavaField, method::JavaMethod, value::JavaValueExt,
-    vtable_builder::JavaVtableBuilder, KtfJvm, KtfJvmWord,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvm,
+    KtfJvmWord,
 };
 
 #[repr(C)]
@@ -72,8 +72,14 @@ impl JavaClass {
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
+        let mut jvm = KtfJvm::new(core, system);
+
         let parent_class = if let Some(x) = proto.parent_class {
-            Some(ClassLoader::get_or_load_class(core, system, x).await?.unwrap())
+            let jvm_class = jvm.jvm().resolve_class(x).await?.unwrap();
+
+            let class = jvm_class.as_any().downcast_ref::<JavaClass>().unwrap().clone();
+
+            Some(class)
         } else {
             None
         };
@@ -147,8 +153,6 @@ impl JavaClass {
         )?;
 
         let result = Self::from_raw(ptr_raw, core);
-
-        KtfJvm::register_class(core, system, &result).await?;
 
         Ok(result)
     }

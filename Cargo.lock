@@ -469,7 +469,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#7953790ae7ddd9d5b19efae7bbdc531f945af4f2"
+source = "git+https://github.com/dlunch/RustJava.git#feb091468e6da1b0e14ddf61cff2ede733117e3c"
 dependencies = [
  "anyhow",
  "java_constants",
@@ -1155,7 +1155,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#7953790ae7ddd9d5b19efae7bbdc531f945af4f2"
+source = "git+https://github.com/dlunch/RustJava.git#feb091468e6da1b0e14ddf61cff2ede733117e3c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1167,7 +1167,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#7953790ae7ddd9d5b19efae7bbdc531f945af4f2"
+source = "git+https://github.com/dlunch/RustJava.git#feb091468e6da1b0e14ddf61cff2ede733117e3c"
 dependencies = [
  "bitflags 2.4.1",
 ]
@@ -1175,7 +1175,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#7953790ae7ddd9d5b19efae7bbdc531f945af4f2"
+source = "git+https://github.com/dlunch/RustJava.git#feb091468e6da1b0e14ddf61cff2ede733117e3c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1258,11 +1258,12 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#7953790ae7ddd9d5b19efae7bbdc531f945af4f2"
+source = "git+https://github.com/dlunch/RustJava.git#feb091468e6da1b0e14ddf61cff2ede733117e3c"
 dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
+ "bytemuck",
  "dyn-clone",
  "java_constants",
  "nom",
@@ -1272,7 +1273,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#7953790ae7ddd9d5b19efae7bbdc531f945af4f2"
+source = "git+https://github.com/dlunch/RustJava.git#feb091468e6da1b0e14ddf61cff2ede733117e3c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2379,6 +2380,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "java_class_proto",
+ "java_runtime",
  "jvm",
  "jvm_rust",
  "wie_backend",
@@ -2893,6 +2895,7 @@ dependencies = [
  "async-trait",
  "bitflags 2.4.1",
  "bytemuck",
+ "dyn-clone",
  "futures-test",
  "java_class_proto",
  "java_constants",
@@ -2964,6 +2967,7 @@ dependencies = [
  "java_constants",
  "java_runtime",
  "jvm",
+ "jvm_rust",
  "test_utils",
  "tracing",
  "wie_backend",

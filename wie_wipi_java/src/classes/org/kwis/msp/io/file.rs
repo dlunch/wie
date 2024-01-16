@@ -32,13 +32,7 @@ impl File {
         }
     }
 
-    async fn init(
-        jvm: &mut Jvm,
-        _: &mut WIPIJavaContext,
-        this: ClassInstanceRef<Self>,
-        filename: ClassInstanceRef<String>,
-        mode: i32,
-    ) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, filename: ClassInstanceRef<String>, mode: i32) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
 
         jvm.invoke_special(&this, "org/kwis/msp/io/File", "<init>", "(Ljava/lang/String;II)V", (filename, mode, 0))
@@ -49,7 +43,7 @@ impl File {
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop Ref
     async fn init_with_flag(
-        jvm: &mut Jvm,
+        jvm: &Jvm,
         context: &mut WIPIJavaContext,
         mut this: ClassInstanceRef<Self>,
         filename: ClassInstanceRef<String>,
@@ -82,7 +76,7 @@ impl File {
     }
 
     async fn write(
-        _jvm: &mut Jvm,
+        _jvm: &Jvm,
         _: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         buf: ClassInstanceRef<ClassInstanceRef<Array<i8>>>,
@@ -94,7 +88,7 @@ impl File {
         Ok(0)
     }
 
-    async fn read(jvm: &mut Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JavaResult<i32> {
+    async fn read(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;
@@ -113,13 +107,13 @@ impl File {
         Ok(length_to_read as _)
     }
 
-    async fn close(_jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<()> {
+    async fn close(_jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())
     }
 
-    async fn size_of(jvm: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn size_of(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;

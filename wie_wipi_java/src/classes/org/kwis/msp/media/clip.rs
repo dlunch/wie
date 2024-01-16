@@ -33,7 +33,7 @@ impl Clip {
     }
 
     async fn init(
-        _: &mut Jvm,
+        _: &Jvm,
         _: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
@@ -45,7 +45,7 @@ impl Clip {
     }
 
     async fn init_with_data(
-        _: &mut Jvm,
+        _: &Jvm,
         _: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
@@ -56,14 +56,14 @@ impl Clip {
         Ok(())
     }
 
-    async fn set_volume(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Clip>, level: i32) -> JavaResult<()> {
+    async fn set_volume(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Clip>, level: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", &this, level);
 
         Ok(())
     }
 
     async fn set_listener(
-        _: &mut Jvm,
+        _: &Jvm,
         _: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         listener: ClassInstanceRef<PlayListener>,

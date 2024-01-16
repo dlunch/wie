@@ -1,4 +1,5 @@
 use alloc::{
+    boxed::Box,
     string::{String, ToString},
     vec::Vec,
 };
@@ -58,14 +59,12 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
 pub async fn java_class_load(core: &mut ArmCore, system: &mut SystemHandle, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let class = if name.as_bytes()[0] == b'[' {
-        KtfJvm::new(core, system).load_array_class(&name).await?.map(|x| x.class)
-    } else {
-        KtfJvm::new(core, system).load_class(&name).await?
-    };
+    let mut jvm = KtfJvm::new(core, system);
+    let class = jvm.jvm().resolve_class(&name).await?;
 
     if let Some(x) = class {
-        write_generic(core, ptr_target, x.ptr_raw)?;
+        let raw = jvm.class_raw(&*x);
+        write_generic(core, ptr_target, raw)?;
 
         Ok(0)
     } else {
@@ -111,9 +110,9 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, addres
 async fn register_class(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: u32) -> anyhow::Result<()> {
     tracing::trace!("register_class({:#x})", ptr_class);
 
-    let jvm = KtfJvm::new(core, system);
+    let mut jvm = KtfJvm::new(core, system);
     let class = jvm.class_from_raw(ptr_class);
-    KtfJvm::register_class(core, system, &class).await?;
+    jvm.jvm().register_class(Box::new(class)).await?;
 
     Ok(())
 }
@@ -132,11 +131,11 @@ async fn register_java_string(core: &mut ArmCore, system: &mut SystemHandle, off
     let bytes = core.read_bytes(cursor, (length * 2) as _)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
 
-    let jvm = KtfJvm::new(core, system);
+    let mut jvm = KtfJvm::new(core, system);
 
-    let instance = JavaString::from_utf16(&mut jvm.jvm(), bytes_u16).await?;
+    let instance = JavaString::from_utf16(&jvm.jvm(), bytes_u16).await?;
 
-    Ok(jvm.class_raw(&instance) as _)
+    Ok(jvm.class_instance_raw(&instance) as _)
 }
 
 async fn get_static_field(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: u32, field_name: u32) -> anyhow::Result<u32> {
@@ -207,13 +206,13 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut SystemHandle, arg1: u32, arg2: 
 pub async fn java_new(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_new({:#x})", ptr_class);
 
-    let jvm = KtfJvm::new(core, system);
+    let mut jvm = KtfJvm::new(core, system);
 
     let class = jvm.class_from_raw(ptr_class);
     let class_name = class.name()?;
 
     let instance = jvm.jvm().instantiate_class(&class_name).await?;
-    let raw = jvm.class_raw(&instance);
+    let raw = jvm.class_instance_raw(&instance);
 
     Ok(raw)
 }
@@ -221,7 +220,7 @@ pub async fn java_new(core: &mut ArmCore, system: &mut SystemHandle, ptr_class: 
 pub async fn java_array_new(core: &mut ArmCore, system: &mut SystemHandle, element_type: u32, count: u32) -> anyhow::Result<u32> {
     tracing::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
-    let jvm = KtfJvm::new(core, system);
+    let mut jvm = KtfJvm::new(core, system);
 
     let element_type_name = if element_type > 0x100 {
         // HACK: we don't have element type class
@@ -232,7 +231,7 @@ pub async fn java_array_new(core: &mut ArmCore, system: &mut SystemHandle, eleme
     };
 
     let instance = jvm.jvm().instantiate_array(&element_type_name, count as _).await?;
-    let raw = jvm.class_raw(&instance);
+    let raw = jvm.class_instance_raw(&instance);
 
     Ok(raw)
 }

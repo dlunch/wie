@@ -21,13 +21,13 @@ impl AnnunciatorComponent {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
+    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<AnnunciatorComponent>, a0: bool) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::<init>({:?}, {})", &this, a0);
 
         Ok(())
     }
 
-    async fn show(_: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
+    async fn show(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::show");
 
         Ok(())

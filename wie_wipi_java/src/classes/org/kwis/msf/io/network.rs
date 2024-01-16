@@ -19,7 +19,7 @@ impl Network {
         }
     }
 
-    async fn disconnect(_: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
+    async fn disconnect(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msf.io.Network::disconnect()");
 
         Ok(())

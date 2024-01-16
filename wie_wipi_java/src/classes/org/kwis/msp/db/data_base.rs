@@ -34,12 +34,7 @@ impl DataBase {
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
         }
     }
-    async fn init(
-        jvm: &mut Jvm,
-        _: &mut WIPIJavaContext,
-        mut this: ClassInstanceRef<Self>,
-        data_base_name: ClassInstanceRef<String>,
-    ) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, data_base_name: ClassInstanceRef<String>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
         jvm.put_field(&mut this, "dbName", "Ljava/lang/String;", data_base_name)?;
@@ -48,7 +43,7 @@ impl DataBase {
     }
 
     async fn open_data_base(
-        jvm: &mut Jvm,
+        jvm: &Jvm,
         _: &mut WIPIJavaContext,
         data_base_name: ClassInstanceRef<String>,
         record_size: i32,
@@ -68,7 +63,7 @@ impl DataBase {
         Ok(instance.into())
     }
 
-    async fn get_number_of_records(jvm: &mut Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn get_number_of_records(jvm: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
         let database = Self::get_database(jvm, context, &this)?;
@@ -78,14 +73,14 @@ impl DataBase {
         Ok(count as _)
     }
 
-    async fn close_data_base(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<DataBase>) -> JavaResult<()> {
+    async fn close_data_base(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<DataBase>) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
         Ok(())
     }
 
     async fn insert_record(
-        jvm: &mut Jvm,
+        jvm: &Jvm,
         context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         data: ClassInstanceRef<Array<i8>>,
@@ -111,7 +106,7 @@ impl DataBase {
     }
 
     async fn select_record(
-        jvm: &mut Jvm,
+        jvm: &Jvm,
         context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         record_id: i32,
@@ -128,7 +123,7 @@ impl DataBase {
         Ok(array.into())
     }
 
-    fn get_database(jvm: &mut Jvm, context: &mut WIPIJavaContext, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn Database>> {
+    fn get_database(jvm: &Jvm, context: &mut WIPIJavaContext, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn Database>> {
         let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;")?;
         let db_name_str = String::to_rust_string(jvm, &db_name)?;
 

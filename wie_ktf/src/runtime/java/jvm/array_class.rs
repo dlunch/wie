@@ -17,7 +17,6 @@ use super::{
     array_class_instance::JavaArrayClassInstance,
     class::JavaClass,
     class::{RawJavaClass, RawJavaClassDescriptor},
-    class_loader::ClassLoader,
     KtfJvm,
 };
 
@@ -36,16 +35,21 @@ impl JavaArrayClass {
     }
 
     pub async fn new(core: &mut ArmCore, system: &mut SystemHandle, name: &str) -> JvmResult<Self> {
-        let ptr_parent_class = ClassLoader::get_or_load_class(core, system, "java/lang/Object").await?.unwrap();
+        let mut jvm = KtfJvm::new(core, system);
+        let java_lang_object = jvm.jvm().resolve_class("java/lang/Object").await?;
+        let java_lang_object_raw = jvm.class_raw(&*java_lang_object.unwrap());
+
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
-        let element_type = if element_type_name.starts_with('L') {
-            Some(
-                ClassLoader::get_or_load_class(core, system, &element_type_name[1..element_type_name.len() - 1])
-                    .await?
-                    .unwrap(),
-            )
+        let element_type_raw = if element_type_name.starts_with('L') {
+            let java_class = jvm
+                .jvm()
+                .resolve_class(&element_type_name[1..element_type_name.len() - 1])
+                .await?
+                .unwrap();
+
+            Some(jvm.class_raw(&*java_class))
         } else {
             None
         };
@@ -60,10 +64,10 @@ impl JavaArrayClass {
             RawJavaClassDescriptor {
                 ptr_name,
                 unk1: 0,
-                ptr_parent_class: ptr_parent_class.ptr_raw,
+                ptr_parent_class: java_lang_object_raw,
                 ptr_methods: 0,
                 ptr_interfaces: 0,
-                ptr_fields_or_element_type: element_type.map(|x| x.ptr_raw).unwrap_or(0),
+                ptr_fields_or_element_type: element_type_raw.unwrap_or(0),
                 method_count: 0,
                 fields_size: 0,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
@@ -87,8 +91,6 @@ impl JavaArrayClass {
         )?;
 
         let class = JavaArrayClass::from_raw(ptr_raw, core);
-
-        KtfJvm::register_class(core, system, &class.class).await?;
 
         Ok(class)
     }

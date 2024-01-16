@@ -7,7 +7,7 @@ use wie_core_arm::ArmCore;
 use java_runtime::Runtime;
 use jvm::JvmCallback;
 
-use super::jvm::KtfJvm;
+use crate::runtime::KtfJvm;
 
 #[derive(Clone)]
 pub struct KtfRuntime {
@@ -16,8 +16,11 @@ pub struct KtfRuntime {
 }
 
 impl KtfRuntime {
-    pub fn new(core: ArmCore, system: SystemHandle) -> Self {
-        Self { core, system }
+    pub fn new(core: &mut ArmCore, system: &mut SystemHandle) -> Self {
+        Self {
+            core: core.clone(),
+            system: system.clone(),
+        }
     }
 }
 
@@ -44,9 +47,9 @@ impl Runtime for KtfRuntime {
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
-                let mut jvm = KtfJvm::new(&self.core, &self.system).jvm();
+                let mut jvm = KtfJvm::new(&self.core, &self.system);
 
-                self.callback.call(&mut jvm, vec![].into_boxed_slice()).await?;
+                self.callback.call(&jvm.jvm(), vec![].into_boxed_slice()).await?;
 
                 Ok(0) // TODO
             }
@@ -78,7 +81,7 @@ impl Runtime for KtfRuntime {
         resource_id.map(|x| self.system.resource().data(x).to_vec())
     }
 
-    fn println(&self, s: &str) {
+    fn println(&mut self, s: &str) {
         tracing::info!("println {}", s);
     }
 }

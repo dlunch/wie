@@ -25,19 +25,19 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(_jvm: &mut Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<bool> {
+    async fn is_file(_jvm: &Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
         Ok(false)
     }
 
-    async fn is_directory(_jvm: &mut Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>, flag: i32) -> JavaResult<bool> {
+    async fn is_directory(_jvm: &Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>, flag: i32) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
 
         Ok(true)
     }
 
-    async fn exists(jvm: &mut Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<bool> {
+    async fn exists(jvm: &Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
         let filename = String::to_rust_string(jvm, &name)?;
@@ -50,7 +50,7 @@ impl FileSystem {
         Ok(id.is_some())
     }
 
-    async fn available(_: &mut Jvm, _: &mut WIPIJavaContext) -> JavaResult<i32> {
+    async fn available(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<i32> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::available()");
 
         Ok(0x1000000) // TODO temp

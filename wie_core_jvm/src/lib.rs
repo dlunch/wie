@@ -1,19 +1,18 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, format, rc::Rc, string::String, vec::Vec};
-use core::{
-    cell::{RefCell, RefMut},
-    time::Duration,
-};
+use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
+use core::{future::ready, time::Duration};
+
+use bytemuck::cast_vec;
 
 use java_class_proto::{JavaResult, MethodBody};
-use java_runtime::{get_class_proto, Runtime};
-use jvm::{Class, Jvm, JvmCallback, JvmResult};
+use java_runtime::Runtime;
+use jvm::{Jvm, JvmCallback, JvmResult};
 use jvm_rust::{ClassImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
-use wie_wipi_java::{get_class_proto as get_wipi_class_proto, WIPIJavaContextBase};
+use wie_wipi_java::WIPIJavaContextBase;
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
 
@@ -49,69 +48,51 @@ impl Runtime for JvmCoreRuntime {
         todo!()
     }
 
-    fn println(&self, _s: &str) {
+    fn println(&mut self, _s: &str) {
         todo!()
     }
 }
 
 #[derive(Clone)]
 pub struct JvmCore {
-    jvm: Rc<RefCell<Jvm>>,
+    jvm: Rc<Jvm>,
 }
 
 impl JvmCore {
-    pub fn new(system: &SystemHandle) -> Self {
-        let jvm = Jvm::new(JvmDetailImpl::new(Self::get_class_loader(system)));
+    pub async fn new(system: &SystemHandle) -> JvmResult<Self> {
+        let jvm = Jvm::new(JvmDetailImpl::new()).await?;
 
-        Self {
-            jvm: Rc::new(RefCell::new(jvm)),
-        }
+        java_runtime::initialize(&jvm, |name, proto| {
+            ready(Box::new(ClassImpl::from_class_proto(name, proto, Box::new(JvmCoreRuntime) as Box<_>)) as Box<_>)
+        })
+        .await?;
+
+        wie_wipi_java::register(&jvm, |name, proto| {
+            ready(Box::new(ClassImpl::from_class_proto(
+                name,
+                proto,
+                Box::new(JvmCoreContext { system: system.clone() }) as Box<_>,
+            )) as Box<_>)
+        })
+        .await?;
+
+        Ok(Self { jvm: Rc::new(jvm) })
     }
 
-    fn get_class_loader(system: &SystemHandle) -> impl Fn(&str) -> JvmResult<Option<Box<dyn Class>>> {
-        let system_clone = system.clone();
-        move |class_name| {
-            tracing::debug!("Loading class {}", class_name);
+    pub async fn add_jar(&self, jar: &[u8]) -> JvmResult<()> {
+        let mut storage = self.jvm.instantiate_array("B", jar.len()).await?;
+        self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec()))?;
 
-            if let Some(x) = Self::load_class_from_impl(&system_clone, class_name)? {
-                Ok(Some(x))
-            } else {
-                Self::load_class_from_resource(&system_clone, class_name)
-            }
-        }
+        let class_loader = self.jvm.get_system_class_loader().await?;
+        self.jvm
+            .invoke_virtual(&class_loader, "rustjava/ClassPathClassLoader", "addJarFile", "([B)V", (storage,))
+            .await?;
+
+        Ok(())
     }
 
-    fn load_class_from_impl(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
-        if let Some(x) = get_class_proto(class_name) {
-            let class = ClassImpl::from_class_proto(class_name, x, Box::new(JvmCoreRuntime) as Box<_>);
-
-            Ok(Some(Box::new(class)))
-        } else if let Some(x) = get_wipi_class_proto(class_name) {
-            let context = JvmCoreContext { system: system.clone() };
-
-            let class = ClassImpl::from_class_proto(class_name, x, Box::new(context) as Box<_>);
-
-            Ok(Some(Box::new(class)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn load_class_from_resource(system: &SystemHandle, class_name: &str) -> JvmCoreResult<Option<Box<dyn Class>>> {
-        let path = format!("{}.class", class_name);
-        let resource = system.resource();
-
-        if let Some(x) = resource.id(&path) {
-            let class_data = resource.data(x);
-
-            Ok(Some(Box::new(ClassImpl::from_classfile(class_data)?)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub fn jvm(&mut self) -> RefMut<'_, Jvm> {
-        self.jvm.borrow_mut()
+    pub fn jvm(&self) -> &Jvm {
+        &self.jvm
     }
 }
 

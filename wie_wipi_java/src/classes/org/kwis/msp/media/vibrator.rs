@@ -19,7 +19,7 @@ impl Vibrator {
         }
     }
 
-    async fn on(_: &mut Jvm, _: &mut WIPIJavaContext, level: i32, duration: i32) -> JavaResult<()> {
+    async fn on(_: &Jvm, _: &mut WIPIJavaContext, level: i32, duration: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Vibrator::on({}, {})", level, duration);
 
         Ok(())

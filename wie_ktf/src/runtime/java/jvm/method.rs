@@ -179,10 +179,10 @@ impl JavaMethod {
                     .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
                     .collect::<Vec<_>>();
 
-                let mut jvm = KtfJvm::new(core, system).jvm();
+                let mut jvm = KtfJvm::new(core, system);
                 let mut context = self.context.clone();
 
-                let result = self.body.call(&mut jvm, &mut context, args.into_boxed_slice()).await?;
+                let result = self.body.call(&jvm.jvm(), &mut context, args.into_boxed_slice()).await?;
 
                 Ok(result.as_raw())
             }
@@ -224,7 +224,7 @@ impl Method for JavaMethod {
         name.descriptor
     }
 
-    async fn run(&self, _jvm: &mut Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
+    async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
         let result = self.run(args).await?;
         let r#type = JavaType::parse(&self.descriptor());
         let (_, return_type) = r#type.as_method();

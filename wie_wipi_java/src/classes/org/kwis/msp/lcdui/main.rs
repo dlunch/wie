@@ -23,13 +23,13 @@ impl Main {
         }
     }
 
-    async fn init(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Main>) -> JavaResult<()> {
+    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Main>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn main(jvm: &mut Jvm, _: &mut WIPIJavaContext, args: ClassInstanceRef<String>) -> JavaResult<()> {
+    async fn main(jvm: &Jvm, _: &mut WIPIJavaContext, args: ClassInstanceRef<String>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = jvm

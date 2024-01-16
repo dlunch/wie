@@ -18,7 +18,7 @@ impl TextComponent {
         }
     }
 
-    async fn set_max_length(_: &mut Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JavaResult<()> {
+    async fn set_max_length(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {})", &this, max_length);
 
         Ok(())
