@@ -47,6 +47,7 @@ impl Card {
         Ok(())
     }
 
+    // not in reference, but called by some clet
     async fn init_int(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>, a0: i32) -> JavaResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
 
