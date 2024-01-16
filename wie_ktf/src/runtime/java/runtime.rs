@@ -1,25 +1,25 @@
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
 use core::time::Duration;
 
 use wie_backend::{AsyncCallable, SystemHandle};
 use wie_core_arm::ArmCore;
 
 use java_runtime::Runtime;
-use jvm::JvmCallback;
-
-use crate::runtime::KtfJvm;
+use jvm::{Jvm, JvmCallback};
 
 #[derive(Clone)]
 pub struct KtfRuntime {
     core: ArmCore,
     system: SystemHandle,
+    jvm: Rc<Jvm>,
 }
 
 impl KtfRuntime {
-    pub fn new(core: &mut ArmCore, system: &mut SystemHandle) -> Self {
+    pub fn new(core: &mut ArmCore, system: &mut SystemHandle, jvm: Rc<Jvm>) -> Self {
         Self {
             core: core.clone(),
             system: system.clone(),
+            jvm,
         }
     }
 }
@@ -39,21 +39,21 @@ impl Runtime for KtfRuntime {
 
     fn spawn(&self, callback: Box<dyn JvmCallback>) {
         struct SpawnProxy {
-            system: SystemHandle,
+            jvm: Rc<Jvm>,
             callback: Box<dyn JvmCallback>,
         }
 
         #[async_trait::async_trait(?Send)]
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
-                self.callback.call(&KtfJvm::jvm(&mut self.system), vec![].into_boxed_slice()).await?;
+                self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
 
                 Ok(0) // TODO
             }
         }
 
         self.core.clone().spawn(SpawnProxy {
-            system: self.system.clone(),
+            jvm: self.jvm.clone(),
             callback,
         });
     }

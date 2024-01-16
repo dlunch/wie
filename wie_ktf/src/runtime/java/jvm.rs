@@ -56,7 +56,7 @@ impl KtfJvm {
         ptr_vtables_base: u32,
         fn_get_class: u32,
         ptr_current_java_exception_handler: u32,
-    ) -> JvmResult<()> {
+    ) -> JvmResult<Rc<Jvm>> {
         let ptr_java_context_data = context_data::JavaContextData::init(core, ptr_vtables_base, fn_get_class)?;
 
         core.map(PEB_BASE, 0x1000)?;
@@ -69,23 +69,23 @@ impl KtfJvm {
             },
         )?;
 
-        let jvm = Jvm::new(detail::KtfJvmDetail::new(core, system)).await?;
+        let jvm = Jvm::new(detail::KtfJvmDetail::new(core)).await?;
         KtfContext::set_jvm(system, jvm);
 
         let jvm = KtfContext::jvm(system);
 
-        let runtime = KtfRuntime::new(core, system);
+        let runtime = KtfRuntime::new(core, system, jvm.clone());
         let core_clone = core.clone();
-        let system_clone = system.clone();
+        let jvm_clone = jvm.clone();
         java_runtime::initialize(&jvm, move |name, proto| {
             let name = name.to_string();
             let mut core_clone = core_clone.clone();
-            let mut system_clone = system_clone.clone();
+            let jvm_clone = jvm_clone.clone();
             let runtime = runtime.clone();
 
             async move {
                 Box::new(
-                    JavaClass::new(&mut core_clone, &mut system_clone, &name, proto, Box::new(runtime) as Box<_>)
+                    JavaClass::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(runtime) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -93,18 +93,18 @@ impl KtfJvm {
         })
         .await?;
 
-        let context = KtfWIPIJavaContext::new(core, system);
+        let context = KtfWIPIJavaContext::new(core, system, jvm.clone());
         let core_clone = core.clone();
-        let system_clone = system.clone();
+        let jvm_clone = jvm.clone();
         wie_wipi_java::register(&jvm, move |name, proto| {
             let name = name.to_string();
             let mut core_clone = core_clone.clone();
-            let mut system_clone = system_clone.clone();
+            let jvm_clone = jvm_clone.clone();
             let context = context.clone();
 
             async move {
                 Box::new(
-                    JavaClass::new(&mut core_clone, &mut system_clone, &name, proto, Box::new(context) as Box<_>)
+                    JavaClass::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(context) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -123,17 +123,16 @@ impl KtfJvm {
             }
         }
 
-        jvm.register_class(Box::new(
-            JavaClass::new(
-                core,
-                system,
-                "wie/KtfClassLoader",
-                KtfClassLoader::as_proto(),
-                Box::new(ClassLoaderContext { core: core.clone() }) as Box<_>,
-            )
-            .await?,
-        ))
+        let class_loader_class = JavaClass::new(
+            core,
+            &jvm,
+            "wie/KtfClassLoader",
+            KtfClassLoader::as_proto(),
+            Box::new(ClassLoaderContext { core: core.clone() }) as Box<_>,
+        )
         .await?;
+
+        jvm.register_class(Box::new(class_loader_class)).await?;
 
         let old_class_loader = jvm.get_system_class_loader().await?;
         let class_loader = jvm
@@ -142,7 +141,7 @@ impl KtfJvm {
 
         jvm.set_system_class_loader(class_loader);
 
-        Ok(())
+        Ok(jvm)
     }
 
     pub fn class_raw(class: &dyn Class) -> u32 {
@@ -181,9 +180,10 @@ impl KtfJvm {
 
 #[cfg(test)]
 mod test {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, rc::Rc};
 
     use java_runtime::classes::java::lang::String;
+    use jvm::Jvm;
 
     use wie_backend::{System, SystemHandle};
     use wie_core_arm::{Allocator, ArmCore};
@@ -192,7 +192,7 @@ mod test {
 
     use test_utils::TestPlatform;
 
-    async fn init_jvm(system: &mut SystemHandle) -> anyhow::Result<()> {
+    async fn init_jvm(system: &mut SystemHandle) -> anyhow::Result<Rc<Jvm>> {
         let mut core = ArmCore::new(system.clone())?;
         Allocator::init(&mut core)?;
 
@@ -202,17 +202,15 @@ mod test {
         core.restore_context(&context);
 
         let ptr_vtables_base = Allocator::alloc(&mut core, 0x100)?;
-        KtfJvm::init(&mut core, system, ptr_vtables_base, 0, 0).await?;
+        let jvm = KtfJvm::init(&mut core, system, ptr_vtables_base, 0, 0).await?;
 
-        Ok(())
+        Ok(jvm)
     }
 
     #[futures_test::test]
     async fn test_jvm() -> anyhow::Result<()> {
         let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new())).handle();
-        init_jvm(&mut system).await?;
-
-        let jvm = KtfJvm::jvm(&mut system);
+        let jvm = init_jvm(&mut system).await?;
 
         let string1 = String::from_rust_string(&jvm, "test1").await?;
         let string2 = String::from_rust_string(&jvm, "test2").await?;

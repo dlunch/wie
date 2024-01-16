@@ -6,9 +6,8 @@ use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
 };
-use wie_backend::SystemHandle;
 
-use jvm::{ArrayClass, ClassInstance, JavaType, JvmResult};
+use jvm::{ArrayClass, ClassInstance, JavaType, Jvm, JvmResult};
 
 use wie_common::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
@@ -34,18 +33,15 @@ impl JavaArrayClass {
         }
     }
 
-    pub async fn new(core: &mut ArmCore, system: &mut SystemHandle, name: &str) -> JvmResult<Self> {
-        let java_lang_object = KtfJvm::jvm(system).resolve_class("java/lang/Object").await?;
+    pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> JvmResult<Self> {
+        let java_lang_object = jvm.resolve_class("java/lang/Object").await?;
         let java_lang_object_raw = KtfJvm::class_raw(&*java_lang_object.unwrap());
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type_raw = if element_type_name.starts_with('L') {
-            let java_class = KtfJvm::jvm(system)
-                .resolve_class(&element_type_name[1..element_type_name.len() - 1])
-                .await?
-                .unwrap();
+            let java_class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap();
 
             Some(KtfJvm::class_raw(&*java_class))
         } else {

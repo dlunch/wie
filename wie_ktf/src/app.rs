@@ -51,9 +51,11 @@ impl KtfApp {
         let result = core.run_function::<u32>(fn_init, &[]).await?;
         anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
 
-        let mut context = KtfWIPIJavaContext::new(core, system);
+        let jvm = KtfJvm::jvm(system);
 
-        Jlet::start(&KtfJvm::jvm(system), &mut context, &main_class_name).await?; // TODO implement in java method
+        let mut context = KtfWIPIJavaContext::new(core, system, jvm.clone());
+
+        Jlet::start(&jvm, &mut context, &main_class_name).await?; // TODO implement in java method
 
         Ok(())
     }
