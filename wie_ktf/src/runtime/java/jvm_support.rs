@@ -114,11 +114,16 @@ impl KtfJvmSupport {
         #[derive(Clone)]
         struct ClassLoaderContext {
             core: ArmCore,
+            system: SystemHandle,
         }
 
         impl ClassLoaderContextBase for ClassLoaderContext {
             fn core(&mut self) -> &mut ArmCore {
                 &mut self.core
+            }
+
+            fn system(&self) -> &SystemHandle {
+                &self.system
             }
         }
 
@@ -127,7 +132,10 @@ impl KtfJvmSupport {
             &jvm,
             "wie/KtfClassLoader",
             KtfClassLoader::as_proto(),
-            Box::new(ClassLoaderContext { core: core.clone() }) as Box<_>,
+            Box::new(ClassLoaderContext {
+                core: core.clone(),
+                system: system.clone(),
+            }) as Box<_>,
         )
         .await?;
 

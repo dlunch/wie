@@ -26,6 +26,10 @@ impl Resource {
     pub fn id(&self, path: &str) -> Option<u32> {
         tracing::trace!("Looking for resource {}", path);
 
+        if let Some(x) = path.strip_prefix('/') {
+            return self.id(x);
+        }
+
         for (id, file) in self.files.iter().enumerate() {
             if file.0 == path {
                 return Some(id as _);
