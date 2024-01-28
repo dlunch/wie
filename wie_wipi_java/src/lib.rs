@@ -10,13 +10,13 @@ use context::WIPIJavaClassProto;
 pub use context::WIPIJavaContextBase;
 
 use alloc::boxed::Box;
-use jvm::{Class, Jvm, JvmResult};
+use jvm::{ClassDefinition, Jvm, JvmResult};
 
 // TODO we need class loader
 pub async fn register<T, F>(jvm: &Jvm, class_creator: T) -> JvmResult<()>
 where
     T: Fn(&str, WIPIJavaClassProto) -> F,
-    F: Future<Output = Box<dyn Class>>,
+    F: Future<Output = Box<dyn ClassDefinition>>,
 {
     // superclass should come before subclass
     let classes = [
@@ -88,7 +88,7 @@ where
     for (name, proto) in classes {
         let class = class_creator(name, proto).await;
 
-        jvm.register_class(class).await?;
+        jvm.register_class(class, None).await?;
     }
 
     Ok(())

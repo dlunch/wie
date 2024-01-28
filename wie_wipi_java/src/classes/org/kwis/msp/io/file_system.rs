@@ -3,7 +3,7 @@ use alloc::{format, vec};
 use java_class_proto::{JavaMethodProto, JavaResult};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -40,7 +40,7 @@ impl FileSystem {
     async fn exists(jvm: &Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
-        let filename = String::to_rust_string(jvm, &name)?;
+        let filename = JavaLangString::to_rust_string(jvm, name.into())?;
 
         // emulating filesystem by resource..
         let filename_on_resource = format!("P{}", filename);

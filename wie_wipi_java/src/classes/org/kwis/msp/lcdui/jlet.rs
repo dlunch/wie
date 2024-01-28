@@ -3,7 +3,7 @@ use alloc::{boxed::Box, vec};
 use java_class_proto::{JavaError, JavaFieldProto, JavaMethodProto, JavaResult, MethodBody};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, JavaValue, Jvm};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaValue, Jvm};
 
 use crate::{
     classes::org::kwis::msp::lcdui::EventQueue,
@@ -98,7 +98,7 @@ impl Jlet {
     ) -> JavaResult<ClassInstanceRef<String>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
 
-        String::from_rust_string(jvm, "").await
+        Ok(JavaLangString::from_rust_string(jvm, "").await?.into())
     }
 
     pub async fn start(jvm: &Jvm, context: &mut WIPIJavaContext, main_class_name: &str) -> JavaResult<()> {
@@ -109,7 +109,7 @@ impl Jlet {
         tracing::debug!("Main class instance: {:?}", &main_class);
 
         let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
-        jvm.invoke_virtual(&main_class, &main_class_name, "startApp", "([Ljava/lang/String;)V", [arg.into()])
+        jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()])
             .await?;
 
         struct StartProxy {}

@@ -26,13 +26,11 @@ impl SktApp {
 
         let result: anyhow::Result<()> = core
             .jvm()
-            .invoke_virtual(&main_class, &normalized_class_name, "startApp", "([Ljava/lang/String;)V", [None.into()])
+            .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()])
             .await;
         if let Err(x) = result {
             if !x.to_string().contains("No such method") {
-                core.jvm()
-                    .invoke_virtual(&main_class, &normalized_class_name, "startApp", "()V", [])
-                    .await?;
+                core.jvm().invoke_virtual(&main_class, "startApp", "()V", []).await?;
                 // both startapp exists in wild.. TODO check this elegantly
             } else {
                 return Err(x);

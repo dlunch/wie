@@ -185,9 +185,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let _: bool = jvm
-            .invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "keyNotify", "(II)Z", (event_type as i32, code))
-            .await?;
+        let _: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (event_type as i32, code)).await?;
 
         Ok(())
     }
@@ -207,14 +205,8 @@ impl EventQueue {
             .new_class("org/kwis/msp/lcdui/Graphics", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
             .await?;
 
-        jvm.invoke_virtual(
-            &card,
-            "org/kwis/msp/lcdui/Card",
-            "paint",
-            "(Lorg/kwis/msp/lcdui/Graphics;)V",
-            [graphics.clone().into()],
-        )
-        .await?;
+        jvm.invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", [graphics.clone().into()])
+            .await?;
 
         let java_image: ClassInstanceRef<Image> = jvm.get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
 

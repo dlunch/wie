@@ -1,6 +1,6 @@
-mod array_class;
+mod array_class_definition;
 mod array_class_instance;
-mod class;
+mod class_definition;
 mod class_instance;
 mod classes;
 mod context_data;
@@ -18,7 +18,7 @@ use wie_backend::SystemHandle;
 use wie_common::util::write_generic;
 use wie_core_arm::{ArmCore, PEB_BASE};
 
-use jvm::{Class, ClassInstance, Jvm, JvmResult};
+use jvm::{ClassDefinition, ClassInstance, Jvm, JvmResult};
 
 use crate::{
     context::KtfContextExt,
@@ -26,9 +26,9 @@ use crate::{
 };
 
 use self::{
-    array_class::JavaArrayClass,
+    array_class_definition::JavaArrayClassDefinition,
     array_class_instance::JavaArrayClassInstance,
-    class::JavaClass,
+    class_definition::JavaClassDefinition,
     class_instance::JavaClassInstance,
     classes::wie::{ClassLoaderContextBase, KtfClassLoader},
     name::JavaFullName,
@@ -84,7 +84,7 @@ impl KtfJvmSupport {
 
             async move {
                 Box::new(
-                    JavaClass::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(runtime) as Box<_>)
+                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(runtime) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -103,7 +103,7 @@ impl KtfJvmSupport {
 
             async move {
                 Box::new(
-                    JavaClass::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(context) as Box<_>)
+                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(context) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -122,7 +122,7 @@ impl KtfJvmSupport {
             }
         }
 
-        let class_loader_class = JavaClass::new(
+        let class_loader_class = JavaClassDefinition::new(
             core,
             &jvm,
             "wie/KtfClassLoader",
@@ -131,7 +131,7 @@ impl KtfJvmSupport {
         )
         .await?;
 
-        jvm.register_class(Box::new(class_loader_class)).await?;
+        jvm.register_class(Box::new(class_loader_class), None).await?;
 
         let old_class_loader = jvm.get_system_class_loader().await?;
         let class_loader = jvm
@@ -143,18 +143,18 @@ impl KtfJvmSupport {
         Ok(jvm)
     }
 
-    pub fn class_raw(class: &dyn Class) -> u32 {
-        if let Some(x) = class.as_any().downcast_ref::<JavaClass>() {
+    pub fn class_definition_raw(definition: &dyn ClassDefinition) -> JvmResult<u32> {
+        Ok(if let Some(x) = definition.as_any().downcast_ref::<JavaClassDefinition>() {
             x.ptr_raw
         } else {
-            let class = class.as_any().downcast_ref::<JavaArrayClass>().unwrap();
+            let class = definition.as_any().downcast_ref::<JavaArrayClassDefinition>().unwrap();
 
             class.class.ptr_raw
-        }
+        })
     }
 
-    pub fn class_from_raw(core: &ArmCore, ptr_class: u32) -> JavaClass {
-        JavaClass::from_raw(ptr_class, core)
+    pub fn class_from_raw(core: &ArmCore, ptr_class: u32) -> JavaClassDefinition {
+        JavaClassDefinition::from_raw(ptr_class, core)
     }
 
     pub fn read_name(core: &ArmCore, ptr_name: u32) -> JvmResult<JavaFullName> {
@@ -177,8 +177,7 @@ impl KtfJvmSupport {
 mod test {
     use alloc::{boxed::Box, rc::Rc};
 
-    use java_runtime::classes::java::lang::String;
-    use jvm::Jvm;
+    use jvm::{runtime::JavaLangString, Jvm};
 
     use wie_backend::{System, SystemHandle};
     use wie_core_arm::{Allocator, ArmCore};
@@ -207,20 +206,14 @@ mod test {
         let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new())).handle();
         let jvm = init_jvm(&mut system).await?;
 
-        let string1 = String::from_rust_string(&jvm, "test1").await?;
-        let string2 = String::from_rust_string(&jvm, "test2").await?;
+        let string1 = JavaLangString::from_rust_string(&jvm, "test1").await?;
+        let string2 = JavaLangString::from_rust_string(&jvm, "test2").await?;
 
         let string3 = jvm
-            .invoke_virtual(
-                &string1,
-                "java/lang/String",
-                "concat",
-                "(Ljava/lang/String;)Ljava/lang/String;",
-                [string2.into()],
-            )
+            .invoke_virtual(&string1, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [string2.into()])
             .await?;
 
-        assert_eq!(String::to_rust_string(&jvm, &string3)?, "test1test2");
+        assert_eq!(JavaLangString::to_rust_string(&jvm, string3)?, "test1test2");
 
         Ok(())
     }

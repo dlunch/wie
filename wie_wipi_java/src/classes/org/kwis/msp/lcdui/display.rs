@@ -191,7 +191,7 @@ impl Display {
                 let until = context.system().platform().now() + 16; // TODO
                 context.system().sleep(until).await;
 
-                jvm.invoke_virtual(&self.runnable, "java/lang/Runnable", "run", "()V", ()).await?;
+                jvm.invoke_virtual(&self.runnable, "run", "()V", ()).await?;
 
                 Ok(JavaValue::Void)
             }

@@ -5,7 +5,7 @@ use bytemuck::cast_slice;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use java_runtime::classes::java::lang::String;
-use jvm::{Array, ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -51,7 +51,7 @@ impl File {
     ) -> JavaResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
-        let filename = String::to_rust_string(jvm, &filename)?;
+        let filename = JavaLangString::to_rust_string(jvm, filename.into())?;
         tracing::debug!("Loading {}", filename);
 
         // TODO we don't have filesystem now, emulating file loading with resource for now..

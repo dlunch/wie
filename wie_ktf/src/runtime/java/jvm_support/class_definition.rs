@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaClassProto;
 use java_constants::FieldAccessFlags;
-use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, Jvm, JvmResult, Method};
+use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_common::util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
@@ -49,12 +49,12 @@ pub(super) struct RawJavaClassDescriptor {
 }
 
 #[derive(Clone)]
-pub struct JavaClass {
+pub struct JavaClassDefinition {
     pub(crate) ptr_raw: u32,
     core: ArmCore,
 }
 
-impl JavaClass {
+impl JavaClassDefinition {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
         Self { ptr_raw, core: core.clone() }
     }
@@ -65,9 +65,8 @@ impl JavaClass {
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
     {
         let parent_class = if let Some(x) = proto.parent_class {
-            let jvm_class = jvm.resolve_class(x).await?.unwrap();
-
-            let class = jvm_class.as_any().downcast_ref::<JavaClass>().unwrap().clone();
+            let class = jvm.resolve_class(x).await?.unwrap().definition;
+            let class = class.as_any().downcast_ref::<JavaClassDefinition>().unwrap().clone();
 
             Some(class)
         } else {
@@ -147,12 +146,12 @@ impl JavaClass {
         Ok(result)
     }
 
-    pub fn read_class_hierarchy(&self) -> JvmResult<Vec<JavaClass>> {
+    pub fn read_class_hierarchy(&self) -> JvmResult<Vec<JavaClassDefinition>> {
         let mut result = vec![];
 
         let mut current_class = self.ptr_raw;
         loop {
-            result.push(JavaClass::from_raw(current_class, &self.core));
+            result.push(JavaClassDefinition::from_raw(current_class, &self.core));
 
             let raw: RawJavaClass = read_generic(&self.core, current_class)?;
             let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
@@ -216,12 +215,12 @@ impl JavaClass {
         read_null_terminated_string(&self.core, descriptor.ptr_name)
     }
 
-    pub fn parent_class(&self) -> JvmResult<Option<JavaClass>> {
+    pub fn parent_class(&self) -> JvmResult<Option<JavaClassDefinition>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
         if descriptor.ptr_parent_class != 0 {
-            Ok(Some(JavaClass::from_raw(descriptor.ptr_parent_class, &self.core)))
+            Ok(Some(JavaClassDefinition::from_raw(descriptor.ptr_parent_class, &self.core)))
         } else {
             Ok(None)
         }
@@ -271,7 +270,7 @@ impl JavaClass {
     }
 }
 
-impl Class for JavaClass {
+impl ClassDefinition for JavaClassDefinition {
     fn name(&self) -> String {
         self.name().unwrap()
     }
@@ -310,7 +309,7 @@ impl Class for JavaClass {
     }
 }
 
-impl Debug for JavaClass {
+impl Debug for JavaClassDefinition {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
     }

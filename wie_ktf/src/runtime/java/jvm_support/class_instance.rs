@@ -7,12 +7,12 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{Class, ClassInstance, Field, JavaType, JavaValue, JvmResult};
+use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
 
-use super::{class::JavaClass, context_data::JavaContextData, field::JavaField, value::JavaValueExt, KtfJvmWord};
+use super::{class_definition::JavaClassDefinition, context_data::JavaContextData, field::JavaField, value::JavaValueExt, KtfJvmWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -39,7 +39,7 @@ impl JavaClassInstance {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new(core: &mut ArmCore, class: &JavaClass) -> JvmResult<Self> {
+    pub fn new(core: &mut ArmCore, class: &JavaClassDefinition) -> JvmResult<Self> {
         let field_size = class.field_size()?;
 
         let instance = Self::instantiate(core, class, field_size)?;
@@ -58,10 +58,10 @@ impl JavaClassInstance {
         Ok(())
     }
 
-    pub fn class(&self) -> JvmResult<JavaClass> {
+    pub fn class(&self) -> JvmResult<JavaClassDefinition> {
         let raw = self.read_raw()?;
 
-        Ok(JavaClass::from_raw(raw.ptr_class, &self.core))
+        Ok(JavaClassDefinition::from_raw(raw.ptr_class, &self.core))
     }
 
     pub fn read_field(&self, field: &JavaField) -> JvmResult<KtfJvmWord> {
@@ -88,7 +88,7 @@ impl JavaClassInstance {
         Ok(raw.ptr_fields + offset + 4)
     }
 
-    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClass, field_size: usize) -> JvmResult<Self> {
+    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, field_size: usize) -> JvmResult<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as _)?;
         let ptr_fields = Allocator::alloc(core, (field_size + 4) as _)?;
 
@@ -124,7 +124,7 @@ impl ClassInstance for JavaClassInstance {
         (*self).destroy().unwrap()
     }
 
-    fn class(&self) -> Box<dyn Class> {
+    fn class_definition(&self) -> Box<dyn ClassDefinition> {
         Box::new(self.class().unwrap())
     }
 

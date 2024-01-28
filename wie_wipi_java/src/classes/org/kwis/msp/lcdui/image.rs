@@ -9,7 +9,7 @@ use bytemuck::cast_vec;
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{Array, ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm};
 
 use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
 
@@ -83,7 +83,7 @@ impl Image {
     async fn create_image_from_file(jvm: &Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JavaResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
 
-        let name = String::to_rust_string(jvm, &name)?;
+        let name = JavaLangString::to_rust_string(jvm, name.into())?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
         let id = context.system().resource().id(normalized_name).unwrap();

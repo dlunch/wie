@@ -70,8 +70,8 @@ impl Card {
         let log = format!("org.kwis.msp.lcdui.Card::<init>({:?}, {:?})", &this, &display);
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
-        let width: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getWidth", "()I", []).await?;
-        let height: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getHeight", "()I", []).await?;
+        let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", []).await?;
+        let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", []).await?;
 
         jvm.put_field(&mut this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
         jvm.put_field(&mut this, "w", "I", width)?;
@@ -98,8 +98,7 @@ impl Card {
         let width: i32 = jvm.get_field(&this, "w", "I")?;
         let height: i32 = jvm.get_field(&this, "h", "I")?;
 
-        jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Card", "repaint", "(IIII)V", (0, 0, width, height))
-            .await?;
+        jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
 
         Ok(())
     }
