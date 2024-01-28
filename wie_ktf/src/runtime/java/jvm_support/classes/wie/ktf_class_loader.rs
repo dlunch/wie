@@ -1,12 +1,17 @@
 use alloc::{boxed::Box, vec};
 
+use bytemuck::cast_vec;
 use dyn_clone::{clone_trait_object, DynClone};
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto, JavaResult};
 use java_constants::FieldAccessFlags;
-use java_runtime::classes::java::lang::{Class, ClassLoader, String};
+use java_runtime::classes::java::{
+    lang::{Class, ClassLoader, String},
+    net::URL,
+};
 use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm};
 
+use wie_backend::SystemHandle;
 use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 
@@ -14,6 +19,7 @@ use crate::runtime::java::jvm_support::{class_definition::JavaClassDefinition, c
 
 pub trait ClassLoaderContextBase: DynClone {
     fn core(&mut self) -> &mut ArmCore;
+    fn system(&self) -> &SystemHandle;
 }
 
 clone_trait_object!(ClassLoaderContextBase);
@@ -32,6 +38,12 @@ impl KtfClassLoader {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
+                JavaMethodProto::new(
+                    "findResource",
+                    "(Ljava/lang/String;)Ljava/net/URL;",
+                    Self::find_resource,
+                    Default::default(),
+                ),
             ],
             fields: vec![JavaFieldProto::new("classes", "[Ljava/lang/Class;", FieldAccessFlags::STATIC)],
         }
@@ -79,5 +91,41 @@ impl KtfClassLoader {
         } else {
             Ok(None.into())
         }
+    }
+
+    // TODO use classpathloader's jar loading
+    async fn find_resource(
+        jvm: &Jvm,
+        context: &mut ClassLoaderContext,
+        this: ClassInstanceRef<Self>,
+        name: ClassInstanceRef<String>,
+    ) -> JavaResult<ClassInstanceRef<URL>> {
+        tracing::debug!("rustjava.ClassPathClassLoader::findResource({:?}, {:?})", &this, name);
+
+        let name = JavaLangString::to_rust_string(jvm, name.clone())?;
+        let id = context.system().resource().id(&name);
+        if id.is_none() {
+            return Ok(None.into());
+        }
+
+        let data = context.system().resource().data(id.unwrap()).to_vec();
+        let mut data_array = jvm.instantiate_array("B", data.len()).await?;
+        jvm.store_byte_array(&mut data_array, 0, cast_vec(data))?;
+
+        let protocol = JavaLangString::from_rust_string(jvm, "bytes").await?;
+        let host = JavaLangString::from_rust_string(jvm, "").await?;
+        let port = 0;
+        let file = JavaLangString::from_rust_string(jvm, &name).await?;
+        let handler = jvm.new_class("rustjava/ByteArrayURLHandler", "([B)V", (data_array,)).await?;
+
+        let url = jvm
+            .new_class(
+                "java/net/URL",
+                "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/net/URLStreamHandler;)V",
+                (protocol, host, port, file, handler),
+            )
+            .await?;
+
+        return Ok(url.into());
     }
 }
