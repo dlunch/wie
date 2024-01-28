@@ -92,10 +92,12 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
             anyhow::bail!("Unknown archive format");
         }
     } else if filename.ends_with("jad") {
-        let jar = filename.replace(".jad", ".jar");
-        let buf = fs::read(jar)?;
+        let jad = fs::read(filename)?;
 
-        Box::new(J2MEArchive::from_jar(buf))
+        let jar_filename = filename.replace(".jad", ".jar");
+        let jar = fs::read(jar_filename)?;
+
+        Box::new(J2MEArchive::from_jad_jar(jad, jar))
     } else {
         anyhow::bail!("Unknown file format");
     };
