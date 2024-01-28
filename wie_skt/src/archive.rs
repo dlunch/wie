@@ -2,7 +2,7 @@ use alloc::{
     borrow::ToOwned,
     boxed::Box,
     collections::BTreeMap,
-    format, str,
+    str,
     string::{String, ToString},
     vec::Vec,
 };
@@ -26,12 +26,13 @@ impl SktArchive {
     }
 
     pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
-        let msd = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
-        let msd = SktMsd::parse(msd.0, msd.1);
+        let msd_file = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
+        let msd = SktMsd::parse(msd_file.0, msd_file.1);
 
         tracing::info!("Loading app {}, mclass {}", msd.id, msd.main_class);
 
-        let jar = files.remove(&format!("{}.jar", msd.id)).context("Invalid format")?;
+        let jar_name = msd_file.0.replace(".msd", ".jar");
+        let jar = files.remove(&jar_name).context("Invalid format")?;
 
         Ok(Self::from_jar(jar, &msd.id, &msd.main_class, files))
     }
