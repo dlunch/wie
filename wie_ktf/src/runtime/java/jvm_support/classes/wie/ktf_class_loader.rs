@@ -126,6 +126,6 @@ impl KtfClassLoader {
             )
             .await?;
 
-        return Ok(url.into());
+        Ok(url.into())
     }
 }
