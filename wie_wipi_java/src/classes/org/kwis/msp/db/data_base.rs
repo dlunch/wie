@@ -6,7 +6,7 @@ use wie_backend::Database;
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{Array, ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -125,7 +125,7 @@ impl DataBase {
 
     fn get_database(jvm: &Jvm, context: &mut WIPIJavaContext, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn Database>> {
         let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = String::to_rust_string(jvm, &db_name)?;
+        let db_name_str = JavaLangString::to_rust_string(jvm, db_name)?;
 
         Ok(context.system().platform().database_repository().open(&db_name_str))
     }

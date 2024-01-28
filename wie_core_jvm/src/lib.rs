@@ -9,7 +9,7 @@ use bytemuck::cast_vec;
 use java_class_proto::{JavaResult, MethodBody};
 use java_runtime::Runtime;
 use jvm::{Jvm, JvmCallback, JvmResult};
-use jvm_rust::{ClassImpl, JvmDetailImpl};
+use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
 use wie_wipi_java::WIPIJavaContextBase;
@@ -44,10 +44,6 @@ impl Runtime for JvmCoreRuntime {
         todo!()
     }
 
-    fn load_resource(&self, _name: &str) -> Option<Vec<u8>> {
-        todo!()
-    }
-
     fn println(&mut self, _s: &str) {
         todo!()
     }
@@ -60,15 +56,15 @@ pub struct JvmCore {
 
 impl JvmCore {
     pub async fn new(system: &SystemHandle) -> JvmResult<Self> {
-        let jvm = Jvm::new(JvmDetailImpl::new()).await?;
+        let jvm = Jvm::new(JvmDetailImpl).await?;
 
         java_runtime::initialize(&jvm, |name, proto| {
-            ready(Box::new(ClassImpl::from_class_proto(name, proto, Box::new(JvmCoreRuntime) as Box<_>)) as Box<_>)
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(JvmCoreRuntime) as Box<_>)) as Box<_>)
         })
         .await?;
 
         wie_wipi_java::register(&jvm, |name, proto| {
-            ready(Box::new(ClassImpl::from_class_proto(
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(
                 name,
                 proto,
                 Box::new(JvmCoreContext { system: system.clone() }) as Box<_>,
@@ -84,9 +80,7 @@ impl JvmCore {
         self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec()))?;
 
         let class_loader = self.jvm.get_system_class_loader().await?;
-        self.jvm
-            .invoke_virtual(&class_loader, "rustjava/ClassPathClassLoader", "addJarFile", "([B)V", (storage,))
-            .await?;
+        self.jvm.invoke_virtual(&class_loader, "addJarFile", "([B)V", (storage,)).await?;
 
         Ok(())
     }

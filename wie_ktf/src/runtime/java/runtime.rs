@@ -70,12 +70,6 @@ impl Runtime for KtfRuntime {
         self.system.decode_str(bytes)
     }
 
-    fn load_resource(&self, name: &str) -> Option<Vec<u8>> {
-        let resource_id = self.system.resource().id(name);
-
-        resource_id.map(|x| self.system.resource().data(x).to_vec())
-    }
-
     fn println(&mut self, s: &str) {
         tracing::info!("println {}", s);
     }

@@ -33,10 +33,6 @@ impl Runtime for DummyRuntime {
         todo!()
     }
 
-    fn load_resource(&self, _name: &str) -> Option<Vec<u8>> {
-        todo!()
-    }
-
     fn println(&mut self, _s: &str) {
         todo!()
     }

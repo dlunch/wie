@@ -7,43 +7,43 @@ use core::{
     mem::size_of,
 };
 
-use jvm::{ArrayClass, ClassInstance, JavaType, Jvm, JvmResult};
+use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, JvmResult};
 
 use wie_common::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
 
 use super::{
     array_class_instance::JavaArrayClassInstance,
-    class::JavaClass,
-    class::{RawJavaClass, RawJavaClassDescriptor},
+    class_definition::JavaClassDefinition,
+    class_definition::{RawJavaClass, RawJavaClassDescriptor},
     KtfJvmSupport,
 };
 
 #[derive(Clone)]
-pub struct JavaArrayClass {
-    pub(crate) class: JavaClass,
+pub struct JavaArrayClassDefinition {
+    pub(crate) class: JavaClassDefinition,
     core: ArmCore,
 }
 
-impl JavaArrayClass {
+impl JavaArrayClassDefinition {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
         Self {
-            class: JavaClass::from_raw(ptr_raw, core),
+            class: JavaClassDefinition::from_raw(ptr_raw, core),
             core: core.clone(),
         }
     }
 
     pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> JvmResult<Self> {
-        let java_lang_object = jvm.resolve_class("java/lang/Object").await?;
-        let java_lang_object_raw = KtfJvmSupport::class_raw(&*java_lang_object.unwrap());
+        let java_lang_object = jvm.resolve_class("java/lang/Object").await?.unwrap();
+        let java_lang_object_raw = KtfJvmSupport::class_definition_raw(&*java_lang_object.definition)?;
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type_raw = if element_type_name.starts_with('L') {
-            let java_class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap();
+            let class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap();
 
-            Some(KtfJvmSupport::class_raw(&*java_class))
+            Some(KtfJvmSupport::class_definition_raw(&*class.definition)?)
         } else {
             None
         };
@@ -84,7 +84,7 @@ impl JavaArrayClass {
             },
         )?;
 
-        let class = JavaArrayClass::from_raw(ptr_raw, core);
+        let class = JavaArrayClassDefinition::from_raw(ptr_raw, core);
 
         Ok(class)
     }
@@ -113,7 +113,7 @@ impl JavaArrayClass {
     }
 }
 
-impl ArrayClass for JavaArrayClass {
+impl ArrayClassDefinition for JavaArrayClassDefinition {
     fn element_type_name(&self) -> String {
         let class_name = self.class.name().unwrap();
 
@@ -125,7 +125,7 @@ impl ArrayClass for JavaArrayClass {
     }
 }
 
-impl Debug for JavaArrayClass {
+impl Debug for JavaArrayClassDefinition {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaArrayClass").field("class", &self.class).finish()
     }

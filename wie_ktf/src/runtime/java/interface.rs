@@ -4,10 +4,9 @@ use alloc::{
     vec::Vec,
 };
 use core::mem::size_of;
+use jvm::runtime::JavaLangString;
 
 use bytemuck::{Pod, Zeroable};
-
-use java_runtime::classes::java::lang::String as JavaString;
 
 use wie_backend::SystemHandle;
 use wie_common::util::{read_generic, write_generic, ByteRead};
@@ -62,7 +61,7 @@ pub async fn java_class_load(core: &mut ArmCore, system: &mut SystemHandle, ptr_
     let class = system.jvm().resolve_class(&name).await?;
 
     if let Some(x) = class {
-        let raw = KtfJvmSupport::class_raw(&*x);
+        let raw = KtfJvmSupport::class_definition_raw(&*x.definition)?;
         write_generic(core, ptr_target, raw)?;
 
         Ok(0)
@@ -109,7 +108,7 @@ async fn register_class(core: &mut ArmCore, system: &mut SystemHandle, ptr_class
     tracing::trace!("register_class({:#x})", ptr_class);
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    system.jvm().register_class(Box::new(class)).await?;
+    system.jvm().register_class(Box::new(class), None).await?;
 
     Ok(())
 }
@@ -128,7 +127,9 @@ async fn register_java_string(core: &mut ArmCore, system: &mut SystemHandle, off
     let bytes = core.read_bytes(cursor, (length * 2) as _)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
 
-    let instance = JavaString::from_utf16(&system.jvm(), bytes_u16).await?;
+    let rust_string = String::from_utf16(&bytes_u16)?;
+
+    let instance = JavaLangString::from_rust_string(&system.jvm(), &rust_string).await?;
 
     Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
 }

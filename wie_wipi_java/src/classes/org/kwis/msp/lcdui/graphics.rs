@@ -1,7 +1,7 @@
 use alloc::{format, vec, vec::Vec};
 
 use bytemuck::cast_vec;
-use jvm::JavaValue;
+use jvm::{runtime::JavaLangString, JavaValue};
 
 use wie_backend::canvas::{ImageBuffer, PixelType, Rgb8Pixel};
 
@@ -252,7 +252,7 @@ impl Graphics {
             anchor.0
         );
 
-        let rust_string = String::to_rust_string(jvm, &string)?;
+        let rust_string = JavaLangString::to_rust_string(jvm, string.into())?;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image)?;
@@ -436,7 +436,7 @@ mod test {
     use core::future::ready;
 
     use jvm::ClassInstanceRef;
-    use jvm_rust::ClassImpl;
+    use jvm_rust::ClassDefinitionImpl;
 
     use test_utils::test_jvm;
 
@@ -447,7 +447,7 @@ mod test {
         let jvm = test_jvm().await?;
 
         register(&jvm, |name, proto| {
-            ready(Box::new(ClassImpl::from_class_proto(name, proto, Box::new(DummyContext) as Box<_>)) as Box<_>)
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(DummyContext) as Box<_>)) as Box<_>)
         })
         .await?;
 
@@ -463,11 +463,9 @@ mod test {
             )
             .await?;
 
-        jvm.invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x00ff00,))
-            .await?;
+        jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x00ff00,)).await?;
 
-        jvm.invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
-            .await?;
+        jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
 
         let image = Image::image(&jvm, &image)?;
 

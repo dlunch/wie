@@ -3,12 +3,12 @@ use core::fmt::{self, Debug, Formatter};
 
 use bytemuck::cast_vec;
 
-use jvm::{ArrayClassInstance, Class, ClassInstance, JavaType, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, ClassDefinition, ClassInstance, JavaType, JavaValue, JvmResult};
 
 use wie_common::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::ArmCore;
 
-use super::{array_class::JavaArrayClass, class_instance::JavaClassInstance, value::JavaValueExt};
+use super::{array_class_definition::JavaArrayClassDefinition, class_instance::JavaClassInstance, value::JavaValueExt};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
@@ -24,7 +24,7 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClass, count: usize) -> JvmResult<Self> {
+    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClassDefinition, count: usize) -> JvmResult<Self> {
         let element_size = array_class.element_size()?;
         let class_instance = JavaClassInstance::instantiate(core, &array_class.class, count * element_size + 4)?;
 
@@ -70,13 +70,13 @@ impl JavaArrayClassInstance {
     }
 
     fn element_size(&self) -> JvmResult<usize> {
-        let array_class = JavaArrayClass::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
+        let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         array_class.element_size()
     }
 
     fn element_type(&self) -> JvmResult<JavaType> {
-        let array_class = JavaArrayClass::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
+        let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         Ok(JavaType::parse(&array_class.element_type_descriptor()?))
     }
@@ -87,7 +87,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         self.class_instance.destroy().unwrap()
     }
 
-    fn class(&self) -> Box<dyn Class> {
+    fn class_definition(&self) -> Box<dyn ClassDefinition> {
         Box::new(self.class_instance.class().unwrap())
     }
 

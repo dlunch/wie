@@ -9,7 +9,7 @@ use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 
 use crate::runtime::KtfPeb;
 
-use super::class::JavaClass;
+use super::class_definition::JavaClassDefinition;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -35,7 +35,7 @@ impl JavaContextData {
         Ok(ptr_java_context_data)
     }
 
-    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClass) -> JvmResult<u32> {
+    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> JvmResult<u32> {
         let context_data = Self::read(core)?;
         let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
 

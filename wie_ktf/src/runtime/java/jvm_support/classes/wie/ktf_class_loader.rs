@@ -5,12 +5,12 @@ use dyn_clone::{clone_trait_object, DynClone};
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto, JavaResult};
 use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
-use jvm::{ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm};
 
 use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 
-use crate::runtime::java::jvm_support::{class::JavaClass, context_data::JavaContextData};
+use crate::runtime::java::jvm_support::{class_definition::JavaClassDefinition, context_data::JavaContextData};
 
 pub trait ClassLoaderContextBase: DynClone {
     fn core(&mut self) -> &mut ArmCore;
@@ -56,7 +56,7 @@ impl KtfClassLoader {
 
         // find from client.bin
 
-        let name = String::to_rust_string(jvm, &name)?;
+        let name = JavaLangString::to_rust_string(jvm, name.into())?;
 
         let core = context.core();
         let fn_get_class = JavaContextData::fn_get_class(core)?;
@@ -72,11 +72,12 @@ impl KtfClassLoader {
         Allocator::free(core, ptr_name)?;
 
         if ptr_raw != 0 {
-            let class = JavaClass::from_raw(ptr_raw, core);
+            let class = JavaClassDefinition::from_raw(ptr_raw, core);
+            jvm.register_class(Box::new(class), Some(this.into())).await?;
 
-            return Class::from_rust_class(jvm, Box::new(class)).await;
+            Ok(jvm.resolve_class(&name).await?.unwrap().java_class(jvm).await?.into())
+        } else {
+            Ok(None.into())
         }
-
-        Ok(None.into())
     }
 }

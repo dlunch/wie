@@ -36,22 +36,14 @@ impl Main {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
         let event_queue = jvm
-            .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
+            .invoke_virtual(&jlet, "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
             .await?;
 
         let event = jvm.instantiate_array("I", 4).await?;
 
         loop {
-            jvm.invoke_virtual(&event_queue, "org/kwis/lcdui/EventQueue", "getNextEvent", "([I)V", [event.clone().into()])
-                .await?;
-            jvm.invoke_virtual(
-                &event_queue,
-                "org/kwis/lcdui/EventQueue",
-                "dispatchEvent",
-                "([I)V",
-                [event.clone().into()],
-            )
-            .await?;
+            jvm.invoke_virtual(&event_queue, "getNextEvent", "([I)V", [event.clone().into()]).await?;
+            jvm.invoke_virtual(&event_queue, "dispatchEvent", "([I)V", [event.clone().into()]).await?;
         }
     }
 }
