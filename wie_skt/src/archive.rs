@@ -17,6 +17,7 @@ pub struct SktArchive {
     jar: Vec<u8>,
     id: String,
     main_class_name: String,
+    additional_files: BTreeMap<String, Vec<u8>>,
 }
 
 impl SktArchive {
@@ -32,14 +33,15 @@ impl SktArchive {
 
         let jar = files.remove(&format!("{}.jar", msd.id)).context("Invalid format")?;
 
-        Ok(Self::from_jar(jar, &msd.id, &msd.main_class))
+        Ok(Self::from_jar(jar, &msd.id, &msd.main_class, files))
     }
 
-    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: &str) -> Self {
+    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: &str, additional_files: BTreeMap<String, Vec<u8>>) -> Self {
         Self {
             jar: data,
             id: id.into(),
             main_class_name: main_class_name.into(),
+            additional_files,
         }
     }
 }
@@ -51,6 +53,10 @@ impl Archive for SktArchive {
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform, Box::new(()));
+
+        for (filename, data) in self.additional_files {
+            system.handle().resource_mut().add(&filename, data)
+        }
 
         Ok(Box::new(SktApp::new(&self.main_class_name, self.jar, system)?))
     }
