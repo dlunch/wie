@@ -1,56 +1,45 @@
 use alloc::{
     boxed::Box,
-    collections::BTreeMap,
     str,
     string::{String, ToString},
     vec::Vec,
 };
 
-use wie_backend::{extract_zip, App, Archive, Platform, System};
+use wie_backend::{App, Archive, Platform, System};
 
 use crate::app::J2MEApp;
 
 pub struct J2MEArchive {
-    files: BTreeMap<String, Vec<u8>>,
-    manifest: J2MEManifest,
+    jar: Vec<u8>,
+    descriptor: J2MEDescriptor,
 }
 
 impl J2MEArchive {
-    pub fn from_jar(data: Vec<u8>) -> Self {
-        let files = extract_zip(&data).unwrap();
+    pub fn from_jad_jar(jad: Vec<u8>, jar: Vec<u8>) -> Self {
+        let descriptor = J2MEDescriptor::parse(&jad);
 
-        let manifest_file = files.get("META-INF/MANIFEST.MF").unwrap();
-        let manifest = J2MEManifest::parse(manifest_file);
-
-        Self { files, manifest }
+        Self { jar, descriptor }
     }
 }
 
 impl Archive for J2MEArchive {
     fn id(&self) -> String {
-        self.manifest.name.clone()
+        self.descriptor.name.clone()
     }
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform, Box::new(()));
 
-        let system_handle = system.handle();
-        let mut resource = system_handle.resource_mut();
-
-        for (path, data) in self.files {
-            resource.add(&path, data);
-        }
-
-        Ok(Box::new(J2MEApp::new(&self.manifest.main_class_name, system)?))
+        Ok(Box::new(J2MEApp::new(&self.descriptor.main_class_name, self.jar, system)?))
     }
 }
 
-struct J2MEManifest {
+struct J2MEDescriptor {
     name: String,
     main_class_name: String,
 }
 
-impl J2MEManifest {
+impl J2MEDescriptor {
     pub fn parse(data: &[u8]) -> Self {
         let lines = data.split(|x| *x == b'\n');
 
