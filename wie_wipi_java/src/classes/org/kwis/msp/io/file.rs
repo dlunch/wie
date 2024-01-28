@@ -1,4 +1,4 @@
-use alloc::{format, vec};
+use alloc::vec;
 use core::cmp::min;
 
 use bytemuck::cast_slice;
@@ -55,13 +55,9 @@ impl File {
         tracing::debug!("Loading {}", filename);
 
         // TODO we don't have filesystem now, emulating file loading with resource for now..
-        // P directory is on ktf archive
-
-        let filename_on_resource = format!("P{}", filename);
-
         let data = {
             let resource = context.system().resource();
-            let data = resource.data(resource.id(&filename_on_resource).unwrap());
+            let data = resource.data(resource.id(&filename).unwrap());
 
             cast_slice(data).to_vec()
         };

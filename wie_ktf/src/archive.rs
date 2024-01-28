@@ -52,7 +52,8 @@ impl Archive for KtfArchive {
         system.handle().resource_mut().mount_zip(&self.jar)?;
 
         for (path, data) in self.additional_files {
-            system.handle().resource_mut().add(&path, data.clone());
+            let path = path.trim_start_matches("P/");
+            system.handle().resource_mut().add(path, data.clone());
         }
 
         Ok(Box::new(KtfApp::new(&self.main_class_name, system)?))
