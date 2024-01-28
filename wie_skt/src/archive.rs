@@ -52,9 +52,7 @@ impl Archive for SktArchive {
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform, Box::new(()));
 
-        system.handle().resource_mut().mount_zip(&self.jar)?;
-
-        Ok(Box::new(SktApp::new(&self.main_class_name, system)?))
+        Ok(Box::new(SktApp::new(&self.main_class_name, self.jar, system)?))
     }
 }
 

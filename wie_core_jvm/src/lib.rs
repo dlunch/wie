@@ -7,8 +7,8 @@ use core::{future::ready, time::Duration};
 use bytemuck::cast_vec;
 
 use java_class_proto::{JavaResult, MethodBody};
-use java_runtime::Runtime;
-use jvm::{Jvm, JvmCallback, JvmResult};
+use java_runtime::{classes::java::lang::String as JavaString, Runtime};
+use jvm::{ClassInstanceRef, Jvm, JvmCallback, JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::SystemHandle;
@@ -80,7 +80,10 @@ impl JvmCore {
         self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec()))?;
 
         let class_loader = self.jvm.get_system_class_loader().await?;
-        self.jvm.invoke_virtual(&class_loader, "addJarFile", "([B)V", (storage,)).await?;
+        let _: ClassInstanceRef<JavaString> = self
+            .jvm
+            .invoke_virtual(&class_loader, "addJarFile", "([B)Ljava/lang/String;", (storage,))
+            .await?;
 
         Ok(())
     }
