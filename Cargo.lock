@@ -469,7 +469,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ee24c81fa8c06ac36d962e06314ea517198aa027"
+source = "git+https://github.com/dlunch/RustJava.git#e85d23c331997f13f046e451cc9285c4ff0f0553"
 dependencies = [
  "anyhow",
  "java_constants",
@@ -1155,7 +1155,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ee24c81fa8c06ac36d962e06314ea517198aa027"
+source = "git+https://github.com/dlunch/RustJava.git#e85d23c331997f13f046e451cc9285c4ff0f0553"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1167,7 +1167,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ee24c81fa8c06ac36d962e06314ea517198aa027"
+source = "git+https://github.com/dlunch/RustJava.git#e85d23c331997f13f046e451cc9285c4ff0f0553"
 dependencies = [
  "bitflags 2.4.2",
 ]
@@ -1175,7 +1175,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ee24c81fa8c06ac36d962e06314ea517198aa027"
+source = "git+https://github.com/dlunch/RustJava.git#e85d23c331997f13f046e451cc9285c4ff0f0553"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1259,7 +1259,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ee24c81fa8c06ac36d962e06314ea517198aa027"
+source = "git+https://github.com/dlunch/RustJava.git#e85d23c331997f13f046e451cc9285c4ff0f0553"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1274,9 +1274,10 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ee24c81fa8c06ac36d962e06314ea517198aa027"
+source = "git+https://github.com/dlunch/RustJava.git#e85d23c331997f13f046e451cc9285c4ff0f0553"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "classfile",
  "dyn-clone",
