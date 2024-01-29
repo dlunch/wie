@@ -11,7 +11,7 @@ use java_runtime::{classes::java::lang::String as JavaString, Runtime};
 use jvm::{ClassInstanceRef, Jvm, JvmCallback, JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
-use wie_backend::SystemHandle;
+use wie_backend::{AsyncCallable, SystemHandle};
 use wie_wipi_java::WIPIJavaContextBase;
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
@@ -56,7 +56,7 @@ pub struct JvmCore {
 
 impl JvmCore {
     pub async fn new(system: &SystemHandle) -> JvmResult<Self> {
-        let jvm = Jvm::new(JvmDetailImpl).await?;
+        let jvm = Rc::new(Jvm::new(JvmDetailImpl).await?);
 
         java_runtime::initialize(&jvm, |name, proto| {
             ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(JvmCoreRuntime) as Box<_>)) as Box<_>)
@@ -67,12 +67,15 @@ impl JvmCore {
             ready(Box::new(ClassDefinitionImpl::from_class_proto(
                 name,
                 proto,
-                Box::new(JvmCoreContext { system: system.clone() }) as Box<_>,
+                Box::new(JvmCoreContext {
+                    system: system.clone(),
+                    jvm: jvm.clone(),
+                }) as Box<_>,
             )) as Box<_>)
         })
         .await?;
 
-        Ok(Self { jvm: Rc::new(jvm) })
+        Ok(Self { jvm })
     }
 
     pub async fn add_jar(&self, jar: &[u8]) -> JvmResult<()> {
@@ -96,6 +99,7 @@ impl JvmCore {
 #[derive(Clone)]
 struct JvmCoreContext {
     system: SystemHandle,
+    jvm: Rc<Jvm>,
 }
 
 impl WIPIJavaContextBase for JvmCoreContext {
@@ -103,7 +107,33 @@ impl WIPIJavaContextBase for JvmCoreContext {
         &mut self.system
     }
 
-    fn spawn(&mut self, _callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
-        todo!()
+    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
+        struct SpawnProxy {
+            system: SystemHandle,
+            jvm: Rc<Jvm>,
+            callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>,
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, anyhow::Error> {
+                let mut context = JvmCoreContext {
+                    system: self.system.clone(),
+                    jvm: self.jvm.clone(),
+                };
+
+                let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;
+
+                Ok(0) // TODO resturn value
+            }
+        }
+
+        self.system.spawn(SpawnProxy {
+            system: self.system.clone(),
+            jvm: self.jvm.clone(),
+            callback,
+        });
+
+        Ok(())
     }
 }
