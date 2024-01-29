@@ -22,6 +22,7 @@ impl Card {
                 JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init_with_display, Default::default()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("isShown", "()Z", Self::is_shown, Default::default()),
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
                 JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
@@ -78,6 +79,12 @@ impl Card {
         jvm.put_field(&mut this, "h", "I", height)?;
 
         Ok(())
+    }
+
+    async fn is_shown(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<bool> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::isShown({:?})", &this);
+
+        Ok(true)
     }
 
     async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
