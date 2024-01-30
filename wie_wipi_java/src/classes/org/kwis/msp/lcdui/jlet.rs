@@ -47,7 +47,7 @@ impl Jlet {
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, context: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>) -> JavaResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = jvm
@@ -68,6 +68,20 @@ impl Jlet {
 
         jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
             .await?;
+
+        struct MainProxy {}
+        #[async_trait::async_trait(?Send)]
+        impl MethodBody<JavaError, WIPIJavaContext> for MainProxy {
+            #[tracing::instrument(name = "main", skip_all)]
+            async fn call(&self, jvm: &Jvm, _: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+                jvm.invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [None.into()])
+                    .await?;
+
+                Ok(JavaValue::Void)
+            }
+        }
+
+        context.spawn(Box::new(MainProxy {}))?;
 
         Ok(())
     }
@@ -99,34 +113,5 @@ impl Jlet {
         tracing::warn!("stub org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
 
         Ok(JavaLangString::from_rust_string(jvm, "").await?.into())
-    }
-
-    pub async fn start(jvm: &Jvm, context: &mut WIPIJavaContext, main_class_name: &str) -> JavaResult<()> {
-        let main_class_name = main_class_name.replace('.', "/");
-
-        let main_class = jvm.new_class(&main_class_name, "()V", []).await?;
-
-        tracing::debug!("Main class instance: {:?}", &main_class);
-
-        let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
-        jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()])
-            .await?;
-
-        struct StartProxy {}
-
-        #[async_trait::async_trait(?Send)]
-        impl MethodBody<JavaError, WIPIJavaContext> for StartProxy {
-            #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, jvm: &Jvm, _: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
-                jvm.invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [None.into()])
-                    .await?;
-
-                Ok(JavaValue::Void)
-            }
-        }
-
-        context.spawn(Box::new(StartProxy {}))?;
-
-        Ok(())
     }
 }
