@@ -5,9 +5,8 @@ use anyhow::Context;
 use wie_backend::{App, System, SystemHandle};
 use wie_common::Event;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_wipi_java::classes::org::kwis::msp::lcdui::Jlet;
 
-use crate::{context::KtfContextExt, runtime::KtfWIPIJavaContext};
+use crate::context::KtfContextExt;
 
 const IMAGE_BASE: u32 = 0x100000;
 
@@ -56,9 +55,14 @@ impl KtfApp {
 
         let jvm = system.jvm();
 
-        let mut context = KtfWIPIJavaContext::new(core, system, jvm.clone());
+        let main_class_name = main_class_name.replace('.', "/");
+        let main_class = jvm.new_class(&main_class_name, "()V", []).await?;
 
-        Jlet::start(&jvm, &mut context, &main_class_name).await?; // TODO implement in java method
+        tracing::debug!("Main class instance: {:?}", &main_class);
+
+        let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
+        jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()])
+            .await?;
 
         Ok(())
     }
