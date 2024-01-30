@@ -112,7 +112,7 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
     let mut key_events = HashSet::new();
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => app.tick().map_err(|x| anyhow::anyhow!("{}\n{}", x, app.crash_dump()))?,
+            WindowCallbackEvent::Update => app.tick()?,
             WindowCallbackEvent::Redraw => app.on_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {

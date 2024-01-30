@@ -90,10 +90,6 @@ impl App for LgtApp {
         Ok(())
     }
 
-    fn crash_dump(&self) -> String {
-        self.core.dump_reg_stack(0)
-    }
-
     fn on_event(&mut self, event: Event) {
         self.system.handle().event_queue().push(event)
     }
