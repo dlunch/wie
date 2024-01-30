@@ -29,6 +29,8 @@ impl Card {
             ],
             fields: vec![
                 JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
+                JavaFieldProto::new("x", "I", Default::default()),
+                JavaFieldProto::new("y", "I", Default::default()),
                 JavaFieldProto::new("w", "I", Default::default()),
                 JavaFieldProto::new("h", "I", Default::default()),
             ],
@@ -75,6 +77,8 @@ impl Card {
         let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", []).await?;
 
         jvm.put_field(&mut this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
+        jvm.put_field(&mut this, "x", "I", 0)?;
+        jvm.put_field(&mut this, "y", "I", 0)?;
         jvm.put_field(&mut this, "w", "I", width)?;
         jvm.put_field(&mut this, "h", "I", height)?;
 
