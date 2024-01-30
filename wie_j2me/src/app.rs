@@ -48,10 +48,6 @@ impl App for J2MEApp {
         Ok(())
     }
 
-    fn crash_dump(&self) -> String {
-        "".into() // TODO
-    }
-
     fn on_event(&mut self, event: Event) {
         self.system.handle().event_queue().push(event)
     }

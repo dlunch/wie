@@ -26,7 +26,6 @@ pub trait App {
     fn start(&mut self) -> anyhow::Result<()>;
     fn on_event(&mut self, event: wie_common::Event);
     fn tick(&mut self) -> anyhow::Result<()>;
-    fn crash_dump(&self) -> String;
 }
 
 pub trait Archive {

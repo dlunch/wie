@@ -93,15 +93,13 @@ impl App for KtfApp {
         Ok(())
     }
 
-    fn crash_dump(&self) -> String {
-        self.core.dump_reg_stack(IMAGE_BASE)
-    }
-
     fn on_event(&mut self, event: Event) {
         self.system.handle().event_queue().push(event)
     }
 
     fn tick(&mut self) -> anyhow::Result<()> {
-        self.system.tick()
+        self.system
+            .tick()
+            .map_err(|x| anyhow::anyhow!("{}\n{}", x, self.core.dump_reg_stack(IMAGE_BASE)))
     }
 }
