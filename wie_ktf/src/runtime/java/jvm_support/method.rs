@@ -7,7 +7,7 @@ use core::{
 
 use bytemuck::{Pod, Zeroable};
 
-use java_class_proto::{JavaMethodProto, MethodBody};
+use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
@@ -56,23 +56,18 @@ impl JavaMethod {
     {
         let full_name = JavaFullName {
             tag: 0,
-            name: proto.name,
-            descriptor: proto.descriptor,
+            name: proto.name.clone(),
+            descriptor: proto.descriptor.clone(),
         };
         let full_name_bytes = full_name.as_bytes();
 
         let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
         core.write_bytes(ptr_name, &full_name_bytes)?;
 
-        let fn_method = Self::register_java_method(
-            core,
-            proto.body,
-            context,
-            &full_name.descriptor,
-            proto.access_flags.contains(MethodAccessFlags::STATIC),
-            proto.access_flags.contains(MethodAccessFlags::NATIVE),
-        )?;
-        let (fn_body, fn_body_native) = if proto.access_flags.contains(MethodAccessFlags::NATIVE) {
+        let access_flags = proto.access_flags;
+        let fn_method = Self::register_java_method(core, proto, context)?;
+
+        let (fn_body, fn_body_native) = if access_flags.contains(MethodAccessFlags::NATIVE) {
             (0, fn_method)
         } else {
             (fn_method, 0)
@@ -92,7 +87,7 @@ impl JavaMethod {
                 exception_table_count: 0,
                 unk3: 0,
                 index_in_vtable,
-                access_flags: proto.access_flags.bits(),
+                access_flags: access_flags.bits(),
                 unk6: 0,
             },
         )?;
@@ -134,14 +129,7 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method<C, Context>(
-        core: &mut ArmCore,
-        body: Box<dyn MethodBody<anyhow::Error, C>>,
-        context: Context,
-        descriptor: &str,
-        is_static: bool,
-        native: bool,
-    ) -> JvmResult<u32>
+    fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> JvmResult<u32>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
@@ -151,10 +139,9 @@ impl JavaMethod {
             C: ?Sized,
             Context: Deref<Target = C> + DerefMut + Clone,
         {
-            body: Box<dyn MethodBody<anyhow::Error, C>>,
+            proto: JavaMethodProto<C>,
             context: Context,
             parameter_types: Vec<JavaType>,
-            native: bool,
         }
 
         #[async_trait::async_trait(?Send)]
@@ -166,7 +153,7 @@ impl JavaMethod {
             async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
                 let param_count = self.parameter_types.len() as u32;
 
-                let args = if self.native {
+                let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
                     let param_base = u32::get(core, 1);
                     (0..param_count)
                         .map(|x| read_generic(core, param_base + x * 4))
@@ -183,28 +170,27 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.body.call(&system.jvm(), &mut context, args.into_boxed_slice()).await?;
+                let result = self.proto.body.call(&system.jvm(), &mut context, args.into_boxed_slice()).await?;
 
                 Ok(result.as_raw())
             }
         }
 
-        let mut parameter_types = if let JavaType::Method(x, _) = JavaType::parse(descriptor) {
+        let mut parameter_types = if let JavaType::Method(x, _) = JavaType::parse(&proto.descriptor) {
             x
         } else {
             panic!("Should be method type")
         };
 
-        if !is_static {
+        if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
             // TODO proper flag handling
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
         }
 
         let proxy = JavaMethodProxy {
-            body,
+            proto,
             context,
             parameter_types,
-            native,
         };
 
         core.register_function(proxy)
