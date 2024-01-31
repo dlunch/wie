@@ -176,8 +176,7 @@ impl JavaMethod {
             }
         }
 
-        let (parameter_types, _) = JavaType::parse(&proto.descriptor).as_method();
-        let mut parameter_types = parameter_types.to_vec();
+        let mut parameter_types = JavaType::parse(&proto.descriptor).as_method().0.to_vec();
 
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
             // TODO proper flag handling
