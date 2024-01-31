@@ -195,7 +195,7 @@ impl JavaMethod {
             panic!("Should be method type")
         };
 
-        if !is_static && !native {
+        if !is_static {
             // TODO proper flag handling
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
         }
