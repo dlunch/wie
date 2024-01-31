@@ -95,6 +95,10 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         self.class_instance.equals(other)
     }
 
+    fn hash_code(&self) -> i32 {
+        self.class_instance.hash_code()
+    }
+
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.element_size()?;
 

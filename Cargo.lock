@@ -18,6 +18,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
+name = "ahash"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c3a9648d43b9cd48db467b3f87fdd6e146bcc88ab0180006cef2179fe11d01"
+dependencies = [
+ "cfg-if",
+ "once_cell",
+ "version_check",
+ "zerocopy",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -469,7 +481,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#a8fd2abcbd2e1645471980c953438fe484bfdec1"
+source = "git+https://github.com/dlunch/RustJava.git#9ca1f4a7d783605a3f7ef218202df55f28d08cf7"
 dependencies = [
  "anyhow",
  "java_constants",
@@ -1111,6 +1123,9 @@ name = "hashbrown"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
+dependencies = [
+ "ahash",
+]
 
 [[package]]
 name = "heck"
@@ -1155,7 +1170,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#a8fd2abcbd2e1645471980c953438fe484bfdec1"
+source = "git+https://github.com/dlunch/RustJava.git#9ca1f4a7d783605a3f7ef218202df55f28d08cf7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1167,7 +1182,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#a8fd2abcbd2e1645471980c953438fe484bfdec1"
+source = "git+https://github.com/dlunch/RustJava.git#9ca1f4a7d783605a3f7ef218202df55f28d08cf7"
 dependencies = [
  "bitflags 2.4.2",
 ]
@@ -1175,12 +1190,13 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#a8fd2abcbd2e1645471980c953438fe484bfdec1"
+source = "git+https://github.com/dlunch/RustJava.git#9ca1f4a7d783605a3f7ef218202df55f28d08cf7"
 dependencies = [
  "anyhow",
  "async-trait",
  "bytemuck",
  "dyn-clone",
+ "hashbrown",
  "java_class_proto",
  "java_constants",
  "jvm",
@@ -1259,7 +1275,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#a8fd2abcbd2e1645471980c953438fe484bfdec1"
+source = "git+https://github.com/dlunch/RustJava.git#9ca1f4a7d783605a3f7ef218202df55f28d08cf7"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1274,7 +1290,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#a8fd2abcbd2e1645471980c953438fe484bfdec1"
+source = "git+https://github.com/dlunch/RustJava.git#9ca1f4a7d783605a3f7ef218202df55f28d08cf7"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -3328,6 +3344,26 @@ name = "xkeysym"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "054a8e68b76250b253f671d1268cb7f1ae089ec35e195b2efb2a4e9a836d0621"
+
+[[package]]
+name = "zerocopy"
+version = "0.7.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74d4d3961e53fa4c9a25a8637fc2bfaf2595b3d3ae34875568a5cf64787716be"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.7.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+]
 
 [[package]]
 name = "zip"
