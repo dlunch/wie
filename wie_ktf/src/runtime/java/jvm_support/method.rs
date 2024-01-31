@@ -176,11 +176,8 @@ impl JavaMethod {
             }
         }
 
-        let mut parameter_types = if let JavaType::Method(x, _) = JavaType::parse(&proto.descriptor) {
-            x
-        } else {
-            panic!("Should be method type")
-        };
+        let (parameter_types, _) = JavaType::parse(&proto.descriptor).as_method();
+        let mut parameter_types = parameter_types.to_vec();
 
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
             // TODO proper flag handling
