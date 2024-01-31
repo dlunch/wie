@@ -113,7 +113,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
                 .flat_map(u16::to_le_bytes)
                 .collect::<Vec<_>>(),
             4 => values.into_iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
-            _ => todo!(),
+            _ => unreachable!(),
         };
 
         self.store_array(offset as _, count, raw_values)
@@ -138,7 +138,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
                 .chunks(4)
                 .map(|x| JavaValue::from_raw(u32::from_le_bytes(x.try_into().unwrap()) as _, &element_type, &self.core))
                 .collect::<Vec<_>>(),
-            _ => todo!(),
+            _ => unreachable!(),
         })
     }
 

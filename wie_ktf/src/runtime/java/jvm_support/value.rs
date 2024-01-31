@@ -45,7 +45,7 @@ impl JavaValueExt for JavaValue {
                     JavaValue::Object(None)
                 }
             }
-            _ => todo!(),
+            JavaType::Method(_, _) => unreachable!(),
         }
     }
 
@@ -67,7 +67,7 @@ impl JavaValueExt for JavaValue {
                     } else if let Some(x) = x.as_any().downcast_ref::<JavaArrayClassInstance>() {
                         x.class_instance.ptr_raw as _
                     } else {
-                        panic!("Unknown instance type")
+                        unreachable!()
                     }
                 } else {
                     0

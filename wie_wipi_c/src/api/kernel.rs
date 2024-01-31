@@ -225,7 +225,7 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> WIPICR
                     let byte = arg_iter.next().unwrap();
                     result += &format!("{:x}", byte)
                 }
-                _ => panic!("Unknown format: {}", format),
+                _ => todo!("Unknown format: {}", format),
             }
         } else {
             result.push(x);

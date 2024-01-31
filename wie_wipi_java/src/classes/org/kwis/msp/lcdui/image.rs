@@ -173,7 +173,7 @@ impl Image {
         match bytes_per_pixel {
             2 => create_canvas::<Rgb565Pixel>(width as _, height as _, &buf),
             4 => create_canvas::<ArgbPixel>(width as _, height as _, &buf),
-            _ => panic!("Unsupported pixel format: {}", bytes_per_pixel),
+            _ => todo!("Unsupported pixel format: {}", bytes_per_pixel),
         }
     }
 

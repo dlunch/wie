@@ -108,7 +108,7 @@ impl JavaArrayClassDefinition {
             JavaType::Double => 8,
             JavaType::Class(_) => 4, // TODO do we need to extract pointer size to constant?
             JavaType::Array(_) => 4,
-            _ => panic!("Should not reach here"),
+            JavaType::Void | JavaType::Method(_, _) => unreachable!(),
         })
     }
 }
