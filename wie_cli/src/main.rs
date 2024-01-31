@@ -77,9 +77,8 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub fn start(filename: &str) -> anyhow::Result<()> {
+    let buf = fs::read(filename)?;
     let archive: Box<dyn Archive> = if filename.ends_with("zip") {
-        let buf = fs::read(filename)?;
-
         let files = extract_zip(&buf)?;
 
         if KtfArchive::is_ktf_archive(&files) {
@@ -92,12 +91,10 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
             anyhow::bail!("Unknown archive format");
         }
     } else if filename.ends_with("jad") {
-        let jad = fs::read(filename)?;
-
         let jar_filename = filename.replace(".jad", ".jar");
         let jar = fs::read(jar_filename)?;
 
-        Box::new(J2MEArchive::from_jad_jar(jad, jar))
+        Box::new(J2MEArchive::from_jad_jar(buf, jar))
     } else {
         anyhow::bail!("Unknown file format");
     };
