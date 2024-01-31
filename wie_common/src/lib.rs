@@ -47,7 +47,7 @@ impl KeyCode {
             "9" => KeyCode::NUM9,
             "#" => KeyCode::HASH,
             "*" => KeyCode::STAR,
-            _ => todo!("Unknown key: {}", string),
+            _ => unimplemented!("Unknown key: {}", string),
         }
     }
 }

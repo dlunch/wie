@@ -101,7 +101,7 @@ impl WIPICFramebuffer {
         match self.bpp {
             16 => create_canvas::<Rgb565Pixel>(self.width, self.height, &data),
             32 => create_canvas::<ArgbPixel>(self.width, self.height, &data),
-            _ => todo!("Unsupported pixel format: {}", self.bpp),
+            _ => unimplemented!("Unsupported pixel format: {}", self.bpp),
         }
     }
 }
