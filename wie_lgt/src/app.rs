@@ -41,7 +41,7 @@ impl LgtApp {
     async fn do_start(core: &mut ArmCore, _system: &mut SystemHandle, entrypoint: u32, _main_class_name: String) -> anyhow::Result<()> {
         core.run_function(entrypoint + 1, &[]).await?;
 
-        todo!()
+        anyhow::bail!("Not yet implemented")
     }
 
     fn load(core: &mut ArmCore, data: &[u8]) -> anyhow::Result<u32> {
