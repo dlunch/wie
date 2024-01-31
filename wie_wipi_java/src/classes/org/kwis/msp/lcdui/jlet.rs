@@ -73,7 +73,11 @@ impl Jlet {
         #[async_trait::async_trait(?Send)]
         impl MethodBody<JavaError, WIPIJavaContext> for MainProxy {
             #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, jvm: &Jvm, _: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+                let now = context.system().platform().now();
+                let until = now + 10;
+                context.system().sleep(until).await; // XXX wait until jlet to initialize
+
                 jvm.invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [None.into()])
                     .await?;
 
