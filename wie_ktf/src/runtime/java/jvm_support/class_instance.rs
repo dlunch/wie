@@ -134,6 +134,10 @@ impl ClassInstance for JavaClassInstance {
         Ok(self.ptr_raw == other_instance.ptr_raw)
     }
 
+    fn hash_code(&self) -> i32 {
+        self.ptr_raw as _
+    }
+
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
 
