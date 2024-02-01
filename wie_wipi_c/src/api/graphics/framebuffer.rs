@@ -1,9 +1,9 @@
 use alloc::{boxed::Box, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{pod_collect_to_vec, Pod, Zeroable};
 
-use wie_backend::canvas::{create_canvas, ArgbPixel, Canvas, Image, Rgb565Pixel};
+use wie_backend::canvas::{ArgbPixel, Canvas, Image, ImageBuffer, Rgb565Pixel, VecImageBuffer};
 
 use crate::context::{WIPICContext, WIPICMemoryId, WIPICWord};
 
@@ -78,11 +78,12 @@ impl WIPICFramebuffer {
     }
 
     pub fn image(&self, context: &mut dyn WIPICContext) -> anyhow::Result<Box<dyn Image>> {
-        Ok(self.create_canvas(context)?.image())
+        self.create_image(context)
     }
 
     pub fn canvas<'a>(&'a self, context: &'a mut dyn WIPICContext) -> anyhow::Result<FramebufferCanvas<'a>> {
-        let canvas = self.create_canvas(context)?;
+        let image = self.create_image(context)?;
+        let canvas = Canvas::new(image.into_image_buffer().unwrap());
 
         Ok(FramebufferCanvas {
             framebuffer: self,
@@ -95,31 +96,39 @@ impl WIPICFramebuffer {
         context.write_bytes(context.data_ptr(self.buf)?, data)
     }
 
-    fn create_canvas(&self, context: &dyn WIPICContext) -> anyhow::Result<Box<dyn Canvas>> {
+    fn create_image(&self, context: &dyn WIPICContext) -> anyhow::Result<Box<dyn Image>> {
         let data = self.data(context)?;
 
-        match self.bpp {
-            16 => create_canvas::<Rgb565Pixel>(self.width, self.height, &data),
-            32 => create_canvas::<ArgbPixel>(self.width, self.height, &data),
+        Ok(match self.bpp {
+            16 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(
+                self.width as _,
+                self.height as _,
+                pod_collect_to_vec(&data),
+            )),
+            32 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(
+                self.width as _,
+                self.height as _,
+                pod_collect_to_vec(&data),
+            )),
             _ => unimplemented!("Unsupported pixel format: {}", self.bpp),
-        }
+        })
     }
 }
 
 pub struct FramebufferCanvas<'a> {
     framebuffer: &'a WIPICFramebuffer,
     context: &'a mut dyn WIPICContext,
-    canvas: Box<dyn Canvas>,
+    canvas: Canvas<Box<dyn ImageBuffer>>,
 }
 
 impl Drop for FramebufferCanvas<'_> {
     fn drop(&mut self) {
-        self.framebuffer.write(self.context, self.canvas.raw()).unwrap()
+        self.framebuffer.write(self.context, self.canvas.image_buffer.raw()).unwrap()
     }
 }
 
 impl Deref for FramebufferCanvas<'_> {
-    type Target = Box<dyn Canvas>;
+    type Target = Canvas<Box<dyn ImageBuffer>>;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas

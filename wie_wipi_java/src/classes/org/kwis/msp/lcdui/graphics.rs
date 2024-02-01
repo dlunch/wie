@@ -3,7 +3,7 @@ use alloc::{format, vec, vec::Vec};
 use bytemuck::cast_vec;
 use jvm::{runtime::JavaLangString, JavaValue};
 
-use wie_backend::canvas::{ImageBuffer, PixelType, Rgb8Pixel};
+use wie_backend::canvas::{PixelType, Rgb8Pixel, VecImageBuffer};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult, TypeConverter};
 use java_runtime::classes::java::lang::String;
@@ -293,23 +293,23 @@ impl Graphics {
             anchor.0
         );
 
-        let src_canvas = Image::image(jvm, &img)?;
+        let src_image = Image::image(jvm, &img)?;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image)?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
-            -((src_canvas.width() / 2) as i32)
+            -((src_image.width() / 2) as i32)
         } else if anchor.contains(Anchor::RIGHT) {
-            -(src_canvas.width() as i32)
+            -(src_image.width() as i32)
         } else {
             0
         };
 
         let y_delta = if anchor.contains(Anchor::VCENTER) {
-            -((src_canvas.height() / 2) as i32)
+            -((src_image.height() / 2) as i32)
         } else if anchor.contains(Anchor::BOTTOM) {
-            -(src_canvas.height() as i32)
+            -(src_image.height() as i32)
         } else {
             0
         };
@@ -317,7 +317,7 @@ impl Graphics {
         let x = (x + x_delta).max(0);
         let y = (y + y_delta).max(0);
 
-        canvas.draw(x as _, y as _, src_canvas.width(), src_canvas.height(), &*src_canvas, 0, 0);
+        canvas.draw(x as _, y as _, src_image.width(), src_image.height(), &*src_image, 0, 0);
 
         Ok(())
     }
@@ -395,7 +395,7 @@ impl Graphics {
 
         // TODO we need imagebuffer proxy, as it's not optimal to copy entire image from java/c buffer to rust every time
         let pixel_data: Vec<i32> = jvm.load_array(&rgb_pixels, offset as _, (width * height) as _)?;
-        let src_image = ImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
+        let src_image = VecImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image)?;

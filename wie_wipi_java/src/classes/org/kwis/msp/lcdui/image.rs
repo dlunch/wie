@@ -4,14 +4,14 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use bytemuck::cast_vec;
+use bytemuck::{cast_vec, pod_collect_to_vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm};
 
-use wie_backend::canvas::{create_canvas, decode_image, ArgbPixel, Canvas, Image as BackendImage, Rgb565Pixel};
+use wie_backend::canvas::{decode_image, ArgbPixel, Canvas, Image as BackendImage, ImageBuffer, Rgb565Pixel, VecImageBuffer};
 
 use crate::{
     classes::org::kwis::msp::lcdui::Graphics,
@@ -152,16 +152,17 @@ impl Image {
     }
 
     pub fn image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn BackendImage>> {
-        Ok(Self::create_canvas(jvm, this)?.image())
+        Self::create_backend_image(jvm, this)
     }
 
     pub fn canvas<'a>(jvm: &'a Jvm, this: &'a ClassInstanceRef<Self>) -> JavaResult<ImageCanvas<'a>> {
-        let canvas = Self::create_canvas(jvm, this)?;
+        let image = Self::create_backend_image(jvm, this)?;
+        let canvas = Canvas::new(image.into_image_buffer().unwrap());
 
         Ok(ImageCanvas { image: this, jvm, canvas })
     }
 
-    fn create_canvas(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn Canvas>> {
+    fn create_backend_image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JavaResult<Box<dyn BackendImage>> {
         let buf = Self::buf(jvm, this)?;
 
         let width: i32 = jvm.get_field(this, "w", "I")?;
@@ -170,11 +171,11 @@ impl Image {
 
         let bytes_per_pixel = bpl / width;
 
-        match bytes_per_pixel {
-            2 => create_canvas::<Rgb565Pixel>(width as _, height as _, &buf),
-            4 => create_canvas::<ArgbPixel>(width as _, height as _, &buf),
+        Ok(match bytes_per_pixel {
+            2 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))),
+            4 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))),
             _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
-        }
+        })
     }
 
     async fn create_image_instance(jvm: &Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JavaResult<ClassInstanceRef<Image>> {
@@ -195,19 +196,21 @@ impl Image {
 pub struct ImageCanvas<'a> {
     image: &'a ClassInstanceRef<Image>,
     jvm: &'a Jvm,
-    canvas: Box<dyn Canvas>,
+    canvas: Canvas<Box<dyn ImageBuffer>>,
 }
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
         let mut data = self.jvm.get_field(self.image, "imgData", "[B").unwrap();
 
-        self.jvm.store_byte_array(&mut data, 0, cast_vec(self.canvas.raw().to_vec())).unwrap();
+        self.jvm
+            .store_byte_array(&mut data, 0, cast_vec(self.canvas.image_buffer.raw().to_vec()))
+            .unwrap();
     }
 }
 
 impl Deref for ImageCanvas<'_> {
-    type Target = Box<dyn Canvas>;
+    type Target = Canvas<Box<dyn ImageBuffer>>;
 
     fn deref(&self) -> &Self::Target {
         &self.canvas
