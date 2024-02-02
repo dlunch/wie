@@ -30,10 +30,7 @@ pub struct ArmCore {
 
 impl ArmCore {
     pub fn new(system: SystemHandle) -> ArmEngineResult<Self> {
-        #[cfg(any(target_arch = "wasm32", target_os = "linux"))]
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
-        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))]
-        let mut engine = Box::new(crate::engine::UnicornEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
         engine.reg_write(ArmRegister::Cpsr, 0x10); // USR32

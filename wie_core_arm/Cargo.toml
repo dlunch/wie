@@ -15,9 +15,5 @@ armv4t_emu = { version = "^0.1" }
 wie_backend = { workspace = true }
 wie_common = { workspace = true }
 
-[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))'.dependencies]
-unicorn-engine = { version = "^2.0" }
-capstone = { version = "^0.11" }
-
 [dev-dependencies]
 test_utils = { workspace = true }
