@@ -1,5 +1,4 @@
-use core::{mem::size_of, ops::Deref};
-use std::ops::DerefMut;
+use core::mem::size_of;
 
 use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
 use image::io::Reader as ImageReader;
@@ -20,13 +19,21 @@ pub trait Image {
     fn get_pixel(&self, x: u32, y: u32) -> Color;
     fn raw(&self) -> &[u8];
     fn colors(&self) -> Vec<Color>;
-    fn into_image_buffer(self: Box<Self>) -> Option<Box<dyn ImageBuffer>> {
-        None
-    }
 }
 
-pub trait ImageBuffer: Image {
+pub trait ImageBuffer {
     fn put_pixels(&mut self, x: u32, y: u32, width: u32, colors: &[Color]);
+}
+
+pub trait Canvas {
+    fn image(&self) -> &dyn Image;
+    #[allow(clippy::too_many_arguments)]
+    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
+    fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
+    fn draw_text(&mut self, string: &str, x: u32, y: u32);
+    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
+    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
+    fn put_pixel(&mut self, x: u32, y: u32, color: Color);
 }
 
 pub trait PixelType {
@@ -172,10 +179,6 @@ where
     fn colors(&self) -> Vec<Color> {
         self.data.iter().map(|&x| T::to_color(x)).collect()
     }
-
-    fn into_image_buffer(self: Box<Self>) -> Option<Box<dyn ImageBuffer>> {
-        Some(self)
-    }
 }
 
 impl<T> ImageBuffer for VecImageBuffer<T>
@@ -198,23 +201,36 @@ where
     }
 }
 
-pub struct Canvas<T>
+pub struct ImageBufferCanvas<T>
 where
-    T: Deref<Target = dyn ImageBuffer> + DerefMut,
+    T: ImageBuffer + Image,
 {
-    pub image_buffer: T, // TODO remove pub
+    image_buffer: T,
 }
 
-impl<T> Canvas<T>
+impl<T> ImageBufferCanvas<T>
 where
-    T: Deref<Target = dyn ImageBuffer> + DerefMut,
+    T: ImageBuffer + Image,
 {
     pub fn new(image_buffer: T) -> Self {
         Self { image_buffer }
     }
 
+    pub fn into_inner(self) -> T {
+        self.image_buffer
+    }
+}
+
+impl<T> Canvas for ImageBufferCanvas<T>
+where
+    T: ImageBuffer + Image,
+{
+    fn image(&self) -> &dyn Image {
+        &self.image_buffer
+    }
+
     #[allow(clippy::too_many_arguments)]
-    pub fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32) {
+    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32) {
         for y in 0..h {
             for x in 0..w {
                 if sx + x >= src.width() || sy + y >= src.height() {
@@ -236,7 +252,7 @@ where
     }
 
     // TODO change it to bresenham's or something..
-    pub fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
+    fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
         let dx = ((x2 + 1) as f32) - (x1 as f32);
         let dy = ((y2 + 1) as f32) - (y1 as f32);
 
@@ -259,7 +275,7 @@ where
         }
     }
 
-    pub fn draw_text(&mut self, string: &str, x: u32, y: u32) {
+    fn draw_text(&mut self, string: &str, x: u32, y: u32) {
         // TODO can we draw directly on canvas? without it AA blending looks horrible..
         use piet::{ImageFormat, RenderContext, Text, TextLayout, TextLayoutBuilder};
         use piet_common::Device;
@@ -289,7 +305,7 @@ where
         self.draw(x, y, bound.width() as _, bound.height() as _, &image, 0, 0);
     }
 
-    pub fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
         for x in x..x + w {
             if x >= self.image_buffer.width() {
                 continue;
@@ -306,7 +322,7 @@ where
         }
     }
 
-    pub fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
         for y in y..y + h {
             for x in x..x + w {
                 if x >= self.image_buffer.width() || y >= self.image_buffer.height() {
@@ -317,7 +333,7 @@ where
         }
     }
 
-    pub fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
+    fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
         self.image_buffer.put_pixels(x, y, 1, &[color]);
     }
 }
@@ -339,15 +355,18 @@ pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ArgbPixel, Canvas, Color, Image, ImageBuffer, VecImageBuffer};
+    use crate::canvas::{Image, ImageBufferCanvas};
+
+    use super::{ArgbPixel, Canvas, Color, VecImageBuffer};
 
     #[test]
     fn test_canvas() -> anyhow::Result<()> {
-        let mut image_buffer = VecImageBuffer::<ArgbPixel>::new(10, 10);
-        let mut canvas = Canvas::new(&mut image_buffer as &mut dyn ImageBuffer);
+        let image_buffer = VecImageBuffer::<ArgbPixel>::new(10, 10);
+        let mut canvas = ImageBufferCanvas::new(image_buffer);
 
         canvas.fill_rect(0, 0, 10, 10, Color { r: 0, g: 0, b: 0, a: 255 });
 
+        let image_buffer = canvas.into_inner();
         let raw = image_buffer.raw();
 
         assert_eq!(raw.len(), 10 * 10 * 4);
