@@ -3,7 +3,6 @@ mod armv4t_emu;
 use alloc::vec::Vec;
 use core::ops::Range;
 
-#[cfg(any(target_arch = "wasm32", target_os = "linux"))]
 pub use armv4t_emu::Armv4tEmuEngine;
 
 pub type ArmEngineResult<T> = anyhow::Result<T>;
