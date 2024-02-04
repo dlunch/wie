@@ -2332,6 +2332,7 @@ dependencies = [
  "bytemuck",
  "encoding_rs",
  "image",
+ "lazy_static",
  "num-traits",
  "rand",
  "smaf",
