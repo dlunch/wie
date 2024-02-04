@@ -23,6 +23,7 @@ pub trait Image {
 }
 
 pub trait ImageBuffer {
+    fn put_pixel(&mut self, x: u32, y: u32, color: Color);
     fn put_pixels(&mut self, x: u32, y: u32, width: u32, colors: &[Color]);
 }
 
@@ -186,6 +187,16 @@ impl<T> ImageBuffer for VecImageBuffer<T>
 where
     T: PixelType + 'static,
 {
+    fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
+        if x >= self.width || y >= self.height {
+            return;
+        }
+
+        let raw = T::from_color(color);
+
+        self.data[(y * self.width + x) as usize] = raw;
+    }
+
     fn put_pixels(&mut self, x: u32, y: u32, width: u32, colors: &[Color]) {
         for (i, color) in colors.iter().enumerate() {
             let x = x + (i as u32 % width);
@@ -341,7 +352,7 @@ where
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
-        self.image_buffer.put_pixels(x, y, 1, &[color]);
+        self.image_buffer.put_pixel(x, y, color)
     }
 }
 
