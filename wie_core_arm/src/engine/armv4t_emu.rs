@@ -91,8 +91,12 @@ impl ArmRegister {
     }
 }
 
+const TOTAL_MEMORY: usize = 0xffffffff;
+const PAGE_SIZE: usize = 0x10000;
+const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
+
 struct Armv4tEmuMemory {
-    pages: [Option<Box<RefCell<[u8; 0x10000]>>>; 0x10000],
+    pages: [Option<Box<RefCell<[u8; PAGE_SIZE]>>>; TOTAL_MEMORY / PAGE_SIZE],
 }
 
 impl Armv4tEmuMemory {
@@ -103,13 +107,13 @@ impl Armv4tEmuMemory {
     }
 
     fn map(&mut self, address: u32, size: usize) {
-        let page_start = address & !0xffff;
-        let page_end = (address + size as u32 + 0xffff) & !0xffff;
+        let page_start = address & !PAGE_MASK;
+        let page_end = (address + size as u32 + PAGE_MASK) & !PAGE_MASK;
 
-        for page in (page_start..page_end).step_by(0x10000) {
-            let page_data = &mut self.pages[page as usize / 0x10000];
+        for page in (page_start..page_end).step_by(PAGE_SIZE) {
+            let page_data = &mut self.pages[page as usize / PAGE_SIZE];
             if page_data.is_none() {
-                *page_data = Some(Box::new(RefCell::new([0; 0x10000])));
+                *page_data = Some(Box::new(RefCell::new([0; PAGE_SIZE])));
             }
         }
     }
@@ -120,10 +124,10 @@ impl Armv4tEmuMemory {
         let mut current_address = address;
 
         while remaining_size > 0 {
-            let page_address = current_address & !0xffff;
-            let page_data = self.pages[page_address as usize / 0x10000].as_ref().unwrap();
+            let page_address = current_address & !PAGE_MASK;
+            let page_data = self.pages[page_address as usize / PAGE_SIZE].as_ref().unwrap();
             let offset = (current_address - page_address) as usize;
-            let available_bytes = (0x10000 - offset).min(remaining_size);
+            let available_bytes = (PAGE_SIZE - offset).min(remaining_size);
 
             result.extend_from_slice(&page_data.borrow()[offset..offset + available_bytes]);
             remaining_size -= available_bytes;
@@ -138,10 +142,10 @@ impl Armv4tEmuMemory {
         let mut data_index = 0;
 
         while data_index < data.len() {
-            let page_address = current_address & !0xffff;
-            let page_data = self.pages[page_address as usize / 0x10000].as_mut().unwrap();
+            let page_address = current_address & !PAGE_MASK;
+            let page_data = self.pages[page_address as usize / PAGE_SIZE].as_mut().unwrap();
             let offset = (current_address - page_address) as usize;
-            let available_bytes = (0x10000 - offset).min(data.len() - data_index);
+            let available_bytes = (PAGE_SIZE - offset).min(data.len() - data_index);
 
             page_data.borrow_mut()[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
             data_index += available_bytes;
@@ -149,9 +153,9 @@ impl Armv4tEmuMemory {
         }
     }
 
-    fn get_page(&mut self, addr: u32) -> &RefCell<[u8; 0x10000]> {
-        let page_address = addr & !0xffff;
-        let page_data = self.pages[page_address as usize / 0x10000].as_mut();
+    fn get_page(&mut self, addr: u32) -> &RefCell<[u8; PAGE_SIZE]> {
+        let page_address = addr & !PAGE_MASK;
+        let page_data = self.pages[page_address as usize / PAGE_SIZE].as_mut();
 
         if let Some(x) = page_data {
             x
@@ -163,7 +167,7 @@ impl Armv4tEmuMemory {
 
 impl Memory for Armv4tEmuMemory {
     fn r8(&mut self, addr: u32) -> u8 {
-        let offset = addr & 0xffff;
+        let offset = addr & PAGE_MASK;
 
         let data = self.get_page(addr).borrow();
 
@@ -171,7 +175,7 @@ impl Memory for Armv4tEmuMemory {
     }
 
     fn r16(&mut self, addr: u32) -> u16 {
-        let offset = addr & 0xffff;
+        let offset = addr & PAGE_MASK;
 
         let data = self.get_page(addr).borrow();
 
@@ -179,7 +183,7 @@ impl Memory for Armv4tEmuMemory {
     }
 
     fn r32(&mut self, addr: u32) -> u32 {
-        let offset = addr & 0xffff;
+        let offset = addr & PAGE_MASK;
 
         let data = self.get_page(addr).borrow();
         (data[offset as usize] as u32)
@@ -189,7 +193,7 @@ impl Memory for Armv4tEmuMemory {
     }
 
     fn w8(&mut self, addr: u32, val: u8) {
-        let offset = addr & 0xffff;
+        let offset = addr & PAGE_MASK;
 
         let mut data = self.get_page(addr).borrow_mut();
 
@@ -197,7 +201,7 @@ impl Memory for Armv4tEmuMemory {
     }
 
     fn w16(&mut self, addr: u32, val: u16) {
-        let offset = addr & 0xffff;
+        let offset = addr & PAGE_MASK;
 
         let mut data = self.get_page(addr).borrow_mut();
 
@@ -206,7 +210,7 @@ impl Memory for Armv4tEmuMemory {
     }
 
     fn w32(&mut self, addr: u32, val: u32) {
-        let offset = addr & 0xffff;
+        let offset = addr & PAGE_MASK;
 
         let mut data = self.get_page(addr).borrow_mut();
 
