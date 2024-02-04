@@ -5,6 +5,10 @@ use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
 use image::io::Reader as ImageReader;
 use num_traits::{Num, Zero};
 
+lazy_static::lazy_static! {
+    static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
+}
+
 #[derive(Clone, Copy)]
 pub struct Color {
     pub a: u8,
@@ -296,8 +300,7 @@ where
     }
 
     fn draw_text(&mut self, string: &str, x: u32, y: u32) {
-        let font = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
-        let font = font.as_scaled(font.pt_to_px_scale(10.0).unwrap());
+        let font = FONT.as_scaled(FONT.pt_to_px_scale(10.0).unwrap());
 
         let mut position = 0.0;
         for c in string.chars() {
