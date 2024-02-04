@@ -9,6 +9,12 @@ lazy_static::lazy_static! {
     static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
 }
 
+pub enum TextAlignment {
+    Left,
+    Center,
+    Right,
+}
+
 #[derive(Clone, Copy)]
 pub struct Color {
     pub a: u8,
@@ -36,7 +42,7 @@ pub trait Canvas {
     #[allow(clippy::too_many_arguments)]
     fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
-    fn draw_text(&mut self, string: &str, x: u32, y: u32);
+    fn draw_text(&mut self, string: &str, x: u32, y: u32, text_alignment: TextAlignment);
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
     fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
@@ -301,8 +307,15 @@ where
         }
     }
 
-    fn draw_text(&mut self, string: &str, x: u32, y: u32) {
+    fn draw_text(&mut self, string: &str, x: u32, y: u32, text_alignment: TextAlignment) {
         let font = FONT.as_scaled(FONT.pt_to_px_scale(10.0).unwrap());
+
+        let total_width = string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>();
+        let x = match text_alignment {
+            TextAlignment::Left => x,
+            TextAlignment::Center => x - (total_width / 2.0) as u32,
+            TextAlignment::Right => x - total_width as u32,
+        };
 
         let mut position = 0.0;
         for c in string.chars() {
