@@ -8,6 +8,8 @@ Emulator for old mobile apps based on WIPI, SKVM or J2ME.
 
 ## Status
 
+[Compatibility](https://github.com/dlunch/wie/wiki/Compatibility)
+
 ### WIPI
 
 - KTF apps: Some apps are working.
