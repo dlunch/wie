@@ -6,18 +6,9 @@ Emulator for old mobile apps based on WIPI, SKVM or J2ME.
 
 [https://wie.dlunch.net](https://wie.dlunch.net)
 
-## Status
+## Compatibility
 
 [Compatibility](https://github.com/dlunch/wie/wiki/Compatibility)
-
-### WIPI
-
-- KTF apps: Some apps are working.
-- LGT apps: Not working.
-
-### SKVM, J2ME
-
-Can load app, but not working.
 
 ## Screenshot
 
