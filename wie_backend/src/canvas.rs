@@ -275,27 +275,29 @@ where
         }
     }
 
-    // TODO change it to bresenham's or something..
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
-        let dx = ((x2 + 1) as f32) - (x1 as f32);
-        let dy = ((y2 + 1) as f32) - (y1 as f32);
+        // bresenham's line drawing
+        let dx = (x2 as i32 - x1 as i32).abs();
+        let dy = (y2 as i32 - y1 as i32).abs();
+        let sx = if x1 < x2 { 1i32 } else { -1 };
+        let sy = if y1 < y2 { 1i32 } else { -1 };
+        let mut err = dx - dy;
 
-        let mut x = x1 as f32;
-        let mut y = y1 as f32;
+        let mut x = x1 as i32;
+        let mut y = y1 as i32;
 
-        let step = dx.abs().max(dy.abs());
+        while x != x2 as i32 || y != y2 as i32 {
+            self.blend_pixel(x as _, y as _, color);
 
-        let dx = dx / step;
-        let dy = dy / step;
-
-        for _ in 0..step as u32 {
-            if x >= self.image_buffer.width() as f32 || y >= self.image_buffer.height() as f32 {
-                continue;
+            let e2 = 2 * err;
+            if e2 > -dy {
+                err -= dy;
+                x += sx;
             }
-            self.put_pixel(x as u32, y as u32, color);
-
-            x += dx;
-            y += dy;
+            if e2 < dx {
+                err += dx;
+                y += sy;
+            }
         }
     }
 
