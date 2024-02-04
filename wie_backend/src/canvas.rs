@@ -319,6 +319,10 @@ where
 
         let mut position = 0.0;
         for c in string.chars() {
+            if c.is_control() {
+                continue;
+            }
+
             let glyph = font.scaled_glyph(c);
             let h_advance = font.h_advance(glyph.id);
 
