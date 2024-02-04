@@ -1,5 +1,6 @@
 use core::mem::size_of;
 
+use ab_glyph::{Font, FontRef, ScaleFont};
 use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
 use image::io::Reader as ImageReader;
 use num_traits::{Num, Zero};
@@ -219,6 +220,20 @@ where
     pub fn into_inner(self) -> T {
         self.image_buffer
     }
+
+    fn blend_pixel(&mut self, x: u32, y: u32, color: Color) {
+        let bg = self.image_buffer.get_pixel(x, y);
+        let factor = color.a as f32 / 255.0;
+
+        let computed_color = Color {
+            a: 0xff,
+            r: (color.r as f32 * factor + bg.r as f32 * (1.0 - factor)) as u8,
+            g: (color.g as f32 * factor + bg.g as f32 * (1.0 - factor)) as u8,
+            b: (color.b as f32 * factor + bg.b as f32 * (1.0 - factor)) as u8,
+        };
+
+        self.put_pixel(x, y, computed_color);
+    }
 }
 
 impl<T> Canvas for ImageBufferCanvas<T>
@@ -276,33 +291,31 @@ where
     }
 
     fn draw_text(&mut self, string: &str, x: u32, y: u32) {
-        // TODO can we draw directly on canvas? without it AA blending looks horrible..
-        use piet::{ImageFormat, RenderContext, Text, TextLayout, TextLayoutBuilder};
-        use piet_common::Device;
+        let font = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
+        let font = font.as_scaled(font.pt_to_px_scale(10.0).unwrap());
 
-        let mut device = Device::new().unwrap();
-        let mut bitmap_target = device
-            .bitmap_target(self.image_buffer.width() as _, self.image_buffer.height() as _, 1.0)
-            .unwrap();
-        let mut context = bitmap_target.render_context();
+        let mut position = 0.0;
+        for c in string.chars() {
+            let glyph = font.scaled_glyph(c);
+            let h_advance = font.h_advance(glyph.id);
 
-        let text_layout = context.text().new_text_layout(string.to_owned()).build().unwrap();
-        let bound = text_layout.image_bounds();
+            if let Some(outlined_glyph) = font.outline_glyph(glyph) {
+                outlined_glyph.draw(|glyph_x: u32, glyph_y, c| {
+                    self.blend_pixel(
+                        x + (glyph_x as f32 + position) as u32,
+                        y + glyph_y,
+                        Color {
+                            a: (c * 255.0) as u8,
+                            r: 0,
+                            g: 0,
+                            b: 0,
+                        },
+                    )
+                });
+            }
 
-        context.draw_text(&text_layout, (0.0, 0.0));
-
-        context.finish().unwrap();
-        drop(context);
-
-        let image_buf = bitmap_target.to_image_buf(ImageFormat::RgbaPremul).unwrap();
-
-        let image = VecImageBuffer::<ArgbPixel>::from_raw(
-            image_buf.width() as _,
-            image_buf.height() as _,
-            cast_slice(image_buf.raw_pixels()).to_vec(),
-        );
-
-        self.draw(x, y, bound.width() as _, bound.height() as _, &image, 0, 0);
+            position += h_advance;
+        }
     }
 
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
