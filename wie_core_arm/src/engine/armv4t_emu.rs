@@ -216,3 +216,71 @@ impl Memory for Armv4tEmuMemory {
         data[offset as usize + 3] = (val >> 24) as u8;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+    use armv4t_emu::Memory;
+
+    use super::Armv4tEmuMemory;
+
+    #[test]
+    fn test_memory_basic() {
+        let mut memory = Armv4tEmuMemory::new();
+
+        memory.map(0x10000, 0x1000);
+        memory.map(0x11000, 0x1000);
+        memory.map(0x20000, 0x10000);
+
+        memory.write_range(0x10000, &[123; 0x1000]);
+
+        let data = memory.read_range(0x10000, 0x1000);
+        assert_eq!(data, vec![123; 0x1000]);
+
+        memory.write_range(0x10900, &[100; 0x1000]);
+
+        let data = memory.read_range(0x10900, 0x1000);
+        assert_eq!(data, vec![100; 0x1000]);
+
+        let r8 = memory.r8(0x10000);
+        assert_eq!(r8, 123);
+
+        let r16 = memory.r16(0x10000);
+        assert_eq!(r16, 123 | (123 << 8));
+
+        let r32 = memory.r32(0x10000);
+        assert_eq!(r32, 123 | (123 << 8) | (123 << 16) | (123 << 24));
+
+        memory.w8(0x10000, 12);
+        let r8 = memory.r8(0x10000);
+        assert_eq!(r8, 12);
+
+        memory.w16(0x10000, 0x1234);
+        let r16 = memory.r16(0x10000);
+        assert_eq!(r16, 0x1234);
+
+        memory.w32(0x10000, 0x12345678);
+        let r32 = memory.r32(0x10000);
+        assert_eq!(r32, 0x12345678);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_memory_unmapped_read() {
+        let mut memory = Armv4tEmuMemory::new();
+
+        memory.map(0x10000, 0x10000);
+
+        memory.read_range(0x1f500, 0x1000);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_memory_unmapped_write() {
+        let mut memory = Armv4tEmuMemory::new();
+
+        memory.map(0x10000, 0x10000);
+
+        memory.write_range(0x1f500, &[12; 0x1000]);
+    }
+}
