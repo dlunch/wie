@@ -255,13 +255,7 @@ where
                     continue;
                 }
 
-                let color = src.get_pixel(sx + x, sy + y);
-
-                if color.a == 0 {
-                    continue; // TODO alpha blending
-                }
-
-                self.put_pixel(dx + x, dy + y, color);
+                self.blend_pixel(dx + x, dy + y, src.get_pixel(sx + x, sy + y));
             }
         }
     }
