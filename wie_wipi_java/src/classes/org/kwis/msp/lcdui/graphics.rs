@@ -3,7 +3,7 @@ use alloc::{format, vec, vec::Vec};
 use bytemuck::cast_vec;
 use jvm::{runtime::JavaLangString, JavaValue};
 
-use wie_backend::canvas::{PixelType, Rgb8Pixel, VecImageBuffer};
+use wie_backend::canvas::{PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult, TypeConverter};
 use java_runtime::classes::java::lang::String;
@@ -257,7 +257,15 @@ impl Graphics {
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image)?;
 
-        canvas.draw_text(&rust_string, x as _, y as _);
+        let alignment = if anchor.contains(Anchor::HCENTER) {
+            TextAlignment::Center
+        } else if anchor.contains(Anchor::RIGHT) {
+            TextAlignment::Right
+        } else {
+            TextAlignment::Left
+        };
+
+        canvas.draw_text(&rust_string, x as _, y as _, alignment);
 
         Ok(())
     }
