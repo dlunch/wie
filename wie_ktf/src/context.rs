@@ -1,6 +1,6 @@
 use alloc::rc::Rc;
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 
 use jvm::Jvm;
 
@@ -19,7 +19,7 @@ pub trait KtfContextExt {
     fn set_jvm(&mut self, jvm: Jvm);
 }
 
-impl KtfContextExt for SystemHandle {
+impl KtfContextExt for System {
     fn jvm(&mut self) -> Rc<Jvm> {
         let context = self.context();
         let context = (*context).downcast_ref::<KtfContext>().unwrap();

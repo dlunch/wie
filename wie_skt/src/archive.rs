@@ -56,7 +56,7 @@ impl Archive for SktArchive {
         let system = System::new(platform, Box::new(()));
 
         for (filename, data) in self.additional_files {
-            system.handle().resource_mut().add(&filename, data)
+            system.resource_mut().add(&filename, data)
         }
 
         Ok(Box::new(SktApp::new(&self.main_class_name, self.jar, system)?))

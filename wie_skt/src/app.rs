@@ -3,7 +3,7 @@ use alloc::{
     vec::Vec,
 };
 
-use wie_backend::{App, System, SystemHandle};
+use wie_backend::{App, System};
 use wie_common::Event;
 use wie_core_jvm::JvmCore;
 
@@ -23,7 +23,7 @@ impl SktApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(system: &mut SystemHandle, jar: Vec<u8>, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(system: &mut System, jar: Vec<u8>, main_class_name: String) -> anyhow::Result<()> {
         let core = JvmCore::new(system).await?;
         core.add_jar(&jar).await?;
 
@@ -49,20 +49,19 @@ impl SktApp {
 
 impl App for SktApp {
     fn start(&mut self) -> anyhow::Result<()> {
-        let mut system_handle = self.system.handle();
+        let mut system = self.system.clone();
 
         let jar = self.jar.clone();
         let main_class_name = self.main_class_name.clone();
 
         self.system
-            .handle()
-            .spawn(move || async move { Self::do_start(&mut system_handle, jar, main_class_name).await });
+            .spawn(move || async move { Self::do_start(&mut system, jar, main_class_name).await });
 
         Ok(())
     }
 
     fn on_event(&mut self, event: Event) {
-        self.system.handle().event_queue().push(event)
+        self.system.event_queue().push(event)
     }
 
     fn tick(&mut self) -> anyhow::Result<()> {

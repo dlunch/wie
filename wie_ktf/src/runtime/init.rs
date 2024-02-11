@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 use wie_common::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore};
 
@@ -129,7 +129,7 @@ pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> anyhow
     core.run_function(image_base + 1, &[bss_size]).await
 }
 
-pub async fn init(core: &mut ArmCore, system: &mut SystemHandle, wipi_exe: u32) -> anyhow::Result<u32> {
+pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> anyhow::Result<u32> {
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
@@ -213,7 +213,7 @@ pub async fn init(core: &mut ArmCore, system: &mut SystemHandle, wipi_exe: u32) 
     Ok(wipi_exe.fn_init)
 }
 
-async fn get_interface(core: &mut ArmCore, system: &mut SystemHandle, r#struct: String) -> anyhow::Result<u32> {
+async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String) -> anyhow::Result<u32> {
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
@@ -227,7 +227,7 @@ async fn get_interface(core: &mut ArmCore, system: &mut SystemHandle, r#struct: 
     }
 }
 
-async fn alloc(core: &mut ArmCore, _: &mut SystemHandle, a0: u32) -> anyhow::Result<u32> {
+async fn alloc(core: &mut ArmCore, _: &mut System, a0: u32) -> anyhow::Result<u32> {
     tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)

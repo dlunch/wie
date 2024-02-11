@@ -2,7 +2,7 @@ use alloc::string::{String, ToString};
 
 use anyhow::Context;
 
-use wie_backend::{App, System, SystemHandle};
+use wie_backend::{App, System};
 use wie_common::Event;
 use wie_core_arm::{Allocator, ArmCore};
 
@@ -19,17 +19,17 @@ pub struct KtfApp {
 
 impl KtfApp {
     pub fn new(main_class_name: &str, system: System) -> anyhow::Result<Self> {
-        let system_handle = system.handle();
-
-        let mut core = ArmCore::new(system_handle.clone())?;
+        let mut core = ArmCore::new(system.clone())?;
 
         Allocator::init(&mut core)?;
 
-        let resource = system_handle.resource();
-        let filename = resource.files().find(|x| x.starts_with("client.bin")).context("Invalid archive")?;
-        let data = resource.data(resource.id(filename).context("Resource not found")?);
+        let bss_size = {
+            let resource = system.resource();
+            let filename = resource.files().find(|x| x.starts_with("client.bin")).context("Invalid archive")?;
+            let data = resource.data(resource.id(filename).context("Resource not found")?);
 
-        let bss_size = Self::load(&mut core, data, filename)?;
+            Self::load(&mut core, data, filename)?
+        };
 
         Ok(Self {
             core,
@@ -40,7 +40,7 @@ impl KtfApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, system: &mut SystemHandle, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, system: &mut System, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
         // we should reverse the order of initialization
         // jvm should go first, and we load client.bin from jvm classloader on init
 
@@ -82,19 +82,19 @@ impl KtfApp {
 impl App for KtfApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
-        let mut system_handle = self.system.handle();
+        let mut system = self.system.clone();
 
         let bss_size = self.bss_size;
         let main_class_name = self.main_class_name.clone();
 
         self.core
-            .spawn(move || async move { Self::do_start(&mut core, &mut system_handle, bss_size, main_class_name).await });
+            .spawn(move || async move { Self::do_start(&mut core, &mut system, bss_size, main_class_name).await });
 
         Ok(())
     }
 
     fn on_event(&mut self, event: Event) {
-        self.system.handle().event_queue().push(event)
+        self.system.event_queue().push(event)
     }
 
     fn tick(&mut self) -> anyhow::Result<()> {

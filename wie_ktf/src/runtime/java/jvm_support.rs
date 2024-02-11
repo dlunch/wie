@@ -14,7 +14,7 @@ mod vtable_builder;
 use alloc::{boxed::Box, rc::Rc, string::ToString};
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 use wie_common::util::write_generic;
 use wie_core_arm::{ArmCore, PEB_BASE};
 
@@ -53,7 +53,7 @@ pub struct KtfJvmSupport;
 impl KtfJvmSupport {
     pub async fn init(
         core: &mut ArmCore,
-        system: &mut SystemHandle,
+        system: &mut System,
         ptr_vtables_base: u32,
         fn_get_class: u32,
         ptr_current_java_exception_handler: u32,
@@ -114,7 +114,7 @@ impl KtfJvmSupport {
         #[derive(Clone)]
         struct ClassLoaderContext {
             core: ArmCore,
-            system: SystemHandle,
+            system: System,
         }
 
         impl ClassLoaderContextBase for ClassLoaderContext {
@@ -122,7 +122,7 @@ impl KtfJvmSupport {
                 &mut self.core
             }
 
-            fn system(&self) -> &SystemHandle {
+            fn system(&self) -> &System {
                 &self.system
             }
         }
@@ -187,14 +187,14 @@ mod test {
 
     use jvm::{runtime::JavaLangString, Jvm};
 
-    use wie_backend::{System, SystemHandle};
+    use wie_backend::System;
     use wie_core_arm::{Allocator, ArmCore};
 
     use crate::{context::KtfContext, runtime::java::jvm_support::KtfJvmSupport};
 
     use test_utils::TestPlatform;
 
-    async fn init_jvm(system: &mut SystemHandle) -> anyhow::Result<Rc<Jvm>> {
+    async fn init_jvm(system: &mut System) -> anyhow::Result<Rc<Jvm>> {
         let mut core = ArmCore::new(system.clone())?;
         Allocator::init(&mut core)?;
 
@@ -211,7 +211,7 @@ mod test {
 
     #[futures_test::test]
     async fn test_jvm_support() -> anyhow::Result<()> {
-        let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new())).handle();
+        let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new()));
         let jvm = init_jvm(&mut system).await?;
 
         let string1 = JavaLangString::from_rust_string(&jvm, "test1").await?;

@@ -11,7 +11,7 @@ use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
 
@@ -150,7 +150,7 @@ impl JavaMethod {
             C: ?Sized,
             Context: Deref<Target = C> + DerefMut + Clone + 'static,
         {
-            async fn call(&self, core: &mut ArmCore, system: &mut SystemHandle) -> Result<u32, ArmEngineError> {
+            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmEngineError> {
                 let param_count = self.parameter_types.len() as u32;
 
                 let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {

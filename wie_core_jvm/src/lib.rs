@@ -11,7 +11,7 @@ use java_runtime::{classes::java::lang::String as JavaString, Runtime};
 use jvm::{ClassInstanceRef, Jvm, JvmCallback, JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
-use wie_backend::{AsyncCallable, SystemHandle};
+use wie_backend::{AsyncCallable, System};
 use wie_wipi_java::WIPIJavaContextBase;
 
 pub type JvmCoreResult<T> = anyhow::Result<T>;
@@ -19,7 +19,7 @@ pub type JvmCoreResult<T> = anyhow::Result<T>;
 // TODO i think we can merge runtime implementation across platforms..
 #[derive(Clone)]
 struct JvmCoreRuntime {
-    system: SystemHandle,
+    system: System,
     jvm: Rc<Jvm>,
 }
 
@@ -80,7 +80,7 @@ pub struct JvmCore {
 }
 
 impl JvmCore {
-    pub async fn new(system: &SystemHandle) -> JvmResult<Self> {
+    pub async fn new(system: &System) -> JvmResult<Self> {
         let jvm = Rc::new(Jvm::new(JvmDetailImpl).await?);
 
         let context: Box<dyn Runtime> = Box::new(JvmCoreRuntime {
@@ -125,18 +125,18 @@ impl JvmCore {
 
 #[derive(Clone)]
 struct JvmCoreContext {
-    system: SystemHandle,
+    system: System,
     jvm: Rc<Jvm>,
 }
 
 impl WIPIJavaContextBase for JvmCoreContext {
-    fn system(&mut self) -> &mut SystemHandle {
+    fn system(&mut self) -> &mut System {
         &mut self.system
     }
 
     fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
         struct SpawnProxy {
-            system: SystemHandle,
+            system: System,
             jvm: Rc<Jvm>,
             callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>,
         }
