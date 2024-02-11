@@ -36,6 +36,7 @@ use self::{
 
 pub type KtfJvmWord = u32;
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct JavaExceptionHandler {

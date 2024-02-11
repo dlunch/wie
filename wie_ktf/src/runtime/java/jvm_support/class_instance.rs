@@ -21,6 +21,7 @@ struct RawJavaClassInstance {
     ptr_class: u32,
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct RawJavaClassInstanceFields {
