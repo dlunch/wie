@@ -3,8 +3,7 @@ use alloc::{vec, vec::Vec};
 use java_class_proto::{JavaMethodProto, JavaResult};
 use jvm::{Array, ClassInstanceRef, Jvm};
 
-use wie_backend::Event;
-use wie_common::KeyCode;
+use wie_backend::{Event, KeyCode};
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},

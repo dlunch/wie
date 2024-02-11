@@ -18,7 +18,7 @@ use crate::{
 
 use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
 
-pub use self::event_queue::Event;
+pub use self::event_queue::{Event, KeyCode};
 
 #[derive(Clone)]
 pub struct System {

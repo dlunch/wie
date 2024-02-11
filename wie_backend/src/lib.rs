@@ -16,7 +16,7 @@ pub use self::{
     executor::AsyncCallable,
     platform::Platform,
     screen::Screen,
-    system::{Event, System},
+    system::{Event, KeyCode, System},
     time::Instant,
 };
 
