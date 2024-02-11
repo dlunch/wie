@@ -1,4 +1,4 @@
-use wie_backend::SystemHandle;
+use wie_backend::System;
 use wie_common::util::{ByteRead, ByteWrite};
 use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
@@ -49,7 +49,7 @@ impl WIPICContext for TestContext {
         todo!()
     }
 
-    fn system(&mut self) -> &mut SystemHandle {
+    fn system(&mut self) -> &mut System {
         todo!()
     }
 

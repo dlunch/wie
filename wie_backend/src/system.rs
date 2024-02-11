@@ -19,18 +19,15 @@ use crate::{
 
 use self::{audio::Audio, event_queue::EventQueue, random::Random, resource::Resource};
 
-pub struct SystemInner {
-    platform: Box<dyn Platform>,
-    resource: Resource,
-    event_queue: EventQueue,
-    audio: Audio,
-    random: Random,
-    context: Box<dyn Any>,
-}
-
+#[derive(Clone)]
 pub struct System {
     executor: Executor,
-    inner: Rc<RefCell<SystemInner>>,
+    platform: Rc<RefCell<Box<dyn Platform>>>,
+    resource: Rc<RefCell<Resource>>,
+    event_queue: Rc<RefCell<EventQueue>>,
+    audio: Rc<RefCell<Audio>>,
+    random: Rc<RefCell<Random>>,
+    context: Rc<RefCell<Box<dyn Any>>>,
 }
 
 impl System {
@@ -40,41 +37,24 @@ impl System {
 
         Self {
             executor: Executor::new(),
-            inner: Rc::new(RefCell::new(SystemInner {
-                platform,
-                resource: Resource::new(),
-                event_queue: EventQueue::new(),
-                audio: Audio::new(audio_sink),
-                random: Random::new(seed),
-                context,
-            })),
+            platform: Rc::new(RefCell::new(platform)),
+            resource: Rc::new(RefCell::new(Resource::new())),
+            event_queue: Rc::new(RefCell::new(EventQueue::new())),
+            audio: Rc::new(RefCell::new(Audio::new(audio_sink))),
+            random: Rc::new(RefCell::new(Random::new(seed))),
+            context: Rc::new(RefCell::new(context)),
         }
     }
 
     pub fn tick(&mut self) -> anyhow::Result<()> {
-        let inner = self.inner.clone();
+        let platform = self.platform.clone();
         self.executor.tick(move || {
-            let inner = inner.borrow();
+            let platform = platform.borrow();
 
-            inner.platform.now()
+            platform.now()
         })
     }
 
-    pub fn handle(&self) -> SystemHandle {
-        SystemHandle {
-            executor: self.executor.clone(),
-            system_inner: self.inner.clone(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct SystemHandle {
-    executor: Executor,
-    system_inner: Rc<RefCell<SystemInner>>,
-}
-
-impl SystemHandle {
     pub fn spawn<C, R, E>(&mut self, callable: C)
     where
         C: AsyncCallable<R, E> + 'static,
@@ -105,30 +85,30 @@ impl SystemHandle {
     }
 
     pub fn resource(&self) -> Ref<'_, Resource> {
-        Ref::map(self.system_inner.borrow(), |s| &s.resource)
+        self.resource.borrow()
     }
 
     pub fn resource_mut(&self) -> RefMut<'_, Resource> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.resource)
+        self.resource.borrow_mut()
     }
 
     pub fn platform(&self) -> RefMut<'_, Box<dyn Platform>> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.platform)
+        self.platform.borrow_mut()
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.audio)
+        self.audio.borrow_mut()
     }
 
     pub fn event_queue(&self) -> RefMut<'_, EventQueue> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.event_queue)
+        self.event_queue.borrow_mut()
     }
 
     pub fn random(&self) -> RefMut<'_, Random> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.random)
+        self.random.borrow_mut()
     }
 
     pub fn context(&self) -> RefMut<'_, Box<dyn Any>> {
-        RefMut::map(self.system_inner.borrow_mut(), |s| &mut s.context)
+        self.context.borrow_mut()
     }
 }

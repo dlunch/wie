@@ -4,10 +4,10 @@ use dyn_clone::{clone_trait_object, DynClone};
 
 use java_class_proto::{JavaClassProto, JavaResult, MethodBody};
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 
 pub trait WIPIJavaContextBase: DynClone {
-    fn system(&mut self) -> &mut SystemHandle;
+    fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, WIPIJavaContext>>) -> JavaResult<()>;
 }
 
@@ -22,7 +22,7 @@ pub mod test {
 
     use java_class_proto::{JavaResult, MethodBody};
 
-    use wie_backend::SystemHandle;
+    use wie_backend::System;
 
     use crate::context::WIPIJavaContextBase;
 
@@ -30,7 +30,7 @@ pub mod test {
     pub struct DummyContext;
 
     impl WIPIJavaContextBase for DummyContext {
-        fn system(&mut self) -> &mut SystemHandle {
+        fn system(&mut self) -> &mut System {
             todo!()
         }
 

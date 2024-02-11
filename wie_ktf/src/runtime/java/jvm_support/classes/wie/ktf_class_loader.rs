@@ -11,7 +11,7 @@ use java_runtime::classes::java::{
 };
 use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm};
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
 
@@ -19,7 +19,7 @@ use crate::runtime::java::jvm_support::{class_definition::JavaClassDefinition, c
 
 pub trait ClassLoaderContextBase: DynClone {
     fn core(&mut self) -> &mut ArmCore;
-    fn system(&self) -> &SystemHandle;
+    fn system(&self) -> &System;
 }
 
 clone_trait_object!(ClassLoaderContextBase);

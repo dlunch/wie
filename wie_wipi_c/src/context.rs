@@ -2,7 +2,7 @@ use alloc::{boxed::Box, string::String};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::SystemHandle;
+use wie_backend::System;
 use wie_common::util::{read_null_terminated_string, ByteRead, ByteWrite};
 
 use crate::method::{MethodBody, TypeConverter};
@@ -25,7 +25,7 @@ pub trait WIPICContext: ByteRead + ByteWrite {
     fn data_ptr(&self, memory: WIPICMemoryId) -> WIPICResult<WIPICWord>;
     fn register_function(&mut self, method: WIPICMethodBody) -> WIPICResult<WIPICWord>;
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord>;
-    fn system(&mut self) -> &mut SystemHandle;
+    fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()>;
 }
 

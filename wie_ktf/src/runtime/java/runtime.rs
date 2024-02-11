@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
 use core::time::Duration;
 
-use wie_backend::{AsyncCallable, SystemHandle};
+use wie_backend::{AsyncCallable, System};
 use wie_core_arm::ArmCore;
 
 use java_runtime::Runtime;
@@ -10,12 +10,12 @@ use jvm::{Jvm, JvmCallback};
 #[derive(Clone)]
 pub struct KtfRuntime {
     core: ArmCore,
-    system: SystemHandle,
+    system: System,
     jvm: Rc<Jvm>,
 }
 
 impl KtfRuntime {
-    pub fn new(core: &mut ArmCore, system: &mut SystemHandle, jvm: Rc<Jvm>) -> Self {
+    pub fn new(core: &mut ArmCore, system: &mut System, jvm: Rc<Jvm>) -> Self {
         Self {
             core: core.clone(),
             system: system.clone(),

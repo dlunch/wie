@@ -3,7 +3,7 @@ use alloc::string::String;
 use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
-use wie_backend::{App, System, SystemHandle};
+use wie_backend::{App, System};
 use wie_common::Event;
 use wie_core_arm::{Allocator, ArmCore};
 
@@ -16,16 +16,16 @@ pub struct LgtApp {
 
 impl LgtApp {
     pub fn new(main_class_name: &str, system: System) -> anyhow::Result<Self> {
-        let system_handle = system.handle();
-
-        let mut core = ArmCore::new(system_handle.clone())?;
+        let mut core = ArmCore::new(system.clone())?;
 
         Allocator::init(&mut core)?;
 
-        let resource = system_handle.resource();
-        let data = resource.data(resource.id("binary.mod").context("Resource not found")?);
+        let entrypoint = {
+            let resource = system.resource();
+            let data = resource.data(resource.id("binary.mod").context("Resource not found")?);
 
-        let entrypoint = Self::load(&mut core, data)?;
+            Self::load(&mut core, data)?
+        };
 
         let main_class_name = main_class_name.replace('.', "/");
 
@@ -38,7 +38,7 @@ impl LgtApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, _system: &mut SystemHandle, entrypoint: u32, _main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: String) -> anyhow::Result<()> {
         core.run_function(entrypoint + 1, &[]).await?;
 
         anyhow::bail!("Not yet implemented")
@@ -79,19 +79,19 @@ impl LgtApp {
 impl App for LgtApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
-        let mut system_handle = self.system.handle();
+        let mut system = self.system.clone();
 
         let entrypoint = self.entrypoint;
         let main_class_name = self.main_class_name.clone();
 
         self.core
-            .spawn(move || async move { Self::do_start(&mut core, &mut system_handle, entrypoint, main_class_name).await });
+            .spawn(move || async move { Self::do_start(&mut core, &mut system, entrypoint, main_class_name).await });
 
         Ok(())
     }
 
     fn on_event(&mut self, event: Event) {
-        self.system.handle().event_queue().push(event)
+        self.system.event_queue().push(event)
     }
 
     fn tick(&mut self) -> anyhow::Result<()> {

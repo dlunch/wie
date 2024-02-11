@@ -3,19 +3,19 @@ use alloc::{boxed::Box, rc::Rc};
 use java_class_proto::MethodBody;
 use jvm::{Jvm, JvmResult};
 
-use wie_backend::{AsyncCallable, SystemHandle};
+use wie_backend::{AsyncCallable, System};
 use wie_core_arm::ArmCore;
 use wie_wipi_java::WIPIJavaContextBase;
 
 #[derive(Clone)]
 pub struct KtfWIPIJavaContext {
     core: ArmCore,
-    system: SystemHandle,
+    system: System,
     jvm: Rc<Jvm>,
 }
 
 impl KtfWIPIJavaContext {
-    pub fn new(core: &ArmCore, system: &SystemHandle, jvm: Rc<Jvm>) -> Self {
+    pub fn new(core: &ArmCore, system: &System, jvm: Rc<Jvm>) -> Self {
         Self {
             core: core.clone(),
             system: system.clone(),
@@ -26,14 +26,14 @@ impl KtfWIPIJavaContext {
 
 #[async_trait::async_trait(?Send)]
 impl WIPIJavaContextBase for KtfWIPIJavaContext {
-    fn system(&mut self) -> &mut SystemHandle {
+    fn system(&mut self) -> &mut System {
         &mut self.system
     }
 
     fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
         struct SpawnProxy {
             core: ArmCore,
-            system: SystemHandle,
+            system: System,
             jvm: Rc<Jvm>,
             callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>,
         }

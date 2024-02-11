@@ -49,11 +49,11 @@ impl Archive for KtfArchive {
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform, Box::new(KtfContext::new()));
 
-        system.handle().resource_mut().mount_zip(&self.jar)?;
+        system.resource_mut().mount_zip(&self.jar)?;
 
         for (path, data) in self.additional_files {
             let path = path.trim_start_matches("P/");
-            system.handle().resource_mut().add(path, data.clone());
+            system.resource_mut().add(path, data.clone());
         }
 
         Ok(Box::new(KtfApp::new(&self.main_class_name, system)?))
