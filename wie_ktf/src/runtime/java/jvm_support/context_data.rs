@@ -4,8 +4,8 @@ use bytemuck::{Pod, Zeroable};
 
 use jvm::JvmResult;
 
-use wie_common::util::{read_generic, read_null_terminated_table, write_generic};
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
+use wie_util::{read_generic, read_null_terminated_table, write_generic};
 
 use crate::runtime::KtfPeb;
 

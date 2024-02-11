@@ -13,7 +13,7 @@ tracing = { workspace = true }
 armv4t_emu = { version = "^0.1" }
 
 wie_backend = { workspace = true }
-wie_common = { workspace = true }
+wie_util = { workspace = true }
 
 [dev-dependencies]
 test_utils = { workspace = true }

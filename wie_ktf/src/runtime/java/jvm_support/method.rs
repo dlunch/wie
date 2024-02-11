@@ -12,8 +12,8 @@ use java_constants::MethodAccessFlags;
 use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
 
 use wie_backend::System;
-use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
+use wie_util::{read_generic, write_generic, ByteWrite};
 
 use crate::context::KtfContextExt;
 

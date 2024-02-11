@@ -4,8 +4,8 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_common::util::{read_generic, write_generic};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{read_generic, write_generic};
 
 use crate::runtime::{
     java::{

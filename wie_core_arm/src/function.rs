@@ -2,7 +2,7 @@ use alloc::{boxed::Box, string::String};
 use core::{fmt::Debug, future::Future, marker::PhantomData};
 
 use wie_backend::System;
-use wie_common::util::read_null_terminated_string;
+use wie_util::read_null_terminated_string;
 
 use crate::{engine::ArmEngineResult, ArmCore};
 

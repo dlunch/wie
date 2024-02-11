@@ -10,8 +10,8 @@ use java_class_proto::JavaFieldProto;
 use java_constants::FieldAccessFlags;
 use jvm::{Field, JavaType, JvmResult};
 
-use wie_common::util::{read_generic, write_generic, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{read_generic, write_generic, ByteWrite};
 
 use super::name::JavaFullName;
 

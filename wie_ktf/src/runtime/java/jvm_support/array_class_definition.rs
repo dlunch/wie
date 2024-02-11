@@ -9,8 +9,8 @@ use core::{
 
 use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, JvmResult};
 
-use wie_common::util::{write_generic, write_null_terminated_string};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{write_generic, write_null_terminated_string};
 
 use super::{
     array_class_instance::JavaArrayClassInstance,

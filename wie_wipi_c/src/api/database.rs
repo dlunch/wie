@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::Database;
-use wie_common::util::{read_generic, write_generic};
+use wie_util::{read_generic, write_generic};
 
 use crate::{
     context::{WIPICContext, WIPICMethodBody, WIPICWord},

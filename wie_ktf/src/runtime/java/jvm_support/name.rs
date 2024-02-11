@@ -3,8 +3,8 @@ use core::fmt::Display;
 
 use jvm::JvmResult;
 
-use wie_common::util::{read_generic, read_null_terminated_string};
 use wie_core_arm::ArmCore;
+use wie_util::{read_generic, read_null_terminated_string};
 
 #[derive(Clone)]
 pub struct JavaFullName {

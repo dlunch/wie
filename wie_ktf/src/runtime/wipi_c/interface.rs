@@ -4,8 +4,8 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_common::util::write_generic;
 use wie_core_arm::ArmCore;
+use wie_util::write_generic;
 use wie_wipi_c::{
     api::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,

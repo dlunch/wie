@@ -16,5 +16,4 @@ jvm = { workspace = true }
 jvm_rust = { workspace = true }
 
 wie_backend = { workspace = true }
-wie_common = { workspace = true }
 wie_wipi_java = { workspace = true }

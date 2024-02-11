@@ -11,10 +11,10 @@ use java_class_proto::JavaClassProto;
 use java_constants::FieldAccessFlags;
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, JvmResult, Method};
 
-use wie_common::util::{
+use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{
     read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
 };
-use wie_core_arm::{Allocator, ArmCore};
 
 use super::{
     class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmWord,

@@ -15,8 +15,8 @@ use alloc::{boxed::Box, rc::Rc, string::ToString};
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_common::util::write_generic;
 use wie_core_arm::{ArmCore, PEB_BASE};
+use wie_util::write_generic;
 
 use jvm::{ClassDefinition, ClassInstance, Jvm, JvmResult};
 

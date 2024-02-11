@@ -1,4 +1,4 @@
-use wie_common::util::{read_null_terminated_string, write_null_terminated_string};
+use wie_util::{read_null_terminated_string, write_null_terminated_string};
 use wie_wipi_c::{api::kernel::get_kernel_method_table, WIPICContext};
 
 mod context;

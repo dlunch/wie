@@ -9,8 +9,8 @@ use jvm::runtime::JavaLangString;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_common::util::{read_generic, write_generic, ByteRead};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{read_generic, write_generic, ByteRead};
 
 use crate::{context::KtfContextExt, runtime::java::jvm_support::KtfJvmSupport};
 
