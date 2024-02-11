@@ -14,8 +14,7 @@ use std::{
 use clap::Parser;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Event, Instant, Platform, Screen};
-use wie_common::KeyCode;
+use wie_backend::{extract_zip, Archive, Event, Instant, KeyCode, Platform, Screen};
 use wie_j2me::J2MEArchive;
 use wie_ktf::KtfArchive;
 use wie_lgt::LgtArchive;
