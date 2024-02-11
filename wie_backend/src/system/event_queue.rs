@@ -1,6 +1,13 @@
 use alloc::collections::VecDeque;
 
-use wie_common::Event;
+use wie_common::KeyCode;
+
+#[derive(Debug)]
+pub enum Event {
+    Redraw,
+    Keydown(KeyCode),
+    Keyup(KeyCode),
+}
 
 #[derive(Default)]
 pub struct EventQueue {

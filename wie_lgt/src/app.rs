@@ -3,8 +3,7 @@ use alloc::string::String;
 use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
-use wie_backend::{App, System};
-use wie_common::Event;
+use wie_backend::{App, Event, System};
 use wie_core_arm::{Allocator, ArmCore};
 
 pub struct LgtApp {

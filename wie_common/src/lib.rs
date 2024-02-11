@@ -51,10 +51,3 @@ impl KeyCode {
         }
     }
 }
-
-#[derive(Debug)]
-pub enum Event {
-    Redraw,
-    Keydown(KeyCode),
-    Keyup(KeyCode),
-}

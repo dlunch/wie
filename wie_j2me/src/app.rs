@@ -3,8 +3,7 @@ use alloc::{
     vec::Vec,
 };
 
-use wie_backend::{App, System};
-use wie_common::Event;
+use wie_backend::{App, Event, System};
 use wie_core_jvm::JvmCore;
 
 pub struct J2MEApp {
