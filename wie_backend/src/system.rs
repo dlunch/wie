@@ -25,7 +25,7 @@ pub struct System {
     platform: Rc<RefCell<Box<dyn Platform>>>,
     resource: Rc<RefCell<Resource>>,
     event_queue: Rc<RefCell<EventQueue>>,
-    audio: Rc<RefCell<Audio>>,
+    audio: Option<Rc<RefCell<Audio>>>,
     random: Rc<RefCell<Random>>,
     context: Rc<RefCell<Box<dyn Any>>>,
 }
@@ -35,15 +35,22 @@ impl System {
         let audio_sink = platform.audio_sink();
         let seed = 12341234; // TODO get seed from outside
 
-        Self {
+        let platform = Rc::new(RefCell::new(platform));
+
+        let mut result = Self {
             executor: Executor::new(),
-            platform: Rc::new(RefCell::new(platform)),
+            platform: platform.clone(),
             resource: Rc::new(RefCell::new(Resource::new())),
             event_queue: Rc::new(RefCell::new(EventQueue::new())),
-            audio: Rc::new(RefCell::new(Audio::new(audio_sink))),
+            audio: None,
             random: Rc::new(RefCell::new(Random::new(seed))),
             context: Rc::new(RefCell::new(context)),
-        }
+        };
+
+        // late initialization
+        result.audio = Some(Rc::new(RefCell::new(Audio::new(audio_sink, result.clone()))));
+
+        result
     }
 
     pub fn tick(&mut self) -> anyhow::Result<()> {
@@ -97,7 +104,7 @@ impl System {
     }
 
     pub fn audio(&self) -> RefMut<'_, Audio> {
-        self.audio.borrow_mut()
+        self.audio.as_ref().unwrap().borrow_mut()
     }
 
     pub fn event_queue(&self) -> RefMut<'_, EventQueue> {
