@@ -2,8 +2,7 @@ use alloc::string::{String, ToString};
 
 use anyhow::Context;
 
-use wie_backend::{App, System};
-use wie_common::Event;
+use wie_backend::{App, Event, System};
 use wie_core_arm::{Allocator, ArmCore};
 
 use crate::context::KtfContextExt;

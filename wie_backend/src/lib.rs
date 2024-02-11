@@ -16,7 +16,7 @@ pub use self::{
     executor::AsyncCallable,
     platform::Platform,
     screen::Screen,
-    system::System,
+    system::{Event, System},
     time::Instant,
 };
 
@@ -24,7 +24,7 @@ use alloc::{boxed::Box, collections::BTreeMap, string::String};
 
 pub trait App {
     fn start(&mut self) -> anyhow::Result<()>;
-    fn on_event(&mut self, event: wie_common::Event);
+    fn on_event(&mut self, event: Event);
     fn tick(&mut self) -> anyhow::Result<()>;
 }
 
