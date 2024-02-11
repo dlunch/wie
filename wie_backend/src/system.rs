@@ -1,6 +1,5 @@
 mod audio;
 mod event_queue;
-mod random;
 mod resource;
 
 use alloc::rc::Rc;
@@ -17,7 +16,7 @@ use crate::{
     AsyncCallable, Instant,
 };
 
-use self::{audio::Audio, event_queue::EventQueue, random::Random, resource::Resource};
+use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
 
 #[derive(Clone)]
 pub struct System {
@@ -26,14 +25,12 @@ pub struct System {
     resource: Rc<RefCell<Resource>>,
     event_queue: Rc<RefCell<EventQueue>>,
     audio: Option<Rc<RefCell<Audio>>>,
-    random: Rc<RefCell<Random>>,
     context: Rc<RefCell<Box<dyn Any>>>,
 }
 
 impl System {
     pub fn new(platform: Box<dyn Platform>, context: Box<dyn Any>) -> Self {
         let audio_sink = platform.audio_sink();
-        let seed = 12341234; // TODO get seed from outside
 
         let platform = Rc::new(RefCell::new(platform));
 
@@ -43,7 +40,6 @@ impl System {
             resource: Rc::new(RefCell::new(Resource::new())),
             event_queue: Rc::new(RefCell::new(EventQueue::new())),
             audio: None,
-            random: Rc::new(RefCell::new(Random::new(seed))),
             context: Rc::new(RefCell::new(context)),
         };
 
@@ -110,11 +106,6 @@ impl System {
     pub fn event_queue(&self) -> RefMut<'_, EventQueue> {
         self.event_queue.borrow_mut()
     }
-
-    pub fn random(&self) -> RefMut<'_, Random> {
-        self.random.borrow_mut()
-    }
-
     pub fn context(&self) -> RefMut<'_, Box<dyn Any>> {
         self.context.borrow_mut()
     }
