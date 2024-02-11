@@ -1,8 +1,8 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
 use wie_backend::{AsyncCallable, System};
-use wie_common::util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
+use wie_util::{read_generic, write_generic, ByteRead, ByteWrite};
 use wie_wipi_c::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 pub struct KtfWIPICContext<'a> {

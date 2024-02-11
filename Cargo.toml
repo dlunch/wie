@@ -4,7 +4,7 @@ resolver = "2"
 members = [
     "wie_backend",
     "wie_cli",
-    "wie_common",
+    "wie_util",
     "wie_core_arm",
     "wie_core_jvm",
     "wie_wipi_java",
@@ -52,7 +52,7 @@ jvm = { git = "https://github.com/dlunch/RustJava.git" }
 jvm_rust = { git = "https://github.com/dlunch/RustJava.git" }
 
 wie_backend = { path = "wie_backend" }
-wie_common = { path = "wie_common" }
+wie_util = { path = "wie_util" }
 wie_core_arm = { path = "wie_core_arm" }
 wie_core_jvm = { path = "wie_core_jvm" }
 wie_wipi_c = { path = "wie_wipi_c" }

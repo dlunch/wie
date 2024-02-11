@@ -17,7 +17,6 @@ java_constants = { workspace = true }
 java_runtime = { workspace = true }
 jvm = { workspace = true }
 
-wie_common = { workspace = true }
 wie_backend = { workspace = true }
 
 [dev-dependencies]

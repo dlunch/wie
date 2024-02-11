@@ -2332,7 +2332,6 @@ dependencies = [
  "smaf",
  "smaf_player",
  "tracing",
- "wie_common",
  "zip",
 ]
 
@@ -2348,21 +2347,11 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wie_backend",
- "wie_common",
  "wie_j2me",
  "wie_ktf",
  "wie_lgt",
  "wie_skt",
  "winit",
-]
-
-[[package]]
-name = "wie_common"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "bytemuck",
- "tracing",
 ]
 
 [[package]]
@@ -2376,7 +2365,7 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
- "wie_common",
+ "wie_util",
 ]
 
 [[package]]
@@ -2392,7 +2381,6 @@ dependencies = [
  "jvm_rust",
  "tracing",
  "wie_backend",
- "wie_common",
  "wie_wipi_java",
 ]
 
@@ -2405,7 +2393,6 @@ dependencies = [
  "bytemuck",
  "tracing",
  "wie_backend",
- "wie_common",
  "wie_core_jvm",
 ]
 
@@ -2427,8 +2414,8 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
- "wie_common",
  "wie_core_arm",
+ "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
 ]
@@ -2443,7 +2430,6 @@ dependencies = [
  "elf",
  "tracing",
  "wie_backend",
- "wie_common",
  "wie_core_arm",
  "wie_wipi_c",
  "wie_wipi_java",
@@ -2459,8 +2445,16 @@ dependencies = [
  "jvm",
  "tracing",
  "wie_backend",
- "wie_common",
  "wie_core_jvm",
+]
+
+[[package]]
+name = "wie_util"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "tracing",
 ]
 
 [[package]]
@@ -2473,7 +2467,7 @@ dependencies = [
  "futures-test",
  "tracing",
  "wie_backend",
- "wie_common",
+ "wie_util",
 ]
 
 [[package]]
@@ -2494,7 +2488,6 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
- "wie_common",
 ]
 
 [[package]]

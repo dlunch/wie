@@ -12,8 +12,8 @@ use java_runtime::classes::java::{
 use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm};
 
 use wie_backend::System;
-use wie_common::util::write_null_terminated_string;
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::write_null_terminated_string;
 
 use crate::runtime::java::jvm_support::{class_definition::JavaClassDefinition, context_data::JavaContextData};
 

@@ -3,7 +3,7 @@ use alloc::{boxed::Box, string::String};
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_common::util::{read_null_terminated_string, ByteRead, ByteWrite};
+use wie_util::{read_null_terminated_string, ByteRead, ByteWrite};
 
 use crate::method::{MethodBody, TypeConverter};
 
