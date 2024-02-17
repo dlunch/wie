@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 
-use java_class_proto::{JavaMethodProto, JavaResult};
-use jvm::{Array, ClassInstanceRef, Jvm};
+use java_class_proto::JavaMethodProto;
+use jvm::{Array, ClassInstanceRef, Jvm, JvmResult};
 
 use wie_backend::{Event, KeyCode};
 
@@ -102,7 +102,7 @@ impl EventQueue {
         }
     }
 
-    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JavaResult<()> {
+    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
@@ -113,7 +113,7 @@ impl EventQueue {
         context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
         loop {
@@ -153,7 +153,7 @@ impl EventQueue {
         context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
         let event = jvm.load_array(&event, 0, 4)?;
@@ -174,7 +174,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn key_event(jvm: &Jvm, event_type: KeyboardEventType, code: i32) -> JavaResult<()> {
+    async fn key_event(jvm: &Jvm, event_type: KeyboardEventType, code: i32) -> JvmResult<()> {
         let display = Self::get_current_display(jvm).await?;
         if display.is_null() {
             return Ok(());
@@ -190,7 +190,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn repaint(jvm: &Jvm, context: &mut WIPIJavaContext) -> JavaResult<()> {
+    async fn repaint(jvm: &Jvm, context: &mut WIPIJavaContext) -> JvmResult<()> {
         let display = Self::get_current_display(jvm).await?;
         if display.is_null() {
             return Ok(());
@@ -228,7 +228,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn get_current_display(jvm: &Jvm) -> JavaResult<ClassInstanceRef<Display>> {
+    async fn get_current_display(jvm: &Jvm) -> JvmResult<ClassInstanceRef<Display>> {
         let jlet = jvm
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
@@ -236,7 +236,7 @@ impl EventQueue {
         jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")
     }
 
-    fn get_top_card(jvm: &Jvm, display: &ClassInstanceRef<Display>) -> JavaResult<ClassInstanceRef<Card>> {
+    fn get_top_card(jvm: &Jvm, display: &ClassInstanceRef<Display>) -> JvmResult<ClassInstanceRef<Card>> {
         let cards = jvm.get_field(display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
         let card_size: i32 = jvm.get_field(display, "szCard", "I")?;
 

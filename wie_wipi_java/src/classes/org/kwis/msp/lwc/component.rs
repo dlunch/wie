@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodProto, JavaResult};
-use jvm::{ClassInstanceRef, Jvm};
+use java_class_proto::JavaMethodProto;
+use jvm::{ClassInstanceRef, Jvm, JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -22,19 +22,19 @@ impl Component {
         }
     }
 
-    async fn key_notify(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, r#type: i32, chr: i32) -> JavaResult<bool> {
+    async fn key_notify(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, r#type: i32, chr: i32) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::keyNotify({:?}, {:?}, {:?})", &this, r#type, chr);
 
         Ok(true)
     }
 
-    async fn set_focus(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<()> {
+    async fn set_focus(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::setFocus({:?})", &this,);
 
         Ok(())
     }
 
-    async fn get_height(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn get_height(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({:?})", &this,);
 
         Ok(0)

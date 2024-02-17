@@ -7,7 +7,7 @@ use core::{
     mem::size_of,
 };
 
-use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, JvmResult};
+use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{write_generic, write_null_terminated_string};
@@ -33,15 +33,15 @@ impl JavaArrayClassDefinition {
         }
     }
 
-    pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> JvmResult<Self> {
-        let java_lang_object = jvm.resolve_class("java/lang/Object").await?.unwrap();
+    pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> anyhow::Result<Self> {
+        let java_lang_object = jvm.resolve_class("java/lang/Object").await.unwrap();
         let java_lang_object_raw = KtfJvmSupport::class_definition_raw(&*java_lang_object.definition)?;
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let element_type_name = &name[1..];
         let element_type_raw = if element_type_name.starts_with('L') {
-            let class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await?.unwrap();
+            let class = jvm.resolve_class(&element_type_name[1..element_type_name.len() - 1]).await.unwrap();
 
             Some(KtfJvmSupport::class_definition_raw(&*class.definition)?)
         } else {
@@ -89,13 +89,13 @@ impl JavaArrayClassDefinition {
         Ok(class)
     }
 
-    pub fn element_type_descriptor(&self) -> JvmResult<String> {
+    pub fn element_type_descriptor(&self) -> anyhow::Result<String> {
         let class_name = self.class.name()?;
 
         Ok(class_name[1..].to_string())
     }
 
-    pub fn element_size(&self) -> JvmResult<usize> {
+    pub fn element_size(&self) -> anyhow::Result<usize> {
         let r#type = JavaType::parse(&self.element_type_descriptor()?);
         Ok(match r#type {
             JavaType::Boolean => 1,

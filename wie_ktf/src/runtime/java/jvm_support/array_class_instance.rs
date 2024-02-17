@@ -24,7 +24,7 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClassDefinition, count: usize) -> JvmResult<Self> {
+    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClassDefinition, count: usize) -> anyhow::Result<Self> {
         let element_size = array_class.element_size()?;
         let class_instance = JavaClassInstance::instantiate(core, &array_class.class, count * element_size + 4)?;
 
@@ -34,7 +34,7 @@ impl JavaArrayClassInstance {
         Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
-    pub fn load_array(&self, offset: usize, count: usize) -> JvmResult<Vec<u8>> {
+    pub fn load_array(&self, offset: usize, count: usize) -> anyhow::Result<Vec<u8>> {
         let array_length = self.array_length()?;
         if offset + count > array_length {
             anyhow::bail!("Array index out of bounds");
@@ -50,7 +50,7 @@ impl JavaArrayClassInstance {
         Ok(values_raw)
     }
 
-    pub fn store_array(&mut self, offset: usize, count: usize, values_raw: Vec<u8>) -> JvmResult<()> {
+    pub fn store_array(&mut self, offset: usize, count: usize, values_raw: Vec<u8>) -> anyhow::Result<()> {
         let array_length = self.array_length()?;
         if offset + count > array_length {
             anyhow::bail!("Array index out of bounds");
@@ -62,20 +62,20 @@ impl JavaArrayClassInstance {
         self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)
     }
 
-    pub fn array_length(&self) -> JvmResult<usize> {
+    pub fn array_length(&self) -> anyhow::Result<usize> {
         let length_address = self.class_instance.field_address(0)?;
         let result: u32 = read_generic(&self.core, length_address)?;
 
         Ok(result as _)
     }
 
-    fn element_size(&self) -> JvmResult<usize> {
+    fn element_size(&self) -> anyhow::Result<usize> {
         let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         array_class.element_size()
     }
 
-    fn element_type(&self) -> JvmResult<JavaType> {
+    fn element_type(&self) -> anyhow::Result<JavaType> {
         let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         Ok(JavaType::parse(&array_class.element_type_descriptor()?))
@@ -100,7 +100,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
     }
 
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
-        let element_size = self.element_size()?;
+        let element_size = self.element_size().unwrap();
 
         let values = values.to_vec();
         let count = values.len();
@@ -116,14 +116,16 @@ impl ArrayClassInstance for JavaArrayClassInstance {
             _ => unreachable!(),
         };
 
-        self.store_array(offset as _, count, raw_values)
+        self.store_array(offset as _, count, raw_values).unwrap();
+
+        Ok(())
     }
 
     fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
-        let values_raw = self.load_array(offset as _, count as _)?;
+        let values_raw = self.load_array(offset as _, count as _).unwrap();
 
-        let element_type = self.element_type()?;
-        let element_size = self.element_size()?;
+        let element_type = self.element_type().unwrap();
+        let element_size = self.element_size().unwrap();
 
         Ok(match element_size {
             1 => values_raw
@@ -146,11 +148,13 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         let values = values.to_vec();
         let count = values.len();
 
-        self.store_array(offset as _, count, cast_vec(values))
+        self.store_array(offset as _, count, cast_vec(values)).unwrap();
+
+        Ok(())
     }
 
     fn load_bytes(&self, offset: usize, count: usize) -> JvmResult<Vec<i8>> {
-        let values_raw = self.load_array(offset as _, count as _)?;
+        let values_raw = self.load_array(offset as _, count as _).unwrap();
 
         Ok(cast_vec(values_raw))
     }

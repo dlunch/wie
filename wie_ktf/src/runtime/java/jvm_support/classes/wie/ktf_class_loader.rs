@@ -3,13 +3,13 @@ use alloc::{boxed::Box, vec};
 use bytemuck::cast_vec;
 use dyn_clone::{clone_trait_object, DynClone};
 
-use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::{
     lang::{Class, ClassLoader, String},
     net::URL,
 };
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, JvmResult};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
@@ -49,7 +49,7 @@ impl KtfClassLoader {
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut ClassLoaderContext, this: ClassInstanceRef<Self>, parent: ClassInstanceRef<ClassLoader>) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, _: &mut ClassLoaderContext, this: ClassInstanceRef<Self>, parent: ClassInstanceRef<ClassLoader>) -> JvmResult<()> {
         tracing::debug!("rustjava.RuntimeClassLoader::<init>({:?}, {:?})", &this, &parent);
 
         jvm.invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
@@ -63,7 +63,7 @@ impl KtfClassLoader {
         context: &mut ClassLoaderContext,
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
-    ) -> JavaResult<ClassInstanceRef<Class>> {
+    ) -> JvmResult<ClassInstanceRef<Class>> {
         tracing::debug!("rustjava.RuntimeClassLoader::findClass({:?}, {:?})", &this, name);
 
         // find from client.bin
@@ -71,23 +71,23 @@ impl KtfClassLoader {
         let name = JavaLangString::to_rust_string(jvm, name.into())?;
 
         let core = context.core();
-        let fn_get_class = JavaContextData::fn_get_class(core)?;
+        let fn_get_class = JavaContextData::fn_get_class(core).unwrap();
         if fn_get_class == 0 {
             // we don't have get_class on testcases
             return Ok(None.into());
         }
 
-        let ptr_name = Allocator::alloc(core, 50)?; // TODO size fix
-        write_null_terminated_string(core, ptr_name, &name)?;
+        let ptr_name = Allocator::alloc(core, 50).unwrap(); // TODO size fix
+        write_null_terminated_string(core, ptr_name, &name).unwrap();
 
-        let ptr_raw = core.run_function(fn_get_class, &[ptr_name]).await?;
-        Allocator::free(core, ptr_name)?;
+        let ptr_raw = core.run_function(fn_get_class, &[ptr_name]).await.unwrap();
+        Allocator::free(core, ptr_name).unwrap();
 
         if ptr_raw != 0 {
             let class = JavaClassDefinition::from_raw(ptr_raw, core);
             jvm.register_class(Box::new(class), Some(this.into())).await?;
 
-            Ok(jvm.resolve_class(&name).await?.unwrap().java_class(jvm).await?.into())
+            Ok(jvm.resolve_class(&name).await?.java_class(jvm).await?.into())
         } else {
             Ok(None.into())
         }
@@ -99,7 +99,7 @@ impl KtfClassLoader {
         context: &mut ClassLoaderContext,
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
-    ) -> JavaResult<ClassInstanceRef<URL>> {
+    ) -> JvmResult<ClassInstanceRef<URL>> {
         tracing::debug!("rustjava.ClassPathClassLoader::findResource({:?}, {:?})", &this, name);
 
         let name = JavaLangString::to_rust_string(jvm, name.clone())?;

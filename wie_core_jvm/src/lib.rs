@@ -6,15 +6,13 @@ use core::{future::ready, time::Duration};
 
 use bytemuck::cast_vec;
 
-use java_class_proto::{JavaResult, MethodBody};
+use java_class_proto::MethodBody;
 use java_runtime::{classes::java::lang::String as JavaString, Runtime};
-use jvm::{ClassInstanceRef, Jvm, JvmCallback, JvmResult};
+use jvm::{ClassInstanceRef, Jvm, JvmCallback, JvmError, JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::{AsyncCallable, System};
 use wie_wipi_java::WIPIJavaContextBase;
-
-pub type JvmCoreResult<T> = anyhow::Result<T>;
 
 // TODO i think we can merge runtime implementation across platforms..
 #[derive(Clone)]
@@ -43,8 +41,8 @@ impl Runtime for JvmCoreRuntime {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, anyhow::Error> {
+        impl AsyncCallable<u32, JvmError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JvmError> {
                 self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
 
                 Ok(0) // TODO
@@ -134,16 +132,16 @@ impl WIPIJavaContextBase for JvmCoreContext {
         &mut self.system
     }
 
-    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JavaResult<()> {
+    fn spawn(&mut self, callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
         struct SpawnProxy {
             system: System,
             jvm: Rc<Jvm>,
-            callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>,
+            callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>,
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, anyhow::Error> {
+        impl AsyncCallable<u32, JvmError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JvmError> {
                 let mut context = JvmCoreContext {
                     system: self.system.clone(),
                     jvm: self.jvm.clone(),

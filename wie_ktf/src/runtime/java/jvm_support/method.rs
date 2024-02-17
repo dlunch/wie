@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::{JavaType, JavaValue, Jvm, JvmResult, Method};
+use jvm::{JavaType, JavaValue, Jvm, JvmError, JvmResult, Method};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
@@ -49,7 +49,7 @@ impl JavaMethod {
         proto: JavaMethodProto<C>,
         vtable_builder: &mut JavaVtableBuilder,
         context: Context,
-    ) -> JvmResult<Self>
+    ) -> anyhow::Result<Self>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
@@ -95,13 +95,13 @@ impl JavaMethod {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub fn name(&self) -> JvmResult<JavaFullName> {
+    pub fn name(&self) -> anyhow::Result<JavaFullName> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, args: Box<[JavaValue]>) -> JvmResult<u32> {
+    pub async fn run(&self, args: Box<[JavaValue]>) -> anyhow::Result<u32> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         let mut core = self.core.clone();
@@ -129,7 +129,7 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> JvmResult<u32>
+    fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> anyhow::Result<u32>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
@@ -157,7 +157,7 @@ impl JavaMethod {
                     let param_base = u32::get(core, 1);
                     (0..param_count)
                         .map(|x| read_generic(core, param_base + x * 4))
-                        .collect::<JvmResult<Vec<u32>>>()?
+                        .collect::<anyhow::Result<Vec<u32>>>()?
                 } else {
                     (0..param_count).map(|x| u32::get(core, (x + 1) as _)).collect::<Vec<_>>()
                 };
@@ -208,7 +208,7 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        let result = self.run(args).await?;
+        let result = self.run(args).await.map_err(|x| JvmError::FatalError(format!("{:?}", x)))?;
         let r#type = JavaType::parse(&self.descriptor());
         let (_, return_type) = r#type.as_method();
 

@@ -1,8 +1,8 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodProto, JavaResult};
+use java_class_proto::JavaMethodProto;
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, Jvm};
+use jvm::{ClassInstanceRef, Jvm, JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -25,7 +25,7 @@ impl TextFieldComponent {
         this: ClassInstanceRef<TextFieldComponent>,
         data: ClassInstanceRef<String>,
         constraint: i32,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lwc.TextFieldComponent::<init>({:?}, {:?}, {:?})",
             &this,

@@ -1,7 +1,7 @@
 use alloc::{format, vec};
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
-use jvm::{ClassInstanceRef, Jvm};
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm::{ClassInstanceRef, Jvm, JvmResult};
 
 use crate::{
     classes::org::kwis::msp::lcdui::Display,
@@ -37,7 +37,7 @@ impl Card {
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
 
         let display: ClassInstanceRef<Display> = jvm
@@ -51,7 +51,7 @@ impl Card {
     }
 
     // not in reference, but called by some clet
-    async fn init_int(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>, a0: i32) -> JavaResult<()> {
+    async fn init_int(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>, a0: i32) -> JvmResult<()> {
         tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
 
         let display: ClassInstanceRef<Display> = jvm
@@ -69,7 +69,7 @@ impl Card {
         _: &mut WIPIJavaContext,
         mut this: ClassInstanceRef<Card>,
         display: ClassInstanceRef<Display>,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         let log = format!("org.kwis.msp.lcdui.Card::<init>({:?}, {:?})", &this, &display);
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
@@ -85,25 +85,25 @@ impl Card {
         Ok(())
     }
 
-    async fn is_shown(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<bool> {
+    async fn is_shown(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::isShown({:?})", &this);
 
         Ok(true)
     }
 
-    async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
+    async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
         jvm.get_field(&this, "w", "I")
     }
 
-    async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<i32> {
+    async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
         jvm.get_field(&this, "h", "I")
     }
 
-    async fn repaint(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn repaint(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "w", "I")?;
@@ -122,22 +122,22 @@ impl Card {
         a1: i32,
         a2: i32,
         a3: i32,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, a0, a1, a2, a3);
 
         let mut platform = context.system().platform();
         let screen = platform.screen();
-        screen.request_redraw()?;
+        screen.request_redraw().unwrap();
 
         Ok(())
     }
 
-    async fn service_repaints(_: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn service_repaints(_: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
         let mut platform = context.system().platform();
         let screen = platform.screen();
-        screen.request_redraw()?;
+        screen.request_redraw().unwrap();
 
         Ok(())
     }
