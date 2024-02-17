@@ -24,7 +24,7 @@ impl JvmDetail for KtfJvmDetail {
 
     async fn define_array_class(&self, jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
         let class_name = format!("[{}", element_type_name);
-        let class = JavaArrayClassDefinition::new(&mut self.core.clone(), jvm, &class_name).await?;
+        let class = JavaArrayClassDefinition::new(&mut self.core.clone(), jvm, &class_name).await.unwrap();
 
         Ok(Box::new(class) as Box<_>)
     }

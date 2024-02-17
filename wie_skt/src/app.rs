@@ -3,6 +3,7 @@ use alloc::{
     vec::Vec,
 };
 
+use jvm::JvmResult;
 use wie_backend::{App, Event, System};
 use wie_core_jvm::JvmCore;
 
@@ -29,7 +30,7 @@ impl SktApp {
         let normalized_class_name = main_class_name.replace('.', "/");
         let main_class = core.jvm().new_class(&normalized_class_name, "()V", []).await?;
 
-        let result: anyhow::Result<()> = core
+        let result: JvmResult<()> = core
             .jvm()
             .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()])
             .await;
@@ -38,7 +39,7 @@ impl SktApp {
                 core.jvm().invoke_virtual(&main_class, "startApp", "()V", []).await?;
                 // both startapp exists in wild.. TODO check this elegantly
             } else {
-                return Err(x);
+                return Err(x.into());
             }
         }
 

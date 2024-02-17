@@ -1,8 +1,6 @@
 use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
 
-use jvm::JvmResult;
-
 use wie_core_arm::ArmCore;
 use wie_util::{read_generic, read_null_terminated_string};
 
@@ -14,7 +12,7 @@ pub struct JavaFullName {
 }
 
 impl JavaFullName {
-    pub fn from_ptr(core: &ArmCore, ptr: u32) -> JvmResult<Self> {
+    pub fn from_ptr(core: &ArmCore, ptr: u32) -> anyhow::Result<Self> {
         let tag = read_generic(core, ptr)?;
 
         let value = read_null_terminated_string(core, ptr + 1)?;

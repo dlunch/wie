@@ -58,9 +58,9 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
 pub async fn java_class_load(core: &mut ArmCore, system: &mut System, ptr_target: u32, name: String) -> anyhow::Result<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
-    let class = system.jvm().resolve_class(&name).await?;
+    let class = system.jvm().resolve_class(&name).await;
 
-    if let Some(x) = class {
+    if let Ok(x) = class {
         let raw = KtfJvmSupport::class_definition_raw(&*x.definition)?;
         write_generic(core, ptr_target, raw)?;
 

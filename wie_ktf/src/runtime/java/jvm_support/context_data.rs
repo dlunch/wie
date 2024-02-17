@@ -2,8 +2,6 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::JvmResult;
-
 use wie_core_arm::{Allocator, ArmCore, PEB_BASE};
 use wie_util::{read_generic, read_null_terminated_table, write_generic};
 
@@ -21,7 +19,7 @@ struct RawJavaContextData {
 pub struct JavaContextData {}
 
 impl JavaContextData {
-    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> JvmResult<u32> {
+    pub fn init(core: &mut ArmCore, ptr_vtables_base: u32, fn_get_class: u32) -> anyhow::Result<u32> {
         let ptr_java_context_data = Allocator::alloc(core, size_of::<RawJavaContextData>() as _)?;
         write_generic(
             core,
@@ -35,7 +33,7 @@ impl JavaContextData {
         Ok(ptr_java_context_data)
     }
 
-    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> JvmResult<u32> {
+    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> anyhow::Result<u32> {
         let context_data = Self::read(core)?;
         let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
 
@@ -53,13 +51,13 @@ impl JavaContextData {
         Ok(index as _)
     }
 
-    pub fn fn_get_class(core: &ArmCore) -> JvmResult<u32> {
+    pub fn fn_get_class(core: &ArmCore) -> anyhow::Result<u32> {
         let context_data = Self::read(core)?;
 
         Ok(context_data.fn_get_class)
     }
 
-    fn read(core: &ArmCore) -> JvmResult<RawJavaContextData> {
+    fn read(core: &ArmCore) -> anyhow::Result<RawJavaContextData> {
         let peb: KtfPeb = read_generic(core, PEB_BASE)?;
 
         read_generic(core, peb.ptr_java_context_data)

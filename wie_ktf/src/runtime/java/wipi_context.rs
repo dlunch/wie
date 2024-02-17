@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, rc::Rc};
 
 use java_class_proto::MethodBody;
-use jvm::{Jvm, JvmResult};
+use jvm::{Jvm, JvmError, JvmResult};
 
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::ArmCore;
@@ -30,17 +30,17 @@ impl WIPIJavaContextBase for KtfWIPIJavaContext {
         &mut self.system
     }
 
-    fn spawn(&mut self, callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
+    fn spawn(&mut self, callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
         struct SpawnProxy {
             core: ArmCore,
             system: System,
             jvm: Rc<Jvm>,
-            callback: Box<dyn MethodBody<anyhow::Error, dyn WIPIJavaContextBase>>,
+            callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>,
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, anyhow::Error> {
+        impl AsyncCallable<u32, JvmError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JvmError> {
                 let mut context = KtfWIPIJavaContext::new(&self.core, &self.system, self.jvm.clone());
 
                 let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;

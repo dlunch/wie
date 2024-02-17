@@ -1,8 +1,8 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodProto, JavaResult};
+use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::Jvm;
+use jvm::{Jvm, JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -19,7 +19,7 @@ impl Network {
         }
     }
 
-    async fn disconnect(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<()> {
+    async fn disconnect(_: &Jvm, _: &mut WIPIJavaContext) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msf.io.Network::disconnect()");
 
         Ok(())

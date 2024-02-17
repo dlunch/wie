@@ -1,8 +1,8 @@
 use alloc::vec;
 
-use java_class_proto::{JavaMethodProto, JavaResult};
+use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::{ClassInstanceRef, Jvm};
+use jvm::{ClassInstanceRef, Jvm, JvmResult};
 
 use crate::{
     classes::org::kwis::msp::media::Clip,
@@ -25,13 +25,13 @@ impl Player {
         }
     }
 
-    async fn play(_: &Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JavaResult<bool> {
+    async fn play(_: &Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::play({:?}, {})", &clip, repeat);
 
         Ok(false)
     }
 
-    async fn stop(_: &Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>) -> JavaResult<bool> {
+    async fn stop(_: &Jvm, _: &mut WIPIJavaContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.media.Player::stop({:?})", &clip,);
 
         Ok(false)

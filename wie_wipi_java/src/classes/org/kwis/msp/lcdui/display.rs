@@ -1,10 +1,10 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::iter;
 
-use java_class_proto::{JavaError, JavaFieldProto, JavaMethodProto, JavaResult, MethodBody};
+use java_class_proto::{JavaFieldProto, JavaMethodProto, MethodBody};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::{Object, Runnable, String};
-use jvm::{ClassInstanceRef, JavaValue, Jvm};
+use jvm::{ClassInstanceRef, JavaValue, Jvm, JvmError, JvmResult};
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
@@ -73,7 +73,7 @@ impl Display {
         mut this: ClassInstanceRef<Self>,
         jlet: ClassInstanceRef<Jlet>,
         display_proxy: ClassInstanceRef<Object>,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
         let cards = jvm.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 10).await?;
@@ -92,7 +92,7 @@ impl Display {
         Ok(())
     }
 
-    async fn get_display(jvm: &Jvm, _: &mut WIPIJavaContext, str: ClassInstanceRef<String>) -> JavaResult<ClassInstanceRef<Self>> {
+    async fn get_display(jvm: &Jvm, _: &mut WIPIJavaContext, str: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDisplay({:?})", &str);
 
         let jlet = jvm
@@ -104,7 +104,7 @@ impl Display {
         Ok(display)
     }
 
-    async fn get_default_display(jvm: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<ClassInstanceRef<Display>> {
+    async fn get_default_display(jvm: &Jvm, _: &mut WIPIJavaContext) -> JvmResult<ClassInstanceRef<Display>> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getDefaultDisplay");
 
         let result = jvm
@@ -119,19 +119,19 @@ impl Display {
         Ok(result)
     }
 
-    async fn get_docked_card(_: &Jvm, _: &mut WIPIJavaContext) -> JavaResult<ClassInstanceRef<Card>> {
+    async fn get_docked_card(_: &Jvm, _: &mut WIPIJavaContext) -> JvmResult<ClassInstanceRef<Card>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::getDockedCard");
 
         Ok(None.into())
     }
 
-    async fn is_double_buffered(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<bool> {
+    async fn is_double_buffered(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::isDoubleBuffered({:?})", &this);
 
         Ok(true)
     }
 
-    async fn push_card(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JavaResult<()> {
+    async fn push_card(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
         let mut cards = jvm.get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
@@ -146,7 +146,7 @@ impl Display {
         Ok(())
     }
 
-    async fn remove_all_cards(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>) -> JavaResult<()> {
+    async fn remove_all_cards(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards");
 
         jvm.put_field(&mut this, "szCard", "I", 0)?;
@@ -159,13 +159,13 @@ impl Display {
         _: &mut WIPIJavaContext,
         this: ClassInstanceRef<Display>,
         qel: ClassInstanceRef<JletEventListener>,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Display::addJletEventListener({:?}, {:?})", &this, &qel);
 
         Ok(())
     }
 
-    async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getWidth({:?})", &this);
 
         let width: i32 = jvm.get_field(&this, "m_w", "I")?;
@@ -173,7 +173,7 @@ impl Display {
         Ok(width)
     }
 
-    async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getHeight({:?})", &this);
 
         let height: i32 = jvm.get_field(&this, "m_h", "I")?;
@@ -181,7 +181,7 @@ impl Display {
         Ok(height)
     }
 
-    async fn call_serially(_: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JavaResult<()> {
+    async fn call_serially(_: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({:?}, {:?})", &this, &r);
 
         // TODO this method have to queue runnable in event queue, but for now we'll spawn new task
@@ -191,8 +191,8 @@ impl Display {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl MethodBody<JavaError, WIPIJavaContext> for SpawnProxy {
-            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+        impl MethodBody<JvmError, WIPIJavaContext> for SpawnProxy {
+            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JvmError> {
                 let until = context.system().platform().now() + 16; // TODO
                 context.system().sleep(until).await;
 
@@ -207,7 +207,7 @@ impl Display {
         Ok(())
     }
 
-    async fn get_game_action(_: &Jvm, _: &mut WIPIJavaContext, key: i32) -> JavaResult<i32> {
+    async fn get_game_action(_: &Jvm, _: &mut WIPIJavaContext, key: i32) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getGameAction({})", key);
 
         let action = match key {

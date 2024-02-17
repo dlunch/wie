@@ -3,9 +3,9 @@ use core::cmp::min;
 
 use bytemuck::cast_slice;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto, JavaResult};
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 
@@ -32,7 +32,7 @@ impl File {
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, filename: ClassInstanceRef<String>, mode: i32) -> JavaResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, filename: ClassInstanceRef<String>, mode: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
 
         jvm.invoke_special(&this, "org/kwis/msp/io/File", "<init>", "(Ljava/lang/String;II)V", (filename, mode, 0))
@@ -48,7 +48,7 @@ impl File {
         filename: ClassInstanceRef<String>,
         mode: i32,
         flag: i32,
-    ) -> JavaResult<()> {
+    ) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
         let filename = JavaLangString::to_rust_string(jvm, filename.into())?;
@@ -78,13 +78,13 @@ impl File {
         buf: ClassInstanceRef<ClassInstanceRef<Array<i8>>>,
         offset: i32,
         len: i32,
-    ) -> JavaResult<i32> {
+    ) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})", &this, &buf, offset, len);
 
         Ok(0)
     }
 
-    async fn read(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JavaResult<i32> {
+    async fn read(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;
@@ -103,13 +103,13 @@ impl File {
         Ok(length_to_read as _)
     }
 
-    async fn close(_jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<()> {
+    async fn close(_jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
 
         Ok(())
     }
 
-    async fn size_of(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JavaResult<i32> {
+    async fn size_of(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
 
         let data_array = jvm.get_field(&this, "data", "[B")?;
