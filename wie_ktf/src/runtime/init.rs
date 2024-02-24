@@ -15,6 +15,8 @@ use crate::runtime::{
     wipi_c::interface::get_wipic_knl_interface,
 };
 
+use super::RuntimeResult;
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam0 {
@@ -125,11 +127,11 @@ pub struct KtfPeb {
     pub ptr_current_java_exception_handler: u32,
 }
 
-pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> anyhow::Result<u32> {
+pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> RuntimeResult<u32> {
     Ok(core.run_function(image_base + 1, &[bss_size]).await?)
 }
 
-pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> anyhow::Result<u32> {
+pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> RuntimeResult<u32> {
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
