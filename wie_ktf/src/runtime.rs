@@ -8,3 +8,5 @@ pub use self::{
     },
     java::wipi_context::KtfWIPIJavaContext,
 };
+
+pub type RuntimeResult<T> = anyhow::Result<T>;
