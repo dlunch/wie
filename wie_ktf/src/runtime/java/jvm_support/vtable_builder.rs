@@ -1,6 +1,6 @@
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 
-use super::class_definition::JavaClassDefinition;
+use super::{class_definition::JavaClassDefinition, JvmSupportResult};
 
 struct JavaVtableMethod {
     ptr_method: u32,
@@ -13,7 +13,7 @@ pub struct JavaVtableBuilder {
 }
 
 impl JavaVtableBuilder {
-    pub fn new(parent_class: &Option<JavaClassDefinition>) -> anyhow::Result<Self> {
+    pub fn new(parent_class: &Option<JavaClassDefinition>) -> JvmSupportResult<Self> {
         let items = if let Some(x) = parent_class {
             Self::build_vtable(x)?
         } else {
@@ -47,7 +47,7 @@ impl JavaVtableBuilder {
         self.items.iter().map(|x| x.ptr_method).collect()
     }
 
-    fn build_vtable(class: &JavaClassDefinition) -> anyhow::Result<Vec<JavaVtableMethod>> {
+    fn build_vtable(class: &JavaClassDefinition) -> JvmSupportResult<Vec<JavaVtableMethod>> {
         let class_hierarchy = class.read_class_hierarchy()?.into_iter().rev();
 
         let mut vtable: Vec<JavaVtableMethod> = Vec::new();

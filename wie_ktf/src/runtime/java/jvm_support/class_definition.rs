@@ -17,7 +17,8 @@ use wie_util::{
 };
 
 use super::{
-    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmWord,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder,
+    JvmSupportResult, KtfJvmWord,
 };
 
 #[repr(C)]
@@ -59,7 +60,7 @@ impl JavaClassDefinition {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, name: &str, proto: JavaClassProto<C>, context: Context) -> anyhow::Result<Self>
+    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, name: &str, proto: JavaClassProto<C>, context: Context) -> JvmSupportResult<Self>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
@@ -146,7 +147,7 @@ impl JavaClassDefinition {
         Ok(result)
     }
 
-    pub fn read_class_hierarchy(&self) -> anyhow::Result<Vec<JavaClassDefinition>> {
+    pub fn read_class_hierarchy(&self) -> JvmSupportResult<Vec<JavaClassDefinition>> {
         let mut result = vec![];
 
         let mut current_class = self.ptr_raw;
@@ -166,13 +167,13 @@ impl JavaClassDefinition {
         Ok(result)
     }
 
-    pub fn ptr_vtable(&self) -> anyhow::Result<u32> {
+    pub fn ptr_vtable(&self) -> JvmSupportResult<u32> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
 
         Ok(raw.ptr_vtable)
     }
 
-    pub fn field_size(&self) -> anyhow::Result<usize> {
+    pub fn field_size(&self) -> JvmSupportResult<usize> {
         let class_hierarchy = self.read_class_hierarchy()?;
 
         Ok(class_hierarchy
@@ -186,7 +187,7 @@ impl JavaClassDefinition {
             .sum())
     }
 
-    pub fn methods(&self) -> anyhow::Result<Vec<JavaMethod>> {
+    pub fn methods(&self) -> JvmSupportResult<Vec<JavaMethod>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
@@ -199,7 +200,7 @@ impl JavaClassDefinition {
         Ok(ptr_methods.into_iter().map(|x| JavaMethod::from_raw(x, &self.core)).collect())
     }
 
-    pub fn fields(&self) -> anyhow::Result<Vec<JavaField>> {
+    pub fn fields(&self) -> JvmSupportResult<Vec<JavaField>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
@@ -208,14 +209,14 @@ impl JavaClassDefinition {
         Ok(ptr_fields.into_iter().map(|x| JavaField::from_raw(x, &self.core)).collect())
     }
 
-    pub fn name(&self) -> anyhow::Result<String> {
+    pub fn name(&self) -> JvmSupportResult<String> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
         Ok(read_null_terminated_string(&self.core, descriptor.ptr_name)?)
     }
 
-    pub fn parent_class(&self) -> anyhow::Result<Option<JavaClassDefinition>> {
+    pub fn parent_class(&self) -> JvmSupportResult<Option<JavaClassDefinition>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
@@ -226,7 +227,7 @@ impl JavaClassDefinition {
         }
     }
 
-    pub fn method(&self, name: &str, descriptor: &str) -> anyhow::Result<Option<JavaMethod>> {
+    pub fn method(&self, name: &str, descriptor: &str) -> JvmSupportResult<Option<JavaMethod>> {
         let methods = self.methods()?;
 
         for method in methods {
@@ -243,7 +244,7 @@ impl JavaClassDefinition {
         }
     }
 
-    pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> anyhow::Result<Option<JavaField>> {
+    pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> JvmSupportResult<Option<JavaField>> {
         let fields = self.fields()?;
 
         for field in fields {
@@ -256,14 +257,14 @@ impl JavaClassDefinition {
         Ok(None)
     }
 
-    pub fn read_static_field(&self, field: &JavaField) -> anyhow::Result<KtfJvmWord> {
+    pub fn read_static_field(&self, field: &JavaField) -> JvmSupportResult<KtfJvmWord> {
         let address = field.static_address()?;
         let result: KtfJvmWord = read_generic(&self.core, address)?;
 
         Ok(result as _)
     }
 
-    pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> anyhow::Result<()> {
+    pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> JvmSupportResult<()> {
         let address = field.static_address()?;
 
         Ok(write_generic(&mut self.core, address, value)?)

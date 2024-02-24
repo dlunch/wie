@@ -17,7 +17,7 @@ use wie_util::{read_generic, write_generic, ByteWrite};
 
 use crate::context::KtfContextExt;
 
-use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder};
+use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, JvmSupportResult};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -49,7 +49,7 @@ impl JavaMethod {
         proto: JavaMethodProto<C>,
         vtable_builder: &mut JavaVtableBuilder,
         context: Context,
-    ) -> anyhow::Result<Self>
+    ) -> JvmSupportResult<Self>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,
@@ -95,13 +95,13 @@ impl JavaMethod {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub fn name(&self) -> anyhow::Result<JavaFullName> {
+    pub fn name(&self) -> JvmSupportResult<JavaFullName> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, args: Box<[JavaValue]>) -> anyhow::Result<u32> {
+    pub async fn run(&self, args: Box<[JavaValue]>) -> JvmSupportResult<u32> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         let mut core = self.core.clone();
@@ -129,7 +129,7 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> anyhow::Result<u32>
+    fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> JvmSupportResult<u32>
     where
         C: ?Sized + 'static,
         Context: Deref<Target = C> + DerefMut + Clone + 'static,

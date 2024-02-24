@@ -36,6 +36,8 @@ use self::{
 
 pub type KtfJvmWord = u32;
 
+type JvmSupportResult<T> = anyhow::Result<T>;
+
 #[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -58,7 +60,7 @@ impl KtfJvmSupport {
         ptr_vtables_base: u32,
         fn_get_class: u32,
         ptr_current_java_exception_handler: u32,
-    ) -> anyhow::Result<Rc<Jvm>> {
+    ) -> JvmSupportResult<Rc<Jvm>> {
         let ptr_java_context_data = context_data::JavaContextData::init(core, ptr_vtables_base, fn_get_class)?;
 
         core.map(PEB_BASE, 0x1000)?;
@@ -152,7 +154,7 @@ impl KtfJvmSupport {
         Ok(jvm)
     }
 
-    pub fn class_definition_raw(definition: &dyn ClassDefinition) -> anyhow::Result<u32> {
+    pub fn class_definition_raw(definition: &dyn ClassDefinition) -> JvmSupportResult<u32> {
         Ok(if let Some(x) = definition.as_any().downcast_ref::<JavaClassDefinition>() {
             x.ptr_raw
         } else {
@@ -166,7 +168,7 @@ impl KtfJvmSupport {
         JavaClassDefinition::from_raw(ptr_class, core)
     }
 
-    pub fn read_name(core: &ArmCore, ptr_name: u32) -> anyhow::Result<JavaFullName> {
+    pub fn read_name(core: &ArmCore, ptr_name: u32) -> JvmSupportResult<JavaFullName> {
         JavaFullName::from_ptr(core, ptr_name)
     }
 
