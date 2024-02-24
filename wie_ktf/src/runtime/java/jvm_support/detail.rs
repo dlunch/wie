@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, format};
 
-use jvm::{ClassDefinition, Jvm, JvmDetail, JvmResult};
+use jvm::{ClassDefinition, Jvm, JvmDetail, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
 

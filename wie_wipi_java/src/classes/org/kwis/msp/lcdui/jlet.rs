@@ -3,7 +3,7 @@ use alloc::{boxed::Box, vec};
 use java_class_proto::{JavaFieldProto, JavaMethodProto, MethodBody};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaValue, Jvm, JvmError, JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult};
 
 use crate::{
     classes::org::kwis::msp::lcdui::EventQueue,
@@ -71,9 +71,9 @@ impl Jlet {
 
         struct MainProxy {}
         #[async_trait::async_trait(?Send)]
-        impl MethodBody<JvmError, WIPIJavaContext> for MainProxy {
+        impl MethodBody<JavaError, WIPIJavaContext> for MainProxy {
             #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JvmError> {
+            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 let now = context.system().platform().now();
                 let until = now + 10;
                 context.system().sleep(until).await; // XXX wait until jlet to initialize

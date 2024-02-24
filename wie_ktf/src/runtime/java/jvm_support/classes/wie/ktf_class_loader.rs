@@ -9,7 +9,7 @@ use java_runtime::classes::java::{
     lang::{Class, ClassLoader, String},
     net::URL,
 };
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};

@@ -3,7 +3,7 @@ use core::fmt::{self, Debug, Formatter};
 
 use bytemuck::cast_vec;
 
-use jvm::{ArrayClassInstance, ClassDefinition, ClassInstance, JavaType, JavaValue, JvmResult};
+use jvm::{ArrayClassInstance, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
 use wie_util::{read_generic, write_generic, ByteRead, ByteWrite};

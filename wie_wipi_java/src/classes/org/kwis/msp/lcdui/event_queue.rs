@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 
 use java_class_proto::JavaMethodProto;
-use jvm::{Array, ClassInstanceRef, Jvm, JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::{Event, KeyCode};
 

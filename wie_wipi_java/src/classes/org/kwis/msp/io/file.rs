@@ -5,7 +5,7 @@ use bytemuck::cast_slice;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, JvmResult};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 

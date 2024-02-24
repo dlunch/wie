@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaClassProto;
 use java_constants::FieldAccessFlags;
-use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, JvmResult, Method};
+use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{

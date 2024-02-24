@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::future::ready;
 
-use jvm::{Jvm, JvmResult};
+use jvm::{Jvm, Result as JvmResult};
 
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 

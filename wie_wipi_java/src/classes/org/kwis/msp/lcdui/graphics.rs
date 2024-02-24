@@ -8,7 +8,7 @@ use wie_backend::canvas::{PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 use java_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
 use java_runtime::classes::java::lang::String;
 
-use jvm::{Array, ClassInstanceRef, Jvm, JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Display, Font, Image},
@@ -435,7 +435,7 @@ mod test {
     use alloc::boxed::Box;
     use core::future::ready;
 
-    use jvm::{ClassInstanceRef, JvmResult};
+    use jvm::{ClassInstanceRef, Result as JvmResult};
     use jvm_rust::ClassDefinitionImpl;
 
     use test_utils::test_jvm;

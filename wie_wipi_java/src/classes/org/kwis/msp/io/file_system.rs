@@ -3,7 +3,7 @@ use alloc::{format, vec};
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 

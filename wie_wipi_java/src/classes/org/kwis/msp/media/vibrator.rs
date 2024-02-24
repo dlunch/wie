@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::{Jvm, JvmResult};
+use jvm::{Jvm, Result as JvmResult};
 
 use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
 

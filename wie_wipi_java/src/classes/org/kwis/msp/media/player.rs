@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::{ClassInstanceRef, Jvm, JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use crate::{
     classes::org::kwis::msp::media::Clip,

@@ -10,7 +10,7 @@ use context::WIPIJavaClassProto;
 pub use context::WIPIJavaContextBase;
 
 use alloc::boxed::Box;
-use jvm::{ClassDefinition, Jvm, JvmResult};
+use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
 // TODO we need class loader
 pub async fn register<T, F>(jvm: &Jvm, class_creator: T) -> JvmResult<()>

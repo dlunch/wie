@@ -9,7 +9,7 @@ use bytemuck::{cast_vec, pod_collect_to_vec};
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, JvmResult};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::canvas::{decode_image, ArgbPixel, Canvas, Image as BackendImage, ImageBufferCanvas, Rgb565Pixel, VecImageBuffer};
 
