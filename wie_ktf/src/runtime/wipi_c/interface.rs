@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_core_arm::ArmCore;
+use wie_core_arm::{ArmCore, ArmCoreResult};
 use wie_util::write_generic;
 use wie_wipi_c::{
     api::{
@@ -12,7 +12,7 @@ use wie_wipi_c::{
         misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, uic::get_uic_method_table,
         unk12::get_unk12_method_table, unk3::get_unk3_method_table, util::get_util_method_table,
     },
-    WIPICContext, WIPICMethodBody,
+    WIPICContext, WIPICMethodBody, WIPICResult,
 };
 
 use crate::runtime::wipi_c::context::KtfWIPICContext;
@@ -39,7 +39,7 @@ struct WIPICInterface {
     interface_16: u32,
 }
 
-fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) -> anyhow::Result<u32> {
+fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) -> WIPICResult<u32> {
     let address = context.alloc_raw((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
@@ -53,16 +53,16 @@ fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) 
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System) -> anyhow::Result<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System) -> ArmCoreResult<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
     let mut context = KtfWIPICContext::new(core, system);
-    let address = write_methods(&mut context, kernel_methods)?;
+    let address = write_methods(&mut context, kernel_methods).unwrap();
 
     Ok(address)
 }
 
-async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> anyhow::Result<u32> {
+async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> WIPICResult<u32> {
     tracing::trace!("get_wipic_interfaces");
 
     let interface_0 = write_methods(context, get_util_method_table())?;

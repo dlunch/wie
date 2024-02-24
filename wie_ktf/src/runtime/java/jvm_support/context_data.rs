@@ -60,6 +60,6 @@ impl JavaContextData {
     fn read(core: &ArmCore) -> anyhow::Result<RawJavaContextData> {
         let peb: KtfPeb = read_generic(core, PEB_BASE)?;
 
-        read_generic(core, peb.ptr_java_context_data)
+        Ok(read_generic(core, peb.ptr_java_context_data)?)
     }
 }

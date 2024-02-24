@@ -59,7 +59,7 @@ impl JavaArrayClassInstance {
         let base_address = self.class_instance.field_address(4)?;
         let element_size = self.element_size()?;
 
-        self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)
+        Ok(self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)?)
     }
 
     pub fn array_length(&self) -> anyhow::Result<usize> {

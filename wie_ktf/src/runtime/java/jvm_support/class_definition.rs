@@ -212,7 +212,7 @@ impl JavaClassDefinition {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        read_null_terminated_string(&self.core, descriptor.ptr_name)
+        Ok(read_null_terminated_string(&self.core, descriptor.ptr_name)?)
     }
 
     pub fn parent_class(&self) -> anyhow::Result<Option<JavaClassDefinition>> {
@@ -266,7 +266,7 @@ impl JavaClassDefinition {
     pub fn write_static_field(&mut self, field: &JavaField, value: KtfJvmWord) -> anyhow::Result<()> {
         let address = field.static_address()?;
 
-        write_generic(&mut self.core, address, value)
+        Ok(write_generic(&mut self.core, address, value)?)
     }
 }
 

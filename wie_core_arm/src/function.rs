@@ -1,14 +1,14 @@
-use alloc::{boxed::Box, string::String};
+use alloc::{boxed::Box, format, string::String};
 use core::{fmt::Debug, future::Future, marker::PhantomData};
 
 use wie_backend::System;
 use wie_util::read_null_terminated_string;
 
-use crate::{engine::ArmEngineResult, ArmCore};
+use crate::{ArmCore, ArmCoreError, ArmCoreResult};
 
 #[async_trait::async_trait(?Send)]
 pub trait RegisteredFunction {
-    async fn call(&self, core: &mut ArmCore, system: &mut System) -> ArmEngineResult<()>;
+    async fn call(&self, core: &mut ArmCore, system: &mut System) -> ArmCoreResult<()>;
 }
 
 pub struct RegisteredFunctionHolder<F, P, E, R>
@@ -42,12 +42,16 @@ where
     E: Debug,
     R: ResultWriter<R>,
 {
-    async fn call(&self, core: &mut ArmCore, system: &mut System) -> ArmEngineResult<()> {
+    async fn call(&self, core: &mut ArmCore, system: &mut System) -> ArmCoreResult<()> {
         let (pc, lr) = core.read_pc_lr()?;
 
         tracing::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
-        let result = self.function.call(core, system).await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+        let result = self
+            .function
+            .call(core, system)
+            .await
+            .map_err(|x| ArmCoreError::FunctionCallError(format!("{:?}", x)))?;
         R::write(core, result, lr)?;
 
         Ok(())
@@ -137,17 +141,17 @@ impl EmulatedFunctionParam<u32> for u32 {
 }
 
 pub trait ResultWriter<R> {
-    fn write(core: &mut ArmCore, value: R, lr: u32) -> anyhow::Result<()>;
+    fn write(core: &mut ArmCore, value: R, lr: u32) -> ArmCoreResult<()>;
 }
 
 impl ResultWriter<u32> for u32 {
-    fn write(core: &mut ArmCore, value: u32, lr: u32) -> anyhow::Result<()> {
+    fn write(core: &mut ArmCore, value: u32, lr: u32) -> ArmCoreResult<()> {
         core.write_result(value, lr)
     }
 }
 
 impl ResultWriter<()> for () {
-    fn write(core: &mut ArmCore, _: (), lr: u32) -> anyhow::Result<()> {
+    fn write(core: &mut ArmCore, _: (), lr: u32) -> ArmCoreResult<()> {
         core.write_result(0, lr)
     }
 }

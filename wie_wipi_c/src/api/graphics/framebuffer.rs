@@ -5,7 +5,7 @@ use bytemuck::{pod_collect_to_vec, Pod, Zeroable};
 
 use wie_backend::canvas::{ArgbPixel, Canvas, Image, ImageBufferCanvas, Rgb565Pixel, VecImageBuffer};
 
-use crate::context::{WIPICContext, WIPICMemoryId, WIPICWord};
+use crate::{context::WIPICContext, WIPICMemoryId, WIPICResult, WIPICWord};
 
 /// MC_GrpDisplayInfo
 #[repr(C)]
@@ -43,7 +43,7 @@ impl WIPICFramebuffer {
         }
     }
 
-    pub fn new(context: &mut dyn WIPICContext, width: WIPICWord, height: WIPICWord, bpp: WIPICWord) -> anyhow::Result<Self> {
+    pub fn new(context: &mut dyn WIPICContext, width: WIPICWord, height: WIPICWord, bpp: WIPICWord) -> WIPICResult<Self> {
         let bytes_per_pixel = bpp / 8;
 
         let buf = context.alloc(width * height * bytes_per_pixel)?;
@@ -57,7 +57,7 @@ impl WIPICFramebuffer {
         })
     }
 
-    pub fn from_image(context: &mut dyn WIPICContext, image: &dyn Image) -> anyhow::Result<Self> {
+    pub fn from_image(context: &mut dyn WIPICContext, image: &dyn Image) -> WIPICResult<Self> {
         let buf = context.alloc(image.width() * image.height() * image.bytes_per_pixel())?;
 
         context.write_bytes(context.data_ptr(buf)?, image.raw())?;
@@ -71,13 +71,13 @@ impl WIPICFramebuffer {
         })
     }
 
-    pub fn data(&self, context: &dyn WIPICContext) -> anyhow::Result<Vec<u8>> {
+    pub fn data(&self, context: &dyn WIPICContext) -> WIPICResult<Vec<u8>> {
         let data = context.read_bytes(context.data_ptr(self.buf)?, self.width * self.height * self.bpp / 8)?;
 
         Ok(data)
     }
 
-    pub fn image(&self, context: &mut dyn WIPICContext) -> anyhow::Result<Box<dyn Image>> {
+    pub fn image(&self, context: &mut dyn WIPICContext) -> WIPICResult<Box<dyn Image>> {
         let data = self.data(context)?;
 
         Ok(match self.bpp {
@@ -95,7 +95,7 @@ impl WIPICFramebuffer {
         })
     }
 
-    pub fn canvas<'a>(&'a self, context: &'a mut dyn WIPICContext) -> anyhow::Result<FramebufferCanvas<'a>> {
+    pub fn canvas<'a>(&'a self, context: &'a mut dyn WIPICContext) -> WIPICResult<FramebufferCanvas<'a>> {
         let data = self.data(context)?;
 
         let canvas: Box<dyn Canvas> = match self.bpp {
@@ -119,8 +119,8 @@ impl WIPICFramebuffer {
         })
     }
 
-    pub fn write(&self, context: &mut dyn WIPICContext, data: &[u8]) -> anyhow::Result<()> {
-        context.write_bytes(context.data_ptr(self.buf)?, data)
+    pub fn write(&self, context: &mut dyn WIPICContext, data: &[u8]) -> WIPICResult<()> {
+        Ok(context.write_bytes(context.data_ptr(self.buf)?, data)?)
     }
 }
 

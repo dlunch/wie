@@ -6,11 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::Database;
 use wie_util::{read_generic, write_generic};
 
-use crate::{
-    context::{WIPICContext, WIPICMethodBody, WIPICWord},
-    method::MethodImpl,
-    WIPICResult,
-};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICResult, WIPICWord};
 
 #[derive(Pod, Zeroable, Copy, Clone)]
 #[repr(C)]
@@ -18,8 +14,8 @@ struct DatabaseHandle {
     name: [u8; 32], // TODO hardcoded max size
 }
 
-fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented database{}: {}", id, name)) };
+fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
 
     body.into_body()
 }

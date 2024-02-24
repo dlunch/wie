@@ -59,7 +59,7 @@ impl WIPICContext for TestContext {
 }
 
 impl ByteWrite for TestContext {
-    fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+    fn write_bytes(&mut self, address: u32, data: &[u8]) -> wie_util::Result<()> {
         self.memory[address as usize..(address + data.len() as u32) as usize].copy_from_slice(data);
 
         Ok(())
@@ -67,7 +67,7 @@ impl ByteWrite for TestContext {
 }
 
 impl ByteRead for TestContext {
-    fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
+    fn read_bytes(&self, address: u32, size: u32) -> wie_util::Result<Vec<u8>> {
         Ok(self.memory[address as usize..(address + size) as usize].to_vec())
     }
 }

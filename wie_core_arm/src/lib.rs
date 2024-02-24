@@ -5,12 +5,15 @@ mod allocator;
 mod context;
 mod core;
 mod engine;
+mod error;
 mod function;
 mod future;
+
+pub type ArmCoreResult<T> = Result<T, error::ArmCoreError>;
 
 pub use self::{
     allocator::Allocator,
     core::{ArmCore, PEB_BASE},
-    engine::ArmEngineError,
+    error::ArmCoreError,
     function::{EmulatedFunction, EmulatedFunctionParam},
 };

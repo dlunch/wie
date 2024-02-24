@@ -9,7 +9,7 @@ use jvm::runtime::JavaLangString;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::{Allocator, ArmCore, ArmCoreResult};
 use wie_util::{read_generic, write_generic, ByteRead};
 
 use crate::{context::KtfContextExt, runtime::java::jvm_support::KtfJvmSupport};
@@ -32,7 +32,7 @@ struct WIPIJBInterface {
     fn_call_native: u32,
 }
 
-pub fn get_wipi_jb_interface(core: &mut ArmCore) -> anyhow::Result<u32> {
+pub fn get_wipi_jb_interface(core: &mut ArmCore) -> ArmCoreResult<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
         fn_java_jump_1: core.register_function(java_jump_1)?,
@@ -101,7 +101,7 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut System, arg1: u32, address: u32
 
     anyhow::ensure!(address != 0, "jump native address is null");
 
-    core.run_function::<u32>(address, &[arg1]).await
+    Ok(core.run_function::<u32>(address, &[arg1]).await?)
 }
 
 async fn register_class(core: &mut ArmCore, system: &mut System, ptr_class: u32) -> anyhow::Result<()> {
@@ -191,7 +191,7 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut System, arg1: u32, arg2: u32, a
 
     anyhow::ensure!(address != 0, "jump native address is null");
 
-    core.run_function::<u32>(address, &[arg1, arg2]).await
+    Ok(core.run_function::<u32>(address, &[arg1, arg2]).await?)
 }
 
 async fn java_jump_3(core: &mut ArmCore, _: &mut System, arg1: u32, arg2: u32, arg3: u32, address: u32) -> anyhow::Result<u32> {
@@ -199,7 +199,7 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut System, arg1: u32, arg2: u32, a
 
     anyhow::ensure!(address != 0, "jump native address is null");
 
-    core.run_function::<u32>(address, &[arg1, arg2, arg3]).await
+    Ok(core.run_function::<u32>(address, &[arg1, arg2, arg3]).await?)
 }
 
 pub async fn java_new(core: &mut ArmCore, system: &mut System, ptr_class: u32) -> anyhow::Result<u32> {
