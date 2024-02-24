@@ -80,7 +80,7 @@ impl JavaClassInstance {
 
         let address = self.field_address(offset)?;
 
-        write_generic(&mut self.core, address, value)
+        Ok(write_generic(&mut self.core, address, value)?)
     }
 
     pub(super) fn field_address(&self, offset: u32) -> anyhow::Result<u32> {

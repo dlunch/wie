@@ -6,9 +6,10 @@ use wie_util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
     context::ArmCoreContext,
-    engine::{ArmEngine, ArmEngineResult, ArmRegister, MemoryPermission},
+    engine::{ArmEngine, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
     future::SpawnFuture,
+    ArmCoreResult,
 };
 
 const FUNCTIONS_BASE: u32 = 0x71000000;
@@ -29,7 +30,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new(system: System) -> ArmEngineResult<Self> {
+    pub fn new(system: System) -> ArmCoreResult<Self> {
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
@@ -47,7 +48,7 @@ impl ArmCore {
         })
     }
 
-    pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> ArmEngineResult<()> {
+    pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> ArmCoreResult<()> {
         let mut inner = self.inner.borrow_mut();
 
         inner
@@ -59,7 +60,7 @@ impl ArmCore {
     }
 
     #[allow(clippy::await_holding_refcell_ref)] // We manually drop RefMut https://github.com/rust-lang/rust-clippy/issues/6353
-    async fn run_some(&mut self) -> ArmEngineResult<()> {
+    async fn run_some(&mut self) -> ArmCoreResult<()> {
         let mut inner = self.inner.borrow_mut();
 
         inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?;
@@ -80,7 +81,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> ArmEngineResult<R>
+    pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<R>
     where
         R: RunFunctionResult<R>,
     {
@@ -139,7 +140,7 @@ impl ArmCore {
         self.inner.borrow_mut().system.spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
-    pub fn register_function<F, P, E, R>(&mut self, function: F) -> ArmEngineResult<u32>
+    pub fn register_function<F, P, E, R>(&mut self, function: F) -> ArmCoreResult<u32>
     where
         F: EmulatedFunction<P, E, R> + 'static,
         E: Debug + 'static,
@@ -163,7 +164,7 @@ impl ArmCore {
         Ok(address as u32 + 1)
     }
 
-    pub fn map(&mut self, address: u32, size: u32) -> ArmEngineResult<()> {
+    pub fn map(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
         tracing::trace!("Map address: {:#x}, size: {:#x}", address, size);
 
         let mut inner = self.inner.borrow_mut();
@@ -228,7 +229,7 @@ impl ArmCore {
         }
     }
 
-    pub(crate) fn read_pc_lr(&self) -> ArmEngineResult<(u32, u32)> {
+    pub(crate) fn read_pc_lr(&self) -> ArmCoreResult<(u32, u32)> {
         let inner = self.inner.borrow();
 
         let lr = inner.engine.reg_read(ArmRegister::LR);
@@ -237,7 +238,7 @@ impl ArmCore {
         Ok((pc, lr))
     }
 
-    pub(crate) fn write_result(&mut self, result: u32, lr: u32) -> ArmEngineResult<()> {
+    pub(crate) fn write_result(&mut self, result: u32, lr: u32) -> ArmCoreResult<()> {
         let mut inner = self.inner.borrow_mut();
 
         inner.engine.reg_write(ArmRegister::R0, result);
@@ -246,7 +247,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub(crate) fn read_param(&self, pos: usize) -> ArmEngineResult<u32> {
+    pub(crate) fn read_param(&self, pos: usize) -> ArmCoreResult<u32> {
         let inner = self.inner.borrow();
 
         let result = if pos == 0 {
@@ -267,6 +268,7 @@ impl ArmCore {
 
         Ok(result)
     }
+
     pub(crate) fn dump_regs_inner(engine: &dyn ArmEngine) -> String {
         [
             format!(
@@ -320,7 +322,7 @@ impl ArmCore {
         format!("{:#x}: {}\n", address, description)
     }
 
-    fn dump_call_stack(&self, image_base: u32) -> ArmEngineResult<String> {
+    fn dump_call_stack(&self, image_base: u32) -> ArmCoreResult<String> {
         let mut inner = self.inner.borrow_mut();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);
@@ -345,7 +347,7 @@ impl ArmCore {
         Ok(call_stack)
     }
 
-    fn dump_stack(&self) -> ArmEngineResult<String> {
+    fn dump_stack(&self) -> ArmCoreResult<String> {
         let mut inner = self.inner.borrow_mut();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);
@@ -364,7 +366,7 @@ impl ArmCore {
 }
 
 impl ByteRead for ArmCore {
-    fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>> {
+    fn read_bytes(&self, address: u32, size: u32) -> wie_util::Result<Vec<u8>> {
         let mut inner = self.inner.borrow_mut();
 
         let data = inner.engine.mem_read(address, size as usize)?;
@@ -376,7 +378,7 @@ impl ByteRead for ArmCore {
 }
 
 impl ByteWrite for ArmCore {
-    fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()> {
+    fn write_bytes(&mut self, address: u32, data: &[u8]) -> wie_util::Result<()> {
         // tracing::trace!("Write address: {:#x}, data: {:02x?}", address, data);
         let mut inner = self.inner.borrow_mut();
 

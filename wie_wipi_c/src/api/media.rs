@@ -1,10 +1,11 @@
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::mem::size_of;
 
-use crate::{
-    context::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
-    method::MethodImpl,
-};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICResult, WIPICWord};
 
 #[repr(C)]
 struct MdaClip {
@@ -67,8 +68,8 @@ struct MdaClip {
     device_info: i32,
 }
 
-fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented media{}: {}", id, name)) };
+fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
 
     body.into_body()
 }
@@ -110,7 +111,11 @@ async fn clip_put_data(context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIP
 
     let data = context.read_bytes(buf, buf_size)?;
 
-    context.system().audio().load_smaf(&data)?;
+    context
+        .system()
+        .audio()
+        .load_smaf(&data)
+        .map_err(|x| WIPICError::BackendError(x.to_string()))?;
 
     Ok(0)
 }

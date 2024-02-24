@@ -2,7 +2,7 @@
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-use core::mem::size_of;
+use core::{mem::size_of, result};
 
 use bytemuck::{bytes_of, from_bytes, AnyBitPattern, NoUninit};
 
@@ -19,15 +19,28 @@ pub fn round_up(num_to_round: usize, multiple: usize) -> usize {
     }
 }
 
+#[derive(Debug)]
+pub enum ByteReadWriteError {
+    InvalidAddress,
+}
+
+impl From<ByteReadWriteError> for anyhow::Error {
+    fn from(e: ByteReadWriteError) -> Self {
+        anyhow::anyhow!("{:?}", e)
+    }
+}
+
+pub type Result<T> = result::Result<T, ByteReadWriteError>;
+
 pub trait ByteRead {
-    fn read_bytes(&self, address: u32, size: u32) -> anyhow::Result<Vec<u8>>;
+    fn read_bytes(&self, address: u32, size: u32) -> Result<Vec<u8>>;
 }
 
 pub trait ByteWrite {
-    fn write_bytes(&mut self, address: u32, data: &[u8]) -> anyhow::Result<()>;
+    fn write_bytes(&mut self, address: u32, data: &[u8]) -> Result<()>;
 }
 
-pub fn read_generic<T, R>(reader: &R, address: u32) -> anyhow::Result<T>
+pub fn read_generic<T, R>(reader: &R, address: u32) -> Result<T>
 where
     T: Copy + AnyBitPattern,
     R: ?Sized + ByteRead,
@@ -37,7 +50,7 @@ where
     Ok(*from_bytes(&data))
 }
 
-pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> anyhow::Result<String>
+pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> Result<String>
 where
     R: ?Sized + ByteRead,
 {
@@ -61,7 +74,7 @@ where
     Ok(String::from_utf8(result).unwrap())
 }
 
-pub fn write_null_terminated_string<W>(writer: &mut W, address: u32, string: &str) -> anyhow::Result<()>
+pub fn write_null_terminated_string<W>(writer: &mut W, address: u32, string: &str) -> Result<()>
 where
     W: ?Sized + ByteWrite,
 {
@@ -75,7 +88,7 @@ where
     Ok(())
 }
 
-pub fn write_generic<W, T>(writer: &mut W, address: u32, data: T) -> anyhow::Result<()>
+pub fn write_generic<W, T>(writer: &mut W, address: u32, data: T) -> Result<()>
 where
     W: ?Sized + ByteWrite,
     T: NoUninit,
@@ -85,7 +98,7 @@ where
     writer.write_bytes(address, data_slice)
 }
 
-pub fn read_null_terminated_table<R>(reader: &R, base_address: u32) -> anyhow::Result<Vec<u32>>
+pub fn read_null_terminated_table<R>(reader: &R, base_address: u32) -> Result<Vec<u32>>
 where
     R: ?Sized + ByteRead,
 {
@@ -104,7 +117,7 @@ where
     Ok(result)
 }
 
-pub fn write_null_terminated_table<W>(writer: &mut W, base_address: u32, items: &[u32]) -> anyhow::Result<()>
+pub fn write_null_terminated_table<W>(writer: &mut W, base_address: u32, items: &[u32]) -> Result<()>
 where
     W: ?Sized + ByteWrite,
 {

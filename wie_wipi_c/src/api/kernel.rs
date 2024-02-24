@@ -13,8 +13,9 @@ use wie_backend::Instant;
 use wie_util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string};
 
 use crate::{
-    context::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
+    context::WIPICContext,
     method::{MethodBody, MethodImpl},
+    WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord,
 };
 
 #[repr(C, packed)]
@@ -30,8 +31,8 @@ pub struct WIPICTimer {
     fn_callback: WIPICWord,
 }
 
-fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented kernel{}: {}", id, name)) };
+fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
 
     body.into_body()
 }

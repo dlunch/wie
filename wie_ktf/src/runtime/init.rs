@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::{Allocator, ArmCore, ArmCoreResult};
 use wie_util::{read_generic, write_generic};
 
 use crate::runtime::{
@@ -126,7 +126,7 @@ pub struct KtfPeb {
 }
 
 pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> anyhow::Result<u32> {
-    core.run_function(image_base + 1, &[bss_size]).await
+    Ok(core.run_function(image_base + 1, &[bss_size]).await?)
 }
 
 pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> anyhow::Result<u32> {
@@ -213,7 +213,7 @@ pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> any
     Ok(wipi_exe.fn_init)
 }
 
-async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String) -> anyhow::Result<u32> {
+async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String) -> ArmCoreResult<u32> {
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
@@ -227,7 +227,7 @@ async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String
     }
 }
 
-async fn alloc(core: &mut ArmCore, _: &mut System, a0: u32) -> anyhow::Result<u32> {
+async fn alloc(core: &mut ArmCore, _: &mut System, a0: u32) -> ArmCoreResult<u32> {
     tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)

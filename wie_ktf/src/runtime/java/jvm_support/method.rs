@@ -12,7 +12,7 @@ use java_constants::MethodAccessFlags;
 use jvm::{JavaType, JavaValue, Jvm, JvmError, JvmResult, Method};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, ArmEngineError, EmulatedFunction, EmulatedFunctionParam};
+use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
 use wie_util::{read_generic, write_generic, ByteWrite};
 
 use crate::context::KtfContextExt;
@@ -119,13 +119,13 @@ impl JavaMethod {
 
             Allocator::free(&mut core, arg_container)?;
 
-            result
+            Ok(result?)
         } else {
             let mut params = vec![0];
             params.extend(args.iter().map(|x| x.as_raw())); // TODO double/long handling
 
             tracing::trace!("Calling method: {:#x}", raw.fn_body);
-            core.run_function(raw.fn_body, &params).await
+            Ok(core.run_function(raw.fn_body, &params).await?)
         }
     }
 
@@ -145,19 +145,19 @@ impl JavaMethod {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl<C, Context> EmulatedFunction<(), ArmEngineError, u32> for JavaMethodProxy<C, Context>
+        impl<C, Context> EmulatedFunction<(), ArmCoreError, u32> for JavaMethodProxy<C, Context>
         where
             C: ?Sized,
             Context: Deref<Target = C> + DerefMut + Clone + 'static,
         {
-            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmEngineError> {
+            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmCoreError> {
                 let param_count = self.parameter_types.len() as u32;
 
                 let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
                     let param_base = u32::get(core, 1);
                     (0..param_count)
                         .map(|x| read_generic(core, param_base + x * 4))
-                        .collect::<anyhow::Result<Vec<u32>>>()?
+                        .collect::<wie_util::Result<Vec<u32>>>()?
                 } else {
                     (0..param_count).map(|x| u32::get(core, (x + 1) as _)).collect::<Vec<_>>()
                 };
@@ -170,7 +170,7 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.proto.body.call(&system.jvm(), &mut context, args.into_boxed_slice()).await?;
+                let result = self.proto.body.call(&system.jvm(), &mut context, args.into_boxed_slice()).await.unwrap();
 
                 Ok(result.as_raw())
             }
@@ -189,7 +189,7 @@ impl JavaMethod {
             parameter_types,
         };
 
-        core.register_function(proxy)
+        Ok(core.register_function(proxy)?)
     }
 }
 

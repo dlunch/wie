@@ -1,20 +1,9 @@
 use alloc::{boxed::Box, string::String};
 
-use bytemuck::{Pod, Zeroable};
-
 use wie_backend::System;
 use wie_util::{read_null_terminated_string, ByteRead, ByteWrite};
 
-use crate::method::{MethodBody, TypeConverter};
-
-pub type WIPICError = anyhow::Error;
-pub type WIPICResult<T> = anyhow::Result<T>;
-pub type WIPICWord = u32; // wipi c is 32bit target
-pub type WIPICMethodBody = Box<dyn MethodBody<WIPICError>>;
-
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[repr(C)]
-pub struct WIPICMemoryId(pub WIPICWord);
+use crate::{method::TypeConverter, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 #[async_trait::async_trait(?Send)]
 pub trait WIPICContext: ByteRead + ByteWrite {

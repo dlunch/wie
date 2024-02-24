@@ -3,7 +3,7 @@ use core::{array, cell::RefCell, ops::Range};
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
 
-use crate::engine::{ArmEngine, ArmEngineResult, ArmRegister, MemoryPermission};
+use crate::engine::{ArmCoreResult, ArmEngine, ArmRegister, MemoryPermission};
 
 pub struct Armv4tEmuEngine {
     cpu: Cpu,
@@ -20,7 +20,7 @@ impl Armv4tEmuEngine {
 }
 
 impl ArmEngine for Armv4tEmuEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> ArmEngineResult<()> {
+    fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> ArmCoreResult<()> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
             if pc == end || hook.contains(&pc) || count == 0 {
@@ -54,13 +54,13 @@ impl ArmEngine for Armv4tEmuEngine {
         self.mem.map(address, size);
     }
 
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmEngineResult<()> {
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmCoreResult<()> {
         self.mem.write_range(address, data);
 
         Ok(())
     }
 
-    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>> {
+    fn mem_read(&mut self, address: u32, size: usize) -> ArmCoreResult<Vec<u8>> {
         let result = self.mem.read_range(address, size);
 
         Ok(result)

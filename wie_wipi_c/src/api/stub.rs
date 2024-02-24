@@ -1,12 +1,9 @@
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 
-use crate::{
-    context::{WIPICContext, WIPICMethodBody, WIPICWord},
-    method::MethodImpl,
-};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICWord};
 
 fn gen_stub(interface: WIPICWord, id: WIPICWord) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented unknown{}_{}", interface, id)) };
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(format!("unknown{}_{}", interface, id))) };
 
     body.into_body()
 }

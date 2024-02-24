@@ -78,7 +78,7 @@ fn main() -> anyhow::Result<()> {
 pub fn start(filename: &str) -> anyhow::Result<()> {
     let buf = fs::read(filename)?;
     let archive: Box<dyn Archive> = if filename.ends_with("zip") {
-        let files = extract_zip(&buf)?;
+        let files = extract_zip(&buf).unwrap();
 
         if KtfArchive::is_ktf_archive(&files) {
             Box::new(KtfArchive::from_zip(files)?)

@@ -1,13 +1,9 @@
 use alloc::{vec, vec::Vec};
 
-use crate::{
-    context::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
-    method::MethodImpl,
-    WIPICMemoryId,
-};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
-fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented uic{}: {}", id, name)) };
+fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
 
     body.into_body()
 }

@@ -5,16 +5,15 @@ use core::ops::Range;
 
 pub use armv4t_emu::Armv4tEmuEngine;
 
-pub type ArmEngineResult<T> = anyhow::Result<T>;
-pub type ArmEngineError = anyhow::Error;
+use crate::ArmCoreResult;
 
 pub trait ArmEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> ArmEngineResult<()>;
+    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> ArmCoreResult<()>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmEngineResult<()>;
-    fn mem_read(&mut self, address: u32, size: usize) -> ArmEngineResult<Vec<u8>>;
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmCoreResult<()>;
+    fn mem_read(&mut self, address: u32, size: usize) -> ArmCoreResult<Vec<u8>>;
 }
 
 #[allow(clippy::enum_variant_names)]

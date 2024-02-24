@@ -1,9 +1,6 @@
 use alloc::{vec, vec::Vec};
 
-use crate::{
-    context::{WIPICContext, WIPICMethodBody, WIPICResult, WIPICWord},
-    method::MethodImpl,
-};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMethodBody, WIPICResult, WIPICWord};
 
 async fn unk0(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
     tracing::warn!("stub unk3_0()");

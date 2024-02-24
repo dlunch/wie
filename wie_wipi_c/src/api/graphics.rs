@@ -10,10 +10,7 @@ use bytemuck::Zeroable;
 use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
 use wie_util::{read_generic, write_generic};
 
-use crate::{
-    context::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord},
-    method::MethodImpl,
-};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 use self::{
     framebuffer::{WIPICDisplayInfo, WIPICFramebuffer},
@@ -23,8 +20,8 @@ use self::{
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 
-fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(anyhow::anyhow!("Unimplemented graphics{}: {}", id, name)) };
+fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
 
     body.into_body()
 }

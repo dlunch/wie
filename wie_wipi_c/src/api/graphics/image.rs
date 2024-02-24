@@ -1,8 +1,10 @@
+use alloc::string::ToString;
+
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::canvas::decode_image;
 
-use crate::context::{WIPICContext, WIPICMemoryId, WIPICWord};
+use crate::{context::WIPICContext, WIPICError, WIPICMemoryId, WIPICResult, WIPICWord};
 
 use super::WIPICFramebuffer;
 
@@ -21,10 +23,10 @@ pub struct WIPICImage {
 }
 
 impl WIPICImage {
-    pub fn new(context: &mut dyn WIPICContext, buf: WIPICMemoryId, offset: WIPICWord, len: WIPICWord) -> anyhow::Result<Self> {
+    pub fn new(context: &mut dyn WIPICContext, buf: WIPICMemoryId, offset: WIPICWord, len: WIPICWord) -> WIPICResult<Self> {
         let ptr_image_data = context.data_ptr(buf)?;
         let data = context.read_bytes(ptr_image_data + offset, len)?;
-        let image = decode_image(&data)?;
+        let image = decode_image(&data).map_err(|x| WIPICError::BackendError(x.to_string()))?;
 
         let img_framebuffer = WIPICFramebuffer::from_image(context, &*image)?;
         let mask_framebuffer = WIPICFramebuffer::empty();
