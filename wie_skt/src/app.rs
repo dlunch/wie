@@ -3,7 +3,8 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::JvmResult;
+use jvm::Result as JvmResult;
+
 use wie_backend::{App, Event, System};
 use wie_core_jvm::JvmCore;
 

@@ -8,7 +8,7 @@ use bytemuck::cast_vec;
 
 use java_class_proto::MethodBody;
 use java_runtime::{classes::java::lang::String as JavaString, Runtime};
-use jvm::{ClassInstanceRef, Jvm, JvmCallback, JvmError, JvmResult};
+use jvm::{ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::{AsyncCallable, System};
@@ -41,8 +41,8 @@ impl Runtime for JvmCoreRuntime {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, JvmError> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JvmError> {
+        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JavaError> {
                 self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
 
                 Ok(0) // TODO
@@ -132,16 +132,16 @@ impl WIPIJavaContextBase for JvmCoreContext {
         &mut self.system
     }
 
-    fn spawn(&mut self, callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
+    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
         struct SpawnProxy {
             system: System,
             jvm: Rc<Jvm>,
-            callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>,
+            callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>,
         }
 
         #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, JvmError> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JvmError> {
+        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JavaError> {
                 let mut context = JvmCoreContext {
                     system: self.system.clone(),
                     jvm: self.jvm.clone(),

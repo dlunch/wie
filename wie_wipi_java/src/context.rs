@@ -3,13 +3,13 @@ use alloc::boxed::Box;
 use dyn_clone::{clone_trait_object, DynClone};
 
 use java_class_proto::{JavaClassProto, MethodBody};
-use jvm::{JvmError, JvmResult};
+use jvm::{JavaError, Result as JvmResult};
 
 use wie_backend::System;
 
 pub trait WIPIJavaContextBase: DynClone {
     fn system(&mut self) -> &mut System;
-    fn spawn(&mut self, callback: Box<dyn MethodBody<JvmError, WIPIJavaContext>>) -> JvmResult<()>;
+    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>) -> JvmResult<()>;
 }
 
 clone_trait_object!(WIPIJavaContextBase);
@@ -22,7 +22,7 @@ pub mod test {
     use alloc::boxed::Box;
 
     use java_class_proto::MethodBody;
-    use jvm::{JvmError, JvmResult};
+    use jvm::{JavaError, Result as JvmResult};
 
     use wie_backend::System;
 
@@ -36,7 +36,7 @@ pub mod test {
             todo!()
         }
 
-        fn spawn(&mut self, _callback: Box<dyn MethodBody<JvmError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
+        fn spawn(&mut self, _callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
             todo!()
         }
     }

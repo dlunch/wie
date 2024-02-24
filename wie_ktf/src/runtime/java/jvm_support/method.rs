@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::{JavaType, JavaValue, Jvm, JvmError, JvmResult, Method};
+use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
@@ -208,7 +208,7 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        let result = self.run(args).await.map_err(|x| JvmError::FatalError(format!("{:?}", x)))?;
+        let result = self.run(args).await.map_err(|x| JavaError::FatalError(format!("{:?}", x)))?;
         let r#type = JavaType::parse(&self.descriptor());
         let (_, return_type) = r#type.as_method();
 

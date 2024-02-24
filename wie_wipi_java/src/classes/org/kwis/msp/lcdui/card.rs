@@ -1,7 +1,7 @@
 use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm::{ClassInstanceRef, Jvm, JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use crate::{
     classes::org::kwis::msp::lcdui::Display,

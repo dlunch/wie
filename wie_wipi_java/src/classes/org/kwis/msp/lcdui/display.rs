@@ -4,7 +4,7 @@ use core::iter;
 use java_class_proto::{JavaFieldProto, JavaMethodProto, MethodBody};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::{Object, Runnable, String};
-use jvm::{ClassInstanceRef, JavaValue, Jvm, JvmError, JvmResult};
+use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult};
 
 use crate::{
     classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
@@ -191,8 +191,8 @@ impl Display {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl MethodBody<JvmError, WIPIJavaContext> for SpawnProxy {
-            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JvmError> {
+        impl MethodBody<JavaError, WIPIJavaContext> for SpawnProxy {
+            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 let until = context.system().platform().now() + 16; // TODO
                 context.system().sleep(until).await;
 
