@@ -1,5 +1,5 @@
 use alloc::collections::BTreeMap;
-use core::time::Duration;
+use core::{result::Result, time::Duration};
 
 use smaf::Smaf;
 use smaf_player::{play_smaf, AudioBackend};
@@ -46,6 +46,10 @@ impl AudioBackend for AudioBackendImpl {
 }
 
 pub type AudioHandle = u32;
+pub enum AudioError {
+    InvalidHandle,
+    InvalidAudio,
+}
 
 enum AudioFile {
     Smaf(Vec<u8>),
@@ -66,7 +70,7 @@ impl Audio {
         }
     }
 
-    pub fn load_smaf(&mut self, data: &[u8]) -> anyhow::Result<AudioHandle> {
+    pub fn load_smaf(&mut self, data: &[u8]) -> Result<AudioHandle, AudioError> {
         let audio_handle = self.last_audio_handle;
 
         self.last_audio_handle += 1;
@@ -75,15 +79,13 @@ impl Audio {
         Ok(audio_handle)
     }
 
-    pub async fn play(&self, audio_handle: AudioHandle) -> anyhow::Result<()> {
+    pub async fn play(&self, audio_handle: AudioHandle) -> Result<(), AudioError> {
         match self.files.get(&audio_handle) {
             Some(AudioFile::Smaf(data)) => {
-                let smaf = Smaf::parse(data)?;
+                let smaf = Smaf::parse(data).map_err(|_| AudioError::InvalidAudio)?;
                 play_smaf(&smaf, &self.backend).await;
             }
-            None => {
-                anyhow::bail!("audio handle not found");
-            }
+            None => return Err(AudioError::InvalidHandle),
         }
 
         Ok(())
