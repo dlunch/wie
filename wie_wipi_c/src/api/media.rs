@@ -1,8 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{string::String, vec, vec::Vec};
 use core::mem::size_of;
 
 use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICResult, WIPICWord};
@@ -115,7 +111,7 @@ async fn clip_put_data(context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIP
         .system()
         .audio()
         .load_smaf(&data)
-        .map_err(|x| WIPICError::BackendError(x.to_string()))?;
+        .map_err(|_| WIPICError::BackendError("Invalid Audio".into()))?;
 
     Ok(0)
 }
