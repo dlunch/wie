@@ -77,6 +77,7 @@ impl Executor {
         task_id
     }
 
+    // TODO we need to remove error handling from here. we need to JoinHandle like on spawn..
     pub fn tick<T>(&mut self, now: T) -> anyhow::Result<()>
     where
         T: Fn() -> Instant,
