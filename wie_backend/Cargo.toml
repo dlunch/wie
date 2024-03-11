@@ -11,7 +11,7 @@ bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 encoding_rs = { version = "^0.8", features = ["alloc"], default-features = false }
-image = { version = "^0.24", features = ["bmp", "png"], default-features = false }
+image = { version = "^0.25", features = ["bmp", "png"], default-features = false }
 lazy_static = { version = "^1.4", default-features = false }
 num-traits = { version = "^0.2", default-features = false }
 ab_glyph = { version = "^0.2", features = ["libm"], default-features = false }
