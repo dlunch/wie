@@ -242,7 +242,7 @@ impl EventQueue {
 
         if card_size > 0 {
             let card_data: Vec<ClassInstanceRef<Card>> = jvm.load_array(&cards, 0, card_size as _).await?;
-            Ok(card_data[card_size as usize - 1].clone().into())
+            Ok(card_data[card_size as usize - 1].clone())
         } else {
             Ok(None.into())
         }
