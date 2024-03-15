@@ -76,11 +76,11 @@ impl Card {
         let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", []).await?;
         let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", []).await?;
 
-        jvm.put_field(&mut this, "display", "Lorg/kwis/msp/lcdui/Display;", display)?;
-        jvm.put_field(&mut this, "x", "I", 0)?;
-        jvm.put_field(&mut this, "y", "I", 0)?;
-        jvm.put_field(&mut this, "w", "I", width)?;
-        jvm.put_field(&mut this, "h", "I", height)?;
+        jvm.put_field(&mut this, "display", "Lorg/kwis/msp/lcdui/Display;", display).await?;
+        jvm.put_field(&mut this, "x", "I", 0).await?;
+        jvm.put_field(&mut this, "y", "I", 0).await?;
+        jvm.put_field(&mut this, "w", "I", width).await?;
+        jvm.put_field(&mut this, "h", "I", height).await?;
 
         Ok(())
     }
@@ -94,20 +94,20 @@ impl Card {
     async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
 
-        jvm.get_field(&this, "w", "I")
+        jvm.get_field(&this, "w", "I").await
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
 
-        jvm.get_field(&this, "h", "I")
+        jvm.get_field(&this, "h", "I").await
     }
 
     async fn repaint(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
 
-        let width: i32 = jvm.get_field(&this, "w", "I")?;
-        let height: i32 = jvm.get_field(&this, "h", "I")?;
+        let width: i32 = jvm.get_field(&this, "w", "I").await?;
+        let height: i32 = jvm.get_field(&this, "h", "I").await?;
 
         jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
 

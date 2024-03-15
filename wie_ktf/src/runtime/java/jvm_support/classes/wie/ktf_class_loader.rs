@@ -68,7 +68,7 @@ impl KtfClassLoader {
 
         // find from client.bin
 
-        let name = JavaLangString::to_rust_string(jvm, name.into())?;
+        let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
         let core = context.core();
         let fn_get_class = JavaContextData::fn_get_class(core).unwrap();
@@ -102,7 +102,7 @@ impl KtfClassLoader {
     ) -> JvmResult<ClassInstanceRef<URL>> {
         tracing::debug!("rustjava.ClassPathClassLoader::findResource({:?}, {:?})", &this, name);
 
-        let name = JavaLangString::to_rust_string(jvm, name.clone())?;
+        let name = JavaLangString::to_rust_string(jvm, &name).await?;
         let id = context.system().resource().id(&name);
         if id.is_none() {
             return Ok(None.into());
@@ -110,7 +110,7 @@ impl KtfClassLoader {
 
         let data = context.system().resource().data(id.unwrap()).to_vec();
         let mut data_array = jvm.instantiate_array("B", data.len()).await?;
-        jvm.store_byte_array(&mut data_array, 0, cast_vec(data))?;
+        jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
 
         let protocol = JavaLangString::from_rust_string(jvm, "bytes").await?;
         let host = JavaLangString::from_rust_string(jvm, "").await?;

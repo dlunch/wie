@@ -26,7 +26,7 @@ impl HandsetProperty {
     }
 
     async fn get_system_property(jvm: &Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<String>> {
-        let name = JavaLangString::to_rust_string(jvm, name.into())?;
+        let name = JavaLangString::to_rust_string(jvm, &name).await?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
         let result = JavaLangString::from_rust_string(jvm, "").await?;

@@ -83,7 +83,7 @@ impl Image {
     async fn create_image_from_file(jvm: &Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
 
-        let name = JavaLangString::to_rust_string(jvm, name.into())?;
+        let name = JavaLangString::to_rust_string(jvm, &name).await?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
         let id = context.system().resource().id(normalized_name).unwrap();
@@ -108,7 +108,7 @@ impl Image {
     ) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
-        let image_data = jvm.load_byte_array(&data, offset as _, length as _)?;
+        let image_data = jvm.load_byte_array(&data, offset as _, length as _).await?;
         let image = decode_image(&cast_vec(image_data)).unwrap();
 
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
@@ -117,8 +117,8 @@ impl Image {
     async fn get_graphics(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
 
-        let width: i32 = jvm.get_field(&this, "w", "I")?;
-        let height: i32 = jvm.get_field(&this, "h", "I")?;
+        let width: i32 = jvm.get_field(&this, "w", "I").await?;
+        let height: i32 = jvm.get_field(&this, "h", "I").await?;
 
         let instance = jvm
             .new_class(
@@ -134,49 +134,76 @@ impl Image {
     async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
 
-        jvm.get_field(&this, "w", "I")
+        jvm.get_field(&this, "w", "I").await
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
 
-        jvm.get_field(&this, "h", "I")
+        jvm.get_field(&this, "h", "I").await
     }
 
-    pub fn buf(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Vec<u8>> {
-        let java_img_data = jvm.get_field(this, "imgData", "[B")?;
-        let img_data_len = jvm.array_length(&java_img_data)?;
+    pub async fn buf(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Vec<u8>> {
+        let java_img_data = jvm.get_field(this, "imgData", "[B").await?;
+        let img_data_len = jvm.array_length(&java_img_data).await?;
 
-        let img_data = jvm.load_byte_array(&java_img_data, 0, img_data_len)?;
+        let img_data = jvm.load_byte_array(&java_img_data, 0, img_data_len).await?;
 
         Ok(cast_vec(img_data))
     }
 
-    pub fn image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn BackendImage>> {
-        let buf = Self::buf(jvm, this)?;
+    pub async fn image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn BackendImage>> {
+        let buf = Self::buf(jvm, this).await?;
 
-        let width: i32 = jvm.get_field(this, "w", "I")?;
-        let height: i32 = jvm.get_field(this, "h", "I")?;
-        let bpl: i32 = jvm.get_field(this, "bpl", "I")?;
+        let width: i32 = jvm.get_field(this, "w", "I").await?;
+        let height: i32 = jvm.get_field(this, "h", "I").await?;
+        let bpl: i32 = jvm.get_field(this, "bpl", "I").await?;
 
         let bytes_per_pixel = bpl / width;
 
         Ok(match bytes_per_pixel {
-            2 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))),
-            4 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))),
+            2 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
+            4 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
             _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
         })
     }
 
-    pub fn canvas<'a>(jvm: &'a Jvm, this: &'a ClassInstanceRef<Self>) -> JvmResult<ImageCanvas<'a>> {
-        let buf = Self::buf(jvm, this)?;
+    pub async fn canvas<'a>(jvm: &'a Jvm, this: &'a ClassInstanceRef<Self>) -> JvmResult<ImageCanvas<'a>> {
+        let buf = Self::buf(jvm, this).await?;
 
-        let width: i32 = jvm.get_field(this, "w", "I")?;
-        let height: i32 = jvm.get_field(this, "h", "I")?;
-        let bpl: i32 = jvm.get_field(this, "bpl", "I")?;
+        let width: i32 = jvm.get_field(this, "w", "I").await?;
+        let height: i32 = jvm.get_field(this, "h", "I").await?;
+        let bpl: i32 = jvm.get_field(this, "bpl", "I").await?;
 
         let bytes_per_pixel = bpl / width;
 
+        Ok(ImageCanvas::new(jvm, this, width as _, height as _, bytes_per_pixel as _, buf))
+    }
+
+    async fn create_image_instance(jvm: &Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JvmResult<ClassInstanceRef<Image>> {
+        let mut instance = jvm.new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
+
+        let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
+        jvm.store_byte_array(&mut data_array, 0, cast_vec(data.to_vec())).await?;
+
+        jvm.put_field(&mut instance, "w", "I", width as i32).await?;
+        jvm.put_field(&mut instance, "h", "I", height as i32).await?;
+        jvm.put_field(&mut instance, "imgData", "[B", data_array).await?;
+        jvm.put_field(&mut instance, "bpl", "I", (width * bytes_per_pixel) as i32).await?;
+
+        Ok(instance.into())
+    }
+}
+
+pub struct ImageCanvas<'a> {
+    image: &'a ClassInstanceRef<Image>,
+    jvm: &'a Jvm,
+    canvas: Box<dyn Canvas>,
+    flushed: bool,
+}
+
+impl<'a> ImageCanvas<'a> {
+    pub fn new(jvm: &'a Jvm, image: &'a ClassInstanceRef<Image>, width: u32, height: i32, bytes_per_pixel: u32, buf: Vec<u8>) -> Self {
         let canvas: Box<dyn Canvas> = match bytes_per_pixel {
             2 => Box::new(ImageBufferCanvas::new(VecImageBuffer::<Rgb565Pixel>::from_raw(
                 width as _,
@@ -191,37 +218,31 @@ impl Image {
             _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
         };
 
-        Ok(ImageCanvas { image: this, jvm, canvas })
+        Self {
+            image,
+            jvm,
+            canvas,
+            flushed: false,
+        }
     }
 
-    async fn create_image_instance(jvm: &Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JvmResult<ClassInstanceRef<Image>> {
-        let mut instance = jvm.new_class("org/kwis/msp/lcdui/Image", "()V", []).await?;
+    // We don't have async drop yet..
+    pub async fn flush(mut self) {
+        let mut data = self.jvm.get_field(self.image, "imgData", "[B").await.unwrap();
 
-        let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut data_array, 0, cast_vec(data.to_vec()))?;
-
-        jvm.put_field(&mut instance, "w", "I", width as i32)?;
-        jvm.put_field(&mut instance, "h", "I", height as i32)?;
-        jvm.put_field(&mut instance, "imgData", "[B", data_array)?;
-        jvm.put_field(&mut instance, "bpl", "I", (width * bytes_per_pixel) as i32)?;
-
-        Ok(instance.into())
+        self.jvm
+            .store_byte_array(&mut data, 0, cast_vec(self.canvas.image().raw().to_vec()))
+            .await
+            .unwrap();
+        self.flushed = true
     }
-}
-
-pub struct ImageCanvas<'a> {
-    image: &'a ClassInstanceRef<Image>,
-    jvm: &'a Jvm,
-    canvas: Box<dyn Canvas>,
 }
 
 impl Drop for ImageCanvas<'_> {
     fn drop(&mut self) {
-        let mut data = self.jvm.get_field(self.image, "imgData", "[B").unwrap();
-
-        self.jvm
-            .store_byte_array(&mut data, 0, cast_vec(self.canvas.image().raw().to_vec()))
-            .unwrap();
+        if !self.flushed {
+            panic!("ImageCanvas was dropped without flushing")
+        }
     }
 }
 

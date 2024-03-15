@@ -40,7 +40,7 @@ impl FileSystem {
     async fn exists(jvm: &Jvm, context: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
-        let filename = JavaLangString::to_rust_string(jvm, name.into())?;
+        let filename = JavaLangString::to_rust_string(jvm, &name).await?;
 
         // emulating filesystem by resource..
         let filename_on_resource = format!("P{}", filename);
