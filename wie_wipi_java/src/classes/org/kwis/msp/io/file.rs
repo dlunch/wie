@@ -51,7 +51,7 @@ impl File {
     ) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
-        let filename = JavaLangString::to_rust_string(jvm, filename.into())?;
+        let filename = JavaLangString::to_rust_string(jvm, &filename).await?;
         tracing::debug!("Loading {}", filename);
 
         // TODO we don't have filesystem now, emulating file loading with resource for now..
@@ -63,10 +63,10 @@ impl File {
         };
 
         let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut data_array, 0, data)?;
+        jvm.store_byte_array(&mut data_array, 0, data).await?;
 
-        jvm.put_field(&mut this, "data", "[B", data_array)?;
-        jvm.put_field(&mut this, "pos", "I", 0)?;
+        jvm.put_field(&mut this, "data", "[B", data_array).await?;
+        jvm.put_field(&mut this, "pos", "I", 0).await?;
 
         Ok(())
     }
@@ -87,18 +87,18 @@ impl File {
     async fn read(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
-        let data_array = jvm.get_field(&this, "data", "[B")?;
-        let pos: i32 = jvm.get_field(&this, "pos", "I")?;
+        let data_array = jvm.get_field(&this, "data", "[B").await?;
+        let pos: i32 = jvm.get_field(&this, "pos", "I").await?;
 
-        let data_len = jvm.array_length(&data_array)?;
-        let buf_len = jvm.array_length(&buf)?;
+        let data_len = jvm.array_length(&data_array).await?;
+        let buf_len = jvm.array_length(&buf).await?;
 
         let length_to_read = min(data_len - pos as usize, buf_len);
 
-        let data = jvm.load_byte_array(&data_array, pos as _, length_to_read)?;
-        jvm.store_byte_array(&mut buf, 0, data)?;
+        let data = jvm.load_byte_array(&data_array, pos as _, length_to_read).await?;
+        jvm.store_byte_array(&mut buf, 0, data).await?;
 
-        jvm.put_field(&mut this, "pos", "I", pos + length_to_read as i32)?;
+        jvm.put_field(&mut this, "pos", "I", pos + length_to_read as i32).await?;
 
         Ok(length_to_read as _)
     }
@@ -112,8 +112,8 @@ impl File {
     async fn size_of(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
 
-        let data_array = jvm.get_field(&this, "data", "[B")?;
-        let data_len = jvm.array_length(&data_array)?;
+        let data_array = jvm.get_field(&this, "data", "[B").await?;
+        let data_len = jvm.array_length(&data_array).await?;
 
         Ok(data_len as _)
     }

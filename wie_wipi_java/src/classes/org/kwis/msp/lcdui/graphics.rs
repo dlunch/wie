@@ -83,11 +83,11 @@ impl Graphics {
         let log = format!("org.kwis.msp.lcdui.Graphics::<init>({:?}, {:?})", &this, &display);
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
-        let width: i32 = jvm.get_field(&display, "m_w", "I")?;
-        let height: i32 = jvm.get_field(&display, "m_h", "I")?;
+        let width: i32 = jvm.get_field(&display, "m_w", "I").await?;
+        let height: i32 = jvm.get_field(&display, "m_h", "I").await?;
 
-        jvm.put_field(&mut this, "w", "I", width)?;
-        jvm.put_field(&mut this, "h", "I", height)?;
+        jvm.put_field(&mut this, "w", "I", width).await?;
+        jvm.put_field(&mut this, "h", "I", height).await?;
 
         Ok(())
     }
@@ -113,9 +113,9 @@ impl Graphics {
             height
         );
 
-        jvm.put_field(&mut this, "img", "Lorg/kwis/msp/lcdui/Image;", image)?;
-        jvm.put_field(&mut this, "w", "I", width)?;
-        jvm.put_field(&mut this, "h", "I", height)?;
+        jvm.put_field(&mut this, "img", "Lorg/kwis/msp/lcdui/Image;", image).await?;
+        jvm.put_field(&mut this, "w", "I", width).await?;
+        jvm.put_field(&mut this, "h", "I", height).await?;
 
         Ok(())
     }
@@ -131,7 +131,7 @@ impl Graphics {
     async fn set_color(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
 
-        jvm.put_field(&mut this, "rgb", "I", rgb)?;
+        jvm.put_field(&mut this, "rgb", "I", rgb).await?;
 
         Ok(())
     }
@@ -141,7 +141,7 @@ impl Graphics {
 
         let rgb = (r << 16) | (g << 8) | b;
 
-        jvm.put_field(&mut this, "rgb", "I", rgb)?;
+        jvm.put_field(&mut this, "rgb", "I", rgb).await?;
 
         Ok(())
     }
@@ -195,12 +195,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I")?;
+        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image)?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
 
         canvas.fill_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+
+        canvas.flush().await;
 
         Ok(())
     }
@@ -216,12 +218,14 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I")?;
+        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image)?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
 
         canvas.draw_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+
+        canvas.flush().await;
 
         Ok(())
     }
@@ -244,10 +248,10 @@ impl Graphics {
             anchor.0
         );
 
-        let rust_string = JavaLangString::to_rust_string(jvm, string.into())?;
+        let rust_string = JavaLangString::to_rust_string(jvm, &string).await?;
 
         let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image)?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
 
         let alignment = if anchor.contains(Anchor::HCENTER) {
             TextAlignment::Center
@@ -259,18 +263,22 @@ impl Graphics {
 
         canvas.draw_text(&rust_string, x as _, y as _, alignment);
 
+        canvas.flush().await;
+
         Ok(())
     }
 
     async fn draw_line(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I")?;
+        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image)?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
 
         canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(rgb as _));
+
+        canvas.flush().await;
 
         Ok(())
     }
@@ -293,10 +301,10 @@ impl Graphics {
             anchor.0
         );
 
-        let src_image = Image::image(jvm, &img)?;
+        let src_image = Image::image(jvm, &img).await?;
 
         let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image)?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
             -((src_image.width() / 2) as i32)
@@ -319,6 +327,8 @@ impl Graphics {
 
         canvas.draw(x as _, y as _, src_image.width(), src_image.height(), &*src_image, 0, 0);
 
+        canvas.flush().await;
+
         Ok(())
     }
 
@@ -337,7 +347,7 @@ impl Graphics {
     async fn get_clip_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:?})", &this);
 
-        let w: i32 = jvm.get_field(&this, "w", "I")?;
+        let w: i32 = jvm.get_field(&this, "w", "I").await?;
 
         Ok(w)
     }
@@ -345,7 +355,7 @@ impl Graphics {
     async fn get_clip_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:?})", &this);
 
-        let h: i32 = jvm.get_field(&this, "h", "I")?;
+        let h: i32 = jvm.get_field(&this, "h", "I").await?;
 
         Ok(h)
     }
@@ -394,25 +404,27 @@ impl Graphics {
         );
 
         // TODO we need imagebuffer proxy, as it's not optimal to copy entire image from java/c buffer to rust every time
-        let pixel_data: Vec<i32> = jvm.load_array(&rgb_pixels, offset as _, (width * height) as _)?;
+        let pixel_data: Vec<i32> = jvm.load_array(&rgb_pixels, offset as _, (width * height) as _).await?;
         let src_image = VecImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
 
         let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image)?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
 
         canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0);
+
+        canvas.flush().await;
 
         Ok(())
     }
 
     async fn image(jvm: &Jvm, this: &mut ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Image>> {
-        let image: ClassInstanceRef<Image> = jvm.get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let image: ClassInstanceRef<Image> = jvm.get_field(this, "img", "Lorg/kwis/msp/lcdui/Image;").await?;
 
         if !image.is_null() {
             Ok(image)
         } else {
-            let width = jvm.get_field(this, "w", "I")?;
-            let height = jvm.get_field(this, "h", "I")?;
+            let width = jvm.get_field(this, "w", "I").await?;
+            let height = jvm.get_field(this, "h", "I").await?;
 
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static(
@@ -423,7 +435,7 @@ impl Graphics {
                 )
                 .await?;
 
-            jvm.put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", image.clone())?;
+            jvm.put_field(this, "img", "Lorg/kwis/msp/lcdui/Image;", image.clone()).await?;
 
             Ok(image)
         }
@@ -467,7 +479,7 @@ mod test {
 
         jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
 
-        let image = Image::image(&jvm, &image)?;
+        let image = Image::image(&jvm, &image).await?;
 
         assert_eq!(image.width(), 100);
         assert_eq!(image.height(), 100);

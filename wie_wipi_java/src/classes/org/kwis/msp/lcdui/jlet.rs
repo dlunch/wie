@@ -58,13 +58,13 @@ impl Jlet {
             )
             .await?;
 
-        jvm.put_field(&mut this, "dis", "Lorg/kwis/msp/lcdui/Display;", display)?;
+        jvm.put_field(&mut this, "dis", "Lorg/kwis/msp/lcdui/Display;", display).await?;
 
         let event_queue = jvm
             .new_class("org/kwis/msp/lcdui/EventQueue", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
             .await?;
 
-        jvm.put_field(&mut this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue)?;
+        jvm.put_field(&mut this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue).await?;
 
         jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
             .await?;
@@ -103,7 +103,7 @@ impl Jlet {
     async fn get_event_queue(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
-        let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;")?;
+        let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;").await?;
 
         Ok(eq)
     }

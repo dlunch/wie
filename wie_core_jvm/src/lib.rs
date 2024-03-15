@@ -105,7 +105,7 @@ impl JvmCore {
 
     pub async fn add_jar(&self, jar: &[u8]) -> JvmResult<()> {
         let mut storage = self.jvm.instantiate_array("B", jar.len()).await?;
-        self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec()))?;
+        self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec())).await?;
 
         let class_loader = self.jvm.get_system_class_loader().await?;
         let _: ClassInstanceRef<JavaString> = self

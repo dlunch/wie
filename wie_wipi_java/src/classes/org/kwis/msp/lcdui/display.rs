@@ -77,8 +77,8 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
         let cards = jvm.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 10).await?;
-        jvm.put_field(&mut this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards)?;
-        jvm.put_field(&mut this, "szCard", "I", 0)?;
+        jvm.put_field(&mut this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards).await?;
+        jvm.put_field(&mut this, "szCard", "I", 0).await?;
 
         let (width, height) = {
             let mut platform = context.system().platform();
@@ -86,8 +86,8 @@ impl Display {
             (screen.width(), screen.height())
         };
 
-        jvm.put_field(&mut this, "m_w", "I", width as i32)?;
-        jvm.put_field(&mut this, "m_h", "I", height as i32)?;
+        jvm.put_field(&mut this, "m_w", "I", width as i32).await?;
+        jvm.put_field(&mut this, "m_h", "I", height as i32).await?;
 
         Ok(())
     }
@@ -99,7 +99,7 @@ impl Display {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display = jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")?;
+        let display = jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;").await?;
 
         Ok(display)
     }
@@ -134,14 +134,14 @@ impl Display {
     async fn push_card(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
-        let mut cards = jvm.get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card_size: i32 = jvm.get_field(&this, "szCard", "I")?;
+        let mut cards = jvm.get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;").await?;
+        let card_size: i32 = jvm.get_field(&this, "szCard", "I").await?;
 
-        let cards_data = jvm.load_array(&cards, 0, card_size as usize)?;
+        let cards_data = jvm.load_array(&cards, 0, card_size as usize).await?;
         let cards_data = cards_data.into_iter().chain(iter::once(c)).collect::<Vec<_>>();
 
-        jvm.store_array(&mut cards, 0, cards_data)?;
-        jvm.put_field(&mut this, "szCard", "I", card_size + 1)?;
+        jvm.store_array(&mut cards, 0, cards_data).await?;
+        jvm.put_field(&mut this, "szCard", "I", card_size + 1).await?;
 
         Ok(())
     }
@@ -149,7 +149,7 @@ impl Display {
     async fn remove_all_cards(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards");
 
-        jvm.put_field(&mut this, "szCard", "I", 0)?;
+        jvm.put_field(&mut this, "szCard", "I", 0).await?;
 
         Ok(())
     }
@@ -168,7 +168,7 @@ impl Display {
     async fn get_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getWidth({:?})", &this);
 
-        let width: i32 = jvm.get_field(&this, "m_w", "I")?;
+        let width: i32 = jvm.get_field(&this, "m_w", "I").await?;
 
         Ok(width)
     }
@@ -176,7 +176,7 @@ impl Display {
     async fn get_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getHeight({:?})", &this);
 
-        let height: i32 = jvm.get_field(&this, "m_h", "I")?;
+        let height: i32 = jvm.get_field(&this, "m_h", "I").await?;
 
         Ok(height)
     }

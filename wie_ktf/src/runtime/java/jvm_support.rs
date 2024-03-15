@@ -224,7 +224,7 @@ mod test {
             .invoke_virtual(&string1, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [string2.into()])
             .await?;
 
-        assert_eq!(JavaLangString::to_rust_string(&jvm, string3)?, "test1test2");
+        assert_eq!(JavaLangString::to_rust_string(&jvm, &string3).await?, "test1test2");
 
         Ok(())
     }

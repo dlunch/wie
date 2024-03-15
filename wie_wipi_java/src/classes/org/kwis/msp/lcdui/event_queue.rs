@@ -136,7 +136,7 @@ impl EventQueue {
                     ],
                 };
 
-                jvm.store_array(&mut event, 0, event_data)?;
+                jvm.store_array(&mut event, 0, event_data).await?;
 
                 break;
             } else {
@@ -156,7 +156,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
-        let event = jvm.load_array(&event, 0, 4)?;
+        let event = jvm.load_array(&event, 0, 4).await?;
 
         match EventQueueEvent::from_raw(event[0]) {
             EventQueueEvent::RepaintEvent => {
@@ -180,7 +180,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let card = Self::get_top_card(jvm, &display)?;
+        let card = Self::get_top_card(jvm, &display).await?;
         if card.is_null() {
             return Ok(());
         }
@@ -196,7 +196,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let card = Self::get_top_card(jvm, &display)?;
+        let card = Self::get_top_card(jvm, &display).await?;
         if card.is_null() {
             return Ok(());
         }
@@ -208,16 +208,16 @@ impl EventQueue {
         jvm.invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", [graphics.clone().into()])
             .await?;
 
-        let java_image: ClassInstanceRef<Image> = jvm.get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;")?;
+        let java_image: ClassInstanceRef<Image> = jvm.get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;").await?;
 
         if !java_image.is_null() {
-            let image = Image::image(jvm, &java_image)?;
+            let image = Image::image(jvm, &java_image).await?;
 
             // TODO temporary until we have correct gc
-            let image_data = jvm.get_field(&java_image, "imgData", "[B")?;
+            let image_data = jvm.get_field(&java_image, "imgData", "[B").await?;
             jvm.destroy(image_data)?;
             jvm.destroy(java_image.into())?;
-            jvm.put_field(&mut graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None)?;
+            jvm.put_field(&mut graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None).await?;
 
             let mut platform = context.system().platform();
             let screen = platform.screen();
@@ -233,15 +233,15 @@ impl EventQueue {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;")
+        jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;").await
     }
 
-    fn get_top_card(jvm: &Jvm, display: &ClassInstanceRef<Display>) -> JvmResult<ClassInstanceRef<Card>> {
-        let cards = jvm.get_field(display, "cards", "[Lorg/kwis/msp/lcdui/Card;")?;
-        let card_size: i32 = jvm.get_field(display, "szCard", "I")?;
+    async fn get_top_card(jvm: &Jvm, display: &ClassInstanceRef<Display>) -> JvmResult<ClassInstanceRef<Card>> {
+        let cards = jvm.get_field(display, "cards", "[Lorg/kwis/msp/lcdui/Card;").await?;
+        let card_size: i32 = jvm.get_field(display, "szCard", "I").await?;
 
         if card_size > 0 {
-            let card_data: Vec<ClassInstanceRef<Card>> = jvm.load_array(&cards, 0, card_size as _)?;
+            let card_data: Vec<ClassInstanceRef<Card>> = jvm.load_array(&cards, 0, card_size as _).await?;
             Ok(card_data[card_size as usize - 1].clone().into())
         } else {
             Ok(None.into())

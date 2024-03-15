@@ -37,7 +37,7 @@ impl DataBase {
     async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, data_base_name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
-        jvm.put_field(&mut this, "dbName", "Ljava/lang/String;", data_base_name)?;
+        jvm.put_field(&mut this, "dbName", "Ljava/lang/String;", data_base_name).await?;
 
         Ok(())
     }
@@ -66,7 +66,7 @@ impl DataBase {
     async fn get_number_of_records(jvm: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
-        let database = Self::get_database(jvm, context, &this)?;
+        let database = Self::get_database(jvm, context, &this).await?;
 
         let count = database.get_record_ids().len();
 
@@ -95,9 +95,9 @@ impl DataBase {
             num_bytes
         );
 
-        let mut database = Self::get_database(jvm, context, &this)?;
+        let mut database = Self::get_database(jvm, context, &this).await?;
 
-        let data = jvm.load_byte_array(&data, offset as _, num_bytes as _)?;
+        let data = jvm.load_byte_array(&data, offset as _, num_bytes as _).await?;
         let data_raw = cast_vec(data);
 
         let id = database.add(&data_raw);
@@ -113,19 +113,19 @@ impl DataBase {
     ) -> JvmResult<ClassInstanceRef<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
-        let database = Self::get_database(jvm, context, &this)?;
+        let database = Self::get_database(jvm, context, &this).await?;
 
         let data = database.get(record_id as _).unwrap();
 
         let mut array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut array, 0, cast_vec(data))?;
+        jvm.store_byte_array(&mut array, 0, cast_vec(data)).await?;
 
         Ok(array.into())
     }
 
-    fn get_database(jvm: &Jvm, context: &mut WIPIJavaContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
-        let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;")?;
-        let db_name_str = JavaLangString::to_rust_string(jvm, db_name)?;
+    async fn get_database(jvm: &Jvm, context: &mut WIPIJavaContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
+        let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;").await?;
+        let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;
 
         Ok(context.system().platform().database_repository().open(&db_name_str))
     }
