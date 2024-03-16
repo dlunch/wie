@@ -2,19 +2,25 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use anyhow::Context;
 
-use wie_backend::{App, Archive, Platform, System};
+use wie_backend::{extract_zip, App, Archive, Platform, System};
 
 use crate::app::LgtApp;
 
 pub struct LgtArchive {
     jar: Vec<u8>,
     id: String,
-    main_class_name: String,
+    main_class_name: Option<String>,
 }
 
 impl LgtArchive {
     pub fn is_lgt_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
         files.contains_key("app_info")
+    }
+
+    pub fn is_lgt_jar(jar: &[u8]) -> bool {
+        let files = extract_zip(jar).unwrap();
+
+        files.contains_key("binary.mod")
     }
 
     pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
@@ -25,14 +31,14 @@ impl LgtArchive {
 
         let jar = files.remove(&format!("{}.jar", app_info.aid)).context("Invalid format")?;
 
-        Ok(Self::from_jar(jar, &app_info.aid, &app_info.mclass))
+        Ok(Self::from_jar(jar, &app_info.aid, Some(app_info.mclass)))
     }
 
-    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: &str) -> Self {
+    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: Option<String>) -> Self {
         Self {
             jar: data,
             id: id.into(),
-            main_class_name: main_class_name.into(),
+            main_class_name,
         }
     }
 }
@@ -47,7 +53,7 @@ impl Archive for LgtArchive {
 
         system.resource_mut().mount_zip(&self.jar)?;
 
-        Ok(Box::new(LgtApp::new(&self.main_class_name, system)?))
+        Ok(Box::new(LgtApp::new(self.main_class_name, system)?))
     }
 }
 

@@ -10,11 +10,11 @@ pub struct LgtApp {
     core: ArmCore,
     system: System,
     entrypoint: u32,
-    main_class_name: String,
+    main_class_name: Option<String>,
 }
 
 impl LgtApp {
-    pub fn new(main_class_name: &str, system: System) -> anyhow::Result<Self> {
+    pub fn new(main_class_name: Option<String>, system: System) -> anyhow::Result<Self> {
         let mut core = ArmCore::new(system.clone())?;
 
         Allocator::init(&mut core)?;
@@ -26,7 +26,7 @@ impl LgtApp {
             Self::load(&mut core, data)?
         };
 
-        let main_class_name = main_class_name.replace('.', "/");
+        let main_class_name = main_class_name.map(|x| x.replace('.', "/"));
 
         Ok(Self {
             core,
@@ -37,7 +37,7 @@ impl LgtApp {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: Option<String>) -> anyhow::Result<()> {
         core.run_function(entrypoint + 1, &[]).await?;
 
         anyhow::bail!("Not yet implemented")

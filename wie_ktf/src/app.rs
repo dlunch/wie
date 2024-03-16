@@ -1,4 +1,4 @@
-use alloc::string::{String, ToString};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
 
 use anyhow::Context;
 
@@ -13,12 +13,19 @@ pub struct KtfApp {
     core: ArmCore,
     system: System,
     bss_size: u32,
-    main_class_name: String,
+    main_class_name: Option<String>,
 }
 
 impl KtfApp {
-    pub fn new(main_class_name: &str, system: System) -> anyhow::Result<Self> {
+    pub fn new(jar: Vec<u8>, additional_files: BTreeMap<String, Vec<u8>>, main_class_name: Option<String>, system: System) -> anyhow::Result<Self> {
         let mut core = ArmCore::new(system.clone())?;
+
+        system.resource_mut().mount_zip(&jar)?;
+
+        for (path, data) in additional_files {
+            let path = path.trim_start_matches("P/");
+            system.resource_mut().add(path, data.clone());
+        }
 
         Allocator::init(&mut core)?;
 
@@ -34,12 +41,12 @@ impl KtfApp {
             core,
             system,
             bss_size,
-            main_class_name: main_class_name.to_string(),
+            main_class_name,
         })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, system: &mut System, bss_size: u32, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, system: &mut System, bss_size: u32, main_class_name: Option<String>) -> anyhow::Result<()> {
         // we should reverse the order of initialization
         // jvm should go first, and we load client.bin from jvm classloader on init
 
@@ -53,6 +60,12 @@ impl KtfApp {
         anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
 
         let jvm = system.jvm();
+
+        let main_class_name = if let Some(x) = main_class_name {
+            x
+        } else {
+            anyhow::bail!("Main class not found");
+        };
 
         let main_class_name = main_class_name.replace('.', "/");
         let main_class = jvm.new_class(&main_class_name, "()V", []).await?;

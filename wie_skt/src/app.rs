@@ -11,22 +11,30 @@ use wie_core_jvm::JvmCore;
 pub struct SktApp {
     system: System,
     jar: Vec<u8>,
-    main_class_name: String,
+    main_class_name: Option<String>,
 }
 
 impl SktApp {
-    pub fn new(main_class_name: &str, jar: Vec<u8>, system: System) -> anyhow::Result<Self> {
+    pub fn new(main_class_name: Option<String>, jar: Vec<u8>, system: System) -> anyhow::Result<Self> {
         Ok(Self {
             system,
             jar,
-            main_class_name: main_class_name.to_string(),
+            main_class_name,
         })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(system: &mut System, jar: Vec<u8>, main_class_name: String) -> anyhow::Result<()> {
+    async fn do_start(system: &mut System, jar: Vec<u8>, main_class_name: Option<String>) -> anyhow::Result<()> {
         let core = JvmCore::new(system).await?;
-        core.add_jar(&jar).await?;
+        let jar_main_class = core.add_jar(&jar).await?;
+
+        let main_class_name = if let Some(x) = main_class_name {
+            x
+        } else if let Some(x) = jar_main_class {
+            x
+        } else {
+            anyhow::bail!("Main class not found");
+        };
 
         let normalized_class_name = main_class_name.replace('.', "/");
         let main_class = core.jvm().new_class(&normalized_class_name, "()V", []).await?;
