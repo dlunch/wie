@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, rc::Rc, string::String, vec, vec::Vec};
 use core::{future::ready, time::Duration};
 
 use bytemuck::cast_vec;
@@ -117,6 +117,16 @@ impl JvmCore {
             Ok(Some(JavaLangString::to_rust_string(&self.jvm, &jar_main_class).await?))
         } else {
             Ok(None)
+        }
+    }
+
+    pub async fn format_err(&self, err: JavaError) -> String {
+        if let JavaError::JavaException(x) = err {
+            let to_string = self.jvm().invoke_virtual(&x, "toString", "()Ljava/lang/String;", ()).await.unwrap();
+
+            JavaLangString::to_rust_string(self.jvm(), &to_string).await.unwrap()
+        } else {
+            format!("{:?}", err)
         }
     }
 

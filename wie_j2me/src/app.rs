@@ -33,7 +33,10 @@ impl J2MEApp {
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
-        core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await?;
+        let result: Result<(), _> = core.jvm().invoke_static(&normalized_class_name, "startApp", "()V", []).await;
+        if let Err(x) = result {
+            anyhow::bail!(core.format_err(x).await)
+        }
 
         Ok(())
     }

@@ -39,16 +39,19 @@ impl SktApp {
         let normalized_class_name = main_class_name.replace('.', "/");
         let main_class = core.jvm().new_class(&normalized_class_name, "()V", []).await?;
 
+        // both startApp exists in wild.. TODO check this elegantly
         let result: JvmResult<()> = core
             .jvm()
             .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()])
             .await;
         if let Err(x) = result {
-            if !x.to_string().contains("No such method") {
-                core.jvm().invoke_virtual(&main_class, "startApp", "()V", []).await?;
-                // both startapp exists in wild.. TODO check this elegantly
+            if !x.to_string().contains("NoSuchMethodError") {
+                let result: Result<(), _> = core.jvm().invoke_virtual(&main_class, "startApp", "()V", []).await;
+                if let Err(x) = result {
+                    anyhow::bail!(core.format_err(x).await)
+                }
             } else {
-                return Err(x.into());
+                anyhow::bail!(core.format_err(x).await)
             }
         }
 
