@@ -120,11 +120,11 @@ impl JvmCore {
         }
     }
 
-    pub async fn format_err(&self, err: JavaError) -> String {
+    pub async fn format_err(jvm: &Jvm, err: JavaError) -> String {
         if let JavaError::JavaException(x) = err {
-            let to_string = self.jvm().invoke_virtual(&x, "toString", "()Ljava/lang/String;", ()).await.unwrap();
+            let to_string = jvm.invoke_virtual(&x, "toString", "()Ljava/lang/String;", ()).await.unwrap();
 
-            JavaLangString::to_rust_string(self.jvm(), &to_string).await.unwrap()
+            JavaLangString::to_rust_string(jvm, &to_string).await.unwrap()
         } else {
             format!("{:?}", err)
         }
@@ -161,7 +161,11 @@ impl WIPIJavaContextBase for JvmCoreContext {
                     jvm: self.jvm.clone(),
                 };
 
-                let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;
+                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
+                if let Err(x) = result {
+                    let err = JvmCore::format_err(&self.jvm, x).await;
+                    tracing::error!("Error: {}", err);
+                }
 
                 Ok(0) // TODO resturn value
             }

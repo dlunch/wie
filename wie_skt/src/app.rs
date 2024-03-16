@@ -48,10 +48,10 @@ impl SktApp {
             if !x.to_string().contains("NoSuchMethodError") {
                 let result: Result<(), _> = core.jvm().invoke_virtual(&main_class, "startApp", "()V", []).await;
                 if let Err(x) = result {
-                    anyhow::bail!(core.format_err(x).await)
+                    anyhow::bail!(JvmCore::format_err(core.jvm(), x).await)
                 }
             } else {
-                anyhow::bail!(core.format_err(x).await)
+                anyhow::bail!(JvmCore::format_err(core.jvm(), x).await)
             }
         }
 
