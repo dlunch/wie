@@ -433,7 +433,7 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0319fc0996e329ba51827e4351477277a02fffcf"
+source = "git+https://github.com/dlunch/RustJava.git#5935b61fa927e0625f3cc1847defbdee162941a4"
 dependencies = [
  "java_constants",
  "nom",
@@ -989,7 +989,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0319fc0996e329ba51827e4351477277a02fffcf"
+source = "git+https://github.com/dlunch/RustJava.git#5935b61fa927e0625f3cc1847defbdee162941a4"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1000,7 +1000,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0319fc0996e329ba51827e4351477277a02fffcf"
+source = "git+https://github.com/dlunch/RustJava.git#5935b61fa927e0625f3cc1847defbdee162941a4"
 dependencies = [
  "bitflags 2.4.2",
 ]
@@ -1008,7 +1008,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0319fc0996e329ba51827e4351477277a02fffcf"
+source = "git+https://github.com/dlunch/RustJava.git#5935b61fa927e0625f3cc1847defbdee162941a4"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1083,7 +1083,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0319fc0996e329ba51827e4351477277a02fffcf"
+source = "git+https://github.com/dlunch/RustJava.git#5935b61fa927e0625f3cc1847defbdee162941a4"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1098,7 +1098,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0319fc0996e329ba51827e4351477277a02fffcf"
+source = "git+https://github.com/dlunch/RustJava.git#5935b61fa927e0625f3cc1847defbdee162941a4"
 dependencies = [
  "async-recursion",
  "async-trait",
