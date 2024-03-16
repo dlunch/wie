@@ -28,6 +28,7 @@ impl J2MEApp {
         } else if let Some(x) = jar_main_class {
             x
         } else {
+            // TODO we need to parse META-INF/MANIFEST.MF for midlet
             anyhow::bail!("Main class not found");
         };
 
