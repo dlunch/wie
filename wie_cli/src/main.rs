@@ -94,6 +94,18 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         let jar = fs::read(jar_filename)?;
 
         Box::new(J2MEArchive::from_jad_jar(buf, jar))
+    } else if filename.ends_with("jar") {
+        let filename_without_ext = filename.trim_end_matches(".jar");
+
+        if KtfArchive::is_ktf_jar(&buf) {
+            Box::new(KtfArchive::from_jar(buf, filename_without_ext.into(), None, Default::default()))
+        } else if LgtArchive::is_lgt_jar(&buf) {
+            Box::new(LgtArchive::from_jar(buf, filename_without_ext, None))
+        } else if SktArchive::is_skt_jar(&buf) {
+            Box::new(SktArchive::from_jar(buf, filename_without_ext, None, Default::default()))
+        } else {
+            Box::new(J2MEArchive::from_jar(filename_without_ext.into(), buf))
+        }
     } else {
         anyhow::bail!("Unknown file format");
     };

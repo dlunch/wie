@@ -2,20 +2,32 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use anyhow::Context;
 
-use wie_backend::{App, Archive, Platform, System};
+use wie_backend::{extract_zip, App, Archive, Platform, System};
 
 use crate::{app::KtfApp, context::KtfContext};
 
 pub struct KtfArchive {
     jar: Vec<u8>,
     id: String,
-    main_class_name: String,
+    main_class_name: Option<String>,
     additional_files: BTreeMap<String, Vec<u8>>,
 }
 
 impl KtfArchive {
     pub fn is_ktf_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
         files.contains_key("__adf__")
+    }
+
+    pub fn is_ktf_jar(jar: &[u8]) -> bool {
+        let files = extract_zip(jar).unwrap();
+
+        for name in files.keys() {
+            if name.starts_with("client.bin") {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
@@ -28,10 +40,10 @@ impl KtfArchive {
 
         let additional_files = files.into_iter().filter(|x| x.0.starts_with("P/")).collect();
 
-        Ok(Self::from_jar(jar, adf.aid, adf.mclass, additional_files))
+        Ok(Self::from_jar(jar, adf.aid, Some(adf.mclass), additional_files))
     }
 
-    pub fn from_jar(data: Vec<u8>, id: String, main_class_name: String, additional_files: BTreeMap<String, Vec<u8>>) -> Self {
+    pub fn from_jar(data: Vec<u8>, id: String, main_class_name: Option<String>, additional_files: BTreeMap<String, Vec<u8>>) -> Self {
         Self {
             jar: data,
             id,
@@ -49,14 +61,7 @@ impl Archive for KtfArchive {
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform, Box::new(KtfContext::new()));
 
-        system.resource_mut().mount_zip(&self.jar)?;
-
-        for (path, data) in self.additional_files {
-            let path = path.trim_start_matches("P/");
-            system.resource_mut().add(path, data.clone());
-        }
-
-        Ok(Box::new(KtfApp::new(&self.main_class_name, system)?))
+        Ok(Box::new(KtfApp::new(self.jar, self.additional_files, self.main_class_name, system)?))
     }
 }
 

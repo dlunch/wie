@@ -8,7 +8,7 @@ use bytemuck::cast_vec;
 
 use java_class_proto::MethodBody;
 use java_runtime::{classes::java::lang::String as JavaString, Runtime};
-use jvm::{ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::{AsyncCallable, System};
@@ -103,17 +103,21 @@ impl JvmCore {
         Ok(Self { jvm })
     }
 
-    pub async fn add_jar(&self, jar: &[u8]) -> JvmResult<()> {
+    pub async fn add_jar(&self, jar: &[u8]) -> JvmResult<Option<String>> {
         let mut storage = self.jvm.instantiate_array("B", jar.len()).await?;
         self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec())).await?;
 
         let class_loader = self.jvm.get_system_class_loader().await?;
-        let _: ClassInstanceRef<JavaString> = self
+        let jar_main_class: ClassInstanceRef<JavaString> = self
             .jvm
             .invoke_virtual(&class_loader, "addJarFile", "([B)Ljava/lang/String;", (storage,))
             .await?;
 
-        Ok(())
+        if !jar_main_class.is_null() {
+            Ok(Some(JavaLangString::to_rust_string(&self.jvm, &jar_main_class).await?))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn jvm(&self) -> &Jvm {

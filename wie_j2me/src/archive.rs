@@ -11,26 +11,39 @@ use crate::app::J2MEApp;
 
 pub struct J2MEArchive {
     jar: Vec<u8>,
-    descriptor: J2MEDescriptor,
+    name: String,
+    main_class_name: Option<String>,
 }
 
 impl J2MEArchive {
     pub fn from_jad_jar(jad: Vec<u8>, jar: Vec<u8>) -> Self {
         let descriptor = J2MEDescriptor::parse(&jad);
 
-        Self { jar, descriptor }
+        Self {
+            jar,
+            name: descriptor.name,
+            main_class_name: Some(descriptor.main_class_name),
+        }
+    }
+
+    pub fn from_jar(filename: String, jar: Vec<u8>) -> Self {
+        Self {
+            jar,
+            name: filename,
+            main_class_name: None,
+        }
     }
 }
 
 impl Archive for J2MEArchive {
     fn id(&self) -> String {
-        self.descriptor.name.clone()
+        self.name.clone()
     }
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform, Box::new(()));
 
-        Ok(Box::new(J2MEApp::new(&self.descriptor.main_class_name, self.jar, system)?))
+        Ok(Box::new(J2MEApp::new(self.main_class_name, self.jar, system)?))
     }
 }
 
