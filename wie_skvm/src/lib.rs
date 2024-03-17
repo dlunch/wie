@@ -18,9 +18,7 @@ where
     F: Future<Output = Box<dyn ClassDefinition>>,
 {
     // superclass should come before subclass
-    let classes = [(
-        "com/skt/m/Device", classes::com::skt::m::Device::as_proto(),
-    )];
+    let classes = [("com/skt/m/Device", classes::com::skt::m::Device::as_proto())];
 
     for (name, proto) in classes {
         let class = class_creator(name, proto).await;
