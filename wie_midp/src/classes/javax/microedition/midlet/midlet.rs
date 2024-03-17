@@ -13,7 +13,10 @@ impl MIDlet {
         MIDPJavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, Default::default())],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new_abstract("startApp", "([Ljava/lang/String;)V", Default::default()),
+            ],
             fields: vec![],
         }
     }
