@@ -13,9 +13,7 @@ impl Device {
         SKVMJavaClassProto {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-            ],
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, Default::default())],
             fields: vec![],
         }
     }
