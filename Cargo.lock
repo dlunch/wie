@@ -2343,6 +2343,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_midp",
+ "wie_skvm",
  "wie_wipi_java",
 ]
 
@@ -2427,6 +2428,25 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_core_jvm",
+]
+
+[[package]]
+name = "wie_skvm"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "bitflags 2.4.2",
+ "bytemuck",
+ "dyn-clone",
+ "futures-test",
+ "java_class_proto",
+ "java_constants",
+ "java_runtime",
+ "jvm",
+ "jvm_rust",
+ "test_utils",
+ "tracing",
+ "wie_backend",
 ]
 
 [[package]]
