@@ -17,7 +17,3 @@ https://github.com/dlunch/wie/blob/main/CONTRIBUTING.md
 ## Screenshot
 
 ![](https://github.com/dlunch/wie/blob/main/screenshots/Trivial%20games%20playable.png)
-
-## Executing app with detailed log
-
-`env RUST_LOG=trace cargo run -- <path to archive>`
