@@ -168,34 +168,10 @@ impl WIPIJavaContextBase for JvmCoreContext {
     }
 
     fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
-        struct SpawnProxy {
-            system: System,
-            jvm: Rc<Jvm>,
-            callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>,
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, JavaError> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JavaError> {
-                let mut context = JvmCoreContext {
-                    system: self.system.clone(),
-                    jvm: self.jvm.clone(),
-                };
-
-                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
-                if let Err(x) = result {
-                    let err = JvmCore::format_err(&self.jvm, x).await;
-                    tracing::error!("Error: {}", err);
-                }
-
-                Ok(0) // TODO resturn value
-            }
-        }
-
         self.system.spawn(SpawnProxy {
-            system: self.system.clone(),
             jvm: self.jvm.clone(),
             callback,
+            context: Box::new(self.clone()),
         });
 
         Ok(())
@@ -208,34 +184,10 @@ impl MIDPJavaContextBase for JvmCoreContext {
     }
 
     fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn MIDPJavaContextBase>>) -> JvmResult<()> {
-        struct SpawnProxy {
-            system: System,
-            jvm: Rc<Jvm>,
-            callback: Box<dyn MethodBody<JavaError, dyn MIDPJavaContextBase>>,
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, JavaError> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JavaError> {
-                let mut context = JvmCoreContext {
-                    system: self.system.clone(),
-                    jvm: self.jvm.clone(),
-                };
-
-                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
-                if let Err(x) = result {
-                    let err = JvmCore::format_err(&self.jvm, x).await;
-                    tracing::error!("Error: {}", err);
-                }
-
-                Ok(0) // TODO resturn value
-            }
-        }
-
         self.system.spawn(SpawnProxy {
-            system: self.system.clone(),
             jvm: self.jvm.clone(),
             callback,
+            context: Box::new(self.clone()),
         });
 
         Ok(())
@@ -248,36 +200,37 @@ impl SKVMJavaContextBase for JvmCoreContext {
     }
 
     fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn SKVMJavaContextBase>>) -> JvmResult<()> {
-        struct SpawnProxy {
-            system: System,
-            jvm: Rc<Jvm>,
-            callback: Box<dyn MethodBody<JavaError, dyn SKVMJavaContextBase>>,
-        }
-
-        #[async_trait::async_trait(?Send)]
-        impl AsyncCallable<u32, JavaError> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JavaError> {
-                let mut context = JvmCoreContext {
-                    system: self.system.clone(),
-                    jvm: self.jvm.clone(),
-                };
-
-                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
-                if let Err(x) = result {
-                    let err = JvmCore::format_err(&self.jvm, x).await;
-                    tracing::error!("Error: {}", err);
-                }
-
-                Ok(0) // TODO resturn value
-            }
-        }
-
         self.system.spawn(SpawnProxy {
-            system: self.system.clone(),
             jvm: self.jvm.clone(),
             callback,
+            context: Box::new(self.clone()),
         });
 
         Ok(())
+    }
+}
+
+struct SpawnProxy<T>
+where
+    T: ?Sized,
+{
+    jvm: Rc<Jvm>,
+    callback: Box<dyn MethodBody<JavaError, T>>,
+    context: Box<T>,
+}
+
+#[async_trait::async_trait(?Send)]
+impl<T> AsyncCallable<u32, JavaError> for SpawnProxy<T>
+where
+    T: ?Sized,
+{
+    async fn call(mut self) -> Result<u32, JavaError> {
+        let result = self.callback.call(&self.jvm, &mut self.context, Box::new([])).await;
+        if let Err(x) = result {
+            let err = JvmCore::format_err(&self.jvm, x).await;
+            tracing::error!("Error: {}", err);
+        }
+
+        Ok(0) // TODO return value
     }
 }
