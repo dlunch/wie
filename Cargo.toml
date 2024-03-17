@@ -54,6 +54,7 @@ wie_midp = { path = "wie_midp" }
 wie_util = { path = "wie_util" }
 wie_core_arm = { path = "wie_core_arm" }
 wie_core_jvm = { path = "wie_core_jvm" }
+wie_skvm = { path = "wie_skvm" }
 wie_wipi_c = { path = "wie_wipi_c" }
 wie_wipi_java = { path = "wie_wipi_java" }
 

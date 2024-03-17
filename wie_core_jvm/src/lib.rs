@@ -3,6 +3,7 @@ extern crate alloc;
 
 use alloc::{boxed::Box, format, rc::Rc, string::String, vec, vec::Vec};
 use core::{future::ready, time::Duration};
+use wie_skvm::SKVMJavaContextBase;
 
 use bytemuck::cast_vec;
 
@@ -110,6 +111,16 @@ impl JvmCore {
         })
         .await?;
 
+        // TODO should we add skvm only on skt?
+        let context: Box<dyn SKVMJavaContextBase> = Box::new(JvmCoreContext {
+            system: system.clone(),
+            jvm: jvm.clone(),
+        });
+        wie_skvm::register(&jvm, move |name, proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
+        })
+        .await?;
+
         Ok(Self { jvm })
     }
 
@@ -201,6 +212,46 @@ impl MIDPJavaContextBase for JvmCoreContext {
             system: System,
             jvm: Rc<Jvm>,
             callback: Box<dyn MethodBody<JavaError, dyn MIDPJavaContextBase>>,
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JavaError> {
+                let mut context = JvmCoreContext {
+                    system: self.system.clone(),
+                    jvm: self.jvm.clone(),
+                };
+
+                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
+                if let Err(x) = result {
+                    let err = JvmCore::format_err(&self.jvm, x).await;
+                    tracing::error!("Error: {}", err);
+                }
+
+                Ok(0) // TODO resturn value
+            }
+        }
+
+        self.system.spawn(SpawnProxy {
+            system: self.system.clone(),
+            jvm: self.jvm.clone(),
+            callback,
+        });
+
+        Ok(())
+    }
+}
+
+impl SKVMJavaContextBase for JvmCoreContext {
+    fn system(&mut self) -> &mut System {
+        &mut self.system
+    }
+
+    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn SKVMJavaContextBase>>) -> JvmResult<()> {
+        struct SpawnProxy {
+            system: System,
+            jvm: Rc<Jvm>,
+            callback: Box<dyn MethodBody<JavaError, dyn SKVMJavaContextBase>>,
         }
 
         #[async_trait::async_trait(?Send)]
