@@ -1,19 +1,26 @@
 [package]
-name = "wie_core_jvm"
+name = "wie_midp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
+bitflags = { workspace = true }
 bytemuck = { workspace = true }
+dyn-clone = { workspace = true }
 tracing = { workspace = true }
 
 java_class_proto = { workspace = true }
+java_constants = { workspace = true }
 java_runtime = { workspace = true }
 jvm = { workspace = true }
-jvm_rust = { workspace = true }
 
 wie_backend = { workspace = true }
-wie_midp = { workspace = true }
-wie_wipi_java = { workspace = true }
+
+[dev-dependencies]
+futures-test = { workspace = true }
+
+jvm_rust = { workspace = true }
+
+test_utils = { workspace = true }

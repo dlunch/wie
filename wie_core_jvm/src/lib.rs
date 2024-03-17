@@ -12,6 +12,7 @@ use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, Jvm, JvmCallback
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::{AsyncCallable, System};
+use wie_midp::MIDPJavaContextBase;
 use wie_wipi_java::WIPIJavaContextBase;
 
 // TODO i think we can merge runtime implementation across platforms..
@@ -100,6 +101,15 @@ impl JvmCore {
         })
         .await?;
 
+        let context: Box<dyn MIDPJavaContextBase> = Box::new(JvmCoreContext {
+            system: system.clone(),
+            jvm: jvm.clone(),
+        });
+        wie_midp::register(&jvm, move |name, proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
+        })
+        .await?;
+
         Ok(Self { jvm })
     }
 
@@ -151,6 +161,46 @@ impl WIPIJavaContextBase for JvmCoreContext {
             system: System,
             jvm: Rc<Jvm>,
             callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>,
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JavaError> {
+                let mut context = JvmCoreContext {
+                    system: self.system.clone(),
+                    jvm: self.jvm.clone(),
+                };
+
+                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
+                if let Err(x) = result {
+                    let err = JvmCore::format_err(&self.jvm, x).await;
+                    tracing::error!("Error: {}", err);
+                }
+
+                Ok(0) // TODO resturn value
+            }
+        }
+
+        self.system.spawn(SpawnProxy {
+            system: self.system.clone(),
+            jvm: self.jvm.clone(),
+            callback,
+        });
+
+        Ok(())
+    }
+}
+
+impl MIDPJavaContextBase for JvmCoreContext {
+    fn system(&mut self) -> &mut System {
+        &mut self.system
+    }
+
+    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn MIDPJavaContextBase>>) -> JvmResult<()> {
+        struct SpawnProxy {
+            system: System,
+            jvm: Rc<Jvm>,
+            callback: Box<dyn MethodBody<JavaError, dyn MIDPJavaContextBase>>,
         }
 
         #[async_trait::async_trait(?Send)]
