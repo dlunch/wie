@@ -1,7 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 
 use jvm::Result as JvmResult;
 
@@ -39,20 +36,16 @@ impl SktApp {
         let normalized_class_name = main_class_name.replace('.', "/");
         let main_class = core.jvm().new_class(&normalized_class_name, "()V", []).await?;
 
-        // both startApp exists in wild.. TODO check this elegantly
-        let result: JvmResult<()> = core
-            .jvm()
-            .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()])
-            .await;
+        let result: JvmResult<()> = if core.jvm().is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await? {
+            core.jvm().invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await
+        } else {
+            core.jvm()
+                .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()])
+                .await
+        };
+
         if let Err(x) = result {
-            if !x.to_string().contains("NoSuchMethodError") {
-                let result: Result<(), _> = core.jvm().invoke_virtual(&main_class, "startApp", "()V", []).await;
-                if let Err(x) = result {
-                    anyhow::bail!(JvmCore::format_err(core.jvm(), x).await)
-                }
-            } else {
-                anyhow::bail!(JvmCore::format_err(core.jvm(), x).await)
-            }
+            anyhow::bail!(JvmCore::format_err(core.jvm(), x).await)
         }
 
         Ok(())
