@@ -433,7 +433,7 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fc239b51948534be10de344741d5f378b3a70042"
+source = "git+https://github.com/dlunch/RustJava.git#94db1a237552c19c845e126185652eb7ba52fcb0"
 dependencies = [
  "java_constants",
  "nom",
@@ -989,7 +989,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fc239b51948534be10de344741d5f378b3a70042"
+source = "git+https://github.com/dlunch/RustJava.git#94db1a237552c19c845e126185652eb7ba52fcb0"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1000,7 +1000,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fc239b51948534be10de344741d5f378b3a70042"
+source = "git+https://github.com/dlunch/RustJava.git#94db1a237552c19c845e126185652eb7ba52fcb0"
 dependencies = [
  "bitflags 2.4.2",
 ]
@@ -1008,7 +1008,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fc239b51948534be10de344741d5f378b3a70042"
+source = "git+https://github.com/dlunch/RustJava.git#94db1a237552c19c845e126185652eb7ba52fcb0"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1017,6 +1017,7 @@ dependencies = [
  "java_class_proto",
  "java_constants",
  "jvm",
+ "spin",
  "tracing",
  "zip",
 ]
@@ -1083,7 +1084,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fc239b51948534be10de344741d5f378b3a70042"
+source = "git+https://github.com/dlunch/RustJava.git#94db1a237552c19c845e126185652eb7ba52fcb0"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1092,13 +1093,14 @@ dependencies = [
  "dyn-clone",
  "java_constants",
  "nom",
+ "spin",
  "tracing",
 ]
 
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fc239b51948534be10de344741d5f378b3a70042"
+source = "git+https://github.com/dlunch/RustJava.git#94db1a237552c19c845e126185652eb7ba52fcb0"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -1107,6 +1109,7 @@ dependencies = [
  "java_class_proto",
  "java_constants",
  "jvm",
+ "spin",
  "tracing",
 ]
 
@@ -1920,6 +1923,12 @@ dependencies = [
  "windows-sys 0.52.0",
  "x11rb",
 ]
+
+[[package]]
+name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
 name = "strsim"
