@@ -7,7 +7,7 @@ use jvm::{JavaError, Result as JvmResult};
 
 use wie_backend::System;
 
-pub trait WIPIJavaContextBase: DynClone {
+pub trait WIPIJavaContextBase: Sync + Send + DynClone {
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>) -> JvmResult<()>;
 }

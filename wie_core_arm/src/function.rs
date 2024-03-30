@@ -6,8 +6,8 @@ use wie_util::read_null_terminated_string;
 
 use crate::{ArmCore, ArmCoreError, ArmCoreResult};
 
-#[async_trait::async_trait(?Send)]
-pub trait RegisteredFunction {
+#[async_trait::async_trait]
+pub trait RegisteredFunction: Sync + Send {
     async fn call(&self, core: &mut ArmCore, system: &mut System) -> ArmCoreResult<()>;
 }
 
@@ -35,12 +35,13 @@ where
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<F, P, E, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, R>
 where
-    F: EmulatedFunction<P, E, R> + 'static,
-    E: Debug,
-    R: ResultWriter<R>,
+    F: EmulatedFunction<P, E, R> + 'static + Sync + Send,
+    E: Debug + Sync + Send,
+    R: ResultWriter<R> + Sync + Send,
+    P: Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore, system: &mut System) -> ArmCoreResult<()> {
         let (pc, lr) = core.read_pc_lr()?;
@@ -59,7 +60,7 @@ where
 }
 
 trait FnHelper<'a, E, R, P> {
-    type Output: Future<Output = Result<R, E>> + 'a;
+    type Output: Future<Output = Result<R, E>> + 'a + Send;
     fn do_call(&self, core: &'a mut ArmCore, system: &'a mut System) -> Self::Output;
 }
 
@@ -68,7 +69,7 @@ macro_rules! generate_fn_helper {
         impl<'a, E, R, F, Fut, $($arg),*> FnHelper<'a, E, R, ($($arg,)*)> for F
         where
             F: Fn(&'a mut ArmCore, &'a mut System, $($arg),*) -> Fut,
-            Fut: Future<Output = Result<R, E>> + 'a,
+            Fut: Future<Output = Result<R, E>> + 'a + Send,
             R: 'a,
             $($arg: EmulatedFunctionParam<$arg>),*
         {
@@ -92,17 +93,17 @@ generate_fn_helper!(P0, P1);
 generate_fn_helper!(P0, P1, P2);
 generate_fn_helper!(P0, P1, P2, P3);
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 pub trait EmulatedFunction<P, E, R> {
     async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<R, E>;
 }
 
 macro_rules! generate_emulated_function {
     ($($arg: ident),*) => {
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl<Func, E, R, $($arg),*> EmulatedFunction<($($arg,)*), E, R> for Func
         where
-            Func: for<'a> FnHelper<'a, E, R, ($($arg,)*)>,
+            Func: for<'a> FnHelper<'a, E, R, ($($arg,)*)> + Sync,
             $($arg: EmulatedFunctionParam<$arg>),*
         {
             async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<R, E> {

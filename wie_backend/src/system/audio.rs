@@ -11,7 +11,7 @@ struct AudioBackendImpl {
     sink: Box<dyn AudioSink>,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl AudioBackend for AudioBackendImpl {
     fn play_wave(&self, channel: u8, sampling_rate: u32, wave_data: &[i16]) {
         self.sink.play_wave(channel, sampling_rate, wave_data);

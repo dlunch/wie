@@ -11,7 +11,7 @@ mod name;
 mod value;
 mod vtable_builder;
 
-use alloc::{boxed::Box, rc::Rc, string::ToString};
+use alloc::{boxed::Box, string::ToString, sync::Arc};
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
@@ -60,7 +60,7 @@ impl KtfJvmSupport {
         ptr_vtables_base: u32,
         fn_get_class: u32,
         ptr_current_java_exception_handler: u32,
-    ) -> JvmSupportResult<Rc<Jvm>> {
+    ) -> JvmSupportResult<Arc<Jvm>> {
         let ptr_java_context_data = context_data::JavaContextData::init(core, ptr_vtables_base, fn_get_class)?;
 
         core.map(PEB_BASE, 0x1000)?;
@@ -149,7 +149,7 @@ impl KtfJvmSupport {
             .new_class("wie/KtfClassLoader", "(Ljava/lang/ClassLoader;)V", (old_class_loader,))
             .await?;
 
-        jvm.set_system_class_loader(class_loader);
+        jvm.set_system_class_loader(class_loader).await;
 
         Ok(jvm)
     }
@@ -186,7 +186,7 @@ impl KtfJvmSupport {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, rc::Rc};
+    use alloc::{boxed::Box, sync::Arc};
 
     use jvm::{runtime::JavaLangString, Jvm};
 
@@ -197,7 +197,7 @@ mod test {
 
     use test_utils::TestPlatform;
 
-    async fn init_jvm(system: &mut System) -> anyhow::Result<Rc<Jvm>> {
+    async fn init_jvm(system: &mut System) -> anyhow::Result<Arc<Jvm>> {
         let mut core = ArmCore::new(system.clone())?;
         Allocator::init(&mut core)?;
 

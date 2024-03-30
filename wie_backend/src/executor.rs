@@ -1,16 +1,15 @@
-use alloc::rc::Rc;
+use alloc::sync::Arc;
 use core::{
-    cell::RefCell,
     fmt::Debug,
     future::Future,
     pin::Pin,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Mutex};
 
 use crate::time::Instant;
 
-type Task = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
+type Task = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
 
 pub struct ExecutorInner {
     current_task_id: Option<usize>,
@@ -19,17 +18,17 @@ pub struct ExecutorInner {
     last_task_id: usize,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 pub trait AsyncCallable<R, E> {
     async fn call(self) -> Result<R, E>;
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<F, R, E, Fut> AsyncCallable<R, E> for F
 where
-    F: FnOnce() -> Fut + 'static,
+    F: FnOnce() -> Fut + 'static + Send,
     E: Debug,
-    Fut: Future<Output = Result<R, E>> + 'static,
+    Fut: Future<Output = Result<R, E>> + 'static + Send,
 {
     async fn call(self) -> Result<R, E> {
         self().await
@@ -39,13 +38,13 @@ where
 // Executor polling every future until it is ready to implement generator using async ecosystem
 #[derive(Clone)]
 pub struct Executor {
-    inner: Rc<RefCell<ExecutorInner>>,
+    inner: Arc<Mutex<ExecutorInner>>,
 }
 
 impl Executor {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let inner = Rc::new(RefCell::new(ExecutorInner {
+        let inner = Arc::new(Mutex::new(ExecutorInner {
             current_task_id: None,
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
@@ -57,7 +56,7 @@ impl Executor {
 
     pub fn spawn<C, R, E>(&mut self, callable: C) -> usize
     where
-        C: AsyncCallable<R, E> + 'static,
+        C: AsyncCallable<R, E> + 'static + Send,
         E: Debug,
     {
         let fut = async move {
@@ -67,12 +66,12 @@ impl Executor {
         };
 
         let task_id = {
-            let mut inner = self.inner.borrow_mut();
+            let mut inner = self.inner.lock().unwrap();
             inner.last_task_id += 1;
             inner.last_task_id
         };
 
-        self.inner.borrow_mut().tasks.insert(task_id, Box::pin(fut));
+        self.inner.lock().unwrap().tasks.insert(task_id, Box::pin(fut));
 
         task_id
     }
@@ -90,11 +89,14 @@ impl Executor {
                 break;
             }
 
-            let running_task_count = self.inner.borrow().tasks.len() - self.inner.borrow().sleeping_tasks.len();
-            if running_task_count == 0 && !self.inner.borrow().sleeping_tasks.is_empty() {
-                let next_wakeup = *self.inner.borrow().sleeping_tasks.values().min().unwrap();
-                if now < next_wakeup {
-                    break;
+            {
+                let inner = self.inner.lock().unwrap();
+                let running_task_count = inner.tasks.len() - inner.sleeping_tasks.len();
+                if running_task_count == 0 && !inner.sleeping_tasks.is_empty() {
+                    let next_wakeup = *inner.sleeping_tasks.values().min().unwrap();
+                    if now < next_wakeup {
+                        break;
+                    }
                 }
             }
 
@@ -106,8 +108,8 @@ impl Executor {
 
     fn step(&mut self, now: Instant) -> anyhow::Result<()> {
         let mut next_tasks = HashMap::new();
-        let tasks = self.inner.borrow_mut().tasks.drain().collect::<HashMap<_, _>>();
-        let mut sleeping_tasks = self.inner.borrow_mut().sleeping_tasks.drain().collect::<HashMap<_, _>>();
+        let tasks = self.inner.lock().unwrap().tasks.drain().collect::<HashMap<_, _>>();
+        let mut sleeping_tasks = self.inner.lock().unwrap().sleeping_tasks.drain().collect::<HashMap<_, _>>();
 
         for (task_id, mut task) in tasks.into_iter() {
             let item = sleeping_tasks.get(&task_id);
@@ -122,7 +124,7 @@ impl Executor {
 
             let waker = self.create_waker();
             let mut context = Context::from_waker(&waker);
-            self.inner.borrow_mut().current_task_id = Some(task_id);
+            self.inner.lock().unwrap().current_task_id = Some(task_id);
 
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
@@ -133,19 +135,19 @@ impl Executor {
                 }
             }
 
-            self.inner.borrow_mut().current_task_id = None;
+            self.inner.lock().unwrap().current_task_id = None;
         }
 
-        self.inner.borrow_mut().sleeping_tasks.extend(sleeping_tasks);
-        self.inner.borrow_mut().tasks.extend(next_tasks);
+        self.inner.lock().unwrap().sleeping_tasks.extend(sleeping_tasks);
+        self.inner.lock().unwrap().tasks.extend(next_tasks);
 
         Ok(())
     }
 
     pub(crate) fn sleep(&mut self, until: Instant) {
-        let task_id = self.inner.borrow().current_task_id.unwrap();
+        let task_id = self.inner.lock().unwrap().current_task_id.unwrap();
 
-        self.inner.borrow_mut().sleeping_tasks.insert(task_id, until);
+        self.inner.lock().unwrap().sleeping_tasks.insert(task_id, until);
     }
 
     fn create_waker(&self) -> Waker {

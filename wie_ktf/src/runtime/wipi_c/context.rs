@@ -16,7 +16,7 @@ impl<'a> KtfWIPICContext<'a> {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl WIPICContext for KtfWIPICContext<'_> {
     fn alloc_raw(&mut self, size: WIPICWord) -> WIPICResult<WIPICWord> {
         Ok(Allocator::alloc(self.core, size).unwrap())
@@ -58,7 +58,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
             }
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl EmulatedFunction<(), ArmCoreError, u32> for CMethodProxy {
             async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmCoreError> {
                 let a0 = u32::get(core, 0);
@@ -101,7 +101,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
             callback: WIPICMethodBody,
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl AsyncCallable<WIPICWord, WIPICError> for SpawnProxy {
             async fn call(mut self) -> Result<WIPICWord, WIPICError> {
                 let mut context = KtfWIPICContext::new(&mut self.core, &mut self.system);

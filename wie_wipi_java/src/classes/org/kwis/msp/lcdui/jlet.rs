@@ -70,7 +70,7 @@ impl Jlet {
             .await?;
 
         struct MainProxy {}
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl MethodBody<JavaError, WIPIJavaContext> for MainProxy {
             #[tracing::instrument(name = "main", skip_all)]
             async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {

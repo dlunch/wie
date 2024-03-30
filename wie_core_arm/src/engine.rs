@@ -7,7 +7,7 @@ pub use armv4t_emu::Armv4tEmuEngine;
 
 use crate::ArmCoreResult;
 
-pub trait ArmEngine {
+pub trait ArmEngine: Sync + Send {
     fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> ArmCoreResult<()>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;

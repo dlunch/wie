@@ -5,8 +5,8 @@ use wie_util::{read_null_terminated_string, ByteRead, ByteWrite};
 
 use crate::{method::TypeConverter, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
-#[async_trait::async_trait(?Send)]
-pub trait WIPICContext: ByteRead + ByteWrite {
+#[async_trait::async_trait]
+pub trait WIPICContext: ByteRead + ByteWrite + Send {
     fn alloc_raw(&mut self, size: WIPICWord) -> WIPICResult<WIPICWord>;
     fn alloc(&mut self, size: WIPICWord) -> WIPICResult<WIPICMemoryId>;
     fn free(&mut self, memory: WIPICMemoryId) -> WIPICResult<()>;

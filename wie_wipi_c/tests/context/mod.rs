@@ -16,7 +16,7 @@ impl TestContext {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl WIPICContext for TestContext {
     fn alloc_raw(&mut self, size: WIPICWord) -> WIPICResult<WIPICWord> {
         let address = self.last_alloc;

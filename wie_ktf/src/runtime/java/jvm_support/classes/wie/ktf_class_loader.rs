@@ -17,7 +17,7 @@ use wie_util::write_null_terminated_string;
 
 use crate::runtime::java::jvm_support::{class_definition::JavaClassDefinition, context_data::JavaContextData};
 
-pub trait ClassLoaderContextBase: DynClone {
+pub trait ClassLoaderContextBase: Sync + Send + DynClone {
     fn core(&mut self) -> &mut ArmCore;
     fn system(&self) -> &System;
 }

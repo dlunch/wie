@@ -111,7 +111,7 @@ async fn register_class(core: &mut ArmCore, system: &mut System, ptr_class: u32)
     tracing::trace!("register_class({:#x})", ptr_class);
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    if system.jvm().has_class(&class.name()?) {
+    if system.jvm().has_class(&class.name()?).await {
         return Ok(());
     }
 

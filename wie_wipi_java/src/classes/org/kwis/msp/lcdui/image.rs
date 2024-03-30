@@ -1,8 +1,5 @@
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::{
-    cell::Ref,
-    ops::{Deref, DerefMut},
-};
+use core::ops::{Deref, DerefMut};
 
 use bytemuck::{cast_vec, pod_collect_to_vec};
 
@@ -90,9 +87,10 @@ impl Image {
         let system_clone = context.system().clone();
 
         let image = {
-            let image_data = Ref::map(system_clone.resource(), |x| x.data(id));
+            let resource = system_clone.resource();
+            let image_data = resource.data(id);
 
-            decode_image(&image_data)
+            decode_image(image_data)
         }
         .unwrap();
 

@@ -62,8 +62,8 @@ impl JavaClassDefinition {
 
     pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, name: &str, proto: JavaClassProto<C>, context: Context) -> JvmSupportResult<Self>
     where
-        C: ?Sized + 'static,
-        Context: Deref<Target = C> + DerefMut + Clone + 'static,
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
         let parent_class = if let Some(x) = proto.parent_class {
             let class = jvm.resolve_class(x).await?.definition;
@@ -271,6 +271,7 @@ impl JavaClassDefinition {
     }
 }
 
+#[async_trait::async_trait]
 impl ClassDefinition for JavaClassDefinition {
     fn name(&self) -> String {
         self.name().unwrap()
@@ -294,7 +295,7 @@ impl ClassDefinition for JavaClassDefinition {
         self.field(name, descriptor, is_static).unwrap().map(|x| Box::new(x) as _)
     }
 
-    fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
+    async fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field).unwrap();
 
@@ -302,7 +303,7 @@ impl ClassDefinition for JavaClassDefinition {
         Ok(JavaValue::from_raw(value, &r#type, &self.core))
     }
 
-    fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
+    async fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = value.as_raw();
 
