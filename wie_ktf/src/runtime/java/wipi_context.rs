@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, rc::Rc};
+use alloc::{boxed::Box, sync::Arc};
 
 use java_class_proto::MethodBody;
 use jvm::{JavaError, Jvm, Result as JvmResult};
@@ -11,11 +11,11 @@ use wie_wipi_java::WIPIJavaContextBase;
 pub struct KtfWIPIJavaContext {
     core: ArmCore,
     system: System,
-    jvm: Rc<Jvm>,
+    jvm: Arc<Jvm>,
 }
 
 impl KtfWIPIJavaContext {
-    pub fn new(core: &ArmCore, system: &System, jvm: Rc<Jvm>) -> Self {
+    pub fn new(core: &ArmCore, system: &System, jvm: Arc<Jvm>) -> Self {
         Self {
             core: core.clone(),
             system: system.clone(),
@@ -24,7 +24,7 @@ impl KtfWIPIJavaContext {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl WIPIJavaContextBase for KtfWIPIJavaContext {
     fn system(&mut self) -> &mut System {
         &mut self.system
@@ -34,11 +34,11 @@ impl WIPIJavaContextBase for KtfWIPIJavaContext {
         struct SpawnProxy {
             core: ArmCore,
             system: System,
-            jvm: Rc<Jvm>,
+            jvm: Arc<Jvm>,
             callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>,
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl AsyncCallable<u32, JavaError> for SpawnProxy {
             async fn call(mut self) -> Result<u32, JavaError> {
                 let mut context = KtfWIPIJavaContext::new(&self.core, &self.system, self.jvm.clone());

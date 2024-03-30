@@ -14,13 +14,13 @@ pub struct SpawnFuture<C, R, E> {
     core: ArmCore,
     context: ArmCoreContext,
     stack_base: u32,
-    callable_fut: Pin<Box<dyn Future<Output = Result<R, E>>>>,
+    callable_fut: Pin<Box<dyn Future<Output = Result<R, E>> + Send>>,
     _phantom: PhantomData<C>,
 }
 
 impl<C, R, E> SpawnFuture<C, R, E>
 where
-    C: AsyncCallable<R, E> + 'static,
+    C: AsyncCallable<R, E> + 'static + Send,
     R: 'static,
     E: core::fmt::Debug + 'static,
 {

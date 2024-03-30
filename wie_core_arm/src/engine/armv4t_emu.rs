@@ -1,7 +1,8 @@
 use alloc::{boxed::Box, vec::Vec};
-use core::{array, cell::RefCell, ops::Range};
+use core::{array, ops::Range};
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
+use spin::Mutex;
 
 use crate::engine::{ArmCoreResult, ArmEngine, ArmRegister, MemoryPermission};
 
@@ -96,7 +97,7 @@ const PAGE_SIZE: usize = 0x10000;
 const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
 struct Armv4tEmuMemory {
-    pages: [Option<Box<RefCell<[u8; PAGE_SIZE]>>>; TOTAL_MEMORY / PAGE_SIZE],
+    pages: [Option<Box<Mutex<[u8; PAGE_SIZE]>>>; TOTAL_MEMORY / PAGE_SIZE],
 }
 
 impl Armv4tEmuMemory {
@@ -113,7 +114,7 @@ impl Armv4tEmuMemory {
         for page in (page_start..page_end).step_by(PAGE_SIZE) {
             let page_data = &mut self.pages[page as usize / PAGE_SIZE];
             if page_data.is_none() {
-                *page_data = Some(Box::new(RefCell::new([0; PAGE_SIZE])));
+                *page_data = Some(Box::new(Mutex::new([0; PAGE_SIZE])));
             }
         }
     }
@@ -129,7 +130,7 @@ impl Armv4tEmuMemory {
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(remaining_size);
 
-            result.extend_from_slice(&page_data.borrow()[offset..offset + available_bytes]);
+            result.extend_from_slice(&page_data.lock()[offset..offset + available_bytes]);
             remaining_size -= available_bytes;
             current_address += available_bytes as u32;
         }
@@ -147,13 +148,13 @@ impl Armv4tEmuMemory {
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(data.len() - data_index);
 
-            page_data.borrow_mut()[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
+            page_data.lock()[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
             data_index += available_bytes;
             current_address += available_bytes as u32;
         }
     }
 
-    fn get_page(&mut self, addr: u32) -> &RefCell<[u8; PAGE_SIZE]> {
+    fn get_page(&mut self, addr: u32) -> &Mutex<[u8; PAGE_SIZE]> {
         let page_address = addr & !PAGE_MASK;
         let page_data = self.pages[page_address as usize / PAGE_SIZE].as_mut();
 
@@ -169,7 +170,7 @@ impl Memory for Armv4tEmuMemory {
     fn r8(&mut self, addr: u32) -> u8 {
         let offset = addr & PAGE_MASK;
 
-        let data = self.get_page(addr).borrow();
+        let data = self.get_page(addr).lock();
 
         data[offset as usize]
     }
@@ -177,7 +178,7 @@ impl Memory for Armv4tEmuMemory {
     fn r16(&mut self, addr: u32) -> u16 {
         let offset = addr & PAGE_MASK;
 
-        let data = self.get_page(addr).borrow();
+        let data = self.get_page(addr).lock();
 
         (data[offset as usize] as u16) | ((data[offset as usize + 1] as u16) << 8)
     }
@@ -185,7 +186,7 @@ impl Memory for Armv4tEmuMemory {
     fn r32(&mut self, addr: u32) -> u32 {
         let offset = addr & PAGE_MASK;
 
-        let data = self.get_page(addr).borrow();
+        let data = self.get_page(addr).lock();
         (data[offset as usize] as u32)
             | ((data[offset as usize + 1] as u32) << 8)
             | ((data[offset as usize + 2] as u32) << 16)
@@ -195,7 +196,7 @@ impl Memory for Armv4tEmuMemory {
     fn w8(&mut self, addr: u32, val: u8) {
         let offset = addr & PAGE_MASK;
 
-        let mut data = self.get_page(addr).borrow_mut();
+        let mut data = self.get_page(addr).lock();
 
         data[offset as usize] = val;
     }
@@ -203,7 +204,7 @@ impl Memory for Armv4tEmuMemory {
     fn w16(&mut self, addr: u32, val: u16) {
         let offset = addr & PAGE_MASK;
 
-        let mut data = self.get_page(addr).borrow_mut();
+        let mut data = self.get_page(addr).lock();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
@@ -212,7 +213,7 @@ impl Memory for Armv4tEmuMemory {
     fn w32(&mut self, addr: u32, val: u32) {
         let offset = addr & PAGE_MASK;
 
-        let mut data = self.get_page(addr).borrow_mut();
+        let mut data = self.get_page(addr).lock();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;

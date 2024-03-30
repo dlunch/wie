@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec, vec::Vec};
 use core::time::Duration;
 
 use wie_backend::{AsyncCallable, System};
@@ -11,11 +11,11 @@ use jvm::{Jvm, JvmCallback};
 pub struct KtfRuntime {
     core: ArmCore,
     system: System,
-    jvm: Rc<Jvm>,
+    jvm: Arc<Jvm>,
 }
 
 impl KtfRuntime {
-    pub fn new(core: &mut ArmCore, system: &mut System, jvm: Rc<Jvm>) -> Self {
+    pub fn new(core: &mut ArmCore, system: &mut System, jvm: Arc<Jvm>) -> Self {
         Self {
             core: core.clone(),
             system: system.clone(),
@@ -24,7 +24,7 @@ impl KtfRuntime {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Runtime for KtfRuntime {
     async fn sleep(&self, duration: Duration) {
         let now = self.system.platform().now();
@@ -39,11 +39,11 @@ impl Runtime for KtfRuntime {
 
     fn spawn(&self, callback: Box<dyn JvmCallback>) {
         struct SpawnProxy {
-            jvm: Rc<Jvm>,
+            jvm: Arc<Jvm>,
             callback: Box<dyn JvmCallback>,
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
             async fn call(mut self) -> Result<u32, anyhow::Error> {
                 self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;

@@ -23,7 +23,7 @@ pub struct Color {
     pub b: u8,
 }
 
-pub trait Image {
+pub trait Image: Send {
     fn width(&self) -> u32;
     fn height(&self) -> u32;
     fn bytes_per_pixel(&self) -> u32;
@@ -32,12 +32,12 @@ pub trait Image {
     fn colors(&self) -> Vec<Color>;
 }
 
-pub trait ImageBuffer {
+pub trait ImageBuffer: Send {
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
     fn put_pixels(&mut self, x: u32, y: u32, width: u32, colors: &[Color]);
 }
 
-pub trait Canvas {
+pub trait Canvas: Send {
     fn image(&self) -> &dyn Image;
     #[allow(clippy::too_many_arguments)]
     fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
@@ -48,8 +48,8 @@ pub trait Canvas {
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
 }
 
-pub trait PixelType {
-    type DataType: Copy + Pod + Num;
+pub trait PixelType: Send {
+    type DataType: Copy + Pod + Num + Send;
     fn from_color(color: Color) -> Self::DataType;
     fn to_color(raw: Self::DataType) -> Color;
 }

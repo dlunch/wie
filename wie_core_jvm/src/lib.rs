@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, format, rc::Rc, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{future::ready, time::Duration};
 use wie_skvm::SKVMJavaContextBase;
 
@@ -20,10 +20,10 @@ use wie_wipi_java::WIPIJavaContextBase;
 #[derive(Clone)]
 struct JvmCoreRuntime {
     system: System,
-    jvm: Rc<Jvm>,
+    jvm: Arc<Jvm>,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Runtime for JvmCoreRuntime {
     async fn sleep(&self, duration: Duration) {
         let now = self.system.platform().now();
@@ -38,11 +38,11 @@ impl Runtime for JvmCoreRuntime {
 
     fn spawn(&self, callback: Box<dyn JvmCallback>) {
         struct SpawnProxy {
-            jvm: Rc<Jvm>,
+            jvm: Arc<Jvm>,
             callback: Box<dyn JvmCallback>,
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl AsyncCallable<u32, JavaError> for SpawnProxy {
             async fn call(mut self) -> Result<u32, JavaError> {
                 self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
@@ -76,12 +76,12 @@ impl Runtime for JvmCoreRuntime {
 
 #[derive(Clone)]
 pub struct JvmCore {
-    jvm: Rc<Jvm>,
+    jvm: Arc<Jvm>,
 }
 
 impl JvmCore {
     pub async fn new(system: &System) -> JvmResult<Self> {
-        let jvm = Rc::new(Jvm::new(JvmDetailImpl).await?);
+        let jvm = Arc::new(Jvm::new(JvmDetailImpl).await?);
 
         let context: Box<dyn Runtime> = Box::new(JvmCoreRuntime {
             system: system.clone(),
@@ -159,7 +159,7 @@ impl JvmCore {
 #[derive(Clone)]
 struct JvmCoreContext {
     system: System,
-    jvm: Rc<Jvm>,
+    jvm: Arc<Jvm>,
 }
 
 impl WIPIJavaContextBase for JvmCoreContext {
@@ -214,15 +214,15 @@ struct SpawnProxy<T>
 where
     T: ?Sized,
 {
-    jvm: Rc<Jvm>,
+    jvm: Arc<Jvm>,
     callback: Box<dyn MethodBody<JavaError, T>>,
     context: Box<T>,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<T> AsyncCallable<u32, JavaError> for SpawnProxy<T>
 where
-    T: ?Sized,
+    T: ?Sized + Send,
 {
     async fn call(mut self) -> Result<u32, JavaError> {
         let result = self.callback.call(&self.jvm, &mut self.context, Box::new([])).await;

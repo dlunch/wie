@@ -7,7 +7,7 @@ use jvm::JvmCallback;
 #[derive(Clone)]
 pub struct DummyRuntime;
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Runtime for DummyRuntime {
     async fn sleep(&self, _duration: Duration) {
         todo!()

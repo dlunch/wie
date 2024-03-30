@@ -5,7 +5,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{cell::Ref, iter};
+use core::iter;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -82,7 +82,7 @@ async fn set_timer(
         param: WIPICWord,
     }
 
-    #[async_trait::async_trait(?Send)]
+    #[async_trait::async_trait]
     impl MethodBody<WIPICError> for TimerCallback {
         #[tracing::instrument(name = "timer", skip_all)]
         async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICWord, WIPICError> {
@@ -162,9 +162,10 @@ async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICM
     }
 
     let system_clone = context.system().clone();
-    let data = Ref::map(system_clone.resource(), |x| x.data(id));
+    let resource = system_clone.resource();
+    let data = resource.data(id);
 
-    context.write_bytes(context.data_ptr(buf)?, &data)?;
+    context.write_bytes(context.data_ptr(buf)?, data)?;
 
     Ok(0)
 }

@@ -82,6 +82,7 @@ impl JavaArrayClassInstance {
     }
 }
 
+#[async_trait::async_trait]
 impl ArrayClassInstance for JavaArrayClassInstance {
     fn destroy(self: Box<Self>) {
         self.class_instance.destroy().unwrap()
@@ -99,7 +100,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         self.class_instance.hash_code()
     }
 
-    fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
+    async fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.element_size().unwrap();
 
         let values = values.to_vec();
@@ -121,7 +122,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         Ok(())
     }
 
-    fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
+    async fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
         let values_raw = self.load_array(offset as _, count as _).unwrap();
 
         let element_type = self.element_type().unwrap();
@@ -144,7 +145,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         })
     }
 
-    fn store_bytes(&mut self, offset: usize, values: Box<[i8]>) -> JvmResult<()> {
+    async fn store_bytes(&mut self, offset: usize, values: Box<[i8]>) -> JvmResult<()> {
         let values = values.to_vec();
         let count = values.len();
 
@@ -153,7 +154,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         Ok(())
     }
 
-    fn load_bytes(&self, offset: usize, count: usize) -> JvmResult<Vec<i8>> {
+    async fn load_bytes(&self, offset: usize, count: usize) -> JvmResult<Vec<i8>> {
         let values_raw = self.load_array(offset as _, count as _).unwrap();
 
         Ok(cast_vec(values_raw))

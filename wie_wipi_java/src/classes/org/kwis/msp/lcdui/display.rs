@@ -190,7 +190,7 @@ impl Display {
             runnable: ClassInstanceRef<Runnable>,
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl MethodBody<JavaError, WIPIJavaContext> for SpawnProxy {
             async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 let until = context.system().platform().now() + 16; // TODO

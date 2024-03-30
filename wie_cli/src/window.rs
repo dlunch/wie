@@ -1,4 +1,4 @@
-use alloc::rc::Rc;
+use alloc::sync::Arc;
 use core::{fmt::Debug, num::NonZeroU32};
 
 use softbuffer::{Context, Surface};
@@ -64,7 +64,7 @@ impl Screen for WindowHandle {
 }
 
 pub struct WindowImpl {
-    window: Rc<WinitWindow>,
+    window: Arc<WinitWindow>,
     event_loop: EventLoop<WindowInternalEvent>,
 }
 
@@ -79,7 +79,7 @@ impl WindowImpl {
         let window = builder.build(&event_loop)?;
 
         Ok(Self {
-            window: Rc::new(window),
+            window: Arc::new(window),
             event_loop,
         })
     }

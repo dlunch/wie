@@ -8,6 +8,7 @@ license.workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
+spin = { workspace = true }
 tracing = { workspace = true }
 
 armv4t_emu = { version = "^0.1" }

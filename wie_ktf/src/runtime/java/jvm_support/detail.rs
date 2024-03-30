@@ -16,7 +16,7 @@ impl KtfJvmDetail {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl JvmDetail for KtfJvmDetail {
     async fn define_class(&self, _jvm: &Jvm, _name: &str, _data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
         unimplemented!()

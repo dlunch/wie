@@ -51,8 +51,8 @@ impl JavaMethod {
         context: Context,
     ) -> JvmSupportResult<Self>
     where
-        C: ?Sized + 'static,
-        Context: Deref<Target = C> + DerefMut + Clone + 'static,
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
         let full_name = JavaFullName {
             tag: 0,
@@ -131,12 +131,12 @@ impl JavaMethod {
 
     fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> JvmSupportResult<u32>
     where
-        C: ?Sized + 'static,
-        Context: Deref<Target = C> + DerefMut + Clone + 'static,
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
         struct JavaMethodProxy<C, Context>
         where
-            C: ?Sized,
+            C: ?Sized + Send,
             Context: Deref<Target = C> + DerefMut + Clone,
         {
             proto: JavaMethodProto<C>,
@@ -144,11 +144,11 @@ impl JavaMethod {
             parameter_types: Vec<JavaType>,
         }
 
-        #[async_trait::async_trait(?Send)]
+        #[async_trait::async_trait]
         impl<C, Context> EmulatedFunction<(), ArmCoreError, u32> for JavaMethodProxy<C, Context>
         where
-            C: ?Sized,
-            Context: Deref<Target = C> + DerefMut + Clone + 'static,
+            C: ?Sized + Send,
+            Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
         {
             async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmCoreError> {
                 let param_count = self.parameter_types.len() as u32;
@@ -193,7 +193,7 @@ impl JavaMethod {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Method for JavaMethod {
     fn name(&self) -> String {
         let name = self.name().unwrap();
