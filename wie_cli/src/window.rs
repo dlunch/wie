@@ -39,10 +39,6 @@ impl WindowHandle {
     }
 }
 
-// XXX wasm32 is single-threaded anyway
-#[cfg(target_arch = "wasm32")]
-unsafe impl Sync for WindowHandle {}
-
 impl Screen for WindowHandle {
     fn request_redraw(&self) -> anyhow::Result<()> {
         self.send_event(WindowInternalEvent::RequestRedraw)
