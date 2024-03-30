@@ -20,7 +20,7 @@ pub use self::{
     time::Instant,
 };
 
-use alloc::{boxed::Box, collections::BTreeMap, string::String};
+use alloc::collections::BTreeMap;
 
 pub trait App {
     fn start(&mut self) -> anyhow::Result<()>;

@@ -1,5 +1,3 @@
-use alloc::string::String;
-
 use crate::extract_zip;
 
 pub struct Resource {

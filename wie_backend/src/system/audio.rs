@@ -1,5 +1,5 @@
 use alloc::collections::BTreeMap;
-use core::{result::Result, time::Duration};
+use core::time::Duration;
 
 use smaf::Smaf;
 use smaf_player::{play_smaf, AudioBackend};
