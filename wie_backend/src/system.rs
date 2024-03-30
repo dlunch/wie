@@ -4,7 +4,7 @@ mod resource;
 
 use alloc::sync::Arc;
 use core::{any::Any, fmt::Debug};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
     executor::Executor,
@@ -20,7 +20,7 @@ pub use self::event_queue::{Event, KeyCode};
 #[derive(Clone)]
 pub struct System {
     executor: Executor,
-    platform: Arc<RwLock<Box<dyn Platform>>>,
+    platform: Arc<Mutex<Box<dyn Platform>>>,
     resource: Arc<RwLock<Resource>>,
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Option<Arc<RwLock<Audio>>>,
@@ -31,7 +31,7 @@ impl System {
     pub fn new(platform: Box<dyn Platform>, context: Box<dyn Any + Sync + Send>) -> Self {
         let audio_sink = platform.audio_sink();
 
-        let platform = Arc::new(RwLock::new(platform));
+        let platform = Arc::new(Mutex::new(platform));
 
         let mut result = Self {
             executor: Executor::new(),
@@ -51,7 +51,7 @@ impl System {
     pub fn tick(&mut self) -> anyhow::Result<()> {
         let platform = self.platform.clone();
         self.executor.tick(move || {
-            let platform = platform.read().unwrap();
+            let platform = platform.lock().unwrap();
 
             platform.now()
         })
@@ -94,8 +94,8 @@ impl System {
         self.resource.write().unwrap()
     }
 
-    pub fn platform(&self) -> RwLockWriteGuard<'_, Box<dyn Platform>> {
-        self.platform.write().unwrap()
+    pub fn platform(&self) -> MutexGuard<'_, Box<dyn Platform>> {
+        self.platform.lock().unwrap()
     }
 
     pub fn audio(&self) -> RwLockWriteGuard<'_, Audio> {
