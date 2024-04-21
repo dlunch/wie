@@ -73,19 +73,6 @@ impl System {
         YieldFuture {}
     }
 
-    // TODO add encoding configuration..
-    pub fn encode_str(&self, string: &str) -> Vec<u8> {
-        use encoding_rs::EUC_KR;
-
-        EUC_KR.encode(string).0.to_vec()
-    }
-
-    pub fn decode_str(&self, bytes: &[u8]) -> String {
-        use encoding_rs::EUC_KR;
-
-        EUC_KR.decode(bytes).0.to_string()
-    }
-
     pub fn resource(&self) -> RwLockReadGuard<'_, Resource> {
         self.resource.read().unwrap()
     }

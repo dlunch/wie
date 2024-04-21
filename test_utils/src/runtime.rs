@@ -1,7 +1,7 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::boxed::Box;
 use core::time::Duration;
 
-use java_runtime::Runtime;
+use java_runtime::{File, IOError, Runtime};
 use jvm::JvmCallback;
 
 #[derive(Clone)]
@@ -25,15 +25,19 @@ impl Runtime for DummyRuntime {
         todo!()
     }
 
-    fn encode_str(&self, _s: &str) -> Vec<u8> {
-        todo!()
+    fn stdin(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
     }
 
-    fn decode_str(&self, _bytes: &[u8]) -> String {
-        todo!()
+    fn stdout(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
     }
 
-    fn println(&mut self, _s: &str) {
+    fn stderr(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn open(&self, _path: &str) -> Result<Box<dyn File>, IOError> {
         todo!()
     }
 }
