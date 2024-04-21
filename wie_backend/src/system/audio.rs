@@ -2,7 +2,7 @@ use alloc::collections::BTreeMap;
 use core::time::Duration;
 
 use smaf::Smaf;
-use smaf_player::{play_smaf, AudioBackend};
+use smaf_player::{AudioBackend, SmafPlayer};
 
 use crate::{audio_sink::AudioSink, System};
 
@@ -83,7 +83,7 @@ impl Audio {
         match self.files.get(&audio_handle) {
             Some(AudioFile::Smaf(data)) => {
                 let smaf = Smaf::parse(data).map_err(|_| AudioError::InvalidAudio)?;
-                play_smaf(&smaf, &self.backend).await;
+                SmafPlayer::new().play(&smaf, &self.backend).await;
             }
             None => return Err(AudioError::InvalidHandle),
         }
