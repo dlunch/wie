@@ -18,7 +18,7 @@ use wie_backend::System;
 use wie_core_arm::{ArmCore, PEB_BASE};
 use wie_util::write_generic;
 
-use jvm::{ClassDefinition, ClassInstance, Jvm};
+use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, Jvm};
 
 use crate::{
     context::KtfContextExt,
@@ -150,6 +150,18 @@ impl KtfJvmSupport {
             .await?;
 
         jvm.set_system_class_loader(class_loader).await;
+
+        // set initial properties... TODO can we merge this with wie_core_jvm's one?
+        let file_encoding_name = JavaLangString::from_rust_string(&jvm, "file.encoding").await?;
+        let encoding_str = JavaLangString::from_rust_string(&jvm, "EUC-KR").await?; // TODO hardcoded
+        let _: Option<Box<dyn ClassInstance>> = jvm
+            .invoke_static(
+                "java/lang/System",
+                "setProperty",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;",
+                (file_encoding_name, encoding_str),
+            )
+            .await?;
 
         Ok(jvm)
     }

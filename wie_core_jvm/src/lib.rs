@@ -1,15 +1,15 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, sync::Arc, vec};
 use core::{future::ready, time::Duration};
 use wie_skvm::SKVMJavaContextBase;
 
 use bytemuck::cast_vec;
 
 use java_class_proto::MethodBody;
-use java_runtime::{classes::java::lang::String as JavaString, Runtime};
-use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
+use java_runtime::{classes::java::lang::String as JavaString, File, IOError, Runtime};
+use jvm::{runtime::JavaLangString, ClassInstance, ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
 use wie_backend::{AsyncCallable, System};
@@ -61,16 +61,20 @@ impl Runtime for JvmCoreRuntime {
         self.system.platform().now().raw()
     }
 
-    fn encode_str(&self, s: &str) -> Vec<u8> {
-        self.system.encode_str(s)
+    fn stdin(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
     }
 
-    fn decode_str(&self, bytes: &[u8]) -> String {
-        self.system.decode_str(bytes)
+    fn stdout(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
     }
 
-    fn println(&mut self, s: &str) {
-        tracing::info!("println {}", s);
+    fn stderr(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn open(&self, _path: &str) -> Result<Box<dyn File>, IOError> {
+        todo!()
     }
 }
 
@@ -120,6 +124,18 @@ impl JvmCore {
             ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
         })
         .await?;
+
+        // set initial properties
+        let file_encoding_name = JavaLangString::from_rust_string(&jvm, "file.encoding").await?;
+        let encoding_str = JavaLangString::from_rust_string(&jvm, "EUC-KR").await?; // TODO hardcoded
+        let _: Option<Box<dyn ClassInstance>> = jvm
+            .invoke_static(
+                "java/lang/System",
+                "setProperty",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;",
+                (file_encoding_name, encoding_str),
+            )
+            .await?;
 
         Ok(Self { jvm })
     }

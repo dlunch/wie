@@ -1,10 +1,10 @@
-use alloc::{boxed::Box, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec};
 use core::time::Duration;
 
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::ArmCore;
 
-use java_runtime::Runtime;
+use java_runtime::{File, IOError, Runtime};
 use jvm::{Jvm, JvmCallback};
 
 #[derive(Clone)]
@@ -62,15 +62,19 @@ impl Runtime for KtfRuntime {
         self.system.platform().now().raw()
     }
 
-    fn encode_str(&self, s: &str) -> Vec<u8> {
-        self.system.encode_str(s)
+    fn stdin(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
     }
 
-    fn decode_str(&self, bytes: &[u8]) -> String {
-        self.system.decode_str(bytes)
+    fn stdout(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
     }
 
-    fn println(&mut self, s: &str) {
-        tracing::info!("println {}", s);
+    fn stderr(&self) -> Result<Box<dyn File>, IOError> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn open(&self, _path: &str) -> Result<Box<dyn File>, IOError> {
+        todo!()
     }
 }
