@@ -17,20 +17,20 @@ impl AudioBackend for AudioBackendImpl {
         self.sink.play_wave(channel, sampling_rate, wave_data);
     }
 
-    fn midi_note_on(&self, _channel_id: u8, _note: u8, _velocity: u8) {
-        // TODO
+    fn midi_note_on(&self, channel_id: u8, note: u8, velocity: u8) {
+        self.sink.midi_note_on(channel_id, note, velocity);
     }
 
-    fn midi_note_off(&self, _channel_id: u8, _note: u8, _velocity: u8) {
-        // TODO
+    fn midi_note_off(&self, channel_id: u8, note: u8, velocity: u8) {
+        self.sink.midi_note_off(channel_id, note, velocity);
     }
 
-    fn midi_program_change(&self, _channel_id: u8, _program: u8) {
-        // TODO
+    fn midi_program_change(&self, channel_id: u8, program: u8) {
+        self.sink.midi_program_change(channel_id, program);
     }
 
-    fn midi_control_change(&self, _channel_id: u8, _control: u8, _value: u8) {
-        // TODO
+    fn midi_control_change(&self, channel_id: u8, control: u8, value: u8) {
+        self.sink.midi_control_change(channel_id, control, value);
     }
 
     async fn sleep(&self, duration: Duration) {
