@@ -8,10 +8,14 @@ use std::{
     collections::HashSet,
     fs,
     io::stderr,
+    sync::mpsc::{channel, Receiver, Sender},
+    thread,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use clap::Parser;
+use midir::MidiOutput;
+use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie_backend::{extract_zip, Archive, Event, Instant, KeyCode, Platform, Screen};
@@ -27,15 +31,33 @@ use self::{
 };
 
 struct WieCliPlatform {
+    audio_thread_tx: Sender<(u8, u32, Vec<i16>)>,
     database_repository: DatabaseRepository,
     window: Box<dyn Screen>,
 }
 
 impl WieCliPlatform {
     fn new(app_id: &str, window: Box<dyn Screen>) -> Self {
+        let (tx, rx) = channel();
+        thread::spawn(|| Self::audio_thread(rx));
+
         Self {
+            audio_thread_tx: tx,
             database_repository: DatabaseRepository::new(app_id),
             window,
+        }
+    }
+
+    fn audio_thread(rx: Receiver<(u8, u32, Vec<i16>)>) {
+        let (_output_stream, stream_handle) = OutputStream::try_default().unwrap();
+        let sink = Sink::try_new(&stream_handle).unwrap();
+
+        loop {
+            let (channel, sampling_rate, wave_data) = rx.recv().unwrap();
+            let buffer = SamplesBuffer::new(channel as _, sampling_rate as _, wave_data);
+
+            // TODO we should be able to play multiple audio at once
+            sink.append(buffer);
         }
     }
 }
@@ -57,7 +79,12 @@ impl Platform for WieCliPlatform {
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
-        Box::new(AudioSink)
+        let midi_out = MidiOutput::new("wie_cli").unwrap();
+        let midi_ports = midi_out.ports();
+        let out_port = midi_ports.last().unwrap();
+        let midi_out = midi_out.connect(out_port, "wie_cli").unwrap();
+
+        Box::new(AudioSink::new(midi_out, self.audio_thread_tx.clone()))
     }
 }
 
