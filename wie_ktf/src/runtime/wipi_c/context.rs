@@ -102,7 +102,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<WIPICWord, WIPICError> for SpawnProxy {
+        impl AsyncCallable<Result<WIPICWord, WIPICError>> for SpawnProxy {
             async fn call(mut self) -> Result<WIPICWord, WIPICError> {
                 let mut context = KtfWIPICContext::new(&mut self.core, &mut self.system);
 

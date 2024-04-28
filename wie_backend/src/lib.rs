@@ -13,7 +13,7 @@ mod time;
 pub use self::{
     audio_sink::AudioSink,
     database::{Database, DatabaseRepository, RecordId},
-    executor::AsyncCallable,
+    executor::{AsyncCallable, AsyncCallableResult},
     platform::Platform,
     screen::Screen,
     system::{Event, KeyCode, System},

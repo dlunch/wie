@@ -5,7 +5,7 @@ use wie_backend::{AsyncCallable, System};
 use wie_core_arm::ArmCore;
 
 use java_runtime::{File, IOError, Runtime};
-use jvm::{Jvm, JvmCallback};
+use jvm::{JavaError, Jvm, JvmCallback};
 
 #[derive(Clone)]
 pub struct KtfRuntime {
@@ -44,8 +44,8 @@ impl Runtime for KtfRuntime {
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<u32, anyhow::Error> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, anyhow::Error> {
+        impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JavaError> {
                 self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
 
                 Ok(0) // TODO

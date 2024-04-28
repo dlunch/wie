@@ -39,7 +39,7 @@ impl WIPIJavaContextBase for KtfWIPIJavaContext {
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+        impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, JavaError> {
                 let mut context = KtfWIPIJavaContext::new(&self.core, &self.system, self.jvm.clone());
 
