@@ -1,7 +1,6 @@
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, sync::Arc};
 use core::time::Duration;
 
-use smaf::Smaf;
 use smaf_player::{AudioBackend, SmafPlayer};
 
 use crate::{audio_sink::AudioSink, System};
@@ -46,17 +45,19 @@ impl AudioBackend for AudioBackendImpl {
 }
 
 pub type AudioHandle = u32;
+#[derive(Debug)]
 pub enum AudioError {
     InvalidHandle,
     InvalidAudio,
 }
 
 enum AudioFile {
-    Smaf(Vec<u8>),
+    Smaf(SmafPlayer),
 }
 
 pub struct Audio {
-    backend: AudioBackendImpl,
+    system: System,
+    backend: Arc<AudioBackendImpl>,
     files: BTreeMap<AudioHandle, AudioFile>,
     last_audio_handle: AudioHandle,
 }
@@ -64,7 +65,8 @@ pub struct Audio {
 impl Audio {
     pub fn new(sink: Box<dyn AudioSink>, system: System) -> Self {
         Self {
-            backend: AudioBackendImpl { sink, system },
+            system: system.clone(),
+            backend: Arc::new(AudioBackendImpl { sink, system }),
             files: BTreeMap::new(),
             last_audio_handle: 0,
         }
@@ -74,16 +76,22 @@ impl Audio {
         let audio_handle = self.last_audio_handle;
 
         self.last_audio_handle += 1;
-        self.files.insert(audio_handle, AudioFile::Smaf(data.to_vec()));
+        self.files.insert(audio_handle, AudioFile::Smaf(SmafPlayer::new(data.to_vec())));
 
         Ok(audio_handle)
     }
 
     pub async fn play(&self, audio_handle: AudioHandle) -> Result<(), AudioError> {
         match self.files.get(&audio_handle) {
-            Some(AudioFile::Smaf(data)) => {
-                let smaf = Smaf::parse(data).map_err(|_| AudioError::InvalidAudio)?;
-                SmafPlayer::new().play(&smaf, &self.backend).await;
+            Some(AudioFile::Smaf(player)) => {
+                let player_clone = player.clone();
+                let backend = self.backend.clone();
+
+                self.system.clone().spawn(move || async move {
+                    player_clone.play(&*backend).await;
+
+                    Ok::<_, AudioError>(())
+                });
             }
             None => return Err(AudioError::InvalidHandle),
         }
