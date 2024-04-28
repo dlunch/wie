@@ -56,7 +56,7 @@ struct MdaClip {
 
     temp_record_space: WIPICWord, // M_Byte *
     temp_record_space_size: i32,
-    temp_reord_size: i32,
+    temp_record_size: i32,
 
     next_ptr: WIPICWord, // MC_MdaClip*
 
