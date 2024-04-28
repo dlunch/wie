@@ -19,19 +19,41 @@ pub struct ExecutorInner {
 }
 
 #[async_trait::async_trait]
-pub trait AsyncCallable<R, E> {
-    async fn call(self) -> Result<R, E>;
+pub trait AsyncCallable<R> {
+    async fn call(self) -> R;
 }
 
 #[async_trait::async_trait]
-impl<F, R, E, Fut> AsyncCallable<R, E> for F
+impl<F, R, Fut> AsyncCallable<R> for F
 where
     F: FnOnce() -> Fut + 'static + Send,
-    E: Debug,
-    Fut: Future<Output = Result<R, E>> + 'static + Send,
+    R: AsyncCallableResult,
+    Fut: Future<Output = R> + 'static + Send,
 {
-    async fn call(self) -> Result<R, E> {
+    async fn call(self) -> R {
         self().await
+    }
+}
+
+pub trait AsyncCallableResult {
+    fn err(&self) -> Option<anyhow::Error>;
+}
+
+impl<R, E> AsyncCallableResult for Result<R, E>
+where
+    E: Debug,
+{
+    fn err(&self) -> Option<anyhow::Error> {
+        match self {
+            Ok(_) => None,
+            Err(e) => Some(anyhow::anyhow!("{:?}", e)),
+        }
+    }
+}
+
+impl AsyncCallableResult for () {
+    fn err(&self) -> Option<anyhow::Error> {
+        None
     }
 }
 
@@ -54,13 +76,16 @@ impl Executor {
         Self { inner }
     }
 
-    pub fn spawn<C, R, E>(&mut self, callable: C) -> usize
+    pub fn spawn<C, R>(&mut self, callable: C) -> usize
     where
-        C: AsyncCallable<R, E> + 'static + Send,
-        E: Debug,
+        C: AsyncCallable<R> + 'static + Send,
+        R: AsyncCallableResult,
     {
         let fut = async move {
-            callable.call().await.map_err(|x| anyhow::anyhow!("{:?}", x))?;
+            let result = callable.call().await;
+            if let Some(err) = result.err() {
+                return Err(err);
+            }
 
             anyhow::Ok(())
         };

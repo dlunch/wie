@@ -6,23 +6,22 @@ use core::{
     task::{Context, Poll},
 };
 
-use wie_backend::AsyncCallable;
+use wie_backend::{AsyncCallable, AsyncCallableResult};
 
 use crate::{context::ArmCoreContext, Allocator, ArmCore};
 
-pub struct SpawnFuture<C, R, E> {
+pub struct SpawnFuture<C, R> {
     core: ArmCore,
     context: ArmCoreContext,
     stack_base: u32,
-    callable_fut: Pin<Box<dyn Future<Output = Result<R, E>> + Send>>,
+    callable_fut: Pin<Box<dyn Future<Output = R> + Send>>,
     _phantom: PhantomData<C>,
 }
 
-impl<C, R, E> SpawnFuture<C, R, E>
+impl<C, R> SpawnFuture<C, R>
 where
-    C: AsyncCallable<R, E> + 'static + Send,
-    R: 'static,
-    E: core::fmt::Debug + 'static,
+    C: AsyncCallable<R> + 'static + Send,
+    R: AsyncCallableResult + 'static,
 {
     pub fn new(mut core: ArmCore, callable: C) -> Self {
         let stack_base = Allocator::alloc(&mut core, 0x1000).unwrap();
@@ -39,8 +38,8 @@ where
     }
 }
 
-impl<C, R, E> Future for SpawnFuture<C, R, E> {
-    type Output = Result<R, E>;
+impl<C, R> Future for SpawnFuture<C, R> {
+    type Output = R;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.core.clone().restore_context(&self.context); // XXX clone is added to satisfy borrow checker
@@ -58,4 +57,4 @@ impl<C, R, E> Future for SpawnFuture<C, R, E> {
     }
 }
 
-impl<C, R, E> Unpin for SpawnFuture<C, R, E> {}
+impl<C, R> Unpin for SpawnFuture<C, R> {}

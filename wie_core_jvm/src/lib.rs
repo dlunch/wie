@@ -43,7 +43,7 @@ impl Runtime for JvmCoreRuntime {
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<u32, JavaError> for SpawnProxy {
+        impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, JavaError> {
                 self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
 
@@ -236,7 +236,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> AsyncCallable<u32, JavaError> for SpawnProxy<T>
+impl<T> AsyncCallable<Result<u32, JavaError>> for SpawnProxy<T>
 where
     T: ?Sized + Send,
 {

@@ -3,7 +3,7 @@ use core::{fmt::Debug, mem::size_of};
 
 use spin::Mutex;
 
-use wie_backend::{AsyncCallable, System};
+use wie_backend::{AsyncCallable, AsyncCallableResult, System};
 use wie_util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
@@ -131,11 +131,10 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn spawn<C, R, E>(&mut self, callable: C)
+    pub fn spawn<C, R>(&mut self, callable: C)
     where
-        C: AsyncCallable<R, E> + 'static + Send,
-        R: 'static,
-        E: Debug + 'static,
+        C: AsyncCallable<R> + 'static + Send,
+        R: AsyncCallableResult + 'static,
     {
         let self_cloned = self.clone();
         self.inner.lock().system.spawn(move || SpawnFuture::new(self_cloned, callable));

@@ -3,11 +3,11 @@ mod event_queue;
 mod resource;
 
 use alloc::sync::Arc;
-use core::{any::Any, fmt::Debug};
+use core::any::Any;
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
-    executor::Executor,
+    executor::{AsyncCallableResult, Executor},
     platform::Platform,
     task::{SleepFuture, YieldFuture},
     AsyncCallable, Instant,
@@ -57,10 +57,10 @@ impl System {
         })
     }
 
-    pub fn spawn<C, R, E>(&mut self, callable: C)
+    pub fn spawn<C, R>(&mut self, callable: C)
     where
-        C: AsyncCallable<R, E> + 'static + Send,
-        E: Debug,
+        C: AsyncCallable<R> + 'static + Send,
+        R: AsyncCallableResult,
     {
         self.executor.spawn(callable);
     }
