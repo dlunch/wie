@@ -81,7 +81,7 @@ impl Audio {
         Ok(audio_handle)
     }
 
-    pub async fn play(&self, audio_handle: AudioHandle) -> Result<(), AudioError> {
+    pub fn play(&self, audio_handle: AudioHandle) -> Result<(), AudioError> {
         match self.files.get(&audio_handle) {
             Some(AudioFile::Smaf(player)) => {
                 let player_clone = player.clone();
