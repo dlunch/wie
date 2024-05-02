@@ -1,8 +1,10 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
+use bytemuck::cast_vec;
+
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use crate::{
     classes::org::kwis::msp::media::PlayListener,
@@ -28,30 +30,51 @@ impl Clip {
                     Default::default(),
                 ),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("data", "[B", Default::default())],
         }
     }
 
     async fn init(
-        _: &Jvm,
-        _: &mut WIPIJavaContext,
+        jvm: &Jvm,
+        context: &mut WIPIJavaContext,
         this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
         resource_name: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
+
+        let resource_name = JavaLangString::to_rust_string(jvm, &resource_name).await?;
+        let resource_id = context.system().resource().id(&resource_name).unwrap();
+
+        let resource = context.system().resource().data(resource_id).to_vec();
+
+        let mut data_array = jvm.instantiate_array("B", resource.len()).await?;
+        jvm.store_byte_array(&mut data_array, 0, cast_vec(resource)).await?;
+
+        jvm.invoke_special(
+            &this,
+            "org/kwis/msp/media/Clip",
+            "<init>",
+            "(Ljava/lang/String;[B)V",
+            (r#type, data_array),
+        )
+        .await?;
 
         Ok(())
     }
 
     async fn init_with_data(
-        _: &Jvm,
+        jvm: &Jvm,
         _: &mut WIPIJavaContext,
-        this: ClassInstanceRef<Self>,
+        mut this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
         data: ClassInstanceRef<Array<i8>>,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
+
+        jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "data", "[B", data).await?;
 
         Ok(())
     }
