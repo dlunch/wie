@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
@@ -89,5 +89,11 @@ impl Clip {
         tracing::warn!("stub org.kwis.msp.media.Clip::setListener({:?}, {:?})", &this, &listener);
 
         Ok(())
+    }
+
+    pub async fn data(jvm: &Jvm, this: ClassInstanceRef<Self>) -> JvmResult<Vec<u8>> {
+        let data = jvm.get_field(&this, "data", "[B").await?;
+
+        Ok(cast_vec(jvm.load_byte_array(&data, 0, jvm.array_length(&data).await?).await?))
     }
 }
