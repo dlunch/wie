@@ -6,6 +6,7 @@ mod window;
 
 use std::{
     collections::HashSet,
+    error::Error,
     fs,
     io::stderr,
     sync::mpsc::{channel, Receiver, Sender},
@@ -49,7 +50,15 @@ impl WieCliPlatform {
     }
 
     fn audio_thread(rx: Receiver<(u8, u32, Vec<i16>)>) {
-        let (_output_stream, stream_handle) = OutputStream::try_default().unwrap();
+        let default_output = OutputStream::try_default();
+        if default_output.is_err() {
+            // do nothing if we can't open output
+            loop {
+                rx.recv().unwrap();
+            }
+        }
+
+        let (_output_stream, stream_handle) = default_output.unwrap();
         let sink = Sink::try_new(&stream_handle).unwrap();
 
         loop {
@@ -79,10 +88,14 @@ impl Platform for WieCliPlatform {
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
-        let midi_out = MidiOutput::new("wie_cli").unwrap();
-        let midi_ports = midi_out.ports();
-        let out_port = midi_ports.last().unwrap();
-        let midi_out = midi_out.connect(out_port, "wie_cli").unwrap();
+        let midi_out = (|| {
+            let midi_out = MidiOutput::new("wie_cli")?;
+            let midi_ports = midi_out.ports();
+            let out_port = midi_ports.last().ok_or_else(|| anyhow::anyhow!("No MIDI output port"))?;
+
+            Ok::<_, Box<dyn Error>>(midi_out.connect(out_port, "wie_cli")?)
+        })()
+        .ok();
 
         Box::new(AudioSink::new(midi_out, self.audio_thread_tx.clone()))
     }
