@@ -10,7 +10,7 @@ pub struct AudioSink {
 impl AudioSink {
     pub fn new(midi_out: Option<MidiOutputConnection>, audio_tx: Sender<(u8, u32, Vec<i16>)>) -> Self {
         Self {
-            midi_out: midi_out.map(|x| Mutex::new(x)),
+            midi_out: midi_out.map(Mutex::new),
             audio_tx,
         }
     }
