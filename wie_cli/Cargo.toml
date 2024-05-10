@@ -10,7 +10,7 @@ tracing = { workspace = true }
 anyhow = { version = "^1.0", features = ["backtrace"] }
 clap = { version = "^4.5", features = ["derive"] }
 directories = { version = "^5.0" }
-rodio = { version = "^0.17", default-features = false }
+rodio = { version = "^0.18", default-features = false }
 midir = { version = "^0.10", default-features = false }
 softbuffer = { version = "^0.4" }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
