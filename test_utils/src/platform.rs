@@ -20,6 +20,8 @@ impl Platform for TestPlatform {
     fn audio_sink(&self) -> Box<dyn AudioSink> {
         Box::new(TestAudioSink)
     }
+
+    fn write_stdout(&self, _buf: &[u8]) {}
 }
 
 struct TestAudioSink;
