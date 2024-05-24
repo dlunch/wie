@@ -5,4 +5,5 @@ pub trait Platform: Send {
     fn now(&self) -> Instant;
     fn database_repository(&self) -> &dyn DatabaseRepository;
     fn audio_sink(&self) -> Box<dyn AudioSink>;
+    fn write_stdout(&self, buf: &[u8]);
 }
