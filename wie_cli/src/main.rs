@@ -4,6 +4,7 @@ mod audio_sink;
 mod database;
 mod window;
 
+use core::str;
 use std::{
     collections::HashSet,
     error::Error,
@@ -98,6 +99,12 @@ impl Platform for WieCliPlatform {
         .ok();
 
         Box::new(AudioSink::new(midi_out, self.audio_thread_tx.clone()))
+    }
+
+    fn write_stdout(&self, buf: &[u8]) {
+        let str = str::from_utf8(buf).unwrap();
+
+        tracing::info!("stdout: {}", str)
     }
 }
 

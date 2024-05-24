@@ -8,7 +8,7 @@ use wie_skvm::SKVMJavaContextBase;
 use bytemuck::cast_vec;
 
 use java_class_proto::MethodBody;
-use java_runtime::{classes::java::lang::String as JavaString, File, IOError, Runtime};
+use java_runtime::{classes::java::lang::String as JavaString, File, FileStat, IOError, Runtime};
 use jvm::{runtime::JavaLangString, ClassInstance, ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
 use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
 
@@ -66,7 +66,30 @@ impl Runtime for JvmCoreRuntime {
     }
 
     fn stdout(&self) -> Result<Box<dyn File>, IOError> {
-        Err(IOError::Unsupported)
+        // can we merge this implementation with ktf's one?
+        #[derive(Clone)]
+        struct StdoutFile {
+            system: System,
+        }
+
+        #[async_trait::async_trait]
+        impl File for StdoutFile {
+            async fn read(&mut self, _buf: &mut [u8]) -> Result<usize, IOError> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn write(&mut self, buf: &[u8]) -> Result<usize, IOError> {
+                self.system.platform().write_stdout(buf);
+
+                Ok(buf.len())
+            }
+
+            async fn stat(&self) -> Result<FileStat, IOError> {
+                Err(IOError::Unsupported)
+            }
+        }
+
+        Ok(Box::new(StdoutFile { system: self.system.clone() }))
     }
 
     fn stderr(&self) -> Result<Box<dyn File>, IOError> {

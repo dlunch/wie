@@ -4,7 +4,7 @@ use core::time::Duration;
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::ArmCore;
 
-use java_runtime::{File, IOError, Runtime};
+use java_runtime::{File, FileStat, IOError, Runtime};
 use jvm::{JavaError, Jvm, JvmCallback};
 
 #[derive(Clone)]
@@ -67,7 +67,29 @@ impl Runtime for KtfRuntime {
     }
 
     fn stdout(&self) -> Result<Box<dyn File>, IOError> {
-        Err(IOError::Unsupported)
+        #[derive(Clone)]
+        struct StdoutFile {
+            system: System,
+        }
+
+        #[async_trait::async_trait]
+        impl File for StdoutFile {
+            async fn read(&mut self, _buf: &mut [u8]) -> Result<usize, IOError> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn write(&mut self, buf: &[u8]) -> Result<usize, IOError> {
+                self.system.platform().write_stdout(buf);
+
+                Ok(buf.len())
+            }
+
+            async fn stat(&self) -> Result<FileStat, IOError> {
+                Err(IOError::Unsupported)
+            }
+        }
+
+        Ok(Box::new(StdoutFile { system: self.system.clone() }))
     }
 
     fn stderr(&self) -> Result<Box<dyn File>, IOError> {
