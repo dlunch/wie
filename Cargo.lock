@@ -1077,7 +1077,7 @@ dependencies = [
  "jvm",
  "tracing",
  "url",
- "zip",
+ "zip 1.3.1",
 ]
 
 [[package]]
@@ -2375,7 +2375,7 @@ dependencies = [
  "smaf",
  "smaf_player",
  "tracing",
- "zip",
+ "zip 2.0.0",
 ]
 
 [[package]]
@@ -3009,6 +3009,22 @@ name = "zip"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b7a5a9285bd4ee13bdeb3f8a4917eb46557e53f270c783849db8bef37b0ad00"
+dependencies = [
+ "arbitrary",
+ "crc32fast",
+ "crossbeam-utils",
+ "displaydoc",
+ "flate2",
+ "indexmap",
+ "thiserror",
+ "zopfli",
+]
+
+[[package]]
+name = "zip"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fccb210625924ecbbe92f9bb497d04b167b64fe5540cec75f10b16e0c51ee92b"
 dependencies = [
  "arbitrary",
  "crc32fast",
