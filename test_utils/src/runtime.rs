@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::time::Duration;
 
-use java_runtime::{File, IOError, Runtime};
+use java_runtime::{File, FileStat, IOError, Runtime};
 use jvm::JvmCallback;
 
 #[derive(Clone)]
@@ -38,6 +38,10 @@ impl Runtime for DummyRuntime {
     }
 
     async fn open(&self, _path: &str) -> Result<Box<dyn File>, IOError> {
+        todo!()
+    }
+
+    async fn stat(&self, _path: &str) -> Result<FileStat, IOError> {
         todo!()
     }
 }
