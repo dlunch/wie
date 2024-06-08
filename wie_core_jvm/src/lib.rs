@@ -83,10 +83,6 @@ impl Runtime for JvmCoreRuntime {
 
                 Ok(buf.len())
             }
-
-            async fn stat(&self) -> Result<FileStat, IOError> {
-                Err(IOError::Unsupported)
-            }
         }
 
         Ok(Box::new(StdoutFile { system: self.system.clone() }))
@@ -97,6 +93,10 @@ impl Runtime for JvmCoreRuntime {
     }
 
     async fn open(&self, _path: &str) -> Result<Box<dyn File>, IOError> {
+        todo!()
+    }
+
+    async fn stat(&self, _path: &str) -> Result<FileStat, IOError> {
         todo!()
     }
 }
