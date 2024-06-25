@@ -50,7 +50,7 @@ impl KtfClassLoader {
     }
 
     async fn init(jvm: &Jvm, _: &mut ClassLoaderContext, this: ClassInstanceRef<Self>, parent: ClassInstanceRef<ClassLoader>) -> JvmResult<()> {
-        tracing::debug!("rustjava.RuntimeClassLoader::<init>({:?}, {:?})", &this, &parent);
+        tracing::debug!("wie.KtfClassLoader::<init>({:?}, {:?})", &this, &parent);
 
         jvm.invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
@@ -64,7 +64,7 @@ impl KtfClassLoader {
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<Class>> {
-        tracing::debug!("rustjava.RuntimeClassLoader::findClass({:?}, {:?})", &this, name);
+        tracing::debug!("wie.KtfClassLoader::findClass({:?}, {:?})", &this, name);
 
         // find from client.bin
 
@@ -100,7 +100,7 @@ impl KtfClassLoader {
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<URL>> {
-        tracing::debug!("rustjava.ClassPathClassLoader::findResource({:?}, {:?})", &this, name);
+        tracing::debug!("wie.KtfClassLoader::findResource({:?}, {:?})", &this, name);
 
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
         let id = context.system().resource().id(&name);
