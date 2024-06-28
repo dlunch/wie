@@ -39,6 +39,11 @@ async fn open_database(context: &mut dyn WIPICContext, name: String, record_size
 async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> WIPICResult<i32> {
     tracing::debug!("MC_dbCloseDataBase({:#x})", db_id);
 
+    if db_id < 0x10000 {
+        // TODO some apps store database id in 16bit, so we need to handle it
+        return Ok(-25); // M_E_INVALIDHANDLE
+    }
+
     context.free_raw(db_id as _)?;
 
     Ok(0) // success
@@ -86,6 +91,11 @@ async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) 
 
 async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> WIPICResult<i32> {
     tracing::debug!("MC_db_read_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+
+    if db_id < 0x10000 {
+        // TODO some apps store database id in 16bit, so we need to handle it
+        return Ok(-25); // M_E_INVALIDHANDLE
+    }
 
     let db = get_database_from_db_id(context, db_id);
 
