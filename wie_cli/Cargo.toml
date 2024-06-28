@@ -14,7 +14,7 @@ rodio = { version = "^0.18", default-features = false }
 midir = { version = "^0.10", default-features = false }
 softbuffer = { version = "^0.4" }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
-winit = { version = "^0.30", features = ["x11", "rwh_06"], default-features = false }
+winit = { version = "^0.30", features = ["wayland", "rwh_06"], default-features = false }
 
 wie_backend = { workspace = true }
 wie_j2me = { path = "../wie_j2me" }
