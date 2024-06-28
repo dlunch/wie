@@ -119,11 +119,13 @@ async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf:
 
     let data = context.read_bytes(buf, buf_size)?;
 
-    let handle = context
-        .system()
-        .audio()
-        .load_smaf(&data)
-        .map_err(|_| WIPICError::BackendError("Invalid Audio".into()))?;
+    let handle = context.system().audio().load_smaf(&data);
+    if let Err(x) = handle {
+        tracing::error!("Failed to load audio: {:?}", x);
+        return Ok(0);
+    }
+
+    let handle = handle.unwrap();
 
     let mut clip: MdaClip = read_generic(context, ptr_clip)?;
     clip.handle = handle;
@@ -144,18 +146,18 @@ async fn clip_set_position(_context: &mut dyn WIPICContext, clip: WIPICWord, ms:
     Ok(0)
 }
 
-async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> WIPICResult<()> {
     tracing::debug!("MC_mdaPlay({:#x}, {})", ptr_clip, repeat);
 
     let clip: MdaClip = read_generic(context, ptr_clip)?;
 
-    context
-        .system()
-        .audio()
-        .play(clip.handle)
-        .map_err(|_| WIPICError::BackendError("Invalid Audio".into()))?;
+    let result = context.system().audio().play(clip.handle);
 
-    Ok(0)
+    if let Err(x) = result {
+        tracing::error!("Failed to load audio: {:?}", x);
+    }
+
+    Ok(())
 }
 
 async fn pause(_context: &mut dyn WIPICContext, clip: WIPICWord) -> WIPICResult<WIPICWord> {
