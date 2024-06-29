@@ -44,12 +44,14 @@ impl Clip {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
 
         let resource_name = JavaLangString::to_rust_string(jvm, &resource_name).await?;
-        let resource_id = context.system().resource().id(&resource_name).unwrap();
 
-        let resource = context.system().resource().data(resource_id).to_vec();
+        let data = {
+            let filesystem = context.system().filesystem();
+            filesystem.read(&resource_name).unwrap().to_vec() // TODO exception
+        };
 
-        let mut data_array = jvm.instantiate_array("B", resource.len()).await?;
-        jvm.store_byte_array(&mut data_array, 0, cast_vec(resource)).await?;
+        let mut data_array = jvm.instantiate_array("B", data.len()).await?;
+        jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
 
         jvm.invoke_special(
             &this,

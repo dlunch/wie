@@ -54,10 +54,9 @@ impl File {
         let filename = JavaLangString::to_rust_string(jvm, &filename).await?;
         tracing::debug!("Loading {}", filename);
 
-        // TODO we don't have filesystem now, emulating file loading with resource for now..
         let data = {
-            let resource = context.system().resource();
-            let data = resource.data(resource.id(&filename).unwrap());
+            let filesystem = context.system().filesystem();
+            let data = filesystem.read(&filename).unwrap(); // TODO exception
 
             cast_slice(data).to_vec()
         };

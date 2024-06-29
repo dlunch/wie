@@ -20,8 +20,8 @@ impl LgtApp {
         Allocator::init(&mut core)?;
 
         let entrypoint = {
-            let resource = system.resource();
-            let data = resource.data(resource.id("binary.mod").context("Resource not found")?);
+            let filesystem = system.filesystem();
+            let data = filesystem.read("binary.mod").context("Invalid archive")?;
 
             Self::load(&mut core, data)?
         };

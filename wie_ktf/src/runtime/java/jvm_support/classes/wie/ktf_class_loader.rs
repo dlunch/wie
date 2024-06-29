@@ -103,12 +103,16 @@ impl KtfClassLoader {
         tracing::debug!("wie.KtfClassLoader::findResource({:?}, {:?})", &this, name);
 
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
-        let id = context.system().resource().id(&name);
-        if id.is_none() {
-            return Ok(None.into());
-        }
 
-        let data = context.system().resource().data(id.unwrap()).to_vec();
+        let data = {
+            let filesystem = context.system().filesystem();
+            let data = filesystem.read(&name).map(|x| x.to_vec()); // TODO exception
+            if data.is_none() {
+                return Ok(None.into());
+            }
+            data.unwrap()
+        };
+
         let mut data_array = jvm.instantiate_array("B", data.len()).await?;
         jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
 
