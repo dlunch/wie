@@ -1,10 +1,10 @@
 mod audio;
 mod event_queue;
-mod resource;
+mod file_system;
 
 use alloc::sync::Arc;
 use core::any::Any;
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use crate::{
     executor::{AsyncCallableResult, Executor},
@@ -13,7 +13,7 @@ use crate::{
     AsyncCallable, Instant,
 };
 
-use self::{audio::Audio, event_queue::EventQueue, resource::Resource};
+use self::{audio::Audio, event_queue::EventQueue, file_system::Filesystem};
 
 pub use self::event_queue::{Event, KeyCode};
 
@@ -21,7 +21,7 @@ pub use self::event_queue::{Event, KeyCode};
 pub struct System {
     executor: Executor,
     platform: Arc<Mutex<Box<dyn Platform>>>,
-    resource: Arc<RwLock<Resource>>,
+    filesystem: Arc<Mutex<Filesystem>>,
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Option<Arc<RwLock<Audio>>>,
     context: Arc<RwLock<Box<dyn Any + Sync + Send>>>,
@@ -36,7 +36,7 @@ impl System {
         let mut result = Self {
             executor: Executor::new(),
             platform: platform.clone(),
-            resource: Arc::new(RwLock::new(Resource::new())),
+            filesystem: Arc::new(Mutex::new(Filesystem::new())),
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: None,
             context: Arc::new(RwLock::new(context)),
@@ -73,12 +73,8 @@ impl System {
         YieldFuture {}
     }
 
-    pub fn resource(&self) -> RwLockReadGuard<'_, Resource> {
-        self.resource.read().unwrap()
-    }
-
-    pub fn resource_mut(&self) -> RwLockWriteGuard<'_, Resource> {
-        self.resource.write().unwrap()
+    pub fn filesystem(&self) -> MutexGuard<'_, Filesystem> {
+        self.filesystem.lock().unwrap()
     }
 
     pub fn platform(&self) -> MutexGuard<'_, Box<dyn Platform>> {

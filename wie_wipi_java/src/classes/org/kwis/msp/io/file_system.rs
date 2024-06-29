@@ -42,12 +42,12 @@ impl FileSystem {
 
         let filename = JavaLangString::to_rust_string(jvm, &name).await?;
 
-        // emulating filesystem by resource..
-        let filename_on_resource = format!("P{}", filename);
+        // TODO temporary path only for ktf
+        let normalized_name = format!("P{}", filename);
 
-        let id = context.system().resource().id(&filename_on_resource);
+        let exists = context.system().filesystem().read(&normalized_name).is_some();
 
-        Ok(id.is_some())
+        Ok(exists)
     }
 
     async fn available(_: &Jvm, _: &mut WIPIJavaContext) -> JvmResult<i32> {

@@ -83,12 +83,9 @@ impl Image {
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
         let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-        let id = context.system().resource().id(normalized_name).unwrap();
-        let system_clone = context.system().clone();
-
         let image = {
-            let resource = system_clone.resource();
-            let image_data = resource.data(id);
+            let filesystem = context.system().filesystem();
+            let image_data = filesystem.read(normalized_name).unwrap();
 
             decode_image(image_data)
         }

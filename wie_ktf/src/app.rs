@@ -20,19 +20,21 @@ impl KtfApp {
     pub fn new(jar: Vec<u8>, additional_files: BTreeMap<String, Vec<u8>>, main_class_name: Option<String>, system: System) -> anyhow::Result<Self> {
         let mut core = ArmCore::new(system.clone())?;
 
-        system.resource_mut().mount_zip(&jar)?;
+        system.filesystem().mount_zip(&jar);
 
         for (path, data) in additional_files {
             let path = path.trim_start_matches("P/");
-            system.resource_mut().add(path, data.clone());
+            system.filesystem().add(path, data.clone());
         }
 
         Allocator::init(&mut core)?;
 
         let bss_size = {
-            let resource = system.resource();
-            let filename = resource.files().find(|x| x.starts_with("client.bin")).context("Invalid archive")?;
-            let data = resource.data(resource.id(filename).context("Resource not found")?);
+            let filesystem = system.filesystem();
+            let (filename, data) = filesystem
+                .files()
+                .find(|(name, _)| name.starts_with("client.bin"))
+                .context("Invalid archive")?;
 
             Self::load(&mut core, data, filename)?
         };

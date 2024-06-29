@@ -1,11 +1,11 @@
 use alloc::{
     boxed::Box,
-    format,
+    format, str,
     string::{String, ToString},
     vec,
     vec::Vec,
 };
-use core::iter;
+use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -29,6 +29,12 @@ pub struct WIPICTimer {
     param: WIPICWord,
     unk4: WIPICWord,
     fn_callback: WIPICWord,
+}
+
+#[derive(Pod, Zeroable, Copy, Clone)]
+#[repr(C)]
+struct ResourceHandle {
+    name: [u8; 32], // TODO hardcoded max size
 }
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
@@ -140,30 +146,42 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
     // strip path
     let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-    let id = context.system().resource().id(normalized_name);
-    if id.is_none() {
-        return Ok(-1);
-    }
-    let id = id.unwrap();
-    let size = context.system().resource().size(id);
+    let data_len = {
+        let filesystem = context.system().filesystem();
+        let data = filesystem.read(normalized_name);
+        if data.is_none() {
+            return Ok(-1);
+        }
 
-    write_generic(context, ptr_size, size)?;
+        data.unwrap().len()
+    };
 
-    Ok(id as _)
+    // TODO it leaks handle every time.. should we assign id for every file?
+    let name_bytes = normalized_name.as_bytes();
+    let mut handle = ResourceHandle { name: [0; 32] };
+    handle.name[..name_bytes.len()].copy_from_slice(name_bytes);
+
+    let ptr_handle = context.alloc_raw(size_of::<ResourceHandle>() as _)?;
+    write_generic(context, ptr_handle, handle)?;
+    write_generic(context, ptr_size, data_len)?;
+
+    Ok(ptr_handle as _)
 }
 
 async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICMemoryId, buf_size: WIPICWord) -> WIPICResult<i32> {
     tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
-    let size = context.system().resource().size(id);
-
-    if size > buf_size {
-        return Ok(-1);
-    }
+    let handle: ResourceHandle = read_generic(context, id)?;
+    let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
+    let name = str::from_utf8(&handle.name[..name_length]).unwrap();
 
     let system_clone = context.system().clone();
-    let resource = system_clone.resource();
-    let data = resource.data(id);
+    let filesystem = system_clone.filesystem();
+    let data = filesystem.read(name).unwrap();
+
+    if data.len() as u32 > buf_size {
+        return Ok(-1);
+    }
 
     context.write_bytes(context.data_ptr(buf)?, data)?;
 
