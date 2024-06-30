@@ -13,7 +13,7 @@ pub type ArmCoreResult<T> = Result<T, error::ArmCoreError>;
 
 pub use self::{
     allocator::Allocator,
-    core::{ArmCore, PEB_BASE},
+    core::ArmCore,
     error::ArmCoreError,
     function::{EmulatedFunction, EmulatedFunctionParam},
 };

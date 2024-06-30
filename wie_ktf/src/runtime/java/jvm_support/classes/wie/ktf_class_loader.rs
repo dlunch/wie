@@ -1,10 +1,9 @@
 use alloc::{boxed::Box, vec};
 
-use bytemuck::cast_vec;
+use bytemuck::{cast_slice, cast_vec};
 use dyn_clone::{clone_trait_object, DynClone};
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::{
     lang::{Class, ClassLoader, String},
     net::URL,
@@ -15,7 +14,7 @@ use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::write_null_terminated_string;
 
-use crate::runtime::java::jvm_support::{class_definition::JavaClassDefinition, context_data::JavaContextData};
+use crate::runtime::{init::load_native, java::jvm_support::class_definition::JavaClassDefinition};
 
 pub trait ClassLoaderContextBase: Sync + Send + DynClone {
     fn core(&mut self) -> &mut ArmCore;
@@ -36,7 +35,7 @@ impl KtfClassLoader {
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
                 JavaMethodProto::new(
                     "findResource",
@@ -45,15 +44,62 @@ impl KtfClassLoader {
                     Default::default(),
                 ),
             ],
-            fields: vec![JavaFieldProto::new("classes", "[Ljava/lang/Class;", FieldAccessFlags::STATIC)],
+            fields: vec![
+                JavaFieldProto::new("ptrJvmContext", "I", Default::default()),
+                JavaFieldProto::new("fnGetClass", "I", Default::default()),
+            ],
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut ClassLoaderContext, this: ClassInstanceRef<Self>, parent: ClassInstanceRef<ClassLoader>) -> JvmResult<()> {
-        tracing::debug!("wie.KtfClassLoader::<init>({:?}, {:?})", &this, &parent);
+    async fn init(
+        jvm: &Jvm,
+        context: &mut ClassLoaderContext,
+        mut this: ClassInstanceRef<Self>,
+        parent: ClassInstanceRef<ClassLoader>,
+        client_bin: ClassInstanceRef<String>,
+        ptr_jvm_context: i32,
+        ptr_jvm_exception_context: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "wie.KtfClassLoader::<init>({:?}, {:?}, {:?}, {:?}, {:?})",
+            &this,
+            parent,
+            client_bin,
+            ptr_jvm_context,
+            ptr_jvm_exception_context
+        );
 
         jvm.invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
+
+        // load client.bin
+        let data_stream = jvm
+            .invoke_virtual(
+                &this,
+                "getResourceAsStream",
+                "(Ljava/lang/String;)Ljava/io/InputStream;",
+                (client_bin.clone(),),
+            )
+            .await?;
+        let length: i32 = jvm.invoke_virtual(&data_stream, "available", "()I", ()).await?;
+        let buf = jvm.instantiate_array("B", length as _).await?;
+        let _: i32 = jvm.invoke_virtual(&data_stream, "read", "([B)I", (buf.clone(),)).await?;
+
+        let filename = JavaLangString::to_rust_string(jvm, &client_bin).await?;
+        let data = jvm.load_byte_array(&buf, 0, length as _).await?;
+
+        let fn_get_class = load_native(
+            context.core(),
+            &filename,
+            cast_slice(&data),
+            ptr_jvm_context as _,
+            ptr_jvm_exception_context as _,
+        )
+        .await
+        .unwrap() as i32;
+
+        jvm.put_field(&mut this, "ptrJvmContext", "I", ptr_jvm_context).await?;
+        jvm.put_field(&mut this, "fnGetClass", "I", fn_get_class).await?;
 
         Ok(())
     }
@@ -66,21 +112,16 @@ impl KtfClassLoader {
     ) -> JvmResult<ClassInstanceRef<Class>> {
         tracing::debug!("wie.KtfClassLoader::findClass({:?}, {:?})", &this, name);
 
-        // find from client.bin
+        let fn_get_class: i32 = jvm.get_field(&this, "fnGetClass", "I").await?;
 
+        // find from client.bin
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
         let core = context.core();
-        let fn_get_class = JavaContextData::fn_get_class(core).unwrap();
-        if fn_get_class == 0 {
-            // we don't have get_class on testcases
-            return Ok(None.into());
-        }
-
         let ptr_name = Allocator::alloc(core, 50).unwrap(); // TODO size fix
         write_null_terminated_string(core, ptr_name, &name).unwrap();
 
-        let ptr_raw = core.run_function(fn_get_class, &[ptr_name]).await.unwrap();
+        let ptr_raw = core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
         Allocator::free(core, ptr_name).unwrap();
 
         if ptr_raw != 0 {

@@ -3,7 +3,6 @@ mod array_class_instance;
 mod class_definition;
 mod class_instance;
 mod classes;
-mod context_data;
 mod detail;
 mod field;
 mod method;
@@ -12,17 +11,20 @@ mod value;
 mod vtable_builder;
 
 use alloc::{boxed::Box, string::ToString, sync::Arc};
+use core::mem::size_of;
+
+use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_core_arm::{ArmCore, PEB_BASE};
-use wie_util::write_generic;
+use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{read_generic, read_null_terminated_table, write_generic};
 
 use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, Jvm};
 
 use crate::{
     context::KtfContextExt,
-    runtime::{java::runtime::KtfRuntime, KtfPeb, KtfWIPIJavaContext},
+    runtime::{java::runtime::KtfRuntime, KtfWIPIJavaContext},
 };
 
 use self::{
@@ -51,27 +53,56 @@ struct JavaExceptionHandler {
     context: [u32; 11], // r4-lr
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct KtfJvmExceptionContext {
+    unk: [u32; 8],
+    current_java_exception_handler: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct KtfJvmContext {
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    ptr_vtables: [u32; 64],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct KtfJvmSupportContext {
+    ptr_vtables_base: u32,
+}
+
+const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
+
 pub struct KtfJvmSupport;
 
 impl KtfJvmSupport {
-    pub async fn init(
-        core: &mut ArmCore,
-        system: &mut System,
-        ptr_vtables_base: u32,
-        fn_get_class: u32,
-        ptr_current_java_exception_handler: u32,
-    ) -> JvmSupportResult<Arc<Jvm>> {
-        let ptr_java_context_data = context_data::JavaContextData::init(core, ptr_vtables_base, fn_get_class)?;
+    pub async fn init(core: &mut ArmCore, system: &mut System) -> JvmSupportResult<Arc<Jvm>> {
+        let jvm_context = KtfJvmContext {
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+            ptr_vtables: [0; 64],
+        };
+        let ptr_jvm_context = Allocator::alloc(core, size_of::<KtfJvmContext>() as u32)?;
+        write_generic(core, ptr_jvm_context, jvm_context)?;
 
-        core.map(PEB_BASE, 0x1000)?;
-        write_generic(
-            core,
-            PEB_BASE,
-            KtfPeb {
-                ptr_java_context_data,
-                ptr_current_java_exception_handler,
-            },
-        )?;
+        let jvm_exception_context = KtfJvmExceptionContext {
+            unk: [0; 8],
+            current_java_exception_handler: 0,
+        };
+        let ptr_jvm_exception_context = Allocator::alloc(core, size_of::<KtfJvmExceptionContext>() as u32)?;
+        write_generic(core, ptr_jvm_exception_context, jvm_exception_context)?;
+
+        let context_data = KtfJvmSupportContext {
+            ptr_vtables_base: ptr_jvm_context + 12,
+        };
+        core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
+        write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
+
         system.set_jvm(Jvm::new(detail::KtfJvmDetail::new(core)).await?);
 
         let jvm = system.jvm();
@@ -144,9 +175,22 @@ impl KtfJvmSupport {
 
         jvm.register_class(Box::new(class_loader_class), None).await?;
 
+        let client_bin = system
+            .filesystem()
+            .files()
+            .find(|(x, _)| x.starts_with("client.bin"))
+            .context("Invalid archive")?
+            .0
+            .to_string();
+        let client_bin = JavaLangString::from_rust_string(&jvm, &client_bin).await?;
+
         let old_class_loader = jvm.get_system_class_loader().await?;
         let class_loader = jvm
-            .new_class("wie/KtfClassLoader", "(Ljava/lang/ClassLoader;)V", (old_class_loader,))
+            .new_class(
+                "wie/KtfClassLoader",
+                "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
+                (old_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
+            )
             .await?;
 
         jvm.set_system_class_loader(class_loader).await;
@@ -194,6 +238,25 @@ impl KtfJvmSupport {
             instance.class_instance.ptr_raw
         }
     }
+
+    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> JvmSupportResult<u32> {
+        // TODO remove context
+        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+        let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
+
+        let ptr_vtable = class.ptr_vtable()?;
+
+        for (index, &current_ptr_vtable) in ptr_vtables.iter().enumerate() {
+            if ptr_vtable == current_ptr_vtable {
+                return Ok(index as _);
+            }
+        }
+
+        let index = ptr_vtables.len();
+        write_generic(core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
+
+        Ok(index as _)
+    }
 }
 
 #[cfg(test)]
@@ -213,13 +276,7 @@ mod test {
         let mut core = ArmCore::new(system.clone())?;
         Allocator::init(&mut core)?;
 
-        let mut context = core.save_context();
-        let stack = Allocator::alloc(&mut core, 0x100)?;
-        context.sp = stack + 0x100;
-        core.restore_context(&context);
-
-        let ptr_vtables_base = Allocator::alloc(&mut core, 0x100)?;
-        let jvm = KtfJvmSupport::init(&mut core, system, ptr_vtables_base, 0, 0).await?;
+        let jvm = KtfJvmSupport::init(&mut core, system).await?;
 
         Ok(jvm)
     }

@@ -12,9 +12,9 @@ use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, ByteWrite};
 
-use super::{
-    class_definition::JavaClassDefinition, context_data::JavaContextData, field::JavaField, value::JavaValueExt, JvmSupportResult, KtfJvmWord,
-};
+use crate::runtime::java::jvm_support::KtfJvmSupport;
+
+use super::{class_definition::JavaClassDefinition, field::JavaField, value::JavaValueExt, JvmSupportResult, KtfJvmWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -98,7 +98,7 @@ impl JavaClassInstance {
         let zero = iter::repeat(0).take((field_size + 4) as _).collect::<Vec<_>>();
         core.write_bytes(ptr_fields, &zero)?;
 
-        let vtable_index = JavaContextData::get_vtable_index(core, class)?;
+        let vtable_index = KtfJvmSupport::get_vtable_index(core, class)?;
 
         write_generic(
             core,
