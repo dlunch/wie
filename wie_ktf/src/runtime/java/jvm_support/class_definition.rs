@@ -74,6 +74,8 @@ impl JavaClassDefinition {
             None
         };
 
+        let field_offset_base: u32 = if let Some(x) = &parent_class { x.field_size()? as _ } else { 0 };
+
         let mut vtable_builder = JavaVtableBuilder::new(&parent_class)?;
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
@@ -88,11 +90,14 @@ impl JavaClassDefinition {
         write_null_terminated_table(core, ptr_methods, &methods)?;
 
         let mut fields = Vec::new();
-        for (index, field) in proto.fields.into_iter().enumerate() {
+        let mut field_offset = field_offset_base;
+        for field in proto.fields.into_iter() {
             let offset_or_value = if field.access_flags.contains(FieldAccessFlags::STATIC) {
                 0
             } else {
-                (index as u32) * 4
+                field_offset += 4;
+
+                field_offset - 4
             };
 
             let field = JavaField::new(core, ptr_raw, field, offset_or_value)?;
@@ -117,7 +122,7 @@ impl JavaClassDefinition {
                 ptr_interfaces: 0,
                 ptr_fields_or_element_type: ptr_fields,
                 method_count: methods.len() as u16,
-                fields_size: (fields.len() * 4) as u16,
+                fields_size: field_offset as u16,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
                 unk6: 0,
                 unk7: 0,
