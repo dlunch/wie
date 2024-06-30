@@ -13,7 +13,6 @@ mod vtable_builder;
 use alloc::{boxed::Box, string::ToString, sync::Arc};
 use core::mem::size_of;
 
-use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
@@ -179,21 +178,21 @@ impl KtfJvmSupport {
             .filesystem()
             .files()
             .find(|(x, _)| x.starts_with("client.bin"))
-            .context("Invalid archive")?
-            .0
-            .to_string();
-        let client_bin = JavaLangString::from_rust_string(&jvm, &client_bin).await?;
+            .map(|x| x.0.to_string());
+        if let Some(client_bin) = client_bin {
+            let client_bin = JavaLangString::from_rust_string(&jvm, &client_bin).await?;
 
-        let old_class_loader = jvm.get_system_class_loader().await?;
-        let class_loader = jvm
-            .new_class(
-                "wie/KtfClassLoader",
-                "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
-                (old_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
-            )
-            .await?;
+            let old_class_loader = jvm.get_system_class_loader().await?;
+            let class_loader = jvm
+                .new_class(
+                    "wie/KtfClassLoader",
+                    "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
+                    (old_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
+                )
+                .await?;
 
-        jvm.set_system_class_loader(class_loader).await;
+            jvm.set_system_class_loader(class_loader).await;
+        }
 
         // set initial properties... TODO can we merge this with wie_core_jvm's one?
         let file_encoding_name = JavaLangString::from_rust_string(&jvm, "file.encoding").await?;
@@ -275,6 +274,11 @@ mod test {
     async fn init_jvm(system: &mut System) -> anyhow::Result<Arc<Jvm>> {
         let mut core = ArmCore::new(system.clone())?;
         Allocator::init(&mut core)?;
+
+        let mut context = core.save_context();
+        let stack = Allocator::alloc(&mut core, 0x100)?;
+        context.sp = stack + 0x100;
+        core.restore_context(&context);
 
         let jvm = KtfJvmSupport::init(&mut core, system).await?;
 
