@@ -144,11 +144,9 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
     tracing::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
 
     // strip path
-    let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
-
     let data_len = {
         let filesystem = context.system().filesystem();
-        let data = filesystem.read(normalized_name);
+        let data = filesystem.read(&name);
         if data.is_none() {
             return Ok(-1);
         }
@@ -157,7 +155,7 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
     };
 
     // TODO it leaks handle every time.. should we assign id for every file?
-    let name_bytes = normalized_name.as_bytes();
+    let name_bytes = name.as_bytes();
     let mut handle = ResourceHandle { name: [0; 32] };
     handle.name[..name_bytes.len()].copy_from_slice(name_bytes);
 

@@ -23,7 +23,9 @@ impl Filesystem {
     }
 
     pub fn read(&self, path: &str) -> Option<&[u8]> {
-        if let Some(data) = self.virtual_files.get(path) {
+        let normalized_path = path.trim_start_matches('/');
+
+        if let Some(data) = self.virtual_files.get(normalized_path) {
             return Some(data);
         }
 
