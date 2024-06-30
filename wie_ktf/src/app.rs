@@ -1,18 +1,15 @@
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 
-use anyhow::Context;
-
 use wie_backend::{App, Event, System};
 use wie_core_arm::{Allocator, ArmCore};
 
-use crate::context::KtfContextExt;
+use crate::runtime::KtfJvmSupport;
 
-const IMAGE_BASE: u32 = 0x100000;
+pub const IMAGE_BASE: u32 = 0x100000;
 
 pub struct KtfApp {
     core: ArmCore,
     system: System,
-    bss_size: u32,
     main_class_name: Option<String>,
 }
 
@@ -29,39 +26,16 @@ impl KtfApp {
 
         Allocator::init(&mut core)?;
 
-        let bss_size = {
-            let filesystem = system.filesystem();
-            let (filename, data) = filesystem
-                .files()
-                .find(|(name, _)| name.starts_with("client.bin"))
-                .context("Invalid archive")?;
-
-            Self::load(&mut core, data, filename)?
-        };
-
         Ok(Self {
             core,
             system,
-            bss_size,
             main_class_name,
         })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, system: &mut System, bss_size: u32, main_class_name: Option<String>) -> anyhow::Result<()> {
-        // we should reverse the order of initialization
-        // jvm should go first, and we load client.bin from jvm classloader on init
-
-        let wipi_exe = crate::runtime::start(core, IMAGE_BASE, bss_size).await?;
-        tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
-
-        let fn_init = crate::runtime::init(core, system, wipi_exe).await?;
-        tracing::debug!("Call wipi init at {:#x}", fn_init);
-
-        let result = core.run_function::<u32>(fn_init, &[]).await?;
-        anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
-
-        let jvm = system.jvm();
+    async fn do_start(core: &mut ArmCore, system: &mut System, main_class_name: Option<String>) -> anyhow::Result<()> {
+        let jvm = KtfJvmSupport::init(core, system).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
             x
@@ -80,29 +54,16 @@ impl KtfApp {
 
         Ok(())
     }
-
-    fn load(core: &mut ArmCore, data: &[u8], filename: &str) -> anyhow::Result<u32> {
-        let bss_start = filename.find("client.bin").context("Incorrect filename")? + 10;
-        let bss_size = filename[bss_start..].parse::<u32>()?;
-
-        core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
-
-        tracing::debug!("Loaded at {:#x}, size {:#x}, bss {:#x}", IMAGE_BASE, data.len(), bss_size);
-
-        Ok(bss_size)
-    }
 }
 
 impl App for KtfApp {
     fn start(&mut self) -> anyhow::Result<()> {
         let mut core = self.core.clone();
         let mut system = self.system.clone();
-
-        let bss_size = self.bss_size;
         let main_class_name = self.main_class_name.clone();
 
         self.core
-            .spawn(move || async move { Self::do_start(&mut core, &mut system, bss_size, main_class_name).await });
+            .spawn(move || async move { Self::do_start(&mut core, &mut system, main_class_name).await });
 
         Ok(())
     }

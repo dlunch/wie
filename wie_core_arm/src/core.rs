@@ -17,7 +17,6 @@ use crate::{
 const FUNCTIONS_BASE: u32 = 0x71000000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
-pub const PEB_BASE: u32 = 0x7ff00000;
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,

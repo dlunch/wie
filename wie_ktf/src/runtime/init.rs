@@ -1,18 +1,19 @@
 use alloc::string::String;
 use core::mem::size_of;
 
+use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, ArmCoreResult};
 use wie_util::{read_generic, write_generic};
 
-use crate::runtime::{
-    java::{
-        interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
-        jvm_support::KtfJvmSupport,
+use crate::{
+    app::IMAGE_BASE,
+    runtime::{
+        java::interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
+        wipi_c::interface::get_wipic_knl_interface,
     },
-    wipi_c::interface::get_wipic_knl_interface,
 };
 
 use super::RuntimeResult;
@@ -43,23 +44,7 @@ struct InitParam4 {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct InitParam1 {
-    ptr_unk_struct: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam1Unk {
-    unk: [u32; 8],
-    current_java_exception_handler: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam2 {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    ptr_vtables: [u32; 64],
+    ptr_jvm_exception_context: u32,
 }
 
 #[repr(C)]
@@ -120,45 +105,28 @@ struct ExeInterfaceFunctions {
     fn_unk3: u32,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct KtfPeb {
-    pub ptr_java_context_data: u32,
-    pub ptr_current_java_exception_handler: u32,
-}
+pub async fn load_native(
+    core: &mut ArmCore,
+    filename: &str,
+    data: &[u8],
+    ptr_jvm_context: u32,
+    ptr_jvm_exception_context: u32,
+) -> RuntimeResult<u32> {
+    let bss_start = filename.find("client.bin").context("Incorrect filename")? + 10;
+    let bss_size = filename[bss_start..].parse::<u32>()?;
 
-pub async fn start(core: &mut ArmCore, image_base: u32, bss_size: u32) -> RuntimeResult<u32> {
-    Ok(core.run_function(image_base + 1, &[bss_size]).await?)
-}
+    core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 
-pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> RuntimeResult<u32> {
+    tracing::debug!("Loaded at {:#x}, size {:#x}, bss {:#x}", IMAGE_BASE, data.len(), bss_size);
+
+    let wipi_exe = core.run_function(IMAGE_BASE + 1, &[bss_size]).await?;
+    tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
+
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
 
-    let ptr_unk_struct = Allocator::alloc(core, size_of::<InitParam1Unk>() as u32)?;
-    write_generic(
-        core,
-        ptr_unk_struct,
-        InitParam1Unk {
-            unk: [0; 8],
-            current_java_exception_handler: 0,
-        },
-    )?;
-
     let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
-    write_generic(core, ptr_param_1, InitParam1 { ptr_unk_struct })?;
-
-    let ptr_param_2 = Allocator::alloc(core, (size_of::<InitParam2>()) as u32)?;
-    write_generic(
-        core,
-        ptr_param_2,
-        InitParam2 {
-            unk1: 0,
-            unk2: 0,
-            unk3: 0,
-            ptr_vtables: [0; 64],
-        },
-    )?;
+    write_generic(core, ptr_param_1, InitParam1 { ptr_jvm_exception_context })?;
 
     let param_3 = InitParam3 {
         unk1: 0,
@@ -200,19 +168,19 @@ pub async fn init(core: &mut ArmCore, system: &mut System, wipi_exe: u32) -> Run
     let exe_interface: ExeInterface = read_generic(core, wipi_exe.ptr_exe_interface)?;
     let exe_interface_functions: ExeInterfaceFunctions = read_generic(core, exe_interface.ptr_functions)?;
 
-    let ptr_vtables_base = ptr_param_2 + 12;
-    KtfJvmSupport::init(core, system, ptr_vtables_base, exe_interface_functions.fn_get_class, ptr_unk_struct + 32).await?;
-
     tracing::debug!("Call init at {:#x}", exe_interface_functions.fn_init);
     let result = core
         .run_function::<u32>(
             exe_interface_functions.fn_init,
-            &[ptr_param_0, ptr_param_1, ptr_param_2, ptr_param_3, ptr_param_4],
+            &[ptr_param_0, ptr_param_1, ptr_jvm_context, ptr_param_3, ptr_param_4],
         )
         .await?;
     anyhow::ensure!(result == 0, "Init failed with code {:#x}", result);
 
-    Ok(wipi_exe.fn_init)
+    let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
+    anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
+
+    Ok(exe_interface_functions.fn_get_class)
 }
 
 async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String) -> ArmCoreResult<u32> {
