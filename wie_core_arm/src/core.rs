@@ -61,9 +61,7 @@ impl ArmCore {
         self.restore_context(context);
         let pc = {
             let mut inner = self.inner.lock();
-            inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?;
-
-            inner.engine.reg_read(ArmRegister::PC)
+            inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?
         };
 
         if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&pc) {
