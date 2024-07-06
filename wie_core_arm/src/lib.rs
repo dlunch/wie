@@ -7,7 +7,6 @@ mod core;
 mod engine;
 mod error;
 mod function;
-mod future;
 
 pub type ArmCoreResult<T> = Result<T, error::ArmCoreError>;
 

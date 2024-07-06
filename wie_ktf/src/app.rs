@@ -15,7 +15,7 @@ pub struct KtfApp {
 
 impl KtfApp {
     pub fn new(jar: Vec<u8>, additional_files: BTreeMap<String, Vec<u8>>, main_class_name: Option<String>, system: System) -> anyhow::Result<Self> {
-        let mut core = ArmCore::new(system.clone())?;
+        let mut core = ArmCore::new()?;
 
         system.filesystem().mount_zip(&jar);
 
@@ -62,7 +62,8 @@ impl App for KtfApp {
         let mut system = self.system.clone();
         let main_class_name = self.main_class_name.clone();
 
-        self.core
+        self.system
+            .clone()
             .spawn(move || async move { Self::do_start(&mut core, &mut system, main_class_name).await });
 
         Ok(())

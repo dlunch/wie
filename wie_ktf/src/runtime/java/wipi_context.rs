@@ -49,7 +49,7 @@ impl WIPIJavaContextBase for KtfWIPIJavaContext {
             }
         }
 
-        self.core.spawn(SpawnProxy {
+        self.system.clone().spawn(SpawnProxy {
             core: self.core.clone(),
             system: self.system.clone(),
             jvm: self.jvm.clone(),

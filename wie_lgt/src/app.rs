@@ -15,7 +15,7 @@ pub struct LgtApp {
 
 impl LgtApp {
     pub fn new(main_class_name: Option<String>, system: System) -> anyhow::Result<Self> {
-        let mut core = ArmCore::new(system.clone())?;
+        let mut core = ArmCore::new()?;
 
         Allocator::init(&mut core)?;
 
@@ -83,7 +83,8 @@ impl App for LgtApp {
         let entrypoint = self.entrypoint;
         let main_class_name = self.main_class_name.clone();
 
-        self.core
+        self.system
+            .clone()
             .spawn(move || async move { Self::do_start(&mut core, &mut system, entrypoint, main_class_name).await });
 
         Ok(())

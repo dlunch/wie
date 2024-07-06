@@ -2,25 +2,19 @@ use alloc::{boxed::Box, sync::Arc, vec};
 use core::time::Duration;
 
 use wie_backend::{AsyncCallable, System};
-use wie_core_arm::ArmCore;
 
 use java_runtime::{File, FileStat, IOError, Runtime};
 use jvm::{JavaError, Jvm, JvmCallback};
 
 #[derive(Clone)]
 pub struct KtfRuntime {
-    core: ArmCore,
     system: System,
     jvm: Arc<Jvm>,
 }
 
 impl KtfRuntime {
-    pub fn new(core: &mut ArmCore, system: &mut System, jvm: Arc<Jvm>) -> Self {
-        Self {
-            core: core.clone(),
-            system: system.clone(),
-            jvm,
-        }
+    pub fn new(system: &mut System, jvm: Arc<Jvm>) -> Self {
+        Self { system: system.clone(), jvm }
     }
 }
 
@@ -52,7 +46,7 @@ impl Runtime for KtfRuntime {
             }
         }
 
-        self.core.clone().spawn(SpawnProxy {
+        self.system.clone().spawn(SpawnProxy {
             jvm: self.jvm.clone(),
             callback,
         });

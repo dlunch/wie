@@ -103,14 +103,10 @@ impl Allocator {
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
-
     use crate::{Allocator, ArmCore, ArmCoreResult};
 
-    use test_utils::TestPlatform;
-
     pub fn test_arm_core() -> ArmCore {
-        ArmCore::new(wie_backend::System::new(Box::new(TestPlatform))).unwrap()
+        ArmCore::new().unwrap()
     }
 
     #[test]
