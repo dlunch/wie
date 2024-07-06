@@ -138,9 +138,9 @@ impl ArmCore {
         self.inner.lock().system.spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
-    pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
+    pub fn register_function<F, C, R, E, P>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
-        F: EmulatedFunction<P, E, C, R> + 'static + Sync + Send,
+        F: EmulatedFunction<C, R, E, P> + 'static + Sync + Send,
         E: Debug + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
         R: ResultWriter<R> + 'static + Sync + Send,

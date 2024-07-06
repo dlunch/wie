@@ -10,21 +10,21 @@ pub trait RegisteredFunction: Sync + Send {
     async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()>;
 }
 
-pub struct RegisteredFunctionHolder<F, P, E, C, R>
+pub struct RegisteredFunctionHolder<F, C, R, E, P>
 where
-    F: EmulatedFunction<P, E, C, R> + 'static,
+    F: EmulatedFunction<C, R, E, P> + 'static,
     E: Debug,
     C: Clone + 'static,
     R: ResultWriter<R>,
 {
     function: Box<F>,
     context: C,
-    _phantom: PhantomData<(P, E, C, R)>,
+    _phantom: PhantomData<(C, R, E, P)>,
 }
 
-impl<F, P, E, C, R> RegisteredFunctionHolder<F, P, E, C, R>
+impl<F, C, R, E, P> RegisteredFunctionHolder<F, C, R, E, P>
 where
-    F: EmulatedFunction<P, E, C, R> + 'static,
+    F: EmulatedFunction<C, R, E, P> + 'static,
     E: Debug,
     C: Clone + 'static,
     R: ResultWriter<R>,
@@ -39,9 +39,9 @@ where
 }
 
 #[async_trait::async_trait]
-impl<F, P, E, C, R> RegisteredFunction for RegisteredFunctionHolder<F, P, E, C, R>
+impl<F, C, R, E, P> RegisteredFunction for RegisteredFunctionHolder<F, C, R, E, P>
 where
-    F: EmulatedFunction<P, E, C, R> + 'static + Sync + Send,
+    F: EmulatedFunction<C, R, E, P> + 'static + Sync + Send,
     E: Debug + Sync + Send,
     C: Clone + Sync + Send + 'static,
     R: ResultWriter<R> + Sync + Send,
@@ -65,14 +65,14 @@ where
     }
 }
 
-trait FnHelper<'a, E, C, R, P> {
+trait FnHelper<'a, C, R, E, P> {
     type Output: Future<Output = Result<R, E>> + 'a + Send;
     fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Self::Output;
 }
 
 macro_rules! generate_fn_helper {
     ($($arg: ident),*) => {
-        impl<'a, E, C, R, F, Fut, $($arg),*> FnHelper<'a, E,C, R, ($($arg,)*)> for F
+        impl<'a, F, Fut, C, R, E, $($arg),*> FnHelper<'a, C, R, E, ($($arg,)*)> for F
         where
             F: Fn(&'a mut ArmCore, &'a mut C, $($arg),*) -> Fut,
             Fut: Future<Output = Result<R, E>> + 'a + Send,
@@ -101,16 +101,16 @@ generate_fn_helper!(P0, P1, P2);
 generate_fn_helper!(P0, P1, P2, P3);
 
 #[async_trait::async_trait]
-pub trait EmulatedFunction<P, E, C, R> {
+pub trait EmulatedFunction<C, R, E, P> {
     async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E>;
 }
 
 macro_rules! generate_emulated_function {
     ($($arg: ident),*) => {
         #[async_trait::async_trait]
-        impl<Func, E, C, R, $($arg),*> EmulatedFunction<($($arg,)*), E, C, R> for Func
+        impl<Func, C, R, E, $($arg),*> EmulatedFunction<C, R, E, ($($arg,)*)> for Func
         where
-            Func: for<'a> FnHelper<'a, E,  C, R, ($($arg,)*)> + Sync,
+            Func: for<'a> FnHelper<'a, C, R, E, ($($arg,)*)> + Sync,
             C: Send,
             $($arg: EmulatedFunctionParam<$arg>),*
         {
