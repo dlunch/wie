@@ -144,7 +144,7 @@ impl JavaMethod {
         }
 
         #[async_trait::async_trait]
-        impl<C, Context> EmulatedFunction<(), ArmCoreError, (), u32> for JavaMethodProxy<C, Context>
+        impl<C, Context> EmulatedFunction<(), u32, ArmCoreError, ()> for JavaMethodProxy<C, Context>
         where
             C: ?Sized + Send,
             Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
