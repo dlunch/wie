@@ -3,14 +3,13 @@ use core::{fmt::Debug, mem::size_of};
 
 use spin::Mutex;
 
-use wie_backend::{AsyncCallable, AsyncCallableResult, System};
 use wie_util::{read_generic, round_up, ByteRead, ByteWrite};
 
 use crate::{
+    allocator::Allocator,
     context::ArmCoreContext,
     engine::{ArmEngine, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
-    future::SpawnFuture,
     ArmCoreResult,
 };
 
@@ -20,7 +19,6 @@ pub const HEAP_BASE: u32 = 0x40000000;
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
-    system: System,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     functions_count: usize,
 }
@@ -31,7 +29,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new(system: System) -> ArmCoreResult<Self> {
+    pub fn new() -> ArmCoreResult<Self> {
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
@@ -39,7 +37,6 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
-            system,
             functions: BTreeMap::new(),
             functions_count: 0,
         };
@@ -60,22 +57,28 @@ impl ArmCore {
         Ok(())
     }
 
-    async fn run_some(&mut self) -> ArmCoreResult<()> {
-        let mut inner = self.inner.lock();
+    async fn run_some(&mut self, context: &mut ArmCoreContext) -> ArmCoreResult<()> {
+        self.restore_context(context);
+        let pc = {
+            let mut inner = self.inner.lock();
+            inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?;
 
-        inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?;
+            inner.engine.reg_read(ArmRegister::PC)
+        };
 
-        let cur_pc = inner.engine.reg_read(ArmRegister::PC);
-
-        if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
+        if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&pc) {
             let mut self1 = self.clone();
 
-            let function = inner.functions.get(&cur_pc).unwrap().clone();
+            let function = {
+                let inner = self.inner.lock();
 
-            drop(inner);
+                inner.functions.get(&pc).unwrap().clone()
+            };
 
             function.call(&mut self1).await?;
         }
+
+        *context = self.save_context();
 
         Ok(())
     }
@@ -84,9 +87,12 @@ impl ArmCore {
     where
         R: RunFunctionResult<R>,
     {
-        let previous_context = self.save_context(); // do we have to save context?
+        let previous_context = self.save_context();
+
+        let stack_base = Allocator::alloc(self, 0x1000)?;
         {
             let mut inner = self.inner.lock();
+            inner.engine.reg_write(ArmRegister::SP, stack_base + 0x1000);
 
             if !params.is_empty() {
                 inner.engine.reg_write(ArmRegister::R0, params[0]);
@@ -113,29 +119,23 @@ impl ArmCore {
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
         }
 
+        let mut context = self.save_context();
+
         loop {
             let (pc, _) = self.read_pc_lr().unwrap();
             if pc == RUN_FUNCTION_LR {
                 break;
             }
 
-            self.run_some().await?;
+            self.run_some(&mut context).await?;
         }
 
         let result = R::get(self);
 
+        Allocator::free(self, stack_base)?;
         self.restore_context(&previous_context);
 
         Ok(result)
-    }
-
-    pub fn spawn<C, R>(&mut self, callable: C)
-    where
-        C: AsyncCallable<R> + 'static + Send,
-        R: AsyncCallableResult + 'static,
-    {
-        let self_cloned = self.clone();
-        self.inner.lock().system.spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
     pub fn register_function<F, C, R, E, P>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>

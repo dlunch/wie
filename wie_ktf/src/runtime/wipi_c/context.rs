@@ -111,7 +111,7 @@ impl WIPICContext for KtfWIPICContext<'_> {
 
         let system = self.system.clone();
 
-        self.core.spawn(SpawnProxy {
+        self.system.clone().spawn(SpawnProxy {
             core: self.core.clone(),
             system,
             callback,

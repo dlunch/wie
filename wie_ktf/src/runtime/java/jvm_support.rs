@@ -101,7 +101,7 @@ impl KtfJvmSupport {
 
         let jvm = Arc::new(Jvm::new(detail::KtfJvmDetail::new(core)).await?);
 
-        let runtime = KtfRuntime::new(core, system, jvm.clone());
+        let runtime = KtfRuntime::new(system, jvm.clone());
         let core_clone = core.clone();
         let jvm_clone = jvm.clone();
         java_runtime::initialize(&jvm, move |name, proto| {
@@ -273,7 +273,7 @@ mod test {
     use test_utils::TestPlatform;
 
     async fn init_jvm(system: &mut System) -> anyhow::Result<Arc<Jvm>> {
-        let mut core = ArmCore::new(system.clone())?;
+        let mut core = ArmCore::new()?;
         Allocator::init(&mut core)?;
 
         let mut context = core.save_context();
