@@ -69,13 +69,12 @@ impl ArmCore {
 
         if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&cur_pc) {
             let mut self1 = self.clone();
-            let mut system_clone = inner.system.clone();
 
             let function = inner.functions.get(&cur_pc).unwrap().clone();
 
             drop(inner);
 
-            function.call(&mut self1, &mut system_clone).await?;
+            function.call(&mut self1).await?;
         }
 
         Ok(())
@@ -139,10 +138,11 @@ impl ArmCore {
         self.inner.lock().system.spawn(move || SpawnFuture::new(self_cloned, callable));
     }
 
-    pub fn register_function<F, P, E, R>(&mut self, function: F) -> ArmCoreResult<u32>
+    pub fn register_function<F, P, E, C, R>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
     where
-        F: EmulatedFunction<P, E, R> + 'static + Sync + Send,
+        F: EmulatedFunction<P, E, C, R> + 'static + Sync + Send,
         E: Debug + 'static + Sync + Send,
+        C: Clone + 'static + Sync + Send,
         R: ResultWriter<R> + 'static + Sync + Send,
         P: 'static + Sync + Send,
     {
@@ -153,7 +153,7 @@ impl ArmCore {
 
         inner.engine.mem_write(address as u32, &bytes)?;
 
-        let callback = RegisteredFunctionHolder::new(function);
+        let callback = RegisteredFunctionHolder::new(function, context);
 
         inner.functions.insert(address as u32, Arc::new(Box::new(callback)));
         inner.functions_count += 1;

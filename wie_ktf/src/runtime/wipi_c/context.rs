@@ -49,18 +49,13 @@ impl WIPICContext for KtfWIPICContext<'_> {
 
     fn register_function(&mut self, body: WIPICMethodBody) -> WIPICResult<WIPICWord> {
         struct CMethodProxy {
+            system: System,
             body: WIPICMethodBody,
         }
 
-        impl CMethodProxy {
-            pub fn new(body: WIPICMethodBody) -> Self {
-                Self { body }
-            }
-        }
-
         #[async_trait::async_trait]
-        impl EmulatedFunction<(), ArmCoreError, u32> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmCoreError> {
+        impl EmulatedFunction<(), ArmCoreError, (), u32> for CMethodProxy {
+            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32, ArmCoreError> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
@@ -71,7 +66,8 @@ impl WIPICContext for KtfWIPICContext<'_> {
                 let a7 = u32::get(core, 7);
                 let a8 = u32::get(core, 8); // TODO create arg proxy
 
-                let mut context = KtfWIPICContext::new(core, system);
+                let mut system = self.system.clone();
+                let mut context = KtfWIPICContext::new(core, &mut system);
 
                 Ok(self
                     .body
@@ -81,9 +77,12 @@ impl WIPICContext for KtfWIPICContext<'_> {
             }
         }
 
-        let proxy = CMethodProxy::new(body);
+        let proxy = CMethodProxy {
+            system: self.system.clone(),
+            body,
+        };
 
-        Ok(self.core.register_function(proxy).unwrap())
+        Ok(self.core.register_function(proxy, &()).unwrap())
     }
 
     fn system(&mut self) -> &mut System {

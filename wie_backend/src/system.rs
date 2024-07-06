@@ -3,7 +3,6 @@ mod event_queue;
 mod file_system;
 
 use alloc::sync::Arc;
-use core::any::Any;
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use crate::{
@@ -24,11 +23,10 @@ pub struct System {
     filesystem: Arc<Mutex<Filesystem>>,
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Option<Arc<RwLock<Audio>>>,
-    context: Arc<RwLock<Box<dyn Any + Sync + Send>>>,
 }
 
 impl System {
-    pub fn new(platform: Box<dyn Platform>, context: Box<dyn Any + Sync + Send>) -> Self {
+    pub fn new(platform: Box<dyn Platform>) -> Self {
         let audio_sink = platform.audio_sink();
 
         let platform = Arc::new(Mutex::new(platform));
@@ -39,7 +37,6 @@ impl System {
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: None,
-            context: Arc::new(RwLock::new(context)),
         };
 
         // late initialization
@@ -87,8 +84,5 @@ impl System {
 
     pub fn event_queue(&self) -> RwLockWriteGuard<'_, EventQueue> {
         self.event_queue.write().unwrap()
-    }
-    pub fn context(&self) -> RwLockWriteGuard<'_, Box<dyn Any + Sync + Send>> {
-        self.context.write().unwrap()
     }
 }

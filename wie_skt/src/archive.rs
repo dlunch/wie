@@ -57,7 +57,7 @@ impl Archive for SktArchive {
     }
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
-        let system = System::new(platform, Box::new(()));
+        let system = System::new(platform);
 
         for (filename, data) in self.additional_files {
             system.filesystem().add(&filename, data)
