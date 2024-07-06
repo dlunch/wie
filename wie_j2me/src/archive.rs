@@ -41,7 +41,7 @@ impl Archive for J2MEArchive {
     }
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
-        let system = System::new(platform, Box::new(()));
+        let system = System::new(platform);
 
         Ok(Box::new(J2MEApp::new(self.main_class_name, self.jar, system)?))
     }

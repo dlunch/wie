@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec};
+use alloc::{boxed::Box, sync::Arc, vec};
 
 use bytemuck::{cast_slice, cast_vec};
 use dyn_clone::{clone_trait_object, DynClone};
@@ -18,7 +18,8 @@ use crate::runtime::{init::load_native, java::jvm_support::class_definition::Jav
 
 pub trait ClassLoaderContextBase: Sync + Send + DynClone {
     fn core(&mut self) -> &mut ArmCore;
-    fn system(&self) -> &System;
+    fn system(&mut self) -> &mut System;
+    fn jvm(&self) -> Arc<Jvm>;
 }
 
 clone_trait_object!(ClassLoaderContextBase);
@@ -88,8 +89,12 @@ impl KtfClassLoader {
         let filename = JavaLangString::to_rust_string(jvm, &client_bin).await?;
         let data = jvm.load_byte_array(&buf, 0, length as _).await?;
 
+        let mut core = context.core().clone();
+        let mut system = context.system().clone();
         let fn_get_class = load_native(
-            context.core(),
+            &mut core,
+            &mut system,
+            context.jvm(),
             &filename,
             cast_slice(&data),
             ptr_jvm_context as _,

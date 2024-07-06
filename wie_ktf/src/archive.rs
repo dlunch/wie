@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use wie_backend::{extract_zip, App, Archive, Platform, System};
 
-use crate::{app::KtfApp, context::KtfContext};
+use crate::app::KtfApp;
 
 pub struct KtfArchive {
     jar: Vec<u8>,
@@ -59,7 +59,7 @@ impl Archive for KtfArchive {
     }
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
-        let system = System::new(platform, Box::new(KtfContext::new()));
+        let system = System::new(platform);
 
         Ok(Box::new(KtfApp::new(self.jar, self.additional_files, self.main_class_name, system)?))
     }

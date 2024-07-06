@@ -49,7 +49,7 @@ impl Archive for LgtArchive {
     }
 
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
-        let system = System::new(platform, Box::new(()));
+        let system = System::new(platform);
 
         system.filesystem().mount_zip(&self.jar);
 

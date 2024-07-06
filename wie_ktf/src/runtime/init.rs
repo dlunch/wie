@@ -1,8 +1,10 @@
-use alloc::string::String;
+use alloc::{string::String, sync::Arc};
 use core::mem::size_of;
 
 use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
+
+use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, ArmCoreResult};
@@ -107,6 +109,8 @@ struct ExeInterfaceFunctions {
 
 pub async fn load_native(
     core: &mut ArmCore,
+    system: &mut System,
+    jvm: Arc<Jvm>,
     filename: &str,
     data: &[u8],
     ptr_jvm_context: u32,
@@ -147,18 +151,18 @@ pub async fn load_native(
     write_generic(core, ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
-        fn_get_interface: core.register_function(get_interface)?,
-        fn_java_throw: core.register_function(java_throw)?,
+        fn_get_interface: core.register_function(get_interface, &(system.clone(), jvm.clone()))?,
+        fn_java_throw: core.register_function(java_throw, &jvm)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_cast: core.register_function(java_check_cast)?,
-        fn_java_new: core.register_function(java_new)?,
-        fn_java_array_new: core.register_function(java_array_new)?,
+        fn_java_check_cast: core.register_function(java_check_cast, &jvm)?,
+        fn_java_new: core.register_function(java_new, &jvm)?,
+        fn_java_array_new: core.register_function(java_array_new, &jvm)?,
         unk6: 0,
-        fn_java_class_load: core.register_function(java_class_load)?,
+        fn_java_class_load: core.register_function(java_class_load, &jvm)?,
         unk7: 0,
         unk8: 0,
-        fn_alloc: core.register_function(alloc)?,
+        fn_alloc: core.register_function(alloc, &())?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
@@ -183,12 +187,12 @@ pub async fn load_native(
     Ok(exe_interface_functions.fn_get_class)
 }
 
-async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String) -> ArmCoreResult<u32> {
+async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Arc<Jvm>), r#struct: String) -> ArmCoreResult<u32> {
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, system),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm.clone()),
         _ => {
             tracing::warn!("Unknown {}", r#struct);
 
@@ -197,7 +201,7 @@ async fn get_interface(core: &mut ArmCore, system: &mut System, r#struct: String
     }
 }
 
-async fn alloc(core: &mut ArmCore, _: &mut System, a0: u32) -> ArmCoreResult<u32> {
+async fn alloc(core: &mut ArmCore, _: &mut (), a0: u32) -> ArmCoreResult<u32> {
     tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)

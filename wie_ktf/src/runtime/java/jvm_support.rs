@@ -21,10 +21,7 @@ use wie_util::{read_generic, read_null_terminated_table, write_generic};
 
 use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, Jvm};
 
-use crate::{
-    context::KtfContextExt,
-    runtime::{java::runtime::KtfRuntime, KtfWIPIJavaContext},
-};
+use crate::runtime::{java::runtime::KtfRuntime, KtfWIPIJavaContext};
 
 use self::{
     array_class_definition::JavaArrayClassDefinition,
@@ -102,9 +99,7 @@ impl KtfJvmSupport {
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
-        system.set_jvm(Jvm::new(detail::KtfJvmDetail::new(core)).await?);
-
-        let jvm = system.jvm();
+        let jvm = Arc::new(Jvm::new(detail::KtfJvmDetail::new(core)).await?);
 
         let runtime = KtfRuntime::new(core, system, jvm.clone());
         let core_clone = core.clone();
@@ -117,7 +112,7 @@ impl KtfJvmSupport {
 
             async move {
                 Box::new(
-                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(runtime) as Box<_>)
+                    JavaClassDefinition::new(&mut core_clone, jvm_clone, &name, proto, Box::new(runtime) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -136,7 +131,7 @@ impl KtfJvmSupport {
 
             async move {
                 Box::new(
-                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(context) as Box<_>)
+                    JavaClassDefinition::new(&mut core_clone, jvm_clone, &name, proto, Box::new(context) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -148,6 +143,7 @@ impl KtfJvmSupport {
         struct ClassLoaderContext {
             core: ArmCore,
             system: System,
+            jvm: Arc<Jvm>,
         }
 
         impl ClassLoaderContextBase for ClassLoaderContext {
@@ -155,19 +151,24 @@ impl KtfJvmSupport {
                 &mut self.core
             }
 
-            fn system(&self) -> &System {
-                &self.system
+            fn system(&mut self) -> &mut System {
+                &mut self.system
+            }
+
+            fn jvm(&self) -> Arc<Jvm> {
+                self.jvm.clone()
             }
         }
 
         let class_loader_class = JavaClassDefinition::new(
             core,
-            &jvm,
+            jvm.clone(),
             "wie/KtfClassLoader",
             KtfClassLoader::as_proto(),
             Box::new(ClassLoaderContext {
                 core: core.clone(),
                 system: system.clone(),
+                jvm: jvm.clone(),
             }) as Box<_>,
         )
         .await?;
@@ -267,7 +268,7 @@ mod test {
     use wie_backend::System;
     use wie_core_arm::{Allocator, ArmCore};
 
-    use crate::{context::KtfContext, runtime::java::jvm_support::KtfJvmSupport};
+    use crate::runtime::java::jvm_support::KtfJvmSupport;
 
     use test_utils::TestPlatform;
 
@@ -287,7 +288,7 @@ mod test {
 
     #[futures_test::test]
     async fn test_jvm_support() -> anyhow::Result<()> {
-        let mut system = System::new(Box::new(TestPlatform), Box::new(KtfContext::new()));
+        let mut system = System::new(Box::new(TestPlatform));
         let jvm = init_jvm(&mut system).await?;
 
         let string1 = JavaLangString::from_rust_string(&jvm, "test1").await?;

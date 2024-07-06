@@ -110,7 +110,7 @@ mod tests {
     use test_utils::TestPlatform;
 
     pub fn test_arm_core() -> ArmCore {
-        ArmCore::new(wie_backend::System::new(Box::new(TestPlatform), Box::new(()))).unwrap()
+        ArmCore::new(wie_backend::System::new(Box::new(TestPlatform))).unwrap()
     }
 
     #[test]

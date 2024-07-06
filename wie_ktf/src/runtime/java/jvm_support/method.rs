@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -11,11 +11,8 @@ use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
-use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
 use wie_util::{read_generic, write_generic, ByteWrite};
-
-use crate::context::KtfContextExt;
 
 use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, JvmSupportResult};
 
@@ -45,6 +42,7 @@ impl JavaMethod {
 
     pub fn new<C, Context>(
         core: &mut ArmCore,
+        jvm: Arc<Jvm>,
         ptr_class: u32,
         proto: JavaMethodProto<C>,
         vtable_builder: &mut JavaVtableBuilder,
@@ -65,7 +63,7 @@ impl JavaMethod {
         core.write_bytes(ptr_name, &full_name_bytes)?;
 
         let access_flags = proto.access_flags;
-        let fn_method = Self::register_java_method(core, proto, context)?;
+        let fn_method = Self::register_java_method(core, jvm, proto, context)?;
 
         let (fn_body, fn_body_native) = if access_flags.contains(MethodAccessFlags::NATIVE) {
             (0, fn_method)
@@ -129,7 +127,7 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method<C, Context>(core: &mut ArmCore, proto: JavaMethodProto<C>, context: Context) -> JvmSupportResult<u32>
+    fn register_java_method<C, Context>(core: &mut ArmCore, jvm: Arc<Jvm>, proto: JavaMethodProto<C>, context: Context) -> JvmSupportResult<u32>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -139,18 +137,19 @@ impl JavaMethod {
             C: ?Sized + Send,
             Context: Deref<Target = C> + DerefMut + Clone,
         {
+            jvm: Arc<Jvm>,
             proto: JavaMethodProto<C>,
             context: Context,
             parameter_types: Vec<JavaType>,
         }
 
         #[async_trait::async_trait]
-        impl<C, Context> EmulatedFunction<(), ArmCoreError, u32> for JavaMethodProxy<C, Context>
+        impl<C, Context> EmulatedFunction<(), ArmCoreError, (), u32> for JavaMethodProxy<C, Context>
         where
             C: ?Sized + Send,
             Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
         {
-            async fn call(&self, core: &mut ArmCore, system: &mut System) -> Result<u32, ArmCoreError> {
+            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32, ArmCoreError> {
                 let param_count = self.parameter_types.len() as u32;
 
                 let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
@@ -170,7 +169,7 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.proto.body.call(&system.jvm(), &mut context, args.into_boxed_slice()).await.unwrap();
+                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await.unwrap();
 
                 Ok(result.as_raw())
             }
@@ -184,12 +183,13 @@ impl JavaMethod {
         }
 
         let proxy = JavaMethodProxy {
+            jvm,
             proto,
             context,
             parameter_types,
         };
 
-        Ok(core.register_function(proxy)?)
+        Ok(core.register_function(proxy, &())?)
     }
 }
 
