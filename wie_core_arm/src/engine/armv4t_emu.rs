@@ -21,18 +21,16 @@ impl Armv4tEmuEngine {
 }
 
 impl ArmEngine for Armv4tEmuEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> ArmCoreResult<()> {
+    fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> ArmCoreResult<u32> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
             if pc == end || hook.contains(&pc) || count == 0 {
-                break;
+                return Ok(pc);
             }
 
             self.cpu.step(&mut self.mem);
             count -= 1;
         }
-
-        Ok(())
     }
 
     fn reg_write(&mut self, reg: ArmRegister, value: u32) {
