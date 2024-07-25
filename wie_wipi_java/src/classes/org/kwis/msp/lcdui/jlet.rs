@@ -78,7 +78,8 @@ impl Jlet {
                 let until = now + 10;
                 context.system().sleep(until).await; // XXX wait until jlet to initialize
 
-                jvm.invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [None.into()])
+                let _: () = jvm
+                    .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [None.into()])
                     .await?;
 
                 Ok(JavaValue::Void)

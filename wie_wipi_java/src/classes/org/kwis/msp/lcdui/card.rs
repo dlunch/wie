@@ -44,7 +44,8 @@ impl Card {
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
             .await?;
 
-        jvm.invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
+        let _: () = jvm
+            .invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
             .await?;
 
         Ok(())
@@ -58,7 +59,8 @@ impl Card {
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
             .await?;
 
-        jvm.invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
+        let _: () = jvm
+            .invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
             .await?;
 
         Ok(())
@@ -109,7 +111,7 @@ impl Card {
         let width: i32 = jvm.get_field(&this, "w", "I").await?;
         let height: i32 = jvm.get_field(&this, "h", "I").await?;
 
-        jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
+        let _: () = jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
 
         Ok(())
     }

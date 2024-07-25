@@ -49,7 +49,8 @@ impl KtfApp {
         tracing::debug!("Main class instance: {:?}", &main_class);
 
         let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
-        jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()])
+        let _: () = jvm
+            .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()])
             .await?;
 
         Ok(())

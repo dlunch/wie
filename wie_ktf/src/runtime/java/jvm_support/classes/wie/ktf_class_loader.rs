@@ -70,7 +70,8 @@ impl KtfClassLoader {
             ptr_jvm_exception_context
         );
 
-        jvm.invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
+        let _: () = jvm
+            .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
 
         // load client.bin

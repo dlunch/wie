@@ -53,14 +53,15 @@ impl Clip {
         let mut data_array = jvm.instantiate_array("B", data.len()).await?;
         jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
 
-        jvm.invoke_special(
-            &this,
-            "org/kwis/msp/media/Clip",
-            "<init>",
-            "(Ljava/lang/String;[B)V",
-            (r#type, data_array),
-        )
-        .await?;
+        let _: () = jvm
+            .invoke_special(
+                &this,
+                "org/kwis/msp/media/Clip",
+                "<init>",
+                "(Ljava/lang/String;[B)V",
+                (r#type, data_array),
+            )
+            .await?;
 
         Ok(())
     }
@@ -74,7 +75,7 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
 
-        jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         jvm.put_field(&mut this, "data", "[B", data).await?;
 
