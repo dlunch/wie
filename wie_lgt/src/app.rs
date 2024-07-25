@@ -38,7 +38,7 @@ impl LgtApp {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: Option<String>) -> anyhow::Result<()> {
-        core.run_function(entrypoint + 1, &[]).await?;
+        let _: () = core.run_function(entrypoint + 1, &[]).await?;
 
         anyhow::bail!("Not yet implemented")
     }
