@@ -42,8 +42,8 @@ impl Main {
         let event = jvm.instantiate_array("I", 4).await?;
 
         loop {
-            jvm.invoke_virtual(&event_queue, "getNextEvent", "([I)V", [event.clone().into()]).await?;
-            jvm.invoke_virtual(&event_queue, "dispatchEvent", "([I)V", [event.clone().into()]).await?;
+            let _: () = jvm.invoke_virtual(&event_queue, "getNextEvent", "([I)V", [event.clone().into()]).await?;
+            let _: () = jvm.invoke_virtual(&event_queue, "dispatchEvent", "([I)V", [event.clone().into()]).await?;
         }
     }
 }

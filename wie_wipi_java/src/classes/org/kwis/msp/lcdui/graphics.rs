@@ -475,9 +475,9 @@ mod test {
             )
             .await?;
 
-        jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x00ff00,)).await?;
+        let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x00ff00,)).await?;
 
-        jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+        let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
 
         let image = Image::image(&jvm, &image).await?;
 
