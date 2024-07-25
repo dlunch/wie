@@ -2,8 +2,8 @@ use alloc::sync::Arc;
 use core::{fmt::Debug, fmt::Formatter, num::NonZeroU32};
 use std::fmt;
 
-use fast_image_resize::{FilterType, PixelType, ResizeOptions, SrcCropping};
 use fast_image_resize::ResizeAlg::Convolution;
+use fast_image_resize::{FilterType, PixelType, ResizeOptions, SrcCropping};
 use softbuffer::{Context, Surface};
 use winit::{
     application::ApplicationHandler,
@@ -140,7 +140,10 @@ impl Scaler {
     fn new(scale: f64) -> Scaler {
         match scale {
             _ if (scale - 1.0).abs() < 1e-3 => Scaler::Native,
-            _ => Scaler::Lanczos3 { scale, resizer: fast_image_resize::Resizer::new() },
+            _ => Scaler::Lanczos3 {
+                scale,
+                resizer: fast_image_resize::Resizer::new(),
+            },
         }
     }
 
@@ -164,14 +167,8 @@ impl Scaler {
 
     fn to_physical(&self, logical_size: LogicalSize<u32>) -> PhysicalSize<u32> {
         match self {
-            Scaler::Native => PhysicalSize::new(
-                logical_size.width,
-                logical_size.height,
-            ),
-            Scaler::Hqx { scale } => PhysicalSize::new(
-                logical_size.width * *scale as u32,
-                logical_size.height * *scale as u32,
-            ),
+            Scaler::Native => PhysicalSize::new(logical_size.width, logical_size.height),
+            Scaler::Hqx { scale } => PhysicalSize::new(logical_size.width * *scale as u32, logical_size.height * *scale as u32),
             Scaler::Lanczos3 { scale, resizer: _ } => PhysicalSize::new(
                 (logical_size.width as f64 * *scale).floor() as u32,
                 (logical_size.height as f64 * *scale).floor() as u32,
@@ -191,11 +188,17 @@ impl Scaler {
                 let srcimg = fast_image_resize::images::ImageRef::new(src_size.width, src_size.height, srcarr, PixelType::U8x4).unwrap();
                 let (_, dstarr, _) = unsafe { dst.as_mut_slice().align_to_mut::<u8>() };
                 let mut dstimg = fast_image_resize::images::Image::from_slice_u8(dst_size.width, dst_size.height, dstarr, PixelType::U8x4).unwrap();
-                resizer.resize(&srcimg, &mut dstimg, Some(&ResizeOptions {
-                    algorithm: Convolution(FilterType::Lanczos3),
-                    cropping: SrcCropping::None,
-                    mul_div_alpha: false,
-                })).unwrap();
+                resizer
+                    .resize(
+                        &srcimg,
+                        &mut dstimg,
+                        Some(&ResizeOptions {
+                            algorithm: Convolution(FilterType::Lanczos3),
+                            cropping: SrcCropping::None,
+                            mul_div_alpha: false,
+                        }),
+                    )
+                    .unwrap();
             }
         }
     }
@@ -256,8 +259,11 @@ where
             self.user_scale_factor = f
         }
         if self.native_scale_factor + self.user_scale_factor < 0.1 {
-            tracing::info!("scale factor too small(native {} + user {}), resetting user_scale_factor",
-                self.native_scale_factor, self.user_scale_factor);
+            tracing::info!(
+                "scale factor too small(native {} + user {}), resetting user_scale_factor",
+                self.native_scale_factor,
+                self.user_scale_factor
+            );
             self.user_scale_factor = 0.0;
         }
 
@@ -268,8 +274,14 @@ where
 
     /// Updates the scaled WIPI image surface's size.
     fn on_resize(&mut self) {
-        tracing::info!("on_resize scale=(native {}, actual {}), wipi={:?}, scaled={:?}, window={:?}",
-            self.native_scale_factor, self.scaler.scale(), self.wipi_size, self.scaled_size, self.window_size);
+        tracing::info!(
+            "on_resize scale=(native {}, actual {}), wipi={:?}, scaled={:?}, window={:?}",
+            self.native_scale_factor,
+            self.scaler.scale(),
+            self.wipi_size,
+            self.scaled_size,
+            self.window_size
+        );
         let surface = match self.surface.as_mut() {
             None => {
                 self.surface = Some(Surface::new(self.context.as_ref().unwrap(), self.window.as_ref().unwrap().clone()).unwrap());
@@ -279,14 +291,17 @@ where
                 let desired_len = self.scaled_size.width * self.scaled_size.height;
                 if surface.buffer_mut().unwrap().len() == desired_len as usize {
                     // nothing to do
-                    return
+                    return;
                 };
                 surface
             }
         };
 
         surface
-            .resize(NonZeroU32::new(self.scaled_size.width).unwrap(), NonZeroU32::new(self.scaled_size.height).unwrap())
+            .resize(
+                NonZeroU32::new(self.scaled_size.width).unwrap(),
+                NonZeroU32::new(self.scaled_size.height).unwrap(),
+            )
             .unwrap();
         self.paint_last_frame();
     }
@@ -295,12 +310,13 @@ where
     fn paint_last_frame(&mut self) -> Option<()> {
         let data = self.last_frame.as_ref()?;
         if data.len() != self.wipi_size.width as usize * self.wipi_size.height as usize {
-            return None
+            return None;
         }
         let data_to_blit = if self.scaled_image_buf.len() == data.len() {
             data
         } else {
-            self.scaler.scale_image(&mut self.scaled_image_buf, data, self.scaled_size, self.wipi_size);
+            self.scaler
+                .scale_image(&mut self.scaled_image_buf, data, self.scaled_size, self.wipi_size);
             &self.scaled_image_buf
         };
 
@@ -308,9 +324,15 @@ where
         if win_buf.len() == data_to_blit.len() {
             win_buf.copy_from_slice(data_to_blit);
         } else {
-            tracing::warn!("buffer size mismatch, skipping paint: {}, {} (wipi {:?}, scaled {:?}, win {:?})",
-                win_buf.len(), data_to_blit.len(), self.wipi_size, self.scaled_size, self.window_size);
-            return None
+            tracing::warn!(
+                "buffer size mismatch, skipping paint: {}, {} (wipi {:?}, scaled {:?}, win {:?})",
+                win_buf.len(),
+                data_to_blit.len(),
+                self.wipi_size,
+                self.scaled_size,
+                self.window_size
+            );
+            return None;
         }
         win_buf.present().unwrap();
         Some(())
@@ -398,7 +420,10 @@ where
                 }
                 self.on_resize();
             }
-            WindowEvent::ScaleFactorChanged { scale_factor, mut inner_size_writer } => {
+            WindowEvent::ScaleFactorChanged {
+                scale_factor,
+                mut inner_size_writer,
+            } => {
                 tracing::info!("ScaleFactorChanged {}", scale_factor);
                 self.update_scale_factor(Some(scale_factor), None);
                 let _ = inner_size_writer.request_inner_size(self.scaled_size);
