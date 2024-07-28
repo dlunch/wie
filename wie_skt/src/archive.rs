@@ -7,17 +7,15 @@ use alloc::{
     vec::Vec,
 };
 
-use anyhow::Context;
-
 use wie_backend::{App, Archive, Platform, System};
 
 use crate::app::SktApp;
 
 pub struct SktArchive {
-    jar: Vec<u8>,
+    jar_filename: String,
     id: String,
     main_class_name: Option<String>,
-    additional_files: BTreeMap<String, Vec<u8>>,
+    files: BTreeMap<String, Vec<u8>>,
 }
 
 impl SktArchive {
@@ -29,24 +27,30 @@ impl SktArchive {
         jar.starts_with(b"\x20\x00\x00\x00\x00\x00\x00\x00")
     }
 
-    pub fn from_zip(mut files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
+    pub fn from_zip(files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
         let msd_file = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
         let msd = SktMsd::parse(msd_file.0, msd_file.1);
 
         tracing::info!("Loading app {}, mclass {}", msd.id, msd.main_class);
 
-        let jar_name = msd_file.0.replace(".msd", ".jar");
-        let jar = files.remove(&jar_name).context("Invalid format")?;
+        let jar_filename = msd_file.0.replace(".msd", ".jar");
 
-        Ok(Self::from_jar(jar, &msd.id, Some(msd.main_class), files))
+        Ok(Self {
+            jar_filename,
+            id: msd.id,
+            main_class_name: Some(msd.main_class),
+            files,
+        })
     }
 
-    pub fn from_jar(data: Vec<u8>, id: &str, main_class_name: Option<String>, additional_files: BTreeMap<String, Vec<u8>>) -> Self {
+    pub fn from_jar(jar_filename: String, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Self {
+        let files = [(jar_filename.clone(), jar)].into_iter().collect();
+
         Self {
-            jar: data,
+            jar_filename,
             id: id.into(),
             main_class_name,
-            additional_files,
+            files,
         }
     }
 }
@@ -59,11 +63,11 @@ impl Archive for SktArchive {
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform);
 
-        for (filename, data) in self.additional_files {
+        for (filename, data) in self.files {
             system.filesystem().add(&filename, data)
         }
 
-        Ok(Box::new(SktApp::new(self.main_class_name, self.jar, system)?))
+        Ok(Box::new(SktApp::new(self.main_class_name, self.jar_filename, system)?))
     }
 }
 

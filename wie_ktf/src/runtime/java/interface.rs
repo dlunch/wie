@@ -1,7 +1,6 @@
 use alloc::{
     boxed::Box,
     string::{String, ToString},
-    sync::Arc,
     vec::Vec,
 };
 use core::mem::size_of;
@@ -33,21 +32,21 @@ struct WIPIJBInterface {
     fn_call_native: u32,
 }
 
-pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: Arc<Jvm>) -> ArmCoreResult<u32> {
+pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: &Jvm) -> ArmCoreResult<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_java_jump_1: core.register_function(java_jump_1, &jvm)?,
-        fn_java_jump_2: core.register_function(java_jump_2, &jvm)?,
-        fn_java_jump_3: core.register_function(java_jump_3, &jvm)?,
-        fn_get_java_method: core.register_function(get_java_method, &jvm)?,
-        fn_get_static_field: core.register_function(get_static_field, &jvm)?,
-        fn_unk4: core.register_function(jb_unk4, &jvm)?,
-        fn_unk5: core.register_function(jb_unk5, &jvm)?,
-        fn_unk7: core.register_function(jb_unk7, &jvm)?,
-        fn_unk8: core.register_function(jb_unk8, &jvm)?,
-        fn_register_class: core.register_function(register_class, &jvm)?,
-        fn_register_java_string: core.register_function(register_java_string, &jvm)?,
-        fn_call_native: core.register_function(call_native, &jvm)?,
+        fn_java_jump_1: core.register_function(java_jump_1, jvm)?,
+        fn_java_jump_2: core.register_function(java_jump_2, jvm)?,
+        fn_java_jump_3: core.register_function(java_jump_3, jvm)?,
+        fn_get_java_method: core.register_function(get_java_method, jvm)?,
+        fn_get_static_field: core.register_function(get_static_field, jvm)?,
+        fn_unk4: core.register_function(jb_unk4, jvm)?,
+        fn_unk5: core.register_function(jb_unk5, jvm)?,
+        fn_unk7: core.register_function(jb_unk7, jvm)?,
+        fn_unk8: core.register_function(jb_unk8, jvm)?,
+        fn_register_class: core.register_function(register_class, jvm)?,
+        fn_register_java_string: core.register_function(register_java_string, jvm)?,
+        fn_call_native: core.register_function(call_native, jvm)?,
     };
 
     let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;
@@ -56,7 +55,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: Arc<Jvm>) -> ArmCoreResult
     Ok(address)
 }
 
-pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Arc<Jvm>, ptr_target: u32, name: String) -> RuntimeResult<u32> {
+pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32, name: String) -> RuntimeResult<u32> {
     tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
 
     let class = jvm.resolve_class(&name).await;
@@ -73,13 +72,13 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Arc<Jvm>, ptr_target:
     }
 }
 
-pub async fn java_throw(_: &mut ArmCore, _jvm: &mut Arc<Jvm>, error: String, a1: u32) -> RuntimeResult<u32> {
+pub async fn java_throw(_: &mut ArmCore, _jvm: &mut Jvm, error: String, a1: u32) -> RuntimeResult<u32> {
     tracing::error!("java_throw({}, {})", error, a1);
 
     anyhow::bail!("Java Exception thrown {}, {:#x}", error, a1)
 }
 
-async fn get_java_method(core: &mut ArmCore, _jvm: &mut Arc<Jvm>, ptr_class: u32, ptr_fullname: u32) -> RuntimeResult<u32> {
+async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr_fullname: u32) -> RuntimeResult<u32> {
     let fullname = KtfJvmSupport::read_name(core, ptr_fullname)?;
 
     tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
@@ -97,7 +96,7 @@ async fn get_java_method(core: &mut ArmCore, _jvm: &mut Arc<Jvm>, ptr_class: u32
     Ok(method.ptr_raw)
 }
 
-async fn java_jump_1(core: &mut ArmCore, _: &mut Arc<Jvm>, arg1: u32, address: u32) -> RuntimeResult<u32> {
+async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -> RuntimeResult<u32> {
     tracing::trace!("java_jump_1({:#x}, {:#x})", arg1, address);
 
     anyhow::ensure!(address != 0, "jump native address is null");
@@ -105,7 +104,7 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut Arc<Jvm>, arg1: u32, address: u
     Ok(core.run_function::<u32>(address, &[arg1]).await?)
 }
 
-async fn register_class(core: &mut ArmCore, jvm: &mut Arc<Jvm>, ptr_class: u32) -> RuntimeResult<()> {
+async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> RuntimeResult<()> {
     tracing::trace!("register_class({:#x})", ptr_class);
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
@@ -118,7 +117,7 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Arc<Jvm>, ptr_class: u32) 
     Ok(())
 }
 
-async fn register_java_string(core: &mut ArmCore, jvm: &mut Arc<Jvm>, offset: u32, length: u32) -> RuntimeResult<u32> {
+async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, length: u32) -> RuntimeResult<u32> {
     tracing::trace!("register_java_string({:#x}, {:#x})", offset, length);
 
     let mut cursor = offset;
@@ -139,7 +138,7 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Arc<Jvm>, offset: u3
     Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
 }
 
-async fn get_static_field(core: &mut ArmCore, _jvm: &mut Arc<Jvm>, ptr_class: u32, field_name: u32) -> RuntimeResult<u32> {
+async fn get_static_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, field_name: u32) -> RuntimeResult<u32> {
     tracing::warn!("stub get_static_field({:#x}, {:#x})", ptr_class, field_name);
 
     let field_name = KtfJvmSupport::read_name(core, field_name)?;
@@ -150,31 +149,31 @@ async fn get_static_field(core: &mut ArmCore, _jvm: &mut Arc<Jvm>, ptr_class: u3
     Ok(field.ptr_raw)
 }
 
-async fn jb_unk4(_: &mut ArmCore, _: &mut Arc<Jvm>, a0: u32, a1: u32) -> RuntimeResult<u32> {
+async fn jb_unk4(_: &mut ArmCore, _: &mut Jvm, a0: u32, a1: u32) -> RuntimeResult<u32> {
     tracing::warn!("stub jb_unk4({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
-async fn jb_unk5(_: &mut ArmCore, _: &mut Arc<Jvm>, a0: u32, a1: u32) -> RuntimeResult<u32> {
+async fn jb_unk5(_: &mut ArmCore, _: &mut Jvm, a0: u32, a1: u32) -> RuntimeResult<u32> {
     tracing::warn!("stub jb_unk5({:#x}, {:#x})", a0, a1);
 
     Ok(0)
 }
 
-async fn jb_unk7(_: &mut ArmCore, _: &mut Arc<Jvm>, a0: u32) -> RuntimeResult<u32> {
+async fn jb_unk7(_: &mut ArmCore, _: &mut Jvm, a0: u32) -> RuntimeResult<u32> {
     tracing::warn!("stub jb_unk7({:#x})", a0);
 
     Ok(0)
 }
 
-async fn jb_unk8(_: &mut ArmCore, _: &mut Arc<Jvm>, a0: u32) -> RuntimeResult<u32> {
+async fn jb_unk8(_: &mut ArmCore, _: &mut Jvm, a0: u32) -> RuntimeResult<u32> {
     tracing::warn!("stub jb_unk8({:#x})", a0);
 
     Ok(0)
 }
 
-async fn call_native(core: &mut ArmCore, _: &mut Arc<Jvm>, address: u32, ptr_data: u32) -> RuntimeResult<u32> {
+async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u32) -> RuntimeResult<u32> {
     tracing::trace!("java_jump_native({:#x}, {:#x})", address, ptr_data);
 
     anyhow::ensure!(address != 0, "jump native address is null");
@@ -187,7 +186,7 @@ async fn call_native(core: &mut ArmCore, _: &mut Arc<Jvm>, address: u32, ptr_dat
     Ok(ptr_data)
 }
 
-async fn java_jump_2(core: &mut ArmCore, _: &mut Arc<Jvm>, arg1: u32, arg2: u32, address: u32) -> RuntimeResult<u32> {
+async fn java_jump_2(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, address: u32) -> RuntimeResult<u32> {
     tracing::trace!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
 
     anyhow::ensure!(address != 0, "jump native address is null");
@@ -195,7 +194,7 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut Arc<Jvm>, arg1: u32, arg2: u32,
     Ok(core.run_function::<u32>(address, &[arg1, arg2]).await?)
 }
 
-async fn java_jump_3(core: &mut ArmCore, _: &mut Arc<Jvm>, arg1: u32, arg2: u32, arg3: u32, address: u32) -> RuntimeResult<u32> {
+async fn java_jump_3(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, arg3: u32, address: u32) -> RuntimeResult<u32> {
     tracing::trace!("java_jump_3({:#x}, {:#x}, {:#x}, {:#x})", arg1, arg2, arg3, address);
 
     anyhow::ensure!(address != 0, "jump native address is null");
@@ -203,7 +202,7 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut Arc<Jvm>, arg1: u32, arg2: u32,
     Ok(core.run_function::<u32>(address, &[arg1, arg2, arg3]).await?)
 }
 
-pub async fn java_new(core: &mut ArmCore, jvm: &mut Arc<Jvm>, ptr_class: u32) -> RuntimeResult<u32> {
+pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> RuntimeResult<u32> {
     tracing::trace!("java_new({:#x})", ptr_class);
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
@@ -215,7 +214,7 @@ pub async fn java_new(core: &mut ArmCore, jvm: &mut Arc<Jvm>, ptr_class: u32) ->
     Ok(raw)
 }
 
-pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Arc<Jvm>, element_type: u32, count: u32) -> RuntimeResult<u32> {
+pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32, count: u32) -> RuntimeResult<u32> {
     tracing::trace!("java_array_new({:#x}, {:#x})", element_type, count);
 
     let element_type_name = if element_type > 0x100 {
@@ -232,7 +231,7 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Arc<Jvm>, element_type
     Ok(raw)
 }
 
-pub async fn java_check_cast(_: &mut ArmCore, _: &mut Arc<Jvm>, ptr_class: u32, ptr_instance: u32) -> RuntimeResult<u32> {
+pub async fn java_check_cast(_: &mut ArmCore, _: &mut Jvm, ptr_class: u32, ptr_instance: u32) -> RuntimeResult<u32> {
     tracing::warn!("stub java_check_cast({:#x}, {:#x})", ptr_class, ptr_instance);
 
     Ok(1)

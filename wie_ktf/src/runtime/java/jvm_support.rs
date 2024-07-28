@@ -3,34 +3,38 @@ mod array_class_instance;
 mod class_definition;
 mod class_instance;
 mod classes;
-mod detail;
 mod field;
 mod method;
 mod name;
 mod value;
 mod vtable_builder;
 
-use alloc::{boxed::Box, string::ToString, sync::Arc};
-use core::mem::size_of;
+use alloc::{boxed::Box, string::ToString};
+use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
+
+use java_runtime::{
+    classes::java::util::{jar::JarEntry, Enumeration},
+    Runtime,
+};
+use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, ClassInstanceRef, Jvm};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, read_null_terminated_table, write_generic};
 
-use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, Jvm};
-
 use crate::runtime::{java::runtime::KtfRuntime, KtfWIPIJavaContext};
 
 use self::{
-    array_class_definition::JavaArrayClassDefinition,
     array_class_instance::JavaArrayClassInstance,
-    class_definition::JavaClassDefinition,
     class_instance::JavaClassInstance,
     classes::wie::{ClassLoaderContextBase, KtfClassLoader},
     name::JavaFullName,
 };
+
+pub use array_class_definition::JavaArrayClassDefinition;
+pub use class_definition::JavaClassDefinition;
 
 pub type KtfJvmWord = u32;
 
@@ -76,7 +80,7 @@ const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
 pub struct KtfJvmSupport;
 
 impl KtfJvmSupport {
-    pub async fn init(core: &mut ArmCore, system: &mut System) -> JvmSupportResult<Arc<Jvm>> {
+    pub async fn init(core: &mut ArmCore, system: &mut System, jar_name: Option<&str>) -> JvmSupportResult<(Jvm, Box<dyn ClassInstance>)> {
         let jvm_context = KtfJvmContext {
             unk1: 0,
             unk2: 0,
@@ -99,28 +103,23 @@ impl KtfJvmSupport {
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
-        let jvm = Arc::new(Jvm::new(detail::KtfJvmDetail::new(core)).await?);
+        let runtime = KtfRuntime::new(core, system);
+        let properties = [("file.encoding", "EUC-KR")].into_iter();
 
-        let runtime = KtfRuntime::new(system, jvm.clone());
-        let core_clone = core.clone();
-        let jvm_clone = jvm.clone();
-        java_runtime::initialize(&jvm, move |name, proto| {
-            let name = name.to_string();
-            let mut core_clone = core_clone.clone();
-            let jvm_clone = jvm_clone.clone();
-            let runtime = runtime.clone();
+        let properties = if let Some(x) = jar_name {
+            properties.chain(iter::once(("java.class.path", x))).collect()
+        } else {
+            properties.collect()
+        };
 
-            async move {
-                Box::new(
-                    JavaClassDefinition::new(&mut core_clone, jvm_clone, &name, proto, Box::new(runtime) as Box<_>)
-                        .await
-                        .unwrap(),
-                ) as Box<_>
-            }
-        })
+        let jvm = Jvm::new(
+            java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
+            move || runtime.current_task_id(),
+            properties,
+        )
         .await?;
 
-        let context = KtfWIPIJavaContext::new(core, system, jvm.clone());
+        let context = KtfWIPIJavaContext::new(core, system, &jvm);
         let core_clone = core.clone();
         let jvm_clone = jvm.clone();
         wie_wipi_java::register(&jvm, move |name, proto| {
@@ -131,7 +130,7 @@ impl KtfJvmSupport {
 
             async move {
                 Box::new(
-                    JavaClassDefinition::new(&mut core_clone, jvm_clone, &name, proto, Box::new(context) as Box<_>)
+                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(context) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -143,7 +142,7 @@ impl KtfJvmSupport {
         struct ClassLoaderContext {
             core: ArmCore,
             system: System,
-            jvm: Arc<Jvm>,
+            jvm: Jvm,
         }
 
         impl ClassLoaderContextBase for ClassLoaderContext {
@@ -155,14 +154,38 @@ impl KtfJvmSupport {
                 &mut self.system
             }
 
-            fn jvm(&self) -> Arc<Jvm> {
+            fn jvm(&self) -> Jvm {
                 self.jvm.clone()
             }
         }
 
+        let client_bin = if let Some(x) = jar_name {
+            // find client.bin
+            let jar_name_java = JavaLangString::from_rust_string(&jvm, x).await?;
+            let jar_file = jvm.new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (jar_name_java,)).await?;
+            let entries: ClassInstanceRef<Enumeration> = jvm.invoke_virtual(&jar_file, "entries", "()Ljava/util/Enumeration;", []).await?;
+
+            loop {
+                let has_more_elements: bool = jvm.invoke_virtual(&entries, "hasMoreElements", "()Z", []).await?;
+                if !has_more_elements {
+                    break None;
+                }
+
+                let entry: ClassInstanceRef<JarEntry> = jvm.invoke_virtual(&entries, "nextElement", "()Ljava/lang/Object;", []).await?;
+                let name = jvm.invoke_virtual(&entry, "getName", "()Ljava/lang/String;", []).await?;
+                let name_rust = JavaLangString::to_rust_string(&jvm, &name).await?;
+
+                if name_rust.contains("client.bin") {
+                    break Some(name);
+                }
+            }
+        } else {
+            None
+        };
+
         let class_loader_class = JavaClassDefinition::new(
             core,
-            jvm.clone(),
+            &jvm,
             "wie/KtfClassLoader",
             KtfClassLoader::as_proto(),
             Box::new(ClassLoaderContext {
@@ -175,39 +198,19 @@ impl KtfJvmSupport {
 
         jvm.register_class(Box::new(class_loader_class), None).await?;
 
-        let client_bin = system
-            .filesystem()
-            .files()
-            .find(|(x, _)| x.starts_with("client.bin"))
-            .map(|x| x.0.to_string());
-        if let Some(client_bin) = client_bin {
-            let client_bin = JavaLangString::from_rust_string(&jvm, &client_bin).await?;
+        let system_class_loader: Box<dyn ClassInstance> = jvm
+            .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", [])
+            .await?;
 
-            let old_class_loader = jvm.get_system_class_loader().await?;
-            let class_loader = jvm
-                .new_class(
-                    "wie/KtfClassLoader",
-                    "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
-                    (old_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
-                )
-                .await?;
-
-            jvm.set_system_class_loader(class_loader).await;
-        }
-
-        // set initial properties... TODO can we merge this with wie_core_jvm's one?
-        let file_encoding_name = JavaLangString::from_rust_string(&jvm, "file.encoding").await?;
-        let encoding_str = JavaLangString::from_rust_string(&jvm, "EUC-KR").await?; // TODO hardcoded
-        let _: Option<Box<dyn ClassInstance>> = jvm
-            .invoke_static(
-                "java/lang/System",
-                "setProperty",
-                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;",
-                (file_encoding_name, encoding_str),
+        let class_loader = jvm
+            .new_class(
+                "wie/KtfClassLoader",
+                "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
+                (system_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
             )
             .await?;
 
-        Ok(jvm)
+        Ok((jvm, class_loader))
     }
 
     pub fn class_definition_raw(definition: &dyn ClassDefinition) -> JvmSupportResult<u32> {
@@ -262,6 +265,7 @@ impl KtfJvmSupport {
 #[cfg(test)]
 mod test {
     use alloc::{boxed::Box, sync::Arc};
+    use core::sync::atomic::{AtomicBool, Ordering};
 
     use jvm::{runtime::JavaLangString, Jvm};
 
@@ -272,7 +276,7 @@ mod test {
 
     use test_utils::TestPlatform;
 
-    async fn init_jvm(system: &mut System) -> anyhow::Result<Arc<Jvm>> {
+    async fn init_jvm(system: &mut System) -> anyhow::Result<Jvm> {
         let mut core = ArmCore::new()?;
         Allocator::init(&mut core)?;
 
@@ -281,24 +285,42 @@ mod test {
         context.sp = stack + 0x100;
         core.restore_context(&context);
 
-        let jvm = KtfJvmSupport::init(&mut core, system).await?;
+        let (jvm, _) = KtfJvmSupport::init(&mut core, system, None).await?;
 
         Ok(jvm)
     }
 
-    #[futures_test::test]
-    async fn test_jvm_support() -> anyhow::Result<()> {
+    #[test]
+    fn test_jvm_support() -> anyhow::Result<()> {
         let mut system = System::new(Box::new(TestPlatform));
-        let jvm = init_jvm(&mut system).await?;
 
-        let string1 = JavaLangString::from_rust_string(&jvm, "test1").await?;
-        let string2 = JavaLangString::from_rust_string(&jvm, "test2").await?;
+        let done = Arc::new(AtomicBool::new(false));
 
-        let string3 = jvm
-            .invoke_virtual(&string1, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [string2.into()])
-            .await?;
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(|| async move {
+            let jvm = init_jvm(&mut system_clone).await?;
 
-        assert_eq!(JavaLangString::to_rust_string(&jvm, &string3).await?, "test1test2");
+            let string1 = JavaLangString::from_rust_string(&jvm, "test1").await?;
+            let string2 = JavaLangString::from_rust_string(&jvm, "test2").await?;
+
+            let string3 = jvm
+                .invoke_virtual(&string1, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [string2.into()])
+                .await?;
+
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &string3).await?, "test1test2");
+
+            done_clone.store(true, Ordering::Relaxed);
+
+            anyhow::Ok(())
+        });
+
+        loop {
+            system.tick()?;
+            if done.load(Ordering::Relaxed) {
+                break;
+            }
+        }
 
         Ok(())
     }

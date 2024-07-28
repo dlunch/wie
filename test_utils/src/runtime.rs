@@ -1,8 +1,9 @@
 use alloc::boxed::Box;
 use core::time::Duration;
 
-use java_runtime::{File, FileStat, IOError, Runtime};
-use jvm::JvmCallback;
+use java_runtime::{File, FileStat, IOError, Runtime, RuntimeClassProto, SpawnCallback};
+use jvm::{ClassDefinition, Jvm};
+use jvm_rust::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
 
 #[derive(Clone)]
 pub struct DummyRuntime;
@@ -17,12 +18,16 @@ impl Runtime for DummyRuntime {
         todo!()
     }
 
-    fn spawn(&self, _callback: Box<dyn JvmCallback>) {
+    fn spawn(&self, _callback: Box<dyn SpawnCallback>) {
         todo!()
     }
 
     fn now(&self) -> u64 {
         todo!()
+    }
+
+    fn current_task_id(&self) -> u64 {
+        0 // TODO
     }
 
     fn stdin(&self) -> Result<Box<dyn File>, IOError> {
@@ -43,5 +48,21 @@ impl Runtime for DummyRuntime {
 
     async fn stat(&self, _path: &str) -> Result<FileStat, IOError> {
         todo!()
+    }
+
+    async fn define_class_rust(&self, _jvm: &Jvm, name: &str, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ClassDefinitionImpl::from_class_proto(
+            name,
+            proto,
+            Box::new(self.clone()) as Box<_>,
+        )))
+    }
+
+    async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> jvm::Result<Box<dyn ClassDefinition>> {
+        ClassDefinitionImpl::from_classfile(data).map(|x| Box::new(x) as Box<_>)
+    }
+
+    async fn define_array_class(&self, _jvm: &Jvm, element_type_name: &str) -> jvm::Result<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ArrayClassDefinitionImpl::new(element_type_name)))
     }
 }

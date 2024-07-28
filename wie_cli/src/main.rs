@@ -138,18 +138,18 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         }
     } else if filename.ends_with("jad") {
         let jar_filename = filename.replace(".jad", ".jar");
-        let jar = fs::read(jar_filename)?;
+        let jar = fs::read(&jar_filename)?;
 
-        Box::new(J2MEArchive::from_jad_jar(buf, jar))
+        Box::new(J2MEArchive::from_jad_jar(buf, jar_filename, jar))
     } else if filename.ends_with("jar") {
         let filename_without_ext = filename.trim_end_matches(".jar");
 
         if KtfArchive::is_ktf_jar(&buf) {
-            Box::new(KtfArchive::from_jar(buf, filename_without_ext.into(), None, Default::default()))
+            Box::new(KtfArchive::from_jar(filename.to_string(), buf, filename_without_ext.into(), None))
         } else if LgtArchive::is_lgt_jar(&buf) {
             Box::new(LgtArchive::from_jar(buf, filename_without_ext, None))
         } else if SktArchive::is_skt_jar(&buf) {
-            Box::new(SktArchive::from_jar(buf, filename_without_ext, None, Default::default()))
+            Box::new(SktArchive::from_jar(filename.to_string(), buf, filename_without_ext, None))
         } else {
             Box::new(J2MEArchive::from_jar(filename_without_ext.into(), buf))
         }

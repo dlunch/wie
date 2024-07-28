@@ -64,6 +64,10 @@ impl ArmEngine for Armv4tEmuEngine {
 
         Ok(result)
     }
+
+    fn is_mapped(&self, address: u32, size: usize) -> bool {
+        self.mem.is_mapped(address, size)
+    }
 }
 
 impl ArmRegister {
@@ -161,6 +165,23 @@ impl Armv4tEmuMemory {
         } else {
             panic!("Access to unmapped address {:#x}", addr); // TODO can we propagate error?
         }
+    }
+
+    fn is_mapped(&self, address: u32, size: usize) -> bool {
+        let page_start = address & !PAGE_MASK;
+        let page_end = (address + size as u32 + PAGE_MASK) & !PAGE_MASK;
+
+        if self.pages[page_start as usize / PAGE_SIZE].is_none() {
+            return false;
+        }
+
+        for page in (page_start..page_end).step_by(PAGE_SIZE) {
+            if self.pages[page as usize / PAGE_SIZE].is_none() {
+                return false;
+            }
+        }
+
+        true
     }
 }
 

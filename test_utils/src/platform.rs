@@ -1,6 +1,9 @@
 use alloc::boxed::Box;
+use core::sync::atomic::{AtomicU64, Ordering};
 
-use wie_backend::{AudioSink, Platform};
+use wie_backend::{AudioSink, Instant, Platform};
+
+static TEST_EPOCH: AtomicU64 = AtomicU64::new(0);
 
 pub struct TestPlatform;
 
@@ -9,8 +12,9 @@ impl Platform for TestPlatform {
         todo!()
     }
 
-    fn now(&self) -> wie_backend::Instant {
-        todo!()
+    fn now(&self) -> Instant {
+        let epoch = TEST_EPOCH.fetch_add(8, Ordering::SeqCst);
+        Instant::from_epoch_millis(epoch) // tODO
     }
 
     fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {

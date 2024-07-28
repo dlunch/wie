@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -42,7 +42,7 @@ impl JavaMethod {
 
     pub fn new<C, Context>(
         core: &mut ArmCore,
-        jvm: Arc<Jvm>,
+        jvm: &Jvm,
         ptr_class: u32,
         proto: JavaMethodProto<C>,
         vtable_builder: &mut JavaVtableBuilder,
@@ -127,7 +127,7 @@ impl JavaMethod {
         }
     }
 
-    fn register_java_method<C, Context>(core: &mut ArmCore, jvm: Arc<Jvm>, proto: JavaMethodProto<C>, context: Context) -> JvmSupportResult<u32>
+    fn register_java_method<C, Context>(core: &mut ArmCore, jvm: &Jvm, proto: JavaMethodProto<C>, context: Context) -> JvmSupportResult<u32>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -137,7 +137,7 @@ impl JavaMethod {
             C: ?Sized + Send,
             Context: Deref<Target = C> + DerefMut + Clone,
         {
-            jvm: Arc<Jvm>,
+            jvm: Jvm,
             proto: JavaMethodProto<C>,
             context: Context,
             parameter_types: Vec<JavaType>,
@@ -183,7 +183,7 @@ impl JavaMethod {
         }
 
         let proxy = JavaMethodProxy {
-            jvm,
+            jvm: jvm.clone(),
             proto,
             context,
             parameter_types,

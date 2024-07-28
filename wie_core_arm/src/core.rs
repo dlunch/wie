@@ -333,6 +333,10 @@ impl ArmCore {
 
         for i in 0..128 {
             let address = sp + (i * 4);
+            if !inner.engine.is_mapped(address, size_of::<u32>()) {
+                break;
+            }
+
             let value = inner.engine.mem_read(address, size_of::<u32>())?;
             let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
 
@@ -352,6 +356,11 @@ impl ArmCore {
         let mut result = String::new();
         for i in 0..16 {
             let address = sp + (i * 4);
+
+            if !inner.engine.is_mapped(address, size_of::<u32>()) {
+                break;
+            }
+
             let value = inner.engine.mem_read(address, size_of::<u32>())?;
             let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
 
