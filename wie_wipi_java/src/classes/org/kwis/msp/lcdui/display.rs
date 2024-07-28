@@ -193,10 +193,14 @@ impl Display {
         #[async_trait::async_trait]
         impl MethodBody<JavaError, WIPIJavaContext> for SpawnProxy {
             async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+                jvm.attach_thread().await?;
+
                 let until = context.system().platform().now() + 16; // TODO
                 context.system().sleep(until).await;
 
                 let _: () = jvm.invoke_virtual(&self.runnable, "run", "()V", ()).await?;
+
+                jvm.detach_thread().await?;
 
                 Ok(JavaValue::Void)
             }

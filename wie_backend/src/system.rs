@@ -66,6 +66,10 @@ impl System {
         SleepFuture::new(until, &mut self.executor)
     }
 
+    pub fn current_task_id(&self) -> u64 {
+        self.executor.current_task_id()
+    }
+
     pub fn yield_now(&self) -> YieldFuture {
         YieldFuture {}
     }

@@ -1,4 +1,4 @@
-use alloc::{string::String, sync::Arc};
+use alloc::string::String;
 use core::mem::size_of;
 
 use anyhow::Context;
@@ -110,7 +110,7 @@ struct ExeInterfaceFunctions {
 pub async fn load_native(
     core: &mut ArmCore,
     system: &mut System,
-    jvm: Arc<Jvm>,
+    jvm: Jvm,
     filename: &str,
     data: &[u8],
     ptr_jvm_context: u32,
@@ -187,12 +187,12 @@ pub async fn load_native(
     Ok(exe_interface_functions.fn_get_class)
 }
 
-async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Arc<Jvm>), r#struct: String) -> ArmCoreResult<u32> {
+async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), r#struct: String) -> ArmCoreResult<u32> {
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, system),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm.clone()),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm),
         _ => {
             tracing::warn!("Unknown {}", r#struct);
 

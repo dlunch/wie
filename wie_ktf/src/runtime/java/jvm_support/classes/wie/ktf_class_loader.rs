@@ -1,13 +1,10 @@
-use alloc::{boxed::Box, sync::Arc, vec};
+use alloc::{boxed::Box, vec};
 
-use bytemuck::{cast_slice, cast_vec};
+use bytemuck::cast_slice;
 use dyn_clone::{clone_trait_object, DynClone};
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use java_runtime::classes::java::{
-    lang::{Class, ClassLoader, String},
-    net::URL,
-};
+use java_runtime::classes::java::lang::{Class, ClassLoader, String};
 use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::System;
@@ -19,7 +16,7 @@ use crate::runtime::{init::load_native, java::jvm_support::class_definition::Jav
 pub trait ClassLoaderContextBase: Sync + Send + DynClone {
     fn core(&mut self) -> &mut ArmCore;
     fn system(&mut self) -> &mut System;
-    fn jvm(&self) -> Arc<Jvm>;
+    fn jvm(&self) -> Jvm;
 }
 
 clone_trait_object!(ClassLoaderContextBase);
@@ -38,12 +35,6 @@ impl KtfClassLoader {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
-                JavaMethodProto::new(
-                    "findResource",
-                    "(Ljava/lang/String;)Ljava/net/URL;",
-                    Self::find_resource,
-                    Default::default(),
-                ),
             ],
             fields: vec![
                 JavaFieldProto::new("ptrJvmContext", "I", Default::default()),
@@ -73,6 +64,10 @@ impl KtfClassLoader {
         let _: () = jvm
             .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
+
+        if client_bin.is_null() {
+            return Ok(());
+        }
 
         // load client.bin
         let data_stream = jvm
@@ -138,45 +133,5 @@ impl KtfClassLoader {
         } else {
             Ok(None.into())
         }
-    }
-
-    // TODO use classpathloader's jar loading
-    async fn find_resource(
-        jvm: &Jvm,
-        context: &mut ClassLoaderContext,
-        this: ClassInstanceRef<Self>,
-        name: ClassInstanceRef<String>,
-    ) -> JvmResult<ClassInstanceRef<URL>> {
-        tracing::debug!("wie.KtfClassLoader::findResource({:?}, {:?})", &this, name);
-
-        let name = JavaLangString::to_rust_string(jvm, &name).await?;
-
-        let data = {
-            let filesystem = context.system().filesystem();
-            let data = filesystem.read(&name).map(|x| x.to_vec()); // TODO exception
-            if data.is_none() {
-                return Ok(None.into());
-            }
-            data.unwrap()
-        };
-
-        let mut data_array = jvm.instantiate_array("B", data.len()).await?;
-        jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
-
-        let protocol = JavaLangString::from_rust_string(jvm, "bytes").await?;
-        let host = JavaLangString::from_rust_string(jvm, "").await?;
-        let port = 0;
-        let file = JavaLangString::from_rust_string(jvm, &name).await?;
-        let handler = jvm.new_class("rustjava/ByteArrayURLHandler", "([B)V", (data_array,)).await?;
-
-        let url = jvm
-            .new_class(
-                "java/net/URL",
-                "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;Ljava/net/URLStreamHandler;)V",
-                (protocol, host, port, file, handler),
-            )
-            .await?;
-
-        Ok(url.into())
     }
 }

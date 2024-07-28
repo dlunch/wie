@@ -1,16 +1,18 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, format, string::String, sync::Arc, vec};
-use core::{future::ready, time::Duration};
+use alloc::{boxed::Box, format, string::String, sync::Arc, vec::Vec};
+use core::{
+    future::ready,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 use wie_skvm::SKVMJavaContextBase;
 
-use bytemuck::cast_vec;
-
 use java_class_proto::MethodBody;
-use java_runtime::{classes::java::lang::String as JavaString, File, FileStat, IOError, Runtime};
-use jvm::{runtime::JavaLangString, ClassInstance, ClassInstanceRef, JavaError, Jvm, JvmCallback, Result as JvmResult};
-use jvm_rust::{ClassDefinitionImpl, JvmDetailImpl};
+use java_runtime::{File, FileStat, IOError, Runtime, RuntimeClassProto, SpawnCallback};
+use jvm::{runtime::JavaLangString, ClassDefinition, JavaError, Jvm, Result as JvmResult};
+use jvm_rust::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
 
 use wie_backend::{AsyncCallable, System};
 use wie_midp::MIDPJavaContextBase;
@@ -20,7 +22,6 @@ use wie_wipi_java::WIPIJavaContextBase;
 #[derive(Clone)]
 struct JvmCoreRuntime {
     system: System,
-    jvm: Arc<Jvm>,
 }
 
 #[async_trait::async_trait]
@@ -36,29 +37,29 @@ impl Runtime for JvmCoreRuntime {
         self.system.yield_now().await;
     }
 
-    fn spawn(&self, callback: Box<dyn JvmCallback>) {
+    fn spawn(&self, callback: Box<dyn SpawnCallback>) {
         struct SpawnProxy {
-            jvm: Arc<Jvm>,
-            callback: Box<dyn JvmCallback>,
+            callback: Box<dyn SpawnCallback>,
         }
 
         #[async_trait::async_trait]
         impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, JavaError> {
-                self.callback.call(&self.jvm, vec![].into_boxed_slice()).await?;
+                self.callback.call().await;
 
                 Ok(0) // TODO
             }
         }
 
-        self.system.clone().spawn(SpawnProxy {
-            jvm: self.jvm.clone(),
-            callback,
-        });
+        self.system.clone().spawn(SpawnProxy { callback });
     }
 
     fn now(&self) -> u64 {
         self.system.platform().now().raw()
+    }
+
+    fn current_task_id(&self) -> u64 {
+        self.system.current_task_id()
     }
 
     fn stdin(&self) -> Result<Box<dyn File>, IOError> {
@@ -92,32 +93,88 @@ impl Runtime for JvmCoreRuntime {
         Err(IOError::Unsupported)
     }
 
-    async fn open(&self, _path: &str) -> Result<Box<dyn File>, IOError> {
-        todo!()
+    async fn open(&self, path: &str) -> Result<Box<dyn File>, IOError> {
+        #[derive(Clone)]
+        struct FileImpl {
+            data: Arc<Vec<u8>>,
+            cursor: Arc<AtomicU64>,
+        }
+
+        #[async_trait::async_trait]
+        impl File for FileImpl {
+            async fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
+                let cursor = self.cursor.load(Ordering::SeqCst) as usize;
+
+                if cursor < self.data.len() {
+                    let to_read = core::cmp::min(buf.len(), self.data.len() - cursor);
+                    buf[..to_read].copy_from_slice(&self.data[cursor..cursor + to_read]);
+
+                    self.cursor.fetch_add(to_read as u64, Ordering::SeqCst);
+
+                    Ok(to_read)
+                } else {
+                    Ok(0)
+                }
+            }
+
+            async fn write(&mut self, _buf: &[u8]) -> Result<usize, IOError> {
+                Err(IOError::Unsupported)
+            }
+        }
+
+        let filesystem = self.system.filesystem();
+
+        let file = filesystem.read(path);
+
+        file.map(|x| {
+            Box::new(FileImpl {
+                data: Arc::new(x.to_vec()),
+                cursor: Arc::new(AtomicU64::new(0)),
+            }) as _
+        })
+        .ok_or(IOError::NotFound)
     }
 
-    async fn stat(&self, _path: &str) -> Result<FileStat, IOError> {
-        todo!()
+    async fn stat(&self, path: &str) -> Result<FileStat, IOError> {
+        let filesystem = self.system.filesystem();
+
+        let file = filesystem.read(path);
+
+        file.map(|x| FileStat { size: x.len() as _ }).ok_or(IOError::NotFound)
+    }
+
+    async fn define_class_rust(&self, _jvm: &Jvm, name: &str, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ClassDefinitionImpl::from_class_proto(
+            name,
+            proto,
+            Box::new(self.clone()) as Box<_>,
+        )))
+    }
+
+    async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> jvm::Result<Box<dyn ClassDefinition>> {
+        ClassDefinitionImpl::from_classfile(data).map(|x| Box::new(x) as Box<_>)
+    }
+
+    async fn define_array_class(&self, _jvm: &Jvm, element_type_name: &str) -> jvm::Result<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ArrayClassDefinitionImpl::new(element_type_name)))
     }
 }
 
 #[derive(Clone)]
 pub struct JvmCore {
-    jvm: Arc<Jvm>,
+    jvm: Jvm,
 }
 
 impl JvmCore {
-    pub async fn new(system: &System) -> JvmResult<Self> {
-        let jvm = Arc::new(Jvm::new(JvmDetailImpl).await?);
+    pub async fn new(system: &System, jar_name: &str) -> JvmResult<Self> {
+        let runtime = JvmCoreRuntime { system: system.clone() };
 
-        let context: Box<dyn Runtime> = Box::new(JvmCoreRuntime {
-            system: system.clone(),
-            jvm: jvm.clone(),
-        });
-
-        java_runtime::initialize(&jvm, move |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
-        })
+        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", jar_name)].into_iter().collect();
+        let jvm = Jvm::new(
+            java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
+            move || runtime.current_task_id(),
+            properties,
+        )
         .await?;
 
         let context: Box<dyn WIPIJavaContextBase> = Box::new(JvmCoreContext {
@@ -148,36 +205,7 @@ impl JvmCore {
         })
         .await?;
 
-        // set initial properties
-        let file_encoding_name = JavaLangString::from_rust_string(&jvm, "file.encoding").await?;
-        let encoding_str = JavaLangString::from_rust_string(&jvm, "EUC-KR").await?; // TODO hardcoded
-        let _: Option<Box<dyn ClassInstance>> = jvm
-            .invoke_static(
-                "java/lang/System",
-                "setProperty",
-                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;",
-                (file_encoding_name, encoding_str),
-            )
-            .await?;
-
         Ok(Self { jvm })
-    }
-
-    pub async fn add_jar(&self, jar: &[u8]) -> JvmResult<Option<String>> {
-        let mut storage = self.jvm.instantiate_array("B", jar.len()).await?;
-        self.jvm.store_byte_array(&mut storage, 0, cast_vec(jar.to_vec())).await?;
-
-        let class_loader = self.jvm.get_system_class_loader().await?;
-        let jar_main_class: ClassInstanceRef<JavaString> = self
-            .jvm
-            .invoke_virtual(&class_loader, "addJarFile", "([B)Ljava/lang/String;", (storage,))
-            .await?;
-
-        if !jar_main_class.is_null() {
-            Ok(Some(JavaLangString::to_rust_string(&self.jvm, &jar_main_class).await?))
-        } else {
-            Ok(None)
-        }
     }
 
     pub async fn format_err(jvm: &Jvm, err: JavaError) -> String {
@@ -198,7 +226,7 @@ impl JvmCore {
 #[derive(Clone)]
 struct JvmCoreContext {
     system: System,
-    jvm: Arc<Jvm>,
+    jvm: Jvm,
 }
 
 impl WIPIJavaContextBase for JvmCoreContext {
@@ -253,7 +281,7 @@ struct SpawnProxy<T>
 where
     T: ?Sized,
 {
-    jvm: Arc<Jvm>,
+    jvm: Jvm,
     callback: Box<dyn MethodBody<JavaError, T>>,
     context: Box<T>,
 }

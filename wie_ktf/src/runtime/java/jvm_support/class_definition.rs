@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -60,7 +60,7 @@ impl JavaClassDefinition {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new<C, Context>(core: &mut ArmCore, jvm: Arc<Jvm>, name: &str, proto: JavaClassProto<C>, context: Context) -> JvmSupportResult<Self>
+    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, name: &str, proto: JavaClassProto<C>, context: Context) -> JvmSupportResult<Self>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -82,7 +82,7 @@ impl JavaClassDefinition {
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(core, jvm.clone(), ptr_raw, method, &mut vtable_builder, context.clone())?;
+            let method = JavaMethod::new(core, jvm, ptr_raw, method, &mut vtable_builder, context.clone())?;
 
             methods.push(method.ptr_raw);
         }

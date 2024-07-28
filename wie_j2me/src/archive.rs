@@ -10,16 +10,18 @@ use wie_backend::{App, Archive, Platform, System};
 use crate::app::J2MEApp;
 
 pub struct J2MEArchive {
+    jar_filename: String,
     jar: Vec<u8>,
     name: String,
     main_class_name: Option<String>,
 }
 
 impl J2MEArchive {
-    pub fn from_jad_jar(jad: Vec<u8>, jar: Vec<u8>) -> Self {
+    pub fn from_jad_jar(jad: Vec<u8>, jar_filename: String, jar: Vec<u8>) -> Self {
         let descriptor = J2MEDescriptor::parse(&jad);
 
         Self {
+            jar_filename,
             jar,
             name: descriptor.name,
             main_class_name: Some(descriptor.main_class_name),
@@ -28,6 +30,7 @@ impl J2MEArchive {
 
     pub fn from_jar(filename: String, jar: Vec<u8>) -> Self {
         Self {
+            jar_filename: filename.clone(),
             jar,
             name: filename,
             main_class_name: None,
@@ -43,7 +46,9 @@ impl Archive for J2MEArchive {
     fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>> {
         let system = System::new(platform);
 
-        Ok(Box::new(J2MEApp::new(self.main_class_name, self.jar, system)?))
+        system.filesystem().add(&self.jar_filename, self.jar);
+
+        Ok(Box::new(J2MEApp::new(self.main_class_name, self.jar_filename, system)?))
     }
 }
 

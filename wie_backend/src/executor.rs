@@ -131,6 +131,10 @@ impl Executor {
         Ok(())
     }
 
+    pub fn current_task_id(&self) -> u64 {
+        self.inner.lock().unwrap().current_task_id.unwrap() as _
+    }
+
     fn step(&mut self, now: Instant) -> anyhow::Result<()> {
         let mut next_tasks = HashMap::new();
         let tasks = self.inner.lock().unwrap().tasks.drain().collect::<HashMap<_, _>>();

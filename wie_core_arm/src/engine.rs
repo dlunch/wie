@@ -14,6 +14,7 @@ pub trait ArmEngine: Sync + Send {
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
     fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmCoreResult<()>;
     fn mem_read(&mut self, address: u32, size: usize) -> ArmCoreResult<Vec<u8>>;
+    fn is_mapped(&self, address: u32, size: usize) -> bool;
 }
 
 #[allow(clippy::enum_variant_names)]
