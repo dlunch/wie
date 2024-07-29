@@ -452,7 +452,7 @@ checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#2a70174123ac2e12b63a57a737a290eff5ed89e3"
+source = "git+https://github.com/dlunch/RustJava.git#e488fb366d36ac8054d1b28b4cb67cc964283805"
 dependencies = [
  "java_constants",
  "nom",
@@ -1090,7 +1090,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#2a70174123ac2e12b63a57a737a290eff5ed89e3"
+source = "git+https://github.com/dlunch/RustJava.git#e488fb366d36ac8054d1b28b4cb67cc964283805"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1101,7 +1101,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#2a70174123ac2e12b63a57a737a290eff5ed89e3"
+source = "git+https://github.com/dlunch/RustJava.git#e488fb366d36ac8054d1b28b4cb67cc964283805"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -1109,13 +1109,14 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#2a70174123ac2e12b63a57a737a290eff5ed89e3"
+source = "git+https://github.com/dlunch/RustJava.git#e488fb366d36ac8054d1b28b4cb67cc964283805"
 dependencies = [
  "async-lock",
  "async-trait",
  "bytemuck",
  "dyn-clone",
  "encoding_rs",
+ "event-listener",
  "hashbrown",
  "java_class_proto",
  "java_constants",
@@ -1168,7 +1169,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#2a70174123ac2e12b63a57a737a290eff5ed89e3"
+source = "git+https://github.com/dlunch/RustJava.git#e488fb366d36ac8054d1b28b4cb67cc964283805"
 dependencies = [
  "anyhow",
  "async-lock",
@@ -1184,7 +1185,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#2a70174123ac2e12b63a57a737a290eff5ed89e3"
+source = "git+https://github.com/dlunch/RustJava.git#e488fb366d36ac8054d1b28b4cb67cc964283805"
 dependencies = [
  "async-lock",
  "async-recursion",
