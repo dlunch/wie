@@ -100,7 +100,7 @@ impl WindowImpl {
         let mut handler = ApplicationHandlerImpl {
             native_scale_factor: 1.0,
             user_scale_factor: DEFAULT_USER_SCALE_FACTOR,
-            wipi_size: orig_size,
+            content_size: orig_size,
             scaled_size: orig_size.to_physical(1.0),
             window_size: Default::default(),
             scaler: Scaler::Native,
@@ -219,14 +219,14 @@ where
     /// Temporary buffer for scaler.
     scaled_image_buf: Vec<u32>,
 
-    /// WIPI screen size.
-    wipi_size: LogicalSize<u32>,
+    /// content screen size.
+    content_size: LogicalSize<u32>,
     /// Scaled screen size.
     /// Equals to orig_size * scale_factor.
     scaled_size: PhysicalSize<u32>,
     /// Size of the OS window.
     window_size: PhysicalSize<u32>,
-    /// Last WIPI screen image data.
+    /// Last content screen image data.
     last_frame: Option<Vec<u32>>,
 
     window: Option<Arc<WinitWindow>>,
@@ -268,17 +268,17 @@ where
         }
 
         self.scaler = Scaler::new(self.native_scale_factor + self.user_scale_factor);
-        self.scaled_size = self.scaler.to_physical(self.wipi_size);
+        self.scaled_size = self.scaler.to_physical(self.content_size);
         self.scaled_image_buf = vec![0u32; self.scaled_size.width as usize * self.scaled_size.height as usize];
     }
 
-    /// Updates the scaled WIPI image surface's size.
+    /// Updates the scaled content image surface's size.
     fn on_resize(&mut self) {
         tracing::info!(
-            "on_resize scale=(native {}, actual {}), wipi={:?}, scaled={:?}, window={:?}",
+            "on_resize scale=(native {}, actual {}), content={:?}, scaled={:?}, window={:?}",
             self.native_scale_factor,
             self.scaler.scale(),
-            self.wipi_size,
+            self.content_size,
             self.scaled_size,
             self.window_size
         );
@@ -306,17 +306,17 @@ where
         self.paint_last_frame();
     }
 
-    /// Displays the last WIPI frame to the window.
+    /// Displays the last content frame to the window.
     fn paint_last_frame(&mut self) -> Option<()> {
         let data = self.last_frame.as_ref()?;
-        if data.len() != self.wipi_size.width as usize * self.wipi_size.height as usize {
+        if data.len() != self.content_size.width as usize * self.content_size.height as usize {
             return None;
         }
         let data_to_blit = if self.scaled_image_buf.len() == data.len() {
             data
         } else {
             self.scaler
-                .scale_image(&mut self.scaled_image_buf, data, self.scaled_size, self.wipi_size);
+                .scale_image(&mut self.scaled_image_buf, data, self.scaled_size, self.content_size);
             &self.scaled_image_buf
         };
 
@@ -325,10 +325,10 @@ where
             win_buf.copy_from_slice(data_to_blit);
         } else {
             tracing::warn!(
-                "buffer size mismatch, skipping paint: {}, {} (wipi {:?}, scaled {:?}, win {:?})",
+                "buffer size mismatch, skipping paint: {}, {} (content {:?}, scaled {:?}, win {:?})",
                 win_buf.len(),
                 data_to_blit.len(),
-                self.wipi_size,
+                self.content_size,
                 self.scaled_size,
                 self.window_size
             );
@@ -351,7 +351,7 @@ where
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Initialize the window.
         let window_attributes = WinitWindow::default_attributes()
-            .with_inner_size(self.wipi_size.to_physical::<u32>(1.0))
+            .with_inner_size(self.content_size.to_physical::<u32>(1.0))
             .with_title("WIE");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         let context = Context::new(window.clone()).unwrap();
@@ -412,8 +412,8 @@ where
                 self.window_size = new_size;
                 if self.window_size != self.scaled_size {
                     // Determine the new scale factor.
-                    let wscale = self.window_size.width as f64 / self.wipi_size.width as f64;
-                    let hscale = self.window_size.height as f64 / self.wipi_size.height as f64;
+                    let wscale = self.window_size.width as f64 / self.content_size.width as f64;
+                    let hscale = self.window_size.height as f64 / self.content_size.height as f64;
                     let new_scale = wscale.min(hscale);
                     let new_user_scale = new_scale - self.native_scale_factor;
                     self.update_scale_factor(None, Some(new_user_scale));
