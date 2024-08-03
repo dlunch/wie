@@ -36,10 +36,7 @@ impl KtfClassLoader {
                 JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
             ],
-            fields: vec![
-                JavaFieldProto::new("ptrJvmContext", "I", Default::default()),
-                JavaFieldProto::new("fnGetClass", "I", Default::default()),
-            ],
+            fields: vec![JavaFieldProto::new("fnGetClass", "I", Default::default())],
         }
     }
 
@@ -99,7 +96,6 @@ impl KtfClassLoader {
         .await
         .unwrap() as i32;
 
-        jvm.put_field(&mut this, "ptrJvmContext", "I", ptr_jvm_context).await?;
         jvm.put_field(&mut this, "fnGetClass", "I", fn_get_class).await?;
 
         Ok(())
