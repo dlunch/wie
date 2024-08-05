@@ -22,4 +22,4 @@ wie_j2me = { path = "../wie_j2me" }
 wie_ktf = { path = "../wie_ktf" }
 wie_lgt = { path = "../wie_lgt" }
 wie_skt = { path = "../wie_skt" }
-fast_image_resize = "4.0.0"
+fast_image_resize = "4.2.1"
