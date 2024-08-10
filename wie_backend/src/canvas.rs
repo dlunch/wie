@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use ab_glyph::{Font, FontRef, ScaleFont};
 use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
-use image::io::Reader as ImageReader;
+use image::ImageReader;
 use num_traits::{Num, Zero};
 
 lazy_static::lazy_static! {
