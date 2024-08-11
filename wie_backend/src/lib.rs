@@ -22,15 +22,9 @@ pub use self::{
 
 use alloc::collections::BTreeMap;
 
-pub trait App {
-    fn start(&mut self) -> anyhow::Result<()>;
-    fn on_event(&mut self, event: Event);
+pub trait Emulator {
+    fn handle_event(&mut self, event: Event);
     fn tick(&mut self) -> anyhow::Result<()>;
-}
-
-pub trait Archive {
-    fn id(&self) -> String;
-    fn load_app(self: Box<Self>, platform: Box<dyn Platform>) -> anyhow::Result<Box<dyn App>>;
 }
 
 pub fn extract_zip(zip: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {

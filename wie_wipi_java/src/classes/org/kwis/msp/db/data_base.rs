@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec};
+use alloc::{borrow::ToOwned, boxed::Box, vec};
 
 use bytemuck::cast_vec;
 use wie_backend::Database;
@@ -127,6 +127,8 @@ impl DataBase {
         let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;").await?;
         let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;
 
-        Ok(context.system().platform().database_repository().open(&db_name_str))
+        let app_id = context.system().app_id().to_owned();
+
+        Ok(context.system().platform().database_repository().open(&db_name_str, &app_id))
     }
 }

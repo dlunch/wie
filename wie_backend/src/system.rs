@@ -18,6 +18,7 @@ pub use self::event_queue::{Event, KeyCode};
 
 #[derive(Clone)]
 pub struct System {
+    app_id: String,
     executor: Executor,
     platform: Arc<Mutex<Box<dyn Platform>>>,
     filesystem: Arc<Mutex<Filesystem>>,
@@ -26,12 +27,13 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(platform: Box<dyn Platform>) -> Self {
+    pub fn new(platform: Box<dyn Platform>, app_id: &str) -> Self {
         let audio_sink = platform.audio_sink();
 
         let platform = Arc::new(Mutex::new(platform));
 
         let mut result = Self {
+            app_id: app_id.to_owned(),
             executor: Executor::new(),
             platform: platform.clone(),
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
@@ -76,6 +78,10 @@ impl System {
 
     pub fn filesystem(&self) -> MutexGuard<'_, Filesystem> {
         self.filesystem.lock().unwrap()
+    }
+
+    pub fn app_id(&self) -> &str {
+        &self.app_id
     }
 
     pub fn platform(&self) -> MutexGuard<'_, Box<dyn Platform>> {

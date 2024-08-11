@@ -1,7 +1,6 @@
 #![no_std]
 extern crate alloc;
 
-mod app;
-mod archive;
+mod emulator;
 
-pub use archive::J2MEArchive;
+pub use emulator::J2MEEmulator;

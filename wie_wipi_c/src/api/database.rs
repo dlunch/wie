@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, str, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, str, string::String, vec, vec::Vec};
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
@@ -139,8 +139,9 @@ fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Box<dy
 
     let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
     let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
+    let app_id = context.system().app_id().to_owned();
 
-    context.system().platform().database_repository().open(db_name)
+    context.system().platform().database_repository().open(db_name, &app_id)
 }
 
 pub fn get_database_method_table() -> Vec<WIPICMethodBody> {

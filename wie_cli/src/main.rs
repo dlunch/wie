@@ -20,11 +20,11 @@ use midir::MidiOutput;
 use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Archive, Event, Instant, KeyCode, Platform, Screen};
-use wie_j2me::J2MEArchive;
-use wie_ktf::KtfArchive;
-use wie_lgt::LgtArchive;
-use wie_skt::SktArchive;
+use wie_backend::{extract_zip, Emulator, Event, Instant, KeyCode, Platform, Screen};
+use wie_j2me::J2MEEmulator;
+use wie_ktf::KtfEmulator;
+use wie_lgt::LgtEmulator;
+use wie_skt::SktEmulator;
 
 use self::{
     audio_sink::AudioSink,
@@ -39,13 +39,13 @@ struct WieCliPlatform {
 }
 
 impl WieCliPlatform {
-    fn new(app_id: &str, window: Box<dyn Screen>) -> Self {
+    fn new(window: Box<dyn Screen>) -> Self {
         let (tx, rx) = channel();
         thread::spawn(|| Self::audio_thread(rx));
 
         Self {
             audio_thread_tx: tx,
-            database_repository: DatabaseRepository::new(app_id),
+            database_repository: DatabaseRepository::new(),
             window,
         }
     }
@@ -123,16 +123,19 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub fn start(filename: &str) -> anyhow::Result<()> {
+    let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
+    let platform = Box::new(WieCliPlatform::new(Box::new(window.handle())));
+
     let buf = fs::read(filename)?;
-    let archive: Box<dyn Archive> = if filename.ends_with("zip") {
+    let mut emulator: Box<dyn Emulator> = if filename.ends_with("zip") {
         let files = extract_zip(&buf).unwrap();
 
-        if KtfArchive::is_ktf_archive(&files) {
-            Box::new(KtfArchive::from_zip(files)?)
-        } else if LgtArchive::is_lgt_archive(&files) {
-            Box::new(LgtArchive::from_zip(files)?)
-        } else if SktArchive::is_skt_archive(&files) {
-            Box::new(SktArchive::from_zip(files)?)
+        if KtfEmulator::loadable_archive(&files) {
+            Box::new(KtfEmulator::from_archive(platform, files)?)
+        } else if LgtEmulator::loadable_archive(&files) {
+            Box::new(LgtEmulator::from_archive(platform, files)?)
+        } else if SktEmulator::loadable_archive(&files) {
+            Box::new(SktEmulator::from_archive(platform, files)?)
         } else {
             anyhow::bail!("Unknown archive format");
         }
@@ -140,39 +143,32 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         let jar_filename = filename.replace(".jad", ".jar");
         let jar = fs::read(&jar_filename)?;
 
-        Box::new(J2MEArchive::from_jad_jar(buf, jar_filename, jar))
+        Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar)?)
     } else if filename.ends_with("jar") {
         let filename_without_ext = filename.trim_end_matches(".jar");
 
-        if KtfArchive::is_ktf_jar(&buf) {
-            Box::new(KtfArchive::from_jar(filename.to_string(), buf, filename_without_ext.into(), None))
-        } else if LgtArchive::is_lgt_jar(&buf) {
-            Box::new(LgtArchive::from_jar(buf, filename_without_ext, None))
-        } else if SktArchive::is_skt_jar(&buf) {
-            Box::new(SktArchive::from_jar(filename.to_string(), buf, filename_without_ext, None))
+        if KtfEmulator::loadable_jar(&buf) {
+            Box::new(KtfEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
+        } else if LgtEmulator::loadable_jar(&buf) {
+            Box::new(LgtEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
+        } else if SktEmulator::loadable_jar(&buf) {
+            Box::new(SktEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
         } else {
-            Box::new(J2MEArchive::from_jar(filename_without_ext.into(), buf))
+            Box::new(J2MEEmulator::from_jar(platform, filename_without_ext, buf)?)
         }
     } else {
         anyhow::bail!("Unknown file format");
     };
 
-    let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
-    let platform = WieCliPlatform::new(&archive.id(), Box::new(window.handle()));
-
-    let mut app = archive.load_app(Box::new(platform))?;
-
-    app.start()?;
-
     let mut key_events = HashSet::new();
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => app.tick()?,
-            WindowCallbackEvent::Redraw => app.on_event(Event::Redraw),
+            WindowCallbackEvent::Update => emulator.tick()?,
+            WindowCallbackEvent::Redraw => emulator.handle_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {
                     if !key_events.contains(&keycode) {
-                        app.on_event(Event::Keydown(keycode));
+                        emulator.handle_event(Event::Keydown(keycode));
                         key_events.insert(keycode);
                     }
                 }
@@ -182,7 +178,7 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
                     if key_events.contains(&keycode) {
                         key_events.remove(&keycode);
                     }
-                    app.on_event(Event::Keyup(keycode));
+                    emulator.handle_event(Event::Keyup(keycode));
                 }
             }
         }

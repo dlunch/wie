@@ -11,7 +11,7 @@ use wie_core_arm::{Allocator, ArmCore, ArmCoreResult};
 use wie_util::{read_generic, write_generic};
 
 use crate::{
-    app::IMAGE_BASE,
+    emulator::IMAGE_BASE,
     runtime::{
         java::interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
         wipi_c::interface::get_wipic_knl_interface,

@@ -1,7 +1,6 @@
 #![no_std]
 extern crate alloc;
 
-mod app;
-mod archive;
+mod emulator;
 
-pub use archive::SktArchive;
+pub use emulator::SktEmulator;
