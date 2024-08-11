@@ -10,5 +10,5 @@ pub trait Database: Send {
 }
 
 pub trait DatabaseRepository {
-    fn open(&self, name: &str) -> Box<dyn Database>;
+    fn open(&self, name: &str, app_id: &str) -> Box<dyn Database>;
 }

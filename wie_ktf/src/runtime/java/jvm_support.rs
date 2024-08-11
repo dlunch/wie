@@ -292,7 +292,7 @@ mod test {
 
     #[test]
     fn test_jvm_support() -> anyhow::Result<()> {
-        let mut system = System::new(Box::new(TestPlatform));
+        let mut system = System::new(Box::new(TestPlatform), "");
 
         let done = Arc::new(AtomicBool::new(false));
 

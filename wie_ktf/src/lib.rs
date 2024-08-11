@@ -1,8 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-mod app;
-mod archive;
+mod emulator;
 mod runtime;
 
-pub use archive::KtfArchive;
+pub use emulator::KtfEmulator;

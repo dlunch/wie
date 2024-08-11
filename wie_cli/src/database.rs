@@ -9,22 +9,22 @@ pub struct DatabaseRepository {
 }
 
 impl DatabaseRepository {
-    pub fn new(app_id: &str) -> Self {
+    pub fn new() -> Self {
         let base_dir = ProjectDirs::from("net", "dlunch", "wie").unwrap();
 
-        let base_path = base_dir.data_dir().join(app_id);
+        let base_path = base_dir.data_dir().to_owned();
 
         Self { base_path }
     }
 
-    fn get_path_for_database(&self, name: &str) -> PathBuf {
-        self.base_path.join(name)
+    fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
+        self.base_path.join(app_id).join(name)
     }
 }
 
 impl wie_backend::DatabaseRepository for DatabaseRepository {
-    fn open(&self, name: &str) -> Box<dyn wie_backend::Database> {
-        let path = self.get_path_for_database(name);
+    fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
+        let path = self.get_path_for_database(name, app_id);
 
         Box::new(Database::new(path).unwrap())
     }
