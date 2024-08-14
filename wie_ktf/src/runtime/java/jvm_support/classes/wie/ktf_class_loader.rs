@@ -16,7 +16,6 @@ use crate::runtime::{init::load_native, java::jvm_support::class_definition::Jav
 pub trait ClassLoaderContextBase: Sync + Send + DynClone {
     fn core(&mut self) -> &mut ArmCore;
     fn system(&mut self) -> &mut System;
-    fn jvm(&self) -> Jvm;
 }
 
 clone_trait_object!(ClassLoaderContextBase);
@@ -87,7 +86,7 @@ impl KtfClassLoader {
         let fn_get_class = load_native(
             &mut core,
             &mut system,
-            context.jvm(),
+            jvm,
             &filename,
             cast_slice(&data),
             ptr_jvm_context as _,

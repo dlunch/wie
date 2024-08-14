@@ -110,7 +110,7 @@ struct ExeInterfaceFunctions {
 pub async fn load_native(
     core: &mut ArmCore,
     system: &mut System,
-    jvm: Jvm,
+    jvm: &Jvm,
     filename: &str,
     data: &[u8],
     ptr_jvm_context: u32,
@@ -152,14 +152,14 @@ pub async fn load_native(
 
     let param_4 = InitParam4 {
         fn_get_interface: core.register_function(get_interface, &(system.clone(), jvm.clone()))?,
-        fn_java_throw: core.register_function(java_throw, &jvm)?,
+        fn_java_throw: core.register_function(java_throw, jvm)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_cast: core.register_function(java_check_cast, &jvm)?,
-        fn_java_new: core.register_function(java_new, &jvm)?,
-        fn_java_array_new: core.register_function(java_array_new, &jvm)?,
+        fn_java_check_cast: core.register_function(java_check_cast, jvm)?,
+        fn_java_new: core.register_function(java_new, jvm)?,
+        fn_java_array_new: core.register_function(java_array_new, jvm)?,
         unk6: 0,
-        fn_java_class_load: core.register_function(java_class_load, &jvm)?,
+        fn_java_class_load: core.register_function(java_class_load, jvm)?,
         unk7: 0,
         unk8: 0,
         fn_alloc: core.register_function(alloc, &())?,

@@ -142,7 +142,6 @@ impl KtfJvmSupport {
         struct ClassLoaderContext {
             core: ArmCore,
             system: System,
-            jvm: Jvm,
         }
 
         impl ClassLoaderContextBase for ClassLoaderContext {
@@ -152,10 +151,6 @@ impl KtfJvmSupport {
 
             fn system(&mut self) -> &mut System {
                 &mut self.system
-            }
-
-            fn jvm(&self) -> Jvm {
-                self.jvm.clone()
             }
         }
 
@@ -191,7 +186,6 @@ impl KtfJvmSupport {
             Box::new(ClassLoaderContext {
                 core: core.clone(),
                 system: system.clone(),
-                jvm: jvm.clone(),
             }) as Box<_>,
         )
         .await?;
