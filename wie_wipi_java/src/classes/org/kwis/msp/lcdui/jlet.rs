@@ -90,7 +90,7 @@ impl Jlet {
             }
         }
 
-        context.spawn(Box::new(MainProxy {}))?;
+        context.spawn(jvm, Box::new(MainProxy {}))?;
 
         Ok(())
     }

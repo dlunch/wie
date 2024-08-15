@@ -7,7 +7,7 @@ mod context;
 use core::future::Future;
 
 use context::WIPIJavaClassProto;
-pub use context::WIPIJavaContextBase;
+pub use context::WIPIJavaContext;
 
 use alloc::boxed::Box;
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};

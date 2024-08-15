@@ -8,6 +8,7 @@ use core::{
     time::Duration,
 };
 use wie_skvm::SKVMJavaContextBase;
+use wie_wipi_java::WIPIJavaContext;
 
 use java_class_proto::MethodBody;
 use java_runtime::{File, FileStat, IOError, Runtime, RuntimeClassProto, SpawnCallback};
@@ -16,7 +17,6 @@ use jvm_rust::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
 
 use wie_backend::{AsyncCallable, System};
 use wie_midp::MIDPJavaContextBase;
-use wie_wipi_java::WIPIJavaContextBase;
 
 // TODO i think we can merge runtime implementation across platforms..
 #[derive(Clone)]
@@ -176,13 +176,10 @@ impl JvmCore {
             properties,
         )
         .await?;
+        let context = WIPIJavaContext::new(system);
 
-        let context: Box<dyn WIPIJavaContextBase> = Box::new(JvmCoreContext {
-            system: system.clone(),
-            jvm: jvm.clone(),
-        });
         wie_wipi_java::register(&jvm, move |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(context.clone()))) as Box<_>)
         })
         .await?;
 
@@ -227,22 +224,6 @@ impl JvmCore {
 struct JvmCoreContext {
     system: System,
     jvm: Jvm,
-}
-
-impl WIPIJavaContextBase for JvmCoreContext {
-    fn system(&mut self) -> &mut System {
-        &mut self.system
-    }
-
-    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
-        self.system.spawn(SpawnProxy {
-            jvm: self.jvm.clone(),
-            callback,
-            context: Box::new(self.clone()),
-        });
-
-        Ok(())
-    }
 }
 
 impl MIDPJavaContextBase for JvmCoreContext {

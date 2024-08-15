@@ -181,7 +181,7 @@ impl Display {
         Ok(height)
     }
 
-    async fn call_serially(_: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JvmResult<()> {
+    async fn call_serially(jvm: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({:?}, {:?})", &this, &r);
 
         // TODO this method have to queue runnable in event queue, but for now we'll spawn new task
@@ -206,7 +206,7 @@ impl Display {
             }
         }
 
-        context.spawn(Box::new(SpawnProxy { runnable: r }))?;
+        context.spawn(jvm, Box::new(SpawnProxy { runnable: r }))?;
 
         Ok(())
     }
