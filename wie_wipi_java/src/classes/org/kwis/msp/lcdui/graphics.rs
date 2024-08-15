@@ -446,20 +446,24 @@ impl Graphics {
 mod test {
     use alloc::boxed::Box;
     use core::future::ready;
+    use wie_backend::System;
 
     use jvm::{ClassInstanceRef, Result as JvmResult};
     use jvm_rust::ClassDefinitionImpl;
 
-    use test_utils::test_jvm;
+    use test_utils::{test_jvm, TestPlatform};
 
-    use crate::{classes::org::kwis::msp::lcdui::Image, context::test::DummyContext, register};
+    use crate::{classes::org::kwis::msp::lcdui::Image, context::WIPIJavaContext, register};
 
     #[futures_test::test]
     async fn test_graphics() -> JvmResult<()> {
         let jvm = test_jvm().await?;
 
-        register(&jvm, |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(DummyContext) as Box<_>)) as Box<_>)
+        let system = System::new(Box::new(TestPlatform), "");
+        let context = WIPIJavaContext::new(&system);
+
+        register(&jvm, move |name, proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(context.clone()))) as Box<_>)
         })
         .await?;
 

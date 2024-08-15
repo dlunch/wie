@@ -23,8 +23,9 @@ use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, ClassInstance
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, read_null_terminated_table, write_generic};
+use wie_wipi_java::WIPIJavaContext;
 
-use crate::runtime::{java::runtime::KtfRuntime, KtfWIPIJavaContext};
+use crate::runtime::java::runtime::KtfRuntime;
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -119,7 +120,7 @@ impl KtfJvmSupport {
         )
         .await?;
 
-        let context = KtfWIPIJavaContext::new(core, system, &jvm);
+        let context = WIPIJavaContext::new(system);
         let core_clone = core.clone();
         let jvm_clone = jvm.clone();
         wie_wipi_java::register(&jvm, move |name, proto| {

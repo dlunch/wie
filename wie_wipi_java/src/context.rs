@@ -1,43 +1,49 @@
 use alloc::boxed::Box;
 
-use dyn_clone::{clone_trait_object, DynClone};
-
 use java_class_proto::{JavaClassProto, MethodBody};
-use jvm::{JavaError, Result as JvmResult};
+use jvm::{JavaError, Jvm, Result as JvmResult};
 
-use wie_backend::System;
+use wie_backend::{AsyncCallable, System};
 
-pub trait WIPIJavaContextBase: Sync + Send + DynClone {
-    fn system(&mut self) -> &mut System;
-    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>) -> JvmResult<()>;
+#[derive(Clone)]
+pub struct WIPIJavaContext {
+    system: System,
 }
 
-clone_trait_object!(WIPIJavaContextBase);
+impl WIPIJavaContext {
+    pub fn new(system: &System) -> Self {
+        Self { system: system.clone() }
+    }
 
-pub(crate) type WIPIJavaClassProto = JavaClassProto<dyn WIPIJavaContextBase>;
-pub(crate) type WIPIJavaContext = dyn WIPIJavaContextBase;
+    pub fn system(&mut self) -> &mut System {
+        &mut self.system
+    }
 
-#[cfg(test)]
-pub mod test {
-    use alloc::boxed::Box;
-
-    use java_class_proto::MethodBody;
-    use jvm::{JavaError, Result as JvmResult};
-
-    use wie_backend::System;
-
-    use crate::context::WIPIJavaContextBase;
-
-    #[derive(Clone)]
-    pub struct DummyContext;
-
-    impl WIPIJavaContextBase for DummyContext {
-        fn system(&mut self) -> &mut System {
-            todo!()
+    pub fn spawn(&mut self, jvm: &Jvm, callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>) -> JvmResult<()> {
+        struct SpawnProxy {
+            jvm: Jvm,
+            system: System,
+            callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>,
         }
 
-        fn spawn(&mut self, _callback: Box<dyn MethodBody<JavaError, dyn WIPIJavaContextBase>>) -> JvmResult<()> {
-            todo!()
+        #[async_trait::async_trait]
+        impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, JavaError> {
+                let mut context = WIPIJavaContext { system: self.system };
+                let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;
+
+                Ok(0) // TODO return value
+            }
         }
+
+        self.system().clone().spawn(SpawnProxy {
+            jvm: jvm.clone(),
+            system: self.system.clone(),
+            callback,
+        });
+
+        Ok(())
     }
 }
+
+pub(crate) type WIPIJavaClassProto = JavaClassProto<WIPIJavaContext>;

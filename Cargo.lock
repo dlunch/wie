@@ -2849,7 +2849,6 @@ dependencies = [
  "async-trait",
  "bitflags 2.6.0",
  "bytemuck",
- "dyn-clone",
  "futures-test",
  "java_class_proto",
  "java_constants",
