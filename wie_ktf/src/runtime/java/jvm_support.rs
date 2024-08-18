@@ -9,7 +9,7 @@ mod name;
 mod value;
 mod vtable_builder;
 
-use alloc::{boxed::Box, string::ToString};
+use alloc::boxed::Box;
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
@@ -123,15 +123,14 @@ impl KtfJvmSupport {
         let context = WIPIJavaContext::new(system);
         let core_clone = core.clone();
         let jvm_clone = jvm.clone();
-        wie_wipi_java::register(&jvm, move |name, proto| {
-            let name = name.to_string();
+        wie_wipi_java::register(&jvm, move |proto| {
             let mut core_clone = core_clone.clone();
             let jvm_clone = jvm_clone.clone();
             let context = context.clone();
 
             async move {
                 Box::new(
-                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, &name, proto, Box::new(context) as Box<_>)
+                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, proto, Box::new(context) as Box<_>)
                         .await
                         .unwrap(),
                 ) as Box<_>
@@ -182,7 +181,6 @@ impl KtfJvmSupport {
         let class_loader_class = JavaClassDefinition::new(
             core,
             &jvm,
-            "wie/KtfClassLoader",
             KtfClassLoader::as_proto(),
             Box::new(ClassLoaderContext {
                 core: core.clone(),

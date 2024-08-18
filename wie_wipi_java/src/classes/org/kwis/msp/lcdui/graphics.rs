@@ -44,6 +44,7 @@ pub struct Graphics {}
 impl Graphics {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lcdui/Graphics",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -462,8 +463,8 @@ mod test {
         let system = System::new(Box::new(TestPlatform), "");
         let context = WIPIJavaContext::new(&system);
 
-        register(&jvm, move |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(context.clone()))) as Box<_>)
+        register(&jvm, move |proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(context.clone()))) as Box<_>)
         })
         .await?;
 

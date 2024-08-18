@@ -12,6 +12,7 @@ pub struct Network {}
 impl Network {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msf/io/Network",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("disconnect", "()V", Self::disconnect, MethodAccessFlags::NATIVE)],

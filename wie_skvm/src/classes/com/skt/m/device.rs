@@ -11,6 +11,7 @@ pub struct Device {}
 impl Device {
     pub fn as_proto() -> SKVMJavaClassProto {
         SKVMJavaClassProto {
+            name: "com/skt/m/Device",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, Default::default())],

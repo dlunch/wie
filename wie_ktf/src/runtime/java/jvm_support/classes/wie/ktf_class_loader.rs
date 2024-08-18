@@ -29,6 +29,7 @@ pub struct KtfClassLoader {}
 impl KtfClassLoader {
     pub fn as_proto() -> ClassLoaderProto {
         ClassLoaderProto {
+            name: "wie/KtfClassLoader",
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![

@@ -12,6 +12,7 @@ pub struct Font {}
 impl Font {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lcdui/Font",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

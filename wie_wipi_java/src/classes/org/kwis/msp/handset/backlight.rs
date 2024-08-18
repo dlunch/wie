@@ -12,6 +12,7 @@ pub struct BackLight {}
 impl BackLight {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/handset/Backlight",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("alwaysOn", "()V", Self::always_on, MethodAccessFlags::STATIC)],

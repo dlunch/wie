@@ -11,6 +11,7 @@ pub struct AnnunciatorComponent {}
 impl AnnunciatorComponent {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lwc/AnnunciatorComponent",
             parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
             interfaces: vec![],
             methods: vec![

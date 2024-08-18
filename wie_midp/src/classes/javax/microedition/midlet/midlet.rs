@@ -11,6 +11,7 @@ pub struct MIDlet {}
 impl MIDlet {
     pub fn as_proto() -> MIDPJavaClassProto {
         MIDPJavaClassProto {
+            name: "javax/microedition/midlet/MIDlet",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

@@ -11,6 +11,7 @@ pub struct Component {}
 impl Component {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lwc/Component",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

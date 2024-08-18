@@ -8,6 +8,7 @@ pub struct PlayListener {}
 impl PlayListener {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/media/PlayListener",
             parent_class: None,
             interfaces: vec![],
             methods: vec![],

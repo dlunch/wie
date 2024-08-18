@@ -60,7 +60,7 @@ impl JavaClassDefinition {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, name: &str, proto: JavaClassProto<C>, context: Context) -> JvmSupportResult<Self>
+    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, proto: JavaClassProto<C>, context: Context) -> JvmSupportResult<Self>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -107,8 +107,8 @@ impl JavaClassDefinition {
         let ptr_fields = Allocator::alloc(core, ((fields.len() + 1) * size_of::<u32>()) as _)?;
         write_null_terminated_table(core, ptr_fields, &fields)?;
 
-        let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(core, ptr_name, name)?;
+        let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
+        write_null_terminated_string(core, ptr_name, proto.name)?;
 
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(

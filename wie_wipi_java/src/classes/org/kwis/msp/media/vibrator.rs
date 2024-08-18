@@ -12,6 +12,7 @@ pub struct Vibrator {}
 impl Vibrator {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/media/Vibrator",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("on", "(II)V", Self::on, MethodAccessFlags::NATIVE)],

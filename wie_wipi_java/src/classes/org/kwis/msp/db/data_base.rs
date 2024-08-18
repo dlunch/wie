@@ -16,6 +16,7 @@ pub struct DataBase {}
 impl DataBase {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/db/DataBase",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

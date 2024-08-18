@@ -16,6 +16,7 @@ pub struct Jlet {}
 impl Jlet {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lcdui/Jlet",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

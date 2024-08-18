@@ -14,6 +14,7 @@ pub struct Card {}
 impl Card {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lcdui/Card",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
