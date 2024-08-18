@@ -15,6 +15,7 @@ pub struct Player {}
 impl Player {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/media/Player",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

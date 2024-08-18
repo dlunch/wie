@@ -17,6 +17,7 @@ pub struct Clip {}
 impl Clip {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/media/Clip",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

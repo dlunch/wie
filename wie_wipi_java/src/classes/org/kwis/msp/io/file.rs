@@ -15,6 +15,7 @@ pub struct File {}
 impl File {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/io/File",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![

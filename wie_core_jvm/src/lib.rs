@@ -143,12 +143,8 @@ impl Runtime for JvmCoreRuntime {
         file.map(|x| FileStat { size: x.len() as _ }).ok_or(IOError::NotFound)
     }
 
-    async fn define_class_rust(&self, _jvm: &Jvm, name: &str, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
-        Ok(Box::new(ClassDefinitionImpl::from_class_proto(
-            name,
-            proto,
-            Box::new(self.clone()) as Box<_>,
-        )))
+    async fn define_class_rust(&self, _jvm: &Jvm, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(self.clone()) as Box<_>)))
     }
 
     async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> jvm::Result<Box<dyn ClassDefinition>> {
@@ -178,8 +174,8 @@ impl JvmCore {
         .await?;
         let context = WIPIJavaContext::new(system);
 
-        wie_wipi_java::register(&jvm, move |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, Box::new(context.clone()))) as Box<_>)
+        wie_wipi_java::register(&jvm, move |proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(context.clone()))) as Box<_>)
         })
         .await?;
 
@@ -187,8 +183,8 @@ impl JvmCore {
             system: system.clone(),
             jvm: jvm.clone(),
         });
-        wie_midp::register(&jvm, move |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
+        wie_midp::register(&jvm, move |proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, context.clone())) as Box<_>)
         })
         .await?;
 
@@ -197,8 +193,8 @@ impl JvmCore {
             system: system.clone(),
             jvm: jvm.clone(),
         });
-        wie_skvm::register(&jvm, move |name, proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(name, proto, context.clone())) as Box<_>)
+        wie_skvm::register(&jvm, move |proto| {
+            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, context.clone())) as Box<_>)
         })
         .await?;
 

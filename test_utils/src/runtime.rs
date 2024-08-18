@@ -50,12 +50,8 @@ impl Runtime for DummyRuntime {
         todo!()
     }
 
-    async fn define_class_rust(&self, _jvm: &Jvm, name: &str, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
-        Ok(Box::new(ClassDefinitionImpl::from_class_proto(
-            name,
-            proto,
-            Box::new(self.clone()) as Box<_>,
-        )))
+    async fn define_class_rust(&self, _jvm: &Jvm, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(self.clone()) as Box<_>)))
     }
 
     async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> jvm::Result<Box<dyn ClassDefinition>> {

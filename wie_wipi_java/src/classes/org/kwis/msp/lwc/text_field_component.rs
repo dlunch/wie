@@ -12,6 +12,7 @@ pub struct TextFieldComponent {}
 impl TextFieldComponent {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lwc/TextFieldComponent",
             parent_class: Some("org/kwis/msp/lwc/TextComponent"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default())],

@@ -11,6 +11,7 @@ pub struct TextComponent {}
 impl TextComponent {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lwc/TextComponent",
             parent_class: Some("org/kwis/msp/lwc/Component"),
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, Default::default())],

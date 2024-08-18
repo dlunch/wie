@@ -145,9 +145,9 @@ impl Runtime for KtfRuntime {
         file.map(|x| FileStat { size: x.len() as _ }).ok_or(IOError::NotFound)
     }
 
-    async fn define_class_rust(&self, jvm: &Jvm, name: &str, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
+    async fn define_class_rust(&self, jvm: &Jvm, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
         Ok(Box::new(
-            JavaClassDefinition::new(&mut self.core.clone(), jvm, name, proto, Box::new(self.clone()) as Box<_>)
+            JavaClassDefinition::new(&mut self.core.clone(), jvm, proto, Box::new(self.clone()) as Box<_>)
                 .await
                 .unwrap(),
         ))

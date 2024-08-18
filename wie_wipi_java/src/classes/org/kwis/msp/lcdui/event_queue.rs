@@ -91,6 +91,7 @@ pub struct EventQueue {}
 impl EventQueue {
     pub fn as_proto() -> WIPIJavaClassProto {
         WIPIJavaClassProto {
+            name: "org/kwis/msp/lcdui/EventQueue",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
