@@ -2720,7 +2720,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_core_jvm"
+name = "wie_j2me"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytemuck",
+ "tracing",
+ "wie_backend",
+ "wie_jvm_support",
+]
+
+[[package]]
+name = "wie_jvm_support"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -2734,18 +2746,6 @@ dependencies = [
  "wie_midp",
  "wie_skvm",
  "wie_wipi_java",
-]
-
-[[package]]
-name = "wie_j2me"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytemuck",
- "tracing",
- "wie_backend",
- "wie_core_jvm",
 ]
 
 [[package]]
@@ -2816,7 +2816,7 @@ dependencies = [
  "jvm",
  "tracing",
  "wie_backend",
- "wie_core_jvm",
+ "wie_jvm_support",
 ]
 
 [[package]]
