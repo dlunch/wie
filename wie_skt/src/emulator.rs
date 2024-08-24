@@ -10,7 +10,7 @@ use alloc::{
 use jvm::Result as JvmResult;
 
 use wie_backend::{Emulator, Event, Platform, System};
-use wie_core_jvm::JvmCore;
+use wie_jvm_support::JvmSupport;
 
 pub struct SktEmulator {
     system: System,
@@ -71,7 +71,7 @@ impl SktEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> anyhow::Result<()> {
-        let core = JvmCore::new(system, &jar_filename).await?;
+        let jvm = JvmSupport::new_jvm(system, &jar_filename).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
             x
@@ -80,18 +80,16 @@ impl SktEmulator {
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
-        let main_class = core.jvm().new_class(&normalized_class_name, "()V", []).await?;
+        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await?;
 
-        let result: JvmResult<()> = if core.jvm().is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await? {
-            core.jvm().invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await
+        let result: JvmResult<()> = if jvm.is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await? {
+            jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await
         } else {
-            core.jvm()
-                .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()])
-                .await
+            jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()]).await
         };
 
         if let Err(x) = result {
-            anyhow::bail!(JvmCore::format_err(core.jvm(), x).await)
+            anyhow::bail!(JvmSupport::format_err(&jvm, x).await)
         }
 
         Ok(())

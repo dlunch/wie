@@ -11,6 +11,6 @@ bytemuck = { workspace = true }
 tracing = { workspace = true }
 
 wie_backend = { workspace = true }
-wie_core_jvm = { workspace = true }
+wie_jvm_support = { workspace = true }
 
 jvm = { workspace = true }

@@ -20,12 +20,12 @@ use wie_midp::MIDPJavaContextBase;
 
 // TODO i think we can merge runtime implementation across platforms..
 #[derive(Clone)]
-struct JvmCoreRuntime {
+struct JvmRuntime {
     system: System,
 }
 
 #[async_trait::async_trait]
-impl Runtime for JvmCoreRuntime {
+impl Runtime for JvmRuntime {
     async fn sleep(&self, duration: Duration) {
         let now = self.system.platform().now();
         let until = now + duration.as_millis() as u64;
@@ -156,14 +156,11 @@ impl Runtime for JvmCoreRuntime {
     }
 }
 
-#[derive(Clone)]
-pub struct JvmCore {
-    jvm: Jvm,
-}
+pub struct JvmSupport {}
 
-impl JvmCore {
-    pub async fn new(system: &System, jar_name: &str) -> JvmResult<Self> {
-        let runtime = JvmCoreRuntime { system: system.clone() };
+impl JvmSupport {
+    pub async fn new_jvm(system: &System, jar_name: &str) -> JvmResult<Jvm> {
+        let runtime = JvmRuntime { system: system.clone() };
 
         let properties = [("file.encoding", "EUC-KR"), ("java.class.path", jar_name)].into_iter().collect();
         let jvm = Jvm::new(
@@ -179,7 +176,7 @@ impl JvmCore {
         })
         .await?;
 
-        let context: Box<dyn MIDPJavaContextBase> = Box::new(JvmCoreContext {
+        let context: Box<dyn MIDPJavaContextBase> = Box::new(JvmContext {
             system: system.clone(),
             jvm: jvm.clone(),
         });
@@ -189,7 +186,7 @@ impl JvmCore {
         .await?;
 
         // TODO should we add skvm only on skt?
-        let context: Box<dyn SKVMJavaContextBase> = Box::new(JvmCoreContext {
+        let context: Box<dyn SKVMJavaContextBase> = Box::new(JvmContext {
             system: system.clone(),
             jvm: jvm.clone(),
         });
@@ -198,7 +195,7 @@ impl JvmCore {
         })
         .await?;
 
-        Ok(Self { jvm })
+        Ok(jvm)
     }
 
     pub async fn format_err(jvm: &Jvm, err: JavaError) -> String {
@@ -210,19 +207,15 @@ impl JvmCore {
             format!("{:?}", err)
         }
     }
-
-    pub fn jvm(&self) -> &Jvm {
-        &self.jvm
-    }
 }
 
 #[derive(Clone)]
-struct JvmCoreContext {
+struct JvmContext {
     system: System,
     jvm: Jvm,
 }
 
-impl MIDPJavaContextBase for JvmCoreContext {
+impl MIDPJavaContextBase for JvmContext {
     fn system(&mut self) -> &mut System {
         &mut self.system
     }
@@ -238,7 +231,7 @@ impl MIDPJavaContextBase for JvmCoreContext {
     }
 }
 
-impl SKVMJavaContextBase for JvmCoreContext {
+impl SKVMJavaContextBase for JvmContext {
     fn system(&mut self) -> &mut System {
         &mut self.system
     }
@@ -271,7 +264,7 @@ where
     async fn call(mut self) -> Result<u32, JavaError> {
         let result = self.callback.call(&self.jvm, &mut self.context, Box::new([])).await;
         if let Err(x) = result {
-            let err = JvmCore::format_err(&self.jvm, x).await;
+            let err = JvmSupport::format_err(&self.jvm, x).await;
             tracing::error!("Error: {}", err);
         }
 

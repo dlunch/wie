@@ -6,7 +6,7 @@ members = [
     "wie_cli",
     "wie_util",
     "wie_core_arm",
-    "wie_core_jvm",
+    "wie_jvm_support",
     "wie_wipi_java",
     "wie_wipi_c",
     "wie_j2me",
@@ -54,7 +54,7 @@ wie_backend = { path = "wie_backend" }
 wie_midp = { path = "wie_midp" }
 wie_util = { path = "wie_util" }
 wie_core_arm = { path = "wie_core_arm" }
-wie_core_jvm = { path = "wie_core_jvm" }
+wie_jvm_support = { path = "wie_jvm_support" }
 wie_skvm = { path = "wie_skvm" }
 wie_wipi_c = { path = "wie_wipi_c" }
 wie_wipi_java = { path = "wie_wipi_java" }
