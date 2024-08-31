@@ -106,12 +106,7 @@ impl DataBase {
         Ok(id as _)
     }
 
-    async fn select_record(
-        jvm: &Jvm,
-        context: &mut WieJvmContext,
-        this: ClassInstanceRef<Self>,
-        record_id: i32,
-    ) -> JvmResult<ClassInstanceRef<i8>> {
+    async fn select_record(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<ClassInstanceRef<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
         let database = Self::get_database(jvm, context, &this).await?;
