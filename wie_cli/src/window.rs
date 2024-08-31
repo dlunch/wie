@@ -2,8 +2,8 @@ use alloc::sync::Arc;
 use core::{fmt::Debug, fmt::Formatter, num::NonZeroU32};
 use std::fmt;
 
-use fast_image_resize::ResizeAlg::Convolution;
-use fast_image_resize::{FilterType, PixelType, ResizeOptions, SrcCropping};
+use fast_image_resize::ResizeAlg;
+use fast_image_resize::{PixelType, ResizeOptions, SrcCropping};
 use softbuffer::{Context, Surface};
 use winit::{
     application::ApplicationHandler,
@@ -193,7 +193,10 @@ impl Scaler {
                         &srcimg,
                         &mut dstimg,
                         Some(&ResizeOptions {
-                            algorithm: Convolution(FilterType::Lanczos3),
+                            #[cfg(debug_assertions)]
+                            algorithm: ResizeAlg::Nearest,
+                            #[cfg(not(debug_assertions))]
+                            algorithm: ResizeAlg::Convolution(fast_image_resize::FilterType::Lanczos3),
                             cropping: SrcCropping::None,
                             mul_div_alpha: false,
                         }),
