@@ -57,7 +57,6 @@ impl AsyncCallableResult for () {
     }
 }
 
-// Executor polling every future until it is ready to implement generator using async ecosystem
 #[derive(Clone)]
 pub struct Executor {
     inner: Arc<Mutex<ExecutorInner>>,
