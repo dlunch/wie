@@ -4,14 +4,14 @@ use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{Jvm, Result as JvmResult};
 
-use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.media.Vibrator
 pub struct Vibrator {}
 
 impl Vibrator {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/media/Vibrator",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -20,7 +20,7 @@ impl Vibrator {
         }
     }
 
-    async fn on(_: &Jvm, _: &mut WIPIJavaContext, level: i32, duration: i32) -> JvmResult<()> {
+    async fn on(_: &Jvm, _: &mut WieJvmContext, level: i32, duration: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Vibrator::on({}, {})", level, duration);
 
         Ok(())

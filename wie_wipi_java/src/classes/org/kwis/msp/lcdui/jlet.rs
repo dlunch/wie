@@ -5,17 +5,16 @@ use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult};
 
-use crate::{
-    classes::org::kwis::msp::lcdui::EventQueue,
-    context::{WIPIJavaClassProto, WIPIJavaContext},
-};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+use crate::classes::org::kwis::msp::lcdui::EventQueue;
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet {}
 
 impl Jlet {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/lcdui/Jlet",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -48,7 +47,7 @@ impl Jlet {
         }
     }
 
-    async fn init(jvm: &Jvm, context: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = jvm
@@ -72,9 +71,9 @@ impl Jlet {
 
         struct MainProxy {}
         #[async_trait::async_trait]
-        impl MethodBody<JavaError, WIPIJavaContext> for MainProxy {
+        impl MethodBody<JavaError, WieJvmContext> for MainProxy {
             #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, jvm: &Jvm, context: &mut WIPIJavaContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+            async fn call(&self, jvm: &Jvm, context: &mut WieJvmContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
                 jvm.attach_thread().await?;
 
                 let now = context.system().platform().now();
@@ -96,7 +95,7 @@ impl Jlet {
         Ok(())
     }
 
-    async fn get_active_jlet(jvm: &Jvm, _: &mut WIPIJavaContext) -> JvmResult<ClassInstanceRef<Jlet>> {
+    async fn get_active_jlet(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Jlet>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
         let jlet = jvm
@@ -106,7 +105,7 @@ impl Jlet {
         Ok(jlet)
     }
 
-    async fn get_event_queue(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {
+    async fn get_event_queue(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
 
         let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;").await?;
@@ -116,7 +115,7 @@ impl Jlet {
 
     async fn get_app_property(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         key: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<String>> {

@@ -4,14 +4,14 @@ use java_class_proto::JavaMethodProto;
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
-use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.lwc.TextFieldComponent
 pub struct TextFieldComponent {}
 
 impl TextFieldComponent {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/lwc/TextFieldComponent",
             parent_class: Some("org/kwis/msp/lwc/TextComponent"),
             interfaces: vec![],
@@ -22,7 +22,7 @@ impl TextFieldComponent {
 
     async fn init(
         _: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         this: ClassInstanceRef<TextFieldComponent>,
         data: ClassInstanceRef<String>,
         constraint: i32,

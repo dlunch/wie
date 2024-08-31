@@ -5,14 +5,14 @@ use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
-use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.lcdui.Main
 pub struct Main {}
 
 impl Main {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/lcdui/Main",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -24,13 +24,13 @@ impl Main {
         }
     }
 
-    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Main>) -> JvmResult<()> {
+    async fn init(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Main>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
 
         Ok(())
     }
 
-    async fn main(jvm: &Jvm, _: &mut WIPIJavaContext, args: ClassInstanceRef<String>) -> JvmResult<()> {
+    async fn main(jvm: &Jvm, _: &mut WieJvmContext, args: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
         let jlet = jvm

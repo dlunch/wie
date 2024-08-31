@@ -1,22 +1,21 @@
 #![no_std]
 extern crate alloc;
 
+mod context;
+
 use alloc::{boxed::Box, format, string::String, sync::Arc, vec::Vec};
 use core::{
-    future::ready,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
-use wie_skvm::SKVMJavaContextBase;
-use wie_wipi_java::WIPIJavaContext;
 
-use java_class_proto::MethodBody;
 use java_runtime::{File, FileStat, IOError, Runtime, RuntimeClassProto, SpawnCallback};
 use jvm::{runtime::JavaLangString, ClassDefinition, JavaError, Jvm, Result as JvmResult};
 use jvm_rust::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
 
 use wie_backend::{AsyncCallable, System};
-use wie_midp::MIDPJavaContextBase;
+
+pub use context::{WieJavaClassProto, WieJvmContext};
 
 // TODO i think we can merge runtime implementation across platforms..
 #[derive(Clone)]
@@ -159,7 +158,7 @@ impl Runtime for JvmRuntime {
 pub struct JvmSupport {}
 
 impl JvmSupport {
-    pub async fn new_jvm(system: &System, jar_name: &str) -> JvmResult<Jvm> {
+    pub async fn new_jvm(system: &System, jar_name: &str, protos: Box<[Box<[WieJavaClassProto]>]>) -> JvmResult<Jvm> {
         let runtime = JvmRuntime { system: system.clone() };
 
         let properties = [("file.encoding", "EUC-KR"), ("java.class.path", jar_name)].into_iter().collect();
@@ -169,31 +168,13 @@ impl JvmSupport {
             properties,
         )
         .await?;
-        let context = WIPIJavaContext::new(system);
+        let context = Box::new(WieJvmContext::new(system));
 
-        wie_wipi_java::register(&jvm, move |proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(context.clone()))) as Box<_>)
-        })
-        .await?;
+        for proto in protos.into_vec().into_iter().flat_map(|x| x.into_vec()) {
+            let class = Box::new(ClassDefinitionImpl::from_class_proto(proto, context.clone()));
 
-        let context: Box<dyn MIDPJavaContextBase> = Box::new(JvmContext {
-            system: system.clone(),
-            jvm: jvm.clone(),
-        });
-        wie_midp::register(&jvm, move |proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, context.clone())) as Box<_>)
-        })
-        .await?;
-
-        // TODO should we add skvm only on skt?
-        let context: Box<dyn SKVMJavaContextBase> = Box::new(JvmContext {
-            system: system.clone(),
-            jvm: jvm.clone(),
-        });
-        wie_skvm::register(&jvm, move |proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, context.clone())) as Box<_>)
-        })
-        .await?;
+            jvm.register_class(class, None).await?;
+        }
 
         Ok(jvm)
     }
@@ -206,68 +187,5 @@ impl JvmSupport {
         } else {
             format!("{:?}", err)
         }
-    }
-}
-
-#[derive(Clone)]
-struct JvmContext {
-    system: System,
-    jvm: Jvm,
-}
-
-impl MIDPJavaContextBase for JvmContext {
-    fn system(&mut self) -> &mut System {
-        &mut self.system
-    }
-
-    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn MIDPJavaContextBase>>) -> JvmResult<()> {
-        self.system.spawn(SpawnProxy {
-            jvm: self.jvm.clone(),
-            callback,
-            context: Box::new(self.clone()),
-        });
-
-        Ok(())
-    }
-}
-
-impl SKVMJavaContextBase for JvmContext {
-    fn system(&mut self) -> &mut System {
-        &mut self.system
-    }
-
-    fn spawn(&mut self, callback: Box<dyn MethodBody<JavaError, dyn SKVMJavaContextBase>>) -> JvmResult<()> {
-        self.system.spawn(SpawnProxy {
-            jvm: self.jvm.clone(),
-            callback,
-            context: Box::new(self.clone()),
-        });
-
-        Ok(())
-    }
-}
-
-struct SpawnProxy<T>
-where
-    T: ?Sized,
-{
-    jvm: Jvm,
-    callback: Box<dyn MethodBody<JavaError, T>>,
-    context: Box<T>,
-}
-
-#[async_trait::async_trait]
-impl<T> AsyncCallable<Result<u32, JavaError>> for SpawnProxy<T>
-where
-    T: ?Sized + Send,
-{
-    async fn call(mut self) -> Result<u32, JavaError> {
-        let result = self.callback.call(&self.jvm, &mut self.context, Box::new([])).await;
-        if let Err(x) = result {
-            let err = JvmSupport::format_err(&self.jvm, x).await;
-            tracing::error!("Error: {}", err);
-        }
-
-        Ok(0) // TODO return value
     }
 }

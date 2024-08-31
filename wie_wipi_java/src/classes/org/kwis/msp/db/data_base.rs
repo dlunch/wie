@@ -8,14 +8,14 @@ use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
-use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.db.DataBase
 pub struct DataBase {}
 
 impl DataBase {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/db/DataBase",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -35,7 +35,7 @@ impl DataBase {
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
         }
     }
-    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, data_base_name: ClassInstanceRef<String>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, data_base_name: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
 
         jvm.put_field(&mut this, "dbName", "Ljava/lang/String;", data_base_name).await?;
@@ -45,7 +45,7 @@ impl DataBase {
 
     async fn open_data_base(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         data_base_name: ClassInstanceRef<String>,
         record_size: i32,
         create: bool,
@@ -64,7 +64,7 @@ impl DataBase {
         Ok(instance.into())
     }
 
-    async fn get_number_of_records(jvm: &Jvm, context: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+    async fn get_number_of_records(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
         let database = Self::get_database(jvm, context, &this).await?;
@@ -74,7 +74,7 @@ impl DataBase {
         Ok(count as _)
     }
 
-    async fn close_data_base(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
+    async fn close_data_base(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
         Ok(())
@@ -82,7 +82,7 @@ impl DataBase {
 
     async fn insert_record(
         jvm: &Jvm,
-        context: &mut WIPIJavaContext,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         data: ClassInstanceRef<Array<i8>>,
         offset: i32,
@@ -108,7 +108,7 @@ impl DataBase {
 
     async fn select_record(
         jvm: &Jvm,
-        context: &mut WIPIJavaContext,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         record_id: i32,
     ) -> JvmResult<ClassInstanceRef<i8>> {
@@ -124,7 +124,7 @@ impl DataBase {
         Ok(array.into())
     }
 
-    async fn get_database(jvm: &Jvm, context: &mut WIPIJavaContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
+    async fn get_database(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
         let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;").await?;
         let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;
 
