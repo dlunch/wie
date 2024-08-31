@@ -8,7 +8,7 @@ use alloc::{
 };
 
 use wie_backend::{Emulator, Event, Platform, System};
-use wie_jvm_support::JvmSupport;
+use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 
 pub struct J2MEEmulator {
     system: System,
@@ -52,7 +52,7 @@ impl J2MEEmulator {
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> anyhow::Result<()> {
         let protos = [wie_midp::get_protos().into()];
-        let jvm = JvmSupport::new_jvm(system, &jar_filename, Box::new(protos)).await?;
+        let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), RustJavaJvmImplementation).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
             x

@@ -7,7 +7,7 @@ use core::{
 use jvm::{Jvm, Result as JvmResult};
 
 use wie_backend::System;
-use wie_jvm_support::{JvmSupport, WieJavaClassProto};
+use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto};
 
 use crate::TestPlatform;
 
@@ -24,7 +24,7 @@ where
     let system_clone = system.clone();
 
     system.spawn(|| async move {
-        let jvm = JvmSupport::new_jvm(&system_clone, "", protos).await?;
+        let jvm = JvmSupport::new_jvm(&system_clone, None, protos, RustJavaJvmImplementation).await?;
         func(jvm).await?;
 
         done_clone.store(true, Ordering::Relaxed);

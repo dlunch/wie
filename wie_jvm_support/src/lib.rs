@@ -17,14 +17,20 @@ use wie_backend::{AsyncCallable, System};
 
 pub use context::{WieJavaClassProto, WieJvmContext};
 
-// TODO i think we can merge runtime implementation across platforms..
 #[derive(Clone)]
-struct JvmRuntime {
+struct JvmRuntime<T>
+where
+    T: JvmImplementation + Sync + Send + 'static,
+{
     system: System,
+    implementation: T,
 }
 
 #[async_trait::async_trait]
-impl Runtime for JvmRuntime {
+impl<T> Runtime for JvmRuntime<T>
+where
+    T: JvmImplementation + Sync + Send + 'static,
+{
     async fn sleep(&self, duration: Duration) {
         let now = self.system.platform().now();
         let until = now + duration.as_millis() as u64;
@@ -142,26 +148,34 @@ impl Runtime for JvmRuntime {
         file.map(|x| FileStat { size: x.len() as _ }).ok_or(IOError::NotFound)
     }
 
-    async fn define_class_rust(&self, _jvm: &Jvm, proto: RuntimeClassProto) -> jvm::Result<Box<dyn ClassDefinition>> {
-        Ok(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(self.clone()) as Box<_>)))
+    async fn define_class_rust(&self, jvm: &Jvm, proto: RuntimeClassProto) -> JvmResult<Box<dyn ClassDefinition>> {
+        self.implementation.define_class_rust(jvm, proto, Box::new(self.clone()) as Box<_>).await
     }
 
-    async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> jvm::Result<Box<dyn ClassDefinition>> {
-        ClassDefinitionImpl::from_classfile(data).map(|x| Box::new(x) as Box<_>)
+    async fn define_class_java(&self, jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
+        self.implementation.define_class_java(jvm, data).await
     }
 
-    async fn define_array_class(&self, _jvm: &Jvm, element_type_name: &str) -> jvm::Result<Box<dyn ClassDefinition>> {
-        Ok(Box::new(ArrayClassDefinitionImpl::new(element_type_name)))
+    async fn define_array_class(&self, _jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
+        self.implementation.define_array_class(_jvm, element_type_name).await
     }
 }
 
 pub struct JvmSupport {}
 
 impl JvmSupport {
-    pub async fn new_jvm(system: &System, jar_name: &str, protos: Box<[Box<[WieJavaClassProto]>]>) -> JvmResult<Jvm> {
-        let runtime = JvmRuntime { system: system.clone() };
+    pub async fn new_jvm<T>(system: &System, jar_name: Option<&str>, protos: Box<[Box<[WieJavaClassProto]>]>, implementation: T) -> JvmResult<Jvm>
+    where
+        T: JvmImplementation + Sync + Send + 'static,
+    {
+        let runtime = JvmRuntime {
+            system: system.clone(),
+            implementation: implementation.clone(),
+        };
 
-        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", jar_name)].into_iter().collect();
+        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", jar_name.unwrap_or(""))]
+            .into_iter()
+            .collect();
         let jvm = Jvm::new(
             java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
             move || runtime.current_task_id(),
@@ -171,9 +185,10 @@ impl JvmSupport {
         let context = Box::new(WieJvmContext::new(system));
 
         for proto in protos.into_vec().into_iter().flat_map(|x| x.into_vec()) {
-            let class = Box::new(ClassDefinitionImpl::from_class_proto(proto, context.clone()));
+            let class = implementation.define_class_wie(&jvm, proto, context.clone()).await?;
 
             jvm.register_class(class, None).await?;
+            // TODO add class loader
         }
 
         Ok(jvm)
@@ -187,5 +202,35 @@ impl JvmSupport {
         } else {
             format!("{:?}", err)
         }
+    }
+}
+
+#[async_trait::async_trait]
+pub trait JvmImplementation: Clone {
+    async fn define_class_wie(&self, jvm: &Jvm, proto: WieJavaClassProto, context: Box<WieJvmContext>) -> JvmResult<Box<dyn ClassDefinition>>;
+    async fn define_class_rust(&self, jvm: &Jvm, proto: RuntimeClassProto, runtime: Box<dyn Runtime>) -> JvmResult<Box<dyn ClassDefinition>>;
+    async fn define_class_java(&self, jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>>;
+    async fn define_array_class(&self, jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>>;
+}
+
+#[derive(Clone)]
+pub struct RustJavaJvmImplementation;
+
+#[async_trait::async_trait]
+impl JvmImplementation for RustJavaJvmImplementation {
+    async fn define_class_wie(&self, _jvm: &Jvm, proto: WieJavaClassProto, context: Box<WieJvmContext>) -> JvmResult<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ClassDefinitionImpl::from_class_proto(proto, context)))
+    }
+
+    async fn define_class_rust(&self, _jvm: &Jvm, proto: RuntimeClassProto, runtime: Box<dyn Runtime>) -> JvmResult<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ClassDefinitionImpl::from_class_proto(proto, runtime)))
+    }
+
+    async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
+        ClassDefinitionImpl::from_classfile(data).map(|x| Box::new(x) as Box<_>)
+    }
+
+    async fn define_array_class(&self, _jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
+        Ok(Box::new(ArrayClassDefinitionImpl::new(element_type_name)))
     }
 }

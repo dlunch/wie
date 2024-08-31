@@ -4,28 +4,25 @@ mod class_definition;
 mod class_instance;
 mod classes;
 mod field;
+mod jvm_implementation;
 mod method;
 mod name;
 mod value;
 mod vtable_builder;
 
 use alloc::boxed::Box;
-use core::{iter, mem::size_of};
+use core::mem::size_of;
+use jvm_implementation::KtfJvmImplementation;
 
 use bytemuck::{Pod, Zeroable};
 
-use java_runtime::{
-    classes::java::util::{jar::JarEntry, Enumeration},
-    Runtime,
-};
+use java_runtime::classes::java::util::{jar::JarEntry, Enumeration};
 use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, ClassInstanceRef, Jvm};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_jvm_support::WieJvmContext;
+use wie_jvm_support::JvmSupport;
 use wie_util::{read_generic, read_null_terminated_table, write_generic};
-
-use crate::runtime::java::runtime::KtfRuntime;
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -104,28 +101,8 @@ impl KtfJvmSupport {
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
-        let runtime = KtfRuntime::new(core, system);
-        let properties = [("file.encoding", "EUC-KR")].into_iter();
-
-        let properties = if let Some(x) = jar_name {
-            properties.chain(iter::once(("java.class.path", x))).collect()
-        } else {
-            properties.collect()
-        };
-
-        let jvm = Jvm::new(
-            java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
-            move || runtime.current_task_id(),
-            properties,
-        )
-        .await?;
-
-        let context = Box::new(WieJvmContext::new(system));
-
-        for proto in wie_wipi_java::get_protos() {
-            let class = Box::new(JavaClassDefinition::new(core, &jvm, proto, context.clone()).await?);
-            jvm.register_class(class, None).await?;
-        }
+        let protos = [wie_wipi_java::get_protos().into()];
+        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), KtfJvmImplementation::new(core.clone())).await?;
 
         #[derive(Clone)]
         struct ClassLoaderContext {
