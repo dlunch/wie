@@ -10,10 +10,9 @@ use java_runtime::classes::java::lang::String;
 
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
-use crate::{
-    classes::org::kwis::msp::lcdui::{Display, Font, Image},
-    context::{WIPIJavaClassProto, WIPIJavaContext},
-};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+use crate::classes::org::kwis::msp::lcdui::{Display, Font, Image};
 
 bitflags::bitflags! {
     struct Anchor: i32 {
@@ -42,8 +41,8 @@ impl TypeConverter<Anchor> for Anchor {
 pub struct Graphics {}
 
 impl Graphics {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/lcdui/Graphics",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -80,7 +79,7 @@ impl Graphics {
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, display: ClassInstanceRef<Display>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, display: ClassInstanceRef<Display>) -> JvmResult<()> {
         let log = format!("org.kwis.msp.lcdui.Graphics::<init>({:?}, {:?})", &this, &display);
         tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
@@ -96,7 +95,7 @@ impl Graphics {
     #[allow(clippy::too_many_arguments)]
     async fn init_with_image(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         image: ClassInstanceRef<Image>,
         a0: i32,
@@ -121,7 +120,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_font(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Font>> {
+    async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Font>> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getFont({:?})", &this);
 
         let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
@@ -129,7 +128,7 @@ impl Graphics {
         Ok(instance.into())
     }
 
-    async fn set_color(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
+    async fn set_color(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
 
         jvm.put_field(&mut this, "rgb", "I", rgb).await?;
@@ -137,7 +136,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_color_by_rgb(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Graphics>, r: i32, g: i32, b: i32) -> JvmResult<()> {
+    async fn set_color_by_rgb(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, r: i32, g: i32, b: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({:?}, {}, {}, {})", &this, r, g, b);
 
         let rgb = (r << 16) | (g << 8) | b;
@@ -147,19 +146,19 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_font(_jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
+    async fn set_font(_jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setFont({:?}, {:?})", &this, &font);
 
         Ok(())
     }
 
-    async fn set_alpha(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>, a1: i32) -> JvmResult<()> {
+    async fn set_alpha(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, a1: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", &this, a1);
 
         Ok(())
     }
 
-    async fn set_clip(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
+    async fn set_clip(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Graphics::setClip({:?}, {}, {}, {}, {})",
             &this,
@@ -172,7 +171,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn clip_rect(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
+    async fn clip_rect(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::warn!(
             "stub org.kwis.msp.lcdui.Graphics::clipRect({:?}, {}, {}, {}, {})",
             &this,
@@ -185,15 +184,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn fill_rect(
-        jvm: &Jvm,
-        _: &mut WIPIJavaContext,
-        mut this: ClassInstanceRef<Self>,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> JvmResult<()> {
+    async fn fill_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
         let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
@@ -208,15 +199,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn draw_rect(
-        jvm: &Jvm,
-        _: &mut WIPIJavaContext,
-        mut this: ClassInstanceRef<Self>,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> JvmResult<()> {
+    async fn draw_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
         let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
@@ -233,7 +216,7 @@ impl Graphics {
 
     async fn draw_string(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         string: ClassInstanceRef<String>,
         x: i32,
@@ -269,7 +252,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn draw_line(jvm: &Jvm, _: &mut WIPIJavaContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
+    async fn draw_line(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
         let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
@@ -286,7 +269,7 @@ impl Graphics {
 
     async fn draw_image(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         img: ClassInstanceRef<Image>,
         x: i32,
@@ -333,19 +316,19 @@ impl Graphics {
         Ok(())
     }
 
-    async fn get_clip_x(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+    async fn get_clip_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipX({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_clip_y(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+    async fn get_clip_y(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipY({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_clip_width(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+    async fn get_clip_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipWidth({:?})", &this);
 
         let w: i32 = jvm.get_field(&this, "w", "I").await?;
@@ -353,7 +336,7 @@ impl Graphics {
         Ok(w)
     }
 
-    async fn get_clip_height(jvm: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+    async fn get_clip_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getClipHeight({:?})", &this);
 
         let h: i32 = jvm.get_field(&this, "h", "I").await?;
@@ -361,19 +344,19 @@ impl Graphics {
         Ok(h)
     }
 
-    async fn get_translate_x(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+    async fn get_translate_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateX({:?})", &this);
 
         Ok(0)
     }
 
-    async fn get_translate_y(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+    async fn get_translate_y(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getTranslateY({:?})", &this);
 
         Ok(0)
     }
 
-    async fn translate(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
+    async fn translate(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
 
         Ok(())
@@ -382,7 +365,7 @@ impl Graphics {
     #[allow(clippy::too_many_arguments)]
     async fn set_rgb_pixels(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Graphics>,
         x: i32,
         y: i32,
@@ -446,53 +429,42 @@ impl Graphics {
 #[cfg(test)]
 mod test {
     use alloc::boxed::Box;
-    use core::future::ready;
-    use wie_backend::System;
 
     use jvm::{ClassInstanceRef, Result as JvmResult};
-    use jvm_rust::ClassDefinitionImpl;
 
-    use test_utils::{test_jvm, TestPlatform};
+    use test_utils::run_jvm_test;
 
-    use crate::{classes::org::kwis::msp::lcdui::Image, context::WIPIJavaContext, register};
+    use crate::{classes::org::kwis::msp::lcdui::Image, get_protos};
 
-    #[futures_test::test]
-    async fn test_graphics() -> JvmResult<()> {
-        let jvm = test_jvm().await?;
+    #[test]
+    fn test_graphics() -> JvmResult<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let image: ClassInstanceRef<Image> = jvm
+                .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (100, 100))
+                .await?;
 
-        let system = System::new(Box::new(TestPlatform), "");
-        let context = WIPIJavaContext::new(&system);
+            let graphics = jvm
+                .new_class(
+                    "org/kwis/msp/lcdui/Graphics",
+                    "(Lorg/kwis/msp/lcdui/Image;IIII)V",
+                    (image.clone(), 0, 0, 100, 100),
+                )
+                .await?;
 
-        register(&jvm, move |proto| {
-            ready(Box::new(ClassDefinitionImpl::from_class_proto(proto, Box::new(context.clone()))) as Box<_>)
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x00ff00,)).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+
+            let image = Image::image(&jvm, &image).await?;
+
+            assert_eq!(image.width(), 100);
+            assert_eq!(image.height(), 100);
+
+            assert_eq!(image.raw()[0], 0);
+            assert_eq!(image.raw()[1], 255);
+            assert_eq!(image.raw()[2], 0);
+
+            Ok(())
         })
-        .await?;
-
-        let image: ClassInstanceRef<Image> = jvm
-            .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (100, 100))
-            .await?;
-
-        let graphics = jvm
-            .new_class(
-                "org/kwis/msp/lcdui/Graphics",
-                "(Lorg/kwis/msp/lcdui/Image;IIII)V",
-                (image.clone(), 0, 0, 100, 100),
-            )
-            .await?;
-
-        let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x00ff00,)).await?;
-
-        let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
-
-        let image = Image::image(&jvm, &image).await?;
-
-        assert_eq!(image.width(), 100);
-        assert_eq!(image.height(), 100);
-
-        assert_eq!(image.raw()[0], 0);
-        assert_eq!(image.raw()[1], 255);
-        assert_eq!(image.raw()[2], 0);
-
-        Ok(())
     }
 }

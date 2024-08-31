@@ -5,14 +5,14 @@ use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
-use crate::context::{WIPIJavaClassProto, WIPIJavaContext};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.handset.HandsetProperty
 pub struct HandsetProperty {}
 
 impl HandsetProperty {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/handset/HandsetProperty",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -26,7 +26,7 @@ impl HandsetProperty {
         }
     }
 
-    async fn get_system_property(jvm: &Jvm, _: &mut WIPIJavaContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<String>> {
+    async fn get_system_property(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<String>> {
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 

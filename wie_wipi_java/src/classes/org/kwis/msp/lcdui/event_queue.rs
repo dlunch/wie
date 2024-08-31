@@ -4,11 +4,9 @@ use java_class_proto::JavaMethodProto;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::{Event, KeyCode};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::{
-    classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet},
-    context::{WIPIJavaClassProto, WIPIJavaContext},
-};
+use crate::classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet};
 
 #[repr(i32)]
 enum EventQueueEvent {
@@ -89,8 +87,8 @@ impl WIPIKeyCode {
 pub struct EventQueue {}
 
 impl EventQueue {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/lcdui/EventQueue",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -103,7 +101,7 @@ impl EventQueue {
         }
     }
 
-    async fn init(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
+    async fn init(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
 
         Ok(())
@@ -111,7 +109,7 @@ impl EventQueue {
 
     async fn get_next_event(
         jvm: &Jvm,
-        context: &mut WIPIJavaContext,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
@@ -151,7 +149,7 @@ impl EventQueue {
 
     async fn dispatch_event(
         jvm: &Jvm,
-        context: &mut WIPIJavaContext,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
@@ -191,7 +189,7 @@ impl EventQueue {
         Ok(())
     }
 
-    async fn repaint(jvm: &Jvm, context: &mut WIPIJavaContext) -> JvmResult<()> {
+    async fn repaint(jvm: &Jvm, context: &mut WieJvmContext) -> JvmResult<()> {
         let display = Self::get_current_display(jvm).await?;
         if display.is_null() {
             return Ok(());

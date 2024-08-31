@@ -1,13 +1,13 @@
 use alloc::vec;
 
-use crate::context::WIPIJavaClassProto;
+use wie_jvm_support::WieJavaClassProto;
 
 // class org.kwis.msp.db.DataBaseRecordException
 pub struct DataBaseRecordException {}
 
 impl DataBaseRecordException {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/db/DataBaseRecordException",
             parent_class: Some("java/lang/Exception"),
             interfaces: vec![],

@@ -22,8 +22,8 @@ use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, ClassInstance
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::WieJvmContext;
 use wie_util::{read_generic, read_null_terminated_table, write_generic};
-use wie_wipi_java::WIPIJavaContext;
 
 use crate::runtime::java::runtime::KtfRuntime;
 
@@ -120,23 +120,12 @@ impl KtfJvmSupport {
         )
         .await?;
 
-        let context = WIPIJavaContext::new(system);
-        let core_clone = core.clone();
-        let jvm_clone = jvm.clone();
-        wie_wipi_java::register(&jvm, move |proto| {
-            let mut core_clone = core_clone.clone();
-            let jvm_clone = jvm_clone.clone();
-            let context = context.clone();
+        let context = Box::new(WieJvmContext::new(system));
 
-            async move {
-                Box::new(
-                    JavaClassDefinition::new(&mut core_clone, &jvm_clone, proto, Box::new(context) as Box<_>)
-                        .await
-                        .unwrap(),
-                ) as Box<_>
-            }
-        })
-        .await?;
+        for proto in wie_wipi_java::get_protos() {
+            let class = Box::new(JavaClassDefinition::new(core, &jvm, proto, context.clone()).await?);
+            jvm.register_class(class, None).await?;
+        }
 
         #[derive(Clone)]
         struct ClassLoaderContext {

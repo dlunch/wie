@@ -6,17 +6,16 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
 use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
-use crate::{
-    classes::org::kwis::msp::media::PlayListener,
-    context::{WIPIJavaClassProto, WIPIJavaContext},
-};
+use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+use crate::classes::org::kwis::msp::media::PlayListener;
 
 // class org.kwis.msp.media.Clip
 pub struct Clip {}
 
 impl Clip {
-    pub fn as_proto() -> WIPIJavaClassProto {
-        WIPIJavaClassProto {
+    pub fn as_proto() -> WieJavaClassProto {
+        WieJavaClassProto {
             name: "org/kwis/msp/media/Clip",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
@@ -37,7 +36,7 @@ impl Clip {
 
     async fn init(
         jvm: &Jvm,
-        context: &mut WIPIJavaContext,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
         resource_name: ClassInstanceRef<String>,
@@ -69,7 +68,7 @@ impl Clip {
 
     async fn init_with_data(
         jvm: &Jvm,
-        _: &mut WIPIJavaContext,
+        _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
         data: ClassInstanceRef<Array<i8>>,
@@ -83,13 +82,13 @@ impl Clip {
         Ok(())
     }
 
-    async fn set_volume(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Clip>, level: i32) -> JvmResult<()> {
+    async fn set_volume(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Clip>, level: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", &this, level);
 
         Ok(())
     }
 
-    async fn set_listener(_: &Jvm, _: &mut WIPIJavaContext, this: ClassInstanceRef<Self>, listener: ClassInstanceRef<PlayListener>) -> JvmResult<()> {
+    async fn set_listener(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, listener: ClassInstanceRef<PlayListener>) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.media.Clip::setListener({:?}, {:?})", &this, &listener);
 
         Ok(())

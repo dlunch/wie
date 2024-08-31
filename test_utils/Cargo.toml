@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 async-trait = { workspace = true }
 
 java_class_proto = { workspace = true }
@@ -13,3 +14,4 @@ jvm = { workspace = true }
 jvm_rust = { workspace = true }
 
 wie_backend = { workspace = true }
+wie_jvm_support = { workspace = true }

@@ -6,11 +6,11 @@ use jvm::{JavaError, Jvm, Result as JvmResult};
 use wie_backend::{AsyncCallable, System};
 
 #[derive(Clone)]
-pub struct WIPIJavaContext {
+pub struct WieJvmContext {
     system: System,
 }
 
-impl WIPIJavaContext {
+impl WieJvmContext {
     pub fn new(system: &System) -> Self {
         Self { system: system.clone() }
     }
@@ -19,17 +19,17 @@ impl WIPIJavaContext {
         &mut self.system
     }
 
-    pub fn spawn(&mut self, jvm: &Jvm, callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>) -> JvmResult<()> {
+    pub fn spawn(&mut self, jvm: &Jvm, callback: Box<dyn MethodBody<JavaError, WieJvmContext>>) -> JvmResult<()> {
         struct SpawnProxy {
             jvm: Jvm,
             system: System,
-            callback: Box<dyn MethodBody<JavaError, WIPIJavaContext>>,
+            callback: Box<dyn MethodBody<JavaError, WieJvmContext>>,
         }
 
         #[async_trait::async_trait]
         impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, JavaError> {
-                let mut context = WIPIJavaContext { system: self.system };
+                let mut context = WieJvmContext { system: self.system };
                 let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;
 
                 Ok(0) // TODO return value
@@ -46,4 +46,4 @@ impl WIPIJavaContext {
     }
 }
 
-pub(crate) type WIPIJavaClassProto = JavaClassProto<WIPIJavaContext>;
+pub type WieJavaClassProto = JavaClassProto<WieJvmContext>;

@@ -2244,12 +2244,14 @@ dependencies = [
 name = "test_utils"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "async-trait",
  "java_class_proto",
  "java_runtime",
  "jvm",
  "jvm_rust",
  "wie_backend",
+ "wie_jvm_support",
 ]
 
 [[package]]
@@ -2729,6 +2731,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_jvm_support",
+ "wie_midp",
 ]
 
 [[package]]
@@ -2743,9 +2746,6 @@ dependencies = [
  "jvm_rust",
  "tracing",
  "wie_backend",
- "wie_midp",
- "wie_skvm",
- "wie_wipi_java",
 ]
 
 [[package]]
@@ -2767,6 +2767,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_core_arm",
+ "wie_jvm_support",
  "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
@@ -2804,6 +2805,7 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
+ "wie_jvm_support",
 ]
 
 [[package]]
@@ -2817,6 +2819,9 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_jvm_support",
+ "wie_midp",
+ "wie_skvm",
+ "wie_wipi_java",
 ]
 
 [[package]]
@@ -2836,6 +2841,7 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
+ "wie_jvm_support",
 ]
 
 [[package]]
@@ -2876,6 +2882,7 @@ dependencies = [
  "test_utils",
  "tracing",
  "wie_backend",
+ "wie_jvm_support",
 ]
 
 [[package]]

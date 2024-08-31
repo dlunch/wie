@@ -12,5 +12,8 @@ tracing = { workspace = true }
 
 wie_backend = { workspace = true }
 wie_jvm_support = { workspace = true }
+wie_midp = { workspace = true }
+wie_skvm = { workspace = true }
+wie_wipi_java = { workspace = true }
 
 jvm = { workspace = true }
