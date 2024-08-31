@@ -10,7 +10,7 @@ use alloc::{
 use jvm::Result as JvmResult;
 
 use wie_backend::{Emulator, Event, Platform, System};
-use wie_jvm_support::JvmSupport;
+use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 
 pub struct SktEmulator {
     system: System,
@@ -76,7 +76,7 @@ impl SktEmulator {
             wie_skvm::get_protos().into(),
             wie_wipi_java::get_protos().into(),
         ];
-        let jvm = JvmSupport::new_jvm(system, &jar_filename, Box::new(protos)).await?;
+        let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), RustJavaJvmImplementation).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
             x
