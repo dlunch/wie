@@ -143,16 +143,7 @@ async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> WIPICRes
 async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size: WIPICWord) -> WIPICResult<i32> {
     tracing::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
 
-    // strip path
-    let data_len = {
-        let filesystem = context.system().filesystem();
-        let data = filesystem.read(&name);
-        if data.is_none() {
-            return Ok(-1);
-        }
-
-        data.unwrap().len()
-    };
+    let size = context.get_resource_size(&name).await?; // TODO error handling
 
     // TODO it leaks handle every time.. should we assign id for every file?
     let name_bytes = name.as_bytes();
@@ -161,7 +152,7 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
 
     let ptr_handle = context.alloc_raw(size_of::<ResourceHandle>() as _)?;
     write_generic(context, ptr_handle, handle)?;
-    write_generic(context, ptr_size, data_len)?;
+    write_generic(context, ptr_size, size)?;
 
     Ok(ptr_handle as _)
 }
@@ -173,15 +164,13 @@ async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICM
     let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
     let name = str::from_utf8(&handle.name[..name_length]).unwrap();
 
-    let system_clone = context.system().clone();
-    let filesystem = system_clone.filesystem();
-    let data = filesystem.read(name).unwrap();
+    let data = context.read_resource(name).await?;
 
     if data.len() as u32 > buf_size {
         return Ok(-1);
     }
 
-    context.write_bytes(context.data_ptr(buf)?, data)?;
+    context.write_bytes(context.data_ptr(buf)?, &data)?;
 
     Ok(0)
 }

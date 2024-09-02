@@ -56,6 +56,14 @@ impl WIPICContext for TestContext {
     fn spawn(&mut self, _callback: WIPICMethodBody) -> WIPICResult<()> {
         todo!()
     }
+
+    async fn get_resource_size(&self, _name: &str) -> WIPICResult<usize> {
+        todo!()
+    }
+
+    async fn read_resource(&self, _name: &str) -> WIPICResult<Vec<u8>> {
+        todo!()
+    }
 }
 
 impl ByteWrite for TestContext {

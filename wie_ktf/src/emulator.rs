@@ -66,8 +66,6 @@ impl KtfEmulator {
         let mut core = ArmCore::new()?;
         let mut system = System::new(platform, id);
 
-        system.filesystem().mount_zip(files.get(jar_filename).unwrap()); // TODO implement resource loading to load from java classloader
-
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
             system.filesystem().add(path, data.clone());

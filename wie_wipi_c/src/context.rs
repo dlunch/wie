@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use wie_backend::System;
 use wie_util::{read_null_terminated_string, ByteRead, ByteWrite};
@@ -16,6 +16,8 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send {
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord>;
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()>;
+    async fn get_resource_size(&self, name: &str) -> WIPICResult<usize>;
+    async fn read_resource(&self, name: &str) -> WIPICResult<Vec<u8>>;
 }
 
 impl TypeConverter<WIPICWord> for WIPICWord {

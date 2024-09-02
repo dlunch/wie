@@ -191,7 +191,7 @@ async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), r#
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core, system),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm),
         "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm),
         _ => {
             tracing::warn!("Unknown {}", r#struct);
