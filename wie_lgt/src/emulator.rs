@@ -46,10 +46,10 @@ impl LgtEmulator {
 
     fn load(
         platform: Box<dyn Platform>,
-        jar_filename: &str,
+        _jar_filename: &str,
         id: &str,
         main_class_name: Option<String>,
-        files: &BTreeMap<String, Vec<u8>>,
+        _files: &BTreeMap<String, Vec<u8>>,
     ) -> anyhow::Result<Self> {
         let mut core = ArmCore::new()?;
         let mut system = System::new(platform, id);
