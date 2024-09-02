@@ -54,8 +54,6 @@ impl LgtEmulator {
         let mut core = ArmCore::new()?;
         let mut system = System::new(platform, id);
 
-        system.filesystem().mount_zip(files.get(jar_filename).unwrap()); // TODO
-
         Allocator::init(&mut core)?;
 
         let entrypoint = {
