@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::mem::size_of;
+use jvm::Jvm;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -53,10 +54,10 @@ fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) 
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System) -> ArmCoreResult<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm) -> ArmCoreResult<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
-    let mut context = KtfWIPICContext::new(core, system);
+    let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone());
     let address = write_methods(&mut context, kernel_methods).unwrap();
 
     Ok(address)
