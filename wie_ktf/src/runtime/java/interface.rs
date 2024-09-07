@@ -112,7 +112,7 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Ru
         return Ok(());
     }
 
-    jvm.register_class(Box::new(class), None).await?;
+    jvm.register_class(Box::new(class), Some(KtfJvmSupport::class_loader(core)?)).await?;
 
     Ok(())
 }

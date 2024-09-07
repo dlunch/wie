@@ -71,6 +71,7 @@ struct KtfJvmContext {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
+    class_loader: u32,
 }
 
 const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
@@ -97,6 +98,7 @@ impl KtfJvmSupport {
 
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
+            class_loader: 0,
         };
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
@@ -169,7 +171,19 @@ impl KtfJvmSupport {
             )
             .await?;
 
+        let context_data = KtfJvmSupportContext {
+            ptr_vtables_base: ptr_jvm_context + 12,
+            class_loader: KtfJvmSupport::class_instance_raw(&class_loader),
+        };
+        write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
+
         Ok((jvm, class_loader))
+    }
+
+    pub fn class_loader(core: &ArmCore) -> JvmSupportResult<Box<dyn ClassInstance>> {
+        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+
+        Ok(Box::new(JavaClassInstance::from_raw(context_data.class_loader, core)))
     }
 
     pub fn class_definition_raw(definition: &dyn ClassDefinition) -> JvmSupportResult<u32> {
