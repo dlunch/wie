@@ -1,14 +1,14 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use core::iter;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto, MethodBody};
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::{Object, Runnable, String};
-use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener};
+use crate::classes::org::kwis::msp::lcdui::{Card, EventQueue, Jlet, JletEventListener};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display {}
@@ -181,32 +181,18 @@ impl Display {
         Ok(height)
     }
 
-    async fn call_serially(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JvmResult<()> {
+    async fn call_serially(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({:?}, {:?})", &this, &r);
 
-        // TODO this method have to queue runnable in event queue, but for now we'll spawn new task
+        let jlet = jvm
+            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
+            .await?;
 
-        struct SpawnProxy {
-            runnable: ClassInstanceRef<Runnable>,
-        }
+        let event_queue = jvm
+            .invoke_virtual(&jlet, "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
+            .await?;
 
-        #[async_trait::async_trait]
-        impl MethodBody<JavaError, WieJvmContext> for SpawnProxy {
-            async fn call(&self, jvm: &Jvm, context: &mut WieJvmContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
-                jvm.attach_thread().await?;
-
-                let until = context.system().platform().now() + 16; // TODO
-                context.system().sleep(until).await;
-
-                let _: () = jvm.invoke_virtual(&self.runnable, "run", "()V", ()).await?;
-
-                jvm.detach_thread().await?;
-
-                Ok(JavaValue::Void)
-            }
-        }
-
-        context.spawn(jvm, Box::new(SpawnProxy { runnable: r }))?;
+        EventQueue::enqueue_call_serially_event(jvm, &event_queue, r).await?;
 
         Ok(())
     }

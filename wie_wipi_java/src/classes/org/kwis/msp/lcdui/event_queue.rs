@@ -1,6 +1,7 @@
 use alloc::{vec, vec::Vec};
 
-use java_class_proto::JavaMethodProto;
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_runtime::classes::java::lang::Runnable;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::{Event, KeyCode};
@@ -97,12 +98,16 @@ impl EventQueue {
                 JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, Default::default()),
                 JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", Default::default())], // TODO: there must be elegant solution
         }
     }
 
-    async fn init(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
+
+        let call_serially_events = jvm.new_class("java/util/Vector", "()V", ()).await?;
+        jvm.put_field(&mut this, "callSeriallyEvents", "Ljava/util/Vector;", call_serially_events)
+            .await?;
 
         Ok(())
     }
@@ -115,7 +120,13 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
+        let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
         loop {
+            if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
+                let event: ClassInstanceRef<Runnable> = jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
+                jvm.invoke_virtual(&event, "run", "()V", ()).await?;
+            }
+
             let maybe_event = context.system().event_queue().pop();
 
             if let Some(x) = maybe_event {
@@ -246,5 +257,11 @@ impl EventQueue {
         } else {
             Ok(None.into())
         }
+    }
+
+    pub async fn enqueue_call_serially_event(jvm: &Jvm, this: &ClassInstanceRef<Self>, event: ClassInstanceRef<Runnable>) -> JvmResult<()> {
+        let call_serially_events = jvm.get_field(this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
+        jvm.invoke_virtual(&call_serially_events, "addElement", "(Ljava/lang/Object;)V", [event.into()])
+            .await
     }
 }
