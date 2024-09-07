@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::boxed::Box;
 use core::{array, ops::Range};
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
@@ -59,10 +59,8 @@ impl ArmEngine for Armv4tEmuEngine {
         Ok(())
     }
 
-    fn mem_read(&mut self, address: u32, size: usize) -> ArmCoreResult<Vec<u8>> {
-        let result = self.mem.read_range(address, size);
-
-        Ok(result)
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> ArmCoreResult<usize> {
+        Ok(self.mem.read_range(address, size, result))
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
@@ -121,8 +119,7 @@ impl Armv4tEmuMemory {
         }
     }
 
-    fn read_range(&self, address: u32, size: usize) -> Vec<u8> {
-        let mut result = Vec::with_capacity(size);
+    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> usize {
         let mut remaining_size = size;
         let mut current_address = address;
 
@@ -132,12 +129,13 @@ impl Armv4tEmuMemory {
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(remaining_size);
 
-            result.extend_from_slice(&page_data.lock()[offset..offset + available_bytes]);
+            result[size - remaining_size..size - remaining_size + available_bytes]
+                .copy_from_slice(&page_data.lock()[offset..offset + available_bytes]);
             remaining_size -= available_bytes;
             current_address += available_bytes as u32;
         }
 
-        result
+        size
     }
 
     fn write_range(&mut self, address: u32, data: &[u8]) {
@@ -243,7 +241,6 @@ impl Memory for Armv4tEmuMemory {
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
     use armv4t_emu::Memory;
 
     use super::Armv4tEmuMemory;
@@ -258,13 +255,14 @@ mod tests {
 
         memory.write_range(0x10000, &[123; 0x1000]);
 
-        let data = memory.read_range(0x10000, 0x1000);
-        assert_eq!(data, vec![123; 0x1000]);
+        let mut buf = [0; 0x1000];
+        memory.read_range(0x10000, 0x1000, &mut buf);
+        assert_eq!(buf, [123; 0x1000]);
 
         memory.write_range(0x10900, &[100; 0x1000]);
 
-        let data = memory.read_range(0x10900, 0x1000);
-        assert_eq!(data, vec![100; 0x1000]);
+        memory.read_range(0x10900, 0x1000, &mut buf);
+        assert_eq!(buf, [100; 0x1000]);
 
         let r8 = memory.r8(0x10000);
         assert_eq!(r8, 123);
@@ -295,7 +293,8 @@ mod tests {
 
         memory.map(0x10000, 0x10000);
 
-        memory.read_range(0x1f500, 0x1000);
+        let mut buf = [0; 0x1000];
+        memory.read_range(0x1f500, 0x1000, &mut buf);
     }
 
     #[test]

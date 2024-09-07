@@ -4,7 +4,7 @@ extern crate alloc;
 use alloc::{string::String, vec::Vec};
 use core::{mem::size_of, result};
 
-use bytemuck::{bytes_of, from_bytes, AnyBitPattern, NoUninit};
+use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
 
 pub fn round_up(num_to_round: usize, multiple: usize) -> usize {
     if multiple == 0 {
@@ -33,7 +33,7 @@ impl From<ByteReadWriteError> for anyhow::Error {
 pub type Result<T> = result::Result<T, ByteReadWriteError>;
 
 pub trait ByteRead {
-    fn read_bytes(&self, address: u32, size: u32) -> Result<Vec<u8>>;
+    fn read_bytes(&self, address: u32, size: u32, result: &mut [u8]) -> Result<usize>;
 }
 
 pub trait ByteWrite {
@@ -42,12 +42,17 @@ pub trait ByteWrite {
 
 pub fn read_generic<T, R>(reader: &R, address: u32) -> Result<T>
 where
-    T: Copy + AnyBitPattern,
+    T: Copy + AnyBitPattern + NoUninit,
     R: ?Sized + ByteRead,
 {
-    let data = reader.read_bytes(address, size_of::<T>() as u32)?;
+    unsafe {
+        #[allow(clippy::uninit_assumed_init)] // XXX
+        let destination = &mut core::mem::MaybeUninit::<T>::uninit().assume_init();
 
-    Ok(*from_bytes(&data))
+        reader.read_bytes(address, size_of::<T>() as _, bytes_of_mut(destination))?;
+
+        Ok(*destination)
+    }
 }
 
 pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> Result<String>
@@ -59,7 +64,8 @@ where
     let mut result = Vec::new();
     let mut cursor = address;
     loop {
-        let item = reader.read_bytes(cursor, 1)?;
+        let mut item = [0u8; 1];
+        reader.read_bytes(cursor, 1, &mut item)?;
         cursor += 1;
 
         if item[0] == 0 {

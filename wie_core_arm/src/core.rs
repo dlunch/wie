@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc};
 use core::{fmt::Debug, mem::size_of};
 
 use spin::Mutex;
@@ -337,8 +337,9 @@ impl ArmCore {
                 break;
             }
 
-            let value = inner.engine.mem_read(address, size_of::<u32>())?;
-            let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
+            let mut value = [0; size_of::<u32>()];
+            inner.engine.mem_read(address, size_of::<u32>(), &mut value)?;
+            let value_u32 = u32::from_le_bytes(value);
 
             if value_u32 > 5 && Self::is_code_address(value_u32 - 4, image_base) {
                 call_stack += &Self::format_callstack_address(value_u32 - 5, image_base);
@@ -361,8 +362,9 @@ impl ArmCore {
                 break;
             }
 
-            let value = inner.engine.mem_read(address, size_of::<u32>())?;
-            let value_u32 = u32::from_le_bytes(value.try_into().unwrap());
+            let mut value = [0; size_of::<u32>()];
+            inner.engine.mem_read(address, size_of::<u32>(), &mut value)?;
+            let value_u32 = u32::from_le_bytes(value);
 
             result += &format!("SP+{:#x}: {:#x}\n", i * 4, value_u32);
         }
@@ -372,14 +374,14 @@ impl ArmCore {
 }
 
 impl ByteRead for ArmCore {
-    fn read_bytes(&self, address: u32, size: u32) -> wie_util::Result<Vec<u8>> {
+    fn read_bytes(&self, address: u32, size: u32, result: &mut [u8]) -> wie_util::Result<usize> {
         let mut inner = self.inner.lock();
 
-        let data = inner.engine.mem_read(address, size as usize)?;
+        let read = inner.engine.mem_read(address, size as usize, result)?;
 
         // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, data);
 
-        Ok(data)
+        Ok(read)
     }
 }
 

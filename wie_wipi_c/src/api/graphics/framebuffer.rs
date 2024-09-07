@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
 use bytemuck::{pod_collect_to_vec, Pod, Zeroable};
@@ -72,9 +72,11 @@ impl WIPICFramebuffer {
     }
 
     pub fn data(&self, context: &dyn WIPICContext) -> WIPICResult<Vec<u8>> {
-        let data = context.read_bytes(context.data_ptr(self.buf)?, self.width * self.height * self.bpp / 8)?;
+        let size = self.width * self.height * self.bpp / 8;
+        let mut buf = vec![0; size as _];
+        context.read_bytes(context.data_ptr(self.buf)?, size, &mut buf)?;
 
-        Ok(data)
+        Ok(buf)
     }
 
     pub fn image(&self, context: &mut dyn WIPICContext) -> WIPICResult<Box<dyn Image>> {
