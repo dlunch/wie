@@ -86,6 +86,10 @@ impl Allocator {
         let mut cursor = HEAP_BASE;
         loop {
             let header: AllocationHeader = read_generic(core, cursor).ok()?;
+            if header.size() == 0 {
+                panic!("Invalid header size");
+            }
+
             if !header.in_use() && header.size() >= request_size {
                 return Some(cursor);
             } else {
