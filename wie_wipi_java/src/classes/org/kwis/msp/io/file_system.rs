@@ -1,4 +1,4 @@
-use alloc::{format, vec};
+use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
@@ -39,14 +39,11 @@ impl FileSystem {
     }
 
     async fn exists(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::exists({:?})", &name);
+        tracing::debug!("org.kwis.msp.io.FileSystem::exists({:?})", &name);
 
         let filename = JavaLangString::to_rust_string(jvm, &name).await?;
 
-        // TODO temporary path only for ktf
-        let normalized_name = format!("P{}", filename);
-
-        let exists = context.system().filesystem().read(&normalized_name).is_some();
+        let exists = context.system().filesystem().read(&filename).is_some();
 
         Ok(exists)
     }
