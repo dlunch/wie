@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::fmt::{self, Debug, Formatter};
 
 use bytemuck::cast_vec;
@@ -43,11 +43,13 @@ impl JavaArrayClassInstance {
         let base_address = self.class_instance.field_address(4)?;
         let element_size = self.element_size()?;
 
-        let values_raw = self
-            .core
-            .read_bytes(base_address + (element_size * offset) as u32, (count * element_size) as _)?;
+        let size = count * element_size;
 
-        Ok(values_raw)
+        let mut result = vec![0; size as _];
+        self.core
+            .read_bytes(base_address + (element_size * offset) as u32, size as _, &mut result)?;
+
+        Ok(result)
     }
 
     pub fn store_array(&mut self, offset: usize, count: usize, values_raw: Vec<u8>) -> JvmSupportResult<()> {

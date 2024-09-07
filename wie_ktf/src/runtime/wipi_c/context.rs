@@ -137,8 +137,8 @@ impl WIPICContext for KtfWIPICContext {
 }
 
 impl ByteRead for KtfWIPICContext {
-    fn read_bytes(&self, address: WIPICWord, size: WIPICWord) -> wie_util::Result<Vec<u8>> {
-        self.core.read_bytes(address, size)
+    fn read_bytes(&self, address: WIPICWord, size: WIPICWord, result: &mut [u8]) -> wie_util::Result<usize> {
+        self.core.read_bytes(address, size, result)
     }
 }
 

@@ -1,4 +1,4 @@
-use alloc::string::ToString;
+use alloc::{string::ToString, vec};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -25,7 +25,9 @@ pub struct WIPICImage {
 impl WIPICImage {
     pub fn new(context: &mut dyn WIPICContext, buf: WIPICMemoryId, offset: WIPICWord, len: WIPICWord) -> WIPICResult<Self> {
         let ptr_image_data = context.data_ptr(buf)?;
-        let data = context.read_bytes(ptr_image_data + offset, len)?;
+
+        let mut data = vec![0; len as _];
+        context.read_bytes(ptr_image_data + offset, len, &mut data)?;
         let image = decode_image(&data).map_err(|x| WIPICError::BackendError(x.to_string()))?;
 
         let img_framebuffer = WIPICFramebuffer::from_image(context, &*image)?;
