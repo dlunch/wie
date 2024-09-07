@@ -4,7 +4,7 @@ use bytemuck::cast_vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaIoInputStream, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -36,19 +36,23 @@ impl Clip {
 
     async fn init(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
         resource_name: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
 
-        let resource_name = JavaLangString::to_rust_string(jvm, &resource_name).await?;
-
-        let data = {
-            let filesystem = context.system().filesystem();
-            filesystem.read(&resource_name).unwrap().to_vec() // TODO exception
-        };
+        let class = jvm.invoke_virtual(&r#type, "getClass", "()Ljava/lang/Class;", ()).await?;
+        let resource_stream = jvm
+            .invoke_virtual(
+                &class,
+                "getResourceAsStream",
+                "(Ljava/lang/String;)Ljava/io/InputStream;",
+                (resource_name.clone(),),
+            )
+            .await?;
+        let data = JavaIoInputStream::read_until_end(jvm, &resource_stream).await?;
 
         let mut data_array = jvm.instantiate_array("B", data.len()).await?;
         jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
