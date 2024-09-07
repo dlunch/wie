@@ -124,7 +124,7 @@ impl EventQueue {
         loop {
             if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
                 let event: ClassInstanceRef<Runnable> = jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
-                jvm.invoke_virtual(&event, "run", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
             }
 
             let maybe_event = context.system().event_queue().pop();
