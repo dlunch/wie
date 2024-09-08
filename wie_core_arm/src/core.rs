@@ -3,7 +3,7 @@ use core::{fmt::Debug, mem::size_of};
 
 use spin::Mutex;
 
-use wie_util::{read_generic, round_up, ByteRead, ByteWrite};
+use wie_util::{read_generic, ByteRead, ByteWrite};
 
 use crate::{
     allocator::Allocator,
@@ -51,7 +51,7 @@ impl ArmCore {
 
         inner
             .engine
-            .mem_map(address, round_up(map_size, 0x1000), MemoryPermission::ReadWriteExecute);
+            .mem_map(address, map_size.next_multiple_of(0x1000), MemoryPermission::ReadWriteExecute);
         inner.engine.mem_write(address, data)?;
 
         Ok(())

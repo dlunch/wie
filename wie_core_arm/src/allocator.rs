@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_util::{read_generic, round_up, write_generic};
+use wie_util::{read_generic, write_generic};
 
 use crate::{
     core::{ArmCore, HEAP_BASE},
@@ -48,7 +48,7 @@ impl Allocator {
     }
 
     pub fn alloc(core: &mut ArmCore, size: u32) -> ArmCoreResult<u32> {
-        let alloc_size = round_up(size as usize + size_of::<AllocationHeader>(), 4) as u32;
+        let alloc_size = (size as usize + size_of::<AllocationHeader>()).next_multiple_of(4) as u32;
 
         let address = Self::find_address(core, alloc_size).unwrap();
 
