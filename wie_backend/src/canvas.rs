@@ -295,7 +295,7 @@ where
         let mut x = x1 as i32;
         let mut y = y1 as i32;
 
-        while x != x2 as i32 || y != y2 as i32 {
+        while x != x2 as i32 && y != y2 as i32 {
             self.blend_pixel(x as _, y as _, color);
 
             let e2 = 2 * err;
