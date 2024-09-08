@@ -169,7 +169,12 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await.unwrap();
+                let result = self
+                    .proto
+                    .body
+                    .call(&self.jvm, &mut context, args.into_boxed_slice())
+                    .await
+                    .map_err(|x| ArmCoreError::FunctionCallError(format!("{:?}", x)))?;
 
                 Ok(result.as_raw())
             }

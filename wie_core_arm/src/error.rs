@@ -5,6 +5,8 @@ use wie_util::ByteReadWriteError;
 pub enum ArmCoreError {
     InvalidMemoryAccess,
     FunctionCallError(String),
+    AllocationFailure,
+    FatalError(String),
     Other,
 }
 
