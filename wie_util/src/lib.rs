@@ -6,19 +6,6 @@ use core::{mem::size_of, result};
 
 use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
 
-pub fn round_up(num_to_round: usize, multiple: usize) -> usize {
-    if multiple == 0 {
-        return num_to_round;
-    }
-
-    let remainder = num_to_round % multiple;
-    if remainder == 0 {
-        num_to_round
-    } else {
-        num_to_round + multiple - remainder
-    }
-}
-
 #[derive(Debug)]
 pub enum ByteReadWriteError {
     InvalidAddress,
