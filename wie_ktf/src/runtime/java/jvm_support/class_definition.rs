@@ -179,17 +179,10 @@ impl JavaClassDefinition {
     }
 
     pub fn field_size(&self) -> JvmSupportResult<usize> {
-        let class_hierarchy = self.read_class_hierarchy()?;
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        Ok(class_hierarchy
-            .into_iter()
-            .map(|x| {
-                let raw: RawJavaClass = read_generic(&self.core, x.ptr_raw).unwrap();
-                let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor).unwrap();
-
-                descriptor.fields_size as usize
-            })
-            .sum())
+        Ok(descriptor.fields_size as _)
     }
 
     pub fn methods(&self) -> JvmSupportResult<Vec<JavaMethod>> {
