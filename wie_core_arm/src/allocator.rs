@@ -1,3 +1,4 @@
+use alloc::format;
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
@@ -6,7 +7,7 @@ use wie_util::{read_generic, write_generic};
 
 use crate::{
     core::{ArmCore, HEAP_BASE},
-    ArmCoreResult,
+    ArmCoreError, ArmCoreResult,
 };
 
 const HEAP_SIZE: u32 = 0x1000000;
@@ -50,7 +51,7 @@ impl Allocator {
     pub fn alloc(core: &mut ArmCore, size: u32) -> ArmCoreResult<u32> {
         let alloc_size = (size as usize + size_of::<AllocationHeader>()).next_multiple_of(4) as u32;
 
-        let address = Self::find_address(core, alloc_size).unwrap();
+        let address = Self::find_address(core, alloc_size)?;
 
         let previous_header: AllocationHeader = read_generic(core, address)?;
 
@@ -82,16 +83,16 @@ impl Allocator {
         Ok(())
     }
 
-    fn find_address(core: &ArmCore, request_size: u32) -> Option<u32> {
+    fn find_address(core: &ArmCore, request_size: u32) -> ArmCoreResult<u32> {
         let mut cursor = HEAP_BASE;
         loop {
-            let header: AllocationHeader = read_generic(core, cursor).ok()?;
+            let header: AllocationHeader = read_generic(core, cursor)?;
             if header.size() == 0 {
-                panic!("Invalid header size");
+                return Err(ArmCoreError::FatalError(format!("Invalid allocation header at {:#x}", cursor)));
             }
 
             if !header.in_use() && header.size() >= request_size {
-                return Some(cursor);
+                return Ok(cursor);
             } else {
                 cursor += header.size();
             }
@@ -101,7 +102,7 @@ impl Allocator {
             }
         }
 
-        None
+        Err(ArmCoreError::AllocationFailure)
     }
 }
 
