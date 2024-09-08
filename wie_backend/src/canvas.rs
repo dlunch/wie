@@ -282,6 +282,9 @@ where
     }
 
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
+        let x2 = if x1 == x2 { x2 + 1 } else { x2 };
+        let y2 = if y1 == y2 { y2 + 1 } else { y2 };
+
         // bresenham's line drawing
         let dx = (x2 as i32 - x1 as i32).abs();
         let dy = (y2 as i32 - y1 as i32).abs();
