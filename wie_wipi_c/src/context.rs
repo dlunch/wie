@@ -10,7 +10,7 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send {
     fn alloc_raw(&mut self, size: WIPICWord) -> WIPICResult<WIPICWord>;
     fn alloc(&mut self, size: WIPICWord) -> WIPICResult<WIPICMemoryId>;
     fn free(&mut self, memory: WIPICMemoryId) -> WIPICResult<()>;
-    fn free_raw(&mut self, address: WIPICWord) -> WIPICResult<()>;
+    fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> WIPICResult<()>;
     fn data_ptr(&self, memory: WIPICMemoryId) -> WIPICResult<WIPICWord>;
     fn register_function(&mut self, method: WIPICMethodBody) -> WIPICResult<WIPICWord>;
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord>;

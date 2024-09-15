@@ -52,11 +52,11 @@ impl JavaClassInstance {
         Ok(instance)
     }
 
-    pub fn destroy(mut self) -> JvmSupportResult<()> {
+    pub fn destroy(mut self, field_size: KtfJvmWord) -> JvmSupportResult<()> {
         let raw = self.read_raw()?;
 
-        Allocator::free(&mut self.core, raw.ptr_fields)?;
-        Allocator::free(&mut self.core, self.ptr_raw)?;
+        Allocator::free(&mut self.core, raw.ptr_fields, (field_size + 4) as _)?;
+        Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as _)?;
 
         Ok(())
     }
@@ -125,7 +125,9 @@ impl JavaClassInstance {
 #[async_trait::async_trait]
 impl ClassInstance for JavaClassInstance {
     fn destroy(self: Box<Self>) {
-        (*self).destroy().unwrap()
+        let field_size = self.class().unwrap().field_size().unwrap();
+
+        (*self).destroy(field_size as _).unwrap()
     }
 
     fn class_definition(&self) -> Box<dyn ClassDefinition> {

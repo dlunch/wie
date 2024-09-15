@@ -16,6 +16,7 @@ use crate::{
 const FUNCTIONS_BASE: u32 = 0x71000000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
+pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
@@ -130,7 +131,7 @@ impl ArmCore {
 
         let result = R::get(self);
 
-        Allocator::free(self, stack_base)?;
+        Allocator::free(self, stack_base, 0x1000)?;
         self.restore_context(&previous_context);
 
         Ok(result)

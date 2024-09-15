@@ -87,7 +87,9 @@ impl JavaArrayClassInstance {
 #[async_trait::async_trait]
 impl ArrayClassInstance for JavaArrayClassInstance {
     fn destroy(self: Box<Self>) {
-        self.class_instance.destroy().unwrap()
+        let field_size = self.element_size().unwrap() * self.array_length().unwrap() + 4;
+
+        self.class_instance.destroy(field_size as _).unwrap()
     }
 
     fn class_definition(&self) -> Box<dyn ClassDefinition> {

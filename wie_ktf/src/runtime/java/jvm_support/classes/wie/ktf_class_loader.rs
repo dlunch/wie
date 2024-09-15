@@ -119,7 +119,7 @@ impl KtfClassLoader {
         write_null_terminated_string(core, ptr_name, &name).unwrap();
 
         let ptr_raw = core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
-        Allocator::free(core, ptr_name).unwrap();
+        Allocator::free(core, ptr_name, 50).unwrap();
 
         if ptr_raw != 0 {
             let class = JavaClassDefinition::from_raw(ptr_raw, core);
