@@ -32,18 +32,20 @@ impl WIPICContext for KtfWIPICContext {
     fn alloc(&mut self, size: WIPICWord) -> WIPICResult<WIPICMemoryId> {
         let ptr = Allocator::alloc(&mut self.core, size + 12).unwrap(); // all allocation has indirect pointer
         write_generic(&mut self.core, ptr, ptr + 4)?;
+        write_generic(&mut self.core, ptr + 4, size)?;
 
         Ok(WIPICMemoryId(ptr))
     }
 
     fn free(&mut self, memory: WIPICMemoryId) -> WIPICResult<()> {
-        Allocator::free(&mut self.core, memory.0).unwrap();
+        let size = read_generic(&self.core, memory.0 + 4).unwrap();
+        Allocator::free(&mut self.core, memory.0, size).unwrap();
 
         Ok(())
     }
 
-    fn free_raw(&mut self, address: WIPICWord) -> WIPICResult<()> {
-        Allocator::free(&mut self.core, address).unwrap();
+    fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> WIPICResult<()> {
+        Allocator::free(&mut self.core, address, size).unwrap();
 
         Ok(())
     }

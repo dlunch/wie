@@ -115,7 +115,7 @@ impl JavaMethod {
             tracing::trace!("Calling native method: {:#x}", raw.fn_body_native_or_exception_table);
             let result = core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
 
-            Allocator::free(&mut core, arg_container)?;
+            Allocator::free(&mut core, arg_container, (args.len() as u32) * 4)?;
 
             Ok(result?)
         } else {

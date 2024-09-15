@@ -33,7 +33,7 @@ impl WIPICContext for TestContext {
         Ok(())
     }
 
-    fn free_raw(&mut self, _address: WIPICWord) -> WIPICResult<()> {
+    fn free_raw(&mut self, _address: WIPICWord, _size: WIPICWord) -> WIPICResult<()> {
         Ok(())
     }
 

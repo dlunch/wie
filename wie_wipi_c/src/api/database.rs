@@ -44,7 +44,7 @@ async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> WIPICResu
         return Ok(-25); // M_E_INVALIDHANDLE
     }
 
-    context.free_raw(db_id as _)?;
+    context.free_raw(db_id as _, size_of::<DatabaseHandle>() as _)?;
 
     Ok(0) // success
 }
