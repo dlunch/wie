@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use jvm::{
     runtime::{JavaIoInputStream, JavaLangClassLoader},
@@ -75,11 +75,10 @@ impl WIPICContext for KtfWIPICContext {
                 let a7 = u32::get(core, 7);
                 let a8 = u32::get(core, 8); // TODO create arg proxy
 
-                Ok(self
-                    .body
+                self.body
                     .call(&mut self.context.clone(), vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
                     .await
-                    .unwrap())
+                    .map_err(|e| ArmCoreError::FunctionCallError(format!("{:?}", e)))
             }
         }
 
