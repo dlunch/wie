@@ -1,23 +1,30 @@
-use alloc::boxed::Box;
-use core::{array, ops::Range};
+use alloc::{boxed::Box, sync::Arc};
+use core::{
+    array,
+    ops::Range,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
 use spin::Mutex;
 
-use wie_util::Result;
+use wie_util::{Result, WieError};
 
 use crate::engine::{ArmEngine, ArmRegister, MemoryPermission};
 
 pub struct Armv4tEmuEngine {
     cpu: Cpu,
     mem: Armv4tEmuMemory,
+    memory_error: Arc<AtomicBool>,
 }
 
 impl Armv4tEmuEngine {
     pub fn new() -> Self {
+        let memory_error = Arc::new(AtomicBool::new(false));
         Self {
             cpu: Cpu::new(),
-            mem: Armv4tEmuMemory::new(),
+            mem: Armv4tEmuMemory::new(memory_error.clone()),
+            memory_error,
         }
     }
 }
@@ -32,6 +39,10 @@ impl ArmEngine for Armv4tEmuEngine {
 
             self.cpu.step(&mut self.mem);
             count -= 1;
+
+            if self.memory_error.load(Ordering::SeqCst) {
+                return Err(WieError::InvalidMemoryAccess);
+            }
         }
     }
 
@@ -100,12 +111,14 @@ const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
 struct Armv4tEmuMemory {
     pages: [Option<Box<Mutex<[u8; PAGE_SIZE]>>>; TOTAL_MEMORY / PAGE_SIZE],
+    memory_error: Arc<AtomicBool>,
 }
 
 impl Armv4tEmuMemory {
-    fn new() -> Self {
+    fn new(memory_error: Arc<AtomicBool>) -> Self {
         Self {
             pages: array::from_fn(|_| None),
+            memory_error,
         }
     }
 
@@ -156,14 +169,15 @@ impl Armv4tEmuMemory {
         }
     }
 
-    fn get_page(&mut self, addr: u32) -> &Mutex<[u8; PAGE_SIZE]> {
+    fn get_page(&mut self, addr: u32) -> Option<&Mutex<[u8; PAGE_SIZE]>> {
         let page_address = addr & !PAGE_MASK;
         let page_data = self.pages[page_address as usize / PAGE_SIZE].as_mut();
 
         if let Some(x) = page_data {
-            x
+            Some(x)
         } else {
-            panic!("Access to unmapped address {:#x}", addr); // TODO can we propagate error?
+            self.memory_error.store(true, Ordering::SeqCst);
+            None
         }
     }
 
@@ -189,7 +203,12 @@ impl Memory for Armv4tEmuMemory {
     fn r8(&mut self, addr: u32) -> u8 {
         let offset = addr & PAGE_MASK;
 
-        let data = self.get_page(addr).lock();
+        let page = self.get_page(addr);
+        if page.is_none() {
+            return 0;
+        }
+
+        let data = page.unwrap().lock();
 
         data[offset as usize]
     }
@@ -197,7 +216,12 @@ impl Memory for Armv4tEmuMemory {
     fn r16(&mut self, addr: u32) -> u16 {
         let offset = addr & PAGE_MASK;
 
-        let data = self.get_page(addr).lock();
+        let page = self.get_page(addr);
+        if page.is_none() {
+            return 0;
+        }
+
+        let data = page.unwrap().lock();
 
         (data[offset as usize] as u16) | ((data[offset as usize + 1] as u16) << 8)
     }
@@ -205,7 +229,12 @@ impl Memory for Armv4tEmuMemory {
     fn r32(&mut self, addr: u32) -> u32 {
         let offset = addr & PAGE_MASK;
 
-        let data = self.get_page(addr).lock();
+        let page = self.get_page(addr);
+        if page.is_none() {
+            return 0;
+        }
+
+        let data = page.unwrap().lock();
         (data[offset as usize] as u32)
             | ((data[offset as usize + 1] as u32) << 8)
             | ((data[offset as usize + 2] as u32) << 16)
@@ -215,7 +244,12 @@ impl Memory for Armv4tEmuMemory {
     fn w8(&mut self, addr: u32, val: u8) {
         let offset = addr & PAGE_MASK;
 
-        let mut data = self.get_page(addr).lock();
+        let page = self.get_page(addr);
+        if page.is_none() {
+            return;
+        }
+
+        let mut data = page.unwrap().lock();
 
         data[offset as usize] = val;
     }
@@ -223,7 +257,12 @@ impl Memory for Armv4tEmuMemory {
     fn w16(&mut self, addr: u32, val: u16) {
         let offset = addr & PAGE_MASK;
 
-        let mut data = self.get_page(addr).lock();
+        let page = self.get_page(addr);
+        if page.is_none() {
+            return;
+        }
+
+        let mut data = page.unwrap().lock();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
@@ -232,7 +271,12 @@ impl Memory for Armv4tEmuMemory {
     fn w32(&mut self, addr: u32, val: u32) {
         let offset = addr & PAGE_MASK;
 
-        let mut data = self.get_page(addr).lock();
+        let page = self.get_page(addr);
+        if page.is_none() {
+            return;
+        }
+
+        let mut data = page.unwrap().lock();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
@@ -243,13 +287,15 @@ impl Memory for Armv4tEmuMemory {
 
 #[cfg(test)]
 mod tests {
+    use alloc::sync::Arc;
+
     use armv4t_emu::Memory;
 
     use super::Armv4tEmuMemory;
 
     #[test]
     fn test_memory_basic() {
-        let mut memory = Armv4tEmuMemory::new();
+        let mut memory = Armv4tEmuMemory::new(Arc::new(Default::default()));
 
         memory.map(0x10000, 0x1000);
         memory.map(0x11000, 0x1000);
@@ -291,7 +337,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_memory_unmapped_read() {
-        let mut memory = Armv4tEmuMemory::new();
+        let mut memory = Armv4tEmuMemory::new(Arc::new(Default::default()));
 
         memory.map(0x10000, 0x10000);
 
@@ -302,7 +348,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_memory_unmapped_write() {
-        let mut memory = Armv4tEmuMemory::new();
+        let mut memory = Armv4tEmuMemory::new(Arc::new(Default::default()));
 
         memory.map(0x10000, 0x10000);
 

@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::ToString};
+use alloc::boxed::Box;
 
 use java_class_proto::{JavaClassProto, MethodBody};
 use jvm::{JavaError, Jvm, Result as JvmResult};
@@ -31,11 +31,7 @@ impl WieJvmContext {
         impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, WieError> {
                 let mut context = WieJvmContext { system: self.system };
-                let _ = self
-                    .callback
-                    .call(&self.jvm, &mut context, Box::new([]))
-                    .await
-                    .map_err(|x| WieError::FatalError(x.to_string()));
+                let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;
 
                 Ok(0) // TODO return value
             }
