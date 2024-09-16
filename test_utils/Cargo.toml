@@ -15,3 +15,4 @@ jvm_rust = { workspace = true }
 wie_backend = { workspace = true }
 wie_jvm_support = { workspace = true }
 wie_util = { workspace = true }
+wie_wipi_c = { workspace = true }
