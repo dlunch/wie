@@ -24,3 +24,4 @@ futures-test = { workspace = true }
 jvm_rust = { workspace = true }
 
 test_utils = { workspace = true }
+wie_util = { workspace = true }

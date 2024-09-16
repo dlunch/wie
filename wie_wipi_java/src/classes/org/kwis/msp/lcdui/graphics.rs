@@ -430,14 +430,15 @@ impl Graphics {
 mod test {
     use alloc::boxed::Box;
 
-    use jvm::{ClassInstanceRef, Result as JvmResult};
+    use jvm::ClassInstanceRef;
 
     use test_utils::run_jvm_test;
+    use wie_util::Result;
 
     use crate::{classes::org::kwis::msp::lcdui::Image, get_protos};
 
     #[test]
-    fn test_graphics() -> JvmResult<()> {
+    fn test_graphics() -> Result<()> {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (100, 100))
