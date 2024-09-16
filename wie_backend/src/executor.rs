@@ -1,15 +1,16 @@
 use alloc::sync::Arc;
 use core::{
-    fmt::Debug,
     future::Future,
     pin::Pin,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
 use std::{collections::HashMap, sync::Mutex};
 
+use wie_util::{Result, WieError};
+
 use crate::time::Instant;
 
-type Task = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
+type Task = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 
 pub struct ExecutorInner {
     current_task_id: Option<usize>,
@@ -36,23 +37,20 @@ where
 }
 
 pub trait AsyncCallableResult {
-    fn err(&self) -> Option<anyhow::Error>;
+    fn err(self) -> Option<WieError>;
 }
 
-impl<R, E> AsyncCallableResult for Result<R, E>
-where
-    E: Debug,
-{
-    fn err(&self) -> Option<anyhow::Error> {
+impl<R> AsyncCallableResult for core::result::Result<R, WieError> {
+    fn err(self) -> Option<WieError> {
         match self {
             Ok(_) => None,
-            Err(e) => Some(anyhow::anyhow!("{:?}", e)),
+            Err(e) => Some(e),
         }
     }
 }
 
 impl AsyncCallableResult for () {
-    fn err(&self) -> Option<anyhow::Error> {
+    fn err(self) -> Option<WieError> {
         None
     }
 }
@@ -86,7 +84,7 @@ impl Executor {
                 return Err(err);
             }
 
-            anyhow::Ok(())
+            Ok(())
         };
 
         let task_id = {
@@ -101,7 +99,7 @@ impl Executor {
     }
 
     // TODO we need to remove error handling from here. we need to JoinHandle like on spawn..
-    pub fn tick<T>(&mut self, now: T) -> anyhow::Result<()>
+    pub fn tick<T>(&mut self, now: T) -> Result<()>
     where
         T: Fn() -> Instant,
     {
@@ -134,7 +132,7 @@ impl Executor {
         self.inner.lock().unwrap().current_task_id.unwrap() as _
     }
 
-    fn step(&mut self, now: Instant) -> anyhow::Result<()> {
+    fn step(&mut self, now: Instant) -> Result<()> {
         let mut next_tasks = HashMap::new();
         let tasks = self.inner.lock().unwrap().tasks.drain().collect::<HashMap<_, _>>();
         let mut sleeping_tasks = self.inner.lock().unwrap().sleeping_tasks.drain().collect::<HashMap<_, _>>();

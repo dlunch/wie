@@ -2277,7 +2277,6 @@ dependencies = [
 name = "test_utils"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "async-trait",
  "java_class_proto",
  "java_runtime",
@@ -2285,6 +2284,7 @@ dependencies = [
  "jvm_rust",
  "wie_backend",
  "wie_jvm_support",
+ "wie_util",
 ]
 
 [[package]]
@@ -2705,7 +2705,6 @@ name = "wie_backend"
 version = "0.0.1"
 dependencies = [
  "ab_glyph",
- "anyhow",
  "async-trait",
  "bytemuck",
  "image",
@@ -2714,6 +2713,7 @@ dependencies = [
  "smaf",
  "smaf_player",
  "tracing",
+ "wie_util",
  "zip",
 ]
 
@@ -2736,6 +2736,7 @@ dependencies = [
  "wie_ktf",
  "wie_lgt",
  "wie_skt",
+ "wie_util",
  "winit",
 ]
 
@@ -2743,7 +2744,6 @@ dependencies = [
 name = "wie_core_arm"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "armv4t_emu",
  "async-trait",
  "bytemuck",
@@ -2758,13 +2758,14 @@ dependencies = [
 name = "wie_j2me"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "async-trait",
  "bytemuck",
+ "jvm",
  "tracing",
  "wie_backend",
  "wie_jvm_support",
  "wie_midp",
+ "wie_util",
 ]
 
 [[package]]
@@ -2779,13 +2780,13 @@ dependencies = [
  "jvm_rust",
  "tracing",
  "wie_backend",
+ "wie_util",
 ]
 
 [[package]]
 name = "wie_ktf"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "async-recursion",
  "async-trait",
  "bitflags 2.6.0",
@@ -2810,13 +2811,13 @@ dependencies = [
 name = "wie_lgt"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "async-trait",
  "bytemuck",
  "elf",
  "tracing",
  "wie_backend",
  "wie_core_arm",
+ "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
 ]
@@ -2845,7 +2846,6 @@ dependencies = [
 name = "wie_skt"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "async-trait",
  "bytemuck",
  "jvm",
@@ -2854,6 +2854,7 @@ dependencies = [
  "wie_jvm_support",
  "wie_midp",
  "wie_skvm",
+ "wie_util",
  "wie_wipi_java",
 ]
 
@@ -2881,8 +2882,8 @@ dependencies = [
 name = "wie_util"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "bytemuck",
+ "jvm",
  "tracing",
 ]
 
@@ -2890,7 +2891,6 @@ dependencies = [
 name = "wie_wipi_c"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "async-trait",
  "bytemuck",
  "futures-test",

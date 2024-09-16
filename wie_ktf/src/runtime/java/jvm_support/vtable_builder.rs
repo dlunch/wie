@@ -1,6 +1,6 @@
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 
-use super::{class_definition::JavaClassDefinition, JvmSupportResult};
+use super::{class_definition::JavaClassDefinition, Result};
 
 struct JavaVtableMethod {
     ptr_method: u32,
@@ -13,7 +13,7 @@ pub struct JavaVtableBuilder {
 }
 
 impl JavaVtableBuilder {
-    pub fn new(parent_class: &Option<JavaClassDefinition>) -> JvmSupportResult<Self> {
+    pub fn new(parent_class: &Option<JavaClassDefinition>) -> Result<Self> {
         let items = if let Some(x) = parent_class {
             Self::build_vtable(x)?
         } else {
@@ -47,7 +47,7 @@ impl JavaVtableBuilder {
         self.items.iter().map(|x| x.ptr_method).collect()
     }
 
-    fn build_vtable(class: &JavaClassDefinition) -> JvmSupportResult<Vec<JavaVtableMethod>> {
+    fn build_vtable(class: &JavaClassDefinition) -> Result<Vec<JavaVtableMethod>> {
         let class_hierarchy = class.read_class_hierarchy()?.into_iter().rev();
 
         let mut vtable: Vec<JavaVtableMethod> = Vec::new();
@@ -60,13 +60,13 @@ impl JavaVtableBuilder {
                 .map(|x| {
                     let name = x.name()?;
 
-                    anyhow::Ok(JavaVtableMethod {
+                    Ok(JavaVtableMethod {
                         ptr_method: x.ptr_raw,
                         name: name.name,
                         descriptor: name.descriptor,
                     })
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<_>>>()?;
 
             for item in items {
                 if let Some(index) = vtable.iter().position(|x| x.name == item.name && x.descriptor == item.descriptor) {

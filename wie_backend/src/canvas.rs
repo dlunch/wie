@@ -5,6 +5,8 @@ use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
 use image::ImageReader;
 use num_traits::{Num, Zero};
 
+use wie_util::{Result, WieError};
+
 lazy_static::lazy_static! {
     static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
 }
@@ -381,10 +383,14 @@ where
     }
 }
 
-pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
+pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
     use std::io::Cursor;
 
-    let image = ImageReader::new(Cursor::new(&data)).with_guessed_format()?.decode()?;
+    let image = ImageReader::new(Cursor::new(&data))
+        .with_guessed_format()
+        .map_err(|x| WieError::FatalError(x.to_string()))?
+        .decode()
+        .map_err(|x| WieError::FatalError(x.to_string()))?;
     let rgba = image.into_rgba8();
 
     let data = rgba.pixels().flat_map(|x| [x.0[2], x.0[1], x.0[0], x.0[3]]).collect::<Vec<_>>();
@@ -398,12 +404,14 @@ pub fn decode_image(data: &[u8]) -> anyhow::Result<Box<dyn Image>> {
 
 #[cfg(test)]
 mod tests {
+    use wie_util::Result;
+
     use crate::canvas::{Image, ImageBufferCanvas};
 
     use super::{ArgbPixel, Canvas, Color, VecImageBuffer};
 
     #[test]
-    fn test_canvas() -> anyhow::Result<()> {
+    fn test_canvas() -> Result<()> {
         let image_buffer = VecImageBuffer::<ArgbPixel>::new(10, 10);
         let mut canvas = ImageBufferCanvas::new(image_buffer);
 

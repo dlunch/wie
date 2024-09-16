@@ -1,32 +1,34 @@
 use alloc::{vec, vec::Vec};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_util::Result;
 
-async fn unk0(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMethodBody, WIPICWord};
+
+async fn unk0(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub unk3_0()");
 
     Ok(0)
 }
 
-async fn unk1(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
+async fn unk1(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub unk3_1()");
 
     Ok(0)
 }
 
-async fn unk2(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
+async fn unk2(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub unk3_2()");
 
     Ok(0)
 }
 
-async fn unk3(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
+async fn unk3(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub unk3_3()");
 
     Ok(0)
 }
 
-async fn unk4(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICWord> {
+async fn unk4(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub unk3_4()");
 
     Ok(0)

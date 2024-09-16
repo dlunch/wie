@@ -1,26 +1,28 @@
 use alloc::{vec, vec::Vec};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_util::{Result, WieError};
+
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMethodBody, WIPICWord};
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
 
     body.into_body()
 }
 
-async fn connect(_context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPICWord) -> WIPICResult<i32> {
+async fn connect(_context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPICWord) -> Result<i32> {
     tracing::warn!("stub MC_netConnect({:#x}, {:#x})", cb, param);
 
     Ok(-1) // M_E_ERROR
 }
 
-async fn close(_context: &mut dyn WIPICContext) -> WIPICResult<()> {
+async fn close(_context: &mut dyn WIPICContext) -> Result<()> {
     tracing::warn!("stub MC_netClose()");
 
     Ok(())
 }
 
-async fn socket_close(_context: &mut dyn WIPICContext, fd: i32) -> WIPICResult<i32> {
+async fn socket_close(_context: &mut dyn WIPICContext, fd: i32) -> Result<i32> {
     tracing::warn!("stub MC_netSocketClose({})", fd);
 
     Ok(-1) // M_E_ERROR

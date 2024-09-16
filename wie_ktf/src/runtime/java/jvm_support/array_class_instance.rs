@@ -6,9 +6,9 @@ use bytemuck::cast_vec;
 use jvm::{ArrayClassInstance, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
-use wie_util::{read_generic, write_generic, ByteRead, ByteWrite};
+use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, WieError};
 
-use super::{array_class_definition::JavaArrayClassDefinition, class_instance::JavaClassInstance, value::JavaValueExt, JvmSupportResult};
+use super::{array_class_definition::JavaArrayClassDefinition, class_instance::JavaClassInstance, value::JavaValueExt, Result};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
@@ -24,7 +24,7 @@ impl JavaArrayClassInstance {
         }
     }
 
-    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClassDefinition, count: usize) -> JvmSupportResult<Self> {
+    pub fn new(core: &mut ArmCore, array_class: &JavaArrayClassDefinition, count: usize) -> Result<Self> {
         let element_size = array_class.element_size()?;
         let class_instance = JavaClassInstance::instantiate(core, &array_class.class, count * element_size + 4)?;
 
@@ -34,10 +34,10 @@ impl JavaArrayClassInstance {
         Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
-    pub fn load_array(&self, offset: usize, count: usize) -> JvmSupportResult<Vec<u8>> {
+    pub fn load_array(&self, offset: usize, count: usize) -> Result<Vec<u8>> {
         let array_length = self.array_length()?;
         if offset + count > array_length {
-            anyhow::bail!("Array index out of bounds");
+            return Err(WieError::FatalError("Array index out of bounds".into()));
         }
 
         let base_address = self.class_instance.field_address(4)?;
@@ -51,32 +51,32 @@ impl JavaArrayClassInstance {
         Ok(result)
     }
 
-    pub fn store_array(&mut self, offset: usize, count: usize, values_raw: Vec<u8>) -> JvmSupportResult<()> {
+    pub fn store_array(&mut self, offset: usize, count: usize, values_raw: Vec<u8>) -> Result<()> {
         let array_length = self.array_length()?;
         if offset + count > array_length {
-            anyhow::bail!("Array index out of bounds");
+            return Err(WieError::FatalError("Array index out of bounds".into()));
         }
 
         let base_address = self.class_instance.field_address(4)?;
         let element_size = self.element_size()?;
 
-        Ok(self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)?)
+        self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)
     }
 
-    pub fn array_length(&self) -> JvmSupportResult<usize> {
+    pub fn array_length(&self) -> Result<usize> {
         let length_address = self.class_instance.field_address(0)?;
         let result: u32 = read_generic(&self.core, length_address)?;
 
         Ok(result as _)
     }
 
-    fn element_size(&self) -> JvmSupportResult<usize> {
+    fn element_size(&self) -> Result<usize> {
         let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         array_class.element_size()
     }
 
-    fn element_type(&self) -> JvmSupportResult<JavaType> {
+    fn element_type(&self) -> Result<JavaType> {
         let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         Ok(JavaType::parse(&array_class.element_type_descriptor()?))

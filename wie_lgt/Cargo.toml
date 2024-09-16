@@ -5,7 +5,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
@@ -14,5 +13,6 @@ elf = { version = "^0.7" }
 
 wie_backend = { workspace = true }
 wie_core_arm = { workspace = true }
+wie_util = { workspace = true }
 wie_wipi_c = { workspace = true }
 wie_wipi_java = { workspace = true }

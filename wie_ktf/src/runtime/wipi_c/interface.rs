@@ -5,15 +5,15 @@ use jvm::Jvm;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_core_arm::{ArmCore, ArmCoreResult};
-use wie_util::write_generic;
+use wie_core_arm::ArmCore;
+use wie_util::{write_generic, Result};
 use wie_wipi_c::{
     api::{
         database::get_database_method_table, graphics::get_graphics_method_table, kernel::get_kernel_method_table, media::get_media_method_table,
         misc::get_misc_method_table, net::get_net_method_table, stub::get_stub_method_table, uic::get_uic_method_table,
         unk12::get_unk12_method_table, unk3::get_unk3_method_table, util::get_util_method_table,
     },
-    WIPICContext, WIPICMethodBody, WIPICResult,
+    WIPICContext, WIPICMethodBody,
 };
 
 use crate::runtime::wipi_c::context::KtfWIPICContext;
@@ -40,7 +40,7 @@ struct WIPICInterface {
     interface_16: u32,
 }
 
-fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) -> WIPICResult<u32> {
+fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) -> Result<u32> {
     let address = context.alloc_raw((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
@@ -54,7 +54,7 @@ fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) 
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm) -> ArmCoreResult<u32> {
+pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm) -> Result<u32> {
     let kernel_methods = get_kernel_method_table(get_wipic_interfaces);
 
     let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone());
@@ -63,7 +63,7 @@ pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jv
     Ok(address)
 }
 
-async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> WIPICResult<u32> {
+async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> Result<u32> {
     tracing::trace!("get_wipic_interfaces");
 
     let interface_0 = write_methods(context, get_util_method_table())?;

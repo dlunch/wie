@@ -1,13 +1,13 @@
-use wie_util::{read_null_terminated_string, write_null_terminated_string};
-use wie_wipi_c::{api::kernel::get_kernel_method_table, WIPICContext, WIPICError};
+use wie_util::{read_null_terminated_string, write_null_terminated_string, Result, WieError};
+use wie_wipi_c::{api::kernel::get_kernel_method_table, WIPICContext};
 
 mod context;
 
 #[futures_test::test]
-async fn test_sprintk() -> anyhow::Result<()> {
+async fn test_sprintk() -> Result<()> {
     let mut context = context::TestContext::new();
 
-    let kernel_methods = get_kernel_method_table(|_: &mut dyn WIPICContext| async { Ok::<_, WIPICError>(()) });
+    let kernel_methods = get_kernel_method_table(|_: &mut dyn WIPICContext| async { Ok::<_, WieError>(()) });
 
     let format = context.alloc_raw(10).unwrap();
     write_null_terminated_string(&mut context, format, "%d").unwrap();

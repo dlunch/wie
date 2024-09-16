@@ -1,11 +1,10 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
-use anyhow::Context;
-
 use jvm::{runtime::JavaLangString, ClassInstance};
 
 use wie_backend::{extract_zip, Emulator, Event, Platform, System};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{Result, WieError};
 
 use crate::runtime::KtfJvmSupport;
 
@@ -17,8 +16,8 @@ pub struct KtfEmulator {
 }
 
 impl KtfEmulator {
-    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
-        let adf = files.get("__adf__").context("Invalid format")?;
+    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> Result<Self> {
+        let adf = files.get("__adf__").unwrap();
         let adf = KtfAdf::parse(adf);
 
         tracing::info!("Loading app {}, mclass {}", adf.aid, adf.mclass);
@@ -28,13 +27,7 @@ impl KtfEmulator {
         Self::load(platform, &jar_filename, &adf.aid, Some(adf.mclass), &files)
     }
 
-    pub fn from_jar(
-        platform: Box<dyn Platform>,
-        jar_filename: &str,
-        jar: Vec<u8>,
-        id: &str,
-        main_class_name: Option<String>,
-    ) -> anyhow::Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
         Self::load(platform, jar_filename, id, main_class_name, &files)
@@ -62,7 +55,7 @@ impl KtfEmulator {
         id: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let mut core = ArmCore::new()?;
         let mut system = System::new(platform, id);
 
@@ -83,13 +76,13 @@ impl KtfEmulator {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, main_class_name: Option<String>) -> anyhow::Result<()> {
+    async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
         let (jvm, class_loader) = KtfJvmSupport::init(core, system, Some(&jar_filename)).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
             x
         } else {
-            anyhow::bail!("Main class not found");
+            return Err(WieError::FatalError("Main class not found".into()));
         };
 
         let main_class_name = main_class_name.replace('.', "/");
@@ -122,10 +115,14 @@ impl Emulator for KtfEmulator {
         self.system.event_queue().push(event)
     }
 
-    fn tick(&mut self) -> anyhow::Result<()> {
-        self.system
-            .tick()
-            .map_err(|x| anyhow::anyhow!("{}\n{}", x, self.core.dump_reg_stack(IMAGE_BASE)))
+    fn tick(&mut self) -> Result<()> {
+        self.system.tick().map_err(|x| {
+            let reg_stack = self.core.dump_reg_stack(IMAGE_BASE);
+            match x {
+                WieError::FatalError(msg) => WieError::FatalError(format!("{}\n{}", msg, reg_stack)),
+                _ => WieError::FatalError(format!("{}\n{}", x, reg_stack)),
+            }
+        })
     }
 }
 

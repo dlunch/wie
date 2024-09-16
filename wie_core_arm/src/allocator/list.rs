@@ -3,9 +3,9 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_util::{read_generic, write_generic};
+use wie_util::{read_generic, write_generic, Result, WieError};
 
-use crate::{core::ArmCore, ArmCoreError, ArmCoreResult};
+use crate::core::ArmCore;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -32,7 +32,7 @@ impl ListAllocationHeader {
 pub struct ListAllocator;
 
 impl ListAllocator {
-    pub fn init(core: &mut ArmCore, base_address: u32, size: u32) -> ArmCoreResult<()> {
+    pub fn init(core: &mut ArmCore, base_address: u32, size: u32) -> Result<()> {
         let header = ListAllocationHeader::new(size, false);
 
         write_generic(core, base_address, header)?;
@@ -40,7 +40,7 @@ impl ListAllocator {
         Ok(())
     }
 
-    pub fn alloc(core: &mut ArmCore, base_address: u32, base_size: u32, size: u32) -> ArmCoreResult<u32> {
+    pub fn alloc(core: &mut ArmCore, base_address: u32, base_size: u32, size: u32) -> Result<u32> {
         let size_to_alloc = (size as usize + size_of::<ListAllocationHeader>()).next_multiple_of(4) as u32;
 
         let address = Self::find_address(core, base_address, base_size, size_to_alloc)?;
@@ -61,7 +61,7 @@ impl ListAllocator {
         Ok(address + size_of::<ListAllocationHeader>() as u32)
     }
 
-    pub fn free(core: &mut ArmCore, address: u32) -> ArmCoreResult<()> {
+    pub fn free(core: &mut ArmCore, address: u32) -> Result<()> {
         let base_address = address - size_of::<ListAllocationHeader>() as u32;
 
         tracing::trace!("Freeing {:#x}", address);
@@ -75,12 +75,12 @@ impl ListAllocator {
         Ok(())
     }
 
-    fn find_address(core: &ArmCore, base_address: u32, base_size: u32, size: u32) -> ArmCoreResult<u32> {
+    fn find_address(core: &ArmCore, base_address: u32, base_size: u32, size: u32) -> Result<u32> {
         let mut cursor = base_address;
         loop {
             let header: ListAllocationHeader = read_generic(core, cursor)?;
             if header.size() == 0 {
-                return Err(ArmCoreError::FatalError(format!("Invalid allocation header at {:#x}", cursor)));
+                return Err(WieError::FatalError(format!("Invalid allocation header at {:#x}", cursor)));
             }
 
             if !header.in_use() && header.size() >= size {
@@ -94,18 +94,20 @@ impl ListAllocator {
             }
         }
 
-        Err(ArmCoreError::AllocationFailure)
+        Err(WieError::AllocationFailure)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{ArmCore, ArmCoreResult};
+    use wie_util::Result;
+
+    use crate::ArmCore;
 
     use super::ListAllocator;
 
     #[test]
-    fn test_allocator() -> ArmCoreResult<()> {
+    fn test_allocator() -> Result<()> {
         let mut core = ArmCore::new().unwrap();
         core.map(0x40000000, 0x1000)?;
 

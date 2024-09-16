@@ -1,14 +1,16 @@
 use alloc::{vec, vec::Vec};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_util::{Result, WieError};
+
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMemoryId, WIPICMethodBody, WIPICWord};
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
 
     body.into_body()
 }
 
-async fn create_application_context(_context: &mut dyn WIPICContext) -> WIPICResult<WIPICMemoryId> {
+async fn create_application_context(_context: &mut dyn WIPICContext) -> Result<WIPICMemoryId> {
     tracing::warn!("stub MC_uicCreateApplicationContext");
 
     Ok(WIPICMemoryId(0))

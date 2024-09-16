@@ -22,7 +22,7 @@ use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, ClassInstance
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
-use wie_util::{read_generic, read_null_terminated_table, write_generic};
+use wie_util::{read_generic, read_null_terminated_table, write_generic, Result};
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -35,8 +35,6 @@ pub use array_class_definition::JavaArrayClassDefinition;
 pub use class_definition::JavaClassDefinition;
 
 pub type KtfJvmWord = u32;
-
-type JvmSupportResult<T> = anyhow::Result<T>;
 
 #[allow(dead_code)]
 #[repr(C)]
@@ -79,7 +77,7 @@ const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
 pub struct KtfJvmSupport;
 
 impl KtfJvmSupport {
-    pub async fn init(core: &mut ArmCore, system: &mut System, jar_name: Option<&str>) -> JvmSupportResult<(Jvm, Box<dyn ClassInstance>)> {
+    pub async fn init(core: &mut ArmCore, system: &mut System, jar_name: Option<&str>) -> Result<(Jvm, Box<dyn ClassInstance>)> {
         let jvm_context = KtfJvmContext {
             unk1: 0,
             unk2: 0,
@@ -180,13 +178,13 @@ impl KtfJvmSupport {
         Ok((jvm, class_loader))
     }
 
-    pub fn class_loader(core: &ArmCore) -> JvmSupportResult<Box<dyn ClassInstance>> {
+    pub fn class_loader(core: &ArmCore) -> Result<Box<dyn ClassInstance>> {
         let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
 
         Ok(Box::new(JavaClassInstance::from_raw(context_data.class_loader, core)))
     }
 
-    pub fn class_definition_raw(definition: &dyn ClassDefinition) -> JvmSupportResult<u32> {
+    pub fn class_definition_raw(definition: &dyn ClassDefinition) -> Result<u32> {
         Ok(if let Some(x) = definition.as_any().downcast_ref::<JavaClassDefinition>() {
             x.ptr_raw
         } else {
@@ -200,7 +198,7 @@ impl KtfJvmSupport {
         JavaClassDefinition::from_raw(ptr_class, core)
     }
 
-    pub fn read_name(core: &ArmCore, ptr_name: u32) -> JvmSupportResult<JavaFullName> {
+    pub fn read_name(core: &ArmCore, ptr_name: u32) -> Result<JavaFullName> {
         JavaFullName::from_ptr(core, ptr_name)
     }
 
@@ -215,7 +213,7 @@ impl KtfJvmSupport {
         }
     }
 
-    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> JvmSupportResult<u32> {
+    pub fn get_vtable_index(core: &mut ArmCore, class: &JavaClassDefinition) -> Result<u32> {
         // TODO remove context
         let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
         let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
@@ -244,12 +242,13 @@ mod test {
 
     use wie_backend::System;
     use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::Result;
 
     use crate::runtime::java::jvm_support::KtfJvmSupport;
 
     use test_utils::TestPlatform;
 
-    async fn init_jvm(system: &mut System) -> anyhow::Result<Jvm> {
+    async fn init_jvm(system: &mut System) -> Result<Jvm> {
         let mut core = ArmCore::new()?;
         Allocator::init(&mut core)?;
 
@@ -264,7 +263,7 @@ mod test {
     }
 
     #[test]
-    fn test_jvm_support() -> anyhow::Result<()> {
+    fn test_jvm_support() -> Result<()> {
         let mut system = System::new(Box::new(TestPlatform), "");
 
         let done = Arc::new(AtomicBool::new(false));
@@ -285,7 +284,7 @@ mod test {
 
             done_clone.store(true, Ordering::Relaxed);
 
-            anyhow::Ok(())
+            Ok(())
         });
 
         loop {

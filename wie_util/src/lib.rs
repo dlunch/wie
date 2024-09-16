@@ -1,23 +1,49 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
-use core::result;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{
+    error::Error,
+    fmt::{self, Display, Formatter},
+    result,
+};
 
 use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
 
+use jvm::JavaError;
+
 #[derive(Debug)]
-pub enum ByteReadWriteError {
-    InvalidAddress,
+pub enum WieError {
+    AllocationFailure,
+    Unimplemented(String),
+    FatalError(String),
 }
 
-impl From<ByteReadWriteError> for anyhow::Error {
-    fn from(e: ByteReadWriteError) -> Self {
-        anyhow::anyhow!("{:?}", e)
+impl From<JavaError> for WieError {
+    fn from(error: JavaError) -> Self {
+        match error {
+            JavaError::JavaException(_) => WieError::FatalError("Java exception".to_string()),
+            JavaError::FatalError(error) => WieError::FatalError(error),
+        }
     }
 }
 
-pub type Result<T> = result::Result<T, ByteReadWriteError>;
+impl Display for WieError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            WieError::AllocationFailure => write!(f, "Allocation failure"),
+            WieError::Unimplemented(message) => write!(f, "Unimplemented: {}", message),
+            WieError::FatalError(message) => write!(f, "Fatal error: {}", message),
+        }
+    }
+}
+
+impl Error for WieError {}
+
+pub type Result<T> = result::Result<T, WieError>;
 
 pub trait ByteRead {
     fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize>;

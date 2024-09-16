@@ -183,7 +183,7 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
             }
         }
 
-        anyhow::Ok(())
+        Ok(())
     })
 }
 

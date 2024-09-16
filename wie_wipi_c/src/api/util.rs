@@ -1,14 +1,16 @@
 use alloc::{vec, vec::Vec};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_util::{Result, WieError};
+
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMethodBody, WIPICWord};
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
 
     body.into_body()
 }
 
-async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_utilHtons({})", val);
 
     Ok((val as u16).to_be() as _) // XXX we're always on little endian

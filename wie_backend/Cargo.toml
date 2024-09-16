@@ -5,7 +5,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
@@ -15,6 +14,8 @@ lazy_static = { version = "^1.5", default-features = false }
 num-traits = { version = "^0.2", default-features = false }
 ab_glyph = { version = "^0.2", features = ["libm"], default-features = false }
 zip = { version = "^2.2", features = ["deflate"], default-features = false }
+
+wie_util = { workspace = true }
 
 smaf = { git = "https://github.com/dlunch/smaf.git" }
 smaf_player = { git = "https://github.com/dlunch/smaf.git" }

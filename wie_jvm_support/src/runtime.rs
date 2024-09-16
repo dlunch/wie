@@ -5,9 +5,10 @@ use core::{
 };
 
 use java_runtime::{File, FileStat, IOError, Runtime, RuntimeClassProto, SpawnCallback};
-use jvm::{ClassDefinition, JavaError, Jvm, Result as JvmResult};
+use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
 use wie_backend::{AsyncCallable, System};
+use wie_util::WieError;
 
 use crate::JvmImplementation;
 
@@ -51,8 +52,8 @@ where
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<Result<u32, JavaError>> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, JavaError> {
+        impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
+            async fn call(mut self) -> Result<u32, WieError> {
                 self.callback.call().await;
 
                 Ok(0) // TODO
