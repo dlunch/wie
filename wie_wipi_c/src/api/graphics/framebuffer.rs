@@ -74,7 +74,7 @@ impl WIPICFramebuffer {
     pub fn data(&self, context: &dyn WIPICContext) -> WIPICResult<Vec<u8>> {
         let size = self.width * self.height * self.bpp / 8;
         let mut buf = vec![0; size as _];
-        context.read_bytes(context.data_ptr(self.buf)?, size, &mut buf)?;
+        context.read_bytes(context.data_ptr(self.buf)?, &mut buf)?;
 
         Ok(buf)
     }

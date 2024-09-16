@@ -27,7 +27,7 @@ impl WIPICImage {
         let ptr_image_data = context.data_ptr(buf)?;
 
         let mut data = vec![0; len as _];
-        context.read_bytes(ptr_image_data + offset, len, &mut data)?;
+        context.read_bytes(ptr_image_data + offset, &mut data)?;
         let image = decode_image(&data).map_err(|x| WIPICError::BackendError(x.to_string()))?;
 
         let img_framebuffer = WIPICFramebuffer::from_image(context, &*image)?;

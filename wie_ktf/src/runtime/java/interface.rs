@@ -131,7 +131,7 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
     };
 
     let mut bytes = vec![0u8; (length * 2) as _];
-    core.read_bytes(cursor, (length * 2) as _, &mut bytes)?;
+    core.read_bytes(cursor, &mut bytes)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
 
     let rust_string = String::from_utf16(&bytes_u16)?;

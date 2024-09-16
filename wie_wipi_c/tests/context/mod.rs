@@ -75,9 +75,9 @@ impl ByteWrite for TestContext {
 }
 
 impl ByteRead for TestContext {
-    fn read_bytes(&self, address: u32, size: u32, result: &mut [u8]) -> wie_util::Result<usize> {
-        result.copy_from_slice(&self.memory[address as usize..(address + size) as usize]);
+    fn read_bytes(&self, address: u32, result: &mut [u8]) -> wie_util::Result<usize> {
+        result.copy_from_slice(&self.memory[address as usize..(address as usize + result.len())]);
 
-        Ok(size as usize)
+        Ok(result.len())
     }
 }

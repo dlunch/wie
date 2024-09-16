@@ -375,10 +375,10 @@ impl ArmCore {
 }
 
 impl ByteRead for ArmCore {
-    fn read_bytes(&self, address: u32, size: u32, result: &mut [u8]) -> wie_util::Result<usize> {
+    fn read_bytes(&self, address: u32, result: &mut [u8]) -> wie_util::Result<usize> {
         let mut inner = self.inner.lock();
 
-        let read = inner.engine.mem_read(address, size as usize, result)?;
+        let read = inner.engine.mem_read(address, result.len(), result)?;
 
         // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, data);
 

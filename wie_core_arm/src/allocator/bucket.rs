@@ -33,7 +33,7 @@ impl BucketAllocator {
         let header_length = BUCKET_SIZE / bucket / 8;
 
         let mut header = vec![0u8; header_length];
-        core.read_bytes(base_address, header_length as _, &mut header)?;
+        core.read_bytes(base_address, &mut header)?;
 
         for (i, item) in header.iter_mut().enumerate() {
             if *item == 0 {
@@ -59,7 +59,7 @@ impl BucketAllocator {
         let header_length = BUCKET_SIZE / bucket / 8;
 
         let mut header = vec![0u8; header_length];
-        core.read_bytes(base_address, header_length as _, &mut header)?;
+        core.read_bytes(base_address, &mut header)?;
 
         let offset = (address - base_address - header_length as u32) / bucket as u32;
         let index = offset / 8;
