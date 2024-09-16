@@ -5,6 +5,8 @@ mod file_system;
 use alloc::sync::Arc;
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
+use wie_util::Result;
+
 use crate::{
     executor::{AsyncCallableResult, Executor},
     platform::Platform,
@@ -47,7 +49,7 @@ impl System {
         result
     }
 
-    pub fn tick(&mut self) -> anyhow::Result<()> {
+    pub fn tick(&mut self) -> Result<()> {
         let platform = self.platform.clone();
         self.executor.tick(move || {
             let platform = platform.lock().unwrap();

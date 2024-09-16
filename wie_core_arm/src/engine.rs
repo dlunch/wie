@@ -2,17 +2,17 @@ mod armv4t_emu;
 
 use core::ops::Range;
 
+use wie_util::Result;
+
 pub use armv4t_emu::Armv4tEmuEngine;
 
-use crate::ArmCoreResult;
-
 pub trait ArmEngine: Sync + Send {
-    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> ArmCoreResult<u32>;
+    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> Result<u32>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> ArmCoreResult<()>;
-    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> ArmCoreResult<usize>;
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
 }
 

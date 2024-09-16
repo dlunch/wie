@@ -36,15 +36,15 @@ pub struct WindowHandle {
 }
 
 impl WindowHandle {
-    fn send_event(&self, event: WindowInternalEvent) -> anyhow::Result<()> {
-        self.event_loop_proxy.send_event(event)?;
+    fn send_event(&self, event: WindowInternalEvent) -> wie_util::Result<()> {
+        self.event_loop_proxy.send_event(event).unwrap();
 
         Ok(())
     }
 }
 
 impl Screen for WindowHandle {
-    fn request_redraw(&self) -> anyhow::Result<()> {
+    fn request_redraw(&self) -> wie_util::Result<()> {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
 
@@ -88,10 +88,9 @@ impl WindowImpl {
         }
     }
 
-    pub fn run<C, E>(self, callback: C) -> anyhow::Result<()>
+    pub fn run<C>(self, callback: C) -> anyhow::Result<()>
     where
-        C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
-        E: Debug,
+        C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
     {
         self.event_loop.set_control_flow(ControlFlow::Poll);
 
@@ -207,10 +206,9 @@ impl Scaler {
     }
 }
 
-pub struct ApplicationHandlerImpl<C, E>
+pub struct ApplicationHandlerImpl<C>
 where
-    C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
-    E: Debug,
+    C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
 {
     /// Native scale factor of the emulator window.
     native_scale_factor: f64,
@@ -238,15 +236,14 @@ where
     callback: Box<C>,
 }
 
-impl<C, E> ApplicationHandlerImpl<C, E>
+impl<C> ApplicationHandlerImpl<C>
 where
-    C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
-    E: Debug,
+    C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
 {
     fn callback(&mut self, event: WindowCallbackEvent, event_loop: &ActiveEventLoop) {
         let result = (self.callback)(event);
         if let Err(x) = result {
-            tracing::error!(target: "wie", "{:?}", x);
+            tracing::error!(target: "wie", "{}", x);
 
             event_loop.exit();
         }
@@ -342,10 +339,9 @@ where
     }
 }
 
-impl<C, E> ApplicationHandler<WindowInternalEvent> for ApplicationHandlerImpl<C, E>
+impl<C> ApplicationHandler<WindowInternalEvent> for ApplicationHandlerImpl<C>
 where
-    C: FnMut(WindowCallbackEvent) -> Result<(), E> + 'static,
-    E: Debug,
+    C: FnMut(WindowCallbackEvent) -> wie_util::Result<()> + 'static,
 {
     fn new_events(&mut self, event_loop: &ActiveEventLoop, _cause: StartCause) {
         self.callback(WindowCallbackEvent::Update, event_loop)

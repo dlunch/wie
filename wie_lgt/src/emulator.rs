@@ -1,18 +1,18 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
-use anyhow::Context;
 use elf::{endian::AnyEndian, ElfBytes};
 
 use wie_backend::{extract_zip, Emulator, Event, Platform, System};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{Result, WieError};
 
 pub struct LgtEmulator {
     system: System,
 }
 
 impl LgtEmulator {
-    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
-        let app_info = files.get("app_info").context("Invalid format")?;
+    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> Result<Self> {
+        let app_info = files.get("app_info").unwrap();
         let app_info = LgtAppInfo::parse(app_info);
 
         tracing::info!("Loading app {}, mclass {}", app_info.aid, app_info.mclass);
@@ -22,13 +22,7 @@ impl LgtEmulator {
         Self::load(platform, &jar_filename, &app_info.aid, Some(app_info.mclass), &files)
     }
 
-    pub fn from_jar(
-        platform: Box<dyn Platform>,
-        jar_filename: &str,
-        jar: Vec<u8>,
-        id: &str,
-        main_class_name: Option<String>,
-    ) -> anyhow::Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
         Self::load(platform, jar_filename, id, main_class_name, &files)
@@ -50,7 +44,7 @@ impl LgtEmulator {
         id: &str,
         main_class_name: Option<String>,
         _files: &BTreeMap<String, Vec<u8>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let mut core = ArmCore::new()?;
         let mut system = System::new(platform, id);
 
@@ -58,7 +52,7 @@ impl LgtEmulator {
 
         let entrypoint = {
             let filesystem = system.filesystem();
-            let data = filesystem.read("binary.mod").context("Invalid archive")?;
+            let data = filesystem.read("binary.mod").unwrap();
 
             Self::load_executable(&mut core, data)?
         };
@@ -75,33 +69,30 @@ impl LgtEmulator {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: Option<String>) -> anyhow::Result<()> {
+    async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: Option<String>) -> Result<()> {
         let _: () = core.run_function(entrypoint + 1, &[]).await?;
 
-        anyhow::bail!("Not yet implemented")
+        Err(WieError::Unimplemented("Not yet implemented".into()))
     }
 
-    fn load_executable(core: &mut ArmCore, data: &[u8]) -> anyhow::Result<u32> {
-        let elf = ElfBytes::<AnyEndian>::minimal_parse(data)?;
+    fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
+        let elf = ElfBytes::<AnyEndian>::minimal_parse(data).unwrap();
 
-        anyhow::ensure!(elf.ehdr.e_machine == elf::abi::EM_ARM, "Invalid machine type");
-        anyhow::ensure!(elf.ehdr.e_type == elf::abi::ET_EXEC, "Invalid file type");
-        anyhow::ensure!(elf.ehdr.class == elf::file::Class::ELF32, "Invalid file type");
-        anyhow::ensure!(elf.ehdr.e_phnum == 0, "Invalid file type");
+        assert!(elf.ehdr.e_machine == elf::abi::EM_ARM, "Invalid machine type");
+        assert!(elf.ehdr.e_type == elf::abi::ET_EXEC, "Invalid file type");
+        assert!(elf.ehdr.class == elf::file::Class::ELF32, "Invalid file type");
+        assert!(elf.ehdr.e_phnum == 0, "Invalid file type");
 
-        let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab()?;
-        let (shdrs, strtab) = (
-            shdrs_opt.ok_or(anyhow::anyhow!("Invalid file"))?,
-            strtab_opt.ok_or(anyhow::anyhow!("Invalid file"))?,
-        );
+        let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab().unwrap();
+        let (shdrs, strtab) = (shdrs_opt.unwrap(), strtab_opt.unwrap());
 
         for shdr in shdrs {
-            let section_name = strtab.get(shdr.sh_name as usize)?;
+            let section_name = strtab.get(shdr.sh_name as usize).unwrap();
 
             if shdr.sh_addr != 0 {
                 tracing::debug!("Section {} at {:x}", section_name, shdr.sh_addr);
 
-                let data = elf.section_data(&shdr)?.0;
+                let data = elf.section_data(&shdr).unwrap().0;
 
                 core.load(data, shdr.sh_addr as u32, shdr.sh_size as usize)?;
             }
@@ -118,7 +109,7 @@ impl Emulator for LgtEmulator {
         self.system.event_queue().push(event)
     }
 
-    fn tick(&mut self) -> anyhow::Result<()> {
+    fn tick(&mut self) -> Result<()> {
         self.system.tick()
     }
 }

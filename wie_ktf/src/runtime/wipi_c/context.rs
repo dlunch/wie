@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use jvm::{
     runtime::{JavaIoInputStream, JavaLangClassLoader},
@@ -6,9 +6,9 @@ use jvm::{
 };
 
 use wie_backend::{AsyncCallable, System};
-use wie_core_arm::{Allocator, ArmCore, ArmCoreError, EmulatedFunction, EmulatedFunctionParam};
-use wie_util::{read_generic, write_generic, ByteRead, ByteWrite};
-use wie_wipi_c::{WIPICContext, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam};
+use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result};
+use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
 
 #[derive(Clone)]
 pub struct KtfWIPICContext {
@@ -25,46 +25,46 @@ impl KtfWIPICContext {
 
 #[async_trait::async_trait]
 impl WIPICContext for KtfWIPICContext {
-    fn alloc_raw(&mut self, size: WIPICWord) -> WIPICResult<WIPICWord> {
-        Ok(Allocator::alloc(&mut self.core, size).unwrap())
+    fn alloc_raw(&mut self, size: WIPICWord) -> Result<WIPICWord> {
+        Allocator::alloc(&mut self.core, size)
     }
 
-    fn alloc(&mut self, size: WIPICWord) -> WIPICResult<WIPICMemoryId> {
-        let ptr = Allocator::alloc(&mut self.core, size + 12).unwrap(); // all allocation has indirect pointer
+    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICMemoryId> {
+        let ptr = Allocator::alloc(&mut self.core, size + 12)?; // all allocation has indirect pointer
         write_generic(&mut self.core, ptr, ptr + 4)?;
         write_generic(&mut self.core, ptr + 4, size)?;
 
         Ok(WIPICMemoryId(ptr))
     }
 
-    fn free(&mut self, memory: WIPICMemoryId) -> WIPICResult<()> {
-        let size = read_generic(&self.core, memory.0 + 4).unwrap();
-        Allocator::free(&mut self.core, memory.0, size).unwrap();
+    fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
+        let size = read_generic(&self.core, memory.0 + 4)?;
+        Allocator::free(&mut self.core, memory.0, size)?;
 
         Ok(())
     }
 
-    fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> WIPICResult<()> {
-        Allocator::free(&mut self.core, address, size).unwrap();
+    fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()> {
+        Allocator::free(&mut self.core, address, size)?;
 
         Ok(())
     }
 
-    fn data_ptr(&self, memory: WIPICMemoryId) -> WIPICResult<WIPICWord> {
+    fn data_ptr(&self, memory: WIPICMemoryId) -> Result<WIPICWord> {
         let base: WIPICWord = read_generic(&self.core, memory.0)?;
 
         Ok(base + 8) // all data has offset of 8 bytes
     }
 
-    fn register_function(&mut self, body: WIPICMethodBody) -> WIPICResult<WIPICWord> {
+    fn register_function(&mut self, body: WIPICMethodBody) -> Result<WIPICWord> {
         struct CMethodProxy {
             context: KtfWIPICContext,
             body: WIPICMethodBody,
         }
 
         #[async_trait::async_trait]
-        impl EmulatedFunction<(), u32, ArmCoreError, ()> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32, ArmCoreError> {
+        impl EmulatedFunction<(), u32, ()> for CMethodProxy {
+            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
@@ -78,35 +78,34 @@ impl WIPICContext for KtfWIPICContext {
                 self.body
                     .call(&mut self.context.clone(), vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
                     .await
-                    .map_err(|e| ArmCoreError::FunctionCallError(format!("{:?}", e)))
             }
         }
 
         let proxy = CMethodProxy { context: self.clone(), body };
 
-        Ok(self.core.register_function(proxy, &()).unwrap())
+        self.core.register_function(proxy, &())
     }
 
     fn system(&mut self) -> &mut System {
         &mut self.system
     }
 
-    async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> WIPICResult<WIPICWord> {
-        Ok(self.core.run_function(address, args).await.unwrap())
+    async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord> {
+        self.core.run_function(address, args).await
     }
 
-    fn spawn(&mut self, callback: WIPICMethodBody) -> WIPICResult<()> {
+    fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()> {
         struct SpawnProxy {
             context: KtfWIPICContext,
             callback: WIPICMethodBody,
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<Result<WIPICWord, WIPICError>> for SpawnProxy {
-            async fn call(mut self) -> Result<WIPICWord, WIPICError> {
-                self.context.jvm.attach_thread().await.unwrap();
+        impl AsyncCallable<Result<WIPICWord>> for SpawnProxy {
+            async fn call(mut self) -> Result<WIPICWord> {
+                self.context.jvm.attach_thread().await?;
                 let result = self.callback.call(&mut self.context, Box::new([])).await;
-                self.context.jvm.detach_thread().await.unwrap();
+                self.context.jvm.detach_thread().await?;
 
                 result
             }
@@ -120,20 +119,24 @@ impl WIPICContext for KtfWIPICContext {
         Ok(())
     }
 
-    async fn get_resource_size(&self, name: &str) -> WIPICResult<usize> {
-        let class_loader = self.jvm.current_class_loader().await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
+    async fn get_resource_size(&self, name: &str) -> Result<usize> {
+        let class_loader = self.jvm.current_class_loader().await?;
+        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
+            .await?
+            .unwrap();
 
-        let available: i32 = self.jvm.invoke_virtual(&stream.unwrap(), "available", "()I", ()).await.unwrap();
+        let available: i32 = self.jvm.invoke_virtual(&stream, "available", "()I", ()).await?;
 
         Ok(available as _)
     }
 
-    async fn read_resource(&self, name: &str) -> WIPICResult<Vec<u8>> {
-        let class_loader = self.jvm.current_class_loader().await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
+    async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
+        let class_loader = self.jvm.current_class_loader().await?;
+        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
+            .await?
+            .unwrap();
 
-        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream.unwrap()).await.unwrap())
+        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await?)
     }
 }
 

@@ -1,16 +1,15 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc};
-use core::{fmt::Debug, mem::size_of};
+use core::mem::size_of;
 
 use spin::Mutex;
 
-use wie_util::{read_generic, ByteRead, ByteWrite};
+use wie_util::{read_generic, ByteRead, ByteWrite, Result};
 
 use crate::{
     allocator::Allocator,
     context::ArmCoreContext,
     engine::{ArmEngine, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
-    ArmCoreResult,
 };
 
 const FUNCTIONS_BASE: u32 = 0x71000000;
@@ -30,7 +29,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new() -> ArmCoreResult<Self> {
+    pub fn new() -> Result<Self> {
         let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
@@ -47,7 +46,7 @@ impl ArmCore {
         })
     }
 
-    pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> ArmCoreResult<()> {
+    pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> Result<()> {
         let mut inner = self.inner.lock();
 
         inner
@@ -58,7 +57,7 @@ impl ArmCore {
         Ok(())
     }
 
-    async fn run_some(&mut self, context: &mut ArmCoreContext) -> ArmCoreResult<()> {
+    async fn run_some(&mut self, context: &mut ArmCoreContext) -> Result<()> {
         self.restore_context(context);
         let pc = {
             let mut inner = self.inner.lock();
@@ -82,7 +81,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> ArmCoreResult<R>
+    pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
     where
         R: RunFunctionResult<R>,
     {
@@ -137,10 +136,9 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_function<F, C, R, E, P>(&mut self, function: F, context: &C) -> ArmCoreResult<u32>
+    pub fn register_function<F, C, R, P>(&mut self, function: F, context: &C) -> Result<u32>
     where
-        F: EmulatedFunction<C, R, E, P> + 'static + Sync + Send,
-        E: Debug + 'static + Sync + Send,
+        F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
         R: ResultWriter<R> + 'static + Sync + Send,
         P: 'static + Sync + Send,
@@ -162,7 +160,7 @@ impl ArmCore {
         Ok(address as u32 + 1)
     }
 
-    pub fn map(&mut self, address: u32, size: u32) -> ArmCoreResult<()> {
+    pub fn map(&mut self, address: u32, size: u32) -> Result<()> {
         tracing::trace!("Map address: {:#x}, size: {:#x}", address, size);
 
         let mut inner = self.inner.lock();
@@ -227,7 +225,7 @@ impl ArmCore {
         }
     }
 
-    pub(crate) fn read_pc_lr(&self) -> ArmCoreResult<(u32, u32)> {
+    pub(crate) fn read_pc_lr(&self) -> Result<(u32, u32)> {
         let inner = self.inner.lock();
 
         let lr = inner.engine.reg_read(ArmRegister::LR);
@@ -236,7 +234,7 @@ impl ArmCore {
         Ok((pc, lr))
     }
 
-    pub(crate) fn write_result(&mut self, result: u32, lr: u32) -> ArmCoreResult<()> {
+    pub(crate) fn write_result(&mut self, result: u32, lr: u32) -> Result<()> {
         let mut inner = self.inner.lock();
 
         inner.engine.reg_write(ArmRegister::R0, result);
@@ -245,7 +243,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub(crate) fn read_param(&self, pos: usize) -> ArmCoreResult<u32> {
+    pub(crate) fn read_param(&self, pos: usize) -> Result<u32> {
         let inner = self.inner.lock();
 
         let result = if pos == 0 {
@@ -320,7 +318,7 @@ impl ArmCore {
         format!("{:#x}: {}\n", address, description)
     }
 
-    fn dump_call_stack(&self, image_base: u32) -> ArmCoreResult<String> {
+    fn dump_call_stack(&self, image_base: u32) -> Result<String> {
         let mut inner = self.inner.lock();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);
@@ -350,7 +348,7 @@ impl ArmCore {
         Ok(call_stack)
     }
 
-    fn dump_stack(&self) -> ArmCoreResult<String> {
+    fn dump_stack(&self) -> Result<String> {
         let mut inner = self.inner.lock();
 
         let sp = inner.engine.reg_read(ArmRegister::SP);

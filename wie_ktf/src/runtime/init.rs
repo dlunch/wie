@@ -1,14 +1,13 @@
-use alloc::string::String;
+use alloc::{format, string::String};
 use core::mem::size_of;
 
-use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 
 use jvm::Jvm;
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, ArmCoreResult};
-use wie_util::{read_generic, write_generic};
+use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{read_generic, write_generic, Result, WieError};
 
 use crate::{
     emulator::IMAGE_BASE,
@@ -17,8 +16,6 @@ use crate::{
         wipi_c::interface::get_wipic_knl_interface,
     },
 };
-
-use super::RuntimeResult;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -115,9 +112,9 @@ pub async fn load_native(
     data: &[u8],
     ptr_jvm_context: u32,
     ptr_jvm_exception_context: u32,
-) -> RuntimeResult<u32> {
-    let bss_start = filename.find("client.bin").context("Incorrect filename")? + 10;
-    let bss_size = filename[bss_start..].parse::<u32>()?;
+) -> Result<u32> {
+    let bss_start = filename.find("client.bin").unwrap() + 10;
+    let bss_size = filename[bss_start..].parse::<u32>().unwrap();
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 
@@ -179,15 +176,21 @@ pub async fn load_native(
             &[ptr_param_0, ptr_param_1, ptr_jvm_context, ptr_param_3, ptr_param_4],
         )
         .await?;
-    anyhow::ensure!(result == 0, "Init failed with code {:#x}", result);
+
+    if result != 0 {
+        return Err(WieError::FatalError(format!("Init failed with code {:#x}", result)));
+    }
 
     let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
-    anyhow::ensure!(result == 0, "wipi init failed with code {:#x}", result);
+
+    if result != 0 {
+        return Err(WieError::FatalError(format!("wipi init failed with code {:#x}", result)));
+    }
 
     Ok(exe_interface_functions.fn_get_class)
 }
 
-async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), r#struct: String) -> ArmCoreResult<u32> {
+async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), r#struct: String) -> Result<u32> {
     tracing::trace!("get_interface({})", r#struct);
 
     match r#struct.as_str() {
@@ -201,7 +204,7 @@ async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), r#
     }
 }
 
-async fn alloc(core: &mut ArmCore, _: &mut (), a0: u32) -> ArmCoreResult<u32> {
+async fn alloc(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<u32> {
     tracing::trace!("alloc({})", a0);
 
     Allocator::alloc(core, a0)

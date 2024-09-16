@@ -1,31 +1,29 @@
-use alloc::{boxed::Box, format, string::String};
-use core::{fmt::Debug, future::Future, marker::PhantomData};
+use alloc::{boxed::Box, string::String};
+use core::{future::Future, marker::PhantomData};
 
-use wie_util::read_null_terminated_string;
+use wie_util::{read_null_terminated_string, Result};
 
-use crate::{ArmCore, ArmCoreError, ArmCoreResult};
+use crate::ArmCore;
 
 #[async_trait::async_trait]
 pub trait RegisteredFunction: Sync + Send {
-    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()>;
+    async fn call(&self, core: &mut ArmCore) -> Result<()>;
 }
 
-pub struct RegisteredFunctionHolder<F, C, R, E, P>
+pub struct RegisteredFunctionHolder<F, C, R, P>
 where
-    F: EmulatedFunction<C, R, E, P> + 'static,
-    E: Debug,
+    F: EmulatedFunction<C, R, P> + 'static,
     C: Clone + 'static,
     R: ResultWriter<R>,
 {
     function: Box<F>,
     context: C,
-    _phantom: PhantomData<(C, R, E, P)>,
+    _phantom: PhantomData<(C, R, P)>,
 }
 
-impl<F, C, R, E, P> RegisteredFunctionHolder<F, C, R, E, P>
+impl<F, C, R, P> RegisteredFunctionHolder<F, C, R, P>
 where
-    F: EmulatedFunction<C, R, E, P> + 'static,
-    E: Debug,
+    F: EmulatedFunction<C, R, P> + 'static,
     C: Clone + 'static,
     R: ResultWriter<R>,
 {
@@ -39,43 +37,38 @@ where
 }
 
 #[async_trait::async_trait]
-impl<F, C, R, E, P> RegisteredFunction for RegisteredFunctionHolder<F, C, R, E, P>
+impl<F, C, R, P> RegisteredFunction for RegisteredFunctionHolder<F, C, R, P>
 where
-    F: EmulatedFunction<C, R, E, P> + 'static + Sync + Send,
-    E: Debug + Sync + Send,
+    F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
     C: Clone + Sync + Send + 'static,
     R: ResultWriter<R> + Sync + Send,
     P: Sync + Send,
 {
-    async fn call(&self, core: &mut ArmCore) -> ArmCoreResult<()> {
+    async fn call(&self, core: &mut ArmCore) -> Result<()> {
         let (pc, lr) = core.read_pc_lr()?;
 
         tracing::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 
         let mut new_context = self.context.clone();
 
-        let result = self
-            .function
-            .call(core, &mut new_context)
-            .await
-            .map_err(|x| ArmCoreError::FunctionCallError(format!("{:?}", x)))?;
+        let result = self.function.call(core, &mut new_context).await?;
         R::write(core, result, lr)?;
 
         Ok(())
     }
 }
 
-trait FnHelper<'a, C, R, E, P> {
-    type Output: Future<Output = Result<R, E>> + 'a + Send;
+trait FnHelper<'a, C, R, P> {
+    type Output: Future<Output = Result<R>> + 'a + Send;
     fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C) -> Self::Output;
 }
 
 macro_rules! generate_fn_helper {
     ($($arg: ident),*) => {
-        impl<'a, F, Fut, C, R, E, $($arg),*> FnHelper<'a, C, R, E, ($($arg,)*)> for F
+        impl<'a, F, Fut, C, R, $($arg),*> FnHelper<'a, C, R, ($($arg,)*)> for F
         where
             F: Fn(&'a mut ArmCore, &'a mut C, $($arg),*) -> Fut,
-            Fut: Future<Output = Result<R, E>> + 'a + Send,
+            Fut: Future<Output = Result<R>> + 'a + Send,
             C: 'a,
             R: 'a,
             $($arg: EmulatedFunctionParam<$arg>),*
@@ -101,20 +94,20 @@ generate_fn_helper!(P0, P1, P2);
 generate_fn_helper!(P0, P1, P2, P3);
 
 #[async_trait::async_trait]
-pub trait EmulatedFunction<C, R, E, P> {
-    async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E>;
+pub trait EmulatedFunction<C, R, P> {
+    async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R>;
 }
 
 macro_rules! generate_emulated_function {
     ($($arg: ident),*) => {
         #[async_trait::async_trait]
-        impl<Func, C, R, E, $($arg),*> EmulatedFunction<C, R, E, ($($arg,)*)> for Func
+        impl<Func, C, R, $($arg),*> EmulatedFunction<C, R, ($($arg,)*)> for Func
         where
-            Func: for<'a> FnHelper<'a, C, R, E, ($($arg,)*)> + Sync,
+            Func: for<'a> FnHelper<'a, C, R, ($($arg,)*)> + Sync,
             C: Send,
             $($arg: EmulatedFunctionParam<$arg>),*
         {
-            async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R, E> {
+            async fn call(&self, core: &mut ArmCore, context: &mut C) -> Result<R> {
                 self.do_call(core, context).await
             }
         }
@@ -150,17 +143,17 @@ impl EmulatedFunctionParam<u32> for u32 {
 }
 
 pub trait ResultWriter<R> {
-    fn write(core: &mut ArmCore, value: R, lr: u32) -> ArmCoreResult<()>;
+    fn write(core: &mut ArmCore, value: R, lr: u32) -> Result<()>;
 }
 
 impl ResultWriter<u32> for u32 {
-    fn write(core: &mut ArmCore, value: u32, lr: u32) -> ArmCoreResult<()> {
+    fn write(core: &mut ArmCore, value: u32, lr: u32) -> Result<()> {
         core.write_result(value, lr)
     }
 }
 
 impl ResultWriter<()> for () {
-    fn write(core: &mut ArmCore, _: (), lr: u32) -> ArmCoreResult<()> {
+    fn write(core: &mut ArmCore, _: (), lr: u32) -> Result<()> {
         core.write_result(0, lr)
     }
 }

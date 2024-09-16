@@ -1,8 +1,8 @@
 use alloc::vec;
 
-use wie_util::{ByteRead, ByteWrite};
+use wie_util::{ByteRead, ByteWrite, Result, WieError};
 
-use crate::{core::ArmCore, ArmCoreError, ArmCoreResult};
+use crate::core::ArmCore;
 
 pub const BUCKET_MAX: usize = 512;
 const BUCKETS: [usize; 8] = [4, 8, 16, 32, 64, 128, 256, 512];
@@ -11,7 +11,7 @@ const BUCKET_SIZE: usize = 0x100000;
 pub struct BucketAllocator;
 
 impl BucketAllocator {
-    pub fn init(core: &mut ArmCore, base_address: u32, _base_size: u32) -> ArmCoreResult<()> {
+    pub fn init(core: &mut ArmCore, base_address: u32, _base_size: u32) -> Result<()> {
         // initialize each bucket header with ones
         // header contains bitset of allocation, 1 is unallocated, 0 is allocated
 
@@ -26,7 +26,7 @@ impl BucketAllocator {
 
         Ok(())
     }
-    pub fn alloc(core: &mut ArmCore, base_address: u32, size: u32) -> ArmCoreResult<u32> {
+    pub fn alloc(core: &mut ArmCore, base_address: u32, size: u32) -> Result<u32> {
         let bucket_index = Self::find_bucket_index(size);
         let bucket = BUCKETS[bucket_index];
         let base_address = base_address + (bucket_index * BUCKET_SIZE) as u32;
@@ -49,10 +49,10 @@ impl BucketAllocator {
             return Ok(address);
         }
 
-        Err(ArmCoreError::AllocationFailure)
+        Err(WieError::AllocationFailure)
     }
 
-    pub fn free(core: &mut ArmCore, base_address: u32, address: u32, size: u32) -> ArmCoreResult<()> {
+    pub fn free(core: &mut ArmCore, base_address: u32, address: u32, size: u32) -> Result<()> {
         let bucket_index = Self::find_bucket_index(size);
         let bucket = BUCKETS[bucket_index];
         let base_address = base_address + (bucket_index * BUCKET_SIZE) as u32;
@@ -82,12 +82,14 @@ impl BucketAllocator {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ArmCore, ArmCoreResult};
+    use wie_util::Result;
+
+    use crate::ArmCore;
 
     use super::BucketAllocator;
 
     #[test]
-    fn test_allocator() -> ArmCoreResult<()> {
+    fn test_allocator() -> Result<()> {
         let mut core = ArmCore::new().unwrap();
         core.map(0x40000000, 0x1000000)?;
 

@@ -8,9 +8,9 @@ use core::mem::size_of;
 use bytemuck::Zeroable;
 
 use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
-use wie_util::{read_generic, write_generic};
+use wie_util::{read_generic, write_generic, Result, WieError};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMemoryId, WIPICMethodBody, WIPICWord};
 
 use self::{
     framebuffer::{WIPICDisplayInfo, WIPICFramebuffer},
@@ -21,12 +21,12 @@ use self::{
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
 
     body.into_body()
 }
 
-async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> WIPICResult<WIPICMemoryId> {
+async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let (width, height) = {
@@ -43,7 +43,7 @@ async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -
     Ok(memory)
 }
 
-async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> WIPICResult<()> {
+async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpInitContext({:#x})", p_grp_ctx);
 
     let grp_ctx: WIPICGraphicsContext = WIPICGraphicsContext::zeroed();
@@ -51,7 +51,7 @@ async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> W
     Ok(())
 }
 
-async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: WIPICGraphicsContextIdx, pv: WIPICWord) -> WIPICResult<()> {
+async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: WIPICGraphicsContextIdx, pv: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpSetContext({:#x}, {:?}, {:#x})", p_grp_ctx, op, pv);
 
     let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
@@ -97,7 +97,7 @@ async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: W
     Ok(())
 }
 
-async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, p_gctx: WIPICWord) -> WIPICResult<()> {
+async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpPutPixel({:#x}, {}, {}, {:?})", dst_fb.0, x, y, p_gctx);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
@@ -108,7 +108,7 @@ async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32
     Ok(())
 }
 
-async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> WIPICResult<()> {
+async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpFillRect({:#x}, {}, {}, {}, {}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
@@ -118,13 +118,7 @@ async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32
     Ok(())
 }
 
-async fn create_image(
-    context: &mut dyn WIPICContext,
-    ptr_image: WIPICWord,
-    image_data: WIPICMemoryId,
-    offset: u32,
-    len: u32,
-) -> WIPICResult<WIPICWord> {
+async fn create_image(context: &mut dyn WIPICContext, ptr_image: WIPICWord, image_data: WIPICMemoryId, offset: u32, len: u32) -> Result<WIPICWord> {
     tracing::debug!("MC_grpCreateImage({:#x}, {:#x}, {}, {})", ptr_image, image_data.0, offset, len);
 
     let image = WIPICImage::new(context, image_data, offset, len)?;
@@ -148,7 +142,7 @@ async fn draw_image(
     sx: i32,
     sy: i32,
     graphics_context: WIPICWord,
-) -> WIPICResult<()> {
+) -> Result<()> {
     tracing::debug!(
         "MC_grpDrawImage({:#x}, {}, {}, {}, {}, {:#x}, {}, {}, {:#x})",
         framebuffer.0,
@@ -181,7 +175,7 @@ async fn flush(
     a3: WIPICWord,
     a4: WIPICWord,
     a5: WIPICWord,
-) -> WIPICResult<()> {
+) -> Result<()> {
     tracing::debug!(
         "MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
         a0,
@@ -204,7 +198,7 @@ async fn flush(
     Ok(())
 }
 
-async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32, b: i32) -> WIPICResult<WIPICWord> {
+async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32, b: i32) -> Result<WIPICWord> {
     tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})", r, g, b);
     if (r > 0xff) || (g > 0xff) | (b > 0xff) {
         tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
@@ -220,7 +214,7 @@ async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32, b: 
     Ok(color)
 }
 
-async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, out_ptr: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, out_ptr: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_grpGetDisplayInfo({:#x}, {:#x})", reserved, out_ptr);
 
     assert_eq!(reserved, 0);
@@ -256,7 +250,7 @@ async fn copy_area(
     x: i32,
     y: i32,
     pgc: WIPICWord,
-) -> WIPICResult<()> {
+) -> Result<()> {
     tracing::debug!("MC_grpCopyArea({:#x}, {}, {}, {}, {}, {}, {}, {:#x})", dst.0, dx, dy, w, h, x, y, pgc);
 
     if w < 0 || h < 0 {
@@ -275,7 +269,7 @@ async fn copy_area(
     Ok(())
 }
 
-async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> WIPICResult<WIPICMemoryId> {
+async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_grpCreateOffScreenFrameBuffer({}, {})", w, h);
 
     let framebuffer = WIPICFramebuffer::new(context, w as _, h as _, FRAMEBUFFER_DEPTH)?;
@@ -298,7 +292,7 @@ async fn copy_frame_buffer(
     sx: i32,
     sy: i32,
     pgc: WIPICWord,
-) -> WIPICResult<()> {
+) -> Result<()> {
     tracing::debug!(
         "MC_grpCopyFrameBuffer({:#x}, {}, {}, {}, {}, {:#x}, {}, {}, {:#x})",
         dst.0,

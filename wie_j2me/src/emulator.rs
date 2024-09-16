@@ -7,22 +7,25 @@ use alloc::{
     vec::Vec,
 };
 
+use jvm::Result as JvmResult;
+
 use wie_backend::{Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
+use wie_util::{Result, WieError};
 
 pub struct J2MEEmulator {
     system: System,
 }
 
 impl J2MEEmulator {
-    pub fn from_jad_jar(platform: Box<dyn Platform>, jad: Vec<u8>, jar_filename: String, jar: Vec<u8>) -> anyhow::Result<Self> {
+    pub fn from_jad_jar(platform: Box<dyn Platform>, jad: Vec<u8>, jar_filename: String, jar: Vec<u8>) -> Result<Self> {
         let descriptor = J2MEDescriptor::parse(&jad);
 
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
         Self::load(platform, &jar_filename, &descriptor.name, Some(descriptor.main_class_name), &files)
     }
 
-    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>) -> anyhow::Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
         Self::load(platform, jar_filename, jar_filename, None, &files)
@@ -34,7 +37,7 @@ impl J2MEEmulator {
         id: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let mut system = System::new(platform, id);
 
         for (path, data) in files {
@@ -50,7 +53,7 @@ impl J2MEEmulator {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> anyhow::Result<()> {
+    async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
         let protos = [wie_midp::get_protos().into()];
         let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), RustJavaJvmImplementation).await?;
 
@@ -58,15 +61,15 @@ impl J2MEEmulator {
             x
         } else {
             // TODO we need to parse META-INF/MANIFEST.MF for midlet
-            anyhow::bail!("Main class not found");
+            return Err(WieError::FatalError("Main class not found".into()));
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
         let main_class = jvm.new_class(&normalized_class_name, "()V", []).await?;
 
-        let result: Result<(), _> = jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await;
+        let result: JvmResult<()> = jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await;
         if let Err(x) = result {
-            anyhow::bail!(JvmSupport::format_err(&jvm, x).await)
+            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
         }
 
         Ok(())
@@ -78,7 +81,7 @@ impl Emulator for J2MEEmulator {
         self.system.event_queue().push(event)
     }
 
-    fn tick(&mut self) -> anyhow::Result<()> {
+    fn tick(&mut self) -> Result<()> {
         self.system.tick()
     }
 }

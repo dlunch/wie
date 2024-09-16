@@ -3,9 +3,9 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_util::{read_generic, write_generic};
+use wie_util::{read_generic, write_generic, Result, WieError};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICError, WIPICMethodBody, WIPICResult, WIPICWord};
+use crate::{context::WIPICContext, method::MethodImpl, WIPICMethodBody, WIPICWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -77,12 +77,12 @@ struct MdaClip {
 }
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WIPICError::Unimplemented(name.into())) };
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
 
     body.into_body()
 }
 
-async fn clip_create(context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn clip_create(context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_mdaClipCreate({}, {:#x}, {:#x})", r#type, buf_size, callback);
 
     let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
@@ -90,13 +90,13 @@ async fn clip_create(context: &mut dyn WIPICContext, r#type: String, buf_size: W
     Ok(clip)
 }
 
-async fn clip_get_type(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn clip_get_type(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaClipGetType({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
 
     Ok(0)
 }
 
-async fn get_mute_state(_context: &mut dyn WIPICContext, source: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn get_mute_state(_context: &mut dyn WIPICContext, source: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaGetMuteState({:#x})", source);
 
     Ok(0)
@@ -108,13 +108,13 @@ async fn clip_get_info(
     command: WIPICWord,
     buf: WIPICWord,
     buf_size: WIPICWord,
-) -> WIPICResult<WIPICWord> {
+) -> Result<WIPICWord> {
     tracing::warn!("stub OEMC_mdaClipGetInfo({:#x}, {:#x}, {:#x}, {:#x})", clip, command, buf, buf_size);
 
     Ok(0)
 }
 
-async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_mdaClipPutData({:#x}, {:#x}, {:#x})", ptr_clip, buf, buf_size);
 
     let mut data = vec![0; buf_size as _];
@@ -135,19 +135,19 @@ async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf:
     Ok(buf_size)
 }
 
-async fn clip_get_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn clip_get_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaClipGetData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
 
     Ok(0)
 }
 
-async fn clip_set_position(_context: &mut dyn WIPICContext, clip: WIPICWord, ms: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn clip_set_position(_context: &mut dyn WIPICContext, clip: WIPICWord, ms: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaClipSetPosition({:#x}, {:#x})", clip, ms);
 
     Ok(0)
 }
 
-async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> WIPICResult<()> {
+async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<()> {
     tracing::debug!("MC_mdaPlay({:#x}, {})", ptr_clip, repeat);
 
     let clip: MdaClip = read_generic(context, ptr_clip)?;
@@ -161,25 +161,25 @@ async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPIC
     Ok(())
 }
 
-async fn pause(_context: &mut dyn WIPICContext, clip: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn pause(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaPause({:#x})", clip);
 
     Ok(0)
 }
 
-async fn resume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn resume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaResume({:#x})", clip);
 
     Ok(0)
 }
 
-async fn stop(_context: &mut dyn WIPICContext, clip: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn stop(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaStop({:#x})", clip);
 
     Ok(0)
 }
 
-async fn record(_context: &mut dyn WIPICContext, clip: WIPICWord) -> WIPICResult<WIPICWord> {
+async fn record(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaRecord({:#x})", clip);
 
     Ok(0)

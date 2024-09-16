@@ -4,7 +4,7 @@ use core::fmt::Display;
 use wie_core_arm::ArmCore;
 use wie_util::{read_generic, read_null_terminated_string};
 
-use super::JvmSupportResult;
+use super::Result;
 
 #[derive(Clone)]
 pub struct JavaFullName {
@@ -14,7 +14,7 @@ pub struct JavaFullName {
 }
 
 impl JavaFullName {
-    pub fn from_ptr(core: &ArmCore, ptr: u32) -> JvmSupportResult<Self> {
+    pub fn from_ptr(core: &ArmCore, ptr: u32) -> Result<Self> {
         let tag = read_generic(core, ptr)?;
 
         let value = read_null_terminated_string(core, ptr + 1)?;

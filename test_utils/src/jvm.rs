@@ -8,11 +8,12 @@ use jvm::{Jvm, Result as JvmResult};
 
 use wie_backend::System;
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto};
+use wie_util::{Result, WieError};
 
 use crate::TestPlatform;
 
 // TODO macro?
-pub fn run_jvm_test<T, F>(protos: Box<[Box<[WieJavaClassProto]>]>, func: T) -> JvmResult<()>
+pub fn run_jvm_test<T, F>(protos: Box<[Box<[WieJavaClassProto]>]>, func: T) -> Result<()>
 where
     T: FnOnce(Jvm) -> F + Send + 'static,
     F: Future<Output = JvmResult<()>> + Send,
@@ -29,11 +30,11 @@ where
 
         done_clone.store(true, Ordering::Relaxed);
 
-        anyhow::Ok(())
+        Ok::<_, WieError>(())
     });
 
     loop {
-        system.tick().unwrap();
+        system.tick()?;
         if done.load(Ordering::Relaxed) {
             break;
         }

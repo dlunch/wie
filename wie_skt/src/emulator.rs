@@ -11,13 +11,14 @@ use jvm::Result as JvmResult;
 
 use wie_backend::{Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
+use wie_util::{Result, WieError};
 
 pub struct SktEmulator {
     system: System,
 }
 
 impl SktEmulator {
-    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> anyhow::Result<Self> {
+    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> Result<Self> {
         let msd_file = files.iter().find(|x| x.0.ends_with(".msd")).unwrap();
         let msd = SktMsd::parse(msd_file.0, msd_file.1);
 
@@ -28,13 +29,7 @@ impl SktEmulator {
         Self::load(platform, &jar_filename, &msd.id, Some(msd.main_class), &files)
     }
 
-    pub fn from_jar(
-        platform: Box<dyn Platform>,
-        jar_filename: &str,
-        jar: Vec<u8>,
-        id: &str,
-        main_class_name: Option<String>,
-    ) -> anyhow::Result<Self> {
+    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
         Self::load(platform, jar_filename, id, main_class_name, &files)
@@ -54,7 +49,7 @@ impl SktEmulator {
         id: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let mut system = System::new(platform, id);
 
         for (filename, data) in files {
@@ -70,7 +65,7 @@ impl SktEmulator {
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> anyhow::Result<()> {
+    async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
         let protos = [
             wie_midp::get_protos().into(),
             wie_skvm::get_protos().into(),
@@ -81,7 +76,7 @@ impl SktEmulator {
         let main_class_name = if let Some(x) = main_class_name {
             x
         } else {
-            anyhow::bail!("Main class not found");
+            return Err(WieError::FatalError("Main class not found".into()))?;
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
@@ -94,7 +89,7 @@ impl SktEmulator {
         };
 
         if let Err(x) = result {
-            anyhow::bail!(JvmSupport::format_err(&jvm, x).await)
+            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
         }
 
         Ok(())
@@ -106,7 +101,7 @@ impl Emulator for SktEmulator {
         self.system.event_queue().push(event)
     }
 
-    fn tick(&mut self) -> anyhow::Result<()> {
+    fn tick(&mut self) -> Result<()> {
         self.system.tick()
     }
 }

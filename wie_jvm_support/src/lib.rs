@@ -8,9 +8,10 @@ mod runtime;
 use alloc::{boxed::Box, format, string::String};
 
 use java_runtime::Runtime;
-use jvm::{runtime::JavaLangString, JavaError, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, JavaError, Jvm};
 
 use wie_backend::System;
+use wie_util::Result;
 
 pub use context::{WieJavaClassProto, WieJvmContext};
 pub use jvm_implementation::{JvmImplementation, RustJavaJvmImplementation};
@@ -19,7 +20,7 @@ use runtime::JvmRuntime;
 pub struct JvmSupport;
 
 impl JvmSupport {
-    pub async fn new_jvm<T>(system: &System, jar_name: Option<&str>, protos: Box<[Box<[WieJavaClassProto]>]>, implementation: T) -> JvmResult<Jvm>
+    pub async fn new_jvm<T>(system: &System, jar_name: Option<&str>, protos: Box<[Box<[WieJavaClassProto]>]>, implementation: T) -> Result<Jvm>
     where
         T: JvmImplementation + Sync + Send + 'static,
     {

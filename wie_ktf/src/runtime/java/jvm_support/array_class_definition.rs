@@ -15,7 +15,7 @@ use wie_util::{write_generic, write_null_terminated_string};
 use super::{
     array_class_instance::JavaArrayClassInstance,
     class_definition::{JavaClassDefinition, RawJavaClass, RawJavaClassDescriptor},
-    JvmSupportResult, KtfJvmSupport,
+    KtfJvmSupport, Result,
 };
 
 #[derive(Clone)]
@@ -32,7 +32,7 @@ impl JavaArrayClassDefinition {
         }
     }
 
-    pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> JvmSupportResult<Self> {
+    pub async fn new(core: &mut ArmCore, jvm: &Jvm, name: &str) -> Result<Self> {
         let java_lang_object = jvm.resolve_class("java/lang/Object").await.unwrap();
         let java_lang_object_raw = KtfJvmSupport::class_definition_raw(&*java_lang_object.definition)?;
 
@@ -88,13 +88,13 @@ impl JavaArrayClassDefinition {
         Ok(class)
     }
 
-    pub fn element_type_descriptor(&self) -> JvmSupportResult<String> {
+    pub fn element_type_descriptor(&self) -> Result<String> {
         let class_name = self.class.name()?;
 
         Ok(class_name[1..].to_string())
     }
 
-    pub fn element_size(&self) -> JvmSupportResult<usize> {
+    pub fn element_size(&self) -> Result<usize> {
         let r#type = JavaType::parse(&self.element_type_descriptor()?);
         Ok(match r#type {
             JavaType::Boolean => 1,
