@@ -53,4 +53,6 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all -- -D warnings
       - run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
-      - run: cargo test --all
+      - run: |
+          export RUST_MIN_STACK=4194304
+          cargo test --all
