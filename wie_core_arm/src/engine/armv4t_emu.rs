@@ -1,9 +1,5 @@
 use alloc::{boxed::Box, sync::Arc};
-use core::{
-    array,
-    ops::Range,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::{array, ops::Range};
 
 use armv4t_emu::{reg, Cpu, Memory, Mode};
 use spin::Mutex;
@@ -15,12 +11,12 @@ use crate::engine::{ArmEngine, ArmRegister, MemoryPermission};
 pub struct Armv4tEmuEngine {
     cpu: Cpu,
     mem: Armv4tEmuMemory,
-    memory_error: Arc<AtomicBool>,
+    memory_error: Arc<Mutex<Option<u32>>>,
 }
 
 impl Armv4tEmuEngine {
     pub fn new() -> Self {
-        let memory_error = Arc::new(AtomicBool::new(false));
+        let memory_error = Arc::new(Mutex::new(None));
         Self {
             cpu: Cpu::new(),
             mem: Armv4tEmuMemory::new(memory_error.clone()),
@@ -40,8 +36,8 @@ impl ArmEngine for Armv4tEmuEngine {
             self.cpu.step(&mut self.mem);
             count -= 1;
 
-            if self.memory_error.load(Ordering::SeqCst) {
-                return Err(WieError::InvalidMemoryAccess);
+            if let Some(x) = *self.memory_error.lock() {
+                return Err(WieError::InvalidMemoryAccess(x));
             }
         }
     }
@@ -111,11 +107,11 @@ const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
 struct Armv4tEmuMemory {
     pages: [Option<Box<Mutex<[u8; PAGE_SIZE]>>>; TOTAL_MEMORY / PAGE_SIZE],
-    memory_error: Arc<AtomicBool>,
+    memory_error: Arc<Mutex<Option<u32>>>,
 }
 
 impl Armv4tEmuMemory {
-    fn new(memory_error: Arc<AtomicBool>) -> Self {
+    fn new(memory_error: Arc<Mutex<Option<u32>>>) -> Self {
         Self {
             pages: array::from_fn(|_| None),
             memory_error,
@@ -176,7 +172,7 @@ impl Armv4tEmuMemory {
         if let Some(x) = page_data {
             Some(x)
         } else {
-            self.memory_error.store(true, Ordering::SeqCst);
+            *self.memory_error.lock() = Some(addr);
             None
         }
     }
