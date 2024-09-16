@@ -54,9 +54,9 @@ where
         #[async_trait::async_trait]
         impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, WieError> {
-                self.callback.call().await;
+                self.callback.call().await?;
 
-                Ok(0) // TODO
+                Ok(0)
             }
         }
 
