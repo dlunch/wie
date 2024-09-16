@@ -2285,6 +2285,7 @@ dependencies = [
  "wie_backend",
  "wie_jvm_support",
  "wie_util",
+ "wie_wipi_c",
 ]
 
 [[package]]
@@ -2894,6 +2895,7 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "futures-test",
+ "test_utils",
  "tracing",
  "wie_backend",
  "wie_util",
