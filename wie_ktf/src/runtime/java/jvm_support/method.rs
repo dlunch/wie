@@ -12,7 +12,7 @@ use java_constants::MethodAccessFlags;
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam};
-use wie_util::{read_generic, write_generic, ByteWrite, Result};
+use wie_util::{read_generic, write_generic, ByteWrite, Result, WieError};
 
 use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder};
 
@@ -208,7 +208,10 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        let result = self.run(args).await.map_err(|x| JavaError::FatalError(format!("{}", x)))?;
+        let result = self.run(args).await.map_err(|x| match x {
+            WieError::FatalError(x) => JavaError::FatalError(x),
+            _ => JavaError::FatalError(format!("{:?}", x)),
+        })?;
         let r#type = JavaType::parse(&self.descriptor());
         let (_, return_type) = r#type.as_method();
 
