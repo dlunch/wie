@@ -17,7 +17,7 @@ use jvm::JavaError;
 
 #[derive(Debug)]
 pub enum WieError {
-    InvalidMemoryAccess,
+    InvalidMemoryAccess(u32),
     AllocationFailure,
     Unimplemented(String),
     FatalError(String),
@@ -35,7 +35,7 @@ impl From<JavaError> for WieError {
 impl Display for WieError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            WieError::InvalidMemoryAccess => write!(f, "Invalid memory access"),
+            WieError::InvalidMemoryAccess(address) => write!(f, "Invalid memory access; address: {}", address),
             WieError::AllocationFailure => write!(f, "Allocation failure"),
             WieError::Unimplemented(message) => write!(f, "Unimplemented: {}", message),
             WieError::FatalError(message) => write!(f, "Fatal error: {}", message),
