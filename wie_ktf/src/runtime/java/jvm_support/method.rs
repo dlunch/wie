@@ -210,7 +210,7 @@ impl Method for JavaMethod {
     async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
         let result = self.run(args).await.map_err(|x| match x {
             WieError::FatalError(x) => JavaError::FatalError(x),
-            _ => JavaError::FatalError(format!("{:?}", x)),
+            _ => JavaError::FatalError(format!("{}", x)),
         })?;
         let r#type = JavaType::parse(&self.descriptor());
         let (_, return_type) = r#type.as_method();
