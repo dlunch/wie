@@ -6,7 +6,10 @@ use bytemuck::{cast_vec, pod_collect_to_vec};
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{
+    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
+    Array, ClassInstanceRef, Jvm, Result as JvmResult,
+};
 
 use wie_backend::canvas::{decode_image, ArgbPixel, Canvas, Image as BackendImage, ImageBufferCanvas, Rgb565Pixel, VecImageBuffer};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -76,19 +79,16 @@ impl Image {
         .await
     }
 
-    async fn create_image_from_file(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
+    async fn create_image_from_file(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
 
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
-        let normalized_name = if let Some(x) = name.strip_prefix('/') { x } else { &name };
 
-        let image = {
-            let filesystem = context.system().filesystem();
-            let image_data = filesystem.read(normalized_name).unwrap();
+        let class_loader = jvm.current_class_loader().await?;
+        let stream = JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, &name).await?.unwrap();
 
-            decode_image(image_data)
-        }
-        .unwrap();
+        let image_data = JavaIoInputStream::read_until_end(jvm, &stream).await?;
+        let image = decode_image(&image_data).unwrap();
 
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
