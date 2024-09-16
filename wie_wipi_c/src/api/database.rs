@@ -68,7 +68,7 @@ async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr
     tracing::debug!("MC_db_write_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     let mut buf = vec![0; buf_len as _];
-    context.read_bytes(buf_ptr, buf_len, &mut buf)?;
+    context.read_bytes(buf_ptr, &mut buf)?;
     let mut db = get_database_from_db_id(context, db_id);
 
     db.set(1, &buf);

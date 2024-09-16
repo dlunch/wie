@@ -2,7 +2,7 @@
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-use core::{mem::size_of, result};
+use core::result;
 
 use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
 
@@ -20,7 +20,7 @@ impl From<ByteReadWriteError> for anyhow::Error {
 pub type Result<T> = result::Result<T, ByteReadWriteError>;
 
 pub trait ByteRead {
-    fn read_bytes(&self, address: u32, size: u32, result: &mut [u8]) -> Result<usize>;
+    fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize>;
 }
 
 pub trait ByteWrite {
@@ -36,7 +36,7 @@ where
         #[allow(clippy::uninit_assumed_init)] // XXX
         let destination = &mut core::mem::MaybeUninit::<T>::uninit().assume_init();
 
-        reader.read_bytes(address, size_of::<T>() as _, bytes_of_mut(destination))?;
+        reader.read_bytes(address, bytes_of_mut(destination))?;
 
         Ok(*destination)
     }
@@ -52,7 +52,7 @@ where
     let mut cursor = address;
     loop {
         let mut item = [0u8; 1];
-        reader.read_bytes(cursor, 1, &mut item)?;
+        reader.read_bytes(cursor, &mut item)?;
         cursor += 1;
 
         if item[0] == 0 {

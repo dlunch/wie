@@ -118,7 +118,7 @@ async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf:
     tracing::debug!("MC_mdaClipPutData({:#x}, {:#x}, {:#x})", ptr_clip, buf, buf_size);
 
     let mut data = vec![0; buf_size as _];
-    context.read_bytes(buf, buf_size, &mut data)?;
+    context.read_bytes(buf, &mut data)?;
 
     let handle = context.system().audio().load_smaf(&data);
     if let Err(x) = handle {

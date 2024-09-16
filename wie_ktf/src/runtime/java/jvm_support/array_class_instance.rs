@@ -46,8 +46,7 @@ impl JavaArrayClassInstance {
         let size = count * element_size;
 
         let mut result = vec![0; size as _];
-        self.core
-            .read_bytes(base_address + (element_size * offset) as u32, size as _, &mut result)?;
+        self.core.read_bytes(base_address + (element_size * offset) as u32, &mut result)?;
 
         Ok(result)
     }
