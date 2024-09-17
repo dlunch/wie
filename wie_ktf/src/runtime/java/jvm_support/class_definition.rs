@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaClassProto;
 use java_constants::FieldAccessFlags;
-use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{
@@ -279,10 +279,10 @@ impl ClassDefinition for JavaClassDefinition {
         self.parent_class().unwrap().map(|x| x.name().unwrap())
     }
 
-    fn instantiate(&self) -> Box<dyn ClassInstance> {
-        let instance = JavaClassInstance::new(&mut self.core.clone(), self).unwrap();
+    fn instantiate(&self) -> JvmResult<Box<dyn ClassInstance>> {
+        let instance = JavaClassInstance::new(&mut self.core.clone(), self).map_err(|x| JavaError::FatalError(format!("{}", x)))?;
 
-        Box::new(instance)
+        Ok(Box::new(instance))
     }
 
     fn method(&self, name: &str, descriptor: &str) -> Option<Box<dyn Method>> {
