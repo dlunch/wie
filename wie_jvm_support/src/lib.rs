@@ -5,7 +5,7 @@ mod context;
 mod jvm_implementation;
 mod runtime;
 
-use alloc::{boxed::Box, format, string::String};
+use alloc::{boxed::Box, format};
 
 use java_runtime::Runtime;
 use jvm::{runtime::JavaLangString, JavaError, Jvm};
@@ -48,24 +48,25 @@ impl JvmSupport {
         Ok(jvm)
     }
 
-    pub async fn format_err(jvm: &Jvm, err: JavaError) -> String {
-        if let JavaError::JavaException(x) = err {
-            let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await.unwrap();
-            let print_writer = jvm
-                .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))
-                .await
-                .unwrap();
+    pub async fn to_wie_err(jvm: &Jvm, err: JavaError) -> WieError {
+        match err {
+            JavaError::JavaException(x) => {
+                let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await.unwrap();
+                let print_writer = jvm
+                    .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))
+                    .await
+                    .unwrap();
 
-            let _: () = jvm
-                .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
-                .await
-                .unwrap();
+                let _: () = jvm
+                    .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
+                    .await
+                    .unwrap();
 
-            let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await.unwrap();
+                let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await.unwrap();
 
-            format!("\n{}", JavaLangString::to_rust_string(jvm, &trace).await.unwrap())
-        } else {
-            format!("{:?}", err)
+                WieError::FatalError(format!("\n{}", JavaLangString::to_rust_string(jvm, &trace).await.unwrap()))
+            }
+            JavaError::FatalError(x) => WieError::FatalError(x),
         }
     }
 }

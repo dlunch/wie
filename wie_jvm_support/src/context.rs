@@ -36,7 +36,7 @@ impl WieJvmContext {
 
                 let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
                 if let Err(err) = result {
-                    return Err(WieError::FatalError(JvmSupport::format_err(&self.jvm, err).await));
+                    return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
                 }
 
                 Ok(0) // TODO return value

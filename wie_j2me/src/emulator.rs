@@ -69,7 +69,7 @@ impl J2MEEmulator {
 
         let result: JvmResult<()> = jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await;
         if let Err(x) = result {
-            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
+            return Err(JvmSupport::to_wie_err(&jvm, x).await);
         }
 
         Ok(())

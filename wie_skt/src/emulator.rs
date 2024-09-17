@@ -83,7 +83,7 @@ impl SktEmulator {
         let main_class: JvmResult<Box<dyn ClassInstance>> = jvm.new_class(&normalized_class_name, "()V", []).await;
 
         if let Err(x) = main_class {
-            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
+            return Err(JvmSupport::to_wie_err(&jvm, x).await);
         }
 
         let main_class = main_class.unwrap();
@@ -95,7 +95,7 @@ impl SktEmulator {
         };
 
         if let Err(x) = result {
-            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
+            return Err(JvmSupport::to_wie_err(&jvm, x).await);
         }
 
         Ok(())
