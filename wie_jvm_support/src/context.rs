@@ -6,6 +6,8 @@ use jvm::{JavaError, Jvm, Result as JvmResult};
 use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;
 
+use crate::JvmSupport;
+
 #[derive(Clone)]
 pub struct WieJvmContext {
     system: System,
@@ -31,7 +33,11 @@ impl WieJvmContext {
         impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, WieError> {
                 let mut context = WieJvmContext { system: self.system };
-                let _ = self.callback.call(&self.jvm, &mut context, Box::new([])).await?;
+
+                let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
+                if let Err(err) = result {
+                    return Err(WieError::FatalError(JvmSupport::format_err(&self.jvm, err).await));
+                }
 
                 Ok(0) // TODO return value
             }

@@ -65,7 +65,7 @@ impl J2MEEmulator {
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
-        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await?;
+        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await.unwrap();
 
         let result: JvmResult<()> = jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await;
         if let Err(x) = result {

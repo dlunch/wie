@@ -122,19 +122,22 @@ impl KtfJvmSupport {
 
         let client_bin = if let Some(x) = jar_name {
             // find client.bin
-            let jar_name_java = JavaLangString::from_rust_string(&jvm, x).await?;
-            let jar_file = jvm.new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (jar_name_java,)).await?;
-            let entries: ClassInstanceRef<Enumeration> = jvm.invoke_virtual(&jar_file, "entries", "()Ljava/util/Enumeration;", []).await?;
+            let jar_name_java = JavaLangString::from_rust_string(&jvm, x).await.unwrap();
+            let jar_file = jvm
+                .new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (jar_name_java,))
+                .await
+                .unwrap();
+            let entries: ClassInstanceRef<Enumeration> = jvm.invoke_virtual(&jar_file, "entries", "()Ljava/util/Enumeration;", []).await.unwrap();
 
             loop {
-                let has_more_elements: bool = jvm.invoke_virtual(&entries, "hasMoreElements", "()Z", []).await?;
+                let has_more_elements: bool = jvm.invoke_virtual(&entries, "hasMoreElements", "()Z", []).await.unwrap();
                 if !has_more_elements {
                     break None;
                 }
 
-                let entry: ClassInstanceRef<JarEntry> = jvm.invoke_virtual(&entries, "nextElement", "()Ljava/lang/Object;", []).await?;
-                let name = jvm.invoke_virtual(&entry, "getName", "()Ljava/lang/String;", []).await?;
-                let name_rust = JavaLangString::to_rust_string(&jvm, &name).await?;
+                let entry: ClassInstanceRef<JarEntry> = jvm.invoke_virtual(&entries, "nextElement", "()Ljava/lang/Object;", []).await.unwrap();
+                let name = jvm.invoke_virtual(&entry, "getName", "()Ljava/lang/String;", []).await.unwrap();
+                let name_rust = JavaLangString::to_rust_string(&jvm, &name).await.unwrap();
 
                 if name_rust.contains("client.bin") {
                     break Some(name);
@@ -155,11 +158,12 @@ impl KtfJvmSupport {
         )
         .await?;
 
-        jvm.register_class(Box::new(class_loader_class), None).await?;
+        jvm.register_class(Box::new(class_loader_class), None).await.unwrap();
 
         let system_class_loader: Box<dyn ClassInstance> = jvm
             .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", [])
-            .await?;
+            .await
+            .unwrap();
 
         let class_loader = jvm
             .new_class(
@@ -167,7 +171,8 @@ impl KtfJvmSupport {
                 "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
                 (system_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
             )
-            .await?;
+            .await
+            .unwrap();
 
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
@@ -273,14 +278,15 @@ mod test {
         system.spawn(|| async move {
             let jvm = init_jvm(&mut system_clone).await?;
 
-            let string1 = JavaLangString::from_rust_string(&jvm, "test1").await?;
-            let string2 = JavaLangString::from_rust_string(&jvm, "test2").await?;
+            let string1 = JavaLangString::from_rust_string(&jvm, "test1").await.unwrap();
+            let string2 = JavaLangString::from_rust_string(&jvm, "test2").await.unwrap();
 
             let string3 = jvm
                 .invoke_virtual(&string1, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [string2.into()])
-                .await?;
+                .await
+                .unwrap();
 
-            assert_eq!(JavaLangString::to_rust_string(&jvm, &string3).await?, "test1test2");
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &string3).await.unwrap(), "test1test2");
 
             done_clone.store(true, Ordering::Relaxed);
 

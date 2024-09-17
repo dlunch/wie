@@ -11,7 +11,7 @@ use java_runtime::Runtime;
 use jvm::{runtime::JavaLangString, JavaError, Jvm};
 
 use wie_backend::System;
-use wie_util::Result;
+use wie_util::{Result, WieError};
 
 pub use context::{WieJavaClassProto, WieJvmContext};
 pub use jvm_implementation::{JvmImplementation, RustJavaJvmImplementation};
@@ -34,13 +34,14 @@ impl JvmSupport {
             move || runtime.current_task_id(),
             properties,
         )
-        .await?;
+        .await
+        .map_err(|x| WieError::FatalError(format!("Failed to create JVM: {}", x)))?;
         let context = Box::new(WieJvmContext::new(system));
 
         for proto in protos.into_vec().into_iter().flat_map(|x| x.into_vec()) {
-            let class = implementation.define_class_wie(&jvm, proto, context.clone()).await?;
+            let class = implementation.define_class_wie(&jvm, proto, context.clone()).await.unwrap();
 
-            jvm.register_class(class, None).await?;
+            jvm.register_class(class, None).await.unwrap();
             // TODO add class loader
         }
 
@@ -49,9 +50,20 @@ impl JvmSupport {
 
     pub async fn format_err(jvm: &Jvm, err: JavaError) -> String {
         if let JavaError::JavaException(x) = err {
-            let to_string = jvm.invoke_virtual(&x, "toString", "()Ljava/lang/String;", ()).await.unwrap();
+            let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await.unwrap();
+            let print_writer = jvm
+                .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))
+                .await
+                .unwrap();
 
-            JavaLangString::to_rust_string(jvm, &to_string).await.unwrap()
+            let _: () = jvm
+                .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
+                .await
+                .unwrap();
+
+            let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await.unwrap();
+
+            format!("\n{}", JavaLangString::to_rust_string(jvm, &trace).await.unwrap())
         } else {
             format!("{:?}", err)
         }

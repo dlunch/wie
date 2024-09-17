@@ -169,7 +169,7 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await?;
+                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await.unwrap();
 
                 Ok(result.as_raw())
             }

@@ -1,10 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 use core::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -13,23 +10,12 @@ use core::{
 
 use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
 
-use jvm::JavaError;
-
 #[derive(Debug)]
 pub enum WieError {
     InvalidMemoryAccess(u32),
     AllocationFailure,
     Unimplemented(String),
     FatalError(String),
-}
-
-impl From<JavaError> for WieError {
-    fn from(error: JavaError) -> Self {
-        match error {
-            JavaError::JavaException(_) => WieError::FatalError("Java exception".to_string()),
-            JavaError::FatalError(error) => WieError::FatalError(error),
-        }
-    }
 }
 
 impl Display for WieError {
