@@ -4,6 +4,7 @@ use core::{
     mem::size_of,
     ops::{Deref, DerefMut},
 };
+use wie_jvm_support::JvmSupport;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -169,9 +170,12 @@ impl JavaMethod {
 
                 let mut context = self.context.clone();
 
-                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await.unwrap();
+                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
+                if let Err(x) = result {
+                    return Err(JvmSupport::to_wie_err(&self.jvm, x).await);
+                }
 
-                Ok(result.as_raw())
+                Ok(result.unwrap().as_raw())
             }
         }
 
