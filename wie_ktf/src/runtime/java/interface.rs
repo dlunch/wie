@@ -6,6 +6,7 @@ use alloc::{
     vec::Vec,
 };
 use core::mem::size_of;
+use wie_jvm_support::JvmSupport;
 
 use jvm::{runtime::JavaLangString, Jvm};
 
@@ -116,9 +117,10 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
         return Ok(());
     }
 
-    jvm.register_class(Box::new(class), Some(KtfJvmSupport::class_loader(core)?))
-        .await
-        .unwrap();
+    let result = jvm.register_class(Box::new(class), Some(KtfJvmSupport::class_loader(core)?)).await;
+    if let Err(x) = result {
+        return Err(JvmSupport::to_wie_err(jvm, x).await);
+    }
 
     Ok(())
 }
@@ -222,8 +224,12 @@ pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Resu
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
 
-    let instance = jvm.instantiate_class(&class_name).await.unwrap();
-    let raw = KtfJvmSupport::class_instance_raw(&instance);
+    let result = jvm.instantiate_class(&class_name).await;
+    if let Err(x) = result {
+        return Err(JvmSupport::to_wie_err(jvm, x).await);
+    }
+
+    let raw = KtfJvmSupport::class_instance_raw(&result.unwrap());
 
     Ok(raw)
 }
@@ -239,8 +245,12 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
         (element_type as u8 as char).to_string()
     };
 
-    let instance = jvm.instantiate_array(&element_type_name, count as _).await.unwrap();
-    let raw = KtfJvmSupport::class_instance_raw(&instance);
+    let result = jvm.instantiate_array(&element_type_name, count as _).await;
+    if let Err(x) = result {
+        return Err(JvmSupport::to_wie_err(jvm, x).await);
+    }
+
+    let raw = KtfJvmSupport::class_instance_raw(&result.unwrap());
 
     Ok(raw)
 }
