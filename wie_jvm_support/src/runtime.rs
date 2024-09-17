@@ -46,7 +46,7 @@ where
         self.system.yield_now().await;
     }
 
-    fn spawn(&self, callback: Box<dyn SpawnCallback>) {
+    fn spawn(&self, _jvm: &Jvm, callback: Box<dyn SpawnCallback>) {
         struct SpawnProxy {
             callback: Box<dyn SpawnCallback>,
         }
