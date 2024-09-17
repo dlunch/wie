@@ -1,5 +1,6 @@
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString},
 };
 use core::{
@@ -7,7 +8,7 @@ use core::{
     mem::size_of,
 };
 
-use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm};
+use jvm::{ArrayClassDefinition, ClassInstance, JavaError, JavaType, Jvm, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{write_generic, write_null_terminated_string};
@@ -119,8 +120,10 @@ impl ArrayClassDefinition for JavaArrayClassDefinition {
         class_name[1..].into()
     }
 
-    fn instantiate_array(&self, length: usize) -> Box<dyn ClassInstance> {
-        Box::new(JavaArrayClassInstance::new(&mut self.core.clone(), self, length).unwrap())
+    fn instantiate_array(&self, length: usize) -> JvmResult<Box<dyn ClassInstance>> {
+        Ok(Box::new(
+            JavaArrayClassInstance::new(&mut self.core.clone(), self, length).map_err(|x| JavaError::FatalError(format!("{}", x)))?,
+        ))
     }
 }
 
