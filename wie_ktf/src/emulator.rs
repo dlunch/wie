@@ -1,9 +1,10 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
-use jvm::{runtime::JavaLangString, ClassInstance};
+use jvm::{runtime::JavaLangString, ClassInstance, Result as JvmResult};
 
 use wie_backend::{extract_zip, Emulator, Event, Platform, System};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
 
 use crate::runtime::KtfJvmSupport;
@@ -87,7 +88,7 @@ impl KtfEmulator {
 
         let main_class_name = main_class_name.replace('.', "/");
 
-        let main_class_name_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await?;
+        let main_class_name_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
         let _main_class: Box<dyn ClassInstance> = jvm
             .invoke_virtual(
                 &class_loader,
@@ -95,16 +96,19 @@ impl KtfEmulator {
                 "(Ljava/lang/String;)Ljava/lang/Class;",
                 (main_class_name_java,),
             )
-            .await?;
+            .await
+            .unwrap();
         // TODO can't we use java/lang/Class above?
-        let main_class = jvm.new_class(&main_class_name, "()V", []).await?;
+        let main_class = jvm.new_class(&main_class_name, "()V", []).await.unwrap();
 
         tracing::debug!("Main class instance: {:?}", &main_class);
 
-        let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
-        let _: () = jvm
-            .invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()])
-            .await?;
+        let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await.unwrap();
+        let result: JvmResult<()> = jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()]).await;
+
+        if let Err(x) = result {
+            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
+        }
 
         Ok(())
     }

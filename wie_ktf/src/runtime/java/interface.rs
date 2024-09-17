@@ -116,7 +116,9 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
         return Ok(());
     }
 
-    jvm.register_class(Box::new(class), Some(KtfJvmSupport::class_loader(core)?)).await?;
+    jvm.register_class(Box::new(class), Some(KtfJvmSupport::class_loader(core)?))
+        .await
+        .unwrap();
 
     Ok(())
 }
@@ -139,7 +141,7 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
 
     let rust_string = String::from_utf16(&bytes_u16).unwrap();
 
-    let instance = JavaLangString::from_rust_string(jvm, &rust_string).await?;
+    let instance = JavaLangString::from_rust_string(jvm, &rust_string).await.unwrap();
 
     Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
 }
@@ -220,7 +222,7 @@ pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Resu
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
 
-    let instance = jvm.instantiate_class(&class_name).await?;
+    let instance = jvm.instantiate_class(&class_name).await.unwrap();
     let raw = KtfJvmSupport::class_instance_raw(&instance);
 
     Ok(raw)
@@ -237,7 +239,7 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
         (element_type as u8 as char).to_string()
     };
 
-    let instance = jvm.instantiate_array(&element_type_name, count as _).await?;
+    let instance = jvm.instantiate_array(&element_type_name, count as _).await.unwrap();
     let raw = KtfJvmSupport::class_instance_raw(&instance);
 
     Ok(raw)

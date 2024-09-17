@@ -80,9 +80,9 @@ impl SktEmulator {
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
-        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await?;
+        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await.unwrap();
 
-        let result: JvmResult<()> = if jvm.is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await? {
+        let result: JvmResult<()> = if jvm.is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await.unwrap() {
             jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await
         } else {
             jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()]).await

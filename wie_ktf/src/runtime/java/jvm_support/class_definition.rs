@@ -66,7 +66,7 @@ impl JavaClassDefinition {
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
         let parent_class = if let Some(x) = proto.parent_class {
-            let class = jvm.resolve_class(x).await?.definition;
+            let class = jvm.resolve_class(x).await.unwrap().definition;
             let class = class.as_any().downcast_ref::<JavaClassDefinition>().unwrap().clone();
 
             Some(class)

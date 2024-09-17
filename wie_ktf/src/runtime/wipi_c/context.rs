@@ -103,9 +103,9 @@ impl WIPICContext for KtfWIPICContext {
         #[async_trait::async_trait]
         impl AsyncCallable<Result<WIPICWord>> for SpawnProxy {
             async fn call(mut self) -> Result<WIPICWord> {
-                self.context.jvm.attach_thread().await?;
+                self.context.jvm.attach_thread().await.unwrap();
                 let result = self.callback.call(&mut self.context, Box::new([])).await;
-                self.context.jvm.detach_thread().await?;
+                self.context.jvm.detach_thread().await.unwrap();
 
                 result
             }
@@ -120,23 +120,25 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<usize> {
-        let class_loader = self.jvm.current_class_loader().await?;
+        let class_loader = self.jvm.current_class_loader().await.unwrap();
         let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
-            .await?
+            .await
+            .unwrap()
             .unwrap();
 
-        let available: i32 = self.jvm.invoke_virtual(&stream, "available", "()I", ()).await?;
+        let available: i32 = self.jvm.invoke_virtual(&stream, "available", "()I", ()).await.unwrap();
 
         Ok(available as _)
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
-        let class_loader = self.jvm.current_class_loader().await?;
+        let class_loader = self.jvm.current_class_loader().await.unwrap();
         let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
-            .await?
+            .await
+            .unwrap()
             .unwrap();
 
-        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await?)
+        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap())
     }
 }
 

@@ -10,7 +10,7 @@ use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;
 
-use crate::JvmImplementation;
+use crate::{JvmImplementation, JvmSupport};
 
 #[derive(Clone)]
 pub struct JvmRuntime<T>
@@ -46,21 +46,25 @@ where
         self.system.yield_now().await;
     }
 
-    fn spawn(&self, _jvm: &Jvm, callback: Box<dyn SpawnCallback>) {
+    fn spawn(&self, jvm: &Jvm, callback: Box<dyn SpawnCallback>) {
         struct SpawnProxy {
+            jvm: Jvm,
             callback: Box<dyn SpawnCallback>,
         }
 
         #[async_trait::async_trait]
         impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
             async fn call(mut self) -> Result<u32, WieError> {
-                self.callback.call().await?;
+                let result = self.callback.call().await;
+                if let Err(err) = result {
+                    return Err(WieError::FatalError(JvmSupport::format_err(&self.jvm, err).await));
+                }
 
                 Ok(0)
             }
         }
 
-        self.system.clone().spawn(SpawnProxy { callback });
+        self.system.clone().spawn(SpawnProxy { jvm: jvm.clone(), callback });
     }
 
     fn now(&self) -> u64 {

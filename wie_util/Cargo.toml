@@ -7,5 +7,3 @@ license.workspace = true
 [dependencies]
 bytemuck = { workspace = true }
 tracing = { workspace = true }
-
-jvm = { workspace = true }
