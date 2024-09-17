@@ -7,7 +7,7 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::Result as JvmResult;
+use jvm::{ClassInstance, Result as JvmResult};
 
 use wie_backend::{Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
@@ -80,7 +80,13 @@ impl SktEmulator {
         };
 
         let normalized_class_name = main_class_name.replace('.', "/");
-        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await.unwrap();
+        let main_class: JvmResult<Box<dyn ClassInstance>> = jvm.new_class(&normalized_class_name, "()V", []).await;
+
+        if let Err(x) = main_class {
+            return Err(WieError::FatalError(JvmSupport::format_err(&jvm, x).await));
+        }
+
+        let main_class = main_class.unwrap();
 
         let result: JvmResult<()> = if jvm.is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await.unwrap() {
             jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await
