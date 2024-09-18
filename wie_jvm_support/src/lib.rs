@@ -7,7 +7,7 @@ mod runtime;
 
 use alloc::{boxed::Box, format};
 
-use java_runtime::Runtime;
+use java_runtime::{Runtime, RT_RUSTJAR};
 use jvm::{runtime::JavaLangString, JavaError, Jvm};
 
 use wie_backend::System;
@@ -17,6 +17,8 @@ pub use context::{WieJavaClassProto, WieJvmContext};
 pub use jvm_implementation::{JvmImplementation, RustJavaJvmImplementation};
 use runtime::JvmRuntime;
 
+pub static WIE_RUSTJAR: &str = "wie.rustjar";
+
 pub struct JvmSupport;
 
 impl JvmSupport {
@@ -24,11 +26,15 @@ impl JvmSupport {
     where
         T: JvmImplementation + Sync + Send + 'static,
     {
-        let runtime = JvmRuntime::new(system.clone(), implementation.clone());
+        let runtime = JvmRuntime::new(system.clone(), implementation.clone(), protos);
 
-        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", jar_name.unwrap_or(""))]
-            .into_iter()
-            .collect();
+        let class_path = if let Some(x) = jar_name {
+            format!("{}:{}:{}", RT_RUSTJAR, WIE_RUSTJAR, x)
+        } else {
+            format!("{}:{}", RT_RUSTJAR, WIE_RUSTJAR,)
+        };
+
+        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", &class_path)].into_iter().collect();
         let jvm = Jvm::new(
             java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
             move || runtime.current_task_id(),
@@ -36,14 +42,6 @@ impl JvmSupport {
         )
         .await
         .map_err(|x| WieError::FatalError(format!("Failed to create JVM: {}", x)))?;
-        let context = Box::new(WieJvmContext::new(system));
-
-        for proto in protos.into_vec().into_iter().flat_map(|x| x.into_vec()) {
-            let class = implementation.define_class_rust(&jvm, proto, context.clone()).await.unwrap();
-
-            jvm.register_class(class, None).await.unwrap();
-            // TODO add class loader
-        }
 
         Ok(jvm)
     }
