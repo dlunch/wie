@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
+spin = { workspace = true }
 tracing = { workspace = true }
 
 java_class_proto = { workspace = true }

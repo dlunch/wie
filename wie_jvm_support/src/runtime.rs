@@ -4,13 +4,15 @@ use core::{
     time::Duration,
 };
 
-use java_runtime::{File, FileStat, IOError, Runtime, RuntimeClassProto, SpawnCallback};
+use spin::Mutex;
+
+use java_runtime::{get_runtime_class_proto, File, FileStat, IOError, Runtime, SpawnCallback, RT_RUSTJAR};
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
 use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;
 
-use crate::{JvmImplementation, JvmSupport};
+use crate::{JvmImplementation, JvmSupport, WieJavaClassProto, WieJvmContext, WIE_RUSTJAR};
 
 #[derive(Clone)]
 pub struct JvmRuntime<T>
@@ -19,14 +21,19 @@ where
 {
     system: System,
     implementation: T,
+    protos: Arc<Mutex<Vec<WieJavaClassProto>>>,
 }
 
 impl<T> JvmRuntime<T>
 where
     T: JvmImplementation + Sync + Send + 'static,
 {
-    pub fn new(system: System, implementation: T) -> Self {
-        Self { system, implementation }
+    pub fn new(system: System, implementation: T, protos: Box<[Box<[WieJavaClassProto]>]>) -> Self {
+        Self {
+            system,
+            implementation,
+            protos: Arc::new(Mutex::new(protos.into_vec().into_iter().flat_map(|x| x.into_vec()).collect())),
+        }
     }
 }
 
@@ -155,11 +162,30 @@ where
         file.map(|x| FileStat { size: x.len() as _ }).ok_or(IOError::NotFound)
     }
 
-    async fn define_class_rust(&self, jvm: &Jvm, proto: RuntimeClassProto) -> JvmResult<Box<dyn ClassDefinition>> {
-        self.implementation.define_class_rust(jvm, proto, Box::new(self.clone()) as Box<_>).await
+    async fn find_rustjar_class(&self, jvm: &Jvm, classpath: &str, class: &str) -> JvmResult<Option<Box<dyn ClassDefinition>>> {
+        if classpath == RT_RUSTJAR {
+            let proto = get_runtime_class_proto(class);
+            if let Some(proto) = proto {
+                return Ok(Some(
+                    self.implementation
+                        .define_class_rust(jvm, proto, Box::new(self.clone()) as Box<_>)
+                        .await?,
+                ));
+            }
+        } else if classpath == WIE_RUSTJAR {
+            let proto_index = self.protos.lock().iter().position(|x| x.name == class);
+            if let Some(proto_index) = proto_index {
+                let proto = self.protos.lock().remove(proto_index);
+                let context = Box::new(WieJvmContext::new(&self.system));
+
+                return Ok(Some(self.implementation.define_class_rust(jvm, proto, context as Box<_>).await?));
+            }
+        }
+
+        Ok(None)
     }
 
-    async fn define_class_java(&self, jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
+    async fn define_class(&self, jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
         self.implementation.define_class_java(jvm, data).await
     }
 

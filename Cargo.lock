@@ -459,7 +459,7 @@ checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ca04ef1300d3997a99eb7986cd247e407f60b2ad"
+source = "git+https://github.com/dlunch/RustJava.git#b5b7f75f07ff4ed6dcf1d2fca960a154a5cf88dd"
 dependencies = [
  "java_constants",
  "nom",
@@ -1140,7 +1140,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ca04ef1300d3997a99eb7986cd247e407f60b2ad"
+source = "git+https://github.com/dlunch/RustJava.git#b5b7f75f07ff4ed6dcf1d2fca960a154a5cf88dd"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1151,7 +1151,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ca04ef1300d3997a99eb7986cd247e407f60b2ad"
+source = "git+https://github.com/dlunch/RustJava.git#b5b7f75f07ff4ed6dcf1d2fca960a154a5cf88dd"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -1159,7 +1159,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ca04ef1300d3997a99eb7986cd247e407f60b2ad"
+source = "git+https://github.com/dlunch/RustJava.git#b5b7f75f07ff4ed6dcf1d2fca960a154a5cf88dd"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -1219,7 +1219,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ca04ef1300d3997a99eb7986cd247e407f60b2ad"
+source = "git+https://github.com/dlunch/RustJava.git#b5b7f75f07ff4ed6dcf1d2fca960a154a5cf88dd"
 dependencies = [
  "anyhow",
  "async-lock",
@@ -1235,7 +1235,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ca04ef1300d3997a99eb7986cd247e407f60b2ad"
+source = "git+https://github.com/dlunch/RustJava.git#b5b7f75f07ff4ed6dcf1d2fca960a154a5cf88dd"
 dependencies = [
  "async-lock",
  "async-recursion",
@@ -2779,6 +2779,7 @@ dependencies = [
  "java_runtime",
  "jvm",
  "jvm_rust",
+ "spin",
  "tracing",
  "wie_backend",
  "wie_util",
