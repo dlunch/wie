@@ -39,7 +39,7 @@ impl JvmSupport {
         let context = Box::new(WieJvmContext::new(system));
 
         for proto in protos.into_vec().into_iter().flat_map(|x| x.into_vec()) {
-            let class = implementation.define_class_wie(&jvm, proto, context.clone()).await.unwrap();
+            let class = implementation.define_class_rust(&jvm, proto, context.clone()).await.unwrap();
 
             jvm.register_class(class, None).await.unwrap();
             // TODO add class loader
