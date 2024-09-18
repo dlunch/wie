@@ -26,7 +26,7 @@ impl JvmSupport {
     where
         T: JvmImplementation + Sync + Send + 'static,
     {
-        let runtime = JvmRuntime::new(system.clone(), implementation.clone(), protos);
+        let runtime = JvmRuntime::new(system.clone(), implementation, protos);
 
         let class_path = if let Some(x) = jar_name {
             format!("{}:{}:{}", RT_RUSTJAR, WIE_RUSTJAR, x)
