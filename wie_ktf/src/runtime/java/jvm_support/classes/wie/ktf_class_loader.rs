@@ -1,7 +1,6 @@
 use alloc::{boxed::Box, vec};
 
 use bytemuck::cast_slice;
-use dyn_clone::{clone_trait_object, DynClone};
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
@@ -13,15 +12,13 @@ use wie_util::write_null_terminated_string;
 
 use crate::runtime::{init::load_native, java::jvm_support::class_definition::JavaClassDefinition};
 
-pub trait ClassLoaderContextBase: Sync + Send + DynClone {
-    fn core(&mut self) -> &mut ArmCore;
-    fn system(&mut self) -> &mut System;
+#[derive(Clone)]
+pub struct ClassLoaderContext {
+    pub core: ArmCore,
+    pub system: System,
 }
 
-clone_trait_object!(ClassLoaderContextBase);
-
-type ClassLoaderProto = JavaClassProto<dyn ClassLoaderContextBase>;
-type ClassLoaderContext = dyn ClassLoaderContextBase;
+type ClassLoaderProto = JavaClassProto<ClassLoaderContext>;
 
 // class wie.KtfClassLoader
 pub struct KtfClassLoader {}
@@ -82,8 +79,8 @@ impl KtfClassLoader {
         let filename = JavaLangString::to_rust_string(jvm, &client_bin).await?;
         let data = jvm.load_byte_array(&buf, 0, length as _).await?;
 
-        let mut core = context.core().clone();
-        let mut system = context.system().clone();
+        let mut core = context.core.clone();
+        let mut system = context.system.clone();
         let fn_get_class = load_native(
             &mut core,
             &mut system,
@@ -114,15 +111,14 @@ impl KtfClassLoader {
         // find from client.bin
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
-        let core = context.core();
-        let ptr_name = Allocator::alloc(core, 50).unwrap(); // TODO size fix
-        write_null_terminated_string(core, ptr_name, &name).unwrap();
+        let ptr_name = Allocator::alloc(&mut context.core, 50).unwrap(); // TODO size fix
+        write_null_terminated_string(&mut context.core, ptr_name, &name).unwrap();
 
-        let ptr_raw = core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
-        Allocator::free(core, ptr_name, 50).unwrap();
+        let ptr_raw = context.core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
+        Allocator::free(&mut context.core, ptr_name, 50).unwrap();
 
         if ptr_raw != 0 {
-            let class = JavaClassDefinition::from_raw(ptr_raw, core);
+            let class = JavaClassDefinition::from_raw(ptr_raw, &context.core);
             jvm.register_class(Box::new(class), Some(this.into())).await?;
 
             Ok(jvm.resolve_class(&name).await?.java_class(jvm).await?.into())
