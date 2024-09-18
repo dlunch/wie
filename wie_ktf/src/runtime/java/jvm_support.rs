@@ -27,7 +27,7 @@ use wie_util::{read_generic, read_null_terminated_table, write_generic, Result};
 use self::{
     array_class_instance::JavaArrayClassInstance,
     class_instance::JavaClassInstance,
-    classes::wie::{ClassLoaderContextBase, KtfClassLoader},
+    classes::wie::{ClassLoaderContext, KtfClassLoader},
     name::JavaFullName,
 };
 
@@ -103,22 +103,6 @@ impl KtfJvmSupport {
 
         let protos = [wie_wipi_java::get_protos().into()];
         let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), KtfJvmImplementation::new(core.clone())).await?;
-
-        #[derive(Clone)]
-        struct ClassLoaderContext {
-            core: ArmCore,
-            system: System,
-        }
-
-        impl ClassLoaderContextBase for ClassLoaderContext {
-            fn core(&mut self) -> &mut ArmCore {
-                &mut self.core
-            }
-
-            fn system(&mut self) -> &mut System {
-                &mut self.system
-            }
-        }
 
         let client_bin = if let Some(x) = jar_name {
             // find client.bin

@@ -8,7 +8,6 @@ license.workspace = true
 async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
-dyn-clone = { workspace = true }
 tracing = { workspace = true }
 
 async-recursion = { workspace = true }
