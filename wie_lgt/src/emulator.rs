@@ -40,19 +40,25 @@ impl LgtEmulator {
 
     fn load(
         platform: Box<dyn Platform>,
-        _jar_filename: &str,
+        jar_filename: &str,
         id: &str,
         main_class_name: Option<String>,
-        _files: &BTreeMap<String, Vec<u8>>,
+        files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<Self> {
         let mut core = ArmCore::new()?;
         let mut system = System::new(platform, id);
+
+        for (filename, data) in files {
+            system.filesystem().add(filename, data.clone())
+        }
 
         Allocator::init(&mut core)?;
 
         let entrypoint = {
             let filesystem = system.filesystem();
-            let data = filesystem.read("binary.mod").unwrap();
+            // TODO classloader
+            let files = extract_zip(filesystem.read(jar_filename).unwrap()).unwrap();
+            let data = files.get("binary.mod").unwrap();
 
             Self::load_executable(&mut core, data)?
         };
@@ -70,7 +76,8 @@ impl LgtEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: Option<String>) -> Result<()> {
-        let _: () = core.run_function(entrypoint + 1, &[]).await?;
+        let result: u32 = core.run_function(entrypoint + 1, &[0, 0, 0]).await?;
+        tracing::error!("Result: {:#x}", result);
 
         Err(WieError::Unimplemented("Not yet implemented".into()))
     }
