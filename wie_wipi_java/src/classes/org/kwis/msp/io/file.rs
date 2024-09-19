@@ -23,6 +23,7 @@ impl File {
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, Default::default()),
                 JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
                 JavaMethodProto::new("read", "([B)I", Self::read, Default::default()),
+                JavaMethodProto::new("seek", "(I)V", Self::seek, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
                 JavaMethodProto::new("sizeOf", "()I", Self::size_of, Default::default()),
             ],
@@ -83,6 +84,14 @@ impl File {
         tracing::warn!("stub org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})", &this, &buf, offset, len);
 
         Ok(0)
+    }
+
+    async fn seek(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.io.File::seek({:?}, {:?})", &this, pos);
+
+        jvm.put_field(&mut this, "pos", "I", pos).await?;
+
+        Ok(())
     }
 
     async fn read(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
