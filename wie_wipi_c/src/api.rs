@@ -4,8 +4,5 @@ pub mod kernel;
 pub mod media;
 pub mod misc;
 pub mod net;
-pub mod stub;
 pub mod uic;
-pub mod unk12;
-pub mod unk3;
 pub mod util;

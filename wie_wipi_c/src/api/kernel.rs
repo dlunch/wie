@@ -2,7 +2,6 @@ use alloc::{
     boxed::Box,
     format, str,
     string::{String, ToString},
-    vec,
     vec::Vec,
 };
 use core::{iter, mem::size_of};
@@ -12,11 +11,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::Instant;
 use wie_util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, Result, WieError};
 
-use crate::{
-    context::WIPICContext,
-    method::{MethodBody, MethodImpl},
-    WIPICMemoryId, WIPICMethodBody, WIPICWord,
-};
+use crate::{context::WIPICContext, method::MethodBody, WIPICMemoryId, WIPICWord};
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -37,25 +32,19 @@ struct ResourceHandle {
     name: [u8; 32], // TODO hardcoded max size
 }
 
-fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
-
-    body.into_body()
-}
-
-async fn current_time(context: &mut dyn WIPICContext) -> Result<WIPICWord> {
+pub async fn current_time(context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::debug!("MC_knlCurrentTime()");
 
     Ok(context.system().platform().now().raw() as WIPICWord)
 }
 
-async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
+pub async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
     tracing::warn!("stub MC_knlGetSystemProperty({}, {:#x}, {})", id, p_out, buf_size);
 
     Ok(0)
 }
 
-async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_callback: WIPICWord) -> Result<()> {
+pub async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_callback: WIPICWord) -> Result<()> {
     tracing::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
     let timer = WIPICTimer {
@@ -73,7 +62,7 @@ async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_call
     Ok(())
 }
 
-async fn set_timer(
+pub async fn set_timer(
     context: &mut dyn WIPICContext,
     ptr_timer: WIPICWord,
     timeout_low: WIPICWord,
@@ -109,19 +98,19 @@ async fn set_timer(
     Ok(())
 }
 
-async fn unset_timer(_: &mut dyn WIPICContext, a0: WIPICWord) -> Result<()> {
+pub async fn unset_timer(_: &mut dyn WIPICContext, a0: WIPICWord) -> Result<()> {
     tracing::warn!("stub MC_knlUnsetTimer({:#x})", a0);
 
     Ok(())
 }
 
-async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICMemoryId> {
+pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_knlAlloc({:#x})", size);
 
     context.alloc(size)
 }
 
-async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICMemoryId> {
+pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_knlCalloc({:#x})", size);
 
     let memory = context.alloc(size)?;
@@ -132,7 +121,7 @@ async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPIC
     Ok(memory)
 }
 
-async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> Result<WIPICMemoryId> {
+pub async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_knlFree({:#x})", memory.0);
 
     context.free(memory)?;
@@ -140,7 +129,7 @@ async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> Result<W
     Ok(memory)
 }
 
-async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size: WIPICWord) -> Result<i32> {
+pub async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
 
     let size = context.get_resource_size(&name).await?; // TODO error handling
@@ -157,7 +146,7 @@ async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size:
     Ok(ptr_handle as _)
 }
 
-async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICMemoryId, buf_size: WIPICWord) -> Result<i32> {
+pub async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICMemoryId, buf_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
     let handle: ResourceHandle = read_generic(context, id)?;
@@ -175,7 +164,7 @@ async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICM
     Ok(0)
 }
 
-async fn printk(context: &mut dyn WIPICContext, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
+pub async fn printk(context: &mut dyn WIPICContext, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
     tracing::warn!("stub MC_knlPrintk({}, {:#x}, {:#x}, {:#x}, {:#x})", format, a0, a1, a2, a3);
 
     let result = sprintf(context, &format, &[a0, a1, a2, a3])?;
@@ -185,7 +174,7 @@ async fn printk(context: &mut dyn WIPICContext, format: String, a0: u32, a1: u32
     Ok(())
 }
 
-async fn sprintk(context: &mut dyn WIPICContext, dest: WIPICWord, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<WIPICWord> {
+pub async fn sprintk(context: &mut dyn WIPICContext, dest: WIPICWord, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<WIPICWord> {
     tracing::debug!("MC_knlSprintk({:#x}, {}, {:#x}, {:#x}, {:#x}, {:#x})", dest, format, a0, a1, a2, a3);
 
     let result = sprintf(context, &format, &[a0, a1, a2, a3])?;
@@ -195,13 +184,13 @@ async fn sprintk(context: &mut dyn WIPICContext, dest: WIPICWord, format: String
     Ok(result.len() as _)
 }
 
-async fn get_total_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
+pub async fn get_total_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
     tracing::warn!("stub MC_knlGetTotalMemory()");
 
     Ok(0x100000) // TODO hardcoded
 }
 
-async fn get_free_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
+pub async fn get_free_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
     tracing::warn!("stub MC_knlGetFreeMemory()");
 
     Ok(0x100000) // TODO hardcoded
@@ -242,110 +231,33 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
     Ok(result)
 }
 
-async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
+pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub MC_knlGetCurProgramID()");
 
     Ok(1)
 }
-
-pub fn get_kernel_method_table<M, F, R, P>(reserved1: M) -> Vec<WIPICMethodBody>
-where
-    M: MethodImpl<F, R, WieError, P>,
-{
-    vec![
-        printk.into_body(),
-        sprintk.into_body(),
-        gen_stub(2, "MC_knlGetExecNames"),
-        gen_stub(3, "MC_knlExecute"),
-        gen_stub(4, "MC_knlMExecute"),
-        gen_stub(5, "MC_knlLoad"),
-        gen_stub(6, "MC_knlMLoad"),
-        gen_stub(7, "MC_knlExit"),
-        gen_stub(8, "MC_knlProgramStop"),
-        get_cur_program_id.into_body(),
-        gen_stub(10, "MC_knlGetParentProgramID"),
-        gen_stub(11, "MC_knlGetAppManagerID"),
-        gen_stub(12, "MC_knlGetProgramInfo"),
-        gen_stub(13, "MC_knlGetAccessLevel"),
-        gen_stub(14, "MC_knlGetProgramName"),
-        gen_stub(15, "MC_knlCreateSharedBuf"),
-        gen_stub(16, "MC_knlDestroySharedBuf"),
-        gen_stub(17, "MC_knlGetSharedBuf"),
-        gen_stub(18, "MC_knlGetSharedBufSize"),
-        gen_stub(19, "MC_knlResizeSharedBuf"),
-        alloc.into_body(),
-        calloc.into_body(),
-        free.into_body(),
-        get_total_memory.into_body(),
-        get_free_memory.into_body(),
-        def_timer.into_body(),
-        set_timer.into_body(),
-        unset_timer.into_body(),
-        current_time.into_body(),
-        get_system_property.into_body(),
-        gen_stub(30, "MC_knlSetSystemProperty"),
-        get_resource_id.into_body(),
-        get_resource.into_body(),
-        reserved1.into_body(),
-        gen_stub(34, "MC_knlReserved2"),
-        gen_stub(35, "MC_knlReserved3"),
-        gen_stub(36, "MC_knlReserved4"),
-        gen_stub(37, "MC_knlReserved5"),
-        gen_stub(38, "MC_knlReserved6"),
-        gen_stub(39, "MC_knlReserved7"),
-        gen_stub(40, "MC_knlReserved8"),
-        gen_stub(41, "MC_knlReserved9"),
-        gen_stub(42, "MC_knlReserved10"),
-        gen_stub(43, "MC_knlReserved11"),
-        gen_stub(44, "OEMC_knlSendMessage"),
-        gen_stub(45, "OEMC_knlSetTimerEx"),
-        gen_stub(46, "OEMC_knlGetSystemState"),
-        gen_stub(47, "OEMC_knlCreateSystemProgressBar"),
-        gen_stub(48, "OEMC_knlSetSystemProgressBar"),
-        gen_stub(49, "OEMC_knlDestroySystemProgressBar"),
-        gen_stub(50, "OEMC_knlExecuteEx"),
-        gen_stub(51, "OEMC_knlGetProcAddress"),
-        gen_stub(52, "OEMC_knlUnload"),
-        gen_stub(53, "OEMC_knlCreateSysMessageBox"),
-        gen_stub(54, "OEMC_knlDestroySysMessageBox"),
-        gen_stub(55, "OEMC_knlGetProgramIDList"),
-        gen_stub(56, "OEMC_knlGetProgramInfo"),
-        gen_stub(57, "MC_knlReserved12"),
-        gen_stub(58, "MC_knlReserved13"),
-        gen_stub(59, "OEMC_knlCreateAppPrivateArea"),
-        gen_stub(60, "OEMC_knlGetAppPrivateArea"),
-        gen_stub(61, "OEMC_knlCreateLibPrivateArea"),
-        gen_stub(62, "OEMC_knlGetLibPrivateArea"),
-        gen_stub(63, "OEMC_knlGetPlatformVersion"),
-        gen_stub(64, "OEMC_knlGetToken"),
-    ]
-}
-
 #[cfg(test)]
 mod test {
     use alloc::boxed::Box;
 
-    use wie_util::{read_null_terminated_string, write_null_terminated_string, Result, WieError};
+    use wie_util::{read_null_terminated_string, write_null_terminated_string, Result};
 
-    use crate::{context::test::TestContext, WIPICContext};
+    use crate::{context::test::TestContext, method::MethodImpl, WIPICContext};
 
-    use super::get_kernel_method_table;
+    use super::sprintk;
 
     #[futures_test::test]
     async fn test_sprintk() -> Result<()> {
         let mut context = TestContext::new();
 
-        let kernel_methods = get_kernel_method_table(|_: &mut dyn WIPICContext| async { Ok::<_, WieError>(()) });
+        let sprintk = sprintk.into_body();
 
         let format = context.alloc_raw(10).unwrap();
         write_null_terminated_string(&mut context, format, "%d").unwrap();
 
         let dest = context.alloc_raw(10).unwrap();
 
-        kernel_methods[1]
-            .call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0]))
-            .await
-            .unwrap();
+        sprintk.call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0])).await.unwrap();
 
         let result = read_null_terminated_string(&context, dest).unwrap();
 
