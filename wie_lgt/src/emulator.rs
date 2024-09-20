@@ -7,6 +7,7 @@ use wie_util::{Result, WieError};
 use crate::runtime::init::load_native;
 
 pub struct LgtEmulator {
+    core: ArmCore,
     system: System,
 }
 
@@ -56,13 +57,14 @@ impl LgtEmulator {
 
         let main_class_name = main_class_name.map(|x| x.replace('.', "/"));
 
+        let mut core_clone = core.clone();
         let mut system_clone = system.clone();
         let main_class_name_clone = main_class_name.clone();
         let jar_filename = jar_filename.to_owned();
 
-        system.spawn(move || async move { Self::do_start(&mut core, &mut system_clone, jar_filename, main_class_name_clone).await });
+        system.spawn(move || async move { Self::do_start(&mut core_clone, &mut system_clone, jar_filename, main_class_name_clone).await });
 
-        Ok(Self { system })
+        Ok(Self { core, system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
@@ -85,7 +87,13 @@ impl Emulator for LgtEmulator {
     }
 
     fn tick(&mut self) -> Result<()> {
-        self.system.tick()
+        self.system.tick().map_err(|x| {
+            let reg_stack = self.core.dump_reg_stack(0x1000); // TODO: hardcode
+            match x {
+                WieError::FatalError(msg) => WieError::FatalError(format!("{}\n{}", msg, reg_stack)),
+                _ => WieError::FatalError(format!("{}\n{}", x, reg_stack)),
+            }
+        })
     }
 }
 
