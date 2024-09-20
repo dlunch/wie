@@ -30,7 +30,7 @@ pub struct ArmCore {
 
 impl ArmCore {
     pub fn new() -> Result<Self> {
-        let mut engine = Box::new(crate::engine::Armv4tEmuEngine::new());
+        let mut engine = Box::new(crate::engine::Arm32CpuEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
         engine.reg_write(ArmRegister::Cpsr, 0x10); // USR32

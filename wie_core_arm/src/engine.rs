@@ -1,10 +1,10 @@
-mod armv4t_emu;
+mod arm32_cpu;
 
 use core::ops::Range;
 
 use wie_util::Result;
 
-pub use armv4t_emu::Armv4tEmuEngine;
+pub use arm32_cpu::Arm32CpuEngine;
 
 pub trait ArmEngine: Sync + Send {
     fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> Result<u32>;
