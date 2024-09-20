@@ -63,7 +63,12 @@ impl WieCliPlatform {
         let sink = Sink::try_new(&stream_handle).unwrap();
 
         loop {
-            let (channel, sampling_rate, wave_data) = rx.recv().unwrap();
+            let result = rx.recv();
+            if result.is_err() {
+                break;
+            }
+            let (channel, sampling_rate, wave_data) = result.unwrap();
+
             let buffer = SamplesBuffer::new(channel as _, sampling_rate as _, wave_data);
 
             // TODO we should be able to play multiple audio at once
