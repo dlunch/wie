@@ -289,7 +289,7 @@ impl Memory for Armv4tEmuMemory {
 mod tests {
     use alloc::sync::Arc;
 
-    use armv4t_emu::Memory;
+    use arm32_cpu::Memory;
 
     use super::Armv4tEmuMemory;
 
