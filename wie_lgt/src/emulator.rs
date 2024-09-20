@@ -1,10 +1,10 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
-use elf::{endian::AnyEndian, ElfBytes};
-
 use wie_backend::{extract_zip, Emulator, Event, Platform, System};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError};
+
+use crate::runtime::init::load_native;
 
 pub struct LgtEmulator {
     system: System,
@@ -54,60 +54,28 @@ impl LgtEmulator {
 
         Allocator::init(&mut core)?;
 
-        let entrypoint = {
-            let filesystem = system.filesystem();
-            // TODO classloader
-            let files = extract_zip(filesystem.read(jar_filename).unwrap()).unwrap();
-            let data = files.get("binary.mod").unwrap();
-
-            Self::load_executable(&mut core, data)?
-        };
-
         let main_class_name = main_class_name.map(|x| x.replace('.', "/"));
 
         let mut system_clone = system.clone();
-
         let main_class_name_clone = main_class_name.clone();
+        let jar_filename = jar_filename.to_owned();
 
-        system.spawn(move || async move { Self::do_start(&mut core, &mut system_clone, entrypoint, main_class_name_clone).await });
+        system.spawn(move || async move { Self::do_start(&mut core, &mut system_clone, jar_filename, main_class_name_clone).await });
 
         Ok(Self { system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(core: &mut ArmCore, _system: &mut System, entrypoint: u32, _main_class_name: Option<String>) -> Result<()> {
-        let result: u32 = core.run_function(entrypoint + 1, &[0, 0, 0]).await?;
-        tracing::error!("Result: {:#x}", result);
+    async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, _main_class_name: Option<String>) -> Result<()> {
+        let data = {
+            let filesystem = system.filesystem();
+            let files = extract_zip(filesystem.read(&jar_filename).unwrap()).unwrap(); // TODO classloader
+            files.get("binary.mod").unwrap().clone()
+        };
+
+        load_native(core, system, &data).await?;
 
         Err(WieError::Unimplemented("Not yet implemented".into()))
-    }
-
-    fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
-        let elf = ElfBytes::<AnyEndian>::minimal_parse(data).unwrap();
-
-        assert!(elf.ehdr.e_machine == elf::abi::EM_ARM, "Invalid machine type");
-        assert!(elf.ehdr.e_type == elf::abi::ET_EXEC, "Invalid file type");
-        assert!(elf.ehdr.class == elf::file::Class::ELF32, "Invalid file type");
-        assert!(elf.ehdr.e_phnum == 0, "Invalid file type");
-
-        let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab().unwrap();
-        let (shdrs, strtab) = (shdrs_opt.unwrap(), strtab_opt.unwrap());
-
-        for shdr in shdrs {
-            let section_name = strtab.get(shdr.sh_name as usize).unwrap();
-
-            if shdr.sh_addr != 0 {
-                tracing::debug!("Section {} at {:x}", section_name, shdr.sh_addr);
-
-                let data = elf.section_data(&shdr).unwrap().0;
-
-                core.load(data, shdr.sh_addr as u32, shdr.sh_size as usize)?;
-            }
-        }
-
-        tracing::debug!("Entrypoint: {:#x}", elf.ehdr.e_entry);
-
-        Ok(elf.ehdr.e_entry as u32)
     }
 }
 
