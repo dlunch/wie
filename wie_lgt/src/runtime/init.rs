@@ -11,17 +11,8 @@ use wie_util::{read_generic, write_generic, Result};
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct InitStruct {
     unk1: u32,
-    unk2: u32,
+    fn_init: u32,
     ptr_str_init: u32, // pointer to string "init"
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    fn_unk1: u32,
-    fn_unk2: u32,
-    fn_unk3: u32,
-    fn_null1: u32,
-    fn_null2: u32,
-    fn_unk4: u32,
 }
 
 #[repr(C)]
@@ -74,8 +65,8 @@ pub async fn load_native(core: &mut ArmCore, _system: &mut System, data: &[u8]) 
     tracing::debug!("InitStruct: {:#x?}", init_param_1.ptr_init_struct);
     let init_struct: InitStruct = read_generic(core, init_param_1.ptr_init_struct)?;
 
-    tracing::debug!("Calling initializer at {:#x}", init_struct.fn_unk1);
-    let _: () = core.run_function(init_struct.fn_unk1, &[]).await?;
+    tracing::debug!("Calling initializer at {:#x}", init_struct.fn_init);
+    let _: () = core.run_function(init_struct.fn_init, &[]).await?;
 
     Ok(())
 }
