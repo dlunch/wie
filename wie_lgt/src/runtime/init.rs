@@ -89,7 +89,7 @@ async fn get_import_table(_core: &mut ArmCore, _: &mut (), import_table: u32) ->
 async fn get_import_function(_core: &mut ArmCore, _: &mut (), import_table: u32, function_index: u32) -> Result<u32> {
     tracing::warn!("stub get_import_function({:#x}, {})", import_table, function_index);
 
-    Ok(0)
+    Ok(1)
 }
 
 fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
