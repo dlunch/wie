@@ -2,15 +2,14 @@ mod framebuffer;
 mod grp_context;
 mod image;
 
-use alloc::{vec, vec::Vec};
 use core::mem::size_of;
 
 use bytemuck::Zeroable;
 
 use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
-use wie_util::{read_generic, write_generic, Result, WieError};
+use wie_util::{read_generic, write_generic, Result};
 
-use crate::{context::WIPICContext, method::MethodImpl, WIPICMemoryId, WIPICMethodBody, WIPICWord};
+use crate::{context::WIPICContext, WIPICMemoryId, WIPICWord};
 
 use self::{
     framebuffer::{WIPICDisplayInfo, WIPICFramebuffer},
@@ -20,13 +19,7 @@ use self::{
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 
-fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
-
-    body.into_body()
-}
-
-async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICMemoryId> {
+pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let (width, height) = {
@@ -43,7 +36,7 @@ async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -
     Ok(memory)
 }
 
-async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> Result<()> {
+pub async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpInitContext({:#x})", p_grp_ctx);
 
     let grp_ctx: WIPICGraphicsContext = WIPICGraphicsContext::zeroed();
@@ -51,7 +44,7 @@ async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> R
     Ok(())
 }
 
-async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: WIPICGraphicsContextIdx, pv: WIPICWord) -> Result<()> {
+pub async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: WIPICGraphicsContextIdx, pv: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpSetContext({:#x}, {:?}, {:#x})", p_grp_ctx, op, pv);
 
     let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
@@ -97,7 +90,7 @@ async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: W
     Ok(())
 }
 
-async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, p_gctx: WIPICWord) -> Result<()> {
+pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpPutPixel({:#x}, {}, {}, {:?})", dst_fb.0, x, y, p_gctx);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
@@ -108,7 +101,7 @@ async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32
     Ok(())
 }
 
-async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
+pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpFillRect({:#x}, {}, {}, {}, {}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
@@ -118,7 +111,13 @@ async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32
     Ok(())
 }
 
-async fn create_image(context: &mut dyn WIPICContext, ptr_image: WIPICWord, image_data: WIPICMemoryId, offset: u32, len: u32) -> Result<WIPICWord> {
+pub async fn create_image(
+    context: &mut dyn WIPICContext,
+    ptr_image: WIPICWord,
+    image_data: WIPICMemoryId,
+    offset: u32,
+    len: u32,
+) -> Result<WIPICWord> {
     tracing::debug!("MC_grpCreateImage({:#x}, {:#x}, {}, {})", ptr_image, image_data.0, offset, len);
 
     let image = WIPICImage::new(context, image_data, offset, len)?;
@@ -131,7 +130,7 @@ async fn create_image(context: &mut dyn WIPICContext, ptr_image: WIPICWord, imag
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn draw_image(
+pub async fn draw_image(
     context: &mut dyn WIPICContext,
     framebuffer: WIPICMemoryId,
     dx: i32,
@@ -167,7 +166,7 @@ async fn draw_image(
     Ok(())
 }
 
-async fn flush(
+pub async fn flush(
     context: &mut dyn WIPICContext,
     a0: WIPICWord,
     framebuffer: WIPICMemoryId,
@@ -198,7 +197,7 @@ async fn flush(
     Ok(())
 }
 
-async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32, b: i32) -> Result<WIPICWord> {
+pub async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32, b: i32) -> Result<WIPICWord> {
     tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x})", r, g, b);
     if (r > 0xff) || (g > 0xff) | (b > 0xff) {
         tracing::debug!("MC_grpGetPixelFromRGB({:#x}, {:#x}, {:#x}): value clipped to 8 bits", r, g, b);
@@ -214,7 +213,7 @@ async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32, b: 
     Ok(color)
 }
 
-async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, out_ptr: WIPICWord) -> Result<WIPICWord> {
+pub async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, out_ptr: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_grpGetDisplayInfo({:#x}, {:#x})", reserved, out_ptr);
 
     assert_eq!(reserved, 0);
@@ -240,7 +239,7 @@ async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, o
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn copy_area(
+pub async fn copy_area(
     context: &mut dyn WIPICContext,
     dst: WIPICMemoryId,
     dx: i32,
@@ -269,7 +268,7 @@ async fn copy_area(
     Ok(())
 }
 
-async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> Result<WIPICMemoryId> {
+pub async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_grpCreateOffScreenFrameBuffer({}, {})", w, h);
 
     let framebuffer = WIPICFramebuffer::new(context, w as _, h as _, FRAMEBUFFER_DEPTH)?;
@@ -281,7 +280,7 @@ async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h:
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn copy_frame_buffer(
+pub async fn copy_frame_buffer(
     context: &mut dyn WIPICContext,
     dst: WIPICMemoryId,
     dx: i32,
@@ -315,89 +314,4 @@ async fn copy_frame_buffer(
     dst_canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _);
 
     Ok(())
-}
-
-pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
-    vec![
-        gen_stub(0, "MC_grpGetImageProperty"),
-        gen_stub(1, "MC_grpGetImageFrameBuffer"),
-        get_screen_framebuffer.into_body(),
-        gen_stub(3, "MC_grpDestroyOffScreenFrameBuffer"),
-        create_offscreen_framebuffer.into_body(),
-        init_context.into_body(),
-        set_context.into_body(),
-        gen_stub(7, "MC_grpGetContext"),
-        put_pixel.into_body(),
-        gen_stub(9, "MC_grpDrawLine"),
-        gen_stub(10, "MC_grpDrawRect"),
-        fill_rect.into_body(),
-        copy_frame_buffer.into_body(),
-        draw_image.into_body(),
-        copy_area.into_body(),
-        gen_stub(15, "MC_grpDrawArc"),
-        gen_stub(16, "MC_grpFillArc"),
-        gen_stub(17, "MC_grpDrawString"),
-        gen_stub(18, "MC_grpDrawUnicodeString"),
-        gen_stub(19, "MC_grpGetRGBPixels"),
-        gen_stub(20, "MC_grpSetRGBPixels"),
-        flush.into_body(),
-        get_pixel_from_rgb.into_body(),
-        gen_stub(23, "MC_grpGetRGBFromPixel"),
-        get_display_info.into_body(),
-        gen_stub(25, "MC_grpRepaint"),
-        gen_stub(26, "MC_grpGetFont"),
-        gen_stub(27, "MC_grpGetFontHeight"),
-        gen_stub(28, "MC_grpGetFontAscent"),
-        gen_stub(29, "MC_grpGetFontDescent"),
-        gen_stub(30, "MC_grpGetStringWidth"),
-        gen_stub(31, "MC_grpGetUnicodeStringWidth"),
-        create_image.into_body(),
-        gen_stub(33, "MC_grpDestroyImage"),
-        gen_stub(34, "MC_grpDecodeNextImage"),
-        gen_stub(35, "MC_grpEncodeImage"),
-        gen_stub(36, "MC_grpPostEvent"),
-        gen_stub(37, "MC_imHandleInput"),
-        gen_stub(38, "MC_imSetCurrentMode"),
-        gen_stub(39, "MC_imGetCurrentMode"),
-        gen_stub(40, "MC_imGetSupportModeCount"),
-        gen_stub(41, "MC_imGetSupportedModes"),
-        gen_stub(42, "MC_grpFillPolygon"),
-        gen_stub(43, "MC_grpDrawPolygon"),
-        gen_stub(44, "OEMC_grpShowAnnunciator"),
-        gen_stub(45, "OEMC_grpGetAnnunciatorInfo"),
-        gen_stub(46, "OEMC_grpSetAnnunciatorIcon"),
-        gen_stub(47, "OEMC_grpGetIdleHelpLineInfo"),
-        gen_stub(48, "OEMC_grpShowHelpLine"),
-        gen_stub(49, "OEMC_grpGetCharGlyph"),
-        gen_stub(50, "OEMC_grpCreateImageEx"),
-        gen_stub(51, "OEMC_grpHideHelpLine"),
-        gen_stub(52, "OEMC_grpSetCloneScreenFrameBuffer"),
-        gen_stub(53, "OEMC_grpGetFontEx"),
-        gen_stub(54, "OEMC_grpGetFontLists"),
-        gen_stub(55, "OEMC_grpGetFontInfo"),
-        gen_stub(56, "OEMC_grpSetFontHelpLine"),
-        gen_stub(57, "OEMC_grpGetFontHelpLine"),
-        gen_stub(58, "OEMC_grpEncodeImageEx"),
-        gen_stub(59, "OEMC_grpGetImageInfo"),
-        gen_stub(60, ""),
-        gen_stub(61, ""),
-        gen_stub(62, ""),
-        gen_stub(63, ""),
-        gen_stub(64, ""),
-        gen_stub(65, ""),
-        gen_stub(66, ""),
-        gen_stub(67, ""),
-        gen_stub(68, ""),
-        gen_stub(69, ""),
-        gen_stub(70, ""),
-        gen_stub(71, ""),
-        gen_stub(72, ""),
-        gen_stub(73, ""),
-        gen_stub(74, ""),
-        gen_stub(75, ""),
-        gen_stub(76, ""),
-        gen_stub(77, ""),
-        gen_stub(78, ""),
-        gen_stub(79, ""),
-    ]
 }

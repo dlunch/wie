@@ -6,6 +6,7 @@ mod context;
 mod method;
 
 pub use self::context::WIPICContext;
+pub use self::method::MethodImpl;
 
 use alloc::boxed::Box;
 
