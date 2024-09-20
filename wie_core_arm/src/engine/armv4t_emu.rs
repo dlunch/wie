@@ -29,6 +29,10 @@ impl ArmEngine for Armv4tEmuEngine {
     fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> Result<u32> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
+            if pc < 0x1000 {
+                return Err(WieError::InvalidMemoryAccess(pc));
+            }
+
             if pc == end || hook.contains(&pc) || count == 0 {
                 return Ok(pc);
             }
