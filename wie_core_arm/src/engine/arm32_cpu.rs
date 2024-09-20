@@ -1,20 +1,20 @@
 use alloc::{boxed::Box, sync::Arc};
 use core::{array, ops::Range};
 
-use armv4t_emu::{reg, Cpu, Memory, Mode};
+use arm32_cpu::{reg, Cpu, Memory, Mode};
 use spin::Mutex;
 
 use wie_util::{Result, WieError};
 
 use crate::engine::{ArmEngine, ArmRegister, MemoryPermission};
 
-pub struct Armv4tEmuEngine {
+pub struct Arm32CpuEngine {
     cpu: Cpu,
     mem: Armv4tEmuMemory,
     memory_error: Arc<Mutex<Option<u32>>>,
 }
 
-impl Armv4tEmuEngine {
+impl Arm32CpuEngine {
     pub fn new() -> Self {
         let memory_error = Arc::new(Mutex::new(None));
         Self {
@@ -25,7 +25,7 @@ impl Armv4tEmuEngine {
     }
 }
 
-impl ArmEngine for Armv4tEmuEngine {
+impl ArmEngine for Arm32CpuEngine {
     fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> Result<u32> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);

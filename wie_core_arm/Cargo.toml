@@ -10,7 +10,7 @@ bytemuck = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 
-armv4t_emu = { version = "^0.1" }
+arm32_cpu = { git = "https://github.com/dlunch/arm32_cpu.git" }
 
 wie_backend = { workspace = true }
 wie_util = { workspace = true }
