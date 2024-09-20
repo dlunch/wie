@@ -99,7 +99,12 @@ impl KtfEmulator {
             .await
             .unwrap();
         // TODO can't we use java/lang/Class above?
-        let main_class = jvm.new_class(&main_class_name, "()V", []).await.unwrap();
+        let result = jvm.new_class(&main_class_name, "()V", []).await;
+        if let Err(x) = result {
+            return Err(JvmSupport::to_wie_err(&jvm, x).await);
+        }
+
+        let main_class = result.unwrap();
 
         tracing::debug!("Main class instance: {:?}", &main_class);
 
