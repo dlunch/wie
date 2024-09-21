@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use core::{
-    fmt::{self, Formatter},
+    fmt::{self, Debug, Formatter},
     mem::size_of,
     ops::{Deref, DerefMut},
 };
