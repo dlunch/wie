@@ -234,11 +234,26 @@ impl ArmCore {
         Ok((pc, lr))
     }
 
-    pub(crate) fn write_result(&mut self, result: u32, lr: u32) -> Result<()> {
+    pub fn write_result(&mut self, result: &[u32]) -> Result<()> {
         let mut inner = self.inner.lock();
 
-        inner.engine.reg_write(ArmRegister::R0, result);
-        inner.engine.reg_write(ArmRegister::PC, lr);
+        if result.len() > 0 {
+            inner.engine.reg_write(ArmRegister::R0, result[0]);
+        }
+        if result.len() > 1 {
+            inner.engine.reg_write(ArmRegister::R1, result[1]);
+        }
+        if result.len() > 2 {
+            todo!() // TODO
+        }
+
+        Ok(())
+    }
+
+    pub fn set_next_pc(&mut self, pc: u32) -> Result<()> {
+        let mut inner = self.inner.lock();
+
+        inner.engine.reg_write(ArmRegister::PC, pc);
 
         Ok(())
     }

@@ -36,19 +36,6 @@ pub use class_definition::JavaClassDefinition;
 
 pub type KtfJvmWord = u32;
 
-#[allow(dead_code)]
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct JavaExceptionHandler {
-    ptr_method: u32,
-    ptr_this: u32,
-    ptr_old_handler: u32,
-    current_state: u32, // state is returned on restore context
-    unk3: u32,
-    ptr_functions: u32, // function table to restore context and unk
-    context: [u32; 11], // r4-lr
-}
-
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct KtfJvmExceptionContext {
@@ -70,6 +57,7 @@ struct KtfJvmContext {
 struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
     class_loader: u32,
+    ptr_jvm_exception_context: u32,
 }
 
 const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
@@ -97,6 +85,7 @@ impl KtfJvmSupport {
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
             class_loader: 0,
+            ptr_jvm_exception_context,
         };
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
@@ -161,6 +150,7 @@ impl KtfJvmSupport {
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
             class_loader: KtfJvmSupport::class_instance_raw(&class_loader),
+            ptr_jvm_exception_context,
         };
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
@@ -219,6 +209,13 @@ impl KtfJvmSupport {
         write_generic(core, context_data.ptr_vtables_base + (index * size_of::<u32>()) as u32, ptr_vtable)?;
 
         Ok(index as _)
+    }
+
+    pub fn current_java_exception_handler(core: &mut ArmCore) -> Result<u32> {
+        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+        let exception_context: KtfJvmExceptionContext = read_generic(core, context_data.ptr_jvm_exception_context)?;
+
+        Ok(exception_context.current_java_exception_handler)
     }
 }
 

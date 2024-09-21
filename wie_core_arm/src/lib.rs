@@ -10,5 +10,5 @@ mod function;
 pub use self::{
     allocator::Allocator,
     core::ArmCore,
-    function::{EmulatedFunction, EmulatedFunctionParam},
+    function::{EmulatedFunction, EmulatedFunctionParam, ResultWriter},
 };
