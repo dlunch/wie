@@ -8,7 +8,7 @@ use core::{
 use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaClassProto;
-use java_constants::FieldAccessFlags;
+use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore};
@@ -195,7 +195,16 @@ impl JavaClassDefinition {
 
         let ptr_methods = read_null_terminated_table(&self.core, descriptor.ptr_methods)?;
 
-        Ok(ptr_methods.into_iter().map(|x| JavaMethod::from_raw(x, &self.core)).collect())
+        let mut result = Vec::with_capacity(ptr_methods.len());
+        for method in ptr_methods {
+            let method = JavaMethod::from_raw(method, &self.core);
+
+            if method.ptr_class() == self.ptr_raw {
+                result.push(method)
+            }
+        }
+
+        Ok(result)
     }
 
     pub fn fields(&self) -> Result<Vec<JavaField>> {
@@ -225,21 +234,18 @@ impl JavaClassDefinition {
         }
     }
 
-    pub fn method(&self, name: &str, descriptor: &str) -> Result<Option<JavaMethod>> {
+    pub fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Result<Option<JavaMethod>> {
         let methods = self.methods()?;
 
         for method in methods {
             let full_name = method.name()?;
-            if full_name.name == name && full_name.descriptor == descriptor {
+            if full_name.name == name && full_name.descriptor == descriptor && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
+            {
                 return Ok(Some(method));
             }
         }
 
-        if let Some(x) = self.parent_class()? {
-            x.method(name, descriptor)
-        } else {
-            Ok(None)
-        }
+        Ok(None)
     }
 
     pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> Result<Option<JavaField>> {
@@ -285,8 +291,8 @@ impl ClassDefinition for JavaClassDefinition {
         Ok(Box::new(instance))
     }
 
-    fn method(&self, name: &str, descriptor: &str) -> Option<Box<dyn Method>> {
-        self.method(name, descriptor).unwrap().map(|x| Box::new(x) as _)
+    fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Method>> {
+        self.method(name, descriptor, is_static).unwrap().map(|x| Box::new(x) as _)
     }
 
     fn field(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Field>> {

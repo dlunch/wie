@@ -117,6 +117,12 @@ impl JavaMethod {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
+    pub fn ptr_class(&self) -> u32 {
+        let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw).unwrap();
+
+        raw.ptr_class
+    }
+
     pub fn name(&self) -> Result<JavaFullName> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 

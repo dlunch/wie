@@ -33,6 +33,7 @@ use self::{
 
 pub use array_class_definition::JavaArrayClassDefinition;
 pub use class_definition::JavaClassDefinition;
+pub use method::JavaMethod;
 
 pub type KtfJvmWord = u32;
 
