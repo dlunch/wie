@@ -9,6 +9,18 @@ use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmRe
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
+#[repr(i32)]
+#[derive(Eq, PartialEq)]
+#[allow(dead_code)]
+enum Mode {
+    // wipi constant
+    READ_ONLY = 1,
+    WRITE = 2,
+    WRITE_TRUNC = 3,
+    READ_WRITE = 4,
+}
+
 // class org.kwis.msp.io.File
 pub struct File {}
 
@@ -55,9 +67,14 @@ impl File {
         tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
         let filename = JavaLangString::to_rust_string(jvm, &filename).await?;
-        tracing::debug!("Loading {}", filename);
+        tracing::debug!("Opening {}", filename);
 
-        let data = {
+        let mode = unsafe { core::mem::transmute::<i32, Mode>(mode) };
+
+        let data = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC {
+            // TODO: write not implemented
+            vec![]
+        } else {
             let filesystem = context.system().filesystem();
             let data = filesystem.read(&filename).unwrap(); // TODO exception
 
