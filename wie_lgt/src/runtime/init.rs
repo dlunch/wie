@@ -33,6 +33,8 @@ struct InitParam2 {
 }
 
 pub async fn load_native(core: &mut ArmCore, _system: &mut System, data: &[u8]) -> Result<()> {
+    let entrypoint = load_executable(core, data)?;
+
     let ptr_init_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     let ptr_init_param_2 = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
 
@@ -55,7 +57,6 @@ pub async fn load_native(core: &mut ArmCore, _system: &mut System, data: &[u8]) 
 
     tracing::debug!("ptr_init_param_1: {:#x}", ptr_init_param_1);
     tracing::debug!("ptr_init_param_2: {:#x}", ptr_init_param_2);
-    let entrypoint = load_executable(core, data)?;
 
     tracing::debug!("Calling entrypoint {:#x}", entrypoint);
     let _: () = core.run_function(entrypoint + 1, &[ptr_init_param_1, ptr_init_param_2, 0]).await?;
