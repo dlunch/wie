@@ -15,7 +15,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, ByteRead, Result, WieError};
 
-use crate::runtime::java::jvm_support::KtfJvmSupport;
+use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, KtfJvmSupport};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -87,7 +87,7 @@ async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr
     tracing::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    let method = class.method(&fullname.name, &fullname.descriptor)?;
+    let method = find_java_method(&class, &fullname.name, &fullname.descriptor).await?;
 
     if method.is_none() {
         return Err(WieError::FatalError(format!("Method {} not found from {}", fullname, class.name()?)));
@@ -97,6 +97,24 @@ async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
     Ok(method.ptr_raw)
+}
+
+#[async_recursion::async_recursion]
+async fn find_java_method(class: &JavaClassDefinition, name: &str, descriptor: &str) -> Result<Option<JavaMethod>> {
+    let method = class.method(name, descriptor, false)?;
+    let method = if method.is_none() {
+        class.method(name, descriptor, true)?
+    } else {
+        method
+    }; // TODO it's not good pattern...
+
+    if method.is_none() {
+        if let Some(x) = class.parent_class()? {
+            return find_java_method(&x, name, descriptor).await;
+        }
+    }
+
+    Ok(method)
 }
 
 async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -> Result<u32> {
