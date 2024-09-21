@@ -26,10 +26,14 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(_jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
+    async fn is_file(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
-        Ok(false)
+        let filename = JavaLangString::to_rust_string(jvm, &name).await?;
+
+        let exists = context.system().filesystem().read(&filename).is_some();
+
+        Ok(exists)
     }
 
     async fn is_directory(_jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
