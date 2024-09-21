@@ -120,13 +120,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
-        let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
         loop {
-            if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
-                let event: ClassInstanceRef<Runnable> = jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
-                let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
-            }
-
             let maybe_event = context.system().event_queue().pop();
 
             if let Some(x) = maybe_event {
@@ -179,6 +173,12 @@ impl EventQueue {
                 tracing::debug!("KeyEvent {:?} {}", event_type, code);
                 Self::key_event(jvm, event_type, code).await?;
             }
+        }
+
+        let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
+        if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
+            let event: ClassInstanceRef<Runnable> = jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
+            let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
         }
 
         Ok(())
