@@ -138,16 +138,26 @@ impl Display {
         let card_size: i32 = jvm.get_field(&this, "szCard", "I").await?;
 
         let cards_data = jvm.load_array(&cards, 0, card_size as usize).await?;
-        let cards_data = cards_data.into_iter().chain(iter::once(c)).collect::<Vec<_>>();
+        let cards_data = cards_data.into_iter().chain(iter::once(c.clone())).collect::<Vec<_>>();
 
         jvm.store_array(&mut cards, 0, cards_data).await?;
         jvm.put_field(&mut this, "szCard", "I", card_size + 1).await?;
+
+        let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
 
         Ok(())
     }
 
     async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards");
+
+        let cards = jvm.get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;").await?;
+        let card_size: i32 = jvm.get_field(&this, "szCard", "I").await?;
+
+        let cards_data = jvm.load_array(&cards, 0, card_size as usize).await?;
+        for card in cards_data {
+            let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
+        }
 
         jvm.put_field(&mut this, "szCard", "I", 0).await?;
 

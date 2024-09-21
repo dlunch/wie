@@ -26,6 +26,7 @@ impl Card {
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
                 JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
+                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
@@ -140,6 +141,12 @@ impl Card {
         let mut platform = context.system().platform();
         let screen = platform.screen();
         screen.request_redraw().unwrap();
+
+        Ok(())
+    }
+
+    async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::showNotify({:?})", &this);
 
         Ok(())
     }
