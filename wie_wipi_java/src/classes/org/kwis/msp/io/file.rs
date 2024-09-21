@@ -138,7 +138,7 @@ impl File {
         let data = jvm.load_byte_array(&data_array, pos as _, length_to_read as _).await?;
         jvm.store_byte_array(&mut buf, offset as _, data).await?;
 
-        jvm.put_field(&mut this, "pos", "I", pos + length_to_read as i32).await?;
+        jvm.put_field(&mut this, "pos", "I", pos + length_to_read).await?;
 
         Ok(length_to_read as _)
     }
