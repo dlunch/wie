@@ -84,7 +84,7 @@ pub async fn java_throw(_: &mut ArmCore, _jvm: &mut Jvm, error: String, a1: u32)
 async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr_fullname: u32) -> Result<u32> {
     let fullname = KtfJvmSupport::read_name(core, ptr_fullname)?;
 
-    tracing::trace!("get_java_method({:#x}, {})", ptr_class, fullname);
+    tracing::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let method = class.method(&fullname.name, &fullname.descriptor)?;
