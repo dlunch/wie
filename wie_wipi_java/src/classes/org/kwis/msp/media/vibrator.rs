@@ -15,7 +15,12 @@ impl Vibrator {
             name: "org/kwis/msp/media/Vibrator",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("on", "(II)V", Self::on, MethodAccessFlags::NATIVE)],
+            methods: vec![JavaMethodProto::new(
+                "on",
+                "(II)V",
+                Self::on,
+                MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
+            )],
             fields: vec![],
         }
     }
