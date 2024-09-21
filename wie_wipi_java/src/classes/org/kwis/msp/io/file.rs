@@ -35,6 +35,7 @@ impl File {
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, Default::default()),
                 JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
                 JavaMethodProto::new("read", "([B)I", Self::read, Default::default()),
+                JavaMethodProto::new("read", "([BII)I", Self::read_with_offset_length, Default::default()),
                 JavaMethodProto::new("seek", "(I)V", Self::seek, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
                 JavaMethodProto::new("sizeOf", "()I", Self::size_of, Default::default()),
@@ -111,19 +112,31 @@ impl File {
         Ok(())
     }
 
-    async fn read(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, mut buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
+    async fn read(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
+        let length = jvm.array_length(&buf).await? as i32;
+
+        jvm.invoke_virtual(&this, "read", "([BII)I", (buf, 0, length)).await
+    }
+
+    async fn read_with_offset_length(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        mut buf: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        length: i32,
+    ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
         let data_array = jvm.get_field(&this, "data", "[B").await?;
         let pos: i32 = jvm.get_field(&this, "pos", "I").await?;
 
-        let data_len = jvm.array_length(&data_array).await?;
-        let buf_len = jvm.array_length(&buf).await?;
+        let data_len = jvm.array_length(&data_array).await? as i32;
 
-        let length_to_read = min(data_len - pos as usize, buf_len);
+        let length_to_read = min(data_len - pos, length);
 
-        let data = jvm.load_byte_array(&data_array, pos as _, length_to_read).await?;
-        jvm.store_byte_array(&mut buf, 0, data).await?;
+        let data = jvm.load_byte_array(&data_array, pos as _, length_to_read as _).await?;
+        jvm.store_byte_array(&mut buf, offset as _, data).await?;
 
         jvm.put_field(&mut this, "pos", "I", pos + length_to_read as i32).await?;
 
