@@ -237,7 +237,7 @@ impl ArmCore {
     pub fn write_result(&mut self, result: &[u32]) -> Result<()> {
         let mut inner = self.inner.lock();
 
-        if result.len() > 0 {
+        if !result.is_empty() {
             inner.engine.reg_write(ArmRegister::R0, result[0]);
         }
         if result.len() > 1 {
