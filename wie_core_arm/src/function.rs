@@ -52,7 +52,7 @@ where
         let mut new_context = self.context.clone();
 
         let result = self.function.call(core, &mut new_context).await?;
-        R::write(core, result, lr)?;
+        result.write(core, lr)?;
 
         Ok(())
     }
@@ -143,17 +143,22 @@ impl EmulatedFunctionParam<u32> for u32 {
 }
 
 pub trait ResultWriter<R> {
-    fn write(core: &mut ArmCore, value: R, lr: u32) -> Result<()>;
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()>;
 }
 
 impl ResultWriter<u32> for u32 {
-    fn write(core: &mut ArmCore, value: u32, lr: u32) -> Result<()> {
-        core.write_result(value, lr)
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+        core.write_result(&[self])?;
+        core.set_next_pc(next_pc)?;
+
+        Ok(())
     }
 }
 
 impl ResultWriter<()> for () {
-    fn write(core: &mut ArmCore, _: (), lr: u32) -> Result<()> {
-        core.write_result(0, lr)
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+        core.set_next_pc(next_pc)?;
+
+        Ok(())
     }
 }

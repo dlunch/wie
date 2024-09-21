@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use core::{
-    fmt::{self, Debug, Formatter},
+    fmt::{self, Formatter},
     mem::size_of,
     ops::{Deref, DerefMut},
 };
@@ -10,12 +10,14 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
-use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
 use wie_util::{read_generic, write_generic, ByteWrite, Result, WieError};
 
-use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder};
+use crate::runtime::java::jvm_support::JavaClassDefinition;
+
+use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmSupport};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -29,6 +31,27 @@ struct RawJavaMethod {
     index_in_vtable: u16,
     access_flags: u16,
     unk6: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct MethodExceptionTableEntry {
+    from_pc: u32,
+    to_pc: u32,
+    target: u32,
+    ptr_class: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct KtfJvmExceptionHandler {
+    ptr_method: u32,
+    ptr_this: u32,
+    ptr_old_handler: u32,
+    current_pc: u32,
+    unk3: u32,
+    ptr_functions: u32, // function table to restore context
+    context: [u32; 11], // r4-lr
 }
 
 pub struct JavaMethod {
@@ -128,57 +151,59 @@ impl JavaMethod {
         }
     }
 
+    fn exception_table(&self) -> Result<Vec<MethodExceptionTableEntry>> {
+        let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
+
+        let mut result = Vec::with_capacity(raw.exception_table_count as _);
+
+        let mut cursor = raw.fn_body_native_or_exception_table;
+        for _ in 0..raw.exception_table_count {
+            let address = read_generic(&self.core, cursor)?;
+            cursor += 4;
+
+            result.push(read_generic(&self.core, address)?);
+        }
+
+        Ok(result)
+    }
+
+    async fn handle_exception(core: &mut ArmCore, jvm: &Jvm, exception: Box<dyn ClassInstance>) -> Result<JavaMethodResult> {
+        tracing::warn!("Java exception thrown: {:?}", exception);
+
+        let current_java_exception_handler = KtfJvmSupport::current_java_exception_handler(core)?;
+
+        if current_java_exception_handler == 0 {
+            return Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await);
+        }
+
+        let exception_handler: KtfJvmExceptionHandler = read_generic(core, current_java_exception_handler)?;
+
+        let method = JavaMethod::from_raw(exception_handler.ptr_method, core);
+        let exception_table = method.exception_table()?;
+
+        for entry in exception_table {
+            if entry.from_pc <= exception_handler.current_pc && exception_handler.current_pc < entry.to_pc {
+                let class = JavaClassDefinition::from_raw(entry.ptr_class, core);
+                if jvm.is_instance(&*exception, &class.name()?).await.unwrap() {
+                    let restore_context: u32 = read_generic(core, exception_handler.ptr_functions + 4)?;
+                    let contexts_base = current_java_exception_handler + 24;
+
+                    return Ok(JavaMethodResult {
+                        result: vec![contexts_base, entry.target],
+                        next_pc: Some(restore_context),
+                    });
+                }
+            }
+        }
+
+        Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await)
+    }
+
     fn register_java_method<C, Context>(core: &mut ArmCore, jvm: &Jvm, proto: JavaMethodProto<C>, context: Context) -> Result<u32>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
-        struct JavaMethodProxy<C, Context>
-        where
-            C: ?Sized + Send,
-            Context: Deref<Target = C> + DerefMut + Clone,
-        {
-            jvm: Jvm,
-            proto: JavaMethodProto<C>,
-            context: Context,
-            parameter_types: Vec<JavaType>,
-        }
-
-        #[async_trait::async_trait]
-        impl<C, Context> EmulatedFunction<(), u32, ()> for JavaMethodProxy<C, Context>
-        where
-            C: ?Sized + Send,
-            Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
-        {
-            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32> {
-                let param_count = self.parameter_types.len() as u32;
-
-                let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
-                    let param_base = u32::get(core, 1);
-                    (0..param_count)
-                        .map(|x| read_generic(core, param_base + x * 4))
-                        .collect::<wie_util::Result<Vec<u32>>>()?
-                } else {
-                    (0..param_count).map(|x| u32::get(core, (x + 1) as _)).collect::<Vec<_>>()
-                };
-
-                let args = args
-                    .into_iter()
-                    .zip(self.parameter_types.iter())
-                    .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
-                    .collect::<Vec<_>>();
-
-                let mut context = self.context.clone();
-
-                let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
-                if let Err(x) = result {
-                    return Err(JvmSupport::to_wie_err(&self.jvm, x).await);
-                }
-
-                Ok(result.unwrap().as_raw())
-            }
-        }
-
         let mut parameter_types = JavaType::parse(&proto.descriptor).as_method().0.to_vec();
 
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
@@ -232,5 +257,76 @@ impl Method for JavaMethod {
 impl Debug for JavaMethod {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
+    }
+}
+
+struct JavaMethodProxy<C, Context>
+where
+    C: ?Sized + Send,
+    Context: Deref<Target = C> + DerefMut + Clone,
+{
+    jvm: Jvm,
+    proto: JavaMethodProto<C>,
+    context: Context,
+    parameter_types: Vec<JavaType>,
+}
+
+#[async_trait::async_trait]
+impl<C, Context> EmulatedFunction<(), JavaMethodResult, ()> for JavaMethodProxy<C, Context>
+where
+    C: ?Sized + Send,
+    Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
+{
+    async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
+        let param_count = self.parameter_types.len() as u32;
+
+        let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
+            let param_base = u32::get(core, 1);
+            (0..param_count)
+                .map(|x| read_generic(core, param_base + x * 4))
+                .collect::<wie_util::Result<Vec<u32>>>()?
+        } else {
+            (0..param_count).map(|x| u32::get(core, (x + 1) as _)).collect::<Vec<_>>()
+        };
+
+        let args = args
+            .into_iter()
+            .zip(self.parameter_types.iter())
+            .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
+            .collect::<Vec<_>>();
+
+        let mut context = self.context.clone();
+
+        let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
+        if let Err(x) = result {
+            if let JavaError::JavaException(x) = x {
+                return JavaMethod::handle_exception(core, &self.jvm, x).await;
+            }
+            return Err(JvmSupport::to_wie_err(&self.jvm, x).await);
+        }
+
+        Ok(JavaMethodResult {
+            result: vec![result.unwrap().as_raw()],
+            next_pc: None,
+        })
+    }
+}
+
+struct JavaMethodResult {
+    result: Vec<u32>,
+    next_pc: Option<u32>,
+}
+
+impl ResultWriter<JavaMethodResult> for JavaMethodResult {
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+        core.write_result(&self.result)?;
+
+        if let Some(x) = self.next_pc {
+            core.set_next_pc(x)?;
+        } else {
+            core.set_next_pc(next_pc)?;
+        }
+
+        Ok(())
     }
 }

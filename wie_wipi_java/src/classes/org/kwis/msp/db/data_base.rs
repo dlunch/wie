@@ -111,7 +111,12 @@ impl DataBase {
 
         let database = Self::get_database(jvm, context, &this).await?;
 
-        let data = database.get(record_id as _).unwrap();
+        let result = database.get(record_id as _);
+        if result.is_none() {
+            return Err(jvm.exception("org/kwis/msp/db/DataBaseRecordException", "Record not found").await);
+        }
+
+        let data = result.unwrap();
 
         let mut array = jvm.instantiate_array("B", data.len() as _).await?;
         jvm.store_byte_array(&mut array, 0, cast_vec(data)).await?;
