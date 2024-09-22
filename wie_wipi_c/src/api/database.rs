@@ -17,6 +17,11 @@ struct DatabaseHandle {
 pub async fn open_database(context: &mut dyn WIPICContext, name: String, record_size: i32, create: i32, mode: i32) -> Result<i32> {
     tracing::debug!("MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
 
+    if record_size == 1 {
+        // TODO: is parameter record_size correct??
+        return Ok(-12); // M_E_NOENT
+    }
+
     let name_bytes = name.as_bytes();
     let mut handle = DatabaseHandle { name: [0; 32] };
 
