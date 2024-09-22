@@ -4,7 +4,7 @@ use core::cmp::min;
 use bytemuck::cast_slice;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_runtime::classes::java::lang::String;
+use java_runtime::classes::java::{io::InputStream, lang::String};
 use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -39,6 +39,7 @@ impl File {
                 JavaMethodProto::new("seek", "(I)V", Self::seek, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
                 JavaMethodProto::new("sizeOf", "()I", Self::size_of, Default::default()),
+                JavaMethodProto::new("openInputStream", "()Ljava/io/InputStream;", Self::open_input_stream, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("data", "[B", Default::default()),
@@ -156,5 +157,15 @@ impl File {
         let data_len = jvm.array_length(&data_array).await?;
 
         Ok(data_len as _)
+    }
+
+    async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
+        tracing::debug!("org.kwis.msp.io.File::openInputStream({:?})", &this);
+
+        let data_array = jvm.get_field(&this, "data", "[B").await?;
+
+        let input_stream = jvm.new_class("java/io/ByteArrayInputStream", "([B)V", [data_array]).await?;
+
+        Ok(input_stream.into())
     }
 }
