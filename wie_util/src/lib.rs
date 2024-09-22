@@ -78,7 +78,10 @@ where
 
     // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, result);
 
-    Ok(String::from_utf8(result).unwrap())
+    // TODO temp
+    Ok(encoding_rs::EUC_KR.decode(&result).0.into())
+
+    // Ok(String::from_utf8(result).unwrap())
 }
 
 pub fn write_null_terminated_string<W>(writer: &mut W, address: u32, string: &str) -> Result<()>

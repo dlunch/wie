@@ -1,9 +1,4 @@
-use alloc::{
-    boxed::Box,
-    format, str,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{boxed::Box, format, str, string::String, vec::Vec};
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
@@ -203,25 +198,51 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
 
     while let Some(x) = chars.next() {
         if x == '%' {
-            let format = chars.next().unwrap();
-            match format {
-                '%' => result.push('%'),
-                'd' => result += &arg_iter.next().unwrap().to_string(),
-                's' => {
-                    let ptr = arg_iter.next().unwrap();
-                    let str = read_null_terminated_string(context, *ptr)?;
+            let mut flag = None;
+            let mut width = None;
+            loop {
+                let c = chars.next().unwrap();
+                match c {
+                    '%' => {
+                        result.push('%');
+                        break;
+                    }
+                    'd' => {
+                        let arg = *arg_iter.next().unwrap();
+                        if let Some('0') = flag {
+                            result += &format!("{:0width$}", arg, width = width.unwrap_or(0));
+                        } else {
+                            result += &format!("{:width$}", arg, width = width.unwrap_or(0));
+                        }
+                        break;
+                    }
+                    's' => {
+                        let ptr = arg_iter.next().unwrap();
+                        let str = read_null_terminated_string(context, *ptr)?;
 
-                    result += &str;
+                        result += &str;
+                        break;
+                    }
+                    'c' => {
+                        let byte = arg_iter.next().unwrap();
+                        result.push(*byte as u8 as char);
+                        break;
+                    }
+                    'x' => {
+                        let byte = arg_iter.next().unwrap();
+                        result += &format!("{:x}", byte);
+                        break;
+                    }
+                    '0' => flag = Some('0'),
+                    '1'..='9' => {
+                        if let Some(x) = width {
+                            width = Some(x * 10 + c.to_digit(10).unwrap() as usize)
+                        } else {
+                            width = Some(c.to_digit(10).unwrap() as usize)
+                        }
+                    }
+                    _ => unimplemented!("Unknown format: {}", c),
                 }
-                'c' => {
-                    let byte = arg_iter.next().unwrap();
-                    result.push(*byte as u8 as char)
-                }
-                'x' => {
-                    let byte = arg_iter.next().unwrap();
-                    result += &format!("{:x}", byte)
-                }
-                _ => unimplemented!("Unknown format: {}", format),
             }
         } else {
             result.push(x);
@@ -253,15 +274,17 @@ mod test {
         let sprintk = sprintk.into_body();
 
         let format = context.alloc_raw(10).unwrap();
-        write_null_terminated_string(&mut context, format, "%d").unwrap();
-
         let dest = context.alloc_raw(10).unwrap();
 
+        write_null_terminated_string(&mut context, format, "%d").unwrap();
         sprintk.call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0])).await.unwrap();
-
         let result = read_null_terminated_string(&context, dest).unwrap();
-
         assert_eq!(result, "1234");
+
+        write_null_terminated_string(&mut context, format, "test %02d").unwrap();
+        sprintk.call(&mut context, Box::new([dest, format, 1, 0, 0, 0, 0])).await.unwrap();
+        let result = read_null_terminated_string(&context, dest).unwrap();
+        assert_eq!(result, "test 01");
 
         Ok(())
     }
