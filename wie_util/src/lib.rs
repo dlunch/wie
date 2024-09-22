@@ -88,7 +88,9 @@ pub fn write_null_terminated_string<W>(writer: &mut W, address: u32, string: &st
 where
     W: ?Sized + ByteWrite,
 {
-    let bytes = string.as_bytes();
+    // TODO temp
+    let bytes = &encoding_rs::EUC_KR.encode(string).0.to_vec();
+    // let bytes = string.as_bytes();
 
     writer.write_bytes(address, bytes)?;
     writer.write_bytes(address + bytes.len() as u32, &[0])?;
