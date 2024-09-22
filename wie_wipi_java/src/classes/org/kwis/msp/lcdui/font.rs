@@ -1,9 +1,9 @@
-use alloc::vec;
+use alloc::{string::String as RustString, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
 use wie_backend::canvas;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -29,6 +29,7 @@ impl Font {
                 ),
                 JavaMethodProto::new("getFont", "(III)Lorg/kwis/msp/lcdui/Font;", Self::get_font, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
+                JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
@@ -80,6 +81,14 @@ impl Font {
         tracing::warn!("org.kwis.msp.lcdui.Font::stringWidth({:?})", &string);
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
+
+        Ok(canvas::string_width(&string, 10.0) as _)
+    }
+
+    async fn char_width(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Font::charWidth({:?})", char);
+
+        let string = RustString::from_utf16(&[char]).unwrap();
 
         Ok(canvas::string_width(&string, 10.0) as _)
     }
