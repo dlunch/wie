@@ -141,7 +141,7 @@ pub async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_s
 
     let ptr_handle = context.alloc_raw(size_of::<ResourceHandle>() as _)?;
     write_generic(context, ptr_handle, handle)?;
-    write_generic(context, ptr_size, size)?;
+    write_generic(context, ptr_size, size as u32)?;
 
     Ok(ptr_handle as _)
 }
