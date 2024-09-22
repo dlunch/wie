@@ -20,8 +20,14 @@ impl Clip {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;Ljava/lang/String;)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init_with_data, Default::default()),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljava/lang/String;Ljava/lang/String;)V",
+                    Self::init_with_resource,
+                    Default::default(),
+                ),
                 JavaMethodProto::new("setVolume", "(I)Z", Self::set_volume, Default::default()),
                 JavaMethodProto::new(
                     "setListener",
@@ -29,12 +35,21 @@ impl Clip {
                     Self::set_listener,
                     Default::default(),
                 ),
+                JavaMethodProto::new("setBuffer", "([BI)V", Self::set_buffer, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("data", "[B", Default::default())],
         }
     }
 
-    async fn init(
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?})", &this, r#type);
+
+        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        Ok(())
+    }
+
+    async fn init_with_resource(
         jvm: &Jvm,
         _: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
@@ -102,5 +117,19 @@ impl Clip {
         let data = jvm.get_field(&this, "data", "[B").await?;
 
         Ok(cast_vec(jvm.load_byte_array(&data, 0, jvm.array_length(&data).await?).await?))
+    }
+
+    async fn set_buffer(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        buffer: ClassInstanceRef<Array<i8>>,
+        size: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.media.Clip::setBuffer({:?}, {:?}, {})", &this, &buffer, size);
+
+        jvm.put_field(&mut this, "data", "[B", buffer).await?;
+
+        Ok(())
     }
 }
