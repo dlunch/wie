@@ -144,6 +144,13 @@ impl EventQueue {
 
                 break;
             } else {
+                let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
+                if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
+                    let event: ClassInstanceRef<Runnable> =
+                        jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
+                    let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
+                }
+
                 let until = context.system().platform().now() + 16;
                 context.system().sleep(until).await; // TODO we need to wait for events
             }
@@ -173,12 +180,6 @@ impl EventQueue {
                 tracing::debug!("KeyEvent {:?} {}", event_type, code);
                 Self::key_event(jvm, event_type, code).await?;
             }
-        }
-
-        let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
-        if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
-            let event: ClassInstanceRef<Runnable> = jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
-            let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
         }
 
         Ok(())
