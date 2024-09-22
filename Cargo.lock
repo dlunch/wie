@@ -2876,6 +2876,7 @@ name = "wie_util"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
+ "encoding_rs",
  "tracing",
 ]
 
