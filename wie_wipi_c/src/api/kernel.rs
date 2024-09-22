@@ -224,6 +224,11 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
                     }
                     's' => {
                         let ptr = arg_iter.next().unwrap();
+                        if ptr == 0 {
+                            result += "(null)";
+                            break;
+                        }
+
                         let str = read_null_terminated_string(context, *ptr)?;
 
                         result += &str;
