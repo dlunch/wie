@@ -17,6 +17,12 @@ members = [
 
 default-members = ["wie_cli"]
 
+[profile.dev.package.wie_core_arm]
+opt-level = 1
+
+[profile.dev.package.arm32_cpu]
+opt-level = 1
+
 [profile.release]
 lto = true
 
