@@ -39,7 +39,7 @@ impl WIPICContext for KtfWIPICContext {
 
     fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
         let size = read_generic(&self.core, memory.0 + 4)?;
-        Allocator::free(&mut self.core, memory.0, size)?;
+        Allocator::free(&mut self.core, memory.0, size + 12)?;
 
         Ok(())
     }
