@@ -38,7 +38,7 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
-        let size = read_generic(&self.core, memory.0 + 4)?;
+        let size: u32 = read_generic(&self.core, memory.0 + 4)?;
         Allocator::free(&mut self.core, memory.0, size + 12)?;
 
         Ok(())
@@ -119,16 +119,17 @@ impl WIPICContext for KtfWIPICContext {
         Ok(())
     }
 
-    async fn get_resource_size(&self, name: &str) -> Result<usize> {
+    async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
         let class_loader = self.jvm.current_class_loader().await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
-            .await
-            .unwrap()
-            .unwrap();
+        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
 
-        let available: i32 = self.jvm.invoke_virtual(&stream, "available", "()I", ()).await.unwrap();
+        if stream.is_none() {
+            return Ok(None);
+        }
 
-        Ok(available as _)
+        let available: i32 = self.jvm.invoke_virtual(&stream.unwrap(), "available", "()I", ()).await.unwrap();
+
+        Ok(Some(available as _))
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
