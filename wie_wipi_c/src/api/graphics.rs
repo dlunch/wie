@@ -315,3 +315,15 @@ pub async fn copy_frame_buffer(
 
     Ok(())
 }
+
+pub async fn get_font(_: &mut dyn WIPICContext, face: i32, size: i32, style: i32) -> Result<i32> {
+    tracing::warn!("stub MC_grpGetFont({}, {}, {})", face, size, style);
+
+    Ok(0)
+}
+
+pub async fn get_font_height(_: &mut dyn WIPICContext, font: i32) -> Result<i32> {
+    tracing::warn!("stub MC_grpGetFontHeight({})", font);
+
+    Ok(10)
+}
