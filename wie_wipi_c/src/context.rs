@@ -133,7 +133,7 @@ pub mod test {
             todo!()
         }
 
-        async fn get_resource_size(&self, _name: &str) -> Result<usize> {
+        async fn get_resource_size(&self, _name: &str) -> Result<Option<usize>> {
             todo!()
         }
 
