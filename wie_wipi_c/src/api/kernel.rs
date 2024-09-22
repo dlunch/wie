@@ -127,7 +127,13 @@ pub async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> Resu
 pub async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
 
-    let size = context.get_resource_size(&name).await?; // TODO error handling
+    let size = context.get_resource_size(&name).await?;
+
+    if size.is_none() {
+        return Ok(-12); // M_E_NOENT
+    }
+
+    let size = size.unwrap();
 
     // TODO it leaks handle every time.. should we assign id for every file?
     let name_bytes = name.as_bytes();

@@ -16,7 +16,7 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send {
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord>;
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()>;
-    async fn get_resource_size(&self, name: &str) -> Result<usize>;
+    async fn get_resource_size(&self, name: &str) -> Result<Option<usize>>;
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>>;
 }
 
