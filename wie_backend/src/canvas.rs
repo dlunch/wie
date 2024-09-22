@@ -402,6 +402,12 @@ pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
     )) as Box<_>)
 }
 
+pub fn string_width(string: &str, pt_size: f32) -> f32 {
+    let font = FONT.as_scaled(FONT.pt_to_px_scale(pt_size).unwrap());
+
+    string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>()
+}
+
 #[cfg(test)]
 mod tests {
     use wie_util::Result;
