@@ -187,6 +187,18 @@ impl Graphics {
     async fn fill_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
+        if x < 0 || y < 0 || width < 0 || height < 0 {
+            tracing::warn!(
+                "org.kwis.msp.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {}): invalid arguments",
+                &this,
+                x,
+                y,
+                width,
+                height
+            );
+            return Ok(());
+        }
+
         let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
