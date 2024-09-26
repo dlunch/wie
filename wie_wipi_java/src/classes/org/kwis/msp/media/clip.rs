@@ -22,6 +22,7 @@ impl Clip {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init_with_data, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init_with_data_size, Default::default()),
                 JavaMethodProto::new(
                     "<init>",
                     "(Ljava/lang/String;Ljava/lang/String;)V",
@@ -95,6 +96,22 @@ impl Clip {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "data", "[B", data).await?;
+
+        Ok(())
+    }
+
+    async fn init_with_data_size(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        r#type: ClassInstanceRef<String>,
+        size: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {})", &this, r#type, size);
+
+        let data = jvm.instantiate_array("B", size as _).await?;
 
         jvm.put_field(&mut this, "data", "[B", data).await?;
 
