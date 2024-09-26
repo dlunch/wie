@@ -35,7 +35,8 @@ impl DataBase {
                 ),
                 JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, Default::default()),
                 JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, Default::default()),
-                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, Default::default()),
+                JavaMethodProto::new("insertRecord", "([B)I", Self::insert_record, Default::default()),
+                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, Default::default()),
                 JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
@@ -115,6 +116,21 @@ impl DataBase {
     }
 
     async fn insert_record(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<i8>>,
+    ) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({:?}, {:?})", &this, &data);
+
+        let length = jvm.array_length(&data).await? as i32;
+
+        let result = jvm.invoke_virtual(&this, "insertRecord", "([BII)I", (data, 0, length)).await?;
+
+        Ok(result)
+    }
+
+    async fn insert_record_with_offset(
         jvm: &Jvm,
         context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
