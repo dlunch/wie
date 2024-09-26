@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{format, vec};
 use core::cmp::min;
 
 use bytemuck::cast_slice;
@@ -75,13 +75,17 @@ impl File {
 
         let data = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC {
             // TODO: write not implemented
-            vec![]
+            Some(vec![])
         } else {
             let filesystem = context.system().filesystem();
-            let data = filesystem.read(&filename).unwrap(); // TODO exception
-
-            cast_slice(data).to_vec()
+            let data = filesystem.read(&filename);
+            data.map(|x| cast_slice(x).to_vec())
         };
+
+        if data.is_none() {
+            return Err(jvm.exception("java/io/IOException", &format!("File not found: {}", filename)).await);
+        }
+        let data = data.unwrap();
 
         let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
         jvm.store_byte_array(&mut data_array, 0, data).await?;
