@@ -27,6 +27,12 @@ impl DataBase {
                     Self::open_data_base,
                     MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new(
+                    "openDataBase",
+                    "(Ljava/lang/String;IZI)Lorg/kwis/msp/db/DataBase;",
+                    Self::open_data_base_with_flags,
+                    MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, Default::default()),
                 JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, Default::default()),
                 JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record, Default::default()),
@@ -51,10 +57,38 @@ impl DataBase {
         create: bool,
     ) -> JvmResult<ClassInstanceRef<DataBase>> {
         tracing::warn!(
-            "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
+            "org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
             &data_base_name,
             record_size,
             create
+        );
+
+        let result = jvm
+            .invoke_static(
+                "org/kwis/msp/db/DataBase",
+                "openDataBase",
+                "(Ljava/lang/String;IZI)Lorg/kwis/msp/db/DataBase;",
+                (data_base_name, record_size, create, 0),
+            )
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn open_data_base_with_flags(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        data_base_name: ClassInstanceRef<String>,
+        record_size: i32,
+        create: bool,
+        flags: i32,
+    ) -> JvmResult<ClassInstanceRef<DataBase>> {
+        tracing::warn!(
+            "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {}, {})",
+            &data_base_name,
+            record_size,
+            create,
+            flags
         );
 
         let instance = jvm
