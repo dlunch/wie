@@ -15,7 +15,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, ByteRead, Result, WieError};
 
-use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, KtfJvmSupport};
+use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, JavaMethodResult, KtfJvmSupport};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -75,10 +75,12 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
     }
 }
 
-pub async fn java_throw(_: &mut ArmCore, _jvm: &mut Jvm, error: String, a1: u32) -> Result<u32> {
-    tracing::error!("java_throw({}, {})", error, a1);
+pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, error: String, a1: u32) -> Result<JavaMethodResult> {
+    tracing::warn!("java_throw({}, {})", error, a1);
 
-    Err(WieError::FatalError(format!("Java Exception thrown {}, {:#x}", error, a1)))
+    let exception = jvm.new_class(&error, "()V", ()).await.unwrap();
+
+    JavaMethod::handle_exception(core, jvm, exception).await
 }
 
 async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr_fullname: u32) -> Result<u32> {

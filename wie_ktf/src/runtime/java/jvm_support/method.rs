@@ -173,7 +173,7 @@ impl JavaMethod {
         Ok(result)
     }
 
-    async fn handle_exception(core: &mut ArmCore, jvm: &Jvm, exception: Box<dyn ClassInstance>) -> Result<JavaMethodResult> {
+    pub async fn handle_exception(core: &mut ArmCore, jvm: &Jvm, exception: Box<dyn ClassInstance>) -> Result<JavaMethodResult> {
         tracing::warn!("Java exception thrown: {:?}", exception);
 
         let current_java_exception_handler = KtfJvmSupport::current_java_exception_handler(core)?;
@@ -193,6 +193,12 @@ impl JavaMethod {
                 if jvm.is_instance(&*exception, &class.name()?).await.unwrap() {
                     let restore_context: u32 = read_generic(core, exception_handler.ptr_functions + 4)?;
                     let contexts_base = current_java_exception_handler + 24;
+
+                    tracing::debug!(
+                        "Java exception handler found: {:#x}, method: {:#x}",
+                        entry.target,
+                        exception_handler.ptr_method
+                    );
 
                     return Ok(JavaMethodResult {
                         result: vec![contexts_base, entry.target],
@@ -318,7 +324,7 @@ where
     }
 }
 
-struct JavaMethodResult {
+pub struct JavaMethodResult {
     result: Vec<u32>,
     next_pc: Option<u32>,
 }
