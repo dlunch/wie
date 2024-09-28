@@ -2,6 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
+use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -18,6 +19,7 @@ impl Font {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
                 JavaMethodProto::new(
                     "getFont",
                     "(III)Ljavax/microedition/lcdui/Font;",
@@ -41,6 +43,12 @@ impl Font {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         Ok(())
+    }
+
+    async fn string_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, _text: ClassInstanceRef<String>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::stringWidth({:?})", &this);
+
+        Ok(10)
     }
 
     async fn get_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
