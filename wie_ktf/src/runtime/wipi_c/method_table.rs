@@ -367,5 +367,5 @@ pub fn get_unk12_method_table() -> Vec<WIPICMethodBody> {
 }
 
 pub fn get_stub_method_table(interface: WIPICWord) -> Vec<WIPICMethodBody> {
-    (0..64).map(|_| gen_stub(interface, "")).collect::<Vec<_>>()
+    (0..64).map(|_| gen_stub(interface, "stub")).collect::<Vec<_>>()
 }
