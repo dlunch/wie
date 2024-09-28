@@ -1,7 +1,7 @@
-use alloc::{format, vec, vec::Vec};
+use alloc::{format, string::String as RustString, vec, vec::Vec};
 
 use bytemuck::cast_vec;
-use jvm::{runtime::JavaLangString, JavaValue};
+use jvm::{runtime::JavaLangString, JavaChar, JavaValue};
 
 use wie_backend::canvas::{PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 
@@ -57,6 +57,7 @@ impl Graphics {
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
                 JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
+                JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
@@ -220,6 +221,37 @@ impl Graphics {
         let mut canvas = Image::canvas(jvm, &image).await?;
 
         canvas.draw_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+
+        canvas.flush().await;
+
+        Ok(())
+    }
+
+    async fn draw_char(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        ch: JavaChar,
+        x: i32,
+        y: i32,
+        anchor: Anchor,
+    ) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::drawChar({:?}, {}, {}, {}, {})", &this, ch, x, y, anchor.0);
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let alignment = if anchor.contains(Anchor::HCENTER) {
+            TextAlignment::Center
+        } else if anchor.contains(Anchor::RIGHT) {
+            TextAlignment::Right
+        } else {
+            TextAlignment::Left
+        };
+
+        let string = RustString::from_utf16(&[ch]).unwrap();
+
+        canvas.draw_text(&string, x as _, y as _, alignment);
 
         canvas.flush().await;
 
