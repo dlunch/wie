@@ -19,6 +19,12 @@ impl Font {
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new(
+                    "getFont",
+                    "(III)Ljavax/microedition/lcdui/Font;",
+                    Self::get_font,
+                    MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
                     "getDefaultFont",
                     "()Ljavax/microedition/lcdui/Font;",
                     Self::get_default_font,
@@ -41,6 +47,14 @@ impl Font {
         tracing::warn!("stub javax.microedition.lcdui.Font::getHeight({:?})", &this);
 
         Ok(10)
+    }
+
+    async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, face: i32, style: i32, size: i32) -> JvmResult<ClassInstanceRef<Self>> {
+        tracing::warn!("stub javax.microedition.lcdui.Font::getFont( {}, {}, {})", face, style, size);
+
+        let instance = jvm.new_class("javax/microedition/lcdui/Font", "()V", ()).await?;
+
+        Ok(instance.into())
     }
 
     async fn get_default_font(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {

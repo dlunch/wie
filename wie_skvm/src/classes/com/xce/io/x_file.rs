@@ -19,6 +19,7 @@ impl XFile {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default()),
                 JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("filesize", "(Ljava/lang/String;)I", Self::filesize, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("unlink", "(Ljava/lang/String;)I", Self::unlink, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
@@ -43,6 +44,12 @@ impl XFile {
         tracing::warn!("stub com.xce.io.XFile::exists({:?})", name);
 
         Ok(false)
+    }
+
+    async fn filesize(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
+        tracing::warn!("stub com.xce.io.XFile::filesize({:?})", name);
+
+        Ok(0)
     }
 
     async fn unlink(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {

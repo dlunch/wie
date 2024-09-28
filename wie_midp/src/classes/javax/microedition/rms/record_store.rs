@@ -19,6 +19,7 @@ impl RecordStore {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, Default::default()),
+                JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, Default::default()),
                 JavaMethodProto::new("setRecord", "(I[BII)V", Self::set_record, Default::default()),
                 JavaMethodProto::new("getNumRecords", "()I", Self::get_num_records, Default::default()),
                 JavaMethodProto::new("closeRecordStore", "()V", Self::close_record_store, Default::default()),
@@ -58,6 +59,17 @@ impl RecordStore {
         );
 
         Ok(0)
+    }
+
+    async fn get_record(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        record_id: i32,
+    ) -> JvmResult<ClassInstanceRef<Array<i8>>> {
+        tracing::warn!("stub javax.microedition.rms.RecordStore::getRecord({:?}, {})", &this, record_id);
+
+        Ok(None.into())
     }
 
     async fn set_record(
