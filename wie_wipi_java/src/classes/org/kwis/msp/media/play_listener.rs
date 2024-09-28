@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_jvm_support::WieJavaClassProto;
 
 // interface org.kwis.msp.media.PlayListener
-pub struct PlayListener {}
+pub struct PlayListener;
 
 impl PlayListener {
     pub fn as_proto() -> WieJavaClassProto {

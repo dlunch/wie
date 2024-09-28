@@ -7,7 +7,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.lwc.TextFieldComponent
-pub struct TextFieldComponent {}
+pub struct TextFieldComponent;
 
 impl TextFieldComponent {
     pub fn as_proto() -> WieJavaClassProto {

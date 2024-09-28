@@ -9,7 +9,7 @@ use wie_backend::canvas;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.lcdui.Font
-pub struct Font {}
+pub struct Font;
 
 impl Font {
     pub fn as_proto() -> WieJavaClassProto {

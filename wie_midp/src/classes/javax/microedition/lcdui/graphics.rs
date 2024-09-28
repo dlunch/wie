@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_jvm_support::WieJavaClassProto;
 
 // class javax.microedition.lcdui.Graphics
-pub struct Graphics {}
+pub struct Graphics;
 
 impl Graphics {
     pub fn as_proto() -> WieJavaClassProto {

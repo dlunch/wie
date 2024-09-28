@@ -6,7 +6,7 @@ use core::{
 
 use crate::{executor::Executor, time::Instant};
 
-pub struct YieldFuture {}
+pub struct YieldFuture;
 
 impl Future for YieldFuture {
     type Output = ();

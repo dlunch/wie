@@ -22,7 +22,7 @@ enum Mode {
 }
 
 // class org.kwis.msp.io.File
-pub struct File {}
+pub struct File;
 
 impl File {
     pub fn as_proto() -> WieJavaClassProto {

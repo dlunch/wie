@@ -7,7 +7,7 @@ use jvm::{Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.handset.Backlight
-pub struct BackLight {}
+pub struct BackLight;
 
 impl BackLight {
     pub fn as_proto() -> WieJavaClassProto {

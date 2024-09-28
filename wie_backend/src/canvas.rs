@@ -56,7 +56,7 @@ pub trait PixelType: Send {
     fn to_color(raw: Self::DataType) -> Color;
 }
 
-pub struct Rgb565Pixel {}
+pub struct Rgb565Pixel;
 
 impl PixelType for Rgb565Pixel {
     type DataType = u16;
@@ -82,7 +82,7 @@ impl PixelType for Rgb565Pixel {
     }
 }
 
-pub struct Rgb8Pixel {}
+pub struct Rgb8Pixel;
 
 impl PixelType for Rgb8Pixel {
     type DataType = u32;
@@ -100,7 +100,7 @@ impl PixelType for Rgb8Pixel {
     }
 }
 
-pub struct ArgbPixel {}
+pub struct ArgbPixel;
 
 impl PixelType for ArgbPixel {
     type DataType = u32;
@@ -119,7 +119,7 @@ impl PixelType for ArgbPixel {
     }
 }
 
-pub struct AbgrPixel {}
+pub struct AbgrPixel;
 
 impl PixelType for AbgrPixel {
     type DataType = u32;

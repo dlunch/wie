@@ -8,7 +8,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::org::kwis::msp::lcdui::Display;
 
 // class org.kwis.msp.lcdui.Card
-pub struct Card {}
+pub struct Card;
 
 impl Card {
     pub fn as_proto() -> WieJavaClassProto {

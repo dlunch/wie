@@ -7,7 +7,7 @@ use jvm::{Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class com.xce.lcdui.Toolkit
-pub struct Toolkit {}
+pub struct Toolkit;
 
 impl Toolkit {
     pub fn as_proto() -> WieJavaClassProto {

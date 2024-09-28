@@ -38,7 +38,7 @@ impl TypeConverter<Anchor> for Anchor {
 }
 
 // class org.kwis.msp.lcdui.Graphics
-pub struct Graphics {}
+pub struct Graphics;
 
 impl Graphics {
     pub fn as_proto() -> WieJavaClassProto {

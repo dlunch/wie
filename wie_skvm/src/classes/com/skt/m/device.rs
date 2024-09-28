@@ -7,7 +7,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class com.skt.m.Device
-pub struct Device {}
+pub struct Device;
 
 impl Device {
     pub fn as_proto() -> WieJavaClassProto {

@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_jvm_support::WieJavaClassProto;
 
 // class org.kwis.msp.lwc.ShellComponent
-pub struct ShellComponent {}
+pub struct ShellComponent;
 
 impl ShellComponent {
     pub fn as_proto() -> WieJavaClassProto {

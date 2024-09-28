@@ -8,7 +8,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class com.xce.io.XFile
-pub struct XFile {}
+pub struct XFile;
 
 impl XFile {
     pub fn as_proto() -> WieJavaClassProto {

@@ -10,7 +10,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::com::skt::m::audio_clip::AudioClip;
 
 // class com.skt.m.AudioSystem
-pub struct AudioSystem {}
+pub struct AudioSystem;
 
 impl AudioSystem {
     pub fn as_proto() -> WieJavaClassProto {

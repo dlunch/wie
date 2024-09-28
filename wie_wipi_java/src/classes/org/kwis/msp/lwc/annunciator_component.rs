@@ -6,7 +6,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.lwc.AnnunciatorComponent
-pub struct AnnunciatorComponent {}
+pub struct AnnunciatorComponent;
 
 impl AnnunciatorComponent {
     pub fn as_proto() -> WieJavaClassProto {

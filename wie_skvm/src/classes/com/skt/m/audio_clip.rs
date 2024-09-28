@@ -5,7 +5,7 @@ use java_class_proto::JavaMethodProto;
 use wie_jvm_support::WieJavaClassProto;
 
 // interface com.skt.m.AudioClip
-pub struct AudioClip {}
+pub struct AudioClip;
 
 impl AudioClip {
     pub fn as_proto() -> WieJavaClassProto {

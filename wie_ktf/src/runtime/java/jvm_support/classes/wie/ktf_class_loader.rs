@@ -21,7 +21,7 @@ pub struct ClassLoaderContext {
 type ClassLoaderProto = JavaClassProto<ClassLoaderContext>;
 
 // class wie.KtfClassLoader
-pub struct KtfClassLoader {}
+pub struct KtfClassLoader;
 
 impl KtfClassLoader {
     pub fn as_proto() -> ClassLoaderProto {

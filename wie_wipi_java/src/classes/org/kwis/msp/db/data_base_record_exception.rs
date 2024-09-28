@@ -7,7 +7,7 @@ use jvm::{ClassInstanceRef, Jvm, Result};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.db.DataBaseRecordException
-pub struct DataBaseRecordException {}
+pub struct DataBaseRecordException;
 
 impl DataBaseRecordException {
     pub fn as_proto() -> WieJavaClassProto {
