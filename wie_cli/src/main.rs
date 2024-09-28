@@ -148,6 +148,8 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         let jar_filename = filename.replace(".jad", ".jar");
         let jar = fs::read(&jar_filename)?;
 
+        let jar_filename = jar_filename[jar_filename.rfind('/').unwrap_or(0) + 1..].to_owned();
+
         Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar)?)
     } else if filename.ends_with("jar") {
         let filename_without_ext = filename.trim_end_matches(".jar");
