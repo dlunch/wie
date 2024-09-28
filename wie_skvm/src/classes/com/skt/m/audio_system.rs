@@ -18,12 +18,16 @@ impl AudioSystem {
             name: "com/skt/m/AudioSystem",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "getAudioClip",
-                "(Ljava/lang/String;)Lcom/skt/m/AudioClip;",
-                Self::get_audio_clip,
-                MethodAccessFlags::STATIC,
-            )],
+            methods: vec![
+                JavaMethodProto::new(
+                    "getAudioClip",
+                    "(Ljava/lang/String;)Lcom/skt/m/AudioClip;",
+                    Self::get_audio_clip,
+                    MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("getMaxVolume", "(Ljava/lang/String;)I", Self::get_max_volume, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("setVolume", "(Ljava/lang/String;I)V", Self::set_volume, MethodAccessFlags::STATIC),
+            ],
             fields: vec![],
         }
     }
@@ -32,5 +36,17 @@ impl AudioSystem {
         tracing::warn!("stub com.skt.m.AudioSystem::getAudioClip({:?})", name);
 
         Ok(None.into())
+    }
+
+    async fn get_max_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
+        tracing::warn!("stub com.skt.m.AudioSystem::getMaxVolume({:?})", format);
+
+        Ok(0)
+    }
+
+    async fn set_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>, level: i32) -> JvmResult<()> {
+        tracing::warn!("stub com.skt.m.AudioSystem::setVolume({:?}, {})", format, level);
+
+        Ok(())
     }
 }

@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -20,6 +20,8 @@ impl XFile {
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default()),
                 JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("unlink", "(Ljava/lang/String;)I", Self::unlink, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
+                JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
             fields: vec![],
         }
@@ -47,5 +49,24 @@ impl XFile {
         tracing::warn!("stub com.xce.io.XFile::unlink({:?})", name);
 
         Ok(0)
+    }
+
+    async fn write(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        length: i32,
+    ) -> JvmResult<i32> {
+        tracing::warn!("stub com.xce.io.XFile::write({:?}, {:?}, {}, {})", this, data, offset, length);
+
+        Ok(0)
+    }
+
+    async fn close(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub com.xce.io.XFile::close({:?})", this);
+
+        Ok(())
     }
 }
