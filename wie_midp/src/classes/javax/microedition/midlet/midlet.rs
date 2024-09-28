@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -38,15 +38,13 @@ impl MIDlet {
     }
 
     async fn get_app_property(
-        jvm: &Jvm,
+        _jvm: &Jvm,
         _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         key: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<String>> {
         tracing::warn!("stub javax.microedition.midlet.MIDlet::getAppProperty({:?}, {:?})", &this, key);
 
-        let result = JavaLangString::from_rust_string(jvm, "").await?;
-
-        Ok(result.into())
+        Ok(None.into())
     }
 }
