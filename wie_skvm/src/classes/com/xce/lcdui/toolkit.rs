@@ -24,8 +24,13 @@ impl Toolkit {
         }
     }
 
-    async fn cl_init(_jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
+    async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("com.xce.lcdui.Toolkit::<clinit>");
+
+        let graphics = jvm.new_class("javax/microedition/lcdui/Graphics", "()V", ()).await?;
+
+        jvm.put_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
+            .await?;
 
         Ok(())
     }

@@ -14,7 +14,11 @@ impl Canvas {
             name: "javax/microedition/lcdui/Canvas",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, Default::default())],
+            methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+            ],
             fields: vec![],
         }
     }
@@ -25,5 +29,17 @@ impl Canvas {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         Ok(())
+    }
+
+    async fn get_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::getWidth({:?})", &this);
+
+        Ok(240)
+    }
+
+    async fn get_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::getHeight({:?})", &this);
+
+        Ok(320)
     }
 }
