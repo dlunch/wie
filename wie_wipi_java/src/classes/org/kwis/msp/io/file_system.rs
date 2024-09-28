@@ -20,6 +20,7 @@ impl FileSystem {
                 JavaMethodProto::new("isFile", "(Ljava/lang/String;)Z", Self::is_file, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("isDirectory", "(Ljava/lang/String;I)Z", Self::is_directory, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("exists", "(Ljava/lang/String;I)Z", Self::exists_with_flag, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
@@ -42,8 +43,15 @@ impl FileSystem {
         Ok(true)
     }
 
-    async fn exists(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
+    async fn exists(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.io.FileSystem::exists({:?})", &name);
+
+        jvm.invoke_static("org/kwis/msp/io/FileSystem", "exists", "(Ljava/lang/String;I)Z", (name, 0))
+            .await
+    }
+
+    async fn exists_with_flag(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.io.FileSystem::exists({:?}, {:?})", &name, flag);
 
         let filename = JavaLangString::to_rust_string(jvm, &name).await?;
 
