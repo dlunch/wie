@@ -108,6 +108,10 @@ impl KtfClassLoader {
 
         let fn_get_class: i32 = jvm.get_field(&this, "fnGetClass", "I").await?;
 
+        if fn_get_class == 0 {
+            return Ok(None.into());
+        }
+
         // find from client.bin
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
