@@ -29,6 +29,7 @@ impl Font {
                 ),
                 JavaMethodProto::new("getFont", "(III)Lorg/kwis/msp/lcdui/Font;", Self::get_font, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
+                JavaMethodProto::new("substringWidth", "(Ljava/lang/String;II)I", Self::substring_width, Default::default()),
                 JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
             ],
             fields: vec![
@@ -78,11 +79,26 @@ impl Font {
     }
 
     async fn string_width(jvm: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
-        tracing::warn!("org.kwis.msp.lcdui.Font::stringWidth({:?})", &string);
+        tracing::debug!("org.kwis.msp.lcdui.Font::stringWidth({:?})", &string);
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
 
         Ok(canvas::string_width(&string, 10.0) as _)
+    }
+
+    async fn substring_width(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        _: ClassInstanceRef<Self>,
+        string: ClassInstanceRef<String>,
+        offset: i32,
+        len: i32,
+    ) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::substringWidth({:?}, {:?}, {:?})", &string, offset, len);
+
+        let string = JavaLangString::to_rust_string(jvm, &string).await?;
+
+        Ok(canvas::string_width(&string[offset as usize..(offset + len) as usize], 10.0) as _)
     }
 
     async fn char_width(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
