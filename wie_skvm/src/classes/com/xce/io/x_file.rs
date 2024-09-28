@@ -16,19 +16,36 @@ impl XFile {
             name: "com/xce/io/XFile",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "exists",
-                "(Ljava/lang/String;)Z",
-                Self::exists,
-                MethodAccessFlags::STATIC,
-            )],
+            methods: vec![
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default()),
+                JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("unlink", "(Ljava/lang/String;)I", Self::unlink, MethodAccessFlags::STATIC),
+            ],
             fields: vec![],
         }
+    }
+
+    async fn init(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        name: ClassInstanceRef<String>,
+        mode: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub com.xce.io.XFile::<init>({:?}, {:?}, {:?})", this, name, mode);
+
+        Ok(())
     }
 
     async fn exists(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
         tracing::warn!("stub com.xce.io.XFile::exists({:?})", name);
 
         Ok(false)
+    }
+
+    async fn unlink(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
+        tracing::warn!("stub com.xce.io.XFile::unlink({:?})", name);
+
+        Ok(0)
     }
 }
