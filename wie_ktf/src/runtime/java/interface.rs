@@ -174,9 +174,13 @@ async fn get_static_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, fi
     let field_name = KtfJvmSupport::read_name(core, field_name)?;
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    let field = class.field(&field_name.name, &field_name.descriptor, true)?.unwrap();
+    let field = class.field(&field_name.name, &field_name.descriptor, true)?;
 
-    Ok(field.ptr_raw)
+    if let Some(x) = field {
+        Ok(x.ptr_raw)
+    } else {
+        Err(WieError::FatalError(format!("Field {} not found from {}", field_name, class.name()?)))
+    }
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Jvm, a0: u32, a1: u32) -> Result<u32> {
