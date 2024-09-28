@@ -8,7 +8,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::Graphics;
 
 // class com.skt.m.Graphics2D
-pub struct Graphics2D {}
+pub struct Graphics2D;
 
 impl Graphics2D {
     pub fn as_proto() -> WieJavaClassProto {

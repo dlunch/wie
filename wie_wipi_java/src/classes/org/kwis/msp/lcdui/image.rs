@@ -17,7 +17,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::org::kwis::msp::lcdui::Graphics;
 
 // class org.kwis.msp.lcdui.Image
-pub struct Image {}
+pub struct Image;
 
 impl Image {
     pub fn as_proto() -> WieJavaClassProto {

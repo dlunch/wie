@@ -8,7 +8,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.lcdui.Main
-pub struct Main {}
+pub struct Main;
 
 impl Main {
     pub fn as_proto() -> WieJavaClassProto {

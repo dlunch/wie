@@ -8,7 +8,7 @@ use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.io.FileSystem
-pub struct FileSystem {}
+pub struct FileSystem;
 
 impl FileSystem {
     pub fn as_proto() -> WieJavaClassProto {

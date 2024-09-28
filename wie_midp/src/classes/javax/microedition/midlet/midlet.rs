@@ -6,7 +6,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class javax.microedition.midlet.MIDlet
-pub struct MIDlet {}
+pub struct MIDlet;
 
 impl MIDlet {
     pub fn as_proto() -> WieJavaClassProto {

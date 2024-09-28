@@ -11,7 +11,7 @@ use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmRe
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.db.DataBase
-pub struct DataBase {}
+pub struct DataBase;
 
 impl DataBase {
     pub fn as_proto() -> WieJavaClassProto {

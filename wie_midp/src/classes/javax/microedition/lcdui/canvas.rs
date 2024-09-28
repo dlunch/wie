@@ -6,7 +6,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class javax.microedition.lcdui.Canvas
-pub struct Canvas {}
+pub struct Canvas;
 
 impl Canvas {
     pub fn as_proto() -> WieJavaClassProto {

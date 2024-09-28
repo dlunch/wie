@@ -10,7 +10,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::org::kwis::msp::lcdui::EventQueue;
 
 // class org.kwis.msp.lcdui.Jlet
-pub struct Jlet {}
+pub struct Jlet;
 
 impl Jlet {
     pub fn as_proto() -> WieJavaClassProto {
@@ -69,7 +69,7 @@ impl Jlet {
         jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
             .await?;
 
-        struct MainProxy {}
+        struct MainProxy;
         #[async_trait::async_trait]
         impl MethodBody<JavaError, WieJvmContext> for MainProxy {
             #[tracing::instrument(name = "main", skip_all)]

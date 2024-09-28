@@ -11,7 +11,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::org::kwis::msp::lcdui::{Card, EventQueue, Jlet, JletEventListener};
 
 // class org.kwis.msp.lcdui.Display
-pub struct Display {}
+pub struct Display;
 
 impl Display {
     pub fn as_proto() -> WieJavaClassProto {

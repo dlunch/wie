@@ -7,7 +7,7 @@ use jvm::{Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.media.Vibrator
-pub struct Vibrator {}
+pub struct Vibrator;
 
 impl Vibrator {
     pub fn as_proto() -> WieJavaClassProto {

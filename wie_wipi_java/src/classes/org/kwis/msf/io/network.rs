@@ -7,7 +7,7 @@ use jvm::{Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msf.io.Network
-pub struct Network {}
+pub struct Network;
 
 impl Network {
     pub fn as_proto() -> WieJavaClassProto {

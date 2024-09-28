@@ -85,7 +85,7 @@ impl WIPIKeyCode {
 }
 
 // class org.kwis.msp.lcdui.EventQueue
-pub struct EventQueue {}
+pub struct EventQueue;
 
 impl EventQueue {
     pub fn as_proto() -> WieJavaClassProto {

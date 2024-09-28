@@ -3,7 +3,7 @@ use alloc::vec;
 use wie_jvm_support::WieJavaClassProto;
 
 // class org.kwis.msp.lwc.ContainerComponent
-pub struct ContainerComponent {}
+pub struct ContainerComponent;
 
 impl ContainerComponent {
     pub fn as_proto() -> WieJavaClassProto {

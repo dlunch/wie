@@ -8,7 +8,7 @@ use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class org.kwis.msp.handset.HandsetProperty
-pub struct HandsetProperty {}
+pub struct HandsetProperty;
 
 impl HandsetProperty {
     pub fn as_proto() -> WieJavaClassProto {

@@ -11,7 +11,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::org::kwis::msp::media::PlayListener;
 
 // class org.kwis.msp.media.Clip
-pub struct Clip {}
+pub struct Clip;
 
 impl Clip {
     pub fn as_proto() -> WieJavaClassProto {
