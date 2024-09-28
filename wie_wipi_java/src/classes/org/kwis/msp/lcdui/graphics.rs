@@ -62,6 +62,7 @@ impl Graphics {
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
                 JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, Default::default()),
+                JavaMethodProto::new("getColor", "()I", Self::get_color, Default::default()),
                 JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, Default::default()),
                 JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, Default::default()),
                 JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, Default::default()),
@@ -358,6 +359,14 @@ impl Graphics {
         canvas.flush().await;
 
         Ok(())
+    }
+
+    async fn get_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::getColor({:?})", &this);
+
+        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
+
+        Ok(rgb)
     }
 
     async fn get_clip_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
