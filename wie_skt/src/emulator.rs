@@ -66,12 +66,13 @@ impl SktEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
+        let properties = [("m.MIN", ""), ("m.COLOR", "7")];
         let protos = [
             wie_midp::get_protos().into(),
             wie_skvm::get_protos().into(),
             wie_wipi_java::get_protos().into(),
         ];
-        let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), RustJavaJvmImplementation).await?;
+        let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &properties, RustJavaJvmImplementation).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
             x

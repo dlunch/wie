@@ -22,7 +22,13 @@ pub static WIE_RUSTJAR: &str = "wie.rustjar";
 pub struct JvmSupport;
 
 impl JvmSupport {
-    pub async fn new_jvm<T>(system: &System, jar_name: Option<&str>, protos: Box<[Box<[WieJavaClassProto]>]>, implementation: T) -> Result<Jvm>
+    pub async fn new_jvm<T>(
+        system: &System,
+        jar_name: Option<&str>,
+        protos: Box<[Box<[WieJavaClassProto]>]>,
+        properties: &[(&str, &str)],
+        implementation: T,
+    ) -> Result<Jvm>
     where
         T: JvmImplementation + Sync + Send + 'static,
     {
@@ -34,7 +40,11 @@ impl JvmSupport {
             format!("{}:{}", RT_RUSTJAR, WIE_RUSTJAR,)
         };
 
-        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", &class_path)].into_iter().collect();
+        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", &class_path)]
+            .iter()
+            .chain(properties.iter())
+            .copied()
+            .collect();
         let jvm = Jvm::new(
             java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
             move || runtime.current_task_id(),
