@@ -456,7 +456,7 @@ checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#c26d30bc1e43df534cce7f733b8b7a3235642b58"
+source = "git+https://github.com/dlunch/RustJava.git#67e687f5c94c92c831ef76ec0c2aa8bb69c7586d"
 dependencies = [
  "java_constants",
  "nom",
@@ -1137,7 +1137,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#c26d30bc1e43df534cce7f733b8b7a3235642b58"
+source = "git+https://github.com/dlunch/RustJava.git#67e687f5c94c92c831ef76ec0c2aa8bb69c7586d"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1148,7 +1148,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#c26d30bc1e43df534cce7f733b8b7a3235642b58"
+source = "git+https://github.com/dlunch/RustJava.git#67e687f5c94c92c831ef76ec0c2aa8bb69c7586d"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -1156,7 +1156,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#c26d30bc1e43df534cce7f733b8b7a3235642b58"
+source = "git+https://github.com/dlunch/RustJava.git#67e687f5c94c92c831ef76ec0c2aa8bb69c7586d"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#c26d30bc1e43df534cce7f733b8b7a3235642b58"
+source = "git+https://github.com/dlunch/RustJava.git#67e687f5c94c92c831ef76ec0c2aa8bb69c7586d"
 dependencies = [
  "anyhow",
  "async-lock",
@@ -1232,7 +1232,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#c26d30bc1e43df534cce7f733b8b7a3235642b58"
+source = "git+https://github.com/dlunch/RustJava.git#67e687f5c94c92c831ef76ec0c2aa8bb69c7586d"
 dependencies = [
  "async-lock",
  "async-recursion",
