@@ -33,6 +33,7 @@ impl Font {
                 JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
             ],
             fields: vec![
+                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
@@ -43,6 +44,7 @@ impl Font {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_MONOSPACE", "I", 32).await?;
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", 0).await?;
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", 0).await?;
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", 8).await?;
