@@ -97,8 +97,9 @@ impl Font {
         tracing::debug!("org.kwis.msp.lcdui.Font::substringWidth({:?}, {:?}, {:?})", &string, offset, len);
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
+        let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
 
-        Ok(canvas::string_width(&string[offset as usize..(offset + len) as usize], 10.0) as _)
+        Ok(canvas::string_width(&substring, 10.0) as _)
     }
 
     async fn char_width(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
