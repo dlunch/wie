@@ -17,6 +17,8 @@ impl Image {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new(
                     "createImage",
                     "([BII)Ljavax/microedition/lcdui/Image;",
@@ -34,6 +36,18 @@ impl Image {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         Ok(())
+    }
+
+    async fn get_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Image::getWidth({:?})", &this);
+
+        Ok(100)
+    }
+
+    async fn get_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.lcdui.Image::getHeight({:?})", &this);
+
+        Ok(100)
     }
 
     async fn create_image(
