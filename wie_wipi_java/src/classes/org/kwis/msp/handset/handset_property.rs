@@ -30,7 +30,12 @@ impl HandsetProperty {
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
         tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::getSystemProperty({})", name);
 
-        let result = JavaLangString::from_rust_string(jvm, "").await?;
+        let value = match name.as_ref() {
+            "VIBRATORLEVEL" => "0",
+            _ => "",
+        };
+
+        let result = JavaLangString::from_rust_string(jvm, value).await?;
         Ok(result.into())
     }
 }
