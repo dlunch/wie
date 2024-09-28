@@ -2869,6 +2869,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_jvm_support",
+ "wie_midp",
 ]
 
 [[package]]
