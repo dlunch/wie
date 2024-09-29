@@ -66,7 +66,14 @@ impl SktEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
-        let properties = [("m.MIN", "min"), ("m.COLOR", "7"), ("m.VENDER", "vender"), ("m.CARRIER", "none")];
+        let properties = [
+            ("m.MIN", "min"),
+            ("m.COLOR", "7"),
+            ("m.VENDER", "vender"),
+            ("m.CARRIER", "none"),
+            ("m.SK_VM", "0"),
+            ("com.xce.wipi.version", ""),
+        ];
         let protos = [
             wie_midp::get_protos().into(),
             wie_skvm::get_protos().into(),
