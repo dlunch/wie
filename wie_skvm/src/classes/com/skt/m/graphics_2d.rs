@@ -30,6 +30,12 @@ impl Graphics2D {
                     Self::capture_lcd,
                     MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new(
+                    "drawImage",
+                    "(IILjavax/microedition/lcdui/Image;IIIII)V",
+                    Self::draw_image,
+                    MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![],
         }
@@ -55,5 +61,22 @@ impl Graphics2D {
         tracing::warn!("stub com.skt.m.Graphics2D::captureLCD({}, {}, {}, {})", x, y, width, height);
 
         Ok(None.into())
+    }
+
+    async fn draw_image(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        tx: i32,
+        ty: i32,
+        src: ClassInstanceRef<Image>,
+        sx: i32,
+        sy: i32,
+        sw: i32,
+        sh: i32,
+        mode: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub com.skt.m.Graphics2D::drawImage({}, {}, {:?}, {}, {}, {}, {}, {})", tx, ty, &src, sx, sy, sw, sh, mode);
+
+        Ok(())
     }
 }
