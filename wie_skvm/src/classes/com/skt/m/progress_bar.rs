@@ -25,7 +25,7 @@ impl ProgressBar {
     }
 
     async fn init(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::debug!("com.skt.m.ProgressBar::<init>({:?}, {:?})", &this, name);
+        tracing::warn!("stub com.skt.m.ProgressBar::<init>({:?}, {:?})", &this, name);
 
         Ok(())
     }
