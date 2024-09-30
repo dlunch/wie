@@ -17,8 +17,8 @@ impl ProgressBar {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
-                JavaMethodProto::new("setMaxValue", "(I)V",Self::set_max_value, Default::default()),
-                JavaMethodProto::new("setValue", "(I)V",Self::set_value, Default::default()),
+                JavaMethodProto::new("setMaxValue", "(I)V", Self::set_max_value, Default::default()),
+                JavaMethodProto::new("setValue", "(I)V", Self::set_value, Default::default()),
             ],
             fields: vec![],
         }

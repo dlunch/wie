@@ -75,7 +75,17 @@ impl Graphics2D {
         sh: i32,
         mode: i32,
     ) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.Graphics2D::drawImage({}, {}, {:?}, {}, {}, {}, {}, {})", tx, ty, &src, sx, sy, sw, sh, mode);
+        tracing::warn!(
+            "stub com.skt.m.Graphics2D::drawImage({}, {}, {:?}, {}, {}, {}, {}, {})",
+            tx,
+            ty,
+            &src,
+            sx,
+            sy,
+            sw,
+            sh,
+            mode
+        );
 
         Ok(())
     }
