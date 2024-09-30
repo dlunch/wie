@@ -56,7 +56,6 @@ impl Graphics {
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
                 JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
                 JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, Default::default()),
-                JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, Default::default()),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
                 JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
@@ -78,7 +77,7 @@ impl Graphics {
                 JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, Default::default()),
                 JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
                 JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
-                JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, Default::default()),
+                JavaMethodProto::new("drawRGB", "([IIIIIIIZ)V", Self::draw_rgb, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", Default::default()),
@@ -158,12 +157,6 @@ impl Graphics {
 
     async fn set_font(_jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         tracing::warn!("stub javax.microedition.lcdui.Graphics::setFont({:?}, {:?})", &this, &font);
-
-        Ok(())
-    }
-
-    async fn set_alpha(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, a1: i32) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::setAlpha({:?}, {})", &this, a1);
 
         Ok(())
     }
@@ -445,32 +438,34 @@ impl Graphics {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn set_rgb_pixels(
+    async fn draw_rgb(
         jvm: &Jvm,
         _: &mut WieJvmContext,
         mut this: ClassInstanceRef<Graphics>,
+        rgb_data: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        scan_length: i32,
         x: i32,
         y: i32,
         width: i32,
         height: i32,
-        rgb_pixels: ClassInstanceRef<Array<i32>>,
-        offset: i32,
-        bpl: i32,
+        process_alpha: bool,
     ) -> JvmResult<()> {
         tracing::debug!(
-            "javax.microedition.lcdui.Graphics::setRGBPixels({:?}, {}, {}, {}, {}, {:?}, {}, {})",
+            "javax.microedition.lcdui.Graphics::drawRGB({:?}, {:?}, {}, {}, {}, {}, {}, {}, {})",
             &this,
+            &rgb_data,
+            offset,
+            scan_length,
             x,
             y,
             width,
             height,
-            &rgb_pixels,
-            offset,
-            bpl
+            process_alpha
         );
 
-        // TODO we need imagebuffer proxy, as it's not optimal to copy entire image from java/c buffer to rust every time
-        let pixel_data: Vec<i32> = jvm.load_array(&rgb_pixels, offset as _, (width * height) as _).await?;
+        // TODO proper scanlength support
+        let pixel_data: Vec<i32> = jvm.load_array(&rgb_data, offset as _, (width * height) as _).await?;
         let src_image = VecImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
 
         let image = Self::image(jvm, &mut this).await?;
