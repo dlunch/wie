@@ -12,7 +12,7 @@ impl Canvas {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "javax/microedition/lcdui/Canvas",
-            parent_class: Some("java/lang/Object"),
+            parent_class: Some("javax/microedition/lcdui/Displayable"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
@@ -26,7 +26,9 @@ impl Canvas {
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::<init>({:?})", &this);
 
-        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Displayable", "<init>", "()V", ())
+            .await?;
 
         Ok(())
     }
