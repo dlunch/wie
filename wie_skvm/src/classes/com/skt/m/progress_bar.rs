@@ -31,13 +31,13 @@ impl ProgressBar {
     }
 
     async fn set_max_value(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        tracing::debug!("com.skt.m.ProgressBar::setMaxValue({:?}, {:?})", &this, value);
+        tracing::warn!("stub com.skt.m.ProgressBar::setMaxValue({:?}, {:?})", &this, value);
 
         Ok(())
     }
 
     async fn set_value(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        tracing::debug!("com.skt.m.ProgressBar::setValue({:?}, {:?})", &this, value);
+        tracing::warn!("stub com.skt.m.ProgressBar::setValue({:?}, {:?})", &this, value);
 
         Ok(())
     }
