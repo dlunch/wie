@@ -13,7 +13,7 @@ impl ProgressBar {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "com/skt/m/ProgressBar",
-            parent_class: None,
+            parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
