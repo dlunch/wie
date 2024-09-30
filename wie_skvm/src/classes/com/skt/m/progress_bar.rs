@@ -6,7 +6,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-// interface com.skt.m.ProgressBar
+// class com.skt.m.ProgressBar
 pub struct ProgressBar;
 
 impl ProgressBar {
