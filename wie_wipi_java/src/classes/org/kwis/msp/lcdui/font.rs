@@ -1,12 +1,12 @@
-use alloc::{string::String as RustString, vec};
+use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
-use wie_backend::canvas;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::lcdui::Font as MidpFont;
 
 // class org.kwis.msp.lcdui.Font
 pub struct Font;
@@ -19,7 +19,7 @@ impl Font {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Font;)V", Self::init, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new(
                     "getDefaultFont",
@@ -33,6 +33,7 @@ impl Font {
                 JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
             ],
             fields: vec![
+                JavaFieldProto::new("midpFont", "Ljavax/microedition/lcdui/Font;", Default::default()),
                 JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
@@ -44,71 +45,92 @@ impl Font {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
-        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_MONOSPACE", "I", 32).await?;
-        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", 0).await?;
-        jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", 0).await?;
-        jvm.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", 8).await?;
+        let face_monospace: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "FACE_MONOSPACE", "I").await?;
+        let face_system: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "FACE_SYSTEM", "I").await?;
+        let style_plain: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "STYLE_PLAIN", "I").await?;
+        let size_small: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "SIZE_SMALL", "I").await?;
+
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_MONOSPACE", "I", face_monospace)
+            .await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", face_system).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", style_plain).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", size_small).await?;
 
         Ok(())
     }
 
-    async fn init(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Font>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::<init>({:?})", &this);
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, midp_font: ClassInstanceRef<MidpFont>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::<init>({:?})", &this);
+
+        jvm.put_field(&mut this, "midpFont", "Ljavax/microedition/lcdui/Font;", midp_font).await?;
 
         Ok(())
     }
 
-    async fn get_height(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::getHeight");
+    async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::getHeight");
 
-        Ok(12) // TODO: hardcoded
+        let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
+        jvm.invoke_virtual(&midp_font, "getHeight", "()I", ()).await
     }
 
     async fn get_default_font(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::getDefaultFont");
+        tracing::debug!("org.kwis.msp.lcdui.Font::getDefaultFont");
 
-        let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
+            .invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
+            .await?;
 
-        Ok(instance.into())
+        Ok(jvm
+            .new_class("org/kwis/msp/lcdui/Font", "(Ljavax/microedition/lcdui/Font;)V", (midp_font,))
+            .await?
+            .into())
     }
 
     async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, face: i32, style: i32, size: i32) -> JvmResult<ClassInstanceRef<Font>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
+        tracing::debug!("org.kwis.msp.lcdui.Font::getFont({:?}, {:?}, {:?})", face, style, size);
 
-        let instance = jvm.new_class("org/kwis/msp/lcdui/Font", "()V", []).await?;
+        let midp_font: ClassInstanceRef<MidpFont> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Font",
+                "getFont",
+                "(III)Ljavax/microedition/lcdui/Font;",
+                (face, style, size),
+            )
+            .await?;
 
-        Ok(instance.into())
+        Ok(jvm
+            .new_class("org/kwis/msp/lcdui/Font", "(Ljavax/microedition/lcdui/Font;)V", (midp_font,))
+            .await?
+            .into())
     }
 
-    async fn string_width(jvm: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
+    async fn string_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::stringWidth({:?})", &string);
 
-        let string = JavaLangString::to_rust_string(jvm, &string).await?;
-
-        Ok(canvas::string_width(&string, 10.0) as _)
+        let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
+        jvm.invoke_virtual(&midp_font, "stringWidth", "(Ljava/lang/String;)I", (string,)).await
     }
 
     async fn substring_width(
         jvm: &Jvm,
         _: &mut WieJvmContext,
-        _: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         string: ClassInstanceRef<String>,
         offset: i32,
         len: i32,
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::substringWidth({:?}, {:?}, {:?})", &string, offset, len);
 
-        let string = JavaLangString::to_rust_string(jvm, &string).await?;
-        let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
-
-        Ok(canvas::string_width(&substring, 10.0) as _)
+        let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
+        jvm.invoke_virtual(&midp_font, "substringWidth", "(Ljava/lang/String;II)I", (string, offset, len))
+            .await
     }
 
-    async fn char_width(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Font::charWidth({:?})", char);
+    async fn char_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::charWidth({:?})", char);
 
-        let string = RustString::from_utf16(&[char]).unwrap();
-
-        Ok(canvas::string_width(&string, 10.0) as _)
+        let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
+        jvm.invoke_virtual(&midp_font, "charWidth", "(C)I", (char,)).await
     }
 }

@@ -8,6 +8,8 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
+
 use crate::classes::org::kwis::msp::lcdui::{Card, EventQueue, Jlet, JletEventListener};
 
 // class org.kwis.msp.lcdui.Display
@@ -59,35 +61,37 @@ impl Display {
                 ),
             ],
             fields: vec![
+                JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
                 JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", Default::default()),
                 JavaFieldProto::new("szCard", "I", Default::default()),
-                JavaFieldProto::new("m_w", "I", Default::default()),
-                JavaFieldProto::new("m_h", "I", Default::default()),
             ],
         }
     }
 
     async fn init(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         jlet: ClassInstanceRef<Jlet>,
         display_proxy: ClassInstanceRef<Object>,
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
+        let midp_display: ClassInstanceRef<MidpDisplay> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Display",
+                "getDisplay",
+                "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
+
+        jvm.put_field(&mut this, "midpDisplay", "Ljavax/microedition/lcdui/Display;", midp_display)
+            .await?;
+
         let cards = jvm.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 10).await?;
         jvm.put_field(&mut this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards).await?;
         jvm.put_field(&mut this, "szCard", "I", 0).await?;
-
-        let (width, height) = {
-            let mut platform = context.system().platform();
-            let screen = platform.screen();
-            (screen.width(), screen.height())
-        };
-
-        jvm.put_field(&mut this, "m_w", "I", width as i32).await?;
-        jvm.put_field(&mut this, "m_h", "I", height as i32).await?;
 
         Ok(())
     }
@@ -178,7 +182,8 @@ impl Display {
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getWidth({:?})", &this);
 
-        let width: i32 = jvm.get_field(&this, "m_w", "I").await?;
+        let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let width: i32 = jvm.invoke_virtual(&midp_display, "getWidth", "()I", ()).await?;
 
         Ok(width)
     }
@@ -186,7 +191,8 @@ impl Display {
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getHeight({:?})", &this);
 
-        let height: i32 = jvm.get_field(&this, "m_h", "I").await?;
+        let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let height: i32 = jvm.invoke_virtual(&midp_display, "getHeight", "()I", ()).await?;
 
         Ok(height)
     }
