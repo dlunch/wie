@@ -91,7 +91,7 @@ impl KtfJvmSupport {
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
-        let protos = [wie_wipi_java::get_protos().into()];
+        let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
         let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], KtfJvmImplementation::new(core.clone())).await?;
 
         let client_bin = if let Some(x) = jar_name {

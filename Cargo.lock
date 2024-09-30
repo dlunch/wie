@@ -2795,6 +2795,7 @@ dependencies = [
  "wie_backend",
  "wie_core_arm",
  "wie_jvm_support",
+ "wie_midp",
  "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
@@ -2833,6 +2834,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_jvm_support",
+ "wie_util",
 ]
 
 [[package]]
@@ -2911,6 +2913,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_jvm_support",
+ "wie_midp",
  "wie_util",
 ]
 

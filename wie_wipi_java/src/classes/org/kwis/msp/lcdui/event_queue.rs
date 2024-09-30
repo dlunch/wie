@@ -6,8 +6,9 @@ use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::{Event, KeyCode};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::lcdui::{Graphics as MidpGraphics, Image as MidpImage};
 
-use crate::classes::org::kwis::msp::lcdui::{Card, Display, Image, Jlet};
+use crate::classes::org::kwis::msp::lcdui::{Card, Display, Jlet};
 
 #[repr(i32)]
 enum EventQueueEvent {
@@ -212,7 +213,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let mut graphics = jvm
+        let graphics = jvm
             .new_class("org/kwis/msp/lcdui/Graphics", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
             .await?;
 
@@ -220,16 +221,18 @@ impl EventQueue {
             .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", [graphics.clone().into()])
             .await?;
 
-        let java_image: ClassInstanceRef<Image> = jvm.get_field(&graphics, "img", "Lorg/kwis/msp/lcdui/Image;").await?;
+        let mut midp_graphics: ClassInstanceRef<MidpGraphics> =
+            jvm.get_field(&graphics, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&midp_graphics, "img", "Ljavax/microedition/lcdui/Image;").await?;
 
-        if !java_image.is_null() {
-            let image = Image::image(jvm, &java_image).await?;
+        if !midp_image.is_null() {
+            let image = MidpImage::image(jvm, &midp_image).await?;
 
             // TODO temporary until we have correct gc
-            let image_data = jvm.get_field(&java_image, "imgData", "[B").await?;
+            let image_data = jvm.get_field(&midp_image, "imgData", "[B").await?;
             jvm.destroy(image_data)?;
-            jvm.destroy(java_image.into())?;
-            jvm.put_field(&mut graphics, "img", "Lorg/kwis/msp/lcdui/Image;", None).await?;
+            jvm.destroy(midp_image.into())?;
+            jvm.put_field(&mut midp_graphics, "img", "Ljavax/microedition/lcdui/Image;", None).await?;
 
             let mut platform = context.system().platform();
             let screen = platform.screen();
