@@ -81,8 +81,8 @@ impl Graphics {
             ],
             fields: vec![
                 JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", Default::default()),
-                JavaFieldProto::new("w", "I", Default::default()),
-                JavaFieldProto::new("h", "I", Default::default()),
+                JavaFieldProto::new("width", "I", Default::default()),
+                JavaFieldProto::new("height", "I", Default::default()),
                 JavaFieldProto::new("rgb", "I", Default::default()),
             ],
         }
@@ -95,8 +95,8 @@ impl Graphics {
         let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", ()).await?;
         let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", ()).await?;
 
-        jvm.put_field(&mut this, "w", "I", width).await?;
-        jvm.put_field(&mut this, "h", "I", height).await?;
+        jvm.put_field(&mut this, "width", "I", width).await?;
+        jvm.put_field(&mut this, "height", "I", height).await?;
 
         Ok(())
     }
@@ -123,8 +123,8 @@ impl Graphics {
         );
 
         jvm.put_field(&mut this, "img", "Ljavax/microedition/lcdui/Image;", image).await?;
-        jvm.put_field(&mut this, "w", "I", width).await?;
-        jvm.put_field(&mut this, "h", "I", height).await?;
+        jvm.put_field(&mut this, "width", "I", width).await?;
+        jvm.put_field(&mut this, "height", "I", height).await?;
 
         Ok(())
     }
@@ -406,7 +406,7 @@ impl Graphics {
     async fn get_clip_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Graphics::getClipWidth({:?})", &this);
 
-        let w: i32 = jvm.get_field(&this, "w", "I").await?;
+        let w: i32 = jvm.get_field(&this, "width", "I").await?;
 
         Ok(w)
     }
@@ -414,7 +414,7 @@ impl Graphics {
     async fn get_clip_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Graphics::getClipHeight({:?})", &this);
 
-        let h: i32 = jvm.get_field(&this, "h", "I").await?;
+        let h: i32 = jvm.get_field(&this, "height", "I").await?;
 
         Ok(h)
     }
@@ -484,8 +484,8 @@ impl Graphics {
         if !image.is_null() {
             Ok(image)
         } else {
-            let width = jvm.get_field(this, "w", "I").await?;
-            let height = jvm.get_field(this, "h", "I").await?;
+            let width = jvm.get_field(this, "width", "I").await?;
+            let height = jvm.get_field(this, "height", "I").await?;
 
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static(
