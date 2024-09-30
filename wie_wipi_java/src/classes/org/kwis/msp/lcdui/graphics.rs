@@ -129,10 +129,9 @@ impl Graphics {
     }
 
     async fn set_alpha(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, alpha: i32) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", &this, alpha);
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", &this, alpha);
 
-        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "setAlpha", "(I)V", (alpha,)).await
+        Ok(())
     }
 
     async fn fill_rect(
