@@ -95,9 +95,18 @@ impl Image {
         let stream = JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, &name).await?.unwrap();
 
         let image_data = JavaIoInputStream::read_until_end(jvm, &stream).await?;
-        let image = decode_image(&image_data).unwrap();
+        let image_data_len = image_data.len() as i32;
 
-        Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
+        let mut image_array = jvm.instantiate_array("B", image_data_len as _).await?;
+        jvm.store_byte_array(&mut image_array, 0, cast_vec(image_data)).await?;
+
+        jvm.invoke_static(
+            "javax/microedition/lcdui/Image",
+            "createImage",
+            "([BII)Ljavax/microedition/lcdui/Image;",
+            (image_array, 0, image_data_len),
+        )
+        .await
     }
 
     async fn create_image_from_data(
@@ -110,7 +119,17 @@ impl Image {
         tracing::debug!("javax.microedition.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
         let image_data = jvm.load_byte_array(&data, offset as _, length as _).await?;
-        let image = decode_image(&cast_vec(image_data)).unwrap();
+        let image = {
+            let result = decode_image(&cast_vec(image_data));
+            if let Ok(image) = result {
+                image
+            } else {
+                tracing::error!("Failed to decode image: {:?}", result.err());
+                let exception = jvm.exception("java/lang/IllegalArgumentException", "Failed to decode image").await;
+
+                return Err(exception);
+            }
+        };
 
         Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
     }
