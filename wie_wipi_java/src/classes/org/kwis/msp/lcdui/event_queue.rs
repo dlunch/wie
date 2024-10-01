@@ -213,32 +213,30 @@ impl EventQueue {
             return Ok(());
         }
 
+        let midp_display = jvm.get_field(&display, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let screen_image: ClassInstanceRef<MidpImage> = jvm.get_field(&midp_display, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let screen_graphics: ClassInstanceRef<MidpGraphics> = jvm
+            .get_field(&midp_display, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;")
+            .await?;
+
         let graphics = jvm
-            .new_class("org/kwis/msp/lcdui/Graphics", "(Lorg/kwis/msp/lcdui/Display;)V", (display,))
+            .new_class(
+                "org/kwis/msp/lcdui/Graphics",
+                "(Ljavax/microedition/lcdui/Graphics;)V",
+                (screen_graphics,),
+            )
             .await?;
 
         let _: () = jvm
-            .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", [graphics.clone().into()])
+            .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", (graphics,))
             .await?;
 
-        let mut midp_graphics: ClassInstanceRef<MidpGraphics> =
-            jvm.get_field(&graphics, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&midp_graphics, "img", "Ljavax/microedition/lcdui/Image;").await?;
+        let image = MidpImage::image(jvm, &screen_image).await?;
 
-        if !midp_image.is_null() {
-            let image = MidpImage::image(jvm, &midp_image).await?;
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
 
-            // TODO temporary until we have correct gc
-            let image_data = jvm.get_field(&midp_image, "imgData", "[B").await?;
-            jvm.destroy(image_data)?;
-            jvm.destroy(midp_image.into())?;
-            jvm.put_field(&mut midp_graphics, "img", "Ljavax/microedition/lcdui/Image;", None).await?;
-
-            let mut platform = context.system().platform();
-            let screen = platform.screen();
-
-            screen.paint(&*image);
-        }
+        screen.paint(&*image);
 
         Ok(())
     }

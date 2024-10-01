@@ -5,7 +5,7 @@ use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::lcdui::Font;
+use wie_midp::classes::javax::microedition::lcdui::{Display, Font, Graphics};
 
 // class com.xce.lcdui.Toolkit
 pub struct Toolkit;
@@ -37,7 +37,17 @@ impl Toolkit {
         let font_height: i32 = jvm.invoke_virtual(&font, "getHeight", "()I", ()).await?;
         jvm.put_static_field("com/xce/lcdui/Toolkit", "FONT_HEIGHT", "I", font_height).await?;
 
-        let graphics = jvm.new_class("javax/microedition/lcdui/Graphics", "()V", ()).await?;
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Display",
+                "getDisplay",
+                "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
+                (None,),
+            )
+            .await?;
+
+        let graphics: ClassInstanceRef<Graphics> = jvm.get_field(&display, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+
         jvm.put_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
             .await?;
 

@@ -1,4 +1,4 @@
-use alloc::{format, string::String as RustString, vec, vec::Vec};
+use alloc::{string::String as RustString, vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
@@ -10,7 +10,7 @@ use java_runtime::classes::java::lang::String;
 use wie_backend::canvas::{PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::{Display, Font, Image};
+use crate::classes::javax::microedition::lcdui::{Font, Image};
 
 bitflags::bitflags! {
     struct Anchor: i32 {
@@ -45,7 +45,6 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Display;)V", Self::init, Default::default()),
                 JavaMethodProto::new(
                     "<init>",
                     "(Ljavax/microedition/lcdui/Image;IIII)V",
@@ -86,19 +85,6 @@ impl Graphics {
                 JavaFieldProto::new("rgb", "I", Default::default()),
             ],
         }
-    }
-
-    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, display: ClassInstanceRef<Display>) -> JvmResult<()> {
-        let log = format!("javax.microedition.lcdui.Graphics::<init>({:?}, {:?})", &this, &display);
-        tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
-
-        let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", ()).await?;
-        let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", ()).await?;
-
-        jvm.put_field(&mut this, "width", "I", width).await?;
-        jvm.put_field(&mut this, "height", "I", height).await?;
-
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
