@@ -6,7 +6,10 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::{lcdui::Displayable, midlet::MIDlet};
+use crate::classes::javax::microedition::{
+    lcdui::{Displayable, Graphics},
+    midlet::MIDlet,
+};
 
 // class javax.microedition.lcdui.Display
 pub struct Display;
@@ -35,6 +38,8 @@ impl Display {
                 ),
             ],
             fields: vec![
+                JavaFieldProto::new("screenImage", "Ljavax/microedition/lcdui/Image;", Default::default()),
+                JavaFieldProto::new("screenGraphics", "Ljavax/microedition/lcdui/Graphics;", Default::default()),
                 JavaFieldProto::new("width", "I", Default::default()),
                 JavaFieldProto::new("height", "I", Default::default()),
             ],
@@ -49,11 +54,28 @@ impl Display {
         let (width, height) = {
             let mut platform = context.system().platform();
             let screen = platform.screen();
-            (screen.width(), screen.height())
+            (screen.width() as i32, screen.height() as i32)
         };
 
-        jvm.put_field(&mut this, "width", "I", width as i32).await?;
-        jvm.put_field(&mut this, "height", "I", height as i32).await?;
+        jvm.put_field(&mut this, "width", "I", width).await?;
+        jvm.put_field(&mut this, "height", "I", height).await?;
+
+        let screen_image = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Image",
+                "createImage",
+                "(II)Ljavax/microedition/lcdui/Image;",
+                (width, height),
+            )
+            .await?;
+        let screen_graphics: ClassInstanceRef<Graphics> = jvm
+            .invoke_virtual(&screen_image, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+            .await?;
+
+        jvm.put_field(&mut this, "screenImage", "Ljavax/microedition/lcdui/Image;", screen_image)
+            .await?;
+        jvm.put_field(&mut this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;", screen_graphics)
+            .await?;
 
         Ok(())
     }

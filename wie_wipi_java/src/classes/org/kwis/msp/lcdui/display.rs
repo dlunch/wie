@@ -82,7 +82,7 @@ impl Display {
                 "javax/microedition/lcdui/Display",
                 "getDisplay",
                 "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
-                (),
+                (None,),
             )
             .await?;
 
