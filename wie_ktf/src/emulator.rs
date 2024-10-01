@@ -115,6 +115,14 @@ impl KtfEmulator {
             return Err(JvmSupport::to_wie_err(&jvm, x).await);
         }
 
+        let result: JvmResult<()> = jvm
+            .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", (None,))
+            .await;
+
+        if let Err(x) = result {
+            return Err(JvmSupport::to_wie_err(&jvm, x).await);
+        }
+
         Ok(())
     }
 }
