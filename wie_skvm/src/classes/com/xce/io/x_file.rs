@@ -46,10 +46,10 @@ impl XFile {
         Ok(false)
     }
 
-    async fn filesize(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
+    async fn filesize(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub com.xce.io.XFile::filesize({:?})", name);
 
-        Ok(0)
+        Err(jvm.exception("java/io/IOException", "File not found").await)
     }
 
     async fn unlink(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
