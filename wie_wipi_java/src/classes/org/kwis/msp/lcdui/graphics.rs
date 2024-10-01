@@ -128,7 +128,7 @@ impl Graphics {
             .await
     }
 
-    async fn set_alpha(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, alpha: i32) -> JvmResult<()> {
+    async fn set_alpha(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, alpha: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setAlpha({:?}, {})", &this, alpha);
 
         Ok(())
