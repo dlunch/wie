@@ -1,9 +1,9 @@
-use alloc::{boxed::Box, vec};
+use alloc::vec;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto, MethodBody};
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -47,7 +47,7 @@ impl Jlet {
         }
     }
 
-    async fn init(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
 
         let display = jvm
@@ -68,29 +68,6 @@ impl Jlet {
 
         jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
             .await?;
-
-        struct MainProxy;
-        #[async_trait::async_trait]
-        impl MethodBody<JavaError, WieJvmContext> for MainProxy {
-            #[tracing::instrument(name = "main", skip_all)]
-            async fn call(&self, jvm: &Jvm, context: &mut WieJvmContext, _: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
-                jvm.attach_thread().await?;
-
-                let now = context.system().platform().now();
-                let until = now + 10;
-                context.system().sleep(until).await; // XXX wait until jlet to initialize
-
-                let _: () = jvm
-                    .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", [None.into()])
-                    .await?;
-
-                jvm.detach_thread().await?;
-
-                Ok(JavaValue::Void)
-            }
-        }
-
-        context.spawn(jvm, Box::new(MainProxy {}))?;
 
         Ok(())
     }
