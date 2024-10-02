@@ -1,4 +1,4 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::Runnable;
@@ -8,7 +8,7 @@ use wie_backend::{Event, KeyCode};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::{Graphics as MidpGraphics, Image as MidpImage};
 
-use crate::classes::org::kwis::msp::lcdui::{Card, Display, Jlet};
+use crate::classes::org::kwis::msp::lcdui::{Display, Jlet};
 
 #[repr(i32)]
 enum EventQueueEvent {
@@ -192,12 +192,12 @@ impl EventQueue {
             return Ok(());
         }
 
-        let card = Self::get_top_card(jvm, &display).await?;
-        if card.is_null() {
-            return Ok(());
+        let card_canvas = jvm.get_field(&display, "cardCanvas", "Lwie/CardCanvas;").await?;
+        match event_type {
+            KeyboardEventType::KeyPressed => jvm.invoke_virtual(&card_canvas, "keyPressed", "(I)V", (code,)).await?,
+            KeyboardEventType::KeyReleased => jvm.invoke_virtual(&card_canvas, "keyReleased", "(I)V", (code,)).await?,
+            _ => unimplemented!(),
         }
-
-        let _: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (event_type as i32, code)).await?;
 
         Ok(())
     }
@@ -208,10 +208,7 @@ impl EventQueue {
             return Ok(());
         }
 
-        let card = Self::get_top_card(jvm, &display).await?;
-        if card.is_null() {
-            return Ok(());
-        }
+        let card_canvas = jvm.get_field(&display, "cardCanvas", "Lwie/CardCanvas;").await?;
 
         let midp_display = jvm.get_field(&display, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         let screen_image: ClassInstanceRef<MidpImage> = jvm.get_field(&midp_display, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
@@ -219,16 +216,8 @@ impl EventQueue {
             .get_field(&midp_display, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;")
             .await?;
 
-        let graphics = jvm
-            .new_class(
-                "org/kwis/msp/lcdui/Graphics",
-                "(Ljavax/microedition/lcdui/Graphics;)V",
-                (screen_graphics,),
-            )
-            .await?;
-
         let _: () = jvm
-            .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", (graphics,))
+            .invoke_virtual(&card_canvas, "paint", "(Ljavax/microedition/lcdui/Graphics;)V", (screen_graphics,))
             .await?;
 
         let image = MidpImage::image(jvm, &screen_image).await?;
@@ -247,18 +236,6 @@ impl EventQueue {
             .await?;
 
         jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;").await
-    }
-
-    async fn get_top_card(jvm: &Jvm, display: &ClassInstanceRef<Display>) -> JvmResult<ClassInstanceRef<Card>> {
-        let cards = jvm.get_field(display, "cards", "[Lorg/kwis/msp/lcdui/Card;").await?;
-        let card_size: i32 = jvm.get_field(display, "szCard", "I").await?;
-
-        if card_size > 0 {
-            let card_data: Vec<ClassInstanceRef<Card>> = jvm.load_array(&cards, 0, card_size as _).await?;
-            Ok(card_data[card_size as usize - 1].clone())
-        } else {
-            Ok(None.into())
-        }
     }
 
     pub async fn enqueue_call_serially_event(jvm: &Jvm, this: &ClassInstanceRef<Self>, event: ClassInstanceRef<Runnable>) -> JvmResult<()> {
