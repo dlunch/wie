@@ -1,5 +1,4 @@
-use alloc::{vec, vec::Vec};
-use core::iter;
+use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
@@ -62,8 +61,7 @@ impl Display {
             ],
             fields: vec![
                 JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
-                JavaFieldProto::new("cards", "[Lorg/kwis/msp/lcdui/Card;", Default::default()),
-                JavaFieldProto::new("szCard", "I", Default::default()),
+                JavaFieldProto::new("cardCanvas", "Lwie/CardCanvas;", Default::default()),
             ],
         }
     }
@@ -86,12 +84,15 @@ impl Display {
             )
             .await?;
 
-        jvm.put_field(&mut this, "midpDisplay", "Ljavax/microedition/lcdui/Display;", midp_display)
+        jvm.put_field(&mut this, "midpDisplay", "Ljavax/microedition/lcdui/Display;", midp_display.clone())
             .await?;
 
-        let cards = jvm.instantiate_array("Lorg/kwis/msp/lcdui/Card;", 10).await?;
-        jvm.put_field(&mut this, "cards", "[Lorg/kwis/msp/lcdui/Card;", cards).await?;
-        jvm.put_field(&mut this, "szCard", "I", 0).await?;
+        let card_canvas = jvm.new_class("wie/CardCanvas", "()V", ()).await?;
+        jvm.put_field(&mut this, "cardCanvas", "Lwie/CardCanvas;", card_canvas.clone()).await?;
+
+        let _: () = jvm
+            .invoke_virtual(&midp_display, "setCurrent", "(Ljavax/microedition/lcdui/Displayable;)V", (card_canvas,))
+            .await?;
 
         Ok(())
     }
@@ -135,35 +136,20 @@ impl Display {
         Ok(true)
     }
 
-    async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
+    async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
-        let mut cards = jvm.get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;").await?;
-        let card_size: i32 = jvm.get_field(&this, "szCard", "I").await?;
-
-        let cards_data = jvm.load_array(&cards, 0, card_size as usize).await?;
-        let cards_data = cards_data.into_iter().chain(iter::once(c.clone())).collect::<Vec<_>>();
-
-        jvm.store_array(&mut cards, 0, cards_data).await?;
-        jvm.put_field(&mut this, "szCard", "I", card_size + 1).await?;
-
-        let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
+        let card_canvas = jvm.get_field(&this, "cardCanvas", "Lwie/CardCanvas;").await?;
+        let _: () = jvm.invoke_virtual(&card_canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (c,)).await?;
 
         Ok(())
     }
 
-    async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards");
+    async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards({:?})", &this);
 
-        let cards = jvm.get_field(&this, "cards", "[Lorg/kwis/msp/lcdui/Card;").await?;
-        let card_size: i32 = jvm.get_field(&this, "szCard", "I").await?;
-
-        let cards_data = jvm.load_array(&cards, 0, card_size as usize).await?;
-        for card in cards_data {
-            let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
-        }
-
-        jvm.put_field(&mut this, "szCard", "I", 0).await?;
+        let card_canvas = jvm.get_field(&this, "cardCanvas", "Lwie/CardCanvas;").await?;
+        let _: () = jvm.invoke_virtual(&card_canvas, "removeAllCards", "()V", ()).await?;
 
         Ok(())
     }

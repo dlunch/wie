@@ -27,6 +27,7 @@ impl Card {
                 JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
                 JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
+                JavaMethodProto::new_abstract("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
