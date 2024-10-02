@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -40,15 +40,21 @@ impl Jlet {
                 ),
             ],
             fields: vec![
+                JavaFieldProto::new("wipiMidlet", "Lwie/WIPIMIDlet;", Default::default()),
                 JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
                 JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", Default::default()),
-                JavaFieldProto::new("qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
             ],
         }
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
+
+        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        let midlet = jvm.new_class("wie/WIPIMIDlet", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),)).await?;
+        jvm.put_field(&mut this, "wipiMidlet", "Lwie/WIPIMIDlet;", midlet).await?;
 
         let display = jvm
             .new_class(
@@ -66,7 +72,7 @@ impl Jlet {
 
         jvm.put_field(&mut this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;", event_queue).await?;
 
-        jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
+        jvm.put_static_field("org/kwis/msp/lcdui/Jlet", "currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", this.clone())
             .await?;
 
         Ok(())
@@ -76,7 +82,7 @@ impl Jlet {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getActiveJlet");
 
         let jlet = jvm
-            .get_static_field("org/kwis/msp/lcdui/Jlet", "qtletActive", "Lorg/kwis/msp/lcdui/Jlet;")
+            .get_static_field("org/kwis/msp/lcdui/Jlet", "currentJlet", "Lorg/kwis/msp/lcdui/Jlet;")
             .await?;
 
         Ok(jlet)
@@ -96,8 +102,13 @@ impl Jlet {
         this: ClassInstanceRef<Self>,
         key: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<String>> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
 
-        Ok(JavaLangString::from_rust_string(jvm, "").await?.into())
+        let midlet = jvm.get_field(&this, "wipiMidlet", "Lwie/WIPIMIDlet;").await?;
+        let value = jvm
+            .invoke_virtual(&midlet, "getAppProperty", "(Ljava/lang/String;)Ljava/lang/String;", (key,))
+            .await?;
+
+        Ok(value)
     }
 }
