@@ -63,6 +63,7 @@ impl Graphics2D {
         Ok(None.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn draw_image(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
