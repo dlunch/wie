@@ -1,3 +1,4 @@
 mod card_canvas;
+mod wipi_midlet;
 
-pub use card_canvas::CardCanvas;
+pub use self::{card_canvas::CardCanvas, wipi_midlet::WIPIMIDlet};
