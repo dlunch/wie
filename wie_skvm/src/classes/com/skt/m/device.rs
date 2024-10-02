@@ -20,6 +20,7 @@ impl Device {
                 JavaMethodProto::new("isBacklightEnabled", "()Z", Self::is_backlight_enabled, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("setBacklightEnabled", "(Z)V", Self::set_backlight_enabled, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("setKeyToneEnabled", "(Z)V", Self::set_key_tone_enabled, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("enableRestoreLCD", "(Z)V", Self::enable_restore_lcd, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
         }
@@ -45,6 +46,12 @@ impl Device {
 
     async fn set_key_tone_enabled(_jvm: &Jvm, _context: &mut WieJvmContext, enabled: bool) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::setKeyToneEnabled({:?})", enabled);
+
+        Ok(())
+    }
+
+    async fn enable_restore_lcd(_jvm: &Jvm, _context: &mut WieJvmContext, enabled: bool) -> JvmResult<()> {
+        tracing::warn!("stub com.skt.m.Device::enableRestoreLCD({:?})", enabled);
 
         Ok(())
     }
