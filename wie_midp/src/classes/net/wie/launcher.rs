@@ -1,9 +1,9 @@
-use alloc::vec;
+use alloc::{boxed::Box, vec};
 
-use java_class_proto::JavaMethodProto;
+use java_class_proto::{JavaMethodProto, MethodBody};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -40,11 +40,25 @@ impl Launcher {
             .await
     }
 
-    async fn start_midlet(jvm: &Jvm, _context: &mut WieJvmContext, midlet: ClassInstanceRef<()>) -> JvmResult<()> {
+    async fn start_midlet(jvm: &Jvm, context: &mut WieJvmContext, midlet: ClassInstanceRef<()>) -> JvmResult<()> {
         tracing::debug!("net.wie.Launcher::startMIDlet({:?})", &midlet);
+
+        // spawn event loop
+        context.spawn(jvm, Box::new(EventLoopRunner))?;
 
         // run startApp
         let _: () = jvm.invoke_virtual(&midlet, "startApp", "()V", (None,)).await?;
+
+        Ok(())
+    }
+}
+
+struct EventLoopRunner;
+
+#[async_trait::async_trait]
+impl MethodBody<JavaError, WieJvmContext> for EventLoopRunner {
+    async fn call(&self, jvm: &Jvm, _context: &mut WieJvmContext, _args: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
+        jvm.attach_thread().await?;
 
         // event loop
         let event_queue = jvm
