@@ -156,8 +156,6 @@ impl CardCanvas {
 
         let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
 
-        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
-
         Ok(())
     }
 
@@ -173,8 +171,6 @@ impl CardCanvas {
         }
 
         let _: () = jvm.invoke_virtual(&cards, "removeAllElements", "()V", ()).await?;
-
-        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
 
         Ok(())
     }

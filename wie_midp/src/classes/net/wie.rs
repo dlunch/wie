@@ -1,3 +1,7 @@
 mod event_queue;
+mod launcher;
 
-pub use event_queue::{EventQueue, KeyboardEventType, MIDPKeyCode};
+pub use self::{
+    event_queue::{EventQueue, KeyboardEventType, MIDPKeyCode},
+    launcher::Launcher,
+};

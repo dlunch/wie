@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 
 use jvm::{runtime::JavaLangString, ClassInstance, Result as JvmResult};
 
@@ -94,29 +94,15 @@ impl KtfEmulator {
                 &class_loader,
                 "loadClass",
                 "(Ljava/lang/String;)Ljava/lang/Class;",
-                (main_class_name_java,),
+                (main_class_name_java.clone(),),
             )
             .await
             .unwrap();
-        // TODO can't we use java/lang/Class above?
-        let result = jvm.new_class(&main_class_name, "()V", []).await;
-        if let Err(x) = result {
-            return Err(JvmSupport::to_wie_err(&jvm, x).await);
-        }
 
-        let main_class = result.unwrap();
-
-        tracing::debug!("Main class instance: {:?}", &main_class);
-
-        let arg = jvm.instantiate_array("Ljava/lang/String;", 0).await.unwrap();
-        let result: JvmResult<()> = jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [arg.into()]).await;
-
-        if let Err(x) = result {
-            return Err(JvmSupport::to_wie_err(&jvm, x).await);
-        }
-
+        let mut args_array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
+        jvm.store_array(&mut args_array, 0, vec![main_class_name_java]).await.unwrap();
         let result: JvmResult<()> = jvm
-            .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", (None,))
+            .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", (args_array,))
             .await;
 
         if let Err(x) = result {

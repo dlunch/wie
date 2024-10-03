@@ -61,7 +61,7 @@ impl Display {
             ],
             fields: vec![
                 JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
-                JavaFieldProto::new("cardCanvas", "Lwie/CardCanvas;", Default::default()),
+                JavaFieldProto::new("cardCanvas", "Lnet/wie/CardCanvas;", Default::default()),
             ],
         }
     }
@@ -75,7 +75,7 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&jlet, "wipiMidlet", "Lwie/WIPIMIDlet;").await?;
+        let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&jlet, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
 
         let midp_display: ClassInstanceRef<MidpDisplay> = jvm
             .invoke_static(
@@ -90,7 +90,7 @@ impl Display {
             .await?;
 
         let card_canvas = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?;
-        jvm.put_field(&mut this, "cardCanvas", "Lwie/CardCanvas;", card_canvas.clone()).await?;
+        jvm.put_field(&mut this, "cardCanvas", "Lnet/wie/CardCanvas;", card_canvas.clone()).await?;
 
         let _: () = jvm
             .invoke_virtual(&midp_display, "setCurrent", "(Ljavax/microedition/lcdui/Displayable;)V", (card_canvas,))
@@ -141,7 +141,7 @@ impl Display {
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({:?}, {:?})", &this, &c);
 
-        let card_canvas = jvm.get_field(&this, "cardCanvas", "Lwie/CardCanvas;").await?;
+        let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
         let _: () = jvm.invoke_virtual(&card_canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (c,)).await?;
 
         Ok(())
@@ -150,7 +150,7 @@ impl Display {
     async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards({:?})", &this);
 
-        let card_canvas = jvm.get_field(&this, "cardCanvas", "Lwie/CardCanvas;").await?;
+        let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
         let _: () = jvm.invoke_virtual(&card_canvas, "removeAllCards", "()V", ()).await?;
 
         Ok(())
