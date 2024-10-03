@@ -90,7 +90,8 @@ impl Display {
             .await?;
 
         let card_canvas = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?;
-        jvm.put_field(&mut this, "cardCanvas", "Lnet/wie/CardCanvas;", card_canvas.clone()).await?;
+        jvm.put_field(&mut this, "cardCanvas", "Lnet/wie/CardCanvas;", card_canvas.clone())
+            .await?;
 
         let _: () = jvm
             .invoke_virtual(&midp_display, "setCurrent", "(Ljavax/microedition/lcdui/Displayable;)V", (card_canvas,))
