@@ -36,7 +36,7 @@ pub fn get_protos() -> [WieJavaClassProto; 30] {
         crate::classes::org::kwis::msp::media::PlayListener::as_proto(),
         crate::classes::org::kwis::msp::media::Vibrator::as_proto(),
         crate::classes::org::kwis::msp::media::Volume::as_proto(),
-        crate::classes::wie::CardCanvas::as_proto(),
-        crate::classes::wie::WIPIMIDlet::as_proto(),
+        crate::classes::net::wie::CardCanvas::as_proto(),
+        crate::classes::net::wie::WIPIMIDlet::as_proto(),
     ]
 }

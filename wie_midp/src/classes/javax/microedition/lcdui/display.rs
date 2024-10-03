@@ -12,7 +12,7 @@ use crate::classes::{
         lcdui::{Displayable, Graphics, Image},
         midlet::MIDlet,
     },
-    wie::KeyboardEventType,
+    net::wie::KeyboardEventType,
 };
 
 // class javax.microedition.lcdui.Display
@@ -113,7 +113,7 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::callSerially({:?}, {:?})", &this, &event);
 
-        let event_queue = jvm.invoke_static("wie/EventQueue", "getEventQueue", "()Lwie/EventQueue;", ()).await?;
+        let event_queue = jvm.invoke_static("net/wie/EventQueue", "getEventQueue", "()Lwie/EventQueue;", ()).await?;
         let _: () = jvm
             .invoke_virtual(&event_queue, "callSerially", "(Ljava/lang/Runnable;)V", (event,))
             .await?;

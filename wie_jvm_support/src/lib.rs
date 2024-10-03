@@ -17,7 +17,7 @@ pub use context::{WieJavaClassProto, WieJvmContext};
 pub use jvm_implementation::{JvmImplementation, RustJavaJvmImplementation};
 use runtime::JvmRuntime;
 
-pub static WIE_RUSTJAR: &str = "wie.rustjar";
+pub static WIE_RUSTJAR: &str = "net.wie.rustjar";
 
 pub struct JvmSupport;
 

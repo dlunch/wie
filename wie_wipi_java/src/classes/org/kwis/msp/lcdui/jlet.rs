@@ -53,7 +53,9 @@ impl Jlet {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        let midlet = jvm.new_class("wie/WIPIMIDlet", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),)).await?;
+        let midlet = jvm
+            .new_class("net/wie/WIPIMIDlet", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
+            .await?;
         jvm.put_field(&mut this, "wipiMidlet", "Lwie/WIPIMIDlet;", midlet).await?;
 
         let display = jvm

@@ -89,7 +89,7 @@ impl Display {
         jvm.put_field(&mut this, "midpDisplay", "Ljavax/microedition/lcdui/Display;", midp_display.clone())
             .await?;
 
-        let card_canvas = jvm.new_class("wie/CardCanvas", "()V", ()).await?;
+        let card_canvas = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?;
         jvm.put_field(&mut this, "cardCanvas", "Lwie/CardCanvas;", card_canvas.clone()).await?;
 
         let _: () = jvm

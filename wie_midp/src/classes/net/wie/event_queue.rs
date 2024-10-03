@@ -90,13 +90,13 @@ impl MIDPKeyCode {
     }
 }
 
-// class wie.EventQueue
+// class net.wie.EventQueue
 pub struct EventQueue;
 
 impl EventQueue {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
-            name: "wie/EventQueue",
+            name: "net/wie/EventQueue",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
@@ -114,7 +114,7 @@ impl EventQueue {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("wie.EventQueue::<init>({:?})", &this);
+        tracing::debug!("net.wie.EventQueue::<init>({:?})", &this);
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -132,7 +132,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
-        tracing::debug!("wie.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
+        tracing::debug!("net.wie.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
         loop {
             let maybe_event = context.system().event_queue().pop();
@@ -179,7 +179,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
-        tracing::debug!("wie.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
+        tracing::debug!("net.wie.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
         let current_midlet: ClassInstanceRef<MIDlet> = jvm
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
@@ -211,12 +211,12 @@ impl EventQueue {
     }
 
     async fn get_event_queue(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
-        tracing::debug!("wie.EventQueue::getEventQueue()");
+        tracing::debug!("net.wie.EventQueue::getEventQueue()");
 
-        let event_queue: ClassInstanceRef<Self> = jvm.get_static_field("wie/EventQueue", "eventQueue", "Lwie/EventQueue;").await?;
+        let event_queue: ClassInstanceRef<Self> = jvm.get_static_field("net/wie/EventQueue", "eventQueue", "Lwie/EventQueue;").await?;
         let event_queue = if event_queue.is_null() {
-            let instance = jvm.new_class("wie/EventQueue", "()V", ()).await?;
-            jvm.put_static_field("wie/EventQueue", "eventQueue", "Lwie/EventQueue;", instance.clone())
+            let instance = jvm.new_class("net/wie/EventQueue", "()V", ()).await?;
+            jvm.put_static_field("net/wie/EventQueue", "eventQueue", "Lwie/EventQueue;", instance.clone())
                 .await?;
 
             instance.into()
@@ -233,7 +233,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Runnable>,
     ) -> JvmResult<()> {
-        tracing::debug!("wie.EventQueue::callSerially({:?}, {:?})", &this, &event);
+        tracing::debug!("net.wie.EventQueue::callSerially({:?}, {:?})", &this, &event);
 
         let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
         jvm.invoke_virtual(&call_serially_events, "addElement", "(Ljava/lang/Object;)V", [event.into()])
