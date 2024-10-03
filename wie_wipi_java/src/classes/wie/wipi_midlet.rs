@@ -27,7 +27,9 @@ impl WIPIMIDlet {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
-        tracing::debug!("wie.CardCanvas::<init>({:?}, {:?})", this, jlet);
+        tracing::debug!("wie.WIPIMIDlet::<init>({:?}, {:?})", this, jlet);
+
+        let _: () = jvm.invoke_special(&this, "javax/microedition/midlet/MIDlet", "<init>", "()V", ()).await?;
 
         jvm.put_field(&mut this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;", jlet).await?;
 

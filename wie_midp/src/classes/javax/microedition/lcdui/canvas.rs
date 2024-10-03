@@ -18,6 +18,8 @@ impl Canvas {
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
+                JavaMethodProto::new_abstract("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Default::default()),
             ],
             fields: vec![],
         }
@@ -43,5 +45,15 @@ impl Canvas {
         tracing::warn!("stub javax.microedition.lcdui.Canvas::getHeight({:?})", &this);
 
         Ok(320)
+    }
+
+    async fn repaint(_jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::repaint({:?})", &this);
+
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw().unwrap();
+
+        Ok(())
     }
 }
