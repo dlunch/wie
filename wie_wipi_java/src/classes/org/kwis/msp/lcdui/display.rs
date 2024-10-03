@@ -7,9 +7,9 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
+use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
 
-use crate::classes::org::kwis::msp::lcdui::{Card, EventQueue, Jlet, JletEventListener};
+use crate::classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display;
@@ -75,12 +75,14 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
+        let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&jlet, "wipiMidlet", "Lwie/WIPIMIDlet;").await?;
+
         let midp_display: ClassInstanceRef<MidpDisplay> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Display",
                 "getDisplay",
                 "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
-                (None,),
+                (midlet,),
             )
             .await?;
 
@@ -186,15 +188,8 @@ impl Display {
     async fn call_serially(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r: ClassInstanceRef<Runnable>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({:?}, {:?})", &this, &r);
 
-        let jlet = jvm
-            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
-            .await?;
-
-        let event_queue = jvm
-            .invoke_virtual(&jlet, "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
-            .await?;
-
-        EventQueue::enqueue_call_serially_event(jvm, &event_queue, r).await?;
+        let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let _: () = jvm.invoke_virtual(&midp_display, "callSerially", "(Ljava/lang/Runnable;)V", (r,)).await?;
 
         Ok(())
     }

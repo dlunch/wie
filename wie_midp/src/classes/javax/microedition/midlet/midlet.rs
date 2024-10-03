@@ -1,6 +1,7 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -25,14 +26,30 @@ impl MIDlet {
                 ),
                 JavaMethodProto::new_abstract("startApp", "([Ljava/lang/String;)V", Default::default()),
             ],
-            fields: vec![],
+            fields: vec![
+                JavaFieldProto::new("currentMIDlet", "Ljavax/microedition/midlet/MIDlet;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("display", "Ljavax/microedition/lcdui/Display;", Default::default()),
+            ],
         }
     }
 
-    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.midlet.MIDlet::<init>({:?})", &this);
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        jvm.put_static_field(
+            "javax/microedition/midlet/MIDlet",
+            "currentMIDlet",
+            "Ljavax/microedition/midlet/MIDlet;",
+            this.clone(),
+        )
+        .await?;
+
+        // TODO we should create display outside
+        let display = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "display", "Ljavax/microedition/lcdui/Display;", display).await?;
 
         Ok(())
     }

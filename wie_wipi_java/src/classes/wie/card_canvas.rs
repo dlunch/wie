@@ -4,9 +4,57 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::lcdui::Graphics;
+use wie_midp::classes::{javax::microedition::lcdui::Graphics, wie::MIDPKeyCode};
 
 use crate::classes::org::kwis::msp::lcdui::Card;
+
+#[repr(i32)]
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Copy, Clone)]
+enum WIPIKeyCode {
+    UP = -1,
+    DOWN = -2,
+    LEFT = -3,
+    RIGHT = -4,
+    FIRE = -5, // Ok
+
+    NUM0 = 48,
+    NUM1 = 49,
+    NUM2 = 50,
+    NUM3 = 51,
+    NUM4 = 52,
+    NUM5 = 53,
+    NUM6 = 54,
+    NUM7 = 55,
+    NUM8 = 56,
+    NUM9 = 57,
+    HASH = 35, // #
+    STAR = 42, // *
+}
+
+impl WIPIKeyCode {
+    fn from_midp_key_code(keycode: MIDPKeyCode) -> Self {
+        match keycode {
+            MIDPKeyCode::UP => Self::UP,
+            MIDPKeyCode::DOWN => Self::DOWN,
+            MIDPKeyCode::LEFT => Self::LEFT,
+            MIDPKeyCode::RIGHT => Self::RIGHT,
+            MIDPKeyCode::FIRE => Self::FIRE,
+            MIDPKeyCode::KEY_NUM0 => Self::NUM0,
+            MIDPKeyCode::KEY_NUM1 => Self::NUM1,
+            MIDPKeyCode::KEY_NUM2 => Self::NUM2,
+            MIDPKeyCode::KEY_NUM3 => Self::NUM3,
+            MIDPKeyCode::KEY_NUM4 => Self::NUM4,
+            MIDPKeyCode::KEY_NUM5 => Self::NUM5,
+            MIDPKeyCode::KEY_NUM6 => Self::NUM6,
+            MIDPKeyCode::KEY_NUM7 => Self::NUM7,
+            MIDPKeyCode::KEY_NUM8 => Self::NUM8,
+            MIDPKeyCode::KEY_NUM9 => Self::NUM9,
+            MIDPKeyCode::KEY_POUND => Self::HASH,
+            MIDPKeyCode::KEY_STAR => Self::STAR,
+        }
+    }
+}
 
 // class wie.CardCanvas
 pub struct CardCanvas;
@@ -31,6 +79,8 @@ impl CardCanvas {
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("wie.CardCanvas::<init>({:?})", this);
+
+        let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "<init>", "()V", ()).await?;
 
         let cards = jvm.new_class("java/util/Vector", "()V", ()).await?;
         jvm.put_field(&mut this, "cards", "Ljava/util/Vector;", cards).await?;
@@ -61,12 +111,14 @@ impl CardCanvas {
     async fn key_pressed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("wie.CardCanvas::keyPressed({:?}, {})", this, key_code);
 
+        let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
+
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
-            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (1i32, key_code)).await?;
+            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (1i32, key_code as i32)).await?;
 
             if !propagate {
                 break;
@@ -79,12 +131,14 @@ impl CardCanvas {
     async fn key_released(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("wie.CardCanvas::keyReleased({:?}, {})", this, key_code);
 
+        let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
+
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
-            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (2i32, key_code)).await?;
+            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (2i32, key_code as i32)).await?;
 
             if !propagate {
                 break;
@@ -102,6 +156,8 @@ impl CardCanvas {
 
         let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
 
+        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
+
         Ok(())
     }
 
@@ -117,6 +173,8 @@ impl CardCanvas {
         }
 
         let _: () = jvm.invoke_virtual(&cards, "removeAllElements", "()V", ()).await?;
+
+        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
 
         Ok(())
     }
