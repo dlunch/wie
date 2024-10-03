@@ -75,7 +75,7 @@ impl System {
     }
 
     pub fn yield_now(&self) -> YieldFuture {
-        YieldFuture {}
+        YieldFuture::new()
     }
 
     pub fn filesystem(&self) -> MutexGuard<'_, Filesystem> {
