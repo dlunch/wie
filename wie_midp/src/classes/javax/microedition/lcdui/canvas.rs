@@ -35,16 +35,22 @@ impl Canvas {
         Ok(())
     }
 
-    async fn get_width(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Canvas::getWidth({:?})", &this);
+    async fn get_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::getWidth({:?})", &this);
 
-        Ok(240)
+        let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let width = jvm.invoke_virtual(&display, "getWidth", "()I", ()).await?;
+
+        Ok(width)
     }
 
-    async fn get_height(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Canvas::getHeight({:?})", &this);
+    async fn get_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::getHeight({:?})", &this);
 
-        Ok(320)
+        let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let height = jvm.invoke_virtual(&display, "getHeight", "()I", ()).await?;
+
+        Ok(height)
     }
 
     async fn repaint(_jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
