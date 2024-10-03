@@ -51,6 +51,7 @@ impl Graphics {
                     Self::init_with_image,
                     Default::default(),
                 ),
+                JavaMethodProto::new("reset", "()V", Self::reset, Default::default()),
                 JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, Default::default()),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
                 JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
@@ -111,6 +112,14 @@ impl Graphics {
         jvm.put_field(&mut this, "img", "Ljavax/microedition/lcdui/Image;", image).await?;
         jvm.put_field(&mut this, "width", "I", width).await?;
         jvm.put_field(&mut this, "height", "I", height).await?;
+
+        Ok(())
+    }
+
+    async fn reset(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::reset({:?})", &this);
+
+        jvm.put_field(&mut this, "rgb", "I", 0).await?;
 
         Ok(())
     }
