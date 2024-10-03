@@ -180,7 +180,6 @@ impl Display {
 
         if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas").await? {
             let screen_graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-            let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
 
             let _: () = jvm
                 .invoke_virtual(
@@ -190,14 +189,15 @@ impl Display {
                     (screen_graphics,),
                 )
                 .await?;
-
-            let image = Image::image(jvm, &screen_image).await?;
-
-            let mut platform = context.system().platform();
-            let screen = platform.screen();
-
-            screen.paint(&*image);
         }
+
+        let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let image = Image::image(jvm, &screen_image).await?;
+
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+
+        screen.paint(&*image);
 
         Ok(())
     }
