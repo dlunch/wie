@@ -3,7 +3,7 @@ use alloc::{string::String as RustString, vec};
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
 use wie_backend::canvas;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -24,6 +24,7 @@ impl Font {
                 JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
                 JavaMethodProto::new("substringWidth", "(Ljava/lang/String;II)I", Self::substring_width, Default::default()),
                 JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
+                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, Default::default()),
                 JavaMethodProto::new(
                     "getFont",
                     "(III)Ljavax/microedition/lcdui/Font;",
@@ -118,6 +119,27 @@ impl Font {
         tracing::warn!("stub javax.microedition.msp.lcdui.Font::charWidth({:?})", char);
 
         let string = RustString::from_utf16(&[char]).unwrap();
+
+        Ok(canvas::string_width(&string, 10.0) as _)
+    }
+
+    async fn chars_width(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        _: ClassInstanceRef<Self>,
+        chars: ClassInstanceRef<Array<JavaChar>>,
+        offset: i32,
+        len: i32,
+    ) -> JvmResult<i32> {
+        tracing::warn!(
+            "stub javax.microedition.msp.lcdui.Font::charsWidth({:?}, {:?}, {:?})",
+            &chars,
+            offset,
+            len
+        );
+
+        let chars = jvm.load_array(&chars, offset as _, len as _).await?;
+        let string = RustString::from_utf16(&chars).unwrap();
 
         Ok(canvas::string_width(&string, 10.0) as _)
     }
