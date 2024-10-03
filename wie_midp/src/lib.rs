@@ -15,6 +15,6 @@ pub fn get_protos() -> [WieJavaClassProto; 9] {
         classes::javax::microedition::lcdui::Image::as_proto(),
         classes::javax::microedition::midlet::MIDlet::as_proto(),
         classes::javax::microedition::rms::RecordStore::as_proto(),
-        classes::wie::EventQueue::as_proto(),
+        classes::net::wie::EventQueue::as_proto(),
     ]
 }

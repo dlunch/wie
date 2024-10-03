@@ -27,7 +27,7 @@ use wie_util::{read_generic, read_null_terminated_table, write_generic, Result};
 use self::{
     array_class_instance::JavaArrayClassInstance,
     class_instance::JavaClassInstance,
-    classes::wie::{ClassLoaderContext, KtfClassLoader},
+    classes::net::wie::{ClassLoaderContext, KtfClassLoader},
     name::JavaFullName,
 };
 
@@ -141,7 +141,7 @@ impl KtfJvmSupport {
 
         let class_loader = jvm
             .new_class(
-                "wie/KtfClassLoader",
+                "net/wie/KtfClassLoader",
                 "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
                 (system_class_loader, client_bin, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
             )

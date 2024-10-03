@@ -20,13 +20,13 @@ pub struct ClassLoaderContext {
 
 type ClassLoaderProto = JavaClassProto<ClassLoaderContext>;
 
-// class wie.KtfClassLoader
+// class net.wie.KtfClassLoader
 pub struct KtfClassLoader;
 
 impl KtfClassLoader {
     pub fn as_proto() -> ClassLoaderProto {
         ClassLoaderProto {
-            name: "wie/KtfClassLoader",
+            name: "net/wie/KtfClassLoader",
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![
@@ -47,7 +47,7 @@ impl KtfClassLoader {
         ptr_jvm_exception_context: i32,
     ) -> JvmResult<()> {
         tracing::debug!(
-            "wie.KtfClassLoader::<init>({:?}, {:?}, {:?}, {:?}, {:?})",
+            "net.wie.KtfClassLoader::<init>({:?}, {:?}, {:?}, {:?}, {:?})",
             &this,
             parent,
             client_bin,
@@ -104,7 +104,7 @@ impl KtfClassLoader {
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<Class>> {
-        tracing::debug!("wie.KtfClassLoader::findClass({:?}, {:?})", &this, name);
+        tracing::debug!("net.wie.KtfClassLoader::findClass({:?}, {:?})", &this, name);
 
         let fn_get_class: i32 = jvm.get_field(&this, "fnGetClass", "I").await?;
 

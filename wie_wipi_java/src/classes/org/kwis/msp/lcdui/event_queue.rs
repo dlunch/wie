@@ -4,7 +4,7 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::wie::EventQueue as WieEventQueue;
+use wie_midp::classes::net::wie::EventQueue as WieEventQueue;
 
 use crate::classes::org::kwis::msp::lcdui::Jlet;
 
@@ -31,7 +31,8 @@ impl EventQueue {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        let wie_event_queue: ClassInstanceRef<WieEventQueue> = jvm.invoke_static("wie/EventQueue", "getEventQueue", "()Lwie/EventQueue;", ()).await?;
+        let wie_event_queue: ClassInstanceRef<WieEventQueue> =
+            jvm.invoke_static("net/wie/EventQueue", "getEventQueue", "()Lwie/EventQueue;", ()).await?;
         jvm.put_field(&mut this, "wieEventQueue", "Lwie/EventQueue;", wie_event_queue).await?;
 
         Ok(())
