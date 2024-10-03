@@ -6,15 +6,32 @@ use core::{
 
 use crate::{executor::Executor, time::Instant};
 
-pub struct YieldFuture;
+#[derive(Default)]
+pub struct YieldFuture {
+    polled: bool,
+}
+
+impl YieldFuture {
+    pub fn new() -> Self {
+        Self { polled: false }
+    }
+}
 
 impl Future for YieldFuture {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(())
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        if !self.polled {
+            self.polled = true;
+
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
     }
 }
+
+impl Unpin for YieldFuture {}
 
 pub struct SleepFuture {
     polled: bool,
