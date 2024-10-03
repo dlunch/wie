@@ -38,8 +38,12 @@ impl XDisplay {
         Ok(())
     }
 
-    async fn refresh(_jvm: &Jvm, _: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
+    async fn refresh(_jvm: &Jvm, context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::warn!("stub com.xce.lcdui.XDisplay::refresh({}, {}, {}, {})", x, y, width, height);
+
+        let mut platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw().unwrap();
 
         Ok(())
     }
