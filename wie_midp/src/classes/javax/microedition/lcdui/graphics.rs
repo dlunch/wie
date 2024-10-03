@@ -96,7 +96,7 @@ impl Graphics {
                 JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", Default::default()),
                 JavaFieldProto::new("width", "I", Default::default()),
                 JavaFieldProto::new("height", "I", Default::default()),
-                JavaFieldProto::new("rgb", "I", Default::default()),
+                JavaFieldProto::new("color", "I", Default::default()),
             ],
         }
     }
@@ -132,7 +132,7 @@ impl Graphics {
     async fn reset(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::reset({:?})", &this);
 
-        jvm.put_field(&mut this, "rgb", "I", 0).await?;
+        jvm.put_field(&mut this, "color", "I", 0).await?;
 
         Ok(())
     }
@@ -148,7 +148,7 @@ impl Graphics {
     async fn set_color(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
 
-        jvm.put_field(&mut this, "rgb", "I", rgb).await?;
+        jvm.put_field(&mut this, "color", "I", rgb).await?;
 
         Ok(())
     }
@@ -158,7 +158,7 @@ impl Graphics {
 
         let rgb = (r << 16) | (g << 8) | b;
 
-        jvm.put_field(&mut this, "rgb", "I", rgb).await?;
+        jvm.put_field(&mut this, "color", "I", rgb).await?;
 
         Ok(())
     }
@@ -217,7 +217,7 @@ impl Graphics {
             return Ok(());
         }
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
@@ -239,7 +239,7 @@ impl Graphics {
             height
         );
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
@@ -349,7 +349,7 @@ impl Graphics {
     async fn draw_line(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
@@ -413,7 +413,7 @@ impl Graphics {
     async fn get_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getColor({:?})", &this);
 
-        let rgb: i32 = jvm.get_field(&this, "rgb", "I").await?;
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
         Ok(rgb)
     }
