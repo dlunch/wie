@@ -35,6 +35,18 @@ impl TypeConverter<Anchor> for Anchor {
     }
 }
 
+impl From<Anchor> for TextAlignment {
+    fn from(anchor: Anchor) -> Self {
+        if anchor.contains(Anchor::HCENTER) {
+            TextAlignment::Center
+        } else if anchor.contains(Anchor::RIGHT) {
+            TextAlignment::Right
+        } else {
+            TextAlignment::Left
+        }
+    }
+}
+
 // class javax.microedition.lcdui.Graphics
 pub struct Graphics;
 
@@ -60,6 +72,7 @@ impl Graphics {
                 JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
                 JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
+                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
                 JavaMethodProto::new(
                     "drawImage",
@@ -259,17 +272,44 @@ impl Graphics {
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        let alignment = if anchor.contains(Anchor::HCENTER) {
-            TextAlignment::Center
-        } else if anchor.contains(Anchor::RIGHT) {
-            TextAlignment::Right
-        } else {
-            TextAlignment::Left
-        };
-
         let string = RustString::from_utf16(&[ch]).unwrap();
 
-        canvas.draw_text(&string, x as _, y as _, alignment);
+        canvas.draw_text(&string, x as _, y as _, anchor.into());
+
+        canvas.flush().await;
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn draw_chars(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        chars: ClassInstanceRef<Array<JavaChar>>,
+        offset: i32,
+        length: i32,
+        x: i32,
+        y: i32,
+        anchor: Anchor,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::drawChar({:?}, {:?}, {}, {}, {}, {})",
+            &this,
+            &chars,
+            offset,
+            length,
+            x,
+            y
+        );
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let chars = jvm.load_array(&chars, offset as _, length as _).await?;
+        let string = RustString::from_utf16(&chars).unwrap();
+
+        canvas.draw_text(&string, x as _, y as _, anchor.into());
 
         canvas.flush().await;
 
@@ -299,15 +339,7 @@ impl Graphics {
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        let alignment = if anchor.contains(Anchor::HCENTER) {
-            TextAlignment::Center
-        } else if anchor.contains(Anchor::RIGHT) {
-            TextAlignment::Right
-        } else {
-            TextAlignment::Left
-        };
-
-        canvas.draw_text(&rust_string, x as _, y as _, alignment);
+        canvas.draw_text(&rust_string, x as _, y as _, anchor.into());
 
         canvas.flush().await;
 
