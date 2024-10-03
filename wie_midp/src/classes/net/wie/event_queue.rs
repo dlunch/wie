@@ -104,10 +104,15 @@ impl EventQueue {
                 JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, Default::default()),
                 JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
-                JavaMethodProto::new("getEventQueue", "()Lwie/EventQueue;", Self::get_event_queue, MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "getEventQueue",
+                    "()Lnet/wie/EventQueue;",
+                    Self::get_event_queue,
+                    MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![
-                JavaFieldProto::new("eventQueue", "Lwie/EventQueue;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", Default::default()),
             ], // TODO: there must be elegant solution
         }
@@ -213,10 +218,10 @@ impl EventQueue {
     async fn get_event_queue(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("net.wie.EventQueue::getEventQueue()");
 
-        let event_queue: ClassInstanceRef<Self> = jvm.get_static_field("net/wie/EventQueue", "eventQueue", "Lwie/EventQueue;").await?;
+        let event_queue: ClassInstanceRef<Self> = jvm.get_static_field("net/wie/EventQueue", "eventQueue", "Lnet/wie/EventQueue;").await?;
         let event_queue = if event_queue.is_null() {
             let instance = jvm.new_class("net/wie/EventQueue", "()V", ()).await?;
-            jvm.put_static_field("net/wie/EventQueue", "eventQueue", "Lwie/EventQueue;", instance.clone())
+            jvm.put_static_field("net/wie/EventQueue", "eventQueue", "Lnet/wie/EventQueue;", instance.clone())
                 .await?;
 
             instance.into()

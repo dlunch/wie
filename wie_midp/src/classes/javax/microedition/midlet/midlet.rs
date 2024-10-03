@@ -46,7 +46,6 @@ impl MIDlet {
         )
         .await?;
 
-        // TODO we should create display outside
         let display = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?;
 
         jvm.put_field(&mut this, "display", "Ljavax/microedition/lcdui/Display;", display).await?;

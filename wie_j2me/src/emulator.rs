@@ -7,7 +7,7 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::Result as JvmResult;
+use jvm::{runtime::JavaLangString, Result as JvmResult};
 
 use wie_backend::{Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
@@ -58,16 +58,18 @@ impl J2MEEmulator {
         let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &[], RustJavaJvmImplementation).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
-            x
+            x.replace('.', "/")
         } else {
             // TODO we need to parse META-INF/MANIFEST.MF for midlet
             return Err(WieError::FatalError("Main class not found".into()));
         };
 
-        let normalized_class_name = main_class_name.replace('.', "/");
-        let main_class = jvm.new_class(&normalized_class_name, "()V", []).await.unwrap();
+        let main_class_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
 
-        let result: JvmResult<()> = jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await;
+        let result: JvmResult<()> = jvm
+            .invoke_static("net/wie/Launcher", "start", "(Ljava/lang/String;)V", (main_class_java,))
+            .await;
+
         if let Err(x) = result {
             return Err(JvmSupport::to_wie_err(&jvm, x).await);
         }

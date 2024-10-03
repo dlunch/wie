@@ -6,6 +6,7 @@ use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
 use crate::classes::org::kwis::msp::lcdui::EventQueue;
 
@@ -40,7 +41,7 @@ impl Jlet {
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("wipiMidlet", "Lwie/WIPIMIDlet;", Default::default()),
+                JavaFieldProto::new("wipiMidlet", "Lnet/wie/WIPIMIDlet;", Default::default()),
                 JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
                 JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", Default::default()),
                 JavaFieldProto::new("currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
@@ -53,10 +54,13 @@ impl Jlet {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        let midlet = jvm
-            .new_class("net/wie/WIPIMIDlet", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
+        let midlet: ClassInstanceRef<MIDlet> = jvm
+            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
             .await?;
-        jvm.put_field(&mut this, "wipiMidlet", "Lwie/WIPIMIDlet;", midlet).await?;
+        jvm.put_field(&mut this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;", midlet.clone()).await?;
+        let _: () = jvm
+            .invoke_virtual(&midlet, "setCurrentJlet", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
+            .await?;
 
         let display = jvm
             .new_class(
@@ -106,7 +110,7 @@ impl Jlet {
     ) -> JvmResult<ClassInstanceRef<String>> {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
 
-        let midlet = jvm.get_field(&this, "wipiMidlet", "Lwie/WIPIMIDlet;").await?;
+        let midlet = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
         let value = jvm
             .invoke_virtual(&midlet, "getAppProperty", "(Ljava/lang/String;)Ljava/lang/String;", (key,))
             .await?;

@@ -4,10 +4,11 @@ use alloc::{
     collections::BTreeMap,
     str,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 
-use jvm::{ClassInstance, Result as JvmResult};
+use jvm::{runtime::JavaLangString, Result as JvmResult};
 
 use wie_backend::{Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
@@ -82,24 +83,22 @@ impl SktEmulator {
         let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &properties, RustJavaJvmImplementation).await?;
 
         let main_class_name = if let Some(x) = main_class_name {
-            x
+            x.replace('.', "/")
         } else {
             return Err(WieError::FatalError("Main class not found".into()))?;
         };
 
-        let normalized_class_name = main_class_name.replace('.', "/");
-        let main_class: JvmResult<Box<dyn ClassInstance>> = jvm.new_class(&normalized_class_name, "()V", []).await;
+        let main_class = jvm.resolve_class(&main_class_name).await.unwrap();
+        let main_class_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
 
-        if let Err(x) = main_class {
-            return Err(JvmSupport::to_wie_err(&jvm, x).await);
-        }
-
-        let main_class = main_class.unwrap();
-
-        let result: JvmResult<()> = if jvm.is_instance(&*main_class, "javax/microedition/midlet/MIDlet").await.unwrap() {
-            jvm.invoke_virtual(&main_class, "startApp", "()V", [None.into()]).await
+        let result: JvmResult<()> = if jvm.is_inherited_from(&*main_class.definition, "javax/microedition/midlet/MIDlet").await {
+            jvm.invoke_static("net/wie/Launcher", "start", "(Ljava/lang/String;)V", (main_class_java,))
+                .await
         } else {
-            jvm.invoke_virtual(&main_class, "startApp", "([Ljava/lang/String;)V", [None.into()]).await
+            let mut args = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
+            jvm.store_array(&mut args, 0, vec![main_class_java]).await.unwrap();
+            jvm.invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", (args,))
+                .await
         };
 
         if let Err(x) = result {

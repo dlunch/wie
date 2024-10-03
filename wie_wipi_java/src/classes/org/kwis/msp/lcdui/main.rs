@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -16,35 +16,25 @@ impl Main {
             name: "org/kwis/msp/lcdui/Main",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("main", "([Ljava/lang/String;)V", Self::main, MethodAccessFlags::STATIC),
-            ],
+            methods: vec![JavaMethodProto::new(
+                "main",
+                "([Ljava/lang/String;)V",
+                Self::main,
+                MethodAccessFlags::STATIC,
+            )],
             fields: vec![],
         }
     }
 
-    async fn init(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Main>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Main::<init>({:?})", &this);
-
-        Ok(())
-    }
-
-    async fn main(jvm: &Jvm, _: &mut WieJvmContext, args: ClassInstanceRef<String>) -> JvmResult<()> {
+    async fn main(jvm: &Jvm, _: &mut WieJvmContext, args: ClassInstanceRef<Array<String>>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
 
-        let jlet = jvm
-            .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
-            .await?;
-        let event_queue = jvm
-            .invoke_virtual(&jlet, "getEventQueue", "()Lorg/kwis/msp/lcdui/EventQueue;", [])
-            .await?;
+        let wipi_midlet = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await?;
 
-        let event = jvm.instantiate_array("I", 4).await?;
+        let main_class_name = JavaLangString::to_rust_string(jvm, &jvm.load_array(&args, 0, 1).await?[0]).await?;
+        let _main_class = jvm.new_class(&main_class_name, "()V", ()).await?;
 
-        loop {
-            let _: () = jvm.invoke_virtual(&event_queue, "getNextEvent", "([I)V", [event.clone().into()]).await?;
-            let _: () = jvm.invoke_virtual(&event_queue, "dispatchEvent", "([I)V", [event.clone().into()]).await?;
-        }
+        jvm.invoke_static("net/wie/Launcher", "startMIDlet", "(Ljavax/microedition/midlet/MIDlet;)V", (wipi_midlet,))
+            .await
     }
 }

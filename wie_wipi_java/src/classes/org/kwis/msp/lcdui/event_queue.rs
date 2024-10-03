@@ -22,7 +22,7 @@ impl EventQueue {
                 JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, Default::default()),
                 JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new("wieEventQueue", "Lwie/EventQueue;", Default::default())],
+            fields: vec![JavaFieldProto::new("wieEventQueue", "Lnet/wie/EventQueue;", Default::default())],
         }
     }
 
@@ -31,9 +31,10 @@ impl EventQueue {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        let wie_event_queue: ClassInstanceRef<WieEventQueue> =
-            jvm.invoke_static("net/wie/EventQueue", "getEventQueue", "()Lwie/EventQueue;", ()).await?;
-        jvm.put_field(&mut this, "wieEventQueue", "Lwie/EventQueue;", wie_event_queue).await?;
+        let wie_event_queue: ClassInstanceRef<WieEventQueue> = jvm
+            .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+            .await?;
+        jvm.put_field(&mut this, "wieEventQueue", "Lnet/wie/EventQueue;", wie_event_queue).await?;
 
         Ok(())
     }
@@ -46,7 +47,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
-        let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lwie/EventQueue;").await?;
+        let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lnet/wie/EventQueue;").await?;
         let _: () = jvm.invoke_virtual(&wie_event_queue, "getNextEvent", "([I)V", (event,)).await?;
 
         Ok(())
@@ -60,7 +61,7 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
 
-        let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lwie/EventQueue;").await?;
+        let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lnet/wie/EventQueue;").await?;
         let _: () = jvm.invoke_virtual(&wie_event_queue, "dispatchEvent", "([I)V", (event,)).await?;
 
         Ok(())
