@@ -113,6 +113,8 @@ impl Graphics {
 
         jvm.put_field(&mut this, "width", "I", width).await?;
         jvm.put_field(&mut this, "height", "I", height).await?;
+        jvm.put_field(&mut this, "clipWidth", "I", width).await?;
+        jvm.put_field(&mut this, "clipHeight", "I", height).await?;
 
         Ok(())
     }
@@ -436,7 +438,9 @@ impl Graphics {
         let x = (x + x_delta).max(0);
         let y = (y + y_delta).max(0);
 
-        canvas.draw(x as _, y as _, src_image.width(), src_image.height(), &*src_image, 0, 0);
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.draw(x as _, y as _, src_image.width(), src_image.height(), &*src_image, 0, 0, clip);
 
         canvas.flush().await;
 
@@ -542,7 +546,9 @@ impl Graphics {
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0);
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0, clip);
 
         canvas.flush().await;
 

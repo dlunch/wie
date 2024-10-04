@@ -42,7 +42,7 @@ pub trait ImageBuffer: Send {
 pub trait Canvas: Send {
     fn image(&self) -> &dyn Image;
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32);
+    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32, clip: Clip);
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
     fn draw_text(&mut self, string: &str, x: u32, y: u32, text_alignment: TextAlignment);
     fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
@@ -268,13 +268,16 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32) {
+    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32, clip: Clip) {
         for y in 0..h {
             for x in 0..w {
                 if sx + x >= src.width() || sy + y >= src.height() {
                     continue;
                 }
                 if dx + x >= self.image_buffer.width() || dy + y >= self.image_buffer.height() {
+                    continue;
+                }
+                if dx + x < clip.x || dx + x >= clip.x + clip.width || dy + y < clip.y || dy + y >= clip.y + clip.height {
                     continue;
                 }
 
