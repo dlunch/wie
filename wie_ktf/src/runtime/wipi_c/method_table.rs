@@ -116,7 +116,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         graphics::get_font_height.into_body(),
         gen_stub(28, "MC_grpGetFontAscent"),
         gen_stub(29, "MC_grpGetFontDescent"),
-        gen_stub(30, "MC_grpGetStringWidth"),
+        graphics::get_string_width.into_body(),
         gen_stub(31, "MC_grpGetUnicodeStringWidth"),
         graphics::create_image.into_body(),
         gen_stub(33, "MC_grpDestroyImage"),
