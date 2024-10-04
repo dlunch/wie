@@ -614,8 +614,8 @@ mod test {
             let graphics = jvm
                 .new_class(
                     "javax/microedition/lcdui/Graphics",
-                    "(Ljavax/microedition/lcdui/Image;IIII)V",
-                    (image.clone(), 0, 0, 100, 100),
+                    "(Ljavax/microedition/lcdui/Image;)V",
+                    (image.clone(),),
                 )
                 .await?;
 
