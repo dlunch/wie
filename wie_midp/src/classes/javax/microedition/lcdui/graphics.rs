@@ -57,12 +57,7 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new(
-                    "<init>",
-                    "(Ljavax/microedition/lcdui/Image;IIII)V",
-                    Self::init_with_image,
-                    Default::default(),
-                ),
+                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init_with_image, Default::default()),
                 JavaMethodProto::new("reset", "()V", Self::reset, Default::default()),
                 JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, Default::default()),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
@@ -108,27 +103,14 @@ impl Graphics {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn init_with_image(
-        jvm: &Jvm,
-        _: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
-        image: ClassInstanceRef<Image>,
-        a0: i32,
-        a1: i32,
-        width: i32,
-        height: i32,
-    ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::<init>({:?}, {:?}, {}, {}, {}, {})",
-            &this,
-            &image,
-            a0,
-            a1,
-            width,
-            height
-        );
+    async fn init_with_image(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::<init>({:?}, {:?})", &this, &image,);
+
+        let width: i32 = jvm.invoke_virtual(&image, "getWidth", "()I", ()).await?;
+        let height: i32 = jvm.invoke_virtual(&image, "getHeight", "()I", ()).await?;
 
         jvm.put_field(&mut this, "img", "Ljavax/microedition/lcdui/Image;", image).await?;
+
         jvm.put_field(&mut this, "width", "I", width).await?;
         jvm.put_field(&mut this, "height", "I", height).await?;
 
