@@ -7,7 +7,7 @@ use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, JavaChar, JavaValue,
 use java_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
 use java_runtime::classes::java::lang::String;
 
-use wie_backend::canvas::{PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
+use wie_backend::canvas::{Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Font, Image};
@@ -96,6 +96,12 @@ impl Graphics {
                 JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", Default::default()),
                 JavaFieldProto::new("width", "I", Default::default()),
                 JavaFieldProto::new("height", "I", Default::default()),
+                JavaFieldProto::new("clipX", "I", Default::default()),
+                JavaFieldProto::new("clipY", "I", Default::default()),
+                JavaFieldProto::new("clipWidth", "I", Default::default()),
+                JavaFieldProto::new("clipHeight", "I", Default::default()),
+                JavaFieldProto::new("translateX", "I", Default::default()),
+                JavaFieldProto::new("translateY", "I", Default::default()),
                 JavaFieldProto::new("color", "I", Default::default()),
             ],
         }
@@ -132,6 +138,15 @@ impl Graphics {
     async fn reset(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::reset({:?})", &this);
 
+        let width: i32 = jvm.get_field(&this, "width", "I").await?;
+        let height: i32 = jvm.get_field(&this, "height", "I").await?;
+
+        jvm.put_field(&mut this, "clipX", "I", 0).await?;
+        jvm.put_field(&mut this, "clipY", "I", 0).await?;
+        jvm.put_field(&mut this, "clipWidth", "I", width).await?;
+        jvm.put_field(&mut this, "clipHeight", "I", height).await?;
+        jvm.put_field(&mut this, "translateX", "I", 0).await?;
+        jvm.put_field(&mut this, "translateY", "I", 0).await?;
         jvm.put_field(&mut this, "color", "I", 0).await?;
 
         Ok(())
@@ -169,28 +184,64 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_clip(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
-        tracing::warn!(
-            "stub javax.microedition.lcdui.Graphics::setClip({:?}, {}, {}, {}, {})",
+    async fn set_clip(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Graphics>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::setClip({:?}, {}, {}, {}, {})",
             &this,
             x,
             y,
             width,
             height
         );
+
+        jvm.put_field(&mut this, "clipX", "I", x).await?;
+        jvm.put_field(&mut this, "clipY", "I", y).await?;
+        jvm.put_field(&mut this, "clipWidth", "I", width).await?;
+        jvm.put_field(&mut this, "clipHeight", "I", height).await?;
 
         Ok(())
     }
 
-    async fn clip_rect(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
-        tracing::warn!(
-            "stub javax.microedition.lcdui.Graphics::clipRect({:?}, {}, {}, {}, {})",
+    async fn clip_rect(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Graphics>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::clipRect({:?}, {}, {}, {}, {})",
             &this,
             x,
             y,
             width,
             height
         );
+
+        let current_clip = Self::clip(jvm, &this).await?;
+        let rect = Clip {
+            x: x as _,
+            y: y as _,
+            width: width as _,
+            height: height as _,
+        };
+
+        let new_clip = current_clip.intersect(&rect);
+
+        jvm.put_field(&mut this, "clipX", "I", new_clip.x as i32).await?;
+        jvm.put_field(&mut this, "clipY", "I", new_clip.y as i32).await?;
+        jvm.put_field(&mut this, "clipWidth", "I", new_clip.width as i32).await?;
+        jvm.put_field(&mut this, "clipHeight", "I", new_clip.height as i32).await?;
 
         Ok(())
     }
@@ -413,53 +464,64 @@ impl Graphics {
     async fn get_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getColor({:?})", &this);
 
-        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
+        let color: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        Ok(rgb)
+        Ok(color)
     }
 
-    async fn get_clip_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getClipX({:?})", &this);
+    async fn get_clip_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipX({:?})", &this);
 
-        Ok(0)
+        let clip_x: i32 = jvm.get_field(&this, "clipX", "I").await?;
+
+        Ok(clip_x)
     }
 
-    async fn get_clip_y(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getClipY({:?})", &this);
+    async fn get_clip_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipY({:?})", &this);
 
-        Ok(0)
+        let clip_y: i32 = jvm.get_field(&this, "clipY", "I").await?;
+
+        Ok(clip_y)
     }
 
     async fn get_clip_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getClipWidth({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipWidth({:?})", &this);
 
-        let w: i32 = jvm.get_field(&this, "width", "I").await?;
+        let clip_width: i32 = jvm.get_field(&this, "clipWidth", "I").await?;
 
-        Ok(w)
+        Ok(clip_width)
     }
 
     async fn get_clip_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getClipHeight({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipHeight({:?})", &this);
 
-        let h: i32 = jvm.get_field(&this, "height", "I").await?;
+        let clip_height: i32 = jvm.get_field(&this, "clipHeight", "I").await?;
 
-        Ok(h)
+        Ok(clip_height)
     }
 
-    async fn get_translate_x(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getTranslateX({:?})", &this);
+    async fn get_translate_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateX({:?})", &this);
 
-        Ok(0)
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+
+        Ok(translate_x)
     }
 
-    async fn get_translate_y(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getTranslateY({:?})", &this);
+    async fn get_translate_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
+        tracing::warn!("javax.microedition.lcdui.Graphics::getTranslateY({:?})", &this);
 
-        Ok(0)
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        Ok(translate_y)
     }
 
-    async fn translate(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
+    async fn translate(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
+
+        jvm.put_field(&mut this, "translateX", "I", x).await?;
+        jvm.put_field(&mut this, "translateY", "I", y).await?;
 
         Ok(())
     }
@@ -527,6 +589,20 @@ impl Graphics {
 
             Ok(image)
         }
+    }
+
+    async fn clip(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Clip> {
+        let x: i32 = jvm.get_field(this, "clipX", "I").await?;
+        let y: i32 = jvm.get_field(this, "clipY", "I").await?;
+        let width: i32 = jvm.get_field(this, "clipWidth", "I").await?;
+        let height: i32 = jvm.get_field(this, "clipHeight", "I").await?;
+
+        Ok(Clip {
+            x: x as _,
+            y: y as _,
+            width: width as _,
+            height: height as _,
+        })
     }
 }
 
