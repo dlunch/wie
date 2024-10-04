@@ -348,3 +348,13 @@ pub async fn get_font_height(_: &mut dyn WIPICContext, font: i32) -> Result<i32>
 
     Ok(10)
 }
+
+pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
+    tracing::warn!("stub MC_grpRepaint({}, {}, {}, {}, {})", lcd, x, y, width, height);
+
+    let mut platform = context.system().platform();
+    let screen = platform.screen();
+    screen.request_redraw().unwrap();
+
+    Ok(())
+}

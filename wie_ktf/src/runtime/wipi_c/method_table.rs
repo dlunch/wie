@@ -111,7 +111,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         graphics::get_pixel_from_rgb.into_body(),
         gen_stub(23, "MC_grpGetRGBFromPixel"),
         graphics::get_display_info.into_body(),
-        gen_stub(25, "MC_grpRepaint"),
+        graphics::repaint.into_body(),
         graphics::get_font.into_body(),
         graphics::get_font_height.into_body(),
         gen_stub(28, "MC_grpGetFontAscent"),
