@@ -383,6 +383,24 @@ where
     }
 }
 
+pub struct Clip {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Clip {
+    pub fn intersect(&self, other: &Clip) -> Clip {
+        let x = self.x.max(other.x);
+        let y = self.y.max(other.y);
+        let width = (self.x + self.width).min(other.x + other.width) - x;
+        let height = (self.y + self.height).min(other.y + other.height) - y;
+
+        Clip { x, y, width, height }
+    }
+}
+
 pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
     use std::io::Cursor;
 
