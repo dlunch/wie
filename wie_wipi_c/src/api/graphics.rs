@@ -349,6 +349,12 @@ pub async fn get_font_height(_: &mut dyn WIPICContext, font: i32) -> Result<i32>
     Ok(10)
 }
 
+pub async fn get_string_width(_: &mut dyn WIPICContext, font: i32, ptr_string: WIPICWord, length: i32) -> Result<i32> {
+    tracing::warn!("stub MC_grpGetStringWidth({}, {:#x}, {})", font, ptr_string, length);
+
+    Ok(10)
+}
+
 pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
     tracing::warn!("stub MC_grpRepaint({}, {}, {}, {}, {})", lcd, x, y, width, height);
 
