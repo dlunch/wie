@@ -257,7 +257,16 @@ impl Graphics {
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        canvas.fill_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        canvas.fill_rect(
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            width as _,
+            height as _,
+            Rgb8Pixel::to_color(rgb as _),
+        );
 
         canvas.flush().await;
 
@@ -279,7 +288,16 @@ impl Graphics {
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        canvas.draw_rect(x as _, y as _, width as _, height as _, Rgb8Pixel::to_color(rgb as _));
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        canvas.draw_rect(
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            width as _,
+            height as _,
+            Rgb8Pixel::to_color(rgb as _),
+        );
 
         canvas.flush().await;
 
@@ -309,7 +327,10 @@ impl Graphics {
 
         let string = RustString::from_utf16(&[ch]).unwrap();
 
-        canvas.draw_text(&string, x as _, y as _, anchor.into());
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
 
         canvas.flush().await;
 
@@ -344,7 +365,10 @@ impl Graphics {
         let chars = jvm.load_array(&chars, offset as _, length as _).await?;
         let string = RustString::from_utf16(&chars).unwrap();
 
-        canvas.draw_text(&string, x as _, y as _, anchor.into());
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
 
         canvas.flush().await;
 
@@ -369,12 +393,15 @@ impl Graphics {
             anchor.0
         );
 
-        let rust_string = JavaLangString::to_rust_string(jvm, &string).await?;
+        let string = JavaLangString::to_rust_string(jvm, &string).await?;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        canvas.draw_text(&rust_string, x as _, y as _, anchor.into());
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
 
         canvas.flush().await;
 
@@ -384,12 +411,19 @@ impl Graphics {
     async fn draw_line(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
-        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
+        let color: i32 = jvm.get_field(&this, "color", "I").await?;
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let x1 = x1 + translate_x;
+        let y1 = y1 + translate_y;
+        let x2 = x2 + translate_x;
+        let y2 = y2 + translate_y;
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
 
-        canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(rgb as _));
+        canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(color as _));
 
         canvas.flush().await;
 
@@ -435,8 +469,11 @@ impl Graphics {
             0
         };
 
-        let x = (x + x_delta).max(0);
-        let y = (y + y_delta).max(0);
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let x = (translate_x + x + x_delta).max(0);
+        let y = (translate_y + y + y_delta).max(0);
 
         let clip = Self::clip(jvm, &this).await?;
 
@@ -506,8 +543,11 @@ impl Graphics {
     async fn translate(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
 
-        jvm.put_field(&mut this, "translateX", "I", x).await?;
-        jvm.put_field(&mut this, "translateY", "I", y).await?;
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        jvm.put_field(&mut this, "translateX", "I", translate_x + x).await?;
+        jvm.put_field(&mut this, "translateY", "I", translate_y + y).await?;
 
         Ok(())
     }
