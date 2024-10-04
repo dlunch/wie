@@ -6,7 +6,7 @@ use core::mem::size_of;
 
 use bytemuck::Zeroable;
 
-use wie_backend::canvas::{Color, PixelType, Rgb8Pixel};
+use wie_backend::canvas::{Clip, Color, PixelType, Rgb8Pixel};
 use wie_util::{read_generic, write_generic, Result};
 
 use crate::{context::WIPICContext, WIPICMemoryId, WIPICWord};
@@ -161,7 +161,14 @@ pub async fn draw_image(
     let src_image = image.img.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _);
+    let clip = Clip {
+        x: dx as _,
+        y: dy as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _, clip);
 
     Ok(())
 }
@@ -263,7 +270,14 @@ pub async fn copy_area(
     let image = framebuffer.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw(dx as _, dy as _, w as _, h as _, &*image, x as _, y as _);
+    let clip = Clip {
+        x: dx as _,
+        y: dy as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    canvas.draw(dx as _, dy as _, w as _, h as _, &*image, x as _, y as _, clip);
 
     Ok(())
 }
@@ -311,7 +325,14 @@ pub async fn copy_frame_buffer(
     let src_image = src_framebuffer.image(context)?;
     let mut dst_canvas = dst_framebuffer.canvas(context)?;
 
-    dst_canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _);
+    let clip = Clip {
+        x: dx as _,
+        y: dy as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    dst_canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _, clip);
 
     Ok(())
 }
