@@ -454,6 +454,10 @@ impl Graphics {
             anchor.0
         );
 
+        if img.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "img is null").await);
+        }
+
         let src_image = Image::image(jvm, &img).await?;
 
         let image = Self::image(jvm, &mut this).await?;
