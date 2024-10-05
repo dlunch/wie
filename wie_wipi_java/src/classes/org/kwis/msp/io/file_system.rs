@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -27,20 +27,22 @@ impl FileSystem {
         }
     }
 
-    async fn is_file(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::is_file({:?})", &name);
+    async fn is_file(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.io.FileSystem::is_file({:?})", &name);
 
-        let filename = JavaLangString::to_rust_string(jvm, &name).await?;
+        let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
+        let is_file = jvm.invoke_virtual(&file, "isFile", "()Z", ()).await?;
 
-        let exists = context.system().filesystem().read(&filename).is_some();
-
-        Ok(exists)
+        Ok(is_file)
     }
 
-    async fn is_directory(_jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
+    async fn is_directory(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
 
-        Ok(true)
+        let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
+        let is_directory = jvm.invoke_virtual(&file, "isDirectory", "()Z", ()).await?;
+
+        Ok(is_directory)
     }
 
     async fn exists(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
@@ -50,12 +52,11 @@ impl FileSystem {
             .await
     }
 
-    async fn exists_with_flag(jvm: &Jvm, context: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
+    async fn exists_with_flag(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.io.FileSystem::exists({:?}, {:?})", &name, flag);
 
-        let filename = JavaLangString::to_rust_string(jvm, &name).await?;
-
-        let exists = context.system().filesystem().read(&filename).is_some();
+        let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
+        let exists = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
 
         Ok(exists)
     }
