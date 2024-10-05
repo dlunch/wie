@@ -454,7 +454,7 @@ pub fn string_width(string: &str, pt_size: f32) -> f32 {
 mod tests {
     use wie_util::Result;
 
-    use crate::canvas::{Image, ImageBufferCanvas};
+    use crate::canvas::{Clip, Image, ImageBufferCanvas};
 
     use super::{ArgbPixel, Canvas, Color, VecImageBuffer};
 
@@ -463,7 +463,13 @@ mod tests {
         let image_buffer = VecImageBuffer::<ArgbPixel>::new(10, 10);
         let mut canvas = ImageBufferCanvas::new(image_buffer);
 
-        canvas.fill_rect(0, 0, 10, 10, Color { r: 0, g: 0, b: 0, a: 255 });
+        let clip = Clip {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        canvas.fill_rect(0, 0, 10, 10, Color { r: 0, g: 0, b: 0, a: 255 }, clip);
 
         let image_buffer = canvas.into_inner();
         let raw = image_buffer.raw();
