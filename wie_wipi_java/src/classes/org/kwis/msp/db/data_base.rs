@@ -165,6 +165,13 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        jvm.invoke_virtual(&record_store, "getRecord", "(I)[B", (record_id,)).await
+        let result = jvm.invoke_virtual(&record_store, "getRecord", "(I)[B", (record_id,)).await;
+
+        // TODO check exception type
+        if result.is_err() {
+            return Err(jvm.exception("org/kwis/msp/db/DataBaseRecordException", "Record not found").await);
+        }
+
+        Ok(result.unwrap())
     }
 }
