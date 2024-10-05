@@ -1,11 +1,12 @@
 use core::mem::size_of;
 
+use alloc::format;
 use bytemuck::{Pod, Zeroable};
 use elf::{endian::AnyEndian, ElfBytes};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, Result};
+use wie_util::{read_generic, write_generic, Result, WieError};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -81,7 +82,10 @@ async fn get_import_table(_core: &mut ArmCore, _: &mut (), import_table: u32) ->
 async fn get_import_function(_core: &mut ArmCore, _: &mut (), import_table: u32, function_index: u32) -> Result<u32> {
     tracing::warn!("stub get_import_function({:#x}, {})", import_table, function_index);
 
-    Ok(1)
+    Err(WieError::FatalError(format!(
+        "Unknown import function: {}, {}",
+        import_table, function_index
+    )))
 }
 
 fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
