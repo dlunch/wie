@@ -77,7 +77,7 @@ impl LgtEmulator {
 
         load_native(core, system, &data).await?;
 
-        Err(WieError::Unimplemented("Not yet implemented".into()))
+        Ok(())
     }
 }
 
