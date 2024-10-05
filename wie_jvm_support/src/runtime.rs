@@ -128,7 +128,9 @@ where
         Err(IOError::Unsupported)
     }
 
-    async fn open(&self, path: &str, _write: bool, create: bool) -> Result<Box<dyn File>, IOError> {
+    async fn open(&self, path: &str, write: bool, create: bool) -> Result<Box<dyn File>, IOError> {
+        tracing::debug!("open({:?}, {:?}, {:?})", path, write, create);
+
         #[derive(Clone)]
         struct FileImpl {
             data: Arc<Mutex<Vec<u8>>>,
