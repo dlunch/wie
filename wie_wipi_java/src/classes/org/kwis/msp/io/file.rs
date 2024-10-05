@@ -30,7 +30,8 @@ impl File {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default()),
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, Default::default()),
-                JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
+                JavaMethodProto::new("write", "([B)I", Self::write, Default::default()),
+                JavaMethodProto::new("write", "([BII)I", Self::write_with_offset_length, Default::default()),
                 JavaMethodProto::new("read", "([B)I", Self::read, Default::default()),
                 JavaMethodProto::new("read", "([BII)I", Self::read_with_offset_length, Default::default()),
                 JavaMethodProto::new("seek", "(I)V", Self::seek, Default::default()),
@@ -90,7 +91,13 @@ impl File {
         Ok(())
     }
 
-    async fn write(
+    async fn write(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
+        let length = jvm.array_length(&buf).await? as i32;
+
+        jvm.invoke_virtual(&this, "write", "([BII)I", (buf, 0, length)).await
+    }
+
+    async fn write_with_offset_length(
         _jvm: &Jvm,
         _: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
