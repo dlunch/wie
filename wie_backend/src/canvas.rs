@@ -245,6 +245,16 @@ where
     }
 
     fn blend_pixel(&mut self, x: u32, y: u32, color: Color) {
+        if x >= self.image_buffer.width() || y >= self.image_buffer.height() {
+            tracing::warn!(
+                "out of bounds: x={}, y={}, width={}, height={}",
+                x,
+                y,
+                self.image_buffer.width(),
+                self.image_buffer.height()
+            );
+            return;
+        }
         let bg = self.image_buffer.get_pixel(x, y);
         let factor = color.a as f32 / 255.0;
 
