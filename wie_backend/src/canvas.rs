@@ -29,25 +29,25 @@ pub trait Image: Send {
     fn width(&self) -> u32;
     fn height(&self) -> u32;
     fn bytes_per_pixel(&self) -> u32;
-    fn get_pixel(&self, x: u32, y: u32) -> Color;
+    fn get_pixel(&self, x: i32, y: i32) -> Color;
     fn raw(&self) -> &[u8];
     fn colors(&self) -> Vec<Color>;
 }
 
 pub trait ImageBuffer: Send {
-    fn put_pixel(&mut self, x: u32, y: u32, color: Color);
-    fn put_pixels(&mut self, x: u32, y: u32, width: u32, colors: &[Color]);
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color);
+    fn put_pixels(&mut self, x: i32, y: i32, width: u32, colors: &[Color]);
 }
 
 pub trait Canvas: Send {
     fn image(&self) -> &dyn Image;
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32, clip: Clip);
-    fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
-    fn draw_text(&mut self, string: &str, x: u32, y: u32, text_alignment: TextAlignment);
-    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip);
-    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip);
-    fn put_pixel(&mut self, x: u32, y: u32, color: Color);
+    fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip);
+    fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color);
+    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment);
+    fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
+    fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color);
 }
 
 pub trait PixelType: Send {
@@ -180,8 +180,8 @@ where
         size_of::<T::DataType>() as u32
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> Color {
-        let raw = self.data[(y * self.width + x) as usize];
+    fn get_pixel(&self, x: i32, y: i32) -> Color {
+        let raw = self.data[((y as u32) * self.width + (x as u32)) as usize];
 
         T::to_color(raw)
     }
@@ -199,28 +199,28 @@ impl<T> ImageBuffer for VecImageBuffer<T>
 where
     T: PixelType + 'static,
 {
-    fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
-        if x >= self.width || y >= self.height {
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color) {
+        if x < 0 || y < 0 || (x as u32) >= self.width || (y as u32) >= self.height {
             return;
         }
 
         let raw = T::from_color(color);
 
-        self.data[(y * self.width + x) as usize] = raw;
+        self.data[((y as u32) * self.width + (x as u32)) as usize] = raw;
     }
 
-    fn put_pixels(&mut self, x: u32, y: u32, width: u32, colors: &[Color]) {
+    fn put_pixels(&mut self, x: i32, y: i32, width: u32, colors: &[Color]) {
         for (i, color) in colors.iter().enumerate() {
-            let x = x + (i as u32 % width);
-            let y = y + (i as u32 / width);
+            let x = x + (i as i32 % (width as i32));
+            let y = y + (i as i32 / (width as i32));
 
-            if x >= self.width || y >= self.height {
+            if x < 0 || y < 0 || (x as u32) >= self.width || (y as u32) >= self.height {
                 continue;
             }
 
             let raw = T::from_color(*color);
 
-            self.data[(y * self.width + x) as usize] = raw;
+            self.data[((y as u32) * self.width + (x as u32)) as usize] = raw;
         }
     }
 }
@@ -244,8 +244,8 @@ where
         self.image_buffer
     }
 
-    fn blend_pixel(&mut self, x: u32, y: u32, color: Color) {
-        if x >= self.image_buffer.width() || y >= self.image_buffer.height() {
+    fn blend_pixel(&mut self, x: i32, y: i32, color: Color) {
+        if x < 0 || y < 0 || (x as u32) >= self.image_buffer.width() || (y as u32) >= self.image_buffer.height() {
             tracing::warn!(
                 "out of bounds: x={}, y={}, width={}, height={}",
                 x,
@@ -278,16 +278,20 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32, clip: Clip) {
-        for y in 0..h {
-            for x in 0..w {
-                if sx + x >= src.width() || sy + y >= src.height() {
+    fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip) {
+        for y in 0..(h as i32) {
+            for x in 0..(w as i32) {
+                if sx + x < 0 || sy + y < 0 || sx + x >= src.width() as i32 || sy + y >= src.height() as i32 {
                     continue;
                 }
-                if dx + x >= self.image_buffer.width() || dy + y >= self.image_buffer.height() {
+                if dx + x < 0 || dy + y < 0 || dx + x >= self.image_buffer.width() as i32 || dy + y >= self.image_buffer.height() as i32 {
                     continue;
                 }
-                if dx + x < clip.x || dx + x >= clip.x + clip.width || dy + y < clip.y || dy + y >= clip.y + clip.height {
+                if dx + x < clip.x as i32
+                    || dx + x >= (clip.x + clip.width) as i32
+                    || dy + y < (clip.y as i32)
+                    || dy + y >= (clip.y + clip.height) as i32
+                {
                     continue;
                 }
 
@@ -296,21 +300,21 @@ where
         }
     }
 
-    fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color) {
+    fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color) {
         let x2 = if x1 == x2 { x2 + 1 } else { x2 };
         let y2 = if y1 == y2 { y2 + 1 } else { y2 };
 
         // bresenham's line drawing
-        let dx = (x2 as i32 - x1 as i32).abs();
-        let dy = (y2 as i32 - y1 as i32).abs();
-        let sx = if x1 < x2 { 1i32 } else { -1 };
-        let sy = if y1 < y2 { 1i32 } else { -1 };
+        let dx = (x2 - x1).abs();
+        let dy = (y2 - y1).abs();
+        let sx = if x1 < x2 { 1 } else { -1 };
+        let sy = if y1 < y2 { 1 } else { -1 };
         let mut err = dx - dy;
 
-        let mut x = x1 as i32;
-        let mut y = y1 as i32;
+        let mut x = x1;
+        let mut y = y1;
 
-        while x != x2 as i32 && y != y2 as i32 {
+        while x != x2 && y != y2 {
             self.blend_pixel(x as _, y as _, color);
 
             let e2 = 2 * err;
@@ -325,14 +329,14 @@ where
         }
     }
 
-    fn draw_text(&mut self, string: &str, x: u32, y: u32, text_alignment: TextAlignment) {
+    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment) {
         let font = FONT.as_scaled(FONT.pt_to_px_scale(10.0).unwrap());
 
         let total_width = string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>();
         let x = match text_alignment {
             TextAlignment::Left => x,
-            TextAlignment::Center => x - (total_width / 2.0) as u32,
-            TextAlignment::Right => x - total_width as u32,
+            TextAlignment::Center => x - (total_width / 2.0) as i32,
+            TextAlignment::Right => x - total_width as i32,
         };
 
         let mut position = 0.0;
@@ -347,8 +351,8 @@ where
             if let Some(outlined_glyph) = font.outline_glyph(glyph) {
                 outlined_glyph.draw(|glyph_x: u32, glyph_y, c| {
                     self.blend_pixel(
-                        x + (glyph_x as f32 + position) as u32,
-                        y + glyph_y,
+                        x + (glyph_x as f32 + position) as i32,
+                        y + glyph_y as i32,
                         Color {
                             a: (c * 255.0) as u8,
                             r: 0,
@@ -363,38 +367,38 @@ where
         }
     }
 
-    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip) {
-        for x in x..x + w {
-            if x >= self.image_buffer.width() {
+    fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
+        for x in x..x + (w as i32) {
+            if x < 0 || x >= self.image_buffer.width() as i32 {
                 continue;
             }
-            if x < clip.x || x >= clip.x + clip.width {
+            if x < clip.x as i32 || x >= (clip.x + clip.width) as i32 {
                 continue;
             }
 
             self.put_pixel(x, y, color);
-            self.put_pixel(x, y + h - 1, color);
+            self.put_pixel(x, y + (h as i32) - 1, color);
         }
-        for y in y..y + h {
-            if y >= self.image_buffer.height() {
+        for y in y..y + (h as i32) {
+            if y < 0 || y >= self.image_buffer.height() as i32 {
                 continue;
             }
-            if y < clip.y || y >= clip.y + clip.height {
+            if y < clip.y as i32 || y >= (clip.y + clip.height) as i32 {
                 continue;
             }
 
             self.put_pixel(x, y, color);
-            self.put_pixel(x + w - 1, y, color);
+            self.put_pixel(x + (w as i32) - 1, y, color);
         }
     }
 
-    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip) {
-        for y in y..y + h {
-            for x in x..x + w {
-                if x >= self.image_buffer.width() || y >= self.image_buffer.height() {
+    fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
+        for y in y..y + (h as i32) {
+            for x in x..x + (w as i32) {
+                if x >= self.image_buffer.width() as i32 || y >= self.image_buffer.height() as i32 {
                     continue;
                 }
-                if x < clip.x || x >= clip.x + clip.width || y < clip.y || y >= clip.y + clip.height {
+                if x < (clip.x as i32) || x >= (clip.x + clip.width) as i32 || y < (clip.y as i32) || y >= (clip.y + clip.height) as i32 {
                     continue;
                 }
                 self.put_pixel(x, y, color);
@@ -402,7 +406,7 @@ where
         }
     }
 
-    fn put_pixel(&mut self, x: u32, y: u32, color: Color) {
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color) {
         self.image_buffer.put_pixel(x, y, color)
     }
 }
