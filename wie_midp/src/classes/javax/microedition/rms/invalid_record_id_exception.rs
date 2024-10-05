@@ -6,14 +6,14 @@ use jvm::{ClassInstanceRef, Jvm, Result};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-// class org.kwis.msp.db.DataBaseException
-pub struct DataBaseException;
+// class javax.microedition.rms.InvalidRecordIDException
+pub struct InvalidRecordIDException;
 
-impl DataBaseException {
+impl InvalidRecordIDException {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
-            name: "org/kwis/msp/db/DataBaseException",
-            parent_class: Some("java/lang/Exception"),
+            name: "javax/microedition/rms/InvalidRecordIDException",
+            parent_class: Some("javax/microedition/rms/RecordStoreException"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
@@ -24,18 +24,26 @@ impl DataBaseException {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
-        tracing::debug!("org.kwis.msp.db.DataBaseException::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.rms.InvalidRecordIDException::<init>({:?})", &this);
 
-        let _: () = jvm.invoke_special(&this, "java/lang/Exception", "<init>", "()V", ()).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/rms/RecordStoreException", "<init>", "()V", ())
+            .await?;
 
         Ok(())
     }
 
     async fn init_with_message(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, message: ClassInstanceRef<String>) -> Result<()> {
-        tracing::debug!("org.kwis.msp.db.DataBaseException::<init>({:?}, {:?})", &this, &message);
+        tracing::debug!("javax.microedition.rms.InvalidRecordIDException::<init>({:?}, {:?})", &this, &message);
 
         let _: () = jvm
-            .invoke_special(&this, "java/lang/Exception", "<init>", "(Ljava/lang/String;)V", (message,))
+            .invoke_special(
+                &this,
+                "javax/microedition/rms/RecordStoreException",
+                "<init>",
+                "(Ljava/lang/String;)V",
+                (message,),
+            )
             .await?;
 
         Ok(())
