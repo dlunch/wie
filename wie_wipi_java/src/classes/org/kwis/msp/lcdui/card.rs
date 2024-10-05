@@ -4,6 +4,7 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::lcdui::Canvas;
 
 use crate::classes::org::kwis::msp::lcdui::Display;
 
@@ -28,8 +29,11 @@ impl Card {
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
                 JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
                 JavaMethodProto::new_abstract("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Default::default()),
+                // wie private
+                JavaMethodProto::new("setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", Self::set_canvas, Default::default()),
             ],
             fields: vec![
+                JavaFieldProto::new("canvas", "Ljavax/microedition/lcdui/Canvas;", Default::default()),
                 JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
                 JavaFieldProto::new("x", "I", Default::default()),
                 JavaFieldProto::new("y", "I", Default::default()),
@@ -119,36 +123,36 @@ impl Card {
     }
 
     async fn repaint_with_area(
-        _: &Jvm,
-        context: &mut WieJvmContext,
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
         this: ClassInstanceRef<Card>,
-        a0: i32,
-        a1: i32,
-        a2: i32,
-        a3: i32,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, a0, a1, a2, a3);
+        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
-        let mut platform = context.system().platform();
-        let screen = platform.screen();
-        screen.request_redraw().unwrap();
-
-        Ok(())
+        let canvas = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
+        jvm.invoke_virtual(&canvas, "repaint", "(IIII)V", (x, y, width, height)).await
     }
 
-    async fn service_repaints(_: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
+    async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
-        let mut platform = context.system().platform();
-        let screen = platform.screen();
-        screen.request_redraw().unwrap();
-
-        Ok(())
+        let canvas = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
+        jvm.invoke_virtual(&canvas, "serviceRepaints", "()V", ()).await
     }
 
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::showNotify({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Card::showNotify({:?})", &this);
 
         Ok(())
+    }
+
+    async fn set_canvas(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, canvas: ClassInstanceRef<Canvas>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Card::setCanvas({:?}, {:?})", &this, &canvas);
+
+        jvm.put_field(&mut this, "canvas", "Ljavax/microedition/lcdui/Canvas;", canvas).await
     }
 }

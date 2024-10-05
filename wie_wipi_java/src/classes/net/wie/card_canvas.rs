@@ -154,6 +154,9 @@ impl CardCanvas {
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let _: () = jvm.invoke_virtual(&cards, "addElement", "(Ljava/lang/Object;)V", (c.clone(),)).await?;
 
+        let _: () = jvm
+            .invoke_virtual(&c, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (this.clone(),))
+            .await?;
         let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
 
         Ok(())
@@ -167,6 +170,9 @@ impl CardCanvas {
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&card, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (None,))
+                .await?;
             let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
         }
 
