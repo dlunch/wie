@@ -9,6 +9,6 @@ mod function;
 
 pub use self::{
     allocator::Allocator,
-    core::ArmCore,
+    core::{ArmCore, RUN_FUNCTION_LR},
     function::{EmulatedFunction, EmulatedFunctionParam, ResultWriter},
 };

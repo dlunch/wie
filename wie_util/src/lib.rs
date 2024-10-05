@@ -14,6 +14,7 @@ use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
 pub enum WieError {
     InvalidMemoryAccess(u32),
     AllocationFailure,
+    JavaException(u32), // to pass java exception down to rust
     Unimplemented(String),
     FatalError(String),
 }
@@ -23,6 +24,7 @@ impl Display for WieError {
         match self {
             WieError::InvalidMemoryAccess(address) => write!(f, "Invalid memory access; address: {}", address),
             WieError::AllocationFailure => write!(f, "Allocation failure"),
+            WieError::JavaException(exception) => write!(f, "Java exception: {:#x}", exception),
             WieError::Unimplemented(message) => write!(f, "Unimplemented: {}", message),
             WieError::FatalError(message) => write!(f, "Fatal error: {}", message),
         }

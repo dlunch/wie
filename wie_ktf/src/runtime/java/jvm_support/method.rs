@@ -12,12 +12,12 @@ use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, RUN_FUNCTION_LR};
 use wie_util::{read_generic, write_generic, ByteWrite, Result, WieError};
 
 use crate::runtime::java::jvm_support::JavaClassDefinition;
 
-use super::{name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmSupport};
+use super::{class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmSupport};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -251,6 +251,7 @@ impl Method for JavaMethod {
     async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
         let result = self.run(args).await.map_err(|x| match x {
             WieError::FatalError(x) => JavaError::FatalError(x),
+            WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
             _ => JavaError::FatalError(format!("{}", x)),
         })?;
         let r#type = JavaType::parse(&self.descriptor());
@@ -308,10 +309,16 @@ where
             .collect::<Vec<_>>();
 
         let mut context = self.context.clone();
+        let (_, lr) = core.read_pc_lr()?;
 
         let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
         if let Err(x) = result {
             if let JavaError::JavaException(x) = x {
+                // if we executed this from rust code, we should propagate this down
+                if lr == RUN_FUNCTION_LR {
+                    let java_exception = KtfJvmSupport::class_instance_raw(&x);
+                    return Err(WieError::JavaException(java_exception));
+                }
                 return JavaMethod::handle_exception(core, &self.jvm, x).await;
             }
             return Err(JvmSupport::to_wie_err(&self.jvm, x).await);
