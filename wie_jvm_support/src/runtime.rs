@@ -6,7 +6,7 @@ use core::{
 
 use spin::Mutex;
 
-use java_runtime::{get_runtime_class_proto, File, FileStat, IOError, Runtime, SpawnCallback, RT_RUSTJAR};
+use java_runtime::{get_runtime_class_proto, File, FileSize, FileStat, FileType, IOError, IOResult, Runtime, SpawnCallback, RT_RUSTJAR};
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
 use wie_backend::{AsyncCallable, System};
@@ -82,11 +82,11 @@ where
         self.system.current_task_id()
     }
 
-    fn stdin(&self) -> Result<Box<dyn File>, IOError> {
+    fn stdin(&self) -> IOResult<Box<dyn File>> {
         Err(IOError::Unsupported)
     }
 
-    fn stdout(&self) -> Result<Box<dyn File>, IOError> {
+    fn stdout(&self) -> IOResult<Box<dyn File>> {
         #[derive(Clone)]
         struct StdoutFile {
             system: System,
@@ -94,14 +94,30 @@ where
 
         #[async_trait::async_trait]
         impl File for StdoutFile {
-            async fn read(&mut self, _buf: &mut [u8]) -> Result<usize, IOError> {
+            async fn read(&mut self, _buf: &mut [u8]) -> IOResult<usize> {
                 Err(IOError::Unsupported)
             }
 
-            async fn write(&mut self, buf: &[u8]) -> Result<usize, IOError> {
+            async fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
                 self.system.platform().write_stdout(buf);
 
                 Ok(buf.len())
+            }
+
+            async fn seek(&mut self, _pos: FileSize) -> IOResult<()> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn tell(&self) -> IOResult<FileSize> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn metadata(&self) -> IOResult<FileStat> {
+                Err(IOError::Unsupported)
             }
         }
 
@@ -139,6 +155,27 @@ where
             async fn write(&mut self, _buf: &[u8]) -> Result<usize, IOError> {
                 Err(IOError::Unsupported)
             }
+
+            async fn seek(&mut self, pos: FileSize) -> IOResult<()> {
+                self.cursor.store(pos, Ordering::SeqCst);
+
+                Ok(())
+            }
+
+            async fn tell(&self) -> IOResult<FileSize> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn metadata(&self) -> IOResult<FileStat> {
+                Ok(FileStat {
+                    size: self.data.len() as _,
+                    r#type: FileType::File,
+                })
+            }
         }
 
         let filesystem = self.system.filesystem();
@@ -154,12 +191,20 @@ where
         .ok_or(IOError::NotFound)
     }
 
-    async fn stat(&self, path: &str) -> Result<FileStat, IOError> {
+    async fn unlink(&self, _path: &str) -> Result<(), IOError> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn metadata(&self, path: &str) -> IOResult<FileStat> {
         let filesystem = self.system.filesystem();
 
         let file = filesystem.read(path);
 
-        file.map(|x| FileStat { size: x.len() as _ }).ok_or(IOError::NotFound)
+        file.map(|x| FileStat {
+            size: x.len() as _,
+            r#type: FileType::File,
+        })
+        .ok_or(IOError::NotFound)
     }
 
     async fn find_rustjar_class(&self, jvm: &Jvm, classpath: &str, class: &str) -> JvmResult<Option<Box<dyn ClassDefinition>>> {

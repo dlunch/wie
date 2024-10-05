@@ -1,7 +1,4 @@
-use alloc::{format, vec};
-use core::cmp::min;
-
-use bytemuck::cast_slice;
+use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::{io::InputStream, lang::String};
@@ -42,8 +39,8 @@ impl File {
                 JavaMethodProto::new("openInputStream", "()Ljava/io/InputStream;", Self::open_input_stream, Default::default()),
             ],
             fields: vec![
-                JavaFieldProto::new("data", "[B", Default::default()),
-                JavaFieldProto::new("pos", "I", Default::default()),
+                JavaFieldProto::new("file", "Ljava/io/File;", Default::default()),
+                JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", Default::default()),
             ],
         }
     }
@@ -60,38 +57,35 @@ impl File {
 
     async fn init_with_flag(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         filename: ClassInstanceRef<String>,
         mode: i32,
         flag: i32,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
-
-        let filename = JavaLangString::to_rust_string(jvm, &filename).await?;
-        tracing::debug!("Opening {}", filename);
+        tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
         let mode = unsafe { core::mem::transmute::<i32, Mode>(mode) };
 
-        let data = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC {
-            // TODO: write not implemented
-            Some(vec![])
-        } else {
-            let filesystem = context.system().filesystem();
-            let data = filesystem.read(&filename);
-            data.map(|x| cast_slice(x).to_vec())
-        };
+        let mode_string = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC { "w" } else { "rw" };
+        let mode_string = JavaLangString::from_rust_string(jvm, mode_string).await?;
 
-        if data.is_none() {
-            return Err(jvm.exception("java/io/IOException", &format!("File not found: {}", filename)).await);
+        let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (filename,)).await?;
+
+        let raf = jvm
+            .new_class(
+                "java/io/RandomAccessFile",
+                "(Ljava/io/File;Ljava/lang/String;)V",
+                (file.clone(), mode_string),
+            )
+            .await?;
+
+        if mode == Mode::WRITE_TRUNC {
+            let _: () = jvm.invoke_virtual(&raf, "setLength", "(J)V", (0i64,)).await?;
         }
-        let data = data.unwrap();
 
-        let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut data_array, 0, data).await?;
-
-        jvm.put_field(&mut this, "data", "[B", data_array).await?;
-        jvm.put_field(&mut this, "pos", "I", 0).await?;
+        jvm.put_field(&mut this, "raf", "Ljava/io/RandomAccessFile;", raf).await?;
+        jvm.put_field(&mut this, "file", "Ljava/io/File;", file).await?;
 
         Ok(())
     }
@@ -109,10 +103,11 @@ impl File {
         Ok(0)
     }
 
-    async fn seek(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
+    async fn seek(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::seek({:?}, {:?})", &this, pos);
 
-        jvm.put_field(&mut this, "pos", "I", pos).await?;
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let _: () = jvm.invoke_virtual(&raf, "seek", "(J)V", (pos as i64,)).await?;
 
         Ok(())
     }
@@ -126,30 +121,24 @@ impl File {
     async fn read_with_offset_length(
         jvm: &Jvm,
         _: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
-        mut buf: ClassInstanceRef<Array<i8>>,
+        this: ClassInstanceRef<Self>,
+        buf: ClassInstanceRef<Array<i8>>,
         offset: i32,
         length: i32,
     ) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
 
-        let data_array = jvm.get_field(&this, "data", "[B").await?;
-        let pos: i32 = jvm.get_field(&this, "pos", "I").await?;
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let read = jvm.invoke_virtual(&raf, "read", "([BII)I", (buf, offset, length)).await?;
 
-        let data_len = jvm.array_length(&data_array).await? as i32;
-
-        let length_to_read = min(data_len - pos, length);
-
-        let data = jvm.load_byte_array(&data_array, pos as _, length_to_read as _).await?;
-        jvm.store_byte_array(&mut buf, offset as _, data).await?;
-
-        jvm.put_field(&mut this, "pos", "I", pos + length_to_read).await?;
-
-        Ok(length_to_read as _)
+        Ok(read)
     }
 
-    async fn close(_jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.io.File::close({:?})", &this);
+    async fn close(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.io.File::close({:?})", &this);
+
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let _: () = jvm.invoke_virtual(&raf, "close", "()V", ()).await?;
 
         Ok(())
     }
@@ -157,19 +146,18 @@ impl File {
     async fn size_of(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
 
-        let data_array = jvm.get_field(&this, "data", "[B").await?;
-        let data_len = jvm.array_length(&data_array).await?;
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
 
-        Ok(data_len as _)
+        Ok(length as _)
     }
 
     async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openInputStream({:?})", &this);
 
-        let data_array = jvm.get_field(&this, "data", "[B").await?;
+        let file = jvm.get_field(&this, "file", "Ljava/io/File;").await?;
+        let input_stream = jvm.invoke_virtual(&file, "openInputStream", "()Ljava/io/InputStream;", ()).await?;
 
-        let input_stream = jvm.new_class("java/io/ByteArrayInputStream", "([B)V", [data_array]).await?;
-
-        Ok(input_stream.into())
+        Ok(input_stream)
     }
 }
