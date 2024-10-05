@@ -287,11 +287,7 @@ where
                 if dx + x < 0 || dy + y < 0 || dx + x >= self.image_buffer.width() as i32 || dy + y >= self.image_buffer.height() as i32 {
                     continue;
                 }
-                if dx + x < clip.x as i32
-                    || dx + x >= (clip.x + clip.width) as i32
-                    || dy + y < (clip.y as i32)
-                    || dy + y >= (clip.y + clip.height) as i32
-                {
+                if dx + x < clip.x || dx + x >= clip.x + (clip.width as i32) || dy + y < clip.y || dy + y >= clip.y + (clip.height as i32) {
                     continue;
                 }
 
@@ -372,7 +368,7 @@ where
             if x < 0 || x >= self.image_buffer.width() as i32 {
                 continue;
             }
-            if x < clip.x as i32 || x >= (clip.x + clip.width) as i32 {
+            if x < clip.x || x >= clip.x + clip.width as i32 {
                 continue;
             }
 
@@ -383,7 +379,7 @@ where
             if y < 0 || y >= self.image_buffer.height() as i32 {
                 continue;
             }
-            if y < clip.y as i32 || y >= (clip.y + clip.height) as i32 {
+            if y < clip.y || y >= clip.y + clip.height as i32 {
                 continue;
             }
 
@@ -398,7 +394,7 @@ where
                 if x >= self.image_buffer.width() as i32 || y >= self.image_buffer.height() as i32 {
                     continue;
                 }
-                if x < (clip.x as i32) || x >= (clip.x + clip.width) as i32 || y < (clip.y as i32) || y >= (clip.y + clip.height) as i32 {
+                if x < clip.x || x >= clip.x + clip.width as i32 || y < clip.y || y >= clip.y + clip.height as i32 {
                     continue;
                 }
                 self.put_pixel(x, y, color);
@@ -412,8 +408,8 @@ where
 }
 
 pub struct Clip {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
     pub width: u32,
     pub height: u32,
 }
@@ -422,10 +418,15 @@ impl Clip {
     pub fn intersect(&self, other: &Clip) -> Clip {
         let x = self.x.max(other.x);
         let y = self.y.max(other.y);
-        let width = (self.x + self.width).min(other.x + other.width) - x;
-        let height = (self.y + self.height).min(other.y + other.height) - y;
+        let width = (self.x + (self.width as i32)).min(other.x + (other.width as i32)) - x;
+        let height = (self.y + (self.height as i32)).min(other.y + (other.height as i32)) - y;
 
-        Clip { x, y, width, height }
+        Clip {
+            x,
+            y,
+            width: width as _,
+            height: height as _,
+        }
     }
 }
 
