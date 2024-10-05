@@ -228,6 +228,10 @@ impl Graphics {
             anchor
         );
 
+        if image.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "image is null").await);
+        }
+
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&image, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 
