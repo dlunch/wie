@@ -77,8 +77,8 @@ impl SktEmulator {
             ("MIN", "01000000000"),
             ("m.MIN", "01000000000"),
             ("m.COLOR", "7"),
-            ("m.VENDER", "SKT"),
-            ("m.CARRIER", "none"),
+            ("m.VENDER", "vender"),
+            ("m.CARRIER", "SKT"),
             ("m.SK_VM", "10"),
             ("com.xce.wipi.version", ""),
         ];
