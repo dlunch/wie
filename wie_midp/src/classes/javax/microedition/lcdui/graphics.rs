@@ -260,12 +260,15 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
+        let clip = Self::clip(jvm, &this).await?;
+
         canvas.fill_rect(
             (translate_x + x) as _,
             (translate_y + y) as _,
             width as _,
             height as _,
             Rgb8Pixel::to_color(rgb as _),
+            clip,
         );
 
         canvas.flush().await;
@@ -291,12 +294,15 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
+        let clip = Self::clip(jvm, &this).await?;
+
         canvas.draw_rect(
             (translate_x + x) as _,
             (translate_y + y) as _,
             width as _,
             height as _,
             Rgb8Pixel::to_color(rgb as _),
+            clip,
         );
 
         canvas.flush().await;

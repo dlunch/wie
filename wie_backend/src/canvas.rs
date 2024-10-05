@@ -45,8 +45,8 @@ pub trait Canvas: Send {
     fn draw(&mut self, dx: u32, dy: u32, w: u32, h: u32, src: &dyn Image, sx: u32, sy: u32, clip: Clip);
     fn draw_line(&mut self, x1: u32, y1: u32, x2: u32, y2: u32, color: Color);
     fn draw_text(&mut self, string: &str, x: u32, y: u32, text_alignment: TextAlignment);
-    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
-    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color);
+    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip);
+    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip);
     fn put_pixel(&mut self, x: u32, y: u32, color: Color);
 }
 
@@ -363,11 +363,15 @@ where
         }
     }
 
-    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+    fn draw_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip) {
         for x in x..x + w {
             if x >= self.image_buffer.width() {
                 continue;
             }
+            if x < clip.x || x >= clip.x + clip.width {
+                continue;
+            }
+
             self.put_pixel(x, y, color);
             self.put_pixel(x, y + h - 1, color);
         }
@@ -375,15 +379,22 @@ where
             if y >= self.image_buffer.height() {
                 continue;
             }
+            if y < clip.y || y >= clip.y + clip.height {
+                continue;
+            }
+
             self.put_pixel(x, y, color);
             self.put_pixel(x + w - 1, y, color);
         }
     }
 
-    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
+    fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color, clip: Clip) {
         for y in y..y + h {
             for x in x..x + w {
                 if x >= self.image_buffer.width() || y >= self.image_buffer.height() {
+                    continue;
+                }
+                if x < clip.x || x >= clip.x + clip.width || y < clip.y || y >= clip.y + clip.height {
                     continue;
                 }
                 self.put_pixel(x, y, color);
