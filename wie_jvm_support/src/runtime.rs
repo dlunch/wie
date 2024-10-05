@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use core::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -128,10 +128,10 @@ where
         Err(IOError::Unsupported)
     }
 
-    async fn open(&self, path: &str, _write: bool, _create: bool) -> Result<Box<dyn File>, IOError> {
+    async fn open(&self, path: &str, _write: bool, create: bool) -> Result<Box<dyn File>, IOError> {
         #[derive(Clone)]
         struct FileImpl {
-            data: Arc<Vec<u8>>,
+            data: Arc<Mutex<Vec<u8>>>,
             cursor: Arc<AtomicU64>,
         }
 
@@ -140,9 +140,11 @@ where
             async fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
                 let cursor = self.cursor.load(Ordering::SeqCst) as usize;
 
-                if cursor < self.data.len() {
-                    let to_read = core::cmp::min(buf.len(), self.data.len() - cursor);
-                    buf[..to_read].copy_from_slice(&self.data[cursor..cursor + to_read]);
+                let data = self.data.lock();
+
+                if cursor < data.len() {
+                    let to_read = core::cmp::min(buf.len(), data.len() - cursor);
+                    buf[..to_read].copy_from_slice(&data[cursor..cursor + to_read]);
 
                     self.cursor.fetch_add(to_read as u64, Ordering::SeqCst);
 
@@ -166,13 +168,15 @@ where
                 Err(IOError::Unsupported)
             }
 
-            async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
-                Err(IOError::Unsupported)
+            async fn set_len(&mut self, len: FileSize) -> IOResult<()> {
+                self.data.lock().resize(len as usize, 0);
+
+                Ok(())
             }
 
             async fn metadata(&self) -> IOResult<FileStat> {
                 Ok(FileStat {
-                    size: self.data.len() as _,
+                    size: self.data.lock().len() as _,
                     r#type: FileType::File,
                 })
             }
@@ -181,14 +185,19 @@ where
         let filesystem = self.system.filesystem();
 
         let file = filesystem.read(path);
-
-        file.map(|x| {
-            Box::new(FileImpl {
-                data: Arc::new(x.to_vec()),
+        if let Some(x) = file {
+            Ok(Box::new(FileImpl {
+                data: Arc::new(Mutex::new(x.to_vec())),
                 cursor: Arc::new(AtomicU64::new(0)),
-            }) as _
-        })
-        .ok_or(IOError::NotFound)
+            }))
+        } else if create {
+            Ok(Box::new(FileImpl {
+                data: Arc::new(Mutex::new(vec![])),
+                cursor: Arc::new(AtomicU64::new(0)),
+            }))
+        } else {
+            Err(IOError::NotFound)
+        }
     }
 
     async fn unlink(&self, _path: &str) -> Result<(), IOError> {

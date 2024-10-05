@@ -21,6 +21,7 @@ impl FileSystem {
                 JavaMethodProto::new("isDirectory", "(Ljava/lang/String;I)Z", Self::is_directory, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("exists", "(Ljava/lang/String;I)Z", Self::exists_with_flag, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("mkdir", "(Ljava/lang/String;I)V", Self::mkdir, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
@@ -59,6 +60,12 @@ impl FileSystem {
         let exists = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
 
         Ok(exists)
+    }
+
+    async fn mkdir(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::mkdir({:?}, {:?})", &name, flag);
+
+        Ok(())
     }
 
     async fn available(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<i32> {
