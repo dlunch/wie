@@ -2,7 +2,7 @@ use alloc::{
     borrow::ToOwned,
     boxed::Box,
     collections::BTreeMap,
-    str,
+    format, str,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -27,13 +27,13 @@ impl SktEmulator {
 
         let jar_filename = msd_file.0.replace(".msd", ".jar");
 
-        Self::load(platform, &jar_filename, &msd.id, Some(msd.main_class), &files)
+        Self::load(platform, &jar_filename, &msd.id, Some(msd.main_class), msd.properties, &files)
     }
 
     pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, &files)
+        Self::load(platform, jar_filename, id, main_class_name, BTreeMap::new(), &files)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -49,6 +49,7 @@ impl SktEmulator {
         jar_filename: &str,
         id: &str,
         main_class_name: Option<String>,
+        properties: BTreeMap<String, String>,
         files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<Self> {
         let mut system = System::new(platform, id);
@@ -60,14 +61,19 @@ impl SktEmulator {
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
 
-        system.spawn(move || async move { Self::do_start(&mut system_clone, jar_filename_clone, main_class_name).await });
+        system.spawn(move || async move { Self::do_start(&mut system_clone, jar_filename_clone, properties, main_class_name).await });
 
         Ok(Self { system })
     }
 
     #[tracing::instrument(name = "start", skip_all)]
-    async fn do_start(system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
-        let properties = [
+    async fn do_start(
+        system: &mut System,
+        jar_filename: String,
+        properties: BTreeMap<String, String>,
+        main_class_name: Option<String>,
+    ) -> Result<()> {
+        let system_properties = [
             ("m.MIN", "min"),
             ("m.COLOR", "7"),
             ("m.VENDER", "vender"),
@@ -75,6 +81,15 @@ impl SktEmulator {
             ("m.SK_VM", "0"),
             ("com.xce.wipi.version", ""),
         ];
+        let properties = properties
+            .into_iter()
+            .map(|(k, v)| (format!("wie.appProperty.{}", k), v))
+            .collect::<Vec<_>>();
+        let properties = system_properties
+            .into_iter()
+            .chain(properties.iter().map(|(k, v)| (k.as_ref(), v.as_ref())))
+            .collect::<Vec<_>>();
+
         let protos = [
             wie_midp::get_protos().into(),
             wie_skvm::get_protos().into(),
@@ -122,12 +137,14 @@ impl Emulator for SktEmulator {
 struct SktMsd {
     id: String,
     main_class: String,
+    properties: BTreeMap<String, String>,
 }
 
 impl SktMsd {
     pub fn parse(filename: &str, data: &[u8]) -> Self {
         let mut main_class = String::new();
         let mut id = filename[..filename.find('.').unwrap()].into();
+        let mut properties = BTreeMap::new();
 
         let mut lines = data.split(|x| *x == b'\n');
 
@@ -139,9 +156,19 @@ impl SktMsd {
             if line.starts_with(b"DD-ProgName") {
                 id = str::from_utf8(&line[12..]).unwrap().trim().to_string();
             }
-            // TODO load name, it's in euc-kr..
+
+            let sep = line.iter().position(|x| *x == b':');
+            if let Some(sep) = sep {
+                let key = &line[..sep];
+                let value = &line[sep + 1..];
+
+                if let (Ok(key), Ok(value)) = (str::from_utf8(key), str::from_utf8(value)) {
+                    tracing::info!("Adding property {}={}", key.trim(), value.trim());
+                    properties.insert(key.trim().to_string(), value.trim().to_string());
+                }
+            }
         }
 
-        Self { id, main_class }
+        Self { id, main_class, properties }
     }
 }

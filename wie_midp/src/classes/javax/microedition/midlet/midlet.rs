@@ -1,9 +1,9 @@
-use alloc::vec;
+use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -54,13 +54,18 @@ impl MIDlet {
     }
 
     async fn get_app_property(
-        _jvm: &Jvm,
+        jvm: &Jvm,
         _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         key: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<String>> {
-        tracing::warn!("stub javax.microedition.midlet.MIDlet::getAppProperty({:?}, {:?})", &this, key);
+        tracing::debug!("javax.microedition.midlet.MIDlet::getAppProperty({:?}, {:?})", &this, key);
 
-        Ok(None.into())
+        let key = JavaLangString::to_rust_string(jvm, &key).await?;
+        let system_key = format!("wie.appProperty.{}", key);
+        let system_key = JavaLangString::from_rust_string(jvm, &system_key).await?;
+
+        jvm.invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (system_key,))
+            .await
     }
 }
