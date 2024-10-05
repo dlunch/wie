@@ -222,8 +222,8 @@ impl Graphics {
 
         let new_clip = current_clip.intersect(&rect);
 
-        jvm.put_field(&mut this, "clipX", "I", new_clip.x as i32).await?;
-        jvm.put_field(&mut this, "clipY", "I", new_clip.y as i32).await?;
+        jvm.put_field(&mut this, "clipX", "I", new_clip.x).await?;
+        jvm.put_field(&mut this, "clipY", "I", new_clip.y).await?;
         jvm.put_field(&mut this, "clipWidth", "I", new_clip.width as i32).await?;
         jvm.put_field(&mut this, "clipHeight", "I", new_clip.height as i32).await?;
 
