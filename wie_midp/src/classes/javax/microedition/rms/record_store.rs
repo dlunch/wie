@@ -23,6 +23,7 @@ impl RecordStore {
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
                 JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, Default::default()),
                 JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, Default::default()),
+                JavaMethodProto::new("getRecord", "(I[BI)I", Self::get_record_array, Default::default()),
                 JavaMethodProto::new("setRecord", "(I[BII)V", Self::set_record, Default::default()),
                 JavaMethodProto::new("getNumRecords", "()I", Self::get_num_records, Default::default()),
                 JavaMethodProto::new("closeRecordStore", "()V", Self::close_record_store, Default::default()),
@@ -94,6 +95,36 @@ impl RecordStore {
         jvm.store_byte_array(&mut array, 0, cast_vec(data)).await?;
 
         Ok(array.into())
+    }
+
+    async fn get_record_array(
+        jvm: &Jvm,
+        context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        record_id: i32,
+        mut buffer: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+    ) -> JvmResult<i32> {
+        tracing::debug!(
+            "javax.microedition.rms.RecordStore::getRecord({:?}, {}, {:?}, {})",
+            &this,
+            record_id,
+            &buffer,
+            offset
+        );
+
+        let database = Self::get_database(jvm, context, &this).await?;
+
+        let result = database.get(record_id as _);
+        if result.is_none() {
+            return Err(jvm.exception("javax/microedition/rms/InvalidRecordIDException", "Record not found").await);
+        }
+
+        let data = result.unwrap();
+        let data_length = data.len();
+        jvm.store_byte_array(&mut buffer, offset as _, cast_vec(data)).await?;
+
+        Ok(data_length as _)
     }
 
     async fn set_record(
