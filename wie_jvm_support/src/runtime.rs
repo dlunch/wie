@@ -128,7 +128,7 @@ where
         Err(IOError::Unsupported)
     }
 
-    async fn open(&self, path: &str) -> Result<Box<dyn File>, IOError> {
+    async fn open(&self, path: &str, _write: bool, _create: bool) -> Result<Box<dyn File>, IOError> {
         #[derive(Clone)]
         struct FileImpl {
             data: Arc<Vec<u8>>,
