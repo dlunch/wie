@@ -106,7 +106,7 @@ impl ArmCore {
             }
             if params.len() > 4 {
                 for param in params[4..].iter().rev() {
-                    let sp = inner.engine.reg_read(ArmRegister::SP) - 4;
+                    let sp: u32 = inner.engine.reg_read(ArmRegister::SP) - 4;
 
                     inner.engine.mem_write(sp, &param.to_le_bytes())?;
                     inner.engine.reg_write(ArmRegister::SP, sp);
@@ -254,6 +254,10 @@ impl ArmCore {
         let mut inner = self.inner.lock();
 
         inner.engine.reg_write(ArmRegister::PC, pc);
+
+        let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
+        let new_cpsr = if pc & 1 == 1 { cpsr | 0x20 } else { cpsr & !0x20 };
+        inner.engine.reg_write(ArmRegister::Cpsr, new_cpsr);
 
         Ok(())
     }
