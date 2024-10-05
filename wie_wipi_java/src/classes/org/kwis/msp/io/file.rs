@@ -1,7 +1,10 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_runtime::classes::java::{io::InputStream, lang::String};
+use java_runtime::classes::java::{
+    io::{DataInputStream, InputStream},
+    lang::String,
+};
 use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -38,6 +41,12 @@ impl File {
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
                 JavaMethodProto::new("sizeOf", "()I", Self::size_of, Default::default()),
                 JavaMethodProto::new("openInputStream", "()Ljava/io/InputStream;", Self::open_input_stream, Default::default()),
+                JavaMethodProto::new(
+                    "openDataInputStream",
+                    "()Ljava/io/DataInputStream;",
+                    Self::open_data_input_stream,
+                    Default::default(),
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new("file", "Ljava/io/File;", Default::default()),
@@ -162,9 +171,20 @@ impl File {
     async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openInputStream({:?})", &this);
 
-        let file = jvm.get_field(&this, "file", "Ljava/io/File;").await?;
-        let input_stream = jvm.invoke_virtual(&file, "openInputStream", "()Ljava/io/InputStream;", ()).await?;
+        let file: ClassInstanceRef<File> = jvm.get_field(&this, "file", "Ljava/io/File;").await?;
+        let input_stream = jvm.new_class("java/io/FileInputStream", "(Ljava/io/File;)V", (file,)).await?;
 
-        Ok(input_stream)
+        Ok(input_stream.into())
+    }
+
+    async fn open_data_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<DataInputStream>> {
+        tracing::debug!("org.kwis.msp.io.File::openDataInputStream({:?})", &this);
+
+        let input_stream: ClassInstanceRef<InputStream> = jvm.invoke_virtual(&this, "openInputStream", "()Ljava/io/InputStream;", ()).await?;
+        let data_input_stream = jvm
+            .new_class("java/io/DataInputStream", "(Ljava/io/InputStream;)V", (input_stream,))
+            .await?;
+
+        Ok(data_input_stream.into())
     }
 }
