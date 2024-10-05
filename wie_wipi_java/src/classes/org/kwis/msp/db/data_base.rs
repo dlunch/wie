@@ -1,14 +1,12 @@
-use alloc::{borrow::ToOwned, boxed::Box, vec};
-
-use bytemuck::cast_vec;
-use wie_backend::Database;
+use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+use wie_midp::classes::javax::microedition::rms::RecordStore;
 
 // class org.kwis.msp.db.DataBase
 pub struct DataBase;
@@ -20,7 +18,7 @@ impl DataBase {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljavax/microedition/rms/RecordStore;)V", Self::init, Default::default()),
                 JavaMethodProto::new(
                     "openDataBase",
                     "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
@@ -39,13 +37,20 @@ impl DataBase {
                 JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, Default::default()),
                 JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
+            fields: vec![JavaFieldProto::new(
+                "recordStore",
+                "Ljavax/microedition/rms/RecordStore;",
+                Default::default(),
+            )],
         }
     }
-    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, data_base_name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &data_base_name);
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, record_store: ClassInstanceRef<RecordStore>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &record_store);
 
-        jvm.put_field(&mut this, "dbName", "Ljava/lang/String;", data_base_name).await?;
+        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "recordStore", "Ljavax/microedition/rms/RecordStore;", record_store)
+            .await?;
 
         Ok(())
     }
@@ -84,35 +89,42 @@ impl DataBase {
         create: bool,
         flags: i32,
     ) -> JvmResult<ClassInstanceRef<DataBase>> {
-        tracing::warn!(
-            "stub org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {}, {})",
+        tracing::debug!(
+            "org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {}, {})",
             &data_base_name,
             record_size,
             create,
             flags
         );
 
+        let record_store: ClassInstanceRef<RecordStore> = jvm
+            .invoke_static(
+                "javax/microedition/rms/RecordStore",
+                "openRecordStore",
+                "(Ljava/lang/String;Z)Ljavax/microedition/rms/RecordStore;",
+                (data_base_name, create),
+            )
+            .await?;
+
         let instance = jvm
-            .new_class("org/kwis/msp/db/DataBase", "(Ljava/lang/String;)V", (data_base_name,))
+            .new_class("org/kwis/msp/db/DataBase", "(Ljavax/microedition/rms/RecordStore;)V", (record_store,))
             .await?;
 
         Ok(instance.into())
     }
 
-    async fn get_number_of_records(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+    async fn get_number_of_records(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
 
-        let database = Self::get_database(jvm, context, &this).await?;
-
-        let count = database.get_record_ids().len();
-
-        Ok(count as _)
+        let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
+        jvm.invoke_virtual(&record_store, "getNumRecords", "()I", ()).await
     }
 
-    async fn close_data_base(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
+    async fn close_data_base(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
 
-        Ok(())
+        let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
+        jvm.invoke_virtual(&record_store, "closeRecordStore", "()V", ()).await
     }
 
     async fn insert_record(
@@ -124,7 +136,6 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({:?}, {:?})", &this, &data);
 
         let length = jvm.array_length(&data).await? as i32;
-
         let result = jvm.invoke_virtual(&this, "insertRecord", "([BII)I", (data, 0, length)).await?;
 
         Ok(result)
@@ -132,7 +143,7 @@ impl DataBase {
 
     async fn insert_record_with_offset(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         data: ClassInstanceRef<Array<i8>>,
         offset: i32,
@@ -146,40 +157,14 @@ impl DataBase {
             num_bytes
         );
 
-        let mut database = Self::get_database(jvm, context, &this).await?;
-
-        let data = jvm.load_byte_array(&data, offset as _, num_bytes as _).await?;
-        let data_raw = cast_vec(data);
-
-        let id = database.add(&data_raw);
-
-        Ok(id as _)
+        let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
+        jvm.invoke_virtual(&record_store, "addRecord", "([BII)I", (data, offset, num_bytes)).await
     }
 
-    async fn select_record(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<ClassInstanceRef<i8>> {
+    async fn select_record(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<ClassInstanceRef<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
 
-        let database = Self::get_database(jvm, context, &this).await?;
-
-        let result = database.get(record_id as _);
-        if result.is_none() {
-            return Err(jvm.exception("org/kwis/msp/db/DataBaseRecordException", "Record not found").await);
-        }
-
-        let data = result.unwrap();
-
-        let mut array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut array, 0, cast_vec(data)).await?;
-
-        Ok(array.into())
-    }
-
-    async fn get_database(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
-        let db_name = jvm.get_field(this, "dbName", "Ljava/lang/String;").await?;
-        let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;
-
-        let app_id = context.system().app_id().to_owned();
-
-        Ok(context.system().platform().database_repository().open(&db_name_str, &app_id))
+        let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
+        jvm.invoke_virtual(&record_store, "getRecord", "(I)[B", (record_id,)).await
     }
 }

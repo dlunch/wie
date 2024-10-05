@@ -6,13 +6,13 @@ use jvm::{ClassInstanceRef, Jvm, Result};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-// class org.kwis.msp.db.DataBaseException
-pub struct DataBaseException;
+// class javax.microedition.rms.RecordStoreException
+pub struct RecordStoreException;
 
-impl DataBaseException {
+impl RecordStoreException {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
-            name: "org/kwis/msp/db/DataBaseException",
+            name: "javax/microedition/rms/RecordStoreException",
             parent_class: Some("java/lang/Exception"),
             interfaces: vec![],
             methods: vec![
@@ -24,7 +24,7 @@ impl DataBaseException {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
-        tracing::debug!("org.kwis.msp.db.DataBaseException::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.rms.RecordStoreException::<init>({:?})", &this);
 
         let _: () = jvm.invoke_special(&this, "java/lang/Exception", "<init>", "()V", ()).await?;
 
@@ -32,7 +32,7 @@ impl DataBaseException {
     }
 
     async fn init_with_message(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, message: ClassInstanceRef<String>) -> Result<()> {
-        tracing::debug!("org.kwis.msp.db.DataBaseException::<init>({:?}, {:?})", &this, &message);
+        tracing::debug!("javax.microedition.rms.RecordStoreException::<init>({:?}, {:?})", &this, &message);
 
         let _: () = jvm
             .invoke_special(&this, "java/lang/Exception", "<init>", "(Ljava/lang/String;)V", (message,))

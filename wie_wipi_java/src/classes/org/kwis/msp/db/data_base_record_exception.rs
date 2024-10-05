@@ -13,7 +13,7 @@ impl DataBaseRecordException {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "org/kwis/msp/db/DataBaseRecordException",
-            parent_class: Some("java/lang/Exception"),
+            parent_class: Some("org/kwis/msp/db/DataBaseException"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
@@ -26,7 +26,9 @@ impl DataBaseRecordException {
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBaseRecordException>) -> Result<()> {
         tracing::debug!("org.kwis.msp.db.DataBaseRecordException::<init>({:?})", &this);
 
-        let _: () = jvm.invoke_special(&this, "java/lang/Exception", "<init>", "()V", ()).await?;
+        let _: () = jvm
+            .invoke_special(&this, "org/kwis/msp/db/DataBaseException", "<init>", "()V", ())
+            .await?;
 
         Ok(())
     }
@@ -40,7 +42,7 @@ impl DataBaseRecordException {
         tracing::debug!("org.kwis.msp.db.DataBaseRecordException::<init>({:?}, {:?})", &this, &message);
 
         let _: () = jvm
-            .invoke_special(&this, "java/lang/Exception", "<init>", "(Ljava/lang/String;)V", (message,))
+            .invoke_special(&this, "org/kwis/msp/db/DataBaseException", "<init>", "(Ljava/lang/String;)V", (message,))
             .await?;
 
         Ok(())
