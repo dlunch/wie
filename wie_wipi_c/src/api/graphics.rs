@@ -107,7 +107,15 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x:
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.fill_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl));
+
+    let clip = Clip {
+        x: x as _,
+        y: x as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    canvas.fill_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl), clip);
     Ok(())
 }
 
