@@ -19,6 +19,8 @@ impl Canvas {
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
+                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
                 JavaMethodProto::new_abstract("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Default::default()),
             ],
             fields: vec![],
@@ -53,13 +55,40 @@ impl Canvas {
         Ok(height)
     }
 
-    async fn repaint(_jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({:?})", &this);
+
+        jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
+    }
+
+    async fn repaint_with_area(
+        _jvm: &Jvm,
+        context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!(
+            "stub javax.microedition.lcdui.Canvas::repaint({:?}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height
+        );
 
         let mut platform = context.system().platform();
         let screen = platform.screen();
         screen.request_redraw().unwrap();
 
         Ok(())
+    }
+
+    async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::serviceRepaints({:?})", &this);
+
+        jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
     }
 }
