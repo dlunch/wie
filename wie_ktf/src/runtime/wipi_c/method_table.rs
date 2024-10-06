@@ -47,7 +47,7 @@ where
         kernel::unset_timer.into_body(),
         kernel::current_time.into_body(),
         kernel::get_system_property.into_body(),
-        gen_stub(30, "MC_knlSetSystemProperty"),
+        kernel::set_system_property.into_body(),
         kernel::get_resource_id.into_body(),
         kernel::get_resource.into_body(),
         reserved1.into_body(),
