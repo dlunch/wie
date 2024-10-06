@@ -39,6 +39,12 @@ pub async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_
     Ok(0)
 }
 
+pub async fn set_system_property(_context: &mut dyn WIPICContext, id: String, value: String) -> Result<()> {
+    tracing::warn!("stub MC_knlSetSystemProperty({}, {})", id, value);
+
+    Ok(())
+}
+
 pub async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_callback: WIPICWord) -> Result<()> {
     tracing::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
