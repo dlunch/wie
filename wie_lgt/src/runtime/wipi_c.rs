@@ -23,17 +23,31 @@ use crate::runtime::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrappe
 pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, function_index: u32) -> Result<u32> {
     let method = match function_index {
         0x03 => return core.register_function(clet_register, jvm),
+        0x32 => unk1.into_body(),
+        0x33 => unk2.into_body(),
+        0x34 => unk3.into_body(),
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
         0x75 => kernel::alloc.into_body(),
+        0x76 => kernel::calloc.into_body(),
         0x77 => kernel::free.into_body(),
         0x79 => kernel::get_free_memory.into_body(),
+        0x7a => kernel::def_timer.into_body(),
+        0x7b => kernel::set_timer.into_body(),
+        0x7d => kernel::current_time.into_body(),
         0x7e => kernel::get_system_property.into_body(),
         0x7f => kernel::set_system_property.into_body(),
         0x80 => kernel::get_resource_id.into_body(),
         0x81 => kernel::get_resource.into_body(),
+        0xca => graphics::get_screen_framebuffer.into_body(),
+        0xcd => graphics::init_context.into_body(),
+        0xce => graphics::set_context.into_body(),
+        0xd0 => graphics::put_pixel.into_body(),
+        0xdf => graphics::get_pixel_from_rgb.into_body(),
+        0xe1 => graphics::get_display_info.into_body(),
         0xe3 => graphics::get_font.into_body(),
         0xe4 => graphics::get_font_height.into_body(),
+        0xe9 => graphics::create_image.into_body(),
         0x190 => database::open_database.into_body(),
         0x4b9 => unk0.into_body(),
         0x578 => misc::back_light.into_body(),
@@ -105,9 +119,27 @@ async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a
 }
 
 async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
-    tracing::debug!("unk0({:#x}, {:#x})", a0, a1);
+    tracing::warn!("unk0({:#x}, {:#x})", a0, a1);
 
     // maps to OEMC_mdaClipGetInfo on ktf but seems wrong
+
+    Ok(())
+}
+
+async fn unk1(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
+    tracing::warn!("unk1({:#x}, {:#x})", a0, a1);
+
+    Ok(())
+}
+
+async fn unk2(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
+    tracing::warn!("unk2({:#x}, {:#x})", a0, a1);
+
+    Ok(())
+}
+
+async fn unk3(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
+    tracing::warn!("unk3({:#x}, {:#x})", a0, a1);
 
     Ok(())
 }
