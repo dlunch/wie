@@ -7,7 +7,7 @@ use jvm::{
 
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam};
-use wie_util::{ByteRead, ByteWrite, Result};
+use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result};
 use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
 
 // mostly same as ktf's one, can we merge those?
@@ -31,11 +31,17 @@ impl WIPICContext for LgtWIPICContext {
     }
 
     fn alloc(&mut self, size: WIPICWord) -> Result<WIPICMemoryId> {
-        Allocator::alloc(&mut self.core, size).map(WIPICMemoryId)
+        let address = Allocator::alloc(&mut self.core, size + size_of::<WIPICWord>() as WIPICWord)?;
+        write_generic(&mut self.core, address, size)?;
+
+        Ok(WIPICMemoryId(address + size_of::<WIPICWord>() as WIPICWord))
     }
 
-    fn free(&mut self, _memory: WIPICMemoryId) -> Result<()> {
-        todo!()
+    fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
+        let base_address = memory.0 - size_of::<WIPICWord>() as WIPICWord;
+
+        let size = read_generic(&self.core, base_address)?;
+        Allocator::free(&mut self.core, base_address, size)
     }
 
     fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()> {
