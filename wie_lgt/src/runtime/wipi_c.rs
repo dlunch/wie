@@ -30,6 +30,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x7e => kernel::get_system_property.into_body(),
         0x7f => kernel::set_system_property.into_body(),
         0x80 => kernel::get_resource_id.into_body(),
+        0x81 => kernel::get_resource.into_body(),
         0xe3 => graphics::get_font.into_body(),
         0xe4 => graphics::get_font_height.into_body(),
         0x190 => database::open_database.into_body(),
