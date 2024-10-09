@@ -31,6 +31,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x75 => kernel::alloc.into_body(),
         0x76 => kernel::calloc.into_body(),
         0x77 => kernel::free.into_body(),
+        0x78 => kernel::get_total_memory.into_body(),
         0x79 => kernel::get_free_memory.into_body(),
         0x7a => kernel::def_timer.into_body(),
         0x7b => kernel::set_timer.into_body(),
