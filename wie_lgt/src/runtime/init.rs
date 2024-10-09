@@ -157,7 +157,7 @@ async fn unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u3
 }
 
 async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
-    tracing::warn!("memcpy({:#x}, {:#x}, {:#x})", dst, src, size);
+    tracing::debug!("memcpy({:#x}, {:#x}, {:#x})", dst, src, size);
 
     let mut memory = vec![0u8; size as usize];
 
