@@ -40,8 +40,8 @@ impl WIPICContext for LgtWIPICContext {
     fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
         let base_address = memory.0 - size_of::<WIPICWord>() as WIPICWord;
 
-        let size = read_generic(&self.core, base_address)?;
-        Allocator::free(&mut self.core, base_address, size)
+        let size: WIPICWord = read_generic(&self.core, base_address)?;
+        Allocator::free(&mut self.core, base_address, size + size_of::<WIPICWord>() as WIPICWord)
     }
 
     fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()> {
