@@ -101,10 +101,13 @@ impl WIPICContext for LgtWIPICContext {
         #[async_trait::async_trait]
         impl AsyncCallable<Result<WIPICWord>> for SpawnProxy {
             async fn call(mut self) -> Result<WIPICWord> {
-                // self.context.jvm.attach_thread().await.unwrap();
-                /* let result = */
-                self.callback.call(&mut self.context, Box::new([])).await
-                // self.context.jvm.detach_thread().await.unwrap();
+                self.context.jvm.attach_thread().await.unwrap();
+
+                let result = self.callback.call(&mut self.context, Box::new([])).await;
+
+                self.context.jvm.detach_thread().await.unwrap();
+
+                result
             }
         }
 
