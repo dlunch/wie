@@ -1,4 +1,4 @@
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec};
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
@@ -8,7 +8,7 @@ use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, Result, WieError};
+use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result, WieError};
 
 use super::wipi_c::get_wipi_c_method;
 
@@ -92,7 +92,7 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
 
     Ok(match (import_table, function_index) {
         (0x01, 0x3f6) => core.register_function(java_unk8, &())?,
-        (0x01, 0x414) => core.register_function(unk1, &())?,
+        (0x01, 0x414) => core.register_function(memcpy, &())?,
         (0x01, 0x418) => core.register_function(java_unk4, &())?,
         (0x01, 0x424) => core.register_function(java_unk10, &())?,
         (0x64, 0x03) => core.register_function(java_unk0, &())?,
@@ -149,8 +149,13 @@ async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u3
     Ok(())
 }
 
-async fn unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("clet_unk1({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
+    tracing::warn!("memcpy({:#x}, {:#x}, {:#x})", dst, src, size);
+
+    let mut memory = vec![0u8; size as usize];
+
+    core.read_bytes(src, &mut memory)?;
+    core.write_bytes(dst, &memory)?;
 
     Ok(())
 }
