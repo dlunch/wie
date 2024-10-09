@@ -52,6 +52,8 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0xe4 => graphics::get_font_height.into_body(),
         0xe9 => graphics::create_image.into_body(),
         0x190 => database::open_database.into_body(),
+        0x192 => database::write_record_single.into_body(),
+        0x193 => database::close_database.into_body(),
         0x4b9 => unk0.into_body(),
         0x578 => misc::back_light.into_body(),
         _ => return Err(WieError::FatalError(format!("Unknown lgt wipi import: {:#x}", function_index))),
