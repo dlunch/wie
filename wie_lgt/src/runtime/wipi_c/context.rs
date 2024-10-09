@@ -1,19 +1,26 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
+use jvm::{
+    runtime::{JavaIoInputStream, JavaLangClassLoader},
+    Jvm,
+};
+
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam};
 use wie_util::{ByteRead, ByteWrite, Result};
 use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
 
+// mostly same as ktf's one, can we merge those?
 #[derive(Clone)]
 pub struct LgtWIPICContext {
     core: ArmCore,
     system: System,
+    jvm: Jvm,
 }
 
 impl LgtWIPICContext {
-    pub fn new(core: ArmCore, system: System) -> Self {
-        Self { core, system }
+    pub fn new(core: ArmCore, system: System, jvm: Jvm) -> Self {
+        Self { core, system, jvm }
     }
 }
 
@@ -103,12 +110,27 @@ impl WIPICContext for LgtWIPICContext {
         Ok(())
     }
 
-    async fn get_resource_size(&self, _name: &str) -> Result<Option<usize>> {
-        todo!()
+    async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
+        let class_loader = self.jvm.current_class_loader().await.unwrap();
+        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
+
+        if stream.is_none() {
+            return Ok(None);
+        }
+
+        let available: i32 = self.jvm.invoke_virtual(&stream.unwrap(), "available", "()I", ()).await.unwrap();
+
+        Ok(Some(available as _))
     }
 
-    async fn read_resource(&self, _name: &str) -> Result<Vec<u8>> {
-        todo!()
+    async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
+        let class_loader = self.jvm.current_class_loader().await.unwrap();
+        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
+            .await
+            .unwrap()
+            .unwrap();
+
+        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap())
     }
 }
 
