@@ -92,6 +92,7 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
 
     Ok(match (import_table, function_index) {
         (0x01, 0x3f6) => core.register_function(java_unk8, &())?,
+        (0x01, 0x3fb) => core.register_function(unk1, &())?,
         (0x01, 0x414) => core.register_function(memcpy, &())?,
         (0x01, 0x418) => core.register_function(java_unk4, &())?,
         (0x01, 0x424) => core.register_function(java_unk10, &())?,
@@ -145,6 +146,12 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
 
 async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
     tracing::warn!("clet_unk0({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    Ok(())
+}
+
+async fn unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
+    tracing::warn!("clet_unk1({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
 
     Ok(())
 }
