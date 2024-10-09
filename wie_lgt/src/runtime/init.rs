@@ -91,12 +91,12 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
     }
 
     Ok(match (import_table, function_index) {
-        (0x01, 0x3f6) => core.register_function(java_unk8, &())?,
+        (0x01, 0x3f6) => core.register_function(unk2, &())?,
         (0x01, 0x3fb) => core.register_function(atoi, &())?,
         (0x01, 0x409) => core.register_function(strcmp, &())?,
         (0x01, 0x414) => core.register_function(memcpy, &())?,
-        (0x01, 0x418) => core.register_function(java_unk4, &())?,
-        (0x01, 0x424) => core.register_function(java_unk10, &())?,
+        (0x01, 0x418) => core.register_function(memset, &())?,
+        (0x01, 0x424) => core.register_function(unk3, &())?,
         (0x64, 0x03) => core.register_function(java_unk0, &())?,
         (0x64, 0x06) => core.register_function(java_unk12, &())?,
         (0x64, 0x07) => core.register_function(java_unk5, &())?,
@@ -198,8 +198,11 @@ async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32
     Ok(())
 }
 
-async fn java_unk4(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk4({:#x}, {:#x}, {:#x})", a0, a1, a2);
+async fn memset(core: &mut ArmCore, _: &mut (), dst: u32, value: u32, size: u32) -> Result<()> {
+    tracing::debug!("memset({:#x}, {:#x}, {:#x})", dst, value, size);
+
+    let memory = vec![value as u8; size as usize];
+    core.write_bytes(dst, &memory)?;
 
     Ok(())
 }
@@ -228,8 +231,8 @@ async fn java_unk7(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -
     Ok(0 as _)
 }
 
-async fn java_unk8(_core: &mut ArmCore, _: &mut (), a0: String) -> Result<()> {
-    tracing::warn!("java_unk8({})", a0);
+async fn unk2(_core: &mut ArmCore, _: &mut (), a0: String) -> Result<()> {
+    tracing::warn!("unk2({})", a0);
 
     // error exit?
 
@@ -242,8 +245,8 @@ async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     Ok(())
 }
 
-async fn java_unk10(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("java_unk10({:#x})", a0);
+async fn unk3(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
+    tracing::warn!("unk3({:#x})", a0);
 
     let _: () = core.run_function(a0, &[]).await?;
 

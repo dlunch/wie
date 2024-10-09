@@ -44,6 +44,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0xcd => graphics::init_context.into_body(),
         0xce => graphics::set_context.into_body(),
         0xd0 => graphics::put_pixel.into_body(),
+        0xd3 => graphics::fill_rect.into_body(),
         0xd5 => graphics::draw_image.into_body(),
         0xde => graphics::flush.into_body(),
         0xdf => graphics::get_pixel_from_rgb.into_body(),
