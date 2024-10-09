@@ -4,11 +4,12 @@ mod context;
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{runtime::JavaLangString, Jvm};
+use jvm::{runtime::JavaLangString, Jvm, Result as JvmResult};
 use jvm_rust::ClassDefinitionImpl;
 
 use wie_backend::System;
 use wie_core_arm::ArmCore;
+use wie_jvm_support::JvmSupport;
 use wie_util::{read_generic, Result, WieError};
 use wie_wipi_c::{
     api::{database, graphics, kernel, misc},
@@ -21,7 +22,7 @@ use crate::runtime::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrappe
 
 pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, function_index: u32) -> Result<u32> {
     let method = match function_index {
-        0x03 => return core.register_function(clet_register, &(system.clone(), jvm.clone())),
+        0x03 => return core.register_function(clet_register, jvm),
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
         0x75 => kernel::alloc.into_body(),
@@ -57,7 +58,7 @@ struct CletFunctions {
     handle_input: u32,
 }
 
-async fn clet_register(core: &mut ArmCore, (_system, jvm): &mut (System, Jvm), function_table: u32, a1: u32) -> Result<()> {
+async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({:#x}, {:#x})", function_table, a1);
 
     let functions: CletFunctions = read_generic(core, function_table)?;
@@ -92,10 +93,13 @@ async fn clet_register(core: &mut ArmCore, (_system, jvm): &mut (System, Jvm), f
     let mut args_array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
     jvm.store_array(&mut args_array, 0, vec![main_class_name]).await.unwrap();
 
-    let _: () = jvm
+    let result: JvmResult<()> = jvm
         .invoke_static("org/kwis/msp/lcdui/Main", "main", "([Ljava/lang/String;)V", (args_array,))
-        .await
-        .unwrap();
+        .await;
+
+    if let Err(x) = result {
+        return Err(JvmSupport::to_wie_err(jvm, x).await);
+    }
 
     Ok(())
 }
