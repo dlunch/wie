@@ -11,8 +11,16 @@ tracing = { workspace = true }
 
 elf = { version = "^0.7" }
 
+java_class_proto = { workspace = true }
+java_constants = { workspace = true }
+java_runtime = { workspace = true }
+jvm = { workspace = true }
+jvm_rust = { workspace = true }
+
 wie_backend = { workspace = true }
 wie_core_arm = { workspace = true }
+wie_jvm_support = { workspace = true }
+wie_midp = { workspace = true }
 wie_util = { workspace = true }
 wie_wipi_c = { workspace = true }
 wie_wipi_java = { workspace = true }

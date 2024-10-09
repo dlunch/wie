@@ -4,6 +4,8 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 use elf::{endian::AnyEndian, ElfBytes};
 
+use jvm::Jvm;
+
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, Result, WieError};
@@ -35,7 +37,7 @@ struct InitParam2 {
     fn_unk4: u32,
 }
 
-pub async fn load_native(core: &mut ArmCore, system: &mut System, data: &[u8]) -> Result<()> {
+pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
 
     let ptr_init_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
@@ -51,7 +53,7 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, data: &[u8]) -
 
     let init_param_2 = InitParam2 {
         fn_get_import_table: core.register_function(get_import_table, &())?,
-        fn_get_import_function: core.register_function(get_import_function, system)?,
+        fn_get_import_function: core.register_function(get_import_function, &(system.clone(), jvm.clone()))?,
         fn_unk3: 0,
         fn_unk4: 0,
     };
@@ -81,11 +83,11 @@ async fn get_import_table(_core: &mut ArmCore, _: &mut (), import_table: u32) ->
     Ok(import_table)
 }
 
-async fn get_import_function(core: &mut ArmCore, system: &mut System, import_table: u32, function_index: u32) -> Result<u32> {
+async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), import_table: u32, function_index: u32) -> Result<u32> {
     tracing::debug!("get_import_function({:#x}, {})", import_table, function_index);
 
     if import_table == 0x1fb {
-        return get_wipi_c_method(core, system, function_index);
+        return get_wipi_c_method(core, system, jvm, function_index);
     }
 
     Ok(match (import_table, function_index) {
