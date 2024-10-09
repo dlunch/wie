@@ -1,9 +1,10 @@
-use alloc::vec;
+use alloc::{format, vec};
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::String;
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
+use wie_util::WieError;
 use wie_wipi_java::classes::org::kwis::msp::lcdui::Display;
 
 use super::CletWrapperContext;
@@ -60,7 +61,10 @@ impl CletWrapper {
             .invoke_virtual(&display, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (clet_wrapper_card,))
             .await?;
 
-        let _: () = context.core.run_function(start_clet as _, &[]).await.unwrap();
+        let _: () = context.core.run_function(start_clet as _, &[]).await.map_err(|x| match x {
+            WieError::FatalError(x) => JavaError::FatalError(x),
+            _ => JavaError::FatalError(format!("{}", x)),
+        })?;
 
         Ok(())
     }
