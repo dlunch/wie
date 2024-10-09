@@ -36,7 +36,7 @@ pub async fn current_time(context: &mut dyn WIPICContext) -> Result<WIPICWord> {
 pub async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
     tracing::warn!("stub MC_knlGetSystemProperty({}, {:#x}, {})", id, p_out, buf_size);
 
-    Ok(0)
+    Ok(-9) // M_E_INVALID
 }
 
 pub async fn set_system_property(_context: &mut dyn WIPICContext, id: String, value: String) -> Result<()> {
