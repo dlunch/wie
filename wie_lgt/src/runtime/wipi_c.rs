@@ -12,7 +12,7 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmSupport;
 use wie_util::{read_generic, Result, WieError};
 use wie_wipi_c::{
-    api::{database, graphics, kernel, media, misc},
+    api::{database, graphics, kernel, media, misc, net},
     MethodImpl, WIPICContext,
 };
 
@@ -55,6 +55,9 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x190 => database::open_database.into_body(),
         0x192 => database::write_record_single.into_body(),
         0x193 => database::close_database.into_body(),
+        0x258 => net::connect.into_body(),
+        0x259 => net::close.into_body(),
+        0x25e => net::socket_close.into_body(),
         0x4b0 => media::clip_create.into_body(),
         0x4b3 => media::clip_get_type.into_body(),
         0x4c5 => media::clip_set_position.into_body(),
