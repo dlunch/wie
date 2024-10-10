@@ -8,7 +8,7 @@ use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result, WieError};
+use wie_util::{read_generic, write_generic, write_null_terminated_string, ByteRead, ByteWrite, Result, WieError};
 
 use super::wipi_c::get_wipi_c_method;
 
@@ -93,6 +93,7 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
     Ok(match (import_table, function_index) {
         (0x01, 0x3f6) => core.register_function(unk2, &())?,
         (0x01, 0x3fb) => core.register_function(atoi, &())?,
+        (0x01, 0x405) => core.register_function(strcpy, &())?,
         (0x01, 0x409) => core.register_function(strcmp, &())?,
         (0x01, 0x411) => core.register_function(strlen, &())?,
         (0x01, 0x414) => core.register_function(memcpy, &())?,
@@ -148,6 +149,14 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
 
 async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
     tracing::warn!("clet_unk0({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    Ok(())
+}
+
+async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: String) -> Result<()> {
+    tracing::debug!("strcpy({:#x}, {})", dst, src);
+
+    write_null_terminated_string(core, dst, &src)?;
 
     Ok(())
 }
