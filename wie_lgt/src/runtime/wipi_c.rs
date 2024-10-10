@@ -23,9 +23,9 @@ use crate::runtime::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrappe
 pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, function_index: u32) -> Result<u32> {
     let method = match function_index {
         0x03 => return core.register_function(clet_register, jvm),
-        0x32 => unk1.into_body(),
-        0x33 => unk2.into_body(),
-        0x34 => unk3.into_body(),
+        0x32 => graphics::get_framebuffer_pointer.into_body(),
+        0x33 => graphics::get_framebuffer_width.into_body(),
+        0x34 => graphics::get_framebuffer_height.into_body(),
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
         0x75 => kernel::alloc.into_body(),
@@ -128,24 +128,6 @@ async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
     tracing::warn!("unk0({:#x}, {:#x})", a0, a1);
 
     // maps to OEMC_mdaClipGetInfo on ktf but seems wrong
-
-    Ok(())
-}
-
-async fn unk1(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("unk1({:#x}, {:#x})", a0, a1);
-
-    Ok(())
-}
-
-async fn unk2(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("unk2({:#x}, {:#x})", a0, a1);
-
-    Ok(())
-}
-
-async fn unk3(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("unk3({:#x}, {:#x})", a0, a1);
 
     Ok(())
 }
