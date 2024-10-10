@@ -107,8 +107,12 @@ pub async fn clip_get_info(
     Ok(0)
 }
 
-pub async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
+pub async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_mdaClipPutData({:#x}, {:#x}, {:#x})", ptr_clip, buf, buf_size);
+
+    if ptr_clip == 0 {
+        return Ok(-1);
+    }
 
     let mut data = vec![0; buf_size as _];
     context.read_bytes(buf, &mut data)?;
@@ -125,7 +129,7 @@ pub async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, 
     clip.handle = handle;
     write_generic(context, ptr_clip, clip)?;
 
-    Ok(buf_size)
+    Ok(buf_size as _)
 }
 
 pub async fn clip_get_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
