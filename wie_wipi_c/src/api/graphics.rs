@@ -372,3 +372,28 @@ pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, w
 
     Ok(())
 }
+
+// it's not documented api, but lgt apps gets pointer via api call
+pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<WIPICWord> {
+    tracing::debug!("MC_GRP_GET_FRAME_BUFFER_POINTER({:#x})", framebuffer.0);
+
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+
+    Ok(framebuffer.buf.0)
+}
+
+pub async fn get_framebuffer_width(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<i32> {
+    tracing::debug!("MC_GRP_GET_FRAME_BUFFER_WIDTH({:#x})", framebuffer.0);
+
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+
+    Ok(framebuffer.width as _)
+}
+
+pub async fn get_framebuffer_height(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<i32> {
+    tracing::debug!("MC_GRP_GET_FRAME_BUFFER_HEIGHT({:#x})", framebuffer.0);
+
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+
+    Ok(framebuffer.height as _)
+}
