@@ -1,5 +1,4 @@
 use alloc::{string::String, vec};
-use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -76,12 +75,12 @@ struct MdaClip {
     handle: u32,
 }
 
-pub async fn clip_create(context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> Result<WIPICWord> {
+pub async fn clip_create(_context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_mdaClipCreate({}, {:#x}, {:#x})", r#type, buf_size, callback);
 
-    let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
+    //let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
 
-    Ok(clip)
+    Ok(0) // TODO
 }
 
 pub async fn clip_get_type(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
