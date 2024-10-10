@@ -28,6 +28,7 @@ impl Card {
                 JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
                 JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
+                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
                 JavaMethodProto::new_abstract("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Default::default()),
                 // wie private
                 JavaMethodProto::new("setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", Self::set_canvas, Default::default()),
@@ -148,6 +149,12 @@ impl Card {
         tracing::debug!("org.kwis.msp.lcdui.Card::showNotify({:?})", &this);
 
         Ok(())
+    }
+
+    async fn key_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, r#type: i32, key: i32) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.lcdui.Card::keyNotify({:?}, {}, {})", &this, r#type, key);
+
+        Ok(false)
     }
 
     async fn set_canvas(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, canvas: ClassInstanceRef<Canvas>) -> JvmResult<()> {
