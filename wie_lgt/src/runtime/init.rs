@@ -94,6 +94,7 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
         (0x01, 0x3f6) => core.register_function(unk2, &())?,
         (0x01, 0x3fb) => core.register_function(atoi, &())?,
         (0x01, 0x409) => core.register_function(strcmp, &())?,
+        (0x01, 0x411) => core.register_function(strlen, &())?,
         (0x01, 0x414) => core.register_function(memcpy, &())?,
         (0x01, 0x418) => core.register_function(memset, &())?,
         (0x01, 0x424) => core.register_function(unk3, &())?,
@@ -155,6 +156,12 @@ async fn strcmp(_core: &mut ArmCore, _: &mut (), str1: String, str2: String) -> 
     tracing::debug!("strcmp({}, {})", str1, str2);
 
     Ok(str1.cmp(&str2) as u32)
+}
+
+async fn strlen(_core: &mut ArmCore, _: &mut (), str: String) -> Result<u32> {
+    tracing::debug!("strlen({})", str);
+
+    Ok(str.len() as u32)
 }
 
 async fn atoi(_core: &mut ArmCore, _: &mut (), str: String) -> Result<u32> {
