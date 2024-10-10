@@ -75,7 +75,7 @@ struct CletFunctions {
     resume_clet: u32,
     destroy_clet: u32,
     paint_clet: u32,
-    handle_input: u32,
+    handle_clet_event: u32,
 }
 
 async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
@@ -105,7 +105,7 @@ async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a
     jvm.put_static_field("net/wie/CletWrapper", "paintClet", "I", functions.paint_clet as i32)
         .await
         .unwrap();
-    jvm.put_static_field("net/wie/CletWrapper", "handleInput", "I", functions.handle_input as i32)
+    jvm.put_static_field("net/wie/CletWrapper", "handleCletEvent", "I", functions.handle_clet_event as i32)
         .await
         .unwrap();
 

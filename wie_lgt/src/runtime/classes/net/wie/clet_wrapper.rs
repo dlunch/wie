@@ -28,7 +28,7 @@ impl CletWrapper {
                 JavaFieldProto::new("resumeClet", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("destroyClet", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("paintClet", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("handleInput", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::STATIC),
             ],
         }
     }
@@ -51,12 +51,12 @@ impl CletWrapper {
 
         let start_clet: i32 = jvm.get_static_field("net/wie/CletWrapper", "startClet", "I").await?;
         let paint_clet: i32 = jvm.get_static_field("net/wie/CletWrapper", "paintClet", "I").await?;
-        let handle_input: i32 = jvm.get_static_field("net/wie/CletWrapper", "handleInput", "I").await?;
+        let handle_clet_event: i32 = jvm.get_static_field("net/wie/CletWrapper", "handleCletEvent", "I").await?;
 
         let display: ClassInstanceRef<Display> = jvm
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
             .await?;
-        let clet_wrapper_card = jvm.new_class("net/wie/CletWrapperCard", "(II)V", (paint_clet, handle_input)).await?;
+        let clet_wrapper_card = jvm.new_class("net/wie/CletWrapperCard", "(II)V", (paint_clet, handle_clet_event)).await?;
         let _: () = jvm
             .invoke_virtual(&display, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (clet_wrapper_card,))
             .await?;
