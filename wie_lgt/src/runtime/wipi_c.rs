@@ -12,7 +12,7 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmSupport;
 use wie_util::{read_generic, Result, WieError};
 use wie_wipi_c::{
-    api::{database, graphics, kernel, misc},
+    api::{database, graphics, kernel, media, misc},
     MethodImpl, WIPICContext,
 };
 
@@ -55,7 +55,11 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x190 => database::open_database.into_body(),
         0x192 => database::write_record_single.into_body(),
         0x193 => database::close_database.into_body(),
-        0x4b9 => unk0.into_body(),
+        0x4b0 => media::clip_create.into_body(),
+        0x4b3 => media::clip_get_type.into_body(),
+        0x4c5 => media::clip_set_position.into_body(),
+        0x4b9 => media::clip_get_info.into_body(),
+        0x4ba => media::play.into_body(),
         0x578 => misc::back_light.into_body(),
         _ => return Err(WieError::FatalError(format!("Unknown lgt wipi import: {:#x}", function_index))),
     };
@@ -120,14 +124,6 @@ async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
     }
-
-    Ok(())
-}
-
-async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("unk0({:#x}, {:#x})", a0, a1);
-
-    // maps to OEMC_mdaClipGetInfo on ktf but seems wrong
 
     Ok(())
 }
