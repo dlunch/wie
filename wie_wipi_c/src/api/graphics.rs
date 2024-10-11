@@ -373,6 +373,21 @@ pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, w
     Ok(())
 }
 
+pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICMemoryId, property: i32) -> Result<i32> {
+    tracing::debug!("MC_grpGetImageProperty({:#x}, {})", image.0, property);
+
+    let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
+
+    Ok(match property {
+        4 => image.img.width as _,
+        5 => image.img.height as _,
+        _ => {
+            tracing::warn!("unknown property {}", property);
+            0
+        }
+    })
+}
+
 // it's not documented api, but lgt apps gets pointer via api call
 pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<WIPICWord> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_POINTER({:#x})", framebuffer.0);
