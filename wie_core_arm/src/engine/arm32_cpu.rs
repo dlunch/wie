@@ -1,8 +1,7 @@
-use alloc::{boxed::Box, sync::Arc};
-use core::{array, ops::Range};
+use alloc::boxed::Box;
+use core::{array, cell::RefCell, ops::Range};
 
 use arm32_cpu::{reg, Cpu, Memory, Mode};
-use spin::Mutex;
 
 use wie_util::{Result, WieError};
 
@@ -10,17 +9,14 @@ use crate::engine::{ArmEngine, ArmRegister, MemoryPermission};
 
 pub struct Arm32CpuEngine {
     cpu: Cpu,
-    mem: Armv4tEmuMemory,
-    memory_error: Arc<Mutex<Option<u32>>>,
+    mem: EmulatedMemory,
 }
 
 impl Arm32CpuEngine {
     pub fn new() -> Self {
-        let memory_error = Arc::new(Mutex::new(None));
         Self {
             cpu: Cpu::new(),
-            mem: Armv4tEmuMemory::new(memory_error.clone()),
-            memory_error,
+            mem: EmulatedMemory::new(),
         }
     }
 }
@@ -37,10 +33,12 @@ impl ArmEngine for Arm32CpuEngine {
                 return Ok(pc);
             }
 
-            self.cpu.step(&mut self.mem);
+            let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
+
+            self.cpu.step(&mut arm32cpu_memory);
             count -= 1;
 
-            if let Some(x) = *self.memory_error.lock() {
+            if let Some(x) = arm32cpu_memory.memory_error() {
                 return Err(WieError::InvalidMemoryAccess(x));
             }
         }
@@ -109,17 +107,19 @@ const TOTAL_MEMORY: usize = 0xffffffff;
 const PAGE_SIZE: usize = 0x10000;
 const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
-struct Armv4tEmuMemory {
-    pages: [Option<Box<Mutex<[u8; PAGE_SIZE]>>>; TOTAL_MEMORY / PAGE_SIZE],
-    memory_error: Arc<Mutex<Option<u32>>>,
+struct EmulatedMemory {
+    pages: [Option<Box<[u8; PAGE_SIZE]>>; TOTAL_MEMORY / PAGE_SIZE],
 }
 
-impl Armv4tEmuMemory {
-    fn new(memory_error: Arc<Mutex<Option<u32>>>) -> Self {
+impl EmulatedMemory {
+    fn new() -> Self {
         Self {
             pages: array::from_fn(|_| None),
-            memory_error,
         }
+    }
+
+    fn as_arm32cpu_memory(&mut self) -> Arm32CpuMemory {
+        Arm32CpuMemory::new(self)
     }
 
     fn map(&mut self, address: u32, size: usize) {
@@ -129,7 +129,7 @@ impl Armv4tEmuMemory {
         for page in (page_start..page_end).step_by(PAGE_SIZE) {
             let page_data = &mut self.pages[page as usize / PAGE_SIZE];
             if page_data.is_none() {
-                *page_data = Some(Box::new(Mutex::new([0; PAGE_SIZE])));
+                *page_data = Some(Box::new([0; PAGE_SIZE]));
             }
         }
     }
@@ -144,8 +144,7 @@ impl Armv4tEmuMemory {
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(remaining_size);
 
-            result[size - remaining_size..size - remaining_size + available_bytes]
-                .copy_from_slice(&page_data.lock()[offset..offset + available_bytes]);
+            result[size - remaining_size..size - remaining_size + available_bytes].copy_from_slice(&page_data[offset..offset + available_bytes]);
             remaining_size -= available_bytes;
             current_address += available_bytes as u32;
         }
@@ -163,21 +162,9 @@ impl Armv4tEmuMemory {
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(data.len() - data_index);
 
-            page_data.lock()[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
+            page_data[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
             data_index += available_bytes;
             current_address += available_bytes as u32;
-        }
-    }
-
-    fn get_page(&mut self, addr: u32) -> Option<&Mutex<[u8; PAGE_SIZE]>> {
-        let page_address = addr & !PAGE_MASK;
-        let page_data = self.pages[page_address as usize / PAGE_SIZE].as_mut();
-
-        if let Some(x) = page_data {
-            Some(x)
-        } else {
-            *self.memory_error.lock() = Some(addr);
-            None
         }
     }
 
@@ -199,7 +186,37 @@ impl Armv4tEmuMemory {
     }
 }
 
-impl Memory for Armv4tEmuMemory {
+struct Arm32CpuMemory<'a> {
+    emulated_memory: &'a mut EmulatedMemory,
+    memory_error: RefCell<Option<u32>>,
+}
+
+impl<'a> Arm32CpuMemory<'a> {
+    fn new(emulated_memory: &'a mut EmulatedMemory) -> Self {
+        Self {
+            emulated_memory,
+            memory_error: RefCell::new(None),
+        }
+    }
+
+    fn memory_error(&self) -> Option<u32> {
+        *self.memory_error.borrow()
+    }
+
+    fn get_page(&mut self, addr: u32) -> Option<&mut [u8; PAGE_SIZE]> {
+        let page_address = addr & !PAGE_MASK;
+        let page_data = self.emulated_memory.pages[page_address as usize / PAGE_SIZE].as_mut();
+
+        if let Some(x) = page_data {
+            Some(x)
+        } else {
+            *self.memory_error.borrow_mut() = Some(addr);
+            None
+        }
+    }
+}
+
+impl Memory for Arm32CpuMemory<'_> {
     fn r8(&mut self, addr: u32) -> u8 {
         let offset = addr & PAGE_MASK;
 
@@ -208,7 +225,7 @@ impl Memory for Armv4tEmuMemory {
             return 0;
         }
 
-        let data = page.unwrap().lock();
+        let data = page.unwrap();
 
         data[offset as usize]
     }
@@ -221,7 +238,7 @@ impl Memory for Armv4tEmuMemory {
             return 0;
         }
 
-        let data = page.unwrap().lock();
+        let data = page.unwrap();
 
         (data[offset as usize] as u16) | ((data[offset as usize + 1] as u16) << 8)
     }
@@ -234,7 +251,7 @@ impl Memory for Armv4tEmuMemory {
             return 0;
         }
 
-        let data = page.unwrap().lock();
+        let data = page.unwrap();
         (data[offset as usize] as u32)
             | ((data[offset as usize + 1] as u32) << 8)
             | ((data[offset as usize + 2] as u32) << 16)
@@ -249,7 +266,7 @@ impl Memory for Armv4tEmuMemory {
             return;
         }
 
-        let mut data = page.unwrap().lock();
+        let data = page.unwrap();
 
         data[offset as usize] = val;
     }
@@ -262,7 +279,7 @@ impl Memory for Armv4tEmuMemory {
             return;
         }
 
-        let mut data = page.unwrap().lock();
+        let data = page.unwrap();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
@@ -276,7 +293,7 @@ impl Memory for Armv4tEmuMemory {
             return;
         }
 
-        let mut data = page.unwrap().lock();
+        let data = page.unwrap();
 
         data[offset as usize] = val as u8;
         data[offset as usize + 1] = (val >> 8) as u8;
@@ -287,15 +304,13 @@ impl Memory for Armv4tEmuMemory {
 
 #[cfg(test)]
 mod tests {
-    use alloc::sync::Arc;
-
     use arm32_cpu::Memory;
 
-    use super::Armv4tEmuMemory;
+    use super::EmulatedMemory;
 
     #[test]
     fn test_memory_basic() {
-        let mut memory = Armv4tEmuMemory::new(Arc::new(Default::default()));
+        let mut memory = EmulatedMemory::new();
 
         memory.map(0x10000, 0x1000);
         memory.map(0x11000, 0x1000);
@@ -312,32 +327,34 @@ mod tests {
         memory.read_range(0x10900, 0x1000, &mut buf);
         assert_eq!(buf, [100; 0x1000]);
 
-        let r8 = memory.r8(0x10000);
+        let mut arm32cpu_memory = memory.as_arm32cpu_memory();
+
+        let r8 = arm32cpu_memory.r8(0x10000);
         assert_eq!(r8, 123);
 
-        let r16 = memory.r16(0x10000);
+        let r16 = arm32cpu_memory.r16(0x10000);
         assert_eq!(r16, 123 | (123 << 8));
 
-        let r32 = memory.r32(0x10000);
+        let r32 = arm32cpu_memory.r32(0x10000);
         assert_eq!(r32, 123 | (123 << 8) | (123 << 16) | (123 << 24));
 
-        memory.w8(0x10000, 12);
-        let r8 = memory.r8(0x10000);
+        arm32cpu_memory.w8(0x10000, 12);
+        let r8 = arm32cpu_memory.r8(0x10000);
         assert_eq!(r8, 12);
 
-        memory.w16(0x10000, 0x1234);
-        let r16 = memory.r16(0x10000);
+        arm32cpu_memory.w16(0x10000, 0x1234);
+        let r16 = arm32cpu_memory.r16(0x10000);
         assert_eq!(r16, 0x1234);
 
-        memory.w32(0x10000, 0x12345678);
-        let r32 = memory.r32(0x10000);
+        arm32cpu_memory.w32(0x10000, 0x12345678);
+        let r32 = arm32cpu_memory.r32(0x10000);
         assert_eq!(r32, 0x12345678);
     }
 
     #[test]
     #[should_panic]
     fn test_memory_unmapped_read() {
-        let mut memory = Armv4tEmuMemory::new(Arc::new(Default::default()));
+        let mut memory = EmulatedMemory::new();
 
         memory.map(0x10000, 0x10000);
 
@@ -348,7 +365,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_memory_unmapped_write() {
-        let mut memory = Armv4tEmuMemory::new(Arc::new(Default::default()));
+        let mut memory = EmulatedMemory::new();
 
         memory.map(0x10000, 0x10000);
 
