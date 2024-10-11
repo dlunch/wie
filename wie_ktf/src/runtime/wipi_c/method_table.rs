@@ -86,7 +86,7 @@ where
 }
 pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
     vec![
-        gen_stub(0, "MC_grpGetImageProperty"),
+        graphics::get_image_property.into_body(),
         gen_stub(1, "MC_grpGetImageFrameBuffer"),
         graphics::get_screen_framebuffer.into_body(),
         gen_stub(3, "MC_grpDestroyOffScreenFrameBuffer"),
