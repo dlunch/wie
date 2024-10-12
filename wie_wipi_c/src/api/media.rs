@@ -75,12 +75,20 @@ struct MdaClip {
     handle: u32,
 }
 
-pub async fn clip_create(_context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> Result<WIPICWord> {
+pub async fn clip_create(context: &mut dyn WIPICContext, r#type: String, buf_size: WIPICWord, callback: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_mdaClipCreate({}, {:#x}, {:#x})", r#type, buf_size, callback);
 
-    //let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
+    let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
 
-    Ok(0) // TODO
+    Ok(clip)
+}
+
+pub async fn clip_free(context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
+    tracing::debug!("MC_mdaClipFree({:#x})", clip);
+
+    context.free_raw(clip, size_of::<MdaClip>() as u32)?;
+
+    Ok(0)
 }
 
 pub async fn clip_get_type(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
@@ -140,6 +148,18 @@ pub async fn clip_get_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf
 
 pub async fn clip_set_position(_context: &mut dyn WIPICContext, clip: WIPICWord, ms: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaClipSetPosition({:#x}, {:#x})", clip, ms);
+
+    Ok(0)
+}
+
+pub async fn clip_get_volume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaClipGetVolume({:#x})", clip);
+
+    Ok(0)
+}
+
+pub async fn clip_set_volume(_context: &mut dyn WIPICContext, clip: WIPICWord, volume: WIPICWord) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaClipSetVolume({:#x}, {:#x})", clip, volume);
 
     Ok(0)
 }
