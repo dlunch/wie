@@ -2142,7 +2142,7 @@ dependencies = [
 [[package]]
 name = "smaf"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#de0464a22bb62c154b69d9fc62d85f6b254bc051"
+source = "git+https://github.com/dlunch/smaf.git#597510468bb455a2dd704ba7e22892059af9ceeb"
 dependencies = [
  "anyhow",
  "nom",
@@ -2152,7 +2152,7 @@ dependencies = [
 [[package]]
 name = "smaf_player"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#de0464a22bb62c154b69d9fc62d85f6b254bc051"
+source = "git+https://github.com/dlunch/smaf.git#597510468bb455a2dd704ba7e22892059af9ceeb"
 dependencies = [
  "async-trait",
  "futures",
