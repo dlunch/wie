@@ -4,7 +4,6 @@ mod image;
 
 use core::mem::size_of;
 
-use alloc::string;
 use bytemuck::Zeroable;
 
 use wie_backend::canvas::{Clip, Color, PixelType, Rgb8Pixel};
