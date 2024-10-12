@@ -266,7 +266,7 @@ pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {
 pub fn get_media_method_table() -> Vec<WIPICMethodBody> {
     vec![
         media::clip_create.into_body(),
-        gen_stub(1, "MC_mdaClipFree"),
+        media::clip_free.into_body(),
         gen_stub(2, "MC_mdaSetWaterMark"),
         media::clip_get_type.into_body(),
         media::clip_put_data.into_body(),
@@ -277,8 +277,8 @@ pub fn get_media_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(9, "MC_mdaClipAvailableDataSize"),
         gen_stub(10, "MC_mdaClipClearData"),
         media::clip_set_position.into_body(),
-        gen_stub(12, "MC_mdaClipGetVolume"),
-        gen_stub(13, "MC_mdaClipSetVolume"),
+        media::clip_get_volume.into_body(),
+        media::clip_set_volume.into_body(),
         media::play.into_body(),
         media::pause.into_body(),
         media::resume.into_body(),
