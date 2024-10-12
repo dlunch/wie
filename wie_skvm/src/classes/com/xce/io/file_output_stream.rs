@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -23,30 +23,51 @@ impl FileOutputStream {
                 JavaMethodProto::new("write", "(I)V", Self::write, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("os", "Ljava/io/OutputStream;", Default::default())],
         }
     }
 
-    async fn init(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::warn!("stub com.xce.io.FileOutputStream::<init>({:?})", name);
+    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("com.xce.io.FileOutputStream::<init>({:?}, {:?})", this, name);
+
+        let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
+        let os = jvm.new_class("java/io/FileOutputStream", "(Ljava/io/File;)V", (file,)).await?;
+
+        jvm.put_field(&mut this, "os", "Ljava/io/OutputStream;", os).await?;
 
         Ok(())
     }
 
-    async fn init_with_file(_jvm: &Jvm, _context: &mut WieJvmContext, file: ClassInstanceRef<XFile>) -> JvmResult<()> {
-        tracing::warn!("stub com.xce.io.FileOutputStream::<init>({:?})", file);
+    async fn init_with_file(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        file: ClassInstanceRef<XFile>,
+    ) -> JvmResult<()> {
+        tracing::debug!("com.xce.io.FileOutputStream::<init>({:?})", file);
+
+        let file = XFile::file(jvm, file).await?;
+        let os = jvm.new_class("java/io/FileOutputStream", "(Ljava/io/File;)V", (file,)).await?;
+
+        jvm.put_field(&mut this, "os", "Ljava/io/OutputStream;", os).await?;
 
         Ok(())
     }
 
-    async fn write(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<()> {
-        tracing::warn!("stub com.xce.io.FileOutputStream::write({:?}, {:?})", this, byte);
+    async fn write(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<()> {
+        tracing::debug!("com.xce.io.FileOutputStream::write({:?}, {:?})", this, byte);
+
+        let os = jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await?;
+        let _: () = jvm.invoke_virtual(&os, "write", "(I)V", (byte,)).await?;
 
         Ok(())
     }
 
-    async fn close(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub com.xce.io.FileOutputStream::close({:?})", this);
+    async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("com.xce.io.FileOutputStream::close({:?})", this);
+
+        let os = jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await?;
+        let _: () = jvm.invoke_virtual(&os, "close", "()V", ()).await?;
 
         Ok(())
     }
