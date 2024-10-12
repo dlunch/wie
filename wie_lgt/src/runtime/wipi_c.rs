@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec};
+use alloc::{boxed::Box, format, string::ToString, vec};
 
 mod context;
 
@@ -10,7 +10,7 @@ use jvm_rust::ClassDefinitionImpl;
 use wie_backend::System;
 use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmSupport;
-use wie_util::{read_generic, Result, WieError};
+use wie_util::{read_generic, write_null_terminated_string, Result, WieError};
 use wie_wipi_c::{
     api::{database, graphics, kernel, media, misc, net},
     MethodImpl, WIPICContext,
@@ -158,10 +158,13 @@ async fn unk1(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u3
     Ok(0)
 }
 
-async fn unk2(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk2({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
+    tracing::warn!("stub unk2");
 
-    // kernel
+    // OEMC_knlGetProgramInfo? get app id
+    let result = context.alloc_raw(0x10)?;
+    let app_id = context.system().app_id().to_string();
+    write_null_terminated_string(context, result, &app_id)?;
 
-    Ok(0)
+    Ok(result)
 }
