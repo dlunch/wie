@@ -36,13 +36,16 @@ pub fn extract_zip(zip: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
     let mut archive = ZipArchive::new(Cursor::new(zip)).unwrap();
 
     (0..archive.len())
-        .map(|x| {
+        .filter_map(|x| {
             let mut file = archive.by_index(x).unwrap();
+            if !file.is_file() {
+                return None;
+            }
 
             let mut data = Vec::new();
             file.read_to_end(&mut data).unwrap();
 
-            Ok((file.name().to_string(), data))
+            Some(Ok((file.name().to_string(), data)))
         })
         .collect::<Result<_>>()
 }
