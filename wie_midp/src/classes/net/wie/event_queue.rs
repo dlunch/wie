@@ -60,6 +60,8 @@ pub enum MIDPKeyCode {
     KEY_NUM9 = 57,
     KEY_POUND = 35, // #
     KEY_STAR = 42,  // *
+
+    CLEAR = 99,
 }
 
 impl MIDPKeyCode {
@@ -86,6 +88,7 @@ impl MIDPKeyCode {
             KeyCode::NUM9 => Self::KEY_NUM9,
             KeyCode::HASH => Self::KEY_POUND,
             KeyCode::STAR => Self::KEY_STAR,
+            KeyCode::CLEAR => Self::CLEAR,
         }
     }
 }

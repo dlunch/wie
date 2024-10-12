@@ -21,6 +21,7 @@ pub enum KeyCode {
     NUM9,
     HASH,
     STAR,
+    CLEAR,
 }
 
 impl KeyCode {
@@ -44,6 +45,7 @@ impl KeyCode {
             "9" => KeyCode::NUM9,
             "#" => KeyCode::HASH,
             "*" => KeyCode::STAR,
+            "CLR" => KeyCode::CLEAR,
             _ => unimplemented!("Unknown key: {}", string),
         }
     }
