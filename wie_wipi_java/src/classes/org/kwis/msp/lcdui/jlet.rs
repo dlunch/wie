@@ -8,7 +8,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 
-use crate::classes::org::kwis::msp::lcdui::EventQueue;
+use crate::classes::org::kwis::msp::lcdui::{Display, EventQueue};
 
 // class org.kwis.msp.lcdui.Jlet
 pub struct Jlet;
@@ -116,5 +116,13 @@ impl Jlet {
             .await?;
 
         Ok(value)
+    }
+
+    pub async fn midlet(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MIDlet>> {
+        jvm.get_field(this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await
+    }
+
+    pub async fn display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Display>> {
+        jvm.get_field(this, "dis", "Lorg/kwis/msp/lcdui/Display;").await
     }
 }

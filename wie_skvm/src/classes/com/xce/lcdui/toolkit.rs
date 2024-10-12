@@ -53,7 +53,7 @@ impl Toolkit {
             )
             .await?;
 
-        let graphics: ClassInstanceRef<Graphics> = jvm.get_field(&display, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let graphics: ClassInstanceRef<Graphics> = Display::screen_graphics(jvm, &display).await?;
 
         jvm.put_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
             .await?;

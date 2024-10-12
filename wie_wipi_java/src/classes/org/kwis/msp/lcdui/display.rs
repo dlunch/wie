@@ -7,7 +7,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
+use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
 
 use crate::classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener};
 
@@ -75,7 +75,7 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::<init>({:?}, {:?}, {:?})", &this, &jlet, &display_proxy);
 
-        let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&jlet, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
+        let midlet = Jlet::midlet(jvm, &jlet).await?;
 
         let midp_display: ClassInstanceRef<MidpDisplay> = jvm
             .invoke_static(
@@ -107,7 +107,7 @@ impl Display {
             .invoke_static("org/kwis/msp/lcdui/Jlet", "getActiveJlet", "()Lorg/kwis/msp/lcdui/Jlet;", [])
             .await?;
 
-        let display = jvm.get_field(&jlet, "dis", "Lorg/kwis/msp/lcdui/Display;").await?;
+        let display = Jlet::display(jvm, &jlet).await?;
 
         Ok(display)
     }
@@ -208,5 +208,9 @@ impl Display {
         };
 
         Ok(action)
+    }
+
+    pub async fn midp_display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MidpDisplay>> {
+        jvm.get_field(this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await
     }
 }

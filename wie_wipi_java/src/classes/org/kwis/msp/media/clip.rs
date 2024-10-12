@@ -161,7 +161,7 @@ impl Clip {
         Ok(())
     }
 
-    pub async fn player(jvm: &Jvm, clip: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
-        jvm.get_field(clip, "player", "Ljavax/microedition/media/Player;").await
+    pub async fn player(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Player>> {
+        jvm.get_field(this, "player", "Ljavax/microedition/media/Player;").await
     }
 }
