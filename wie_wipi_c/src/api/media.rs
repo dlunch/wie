@@ -184,6 +184,18 @@ pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: W
     Ok(())
 }
 
+pub async fn clip_alloc_player(_context: &mut dyn WIPICContext, clip: WIPICWord, param: WIPICWord) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaClipAllocPlayer({:#x}, {:#x})", clip, param);
+
+    Ok(0)
+}
+
+pub async fn clip_free_player(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaClipFreePlayer({:#x})", clip);
+
+    Ok(0)
+}
+
 pub async fn pause(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaPause({:#x})", clip);
 
