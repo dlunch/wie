@@ -58,7 +58,7 @@ impl CletWrapperCard {
         tracing::debug!("net.wie.CletWrapperCard::keyNotify({:?}, {}, {})", &this, r#type, key);
 
         let handle_input: i32 = jvm.get_field(&this, "handleCletEvent", "I").await?;
-        let r#type = r#type + 500; // LGT specific?
+        let r#type = if r#type == 1 { 502 } else { 503 }; // TODO constants
         let _: () = context
             .core
             .run_function(handle_input as _, &[r#type as _, key as _, 0 as _])
