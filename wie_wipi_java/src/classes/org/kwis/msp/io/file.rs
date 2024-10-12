@@ -75,6 +75,11 @@ impl File {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
 
+        let name = JavaLangString::to_rust_string(jvm, &filename).await?;
+        if name.is_empty() {
+            return Err(jvm.exception("java/io/IOException", "Invalid filename").await);
+        }
+
         let mode = unsafe { core::mem::transmute::<i32, Mode>(mode) };
 
         let mode_string = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC { "w" } else { "rw" };

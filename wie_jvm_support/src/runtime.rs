@@ -209,6 +209,13 @@ where
     async fn metadata(&self, path: &str) -> IOResult<FileStat> {
         let filesystem = self.system.filesystem();
 
+        if path.is_empty() || path.ends_with("/") {
+            return Ok(FileStat {
+                size: 0,
+                r#type: FileType::Directory,
+            });
+        }
+
         let file = filesystem.read(path);
 
         file.map(|x| FileStat {
