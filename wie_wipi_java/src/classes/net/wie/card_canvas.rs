@@ -30,6 +30,8 @@ enum WIPIKeyCode {
     NUM9 = 57,
     HASH = 35, // #
     STAR = 42, // *
+
+    CLEAR = 99,
 }
 
 impl WIPIKeyCode {
@@ -52,6 +54,7 @@ impl WIPIKeyCode {
             MIDPKeyCode::KEY_NUM9 => Self::NUM9,
             MIDPKeyCode::KEY_POUND => Self::HASH,
             MIDPKeyCode::KEY_STAR => Self::STAR,
+            MIDPKeyCode::CLEAR => Self::CLEAR,
         }
     }
 }

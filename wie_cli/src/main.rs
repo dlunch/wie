@@ -213,6 +213,7 @@ fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
         PhysicalKey::Code(WinitKeyCode::ArrowDown) => Some(KeyCode::DOWN),
         PhysicalKey::Code(WinitKeyCode::ArrowLeft) => Some(KeyCode::LEFT),
         PhysicalKey::Code(WinitKeyCode::ArrowRight) => Some(KeyCode::RIGHT),
+        PhysicalKey::Code(WinitKeyCode::Backspace) => Some(KeyCode::CLEAR),
         _ => None,
     }
 }
