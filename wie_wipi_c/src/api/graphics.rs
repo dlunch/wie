@@ -4,6 +4,7 @@ mod image;
 
 use core::mem::size_of;
 
+use alloc::string;
 use bytemuck::Zeroable;
 
 use wie_backend::canvas::{Clip, Color, PixelType, Rgb8Pixel};
@@ -228,6 +229,18 @@ pub async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32,
     Ok(color)
 }
 
+pub async fn get_rgb_from_pixel(context: &mut dyn WIPICContext, pixel: i32, r: WIPICWord, g: WIPICWord, b: WIPICWord) -> Result<i32> {
+    tracing::debug!("MC_grpGetRGBFromPixel({}, {:#x}, {:#x}, {:#x})", pixel, r, g, b);
+
+    let color = Rgb8Pixel::to_color(pixel as _);
+
+    write_generic(context, r, color.r as i32)?;
+    write_generic(context, g, color.g as i32)?;
+    write_generic(context, b, color.b as i32)?;
+
+    Ok(pixel)
+}
+
 pub async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWord, out_ptr: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_grpGetDisplayInfo({:#x}, {:#x})", reserved, out_ptr);
 
@@ -361,6 +374,12 @@ pub async fn get_string_width(_: &mut dyn WIPICContext, font: i32, ptr_string: W
     tracing::warn!("stub MC_grpGetStringWidth({}, {:#x}, {})", font, ptr_string, length);
 
     Ok(10)
+}
+
+pub async fn draw_string(_: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i32, y: i32, string: WIPICWord, length: i32, pgc: WIPICWord) -> Result<()> {
+    tracing::warn!("stub MC_grpDrawString({:#x}, {}, {}, {:#x}, {}, {:#x})", dst.0, x, y, string, length, pgc);
+
+    Ok(())
 }
 
 pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
