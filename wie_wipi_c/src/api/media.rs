@@ -196,6 +196,18 @@ pub async fn clip_free_player(_context: &mut dyn WIPICContext, clip: WIPICWord) 
     Ok(0)
 }
 
+pub async fn vibrator(_context: &mut dyn WIPICContext, level: i32, timeout: i32) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaVibrator({}, {})", level, timeout);
+
+    Ok(0)
+}
+
+pub async fn set_mute_state(_context: &mut dyn WIPICContext, source: i32, b_mute: i32) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaSetMuteState({:#x}, {})", source, b_mute);
+
+    Ok(0)
+}
+
 pub async fn pause(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaPause({:#x})", clip);
 

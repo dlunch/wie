@@ -28,6 +28,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x34 => graphics::get_framebuffer_height.into_body(),
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
+        0x6a => unk1.into_body(),
         0x75 => kernel::alloc.into_body(),
         0x76 => kernel::calloc.into_body(),
         0x77 => kernel::free.into_body(),
@@ -40,6 +41,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x7f => kernel::set_system_property.into_body(),
         0x80 => kernel::get_resource_id.into_body(),
         0x81 => kernel::get_resource.into_body(),
+        0x97 => unk2.into_body(),
         0xc8 => graphics::get_image_property.into_body(),
         0xca => graphics::get_screen_framebuffer.into_body(),
         0xcd => graphics::init_context.into_body(),
@@ -64,8 +66,10 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x4b1 => media::clip_free.into_body(),
         0x4b3 => media::clip_put_data.into_body(),
         0x4b9 => media::clip_set_volume.into_body(),
+        0x4c1 => media::vibrator.into_body(),
         0x4c5 => media::clip_alloc_player.into_body(),
         0x4c6 => media::clip_free_player.into_body(),
+        0x4d1 => media::set_mute_state.into_body(),
         0x4ba => media::play.into_body(),
         0x4bd => media::stop.into_body(),
         0x578 => misc::back_light.into_body(),
@@ -140,6 +144,22 @@ async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u3
     tracing::warn!("stub unk0({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
 
     // graphics
+
+    Ok(0)
+}
+
+async fn unk1(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk1({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    // kernel
+
+    Ok(0)
+}
+
+async fn unk2(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk2({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    // kernel
 
     Ok(0)
 }
