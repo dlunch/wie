@@ -25,16 +25,18 @@ impl Player {
         }
     }
 
-    async fn play(jvm: &Jvm, context: &mut WieJvmContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
+    async fn play(jvm: &Jvm, _context: &mut WieJvmContext, clip: ClassInstanceRef<Clip>, repeat: bool) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.media.Player::play({:?}, {})", &clip, repeat);
 
-        let clip_data = Clip::data(jvm, clip).await?;
+        let player = Clip::player(jvm, &clip).await?;
 
-        let audio_handle = context.system().audio().load_smaf(&clip_data).unwrap();
+        if !player.is_null() {
+            let _: () = jvm.invoke_virtual(&player, "start", "()V", ()).await?;
 
-        context.system().audio().play(audio_handle).unwrap();
-
-        Ok(false)
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     async fn stop(_: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
