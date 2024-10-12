@@ -26,7 +26,7 @@ impl Image {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(II[BI)V", Self::init, Default::default()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new(
@@ -63,10 +63,30 @@ impl Image {
         }
     }
 
-    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Image::<init>({:?})", &this);
+    async fn init(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        width: i32,
+        height: i32,
+        img_data: ClassInstanceRef<Array<i8>>,
+        bpl: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Image::<init>({:?}, {}, {}, {:?}, {})",
+            &this,
+            width,
+            height,
+            &img_data,
+            bpl
+        );
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "w", "I", width).await?;
+        jvm.put_field(&mut this, "h", "I", height).await?;
+        jvm.put_field(&mut this, "imgData", "[B", img_data).await?;
+        jvm.put_field(&mut this, "bpl", "I", bpl).await?;
 
         Ok(())
     }
@@ -198,17 +218,17 @@ impl Image {
     }
 
     async fn create_image_instance(jvm: &Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JvmResult<ClassInstanceRef<Image>> {
-        let mut instance = jvm.new_class("javax/microedition/lcdui/Image", "()V", []).await?;
-
         let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
         jvm.store_byte_array(&mut data_array, 0, cast_vec(data.to_vec())).await?;
 
-        jvm.put_field(&mut instance, "w", "I", width as i32).await?;
-        jvm.put_field(&mut instance, "h", "I", height as i32).await?;
-        jvm.put_field(&mut instance, "imgData", "[B", data_array).await?;
-        jvm.put_field(&mut instance, "bpl", "I", (width * bytes_per_pixel) as i32).await?;
-
-        Ok(instance.into())
+        Ok(jvm
+            .new_class(
+                "javax/microedition/lcdui/Image",
+                "(II[BI)V",
+                (width as i32, height as i32, data_array, (width * bytes_per_pixel) as i32),
+            )
+            .await?
+            .into())
     }
 }
 

@@ -7,6 +7,8 @@ use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+use crate::classes::javax::microedition::lcdui::Display;
+
 // class javax.microedition.midlet.MIDlet
 pub struct MIDlet;
 
@@ -67,5 +69,9 @@ impl MIDlet {
 
         jvm.invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (system_key,))
             .await
+    }
+
+    pub async fn display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Display>> {
+        jvm.get_field(this, "display", "Ljavax/microedition/lcdui/Display;").await
     }
 }

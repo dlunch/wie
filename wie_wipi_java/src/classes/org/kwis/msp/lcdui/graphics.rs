@@ -6,7 +6,7 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::lcdui::{Display as MidpDisplay, Font as MidpFont, Graphics as MidpGraphics, Image as MidpImage};
+use wie_midp::classes::javax::microedition::lcdui::{Font as MidpFont, Graphics as MidpGraphics};
 
 use crate::classes::org::kwis::msp::lcdui::{Display, Font, Image};
 
@@ -61,7 +61,7 @@ impl Graphics {
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, display: ClassInstanceRef<Display>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::<init>({:?})", &this);
 
-        let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&display, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let midp_display = Display::midp_display(jvm, &display).await?;
         let midp_graphics = jvm
             .new_class(
                 "javax/microedition/lcdui/Graphics",
@@ -122,7 +122,7 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setFont({:?}, {:?})", &this, &font);
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        let midp_font: ClassInstanceRef<MidpFont> = jvm.get_field(&font, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
+        let midp_font = Font::midp_font(jvm, &font).await?;
 
         jvm.invoke_virtual(&midp_graphics, "setFont", "(Ljavax/microedition/lcdui/Font;)V", (midp_font,))
             .await
@@ -233,7 +233,7 @@ impl Graphics {
         }
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&image, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let midp_image = Image::midp_image(jvm, &image).await?;
 
         jvm.invoke_virtual(
             &midp_graphics,

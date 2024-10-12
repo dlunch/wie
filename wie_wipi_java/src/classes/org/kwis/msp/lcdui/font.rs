@@ -133,4 +133,8 @@ impl Font {
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
         jvm.invoke_virtual(&midp_font, "charWidth", "(C)I", (char,)).await
     }
+
+    pub async fn midp_font(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MidpFont>> {
+        jvm.get_field(this, "midpFont", "Ljavax/microedition/lcdui/Font;").await
+    }
 }

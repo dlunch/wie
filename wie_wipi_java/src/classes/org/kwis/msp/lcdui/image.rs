@@ -149,4 +149,8 @@ impl Image {
 
         jvm.invoke_virtual(&midp_image, "getHeight", "()I", ()).await
     }
+
+    pub async fn midp_image(jvm: &Jvm, this: &ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<MidpImage>> {
+        jvm.get_field(this, "midpImage", "Ljavax/microedition/lcdui/Image;").await
+    }
 }

@@ -140,7 +140,7 @@ impl Display {
     async fn get_display(jvm: &Jvm, _context: &mut WieJvmContext, midlet: ClassInstanceRef<MIDlet>) -> JvmResult<ClassInstanceRef<Self>> {
         tracing::debug!("javax.microedition.lcdui.Display::getDisplay({:?})", midlet);
 
-        let display = jvm.get_field(&midlet, "display", "Ljavax/microedition/lcdui/Display;").await?;
+        let display = MIDlet::display(jvm, &midlet).await?;
 
         Ok(display)
     }
@@ -200,5 +200,9 @@ impl Display {
         screen.paint(&*image);
 
         Ok(())
+    }
+
+    pub async fn screen_graphics(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
+        jvm.get_field(this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
     }
 }
