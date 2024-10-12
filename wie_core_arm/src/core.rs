@@ -242,9 +242,6 @@ impl ArmCore {
         }
         if result.len() > 1 {
             inner.engine.reg_write(ArmRegister::R1, result[1]);
-        } else {
-            // we don't have 64bit return for now, just clearing r1
-            inner.engine.reg_write(ArmRegister::R1, 0);
         }
         if result.len() > 2 {
             todo!() // TODO
