@@ -6,4 +6,5 @@ pub trait Platform: Send {
     fn database_repository(&self) -> &dyn DatabaseRepository;
     fn audio_sink(&self) -> Box<dyn AudioSink>;
     fn write_stdout(&self, buf: &[u8]);
+    fn write_stderr(&self, buf: &[u8]);
 }
