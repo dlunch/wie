@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_backend::Instant;
 use wie_util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, Result, WieError};
 
-use crate::{context::WIPICContext, method::MethodBody, WIPICMemoryId, WIPICWord};
+use crate::{context::WIPICContext, method::MethodBody, WIPICMemoryId, WIPICResult, WIPICWord};
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -27,10 +27,10 @@ struct ResourceHandle {
     name: [u8; 32], // TODO hardcoded max size
 }
 
-pub async fn current_time(context: &mut dyn WIPICContext) -> Result<WIPICWord> {
+pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
     tracing::debug!("MC_knlCurrentTime()");
 
-    Ok(context.system().platform().now().raw() as WIPICWord)
+    Ok(context.system().platform().now().raw())
 }
 
 pub async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
@@ -81,14 +81,14 @@ pub async fn set_timer(
     #[async_trait::async_trait]
     impl MethodBody<WieError> for TimerCallback {
         #[tracing::instrument(name = "timer", skip_all)]
-        async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICWord> {
+        async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICResult> {
             let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
 
             context.system().sleep(self.wakeup).await;
 
             context.call_function(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
 
-            Ok(0)
+            Ok(WIPICResult { results: Vec::new() })
         }
     }
 

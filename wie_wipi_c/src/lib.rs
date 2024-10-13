@@ -5,7 +5,7 @@ pub mod api;
 mod context;
 mod method;
 
-pub use self::context::WIPICContext;
+pub use self::context::{WIPICContext, WIPICResult};
 pub use self::method::MethodImpl;
 
 use alloc::boxed::Box;

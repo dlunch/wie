@@ -2,7 +2,7 @@ use core::mem;
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::{method::TypeConverter, WIPICContext, WIPICWord};
+use crate::{method::ParamConverter, WIPICContext, WIPICWord};
 
 /// _MC_GrpContext
 #[repr(C)]
@@ -46,8 +46,8 @@ pub enum WIPICGraphicsContextIdx {
     Invalid = 0xff,
 }
 
-impl TypeConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
-    fn to_rust(_context: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICGraphicsContextIdx {
+impl ParamConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
+    fn convert(_context: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICGraphicsContextIdx {
         if raw >= (Self::ClipIdx as WIPICWord) && raw <= (Self::OutlineIdx as WIPICWord) {
             // SAFETY: WIPICGraphicsContextIdx has CWord repr and is unit only.
             let x: Self = unsafe { mem::transmute(raw) };
@@ -55,9 +55,5 @@ impl TypeConverter<WIPICGraphicsContextIdx> for WIPICGraphicsContextIdx {
         } else {
             Self::Invalid
         }
-    }
-
-    fn from_rust(_context: &mut dyn WIPICContext, rust: WIPICGraphicsContextIdx) -> WIPICWord {
-        rust as WIPICWord
     }
 }

@@ -1,9 +1,12 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
 use wie_backend::System;
 use wie_util::{read_null_terminated_string, ByteRead, ByteWrite, Result};
 
-use crate::{method::TypeConverter, WIPICMemoryId, WIPICMethodBody, WIPICWord};
+use crate::{
+    method::{ParamConverter, ResultConverter},
+    WIPICMemoryId, WIPICMethodBody, WIPICWord,
+};
 
 #[async_trait::async_trait]
 pub trait WIPICContext: ByteRead + ByteWrite + Send {
@@ -20,51 +23,63 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send {
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>>;
 }
 
-impl TypeConverter<WIPICWord> for WIPICWord {
-    fn to_rust(_: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICWord {
+pub struct WIPICResult {
+    pub results: Vec<WIPICWord>,
+}
+
+impl ParamConverter<WIPICWord> for WIPICWord {
+    fn convert(_: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICWord {
         raw
     }
-
-    fn from_rust(_: &mut dyn WIPICContext, rust: WIPICWord) -> WIPICWord {
-        rust
-    }
 }
 
-impl TypeConverter<WIPICMemoryId> for WIPICMemoryId {
-    fn to_rust(_: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICMemoryId {
+impl ParamConverter<WIPICMemoryId> for WIPICMemoryId {
+    fn convert(_: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICMemoryId {
         WIPICMemoryId(raw)
     }
-
-    fn from_rust(_: &mut dyn WIPICContext, rust: WIPICMemoryId) -> WIPICWord {
-        rust.0
-    }
 }
 
-impl TypeConverter<i32> for i32 {
-    fn to_rust(_: &mut dyn WIPICContext, raw: WIPICWord) -> i32 {
+impl ParamConverter<i32> for i32 {
+    fn convert(_: &mut dyn WIPICContext, raw: WIPICWord) -> i32 {
         raw as _
     }
-
-    fn from_rust(_: &mut dyn WIPICContext, rust: i32) -> WIPICWord {
-        rust as _
-    }
 }
 
-impl TypeConverter<()> for () {
-    fn to_rust(_: &mut dyn WIPICContext, _: WIPICWord) {}
-
-    fn from_rust(_: &mut dyn WIPICContext, _: ()) -> WIPICWord {
-        0
-    }
-}
-
-impl TypeConverter<String> for String {
-    fn to_rust(context: &mut dyn WIPICContext, raw: WIPICWord) -> String {
+impl ParamConverter<String> for String {
+    fn convert(context: &mut dyn WIPICContext, raw: WIPICWord) -> String {
         read_null_terminated_string(context, raw).unwrap()
     }
+}
 
-    fn from_rust(_: &mut dyn WIPICContext, _: String) -> WIPICWord {
-        unimplemented!()
+impl ResultConverter<u64> for u64 {
+    fn convert(_: &mut dyn WIPICContext, result: u64) -> WIPICResult {
+        WIPICResult {
+            results: vec![(result << 32) as u32, result as u32],
+        }
+    }
+}
+
+impl ResultConverter<WIPICWord> for WIPICWord {
+    fn convert(_: &mut dyn WIPICContext, result: WIPICWord) -> WIPICResult {
+        WIPICResult { results: vec![result] }
+    }
+}
+
+impl ResultConverter<WIPICMemoryId> for WIPICMemoryId {
+    fn convert(_: &mut dyn WIPICContext, result: WIPICMemoryId) -> WIPICResult {
+        WIPICResult { results: vec![result.0] }
+    }
+}
+
+impl ResultConverter<i32> for i32 {
+    fn convert(_: &mut dyn WIPICContext, result: i32) -> WIPICResult {
+        WIPICResult { results: vec![result as _] }
+    }
+}
+
+impl ResultConverter<()> for () {
+    fn convert(_: &mut dyn WIPICContext, _: ()) -> WIPICResult {
+        WIPICResult { results: Vec::new() }
     }
 }
 

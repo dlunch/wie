@@ -6,9 +6,9 @@ use jvm::{
 };
 
 use wie_backend::{AsyncCallable, System};
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
 use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result};
-use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
+use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 #[derive(Clone)]
 pub struct KtfWIPICContext {
@@ -57,14 +57,28 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     fn register_function(&mut self, body: WIPICMethodBody) -> Result<WIPICWord> {
+        struct WIPICMethodResult {
+            result: WIPICResult,
+        }
+
+        impl ResultWriter<WIPICMethodResult> for WIPICMethodResult {
+            fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+                // we don't have 64bit return for now, just clearing r1
+                core.write_result(&self.result.results)?;
+                core.set_next_pc(next_pc)?;
+
+                Ok(())
+            }
+        }
+
         struct CMethodProxy {
             context: KtfWIPICContext,
             body: WIPICMethodBody,
         }
 
         #[async_trait::async_trait]
-        impl EmulatedFunction<(), u32, ()> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<u32> {
+        impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
+            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<WIPICMethodResult> {
                 let a0 = u32::get(core, 0);
                 let a1 = u32::get(core, 1);
                 let a2 = u32::get(core, 2);
@@ -75,9 +89,12 @@ impl WIPICContext for KtfWIPICContext {
                 let a7 = u32::get(core, 7);
                 let a8 = u32::get(core, 8); // TODO create arg proxy
 
-                self.body
+                let result = self
+                    .body
                     .call(&mut self.context.clone(), vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
-                    .await
+                    .await?;
+
+                Ok(WIPICMethodResult { result })
             }
         }
 
@@ -101,13 +118,13 @@ impl WIPICContext for KtfWIPICContext {
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<Result<WIPICWord>> for SpawnProxy {
-            async fn call(mut self) -> Result<WIPICWord> {
+        impl AsyncCallable<Result<()>> for SpawnProxy {
+            async fn call(mut self) -> Result<()> {
                 self.context.jvm.attach_thread().await.unwrap();
-                let result = self.callback.call(&mut self.context, Box::new([])).await;
+                self.callback.call(&mut self.context, Box::new([])).await?;
                 self.context.jvm.detach_thread().await.unwrap();
 
-                result
+                Ok(())
             }
         }
 
