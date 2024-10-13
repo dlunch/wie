@@ -110,7 +110,7 @@ impl Clip {
     async fn init_with_data_size(
         jvm: &Jvm,
         _: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         r#type: ClassInstanceRef<String>,
         size: i32,
     ) -> JvmResult<()> {
@@ -118,7 +118,7 @@ impl Clip {
 
         let data = jvm.instantiate_array("B", size as _).await?;
 
-        jvm.put_field(&mut this, "data", "[B", data).await?;
+        let _: () = jvm.invoke_virtual(&this, "setBuffer", "([BI)V", (data, size)).await?;
 
         Ok(())
     }
