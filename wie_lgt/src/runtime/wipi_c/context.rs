@@ -8,7 +8,7 @@ use jvm::{
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
 use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result};
-use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
+use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 // mostly same as ktf's one, can we merge those?
 #[derive(Clone)]
@@ -56,13 +56,13 @@ impl WIPICContext for LgtWIPICContext {
 
     fn register_function(&mut self, body: WIPICMethodBody) -> Result<WIPICWord> {
         struct WIPICMethodResult {
-            result: u32,
+            result: WIPICResult,
         }
 
         impl ResultWriter<WIPICMethodResult> for WIPICMethodResult {
             fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
                 // we don't have 64bit return for now, just clearing r1
-                core.write_result(&[self.result, 0])?;
+                core.write_result(&self.result.results)?;
                 core.set_next_pc(next_pc)?;
 
                 Ok(())
@@ -116,15 +116,13 @@ impl WIPICContext for LgtWIPICContext {
         }
 
         #[async_trait::async_trait]
-        impl AsyncCallable<Result<WIPICWord>> for SpawnProxy {
-            async fn call(mut self) -> Result<WIPICWord> {
+        impl AsyncCallable<Result<()>> for SpawnProxy {
+            async fn call(mut self) -> Result<()> {
                 self.context.jvm.attach_thread().await.unwrap();
-
-                let result = self.callback.call(&mut self.context, Box::new([])).await;
-
+                self.callback.call(&mut self.context, Box::new([])).await?;
                 self.context.jvm.detach_thread().await.unwrap();
 
-                result
+                Ok(())
             }
         }
 
