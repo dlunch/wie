@@ -31,7 +31,7 @@ enum WIPIKeyCode {
     HASH = 35, // #
     STAR = 42, // *
 
-    CLEAR = 99,
+    CLEAR = -16,
 }
 
 impl WIPIKeyCode {
