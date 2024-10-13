@@ -89,7 +89,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         graphics::get_image_property.into_body(),
         gen_stub(1, "MC_grpGetImageFrameBuffer"),
         graphics::get_screen_framebuffer.into_body(),
-        gen_stub(3, "MC_grpDestroyOffScreenFrameBuffer"),
+        graphics::destroy_offscreen_framebuffer.into_body(),
         graphics::create_offscreen_framebuffer.into_body(),
         graphics::init_context.into_body(),
         graphics::set_context.into_body(),
