@@ -204,7 +204,9 @@ async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
 async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32, a3: u32) -> Result<()> {
     tracing::warn!("java_unk11({}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
 
-    Ok(())
+    // invoke static? used to be called with org/kwis/msp/lcdui/Main
+
+    Err(WieError::Unimplemented("Java apps are not implemented yet".into()))
 }
 
 async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
