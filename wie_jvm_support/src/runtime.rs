@@ -125,7 +125,41 @@ where
     }
 
     fn stderr(&self) -> Result<Box<dyn File>, IOError> {
-        Err(IOError::Unsupported)
+        #[derive(Clone)]
+        struct StderrFile {
+            system: System,
+        }
+
+        #[async_trait::async_trait]
+        impl File for StderrFile {
+            async fn read(&mut self, _buf: &mut [u8]) -> IOResult<usize> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
+                self.system.platform().write_stderr(buf);
+
+                Ok(buf.len())
+            }
+
+            async fn seek(&mut self, _pos: FileSize) -> IOResult<()> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn tell(&self) -> IOResult<FileSize> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
+                Err(IOError::Unsupported)
+            }
+
+            async fn metadata(&self) -> IOResult<FileStat> {
+                Err(IOError::Unsupported)
+            }
+        }
+
+        Ok(Box::new(StderrFile { system: self.system.clone() }))
     }
 
     async fn open(&self, path: &str, write: bool, create: bool) -> Result<Box<dyn File>, IOError> {

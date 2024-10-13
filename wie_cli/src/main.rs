@@ -111,6 +111,12 @@ impl Platform for WieCliPlatform {
 
         tracing::info!("stdout: {}", str)
     }
+
+    fn write_stderr(&self, buf: &[u8]) {
+        let str = str::from_utf8(buf).unwrap();
+
+        tracing::info!("stderr: {}", str)
+    }
 }
 
 #[derive(Parser)]
