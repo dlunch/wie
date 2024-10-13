@@ -59,7 +59,6 @@ impl CletWrapperCard {
 
         let handle_input: i32 = jvm.get_field(&this, "handleCletEvent", "I").await?;
         let r#type = if r#type == 1 { 502 } else { 503 }; // TODO constants
-        let key = if key == 99 { -16 } else { key }; // TODO constant MH_KeyCode
         let _: () = context
             .core
             .run_function(handle_input as _, &[r#type as _, key as _, 0 as _])
