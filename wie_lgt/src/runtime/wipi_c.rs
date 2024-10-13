@@ -45,6 +45,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x97 => unk2.into_body(),
         0xc8 => graphics::get_image_property.into_body(),
         0xca => graphics::get_screen_framebuffer.into_body(),
+        0xcb => graphics::destroy_offscreen_framebuffer.into_body(),
         0xcc => graphics::create_offscreen_framebuffer.into_body(),
         0xcd => graphics::init_context.into_body(),
         0xce => graphics::set_context.into_body(),
