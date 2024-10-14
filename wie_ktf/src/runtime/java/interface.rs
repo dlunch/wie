@@ -264,11 +264,10 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     let element_type_name = if element_type > 0x100 {
         // HACK: we don't have element type class
         let class = KtfJvmSupport::class_from_raw(core, element_type);
-        class.name()?
+        class.name()?[1..].into()
     } else {
         (element_type as u8 as char).to_string()
     };
-
     let result = jvm.instantiate_array(&element_type_name, count as _).await;
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
