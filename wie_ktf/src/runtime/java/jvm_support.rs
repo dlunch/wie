@@ -50,7 +50,7 @@ struct KtfJvmContext {
     unk1: u32,
     unk2: u32,
     unk3: u32,
-    ptr_vtables: [u32; 64],
+    ptr_vtables: [u32; 128],
 }
 
 #[repr(C)]
@@ -71,7 +71,7 @@ impl KtfJvmSupport {
             unk1: 0,
             unk2: 0,
             unk3: 0,
-            ptr_vtables: [0; 64],
+            ptr_vtables: [0; 128],
         };
         let ptr_jvm_context = Allocator::alloc(core, size_of::<KtfJvmContext>() as u32)?;
         write_generic(core, ptr_jvm_context, jvm_context)?;
