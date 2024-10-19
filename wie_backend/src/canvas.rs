@@ -1,3 +1,5 @@
+mod lbmp;
+
 use core::mem::size_of;
 
 use ab_glyph::{Font, FontRef, ScaleFont};
@@ -6,6 +8,8 @@ use image::ImageReader;
 use num_traits::{Num, Zero};
 
 use wie_util::{Result, WieError};
+
+use self::lbmp::decode_lbmp;
 
 lazy_static::lazy_static! {
     static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
@@ -54,6 +58,33 @@ pub trait PixelType: Send {
     type DataType: Copy + Pod + Num + Send;
     fn from_color(color: Color) -> Self::DataType;
     fn to_color(raw: Self::DataType) -> Color;
+}
+
+pub struct Rgb332Pixel;
+
+impl PixelType for Rgb332Pixel {
+    type DataType = u8;
+
+    fn from_color(color: Color) -> Self::DataType {
+        let r = (color.r * 7 + 127) / 255;
+        let g = (color.g * 7 + 127) / 255;
+        let b = (color.b * 3 + 127) / 255;
+
+        (r << 5) | (g << 2) | b
+    }
+
+    fn to_color(raw: Self::DataType) -> Color {
+        let r = (raw >> 5) & 0x7;
+        let g = (raw >> 2) & 0x7;
+        let b = raw & 0x3;
+
+        Color {
+            a: 0xff,
+            r: r * 36,
+            g: g * 36,
+            b: b * 85,
+        }
+    }
 }
 
 pub struct Rgb565Pixel;
@@ -432,6 +463,10 @@ impl Clip {
 
 pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
     use std::io::Cursor;
+
+    if data[0] == b'L' && data[1] == b'B' && data[2] == b'M' && data[3] == b'P' {
+        return decode_lbmp(data);
+    }
 
     let image = ImageReader::new(Cursor::new(&data))
         .with_guessed_format()
