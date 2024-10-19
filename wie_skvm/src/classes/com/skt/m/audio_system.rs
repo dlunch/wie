@@ -26,6 +26,7 @@ impl AudioSystem {
                     MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new("getMaxVolume", "(Ljava/lang/String;)I", Self::get_max_volume, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("getVolume", "(Ljava/lang/String;)I", Self::get_volume, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("setVolume", "(Ljava/lang/String;I)V", Self::set_volume, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
@@ -40,6 +41,12 @@ impl AudioSystem {
 
     async fn get_max_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub com.skt.m.AudioSystem::getMaxVolume({:?})", format);
+
+        Ok(0)
+    }
+
+    async fn get_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
+        tracing::warn!("stub com.skt.m.AudioSystem::getVolume({:?})", format);
 
         Ok(0)
     }

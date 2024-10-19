@@ -21,6 +21,7 @@ impl Device {
                 JavaMethodProto::new("setBacklightEnabled", "(Z)V", Self::set_backlight_enabled, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("setKeyToneEnabled", "(Z)V", Self::set_key_tone_enabled, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("enableRestoreLCD", "(Z)V", Self::enable_restore_lcd, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("setKeyRepeatTime", "(II)V", Self::set_key_repeat_time, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
         }
@@ -52,6 +53,12 @@ impl Device {
 
     async fn enable_restore_lcd(_jvm: &Jvm, _context: &mut WieJvmContext, enabled: bool) -> JvmResult<()> {
         tracing::warn!("stub com.skt.m.Device::enableRestoreLCD({:?})", enabled);
+
+        Ok(())
+    }
+
+    async fn set_key_repeat_time(_jvm: &Jvm, _context: &mut WieJvmContext, delay: i32, interval: i32) -> JvmResult<()> {
+        tracing::warn!("stub com.skt.m.Device::setKeyRepeatTime({}, {})", delay, interval);
 
         Ok(())
     }
