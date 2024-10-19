@@ -11,7 +11,7 @@ use jvm::{
     Array, ClassInstanceRef, Jvm, Result as JvmResult,
 };
 
-use wie_backend::canvas::{decode_image, ArgbPixel, Canvas, Image as BackendImage, ImageBufferCanvas, Rgb565Pixel, VecImageBuffer};
+use wie_backend::canvas::{decode_image, ArgbPixel, Canvas, Image as BackendImage, ImageBufferCanvas, Rgb332Pixel, Rgb565Pixel, VecImageBuffer};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::Graphics;
@@ -199,6 +199,7 @@ impl Image {
         let bytes_per_pixel = bpl / width;
 
         Ok(match bytes_per_pixel {
+            1 => Box::new(VecImageBuffer::<Rgb332Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
             2 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
             4 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
             _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
