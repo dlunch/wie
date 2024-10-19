@@ -195,17 +195,16 @@ impl Display {
         Ok(())
     }
 
-    async fn get_game_action(_: &Jvm, _: &mut WieJvmContext, key: i32) -> JvmResult<i32> {
+    async fn get_game_action(jvm: &Jvm, _: &mut WieJvmContext, key: i32) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getGameAction({})", key);
 
-        let action = match key {
-            -1 => 1, // UP
-            -2 => 6, // DOWN
-            -3 => 2, // LEFT
-            -4 => 5, // RIGHT
-            -5 => 8, // FIRE,
-            _ => 0,
-        };
+        let display = jvm
+            .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
+            .await?;
+
+        let card_canvas = jvm.get_field(&display, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
+
+        let action: i32 = jvm.invoke_virtual(&card_canvas, "getGameAction", "(I)I", (key,)).await?;
 
         Ok(action)
     }

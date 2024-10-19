@@ -20,6 +20,9 @@ impl Canvas {
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
                 JavaMethodProto::new_abstract("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Default::default()),
+                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, Default::default()),
+                JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, Default::default()),
+                JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
             ],
             fields: vec![],
         }
@@ -70,5 +73,32 @@ impl Canvas {
         tracing::warn!("stub javax.microedition.lcdui.Canvas::serviceRepaints({:?})", &this);
 
         jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
+    }
+
+    async fn get_game_action(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({:?}, {})", &this, key);
+
+        let action = match key {
+            -1 => 1, // UP
+            -2 => 6, // DOWN
+            -3 => 2, // LEFT
+            -4 => 5, // RIGHT
+            -5 => 8, // FIRE,
+            _ => key,
+        };
+
+        Ok(action)
+    }
+
+    async fn key_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::keyPressed({:?}, {})", &this, key);
+
+        Ok(())
+    }
+
+    async fn key_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::keyReleased({:?}, {})", &this, key);
+
+        Ok(())
     }
 }
