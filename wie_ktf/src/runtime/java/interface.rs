@@ -278,8 +278,8 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     Ok(raw)
 }
 
-pub async fn java_check_cast(_: &mut ArmCore, _: &mut Jvm, ptr_class: u32, ptr_instance: u32) -> Result<u32> {
-    tracing::warn!("stub java_check_cast({:#x}, {:#x})", ptr_class, ptr_instance);
+pub async fn java_array_store_check_object_type(_: &mut ArmCore, _: &mut Jvm, vtable: u32, value: u32) -> Result<u32> {
+    tracing::warn!("stub java_array_store_check_object_type({:#x}, {:#x})", vtable, value);
 
     Ok(1)
 }

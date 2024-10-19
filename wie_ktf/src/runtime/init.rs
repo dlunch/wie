@@ -12,7 +12,7 @@ use wie_util::{read_generic, write_generic, Result, WieError};
 use crate::{
     emulator::IMAGE_BASE,
     runtime::{
-        java::interface::{get_wipi_jb_interface, java_array_new, java_check_cast, java_class_load, java_new, java_throw},
+        java::interface::{get_wipi_jb_interface, java_array_new, java_array_store_check_object_type, java_class_load, java_new, java_throw},
         wipi_c::interface::get_wipic_knl_interface,
     },
 };
@@ -30,7 +30,7 @@ struct InitParam4 {
     fn_java_throw: u32,
     unk1: u32,
     unk2: u32,
-    fn_java_check_cast: u32,
+    fn_java_array_store_check_object_type: u32,
     fn_java_new: u32,
     fn_java_array_new: u32,
     unk6: u32,
@@ -152,7 +152,7 @@ pub async fn load_native(
         fn_java_throw: core.register_function(java_throw, jvm)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_cast: core.register_function(java_check_cast, jvm)?,
+        fn_java_array_store_check_object_type: core.register_function(java_array_store_check_object_type, jvm)?,
         fn_java_new: core.register_function(java_new, jvm)?,
         fn_java_array_new: core.register_function(java_array_new, jvm)?,
         unk6: 0,
