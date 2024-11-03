@@ -75,7 +75,7 @@ impl Clip {
         let data = JavaIoInputStream::read_until_end(jvm, &resource_stream).await?;
 
         let mut data_array = jvm.instantiate_array("B", data.len()).await?;
-        jvm.store_byte_array(&mut data_array, 0, cast_vec(data)).await?;
+        jvm.store_array(&mut data_array, 0, cast_vec::<u8, i8>(data)).await?;
 
         let _: () = jvm
             .invoke_special(

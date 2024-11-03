@@ -222,7 +222,7 @@ impl KtfJvmSupport {
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, sync::Arc};
+    use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::sync::atomic::{AtomicBool, Ordering};
 
     use jvm::{runtime::JavaLangString, Jvm};
@@ -269,6 +269,12 @@ mod test {
                 .unwrap();
 
             assert_eq!(JavaLangString::to_rust_string(&jvm, &string3).await.unwrap(), "test1test2");
+
+            let mut array = jvm.instantiate_array("S", 10).await.unwrap();
+            jvm.store_array(&mut array, 0, (0..10i16).collect::<Vec<_>>()).await.unwrap();
+            let temp: Vec<i16> = jvm.load_array(&array, 5, 4).await.unwrap();
+
+            assert_eq!(temp, vec![5, 6, 7, 8]);
 
             done_clone.store(true, Ordering::Relaxed);
 

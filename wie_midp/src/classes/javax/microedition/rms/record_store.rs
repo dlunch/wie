@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned, boxed::Box, vec};
+use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
@@ -66,10 +66,9 @@ impl RecordStore {
 
         let mut database = Self::get_database(jvm, context, &this).await?;
 
-        let data = jvm.load_byte_array(&data, offset as _, length as _).await?;
-        let data_raw = cast_vec(data);
+        let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
 
-        let id = database.add(&data_raw);
+        let id = database.add(&cast_vec(data));
 
         Ok(id as _)
     }
@@ -92,7 +91,7 @@ impl RecordStore {
         let data = result.unwrap();
 
         let mut array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut array, 0, cast_vec(data)).await?;
+        jvm.store_array(&mut array, 0, cast_vec::<u8, i8>(data)).await?;
 
         Ok(array.into())
     }
@@ -122,7 +121,7 @@ impl RecordStore {
 
         let data = result.unwrap();
         let data_length = data.len();
-        jvm.store_byte_array(&mut buffer, offset as _, cast_vec(data)).await?;
+        jvm.store_array(&mut buffer, offset as _, cast_vec::<u8, i8>(data)).await?;
 
         Ok(data_length as _)
     }
@@ -145,7 +144,7 @@ impl RecordStore {
             length
         );
 
-        let data = jvm.load_byte_array(&data, offset as _, length as _).await?;
+        let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
 
         let mut database = Self::get_database(jvm, context, &this).await?;
         database.set(record_id as _, &cast_vec(data));

@@ -118,7 +118,7 @@ impl Image {
         let image_data_len = image_data.len() as i32;
 
         let mut image_array = jvm.instantiate_array("B", image_data_len as _).await?;
-        jvm.store_byte_array(&mut image_array, 0, cast_vec(image_data)).await?;
+        jvm.array_raw_buffer_mut(&mut image_array).await?.write(0, &image_data)?;
 
         jvm.invoke_static(
             "javax/microedition/lcdui/Image",
@@ -138,7 +138,9 @@ impl Image {
     ) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::debug!("javax.microedition.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
 
-        let image_data = jvm.load_byte_array(&data, offset as _, length as _).await?;
+        let mut image_data = vec![0; length as usize];
+        jvm.array_raw_buffer(&data).await?.read(offset as _, &mut image_data)?;
+
         let image = {
             let result = decode_image(&cast_vec(image_data));
             if let Ok(image) = result {
@@ -184,7 +186,8 @@ impl Image {
         let java_img_data = jvm.get_field(this, "imgData", "[B").await?;
         let img_data_len = jvm.array_length(&java_img_data).await?;
 
-        let img_data = jvm.load_byte_array(&java_img_data, 0, img_data_len).await?;
+        let mut img_data = vec![0; img_data_len]; // TODO we don't have to copy every time
+        jvm.array_raw_buffer(&java_img_data).await?.read(0, &mut img_data)?;
 
         Ok(cast_vec(img_data))
     }
@@ -220,7 +223,7 @@ impl Image {
 
     async fn create_image_instance(jvm: &Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JvmResult<ClassInstanceRef<Image>> {
         let mut data_array = jvm.instantiate_array("B", data.len() as _).await?;
-        jvm.store_byte_array(&mut data_array, 0, cast_vec(data.to_vec())).await?;
+        jvm.array_raw_buffer_mut(&mut data_array).await?.write(0, data)?;
 
         Ok(jvm
             .new_class(
@@ -269,8 +272,10 @@ impl<'a> ImageCanvas<'a> {
         let mut data = self.jvm.get_field(self.image, "imgData", "[B").await.unwrap();
 
         self.jvm
-            .store_byte_array(&mut data, 0, cast_vec(self.canvas.image().raw().to_vec()))
+            .array_raw_buffer_mut(&mut data)
             .await
+            .unwrap()
+            .write(0, self.canvas.image().raw())
             .unwrap();
         self.flushed = true
     }
