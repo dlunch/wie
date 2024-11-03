@@ -1,9 +1,7 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::fmt::{self, Debug, Formatter};
 
-use bytemuck::cast_vec;
-
-use jvm::{ArrayClassInstance, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
+use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
 use wie_util::{read_generic, write_generic, ByteRead, ByteWrite};
@@ -34,23 +32,18 @@ impl JavaArrayClassInstance {
         Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
-    pub fn load_array(&self, offset: usize, count: usize) -> Result<Vec<u8>> {
+    pub fn load_raw(&self, offset: usize, buf: &mut [u8]) -> Result<()> {
         let base_address = self.class_instance.field_address(4)?;
-        let element_size = self.element_size()?;
 
-        let size = count * element_size;
+        self.core.read_bytes(base_address + offset as u32, buf)?;
 
-        let mut result = vec![0; size as _];
-        self.core.read_bytes(base_address + (element_size * offset) as u32, &mut result)?;
-
-        Ok(result)
+        Ok(())
     }
 
-    pub fn store_array(&mut self, offset: usize, _count: usize, values_raw: Vec<u8>) -> Result<()> {
+    pub fn store_raw(&mut self, offset: usize, values_raw: Vec<u8>) -> Result<()> {
         let base_address = self.class_instance.field_address(4)?;
-        let element_size = self.element_size()?;
 
-        self.core.write_bytes(base_address + (element_size * offset) as u32, &values_raw)
+        self.core.write_bytes(base_address + offset as u32, &values_raw)
     }
 
     pub fn array_length(&self) -> Result<usize> {
@@ -97,7 +90,6 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         let element_size = self.element_size().unwrap();
 
         let values = values.to_vec();
-        let count = values.len();
 
         let raw_values = match element_size {
             1 => values.into_iter().map(|x| x.as_raw() as u8).collect::<Vec<_>>(),
@@ -110,13 +102,17 @@ impl ArrayClassInstance for JavaArrayClassInstance {
             _ => unreachable!(),
         };
 
-        self.store_array(offset as _, count, raw_values).unwrap();
+        let offset = offset * element_size;
+        self.store_raw(offset as _, raw_values).unwrap();
 
         Ok(())
     }
 
     fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
-        let values_raw = self.load_array(offset as _, count as _).unwrap();
+        let offset = offset * self.element_size().unwrap();
+
+        let mut values_raw = vec![0; count * self.element_size().unwrap()];
+        self.load_raw(offset as _, &mut values_raw).unwrap();
 
         let element_type = self.element_type().unwrap();
         let element_size = self.element_size().unwrap();
@@ -138,19 +134,12 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         })
     }
 
-    fn store_bytes(&mut self, offset: usize, values: Box<[i8]>) -> JvmResult<()> {
-        let values = values.to_vec();
-        let count = values.len();
-
-        self.store_array(offset as _, count, cast_vec(values)).unwrap();
-
-        Ok(())
+    fn raw_buffer(&self) -> JvmResult<Box<dyn ArrayRawBuffer>> {
+        Ok(Box::new(self.clone()))
     }
 
-    fn load_bytes(&self, offset: usize, count: usize) -> JvmResult<Vec<i8>> {
-        let values_raw = self.load_array(offset as _, count as _).unwrap();
-
-        Ok(cast_vec(values_raw))
+    fn raw_buffer_mut(&mut self) -> JvmResult<Box<dyn ArrayRawBufferMut>> {
+        Ok(Box::new(self.clone()))
     }
 
     fn length(&self) -> usize {
@@ -161,5 +150,23 @@ impl ArrayClassInstance for JavaArrayClassInstance {
 impl Debug for JavaArrayClassInstance {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:#x}", self.class_instance.ptr_raw)
+    }
+}
+
+impl ArrayRawBuffer for JavaArrayClassInstance {
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> JvmResult<()> {
+        let offset = offset * self.element_size().unwrap();
+        self.load_raw(offset, buffer).unwrap();
+
+        Ok(())
+    }
+}
+
+impl ArrayRawBufferMut for JavaArrayClassInstance {
+    fn write(&mut self, offset: usize, buffer: &[u8]) -> JvmResult<()> {
+        let offset = offset * self.element_size().unwrap();
+        self.store_raw(offset, buffer.to_vec()).unwrap();
+
+        Ok(())
     }
 }

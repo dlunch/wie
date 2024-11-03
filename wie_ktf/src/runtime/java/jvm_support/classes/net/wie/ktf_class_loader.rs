@@ -4,7 +4,10 @@ use bytemuck::cast_slice;
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
-use jvm::{runtime::JavaLangString, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{
+    runtime::{JavaIoInputStream, JavaLangString},
+    ClassInstanceRef, Jvm, Result as JvmResult,
+};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
@@ -72,12 +75,9 @@ impl KtfClassLoader {
                 (client_bin.clone(),),
             )
             .await?;
-        let length: i32 = jvm.invoke_virtual(&data_stream, "available", "()I", ()).await?;
-        let buf = jvm.instantiate_array("B", length as _).await?;
-        let _: i32 = jvm.invoke_virtual(&data_stream, "read", "([B)I", (buf.clone(),)).await?;
 
+        let data = JavaIoInputStream::read_until_end(jvm, &data_stream).await?;
         let filename = JavaLangString::to_rust_string(jvm, &client_bin).await?;
-        let data = jvm.load_byte_array(&buf, 0, length as _).await?;
 
         let mut core = context.core.clone();
         let mut system = context.system.clone();
