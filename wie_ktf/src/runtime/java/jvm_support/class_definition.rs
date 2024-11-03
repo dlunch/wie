@@ -299,7 +299,7 @@ impl ClassDefinition for JavaClassDefinition {
         self.field(name, descriptor, is_static).unwrap().map(|x| Box::new(x) as _)
     }
 
-    async fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
+    fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field).unwrap();
 
@@ -307,7 +307,7 @@ impl ClassDefinition for JavaClassDefinition {
         Ok(JavaValue::from_raw(value, &r#type, &self.core))
     }
 
-    async fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
+    fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = value.as_raw();
 

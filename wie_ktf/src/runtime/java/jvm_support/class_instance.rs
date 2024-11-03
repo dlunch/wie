@@ -144,7 +144,7 @@ impl ClassInstance for JavaClassInstance {
         self.ptr_raw as _
     }
 
-    async fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
+    fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
 
         let result = self.read_field(field).unwrap();
@@ -153,7 +153,7 @@ impl ClassInstance for JavaClassInstance {
         Ok(JavaValue::from_raw(result, &r#type, &self.core))
     }
 
-    async fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
+    fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
 
         self.write_field(field, value.as_raw()).unwrap();

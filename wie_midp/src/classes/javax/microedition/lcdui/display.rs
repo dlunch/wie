@@ -157,7 +157,7 @@ impl Display {
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
 
-        if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas").await? {
+        if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas") {
             let event_type = KeyboardEventType::from_raw(event_type);
 
             match event_type {
@@ -178,7 +178,7 @@ impl Display {
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
 
-        if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas").await? {
+        if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas") {
             let screen_graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
 
             let _: () = jvm

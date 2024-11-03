@@ -190,7 +190,7 @@ impl JavaMethod {
         for entry in exception_table {
             if entry.from_pc <= exception_handler.current_pc && exception_handler.current_pc < entry.to_pc {
                 let class = JavaClassDefinition::from_raw(entry.ptr_class, core);
-                if entry.ptr_class == 0 || jvm.is_instance(&*exception, &class.name()?).await.unwrap() {
+                if entry.ptr_class == 0 || jvm.is_instance(&*exception, &class.name()?) {
                     let restore_context: u32 = read_generic(core, exception_handler.ptr_functions + 4)?;
                     let contexts_base = current_java_exception_handler + 24;
 
