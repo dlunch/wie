@@ -107,7 +107,7 @@ impl SktEmulator {
         let main_class = jvm.resolve_class(&main_class_name).await.unwrap();
         let main_class_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
 
-        let result: JvmResult<()> = if jvm.is_inherited_from(&*main_class.definition, "javax/microedition/midlet/MIDlet").await {
+        let result: JvmResult<()> = if jvm.is_inherited_from(&*main_class.definition, "javax/microedition/midlet/MIDlet") {
             jvm.invoke_static("net/wie/Launcher", "start", "(Ljava/lang/String;)V", (main_class_java,))
                 .await
         } else {

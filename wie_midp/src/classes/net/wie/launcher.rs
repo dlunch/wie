@@ -58,7 +58,7 @@ struct EventLoopRunner;
 #[async_trait::async_trait]
 impl MethodBody<JavaError, WieJvmContext> for EventLoopRunner {
     async fn call(&self, jvm: &Jvm, _context: &mut WieJvmContext, _args: Box<[JavaValue]>) -> Result<JavaValue, JavaError> {
-        jvm.attach_thread().await?;
+        jvm.attach_thread()?;
 
         // event loop
         let event_queue = jvm
