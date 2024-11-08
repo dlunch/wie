@@ -33,7 +33,7 @@ impl JavaArrayClassInstance {
     }
 
     pub fn load_raw(&self, offset: usize, buf: &mut [u8]) -> Result<()> {
-        let base_address = self.class_instance.field_address(4)?;
+        let base_address = self.base_address()?;
 
         self.core.read_bytes(base_address + offset as u32, buf)?;
 
@@ -41,7 +41,7 @@ impl JavaArrayClassInstance {
     }
 
     pub fn store_raw(&mut self, offset: usize, values_raw: Vec<u8>) -> Result<()> {
-        let base_address = self.class_instance.field_address(4)?;
+        let base_address = self.base_address()?;
 
         self.core.write_bytes(base_address + offset as u32, &values_raw)
     }
@@ -63,6 +63,10 @@ impl JavaArrayClassInstance {
         let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class()?.ptr_raw, &self.core);
 
         Ok(JavaType::parse(&array_class.element_type_descriptor()?))
+    }
+
+    fn base_address(&self) -> Result<u32> {
+        self.class_instance.field_address(4)
     }
 }
 
@@ -109,13 +113,13 @@ impl ArrayClassInstance for JavaArrayClassInstance {
     }
 
     fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
-        let offset = offset * self.element_size().unwrap();
+        let element_size = self.element_size().unwrap();
+        let offset = offset * element_size;
 
-        let mut values_raw = vec![0; count * self.element_size().unwrap()];
+        let mut values_raw = vec![0; count * element_size];
         self.load_raw(offset as _, &mut values_raw).unwrap();
 
         let element_type = self.element_type().unwrap();
-        let element_size = self.element_size().unwrap();
 
         Ok(match element_size {
             1 => values_raw
@@ -135,11 +139,19 @@ impl ArrayClassInstance for JavaArrayClassInstance {
     }
 
     fn raw_buffer(&self) -> JvmResult<Box<dyn ArrayRawBuffer>> {
-        Ok(Box::new(self.clone()))
+        Ok(Box::new(ArrayRawBufferImpl {
+            core: self.core.clone(),
+            base_address: self.base_address().unwrap() as _,
+            element_size: self.element_size().unwrap() as _,
+        }))
     }
 
     fn raw_buffer_mut(&mut self) -> JvmResult<Box<dyn ArrayRawBufferMut>> {
-        Ok(Box::new(self.clone()))
+        Ok(Box::new(ArrayRawBufferImpl {
+            core: self.core.clone(),
+            base_address: self.base_address().unwrap() as _,
+            element_size: self.element_size().unwrap() as _,
+        }))
     }
 
     fn length(&self) -> usize {
@@ -153,19 +165,25 @@ impl Debug for JavaArrayClassInstance {
     }
 }
 
-impl ArrayRawBuffer for JavaArrayClassInstance {
+struct ArrayRawBufferImpl {
+    core: ArmCore,
+    base_address: u32,
+    element_size: u32,
+}
+
+impl ArrayRawBuffer for ArrayRawBufferImpl {
     fn read(&self, offset: usize, buffer: &mut [u8]) -> JvmResult<()> {
-        let offset = offset * self.element_size().unwrap();
-        self.load_raw(offset, buffer).unwrap();
+        let address = self.base_address + (offset as u32) * self.element_size;
+        self.core.read_bytes(address, buffer).unwrap();
 
         Ok(())
     }
 }
 
-impl ArrayRawBufferMut for JavaArrayClassInstance {
+impl ArrayRawBufferMut for ArrayRawBufferImpl {
     fn write(&mut self, offset: usize, buffer: &[u8]) -> JvmResult<()> {
-        let offset = offset * self.element_size().unwrap();
-        self.store_raw(offset, buffer.to_vec()).unwrap();
+        let address = self.base_address + (offset as u32) * self.element_size;
+        self.core.write_bytes(address, buffer).unwrap();
 
         Ok(())
     }

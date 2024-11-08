@@ -271,8 +271,6 @@ impl Graphics {
             clip,
         );
 
-        canvas.flush().await;
-
         Ok(())
     }
 
@@ -305,8 +303,6 @@ impl Graphics {
             clip,
         );
 
-        canvas.flush().await;
-
         Ok(())
     }
 
@@ -337,8 +333,6 @@ impl Graphics {
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
         canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
-
-        canvas.flush().await;
 
         Ok(())
     }
@@ -376,8 +370,6 @@ impl Graphics {
 
         canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
 
-        canvas.flush().await;
-
         Ok(())
     }
 
@@ -409,8 +401,6 @@ impl Graphics {
 
         canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
 
-        canvas.flush().await;
-
         Ok(())
     }
 
@@ -430,8 +420,6 @@ impl Graphics {
         let mut canvas = Image::canvas(jvm, &image).await?;
 
         canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(color as _));
-
-        canvas.flush().await;
 
         Ok(())
     }
@@ -488,8 +476,6 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw(x as _, y as _, src_image.width(), src_image.height(), &*src_image, 0, 0, clip);
-
-        canvas.flush().await;
 
         Ok(())
     }
@@ -599,8 +585,6 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0, clip);
-
-        canvas.flush().await;
 
         Ok(())
     }
