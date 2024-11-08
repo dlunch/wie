@@ -635,6 +635,7 @@ mod test {
     use jvm::ClassInstanceRef;
 
     use test_utils::run_jvm_test;
+    use wie_backend::canvas::Color;
     use wie_util::Result;
 
     use crate::{classes::javax::microedition::lcdui::Image, get_protos};
@@ -668,9 +669,9 @@ mod test {
             assert_eq!(image.width(), 100);
             assert_eq!(image.height(), 100);
 
-            assert_eq!(image.raw()[0], 0);
-            assert_eq!(image.raw()[1], 255);
-            assert_eq!(image.raw()[2], 0);
+            assert_eq!(image.colors()[0].r, 0x00);
+            assert_eq!(image.colors()[0].g, 0xff);
+            assert_eq!(image.colors()[0].b, 0x00);
 
             Ok(())
         })
