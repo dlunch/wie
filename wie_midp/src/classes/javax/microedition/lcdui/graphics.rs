@@ -635,7 +635,6 @@ mod test {
     use jvm::ClassInstanceRef;
 
     use test_utils::run_jvm_test;
-    use wie_backend::canvas::Color;
     use wie_util::Result;
 
     use crate::{classes::javax::microedition::lcdui::Image, get_protos};
