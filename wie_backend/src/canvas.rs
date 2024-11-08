@@ -322,6 +322,7 @@ where
                     continue;
                 }
 
+                // TODO blend multiple pixels at once for performance
                 self.blend_pixel(dx + x, dy + y, src.get_pixel(sx + x, sy + y));
             }
         }
@@ -395,6 +396,7 @@ where
     }
 
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
+        // TODO use put_pixels
         for x in x..x + (w as i32) {
             if x < 0 || x >= self.image_buffer.width() as i32 {
                 continue;
@@ -420,6 +422,7 @@ where
     }
 
     fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
+        // TODO use put_pixels
         for y in y..y + (h as i32) {
             for x in x..x + (w as i32) {
                 if x >= self.image_buffer.width() as i32 || y >= self.image_buffer.height() as i32 {

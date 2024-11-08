@@ -1,17 +1,19 @@
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::ops::{Deref, DerefMut};
+use core::marker::PhantomData;
 
-use bytemuck::{cast_vec, pod_collect_to_vec};
+use bytemuck::cast_vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{
     runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
-    Array, ClassInstanceRef, Jvm, Result as JvmResult,
+    Array, ArrayRawBufferMut, ClassInstanceRef, Jvm, Result as JvmResult,
 };
 
-use wie_backend::canvas::{decode_image, ArgbPixel, Canvas, Image as BackendImage, ImageBufferCanvas, Rgb332Pixel, Rgb565Pixel, VecImageBuffer};
+use wie_backend::canvas::{
+    decode_image, ArgbPixel, Canvas, Color, Image as BackendImage, ImageBuffer, ImageBufferCanvas, PixelType, Rgb332Pixel, Rgb565Pixel,
+};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::Graphics;
@@ -182,43 +184,32 @@ impl Image {
         jvm.get_field(&this, "h", "I").await
     }
 
-    pub async fn buf(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Vec<u8>> {
-        let java_img_data = jvm.get_field(this, "imgData", "[B").await?;
-        let img_data_len = jvm.array_length(&java_img_data).await?;
-
-        let mut img_data = vec![0; img_data_len]; // TODO we don't have to copy every time
-        jvm.array_raw_buffer(&java_img_data).await?.read(0, &mut img_data)?;
-
-        Ok(cast_vec(img_data))
-    }
-
     pub async fn image(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn BackendImage>> {
-        let buf = Self::buf(jvm, this).await?;
-
         let width: i32 = jvm.get_field(this, "w", "I").await?;
-        let height: i32 = jvm.get_field(this, "h", "I").await?;
         let bpl: i32 = jvm.get_field(this, "bpl", "I").await?;
 
         let bytes_per_pixel = bpl / width;
 
         Ok(match bytes_per_pixel {
-            1 => Box::new(VecImageBuffer::<Rgb332Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
-            2 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
-            4 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(width as _, height as _, pod_collect_to_vec(&buf))) as Box<_>,
+            1 => Box::new(JavaImageBuffer::<Rgb332Pixel>::new(jvm, this).await?) as _,
+            2 => Box::new(JavaImageBuffer::<Rgb565Pixel>::new(jvm, this).await?) as _,
+            4 => Box::new(JavaImageBuffer::<ArgbPixel>::new(jvm, this).await?) as _,
             _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
         })
     }
 
-    pub async fn canvas<'a>(jvm: &'a Jvm, this: &'a ClassInstanceRef<Self>) -> JvmResult<ImageCanvas<'a>> {
-        let buf = Self::buf(jvm, this).await?;
-
+    pub async fn canvas(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Canvas>> {
         let width: i32 = jvm.get_field(this, "w", "I").await?;
-        let height: i32 = jvm.get_field(this, "h", "I").await?;
         let bpl: i32 = jvm.get_field(this, "bpl", "I").await?;
 
         let bytes_per_pixel = bpl / width;
 
-        Ok(ImageCanvas::new(jvm, this, width as _, height as _, bytes_per_pixel as _, buf))
+        Ok(match bytes_per_pixel {
+            1 => Box::new(ImageBufferCanvas::new(JavaImageBuffer::<Rgb332Pixel>::new(jvm, this).await?)) as _,
+            2 => Box::new(ImageBufferCanvas::new(JavaImageBuffer::<Rgb565Pixel>::new(jvm, this).await?)) as _,
+            4 => Box::new(ImageBufferCanvas::new(JavaImageBuffer::<ArgbPixel>::new(jvm, this).await?)) as _,
+            _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
+        })
     }
 
     async fn create_image_instance(jvm: &Jvm, width: u32, height: u32, data: &[u8], bytes_per_pixel: u32) -> JvmResult<ClassInstanceRef<Image>> {
@@ -236,69 +227,98 @@ impl Image {
     }
 }
 
-pub struct ImageCanvas<'a> {
-    image: &'a ClassInstanceRef<Image>,
-    jvm: &'a Jvm,
-    canvas: Box<dyn Canvas>,
-    flushed: bool,
+struct JavaImageBuffer<T>
+where
+    T: PixelType,
+{
+    width: i32,
+    height: i32,
+    raw_buffer: Box<dyn ArrayRawBufferMut>,
+    _phantom: PhantomData<T>,
 }
 
-impl<'a> ImageCanvas<'a> {
-    pub fn new(jvm: &'a Jvm, image: &'a ClassInstanceRef<Image>, width: u32, height: i32, bytes_per_pixel: u32, buf: Vec<u8>) -> Self {
-        let canvas: Box<dyn Canvas> = match bytes_per_pixel {
-            2 => Box::new(ImageBufferCanvas::new(VecImageBuffer::<Rgb565Pixel>::from_raw(
-                width as _,
-                height as _,
-                pod_collect_to_vec(&buf),
-            ))),
-            4 => Box::new(ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::from_raw(
-                width as _,
-                height as _,
-                pod_collect_to_vec(&buf),
-            ))),
-            _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
-        };
+impl<T> JavaImageBuffer<T>
+where
+    T: PixelType,
+{
+    pub async fn new(jvm: &Jvm, this: &ClassInstanceRef<Image>) -> JvmResult<Self> {
+        let mut java_img_data = jvm.get_field(this, "imgData", "[B").await?;
+        let raw_buffer = jvm.array_raw_buffer_mut(&mut java_img_data).await?;
 
-        Self {
-            image,
-            jvm,
-            canvas,
-            flushed: false,
-        }
-    }
+        let width: i32 = jvm.get_field(this, "w", "I").await?;
+        let height: i32 = jvm.get_field(this, "h", "I").await?;
 
-    // We don't have async drop yet..
-    pub async fn flush(mut self) {
-        let mut data = self.jvm.get_field(self.image, "imgData", "[B").await.unwrap();
-
-        self.jvm
-            .array_raw_buffer_mut(&mut data)
-            .await
-            .unwrap()
-            .write(0, self.canvas.image().raw())
-            .unwrap();
-        self.flushed = true
+        Ok(Self {
+            width,
+            height,
+            raw_buffer,
+            _phantom: PhantomData,
+        })
     }
 }
 
-impl Drop for ImageCanvas<'_> {
-    fn drop(&mut self) {
-        if !self.flushed {
-            panic!("ImageCanvas was dropped without flushing")
-        }
+impl<T> BackendImage for JavaImageBuffer<T>
+where
+    T: PixelType,
+{
+    fn width(&self) -> u32 {
+        self.width as _
+    }
+
+    fn height(&self) -> u32 {
+        self.height as _
+    }
+
+    fn bytes_per_pixel(&self) -> u32 {
+        size_of::<T::DataType>() as _
+    }
+
+    fn get_pixel(&self, x: i32, y: i32) -> Color {
+        let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
+
+        let mut buffer = [0; 4];
+        self.raw_buffer.read(offset as _, &mut buffer).unwrap();
+
+        T::to_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]))
+    }
+
+    fn raw(&self) -> &[u8] {
+        unimplemented!()
+    }
+
+    fn colors(&self) -> Vec<Color> {
+        let size = self.width() * self.height() * self.bytes_per_pixel();
+        let mut buffer = vec![0; size as usize];
+        self.raw_buffer.read(0, &mut buffer).unwrap();
+
+        buffer
+            .chunks_exact(size_of::<T::DataType>())
+            .map(|chunk| T::to_color(*bytemuck::from_bytes(chunk)))
+            .collect()
     }
 }
 
-impl Deref for ImageCanvas<'_> {
-    type Target = Box<dyn Canvas>;
+impl<T> ImageBuffer for JavaImageBuffer<T>
+where
+    T: PixelType,
+{
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color) {
+        let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
-    fn deref(&self) -> &Self::Target {
-        &self.canvas
+        let raw = T::from_color(color);
+        let raw_bytes = bytemuck::bytes_of(&raw);
+
+        self.raw_buffer.write(offset as _, raw_bytes).unwrap();
     }
-}
 
-impl DerefMut for ImageCanvas<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.canvas
+    fn put_pixels(&mut self, x: i32, y: i32, _width: u32, colors: &[Color]) {
+        let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
+
+        let raw_bytes = colors
+            .iter()
+            .flat_map(|color| bytemuck::bytes_of(&T::from_color(*color)).to_vec())
+            .collect::<Vec<_>>();
+
+        self.raw_buffer.write(offset as _, &raw_bytes).unwrap();
     }
 }
