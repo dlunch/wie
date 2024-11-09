@@ -62,20 +62,25 @@ pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> Result<String
 where
     R: ?Sized + ByteRead,
 {
-    // TODO we can read by 4bytes at once
-
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(20);
     let mut cursor = address;
+    let mut buffer = [0; 4];
     loop {
-        let mut item = [0u8; 1];
-        reader.read_bytes(cursor, &mut item)?;
-        cursor += 1;
+        reader.read_bytes(cursor, &mut buffer)?;
+        cursor += 4;
 
-        if item[0] == 0 {
+        // find zero in buffer
+        let word = bytemuck::from_bytes::<u32>(&buffer);
+        let has_zero_byte = word.overflowing_sub(0x01010101).0 & !(*word) & 0x80808080;
+
+        if has_zero_byte != 0 {
+            // zero byte location
+            let zero_byte = has_zero_byte.trailing_zeros() as usize / 8;
+            result.extend_from_slice(&buffer[..zero_byte]);
             break;
+        } else {
+            result.extend_from_slice(&buffer);
         }
-
-        result.push(item[0]);
     }
 
     // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, result);
