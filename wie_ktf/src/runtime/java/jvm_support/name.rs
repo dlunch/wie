@@ -18,13 +18,12 @@ impl JavaFullName {
         let tag = read_generic(core, ptr)?;
 
         let value = read_null_terminated_string(core, ptr + 1)?;
-        let value = value.split('+').collect::<Vec<_>>();
+        let mut values = value.split('+');
 
-        Ok(JavaFullName {
-            tag,
-            name: value[1].into(),
-            descriptor: value[0].into(),
-        })
+        let descriptor = values.next().unwrap().into();
+        let name = values.next().unwrap().into();
+
+        Ok(JavaFullName { tag, name, descriptor })
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
