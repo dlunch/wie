@@ -320,12 +320,12 @@ mod test {
         let format = context.alloc_raw(10).unwrap();
         let dest = context.alloc_raw(10).unwrap();
 
-        write_null_terminated_string_bytes(&mut context, format, &"%d".as_bytes().to_vec()).unwrap();
+        write_null_terminated_string_bytes(&mut context, format, "%d".as_bytes()).unwrap();
         sprintk.call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0])).await.unwrap();
         let result = read_null_terminated_string_bytes(&context, dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "1234");
 
-        write_null_terminated_string_bytes(&mut context, format, &"test %02d".as_bytes().to_vec()).unwrap();
+        write_null_terminated_string_bytes(&mut context, format, "test %02d".as_bytes()).unwrap();
         sprintk.call(&mut context, Box::new([dest, format, 1, 0, 0, 0, 0])).await.unwrap();
         let result = read_null_terminated_string_bytes(&context, dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "test 01");
