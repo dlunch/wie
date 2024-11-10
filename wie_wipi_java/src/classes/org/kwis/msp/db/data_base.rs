@@ -36,6 +36,7 @@ impl DataBase {
                 JavaMethodProto::new("insertRecord", "([B)I", Self::insert_record, Default::default()),
                 JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, Default::default()),
                 JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, Default::default()),
+                JavaMethodProto::new("updateRecord", "(I[B)V", Self::update_record, Default::default()),
             ],
             fields: vec![JavaFieldProto::new(
                 "recordStore",
@@ -173,5 +174,24 @@ impl DataBase {
         }
 
         Ok(result.unwrap())
+    }
+
+    async fn update_record(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        record_id: i32,
+        data: ClassInstanceRef<Array<i8>>,
+    ) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.db.DataBase::updateRecord({:?}, {}, {:?})", &this, record_id, &data);
+
+        let length = jvm.array_length(&data).await? as i32;
+
+        let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
+        let _: () = jvm
+            .invoke_virtual(&record_store, "setRecord", "(I[BII)V", (record_id, data, 0, length))
+            .await?;
+
+        Ok(())
     }
 }
