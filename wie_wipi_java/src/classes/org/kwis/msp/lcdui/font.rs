@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::Font as MidpFont;
@@ -31,6 +31,7 @@ impl Font {
                 JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
                 JavaMethodProto::new("substringWidth", "(Ljava/lang/String;II)I", Self::substring_width, Default::default()),
                 JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
+                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("midpFont", "Ljavax/microedition/lcdui/Font;", Default::default()),
@@ -132,6 +133,20 @@ impl Font {
 
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
         jvm.invoke_virtual(&midp_font, "charWidth", "(C)I", (char,)).await
+    }
+
+    async fn chars_width(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        chars: ClassInstanceRef<Array<JavaChar>>,
+        offset: i32,
+        len: i32,
+    ) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Font::charsWidth({:?}, {:?}, {:?})", chars, offset, len);
+
+        let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
+        jvm.invoke_virtual(&midp_font, "charsWidth", "([CII)I", (chars, offset, len)).await
     }
 
     pub async fn midp_font(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MidpFont>> {
