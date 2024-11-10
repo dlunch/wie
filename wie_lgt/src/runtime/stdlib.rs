@@ -11,6 +11,7 @@ pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32>
         0x405 => core.register_function(strcpy, &())?,
         0x406 => core.register_function(strncpy, &())?,
         0x409 => core.register_function(strcmp, &())?,
+        0x40a => core.register_function(unk4, &())?,
         0x411 => core.register_function(strlen, &())?,
         0x414 => core.register_function(memcpy, &())?,
         0x418 => core.register_function(memset, &())?,
@@ -88,6 +89,12 @@ async fn unk3(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     tracing::warn!("unk3({:#x})", a0);
 
     let _: () = core.run_function(a0, &[]).await?;
+
+    Ok(())
+}
+
+async fn unk4(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
+    tracing::warn!("unk4({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
 
     Ok(())
 }
