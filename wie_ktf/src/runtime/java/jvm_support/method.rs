@@ -129,31 +129,63 @@ impl JavaMethod {
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub async fn run(&self, args: Box<[JavaValue]>) -> Result<u32> {
+    pub async fn run(&self, args: Box<[JavaValue]>) -> Result<JavaValue> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
+        let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
 
         let mut core = self.core.clone();
 
+        let mut raw_args = Vec::with_capacity(args.len());
+        for arg in args.iter() {
+            if matches!(arg, JavaValue::Double(_) | JavaValue::Long(_)) {
+                let (arg, arg_high) = arg.as_raw64();
+                raw_args.push(arg);
+                raw_args.push(arg_high);
+            } else {
+                raw_args.push(arg.as_raw());
+            }
+        }
+
+        struct JavaMethodRunResult {
+            result: u32,
+            result_high: u32,
+        }
+
+        impl wie_core_arm::RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
+            fn get(core: &ArmCore) -> Self {
+                let result = core.read_param(0).unwrap();
+                let result_high = core.read_param(1).unwrap();
+
+                Self { result, result_high }
+            }
+        }
+
         let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
 
-        if access_flags.contains(MethodAccessFlags::NATIVE) {
-            let arg_container = Allocator::alloc(&mut core, (args.len() as u32) * 4)?;
-            for (i, arg) in args.iter().enumerate() {
-                write_generic(&mut core, arg_container + (i * 4) as u32, arg.as_raw())?;
+        let result: JavaMethodRunResult = if access_flags.contains(MethodAccessFlags::NATIVE) {
+            let arg_container = Allocator::alloc(&mut core, (raw_args.len() as u32) * 4)?;
+            for (i, arg) in raw_args.iter().enumerate() {
+                write_generic(&mut core, arg_container + (i * 4) as u32, *arg)?;
             }
 
             tracing::trace!("Calling native method: {:#x}", raw.fn_body_native_or_exception_table);
             let result = core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
 
-            Allocator::free(&mut core, arg_container, (args.len() as u32) * 4)?;
+            Allocator::free(&mut core, arg_container, (raw_args.len() as u32) * 4)?;
 
-            Ok(result?)
+            result?
         } else {
             let mut params = vec![0];
-            params.extend(args.iter().map(|x| x.as_raw())); // TODO double/long handling
+            params.extend(raw_args);
 
             tracing::trace!("Calling method: {:#x}", raw.fn_body);
-            Ok(core.run_function(raw.fn_body, &params).await?)
+            core.run_function(raw.fn_body, &params).await?
+        };
+
+        if matches!(return_type, JavaType::Double | JavaType::Long) {
+            Ok(JavaValue::from_raw64(result.result, result.result_high, &return_type))
+        } else {
+            Ok(JavaValue::from_raw(result.result, &return_type, &core))
         }
     }
 
@@ -216,8 +248,10 @@ impl JavaMethod {
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
-        let mut parameter_types = JavaType::parse(&proto.descriptor).as_method().0.to_vec();
+        let java_type = JavaType::parse(&proto.descriptor);
+        let (parameter_types, return_type) = java_type.as_method();
 
+        let mut parameter_types = parameter_types.to_vec();
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
             // TODO proper flag handling
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
@@ -228,6 +262,7 @@ impl JavaMethod {
             proto,
             context,
             parameter_types,
+            return_type: return_type.clone(),
         };
 
         core.register_function(proxy, &())
@@ -249,15 +284,11 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        let result = self.run(args).await.map_err(|x| match x {
+        self.run(args).await.map_err(|x| match x {
             WieError::FatalError(x) => JavaError::FatalError(x),
             WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
             _ => JavaError::FatalError(format!("{}", x)),
-        })?;
-        let r#type = JavaType::parse(&self.descriptor());
-        let (_, return_type) = r#type.as_method();
-
-        Ok(JavaValue::from_raw(result, return_type, &self.core))
+        })
     }
 
     fn access_flags(&self) -> MethodAccessFlags {
@@ -282,6 +313,7 @@ where
     proto: JavaMethodProto<C>,
     context: Context,
     parameter_types: Vec<JavaType>,
+    return_type: JavaType,
 }
 
 #[async_trait::async_trait]
@@ -291,22 +323,38 @@ where
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
-        let param_count = self.parameter_types.len() as u32;
+        let double_long_count = self
+            .parameter_types
+            .iter()
+            .filter(|x| matches!(x, JavaType::Double | JavaType::Long))
+            .count();
 
-        let args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
+        let param_count = self.parameter_types.len() + double_long_count;
+
+        let raw_args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
             let param_base = u32::get(core, 1);
             (0..param_count)
-                .map(|x| read_generic(core, param_base + x * 4))
+                .map(|x| read_generic(core, param_base + (x as u32) * 4))
                 .collect::<wie_util::Result<Vec<u32>>>()?
         } else {
-            (0..param_count).map(|x| u32::get(core, (x + 1) as _)).collect::<Vec<_>>()
+            (0..param_count).map(|x| u32::get(core, x + 1)).collect::<Vec<_>>()
         };
 
-        let args = args
-            .into_iter()
-            .zip(self.parameter_types.iter())
-            .map(|(x, r#type)| JavaValue::from_raw(x, r#type, core)) // TODO double/long handling
-            .collect::<Vec<_>>();
+        let mut args = Vec::with_capacity(self.parameter_types.len());
+
+        let mut it = raw_args.into_iter();
+        for param in self.parameter_types.iter() {
+            let arg = it.next().unwrap();
+
+            let value = if matches!(param, JavaType::Double | JavaType::Long) {
+                let arg_high = it.next().unwrap();
+
+                JavaValue::from_raw64(arg, arg_high, param)
+            } else {
+                JavaValue::from_raw(arg, param, core)
+            };
+            args.push(value);
+        }
 
         let mut context = self.context.clone();
         let (_, lr) = core.read_pc_lr()?;
@@ -324,10 +372,14 @@ where
             return Err(JvmSupport::to_wie_err(&self.jvm, x).await);
         }
 
-        Ok(JavaMethodResult {
-            result: vec![result.unwrap().as_raw()],
-            next_pc: None,
-        })
+        let result = if matches!(self.return_type, JavaType::Double | JavaType::Long) {
+            let (result, result_high) = result.unwrap().as_raw64();
+            vec![result, result_high]
+        } else {
+            vec![result.unwrap().as_raw()]
+        };
+
+        Ok(JavaMethodResult { result, next_pc: None })
     }
 }
 

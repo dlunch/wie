@@ -67,24 +67,6 @@ impl JavaClassInstance {
         Ok(JavaClassDefinition::from_raw(raw.ptr_class, &self.core))
     }
 
-    pub fn read_field(&self, field: &JavaField) -> Result<KtfJvmWord> {
-        let offset = field.offset()?;
-
-        let address = self.field_address(offset)?;
-
-        let value: KtfJvmWord = read_generic(&self.core, address)?;
-
-        Ok(value)
-    }
-
-    pub fn write_field(&mut self, field: &JavaField, value: KtfJvmWord) -> Result<()> {
-        let offset = field.offset()?;
-
-        let address = self.field_address(offset)?;
-
-        write_generic(&mut self.core, address, value)
-    }
-
     pub(super) fn field_address(&self, offset: u32) -> Result<u32> {
         let raw = self.read_raw()?;
 
@@ -146,17 +128,40 @@ impl ClassInstance for JavaClassInstance {
 
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
+        let field_type = JavaType::parse(&field.descriptor());
 
-        let result = self.read_field(field).unwrap();
+        let offset = field.offset().unwrap();
+        let address = self.field_address(offset).unwrap();
 
-        let r#type = JavaType::parse(&field.descriptor());
-        Ok(JavaValue::from_raw(result, &r#type, &self.core))
+        if matches!(field_type, JavaType::Long | JavaType::Double) {
+            let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
+            let value_high: KtfJvmWord = read_generic(&self.core, address + 4).unwrap();
+
+            let r#type = JavaType::parse(&field.descriptor());
+            Ok(JavaValue::from_raw64(value, value_high, &r#type))
+        } else {
+            let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
+
+            let r#type = JavaType::parse(&field.descriptor());
+            Ok(JavaValue::from_raw(value, &r#type, &self.core))
+        }
     }
 
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
+        let field_type = JavaType::parse(&field.descriptor());
 
-        self.write_field(field, value.as_raw()).unwrap();
+        let offset = field.offset().unwrap();
+        let address = self.field_address(offset).unwrap();
+
+        if matches!(field_type, JavaType::Long | JavaType::Double) {
+            let (value, value_high) = value.as_raw64();
+
+            write_generic(&mut self.core, address, value).unwrap();
+            write_generic(&mut self.core, address + 4, value_high).unwrap();
+        } else {
+            write_generic(&mut self.core, address, value.as_raw()).unwrap();
+        }
 
         Ok(())
     }

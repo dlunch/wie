@@ -95,9 +95,11 @@ impl JavaClassDefinition {
             let offset_or_value = if field.access_flags.contains(FieldAccessFlags::STATIC) {
                 0
             } else {
-                field_offset += 4;
+                let field_size = if field.descriptor == "J" || field.descriptor == "D" { 8 } else { 4 };
 
-                field_offset - 4
+                field_offset += field_size;
+
+                field_offset - field_size
             };
 
             let field = JavaField::new(core, ptr_raw, field, offset_or_value)?;
