@@ -86,6 +86,7 @@ impl Graphics {
                 JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
                 JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
                 JavaMethodProto::new("drawRGB", "([IIIIIIIZ)V", Self::draw_rgb, Default::default()),
+                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", Default::default()),
@@ -585,6 +586,16 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0, clip);
+
+        Ok(())
+    }
+
+    async fn set_gray_scale(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::setGrayScale({:?}, {})", &this, value);
+
+        let color = (value << 16) | (value << 8) | value;
+
+        jvm.put_field(&mut this, "color", "I", color).await?;
 
         Ok(())
     }
