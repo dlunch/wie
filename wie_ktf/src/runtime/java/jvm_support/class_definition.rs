@@ -13,7 +13,8 @@ use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue,
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{
-    read_generic, read_null_terminated_string, read_null_terminated_table, write_generic, write_null_terminated_string, write_null_terminated_table,
+    read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic, write_null_terminated_string_bytes,
+    write_null_terminated_table,
 };
 
 use super::{
@@ -110,7 +111,7 @@ impl JavaClassDefinition {
         write_null_terminated_table(core, ptr_fields, &fields)?;
 
         let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
-        write_null_terminated_string(core, ptr_name, proto.name)?;
+        write_null_terminated_string_bytes(core, ptr_name, proto.name.as_bytes())?;
 
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(
@@ -222,7 +223,9 @@ impl JavaClassDefinition {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        read_null_terminated_string(&self.core, descriptor.ptr_name)
+        let bytes = read_null_terminated_string_bytes(&self.core, descriptor.ptr_name)?;
+
+        Ok(String::from_utf8(bytes).unwrap())
     }
 
     pub fn parent_class(&self) -> Result<Option<JavaClassDefinition>> {

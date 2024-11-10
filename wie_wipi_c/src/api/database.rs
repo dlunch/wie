@@ -4,7 +4,7 @@ use core::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::Database;
-use wie_util::{read_generic, write_generic, Result};
+use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, Result};
 
 use crate::{context::WIPICContext, WIPICWord};
 
@@ -14,8 +14,10 @@ struct DatabaseHandle {
     name: [u8; 32], // TODO hardcoded max size
 }
 
-pub async fn open_database(context: &mut dyn WIPICContext, name: String, record_size: i32, create: i32, mode: i32) -> Result<i32> {
-    tracing::debug!("MC_dbOpenDataBase({}, {}, {}, {})", name, record_size, create, mode);
+pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, record_size: i32, create: i32, mode: i32) -> Result<i32> {
+    tracing::debug!("MC_dbOpenDataBase({:#x}, {}, {}, {})", ptr_name, record_size, create, mode);
+
+    let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
 
     if record_size == 1 {
         // TODO: is parameter record_size correct??

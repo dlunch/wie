@@ -6,5 +6,4 @@ license.workspace = true
 
 [dependencies]
 bytemuck = { workspace = true }
-encoding_rs = { version = "^0.8", default-features = false }
 tracing = { workspace = true }

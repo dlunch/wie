@@ -2,7 +2,7 @@ use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
 
 use wie_core_arm::ArmCore;
-use wie_util::{read_generic, read_null_terminated_string};
+use wie_util::{read_generic, read_null_terminated_string_bytes};
 
 use super::Result;
 
@@ -17,7 +17,8 @@ impl JavaFullName {
     pub fn from_ptr(core: &ArmCore, ptr: u32) -> Result<Self> {
         let tag = read_generic(core, ptr)?;
 
-        let value = read_null_terminated_string(core, ptr + 1)?;
+        let value = read_null_terminated_string_bytes(core, ptr + 1)?;
+        let value = String::from_utf8(value).unwrap();
         let mut values = value.split('+');
 
         let descriptor = values.next().unwrap().into();

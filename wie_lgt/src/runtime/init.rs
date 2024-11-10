@@ -1,4 +1,4 @@
-use alloc::{format, string::String};
+use alloc::format;
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
@@ -147,26 +147,26 @@ async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u3
     Ok(())
 }
 
-async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk0({}, {:#x}, {:#x})", a0, a1, a2);
+async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+    tracing::warn!("java_unk0({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     Ok(())
 }
 
-async fn java_unk1(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk1({}, {:#x}, {:#x})", a0, a1, a2);
+async fn java_unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+    tracing::warn!("java_unk1({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     Ok(())
 }
 
-async fn java_unk2(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk2({}, {:#x}, {:#x})", a0, a1, a2);
+async fn java_unk2(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+    tracing::warn!("java_unk2({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     Ok(())
 }
 
-async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk3({}, {:#x}, {:#x})", a0, a1, a2);
+async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+    tracing::warn!("java_unk3({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     Ok(())
 }
@@ -201,8 +201,8 @@ async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     Ok(())
 }
 
-async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: String, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("java_unk11({}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
+    tracing::warn!("java_unk11({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
 
     // invoke static? used to be called with org/kwis/msp/lcdui/Main
 

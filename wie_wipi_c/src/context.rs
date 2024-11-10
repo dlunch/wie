@@ -1,7 +1,7 @@
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use wie_backend::System;
-use wie_util::{read_null_terminated_string, ByteRead, ByteWrite, Result};
+use wie_util::{ByteRead, ByteWrite, Result};
 
 use crate::{
     method::{ParamConverter, ResultConverter},
@@ -42,12 +42,6 @@ impl ParamConverter<WIPICMemoryId> for WIPICMemoryId {
 impl ParamConverter<i32> for i32 {
     fn convert(_: &mut dyn WIPICContext, raw: WIPICWord) -> i32 {
         raw as _
-    }
-}
-
-impl ParamConverter<String> for String {
-    fn convert(context: &mut dyn WIPICContext, raw: WIPICWord) -> String {
-        read_null_terminated_string(context, raw).unwrap()
     }
 }
 

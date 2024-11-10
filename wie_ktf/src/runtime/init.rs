@@ -7,7 +7,7 @@ use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, Result, WieError};
+use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, Result, WieError};
 
 use crate::{
     emulator::IMAGE_BASE,
@@ -190,14 +190,16 @@ pub async fn load_native(
     Ok(exe_interface_functions.fn_get_class)
 }
 
-async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), r#struct: String) -> Result<u32> {
-    tracing::trace!("get_interface({})", r#struct);
+async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), ptr_name: u32) -> Result<u32> {
+    tracing::trace!("get_interface({:#x})", ptr_name);
 
-    match r#struct.as_str() {
+    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
+
+    match name.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm),
         "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm),
         _ => {
-            tracing::warn!("Unknown {}", r#struct);
+            tracing::warn!("Unknown {}", name);
 
             Ok(0)
         }
