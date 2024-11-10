@@ -278,6 +278,12 @@ mod test {
 
             done_clone.store(true, Ordering::Relaxed);
 
+            // test 64bit parameter passing
+            let date = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();
+            let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
+
+            assert_eq!(time, 0x12345678_abcdef01);
+
             Ok(())
         });
 

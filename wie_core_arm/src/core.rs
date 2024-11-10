@@ -262,7 +262,7 @@ impl ArmCore {
         Ok(())
     }
 
-    pub(crate) fn read_param(&self, pos: usize) -> Result<u32> {
+    pub fn read_param(&self, pos: usize) -> Result<u32> {
         let inner = self.inner.lock();
 
         let result = if pos == 0 {
