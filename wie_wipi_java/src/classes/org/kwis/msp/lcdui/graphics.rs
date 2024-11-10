@@ -49,6 +49,8 @@ impl Graphics {
                 JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
                 JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
                 JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, Default::default()),
+                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
+                JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, Default::default()),
             ],
             fields: vec![JavaFieldProto::new(
                 "midpGraphics",
@@ -364,5 +366,18 @@ impl Graphics {
             (rgb_pixels, offset, bpl, x, y, width, height, true),
         )
         .await
+    }
+
+    async fn set_gray_scale(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::SetGrayScale({:?}, {})", &this, value);
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "setGrayScale", "(I)V", (value,)).await
+    }
+
+    async fn set_xor_mode(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setXORMode({:?}, {})", &this, xor_mode);
+
+        Ok(())
     }
 }
