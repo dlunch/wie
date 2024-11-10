@@ -4,7 +4,7 @@ use core::{iter, mem::size_of};
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::Instant;
-use wie_util::{read_generic, read_null_terminated_string, write_generic, write_null_terminated_string, Result, WieError};
+use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes, Result, WieError};
 
 use crate::{context::WIPICContext, method::MethodBody, WIPICMemoryId, WIPICResult, WIPICWord};
 
@@ -33,14 +33,14 @@ pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
     Ok(context.system().platform().now().raw())
 }
 
-pub async fn get_system_property(_context: &mut dyn WIPICContext, id: String, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
-    tracing::warn!("stub MC_knlGetSystemProperty({}, {:#x}, {})", id, p_out, buf_size);
+pub async fn get_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICWord, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
+    tracing::warn!("stub MC_knlGetSystemProperty({:#x}, {:#x}, {:#x})", ptr_id, p_out, buf_size);
 
     Ok(-9) // M_E_INVALID
 }
 
-pub async fn set_system_property(_context: &mut dyn WIPICContext, id: String, value: String) -> Result<()> {
-    tracing::warn!("stub MC_knlSetSystemProperty({}, {})", id, value);
+pub async fn set_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICWord, ptr_value: WIPICWord) -> Result<()> {
+    tracing::warn!("stub MC_knlSetSystemProperty({:#x}, {:#x})", ptr_id, ptr_value);
 
     Ok(())
 }
@@ -130,8 +130,10 @@ pub async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> Resu
     Ok(memory)
 }
 
-pub async fn get_resource_id(context: &mut dyn WIPICContext, name: String, ptr_size: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_knlGetResourceID({}, {:#x})", name, ptr_size);
+pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord, ptr_size: WIPICWord) -> Result<i32> {
+    tracing::debug!("MC_knlGetResourceID({:#x}, {:#x})", ptr_name, ptr_size);
+
+    let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
 
     let size = context.get_resource_size(&name).await?;
 
@@ -171,22 +173,46 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WI
     Ok(0)
 }
 
-pub async fn printk(context: &mut dyn WIPICContext, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("stub MC_knlPrintk({}, {:#x}, {:#x}, {:#x}, {:#x})", format, a0, a1, a2, a3);
+pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: WIPICWord, a1: WIPICWord, a2: WIPICWord, a3: WIPICWord) -> Result<()> {
+    tracing::warn!("stub MC_knlPrintk({:#x}, {:#x}, {:#x}, {:#x}, {:#x})", ptr_format, a0, a1, a2, a3);
 
-    let result = sprintf(context, &format, &[a0, a1, a2, a3])?;
+    let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
+    let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
+
+    let result = sprintf(context, &format_string, &[a0, a1, a2, a3])?;
 
     tracing::info!("printk: {}", result);
 
     Ok(())
 }
 
-pub async fn sprintk(context: &mut dyn WIPICContext, dest: WIPICWord, format: String, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<WIPICWord> {
-    tracing::debug!("MC_knlSprintk({:#x}, {}, {:#x}, {:#x}, {:#x}, {:#x})", dest, format, a0, a1, a2, a3);
+pub async fn sprintk(
+    context: &mut dyn WIPICContext,
+    dest: WIPICWord,
+    ptr_format: WIPICWord,
+    a0: WIPICWord,
+    a1: WIPICWord,
+    a2: WIPICWord,
+    a3: WIPICWord,
+) -> Result<WIPICWord> {
+    tracing::debug!(
+        "MC_knlSprintk({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
+        dest,
+        ptr_format,
+        a0,
+        a1,
+        a2,
+        a3
+    );
 
-    let result = sprintf(context, &format, &[a0, a1, a2, a3])?;
+    let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
+    let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
 
-    write_null_terminated_string(context, dest, &result)?;
+    let result = sprintf(context, &format_string, &[a0, a1, a2, a3])?;
+
+    let result_bytes = encoding_rs::EUC_KR.encode(&result).0;
+
+    write_null_terminated_string_bytes(context, dest, &result_bytes)?;
 
     Ok(result.len() as _)
 }
@@ -235,7 +261,8 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
                             break;
                         }
 
-                        let str = read_null_terminated_string(context, ptr)?;
+                        let str = read_null_terminated_string_bytes(context, ptr)?;
+                        let str = encoding_rs::EUC_KR.decode(&str).0;
 
                         result += &str;
                         break;
@@ -276,9 +303,9 @@ pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPIC
 }
 #[cfg(test)]
 mod test {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, string::String};
 
-    use wie_util::{read_null_terminated_string, write_null_terminated_string, Result};
+    use wie_util::{read_null_terminated_string_bytes, write_null_terminated_string_bytes, Result};
 
     use crate::{context::test::TestContext, method::MethodImpl, WIPICContext};
 
@@ -293,15 +320,15 @@ mod test {
         let format = context.alloc_raw(10).unwrap();
         let dest = context.alloc_raw(10).unwrap();
 
-        write_null_terminated_string(&mut context, format, "%d").unwrap();
+        write_null_terminated_string_bytes(&mut context, format, &"%d".as_bytes().to_vec()).unwrap();
         sprintk.call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0])).await.unwrap();
-        let result = read_null_terminated_string(&context, dest).unwrap();
-        assert_eq!(result, "1234");
+        let result = read_null_terminated_string_bytes(&context, dest).unwrap();
+        assert_eq!(String::from_utf8(result).unwrap(), "1234");
 
-        write_null_terminated_string(&mut context, format, "test %02d").unwrap();
+        write_null_terminated_string_bytes(&mut context, format, &"test %02d".as_bytes().to_vec()).unwrap();
         sprintk.call(&mut context, Box::new([dest, format, 1, 0, 0, 0, 0])).await.unwrap();
-        let result = read_null_terminated_string(&context, dest).unwrap();
-        assert_eq!(result, "test 01");
+        let result = read_null_terminated_string_bytes(&context, dest).unwrap();
+        assert_eq!(String::from_utf8(result).unwrap(), "test 01");
 
         Ok(())
     }

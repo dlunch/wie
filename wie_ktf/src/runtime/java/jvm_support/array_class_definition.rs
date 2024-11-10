@@ -11,7 +11,7 @@ use core::{
 use jvm::{ArrayClassDefinition, ClassInstance, JavaError, JavaType, Jvm, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{write_generic, write_null_terminated_string, write_null_terminated_table};
+use wie_util::{write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
 use super::{
     array_class_instance::JavaArrayClassInstance,
@@ -50,7 +50,7 @@ impl JavaArrayClassDefinition {
         };
 
         let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
-        write_null_terminated_string(core, ptr_name, name)?;
+        write_null_terminated_string_bytes(core, ptr_name, name.as_bytes())?;
 
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(

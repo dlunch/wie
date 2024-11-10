@@ -1,7 +1,7 @@
-use alloc::{boxed::Box, string::String};
+use alloc::boxed::Box;
 use core::{future::Future, marker::PhantomData};
 
-use wie_util::{read_null_terminated_string, Result};
+use wie_util::Result;
 
 use crate::ArmCore;
 
@@ -125,14 +125,6 @@ pub trait EmulatedFunctionParam<T> {
 
     fn read(core: &mut ArmCore, pos: usize) -> u32 {
         core.read_param(pos).unwrap()
-    }
-}
-
-impl EmulatedFunctionParam<String> for String {
-    fn get(core: &mut ArmCore, pos: usize) -> String {
-        let ptr = Self::read(core, pos);
-
-        read_null_terminated_string(core, ptr).unwrap()
     }
 }
 

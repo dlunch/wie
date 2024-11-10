@@ -2876,7 +2876,6 @@ name = "wie_util"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
- "encoding_rs",
  "tracing",
 ]
 
@@ -2886,6 +2885,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytemuck",
+ "encoding_rs",
  "futures-test",
  "test_utils",
  "tracing",

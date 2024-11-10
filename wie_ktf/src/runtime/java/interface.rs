@@ -13,9 +13,9 @@ use jvm::{runtime::JavaLangString, Jvm};
 use bytemuck::{Pod, Zeroable};
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, ByteRead, Result, WieError};
+use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, ByteRead, Result, WieError};
 
-use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, JavaMethodResult, KtfJvmSupport};
+use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, JavaMethodResult, KtfJvmSupport, KtfJvmWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -58,9 +58,10 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: &Jvm) -> Result<u32> {
     Ok(address)
 }
 
-pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32, name: String) -> Result<u32> {
-    tracing::trace!("load_java_class({:#x}, {})", ptr_target, name);
+pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32, ptr_name: u32) -> Result<u32> {
+    tracing::trace!("load_java_class({:#x}, {:#x})", ptr_target, ptr_name);
 
+    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
     let class = jvm.resolve_class(&name).await;
 
     if let Ok(x) = class {
@@ -75,8 +76,10 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
     }
 }
 
-pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, error: String, a1: u32) -> Result<JavaMethodResult> {
-    tracing::warn!("java_throw({}, {})", error, a1);
+pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord, a1: u32) -> Result<JavaMethodResult> {
+    tracing::warn!("java_throw({:#x}, {})", ptr_error, a1);
+
+    let error = String::from_utf8(read_null_terminated_string_bytes(core, ptr_error)?).unwrap();
 
     let exception = jvm.new_class(&error, "()V", ()).await.unwrap();
 

@@ -58,7 +58,7 @@ where
     }
 }
 
-pub fn read_null_terminated_string<R>(reader: &R, address: u32) -> Result<String>
+pub fn read_null_terminated_string_bytes<R>(reader: &R, address: u32) -> Result<Vec<u8>>
 where
     R: ?Sized + ByteRead,
 {
@@ -85,20 +85,14 @@ where
 
     // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, result);
 
-    // TODO temp
-    Ok(encoding_rs::EUC_KR.decode(&result).0.into())
-
-    // Ok(String::from_utf8(result).unwrap())
+    Ok(result)
 }
 
-pub fn write_null_terminated_string<W>(writer: &mut W, address: u32, string: &str) -> Result<()>
+pub fn write_null_terminated_string_bytes<W>(writer: &mut W, address: u32, bytes: &[u8]) -> Result<()>
 where
     W: ?Sized + ByteWrite,
 {
     // TODO temp
-    let bytes = &encoding_rs::EUC_KR.encode(string).0.to_vec();
-    // let bytes = string.as_bytes();
-
     writer.write_bytes(address, bytes)?;
     writer.write_bytes(address + bytes.len() as u32, &[0])?;
 

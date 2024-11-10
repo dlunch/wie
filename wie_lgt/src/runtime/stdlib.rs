@@ -2,7 +2,7 @@ use alloc::{format, string::String, vec};
 use core::cmp::min;
 
 use wie_core_arm::ArmCore;
-use wie_util::{write_null_terminated_string, ByteRead, ByteWrite, Result, WieError};
+use wie_util::{read_null_terminated_string_bytes, write_null_terminated_string_bytes, ByteRead, ByteWrite, Result, WieError};
 
 pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {
@@ -20,41 +20,52 @@ pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32>
     })
 }
 
-async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: String) -> Result<()> {
-    tracing::debug!("strcpy({:#x}, {})", dst, src);
+async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {
+    tracing::debug!("strcpy({:#x}, {:#x})", dst, ptr_src);
 
-    write_null_terminated_string(core, dst, &src)?;
+    let src = read_null_terminated_string_bytes(core, ptr_src)?;
+    write_null_terminated_string_bytes(core, dst, &src)?;
 
     Ok(())
 }
 
-async fn strncpy(core: &mut ArmCore, _: &mut (), dst: u32, src: String, size: u32) -> Result<()> {
-    tracing::debug!("strncpy({:#x}, {}, {:#x})", dst, src, size);
+async fn strncpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32, size: u32) -> Result<()> {
+    tracing::debug!("strncpy({:#x}, {:#x}, {:#x})", dst, ptr_src, size);
+
+    let src = read_null_terminated_string_bytes(core, ptr_src)?;
 
     let size_to_copy = min(size, src.len() as u32);
-    let bytes = &src.as_bytes()[..size_to_copy as usize];
+    let bytes = &src[..size_to_copy as usize];
 
     core.write_bytes(dst, bytes)?;
 
     Ok(())
 }
 
-async fn strcmp(_core: &mut ArmCore, _: &mut (), str1: String, str2: String) -> Result<u32> {
-    tracing::debug!("strcmp({}, {})", str1, str2);
+async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) -> Result<u32> {
+    tracing::debug!("strcmp({:#x}, {:#x})", ptr_str1, ptr_str2);
+
+    let str1 = read_null_terminated_string_bytes(core, ptr_str1)?;
+    let str2 = read_null_terminated_string_bytes(core, ptr_str2)?;
 
     Ok(str1.cmp(&str2) as u32)
 }
 
-async fn strlen(_core: &mut ArmCore, _: &mut (), str: String) -> Result<u32> {
-    tracing::debug!("strlen({})", str);
+async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
+    tracing::debug!("strlen({:#x})", ptr_str);
 
-    Ok(str.len() as u32)
+    let string = read_null_terminated_string_bytes(core, ptr_str)?;
+
+    Ok(string.len() as u32)
 }
 
-async fn atoi(_core: &mut ArmCore, _: &mut (), str: String) -> Result<u32> {
-    tracing::debug!("atoi({})", str);
+async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
+    tracing::debug!("atoi({:#x})", ptr_str);
 
-    Ok(str.parse().unwrap())
+    let string = read_null_terminated_string_bytes(core, ptr_str)?;
+    let string = String::from_utf8(string).unwrap();
+
+    Ok(string.parse().unwrap())
 }
 
 async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
@@ -77,8 +88,8 @@ async fn memset(core: &mut ArmCore, _: &mut (), dst: u32, value: u32, size: u32)
     Ok(())
 }
 
-async fn unk2(_core: &mut ArmCore, _: &mut (), a0: String) -> Result<()> {
-    tracing::warn!("unk2({})", a0);
+async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
+    tracing::warn!("unk2({:#x})", a0);
 
     // error exit?
 

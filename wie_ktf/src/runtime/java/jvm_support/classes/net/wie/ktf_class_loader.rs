@@ -11,7 +11,7 @@ use jvm::{
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::write_null_terminated_string;
+use wie_util::write_null_terminated_string_bytes;
 
 use crate::runtime::{init::load_native, java::jvm_support::class_definition::JavaClassDefinition};
 
@@ -116,7 +116,7 @@ impl KtfClassLoader {
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
         let ptr_name = Allocator::alloc(&mut context.core, 50).unwrap(); // TODO size fix
-        write_null_terminated_string(&mut context.core, ptr_name, &name).unwrap();
+        write_null_terminated_string_bytes(&mut context.core, ptr_name, name.as_bytes()).unwrap();
 
         let ptr_raw = context.core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
         Allocator::free(&mut context.core, ptr_name, 50).unwrap();

@@ -10,7 +10,7 @@ use jvm_rust::ClassDefinitionImpl;
 use wie_backend::System;
 use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmSupport;
-use wie_util::{read_generic, write_null_terminated_string, Result, WieError};
+use wie_util::{read_generic, write_null_terminated_string_bytes, Result, WieError};
 use wie_wipi_c::{
     api::{database, graphics, kernel, media, misc, net},
     MethodImpl, WIPICContext,
@@ -171,7 +171,7 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     // OEMC_knlGetProgramInfo? get app id
     let result = context.alloc_raw(0x10)?;
     let app_id = context.system().app_id().to_string();
-    write_null_terminated_string(context, result, &app_id)?;
+    write_null_terminated_string_bytes(context, result, app_id.as_bytes())?;
 
     Ok(result)
 }
