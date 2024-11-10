@@ -61,6 +61,8 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0xe4 => graphics::get_font_height.into_body(),
         0xe9 => graphics::create_image.into_body(),
         0xeb => unk0.into_body(),
+        0x12c => unk3.into_body(),
+        0x12d => unk4.into_body(),
         0x190 => database::open_database.into_body(),
         0x192 => database::write_record_single.into_body(),
         0x193 => database::close_database.into_body(),
@@ -72,6 +74,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x4b3 => media::clip_put_data.into_body(),
         0x4b8 => media::clip_get_volume.into_body(),
         0x4b9 => media::clip_set_volume.into_body(),
+        0x4c0 => unk5.into_body(),
         0x4c1 => media::vibrator.into_body(),
         0x4c5 => media::clip_alloc_player.into_body(),
         0x4c6 => media::clip_free_player.into_body(),
@@ -171,4 +174,24 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
     write_null_terminated_string(context, result, &app_id)?;
 
     Ok(result)
+}
+
+async fn unk3(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk3({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    Ok(0)
+}
+
+async fn unk4(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk4({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    Ok(0)
+}
+
+async fn unk5(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk5({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    // media
+
+    Ok(0)
 }
