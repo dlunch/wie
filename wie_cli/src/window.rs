@@ -385,24 +385,19 @@ where
                 event:
                     KeyEvent {
                         physical_key,
-                        state: ElementState::Pressed,
+                        state,
+                        repeat: false,
                         ..
                     },
                 ..
-            } => {
-                self.callback(WindowCallbackEvent::Keydown(physical_key), event_loop);
-            }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key,
-                        state: ElementState::Released,
-                        ..
-                    },
-                ..
-            } => {
-                self.callback(WindowCallbackEvent::Keyup(physical_key), event_loop);
-            }
+            } => match state {
+                ElementState::Pressed => {
+                    self.callback(WindowCallbackEvent::Keydown(physical_key), event_loop);
+                }
+                ElementState::Released => {
+                    self.callback(WindowCallbackEvent::Keyup(physical_key), event_loop);
+                }
+            },
             WindowEvent::RedrawRequested => {
                 self.callback(WindowCallbackEvent::Redraw, event_loop);
             }

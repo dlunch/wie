@@ -72,6 +72,7 @@ impl CardCanvas {
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Self::paint, Default::default()),
                 JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, Default::default()),
+                JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, Default::default()),
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
                 JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, Default::default()),
                 JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, Default::default()),
@@ -122,6 +123,26 @@ impl CardCanvas {
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
             let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (1i32, key_code as i32)).await?;
+
+            if !propagate {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn key_repeated(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
+        tracing::debug!("net.wie.CardCanvas::keyRepeated({:?}, {})", this, key_code);
+
+        let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
+
+        let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
+        let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
+
+        for i in 0..length {
+            let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
+            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (3i32, key_code as i32)).await?;
 
             if !propagate {
                 break;

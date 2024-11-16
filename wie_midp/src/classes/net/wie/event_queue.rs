@@ -160,6 +160,12 @@ impl EventQueue {
                         MIDPKeyCode::from_key_code(x) as _,
                         0,
                     ],
+                    Event::Keyrepeat(x) => vec![
+                        EventQueueEvent::KeyEvent as _,
+                        KeyboardEventType::KeyRepeated as _,
+                        MIDPKeyCode::from_key_code(x) as _,
+                        0,
+                    ],
                 };
 
                 jvm.store_array(&mut event, 0, event_data).await?;

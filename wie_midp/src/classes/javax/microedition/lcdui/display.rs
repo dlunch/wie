@@ -164,6 +164,7 @@ impl Display {
                 // TODO we need enum
                 KeyboardEventType::KeyPressed => jvm.invoke_virtual(&current_displayable, "keyPressed", "(I)V", (code,)).await?,
                 KeyboardEventType::KeyReleased => jvm.invoke_virtual(&current_displayable, "keyReleased", "(I)V", (code,)).await?,
+                KeyboardEventType::KeyRepeated => jvm.invoke_virtual(&current_displayable, "keyRepeated", "(I)V", (code,)).await?,
                 _ => unimplemented!(),
             }
         }
