@@ -93,7 +93,13 @@ impl File {
                 "(Ljava/io/File;Ljava/lang/String;)V",
                 (file.clone(), mode_string),
             )
-            .await?;
+            .await;
+
+        if raf.is_err() {
+            // TODO check exception type
+            return Err(jvm.exception("java/io/IOException", "Invalid filename").await);
+        }
+        let raf = raf.unwrap();
 
         if mode == Mode::WRITE_TRUNC {
             let _: () = jvm.invoke_virtual(&raf, "setLength", "(J)V", (0i64,)).await?;
