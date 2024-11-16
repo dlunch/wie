@@ -17,7 +17,7 @@ impl Volume {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("set", "(I)V", Self::set, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("get", "()V", Self::get, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("get", "()I", Self::get, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
             ],
             fields: vec![],
         }
