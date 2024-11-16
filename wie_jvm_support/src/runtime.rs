@@ -1,8 +1,5 @@
-use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
-use core::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use core::time::Duration;
 
 use spin::Mutex;
 
@@ -13,6 +10,10 @@ use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;
 
 use crate::{JvmImplementation, JvmSupport, WieJavaClassProto, WieJvmContext, WIE_RUSTJAR};
+
+mod file;
+
+use file::FileImpl;
 
 #[derive(Clone)]
 pub struct JvmRuntime<T>
@@ -162,78 +163,10 @@ where
         Ok(Box::new(StderrFile { system: self.system.clone() }))
     }
 
-    async fn open(&self, path: &str, write: bool, create: bool) -> Result<Box<dyn File>, IOError> {
-        tracing::debug!("open({:?}, {:?}, {:?})", path, write, create);
+    async fn open(&self, path: &str, write: bool) -> Result<Box<dyn File>, IOError> {
+        tracing::debug!("open({:?}, {:?})", path, write);
 
-        #[derive(Clone)]
-        struct FileImpl {
-            data: Arc<Mutex<Vec<u8>>>,
-            cursor: Arc<AtomicU64>,
-        }
-
-        #[async_trait::async_trait]
-        impl File for FileImpl {
-            async fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
-                let cursor = self.cursor.load(Ordering::SeqCst) as usize;
-
-                let data = self.data.lock();
-
-                if cursor < data.len() {
-                    let to_read = core::cmp::min(buf.len(), data.len() - cursor);
-                    buf[..to_read].copy_from_slice(&data[cursor..cursor + to_read]);
-
-                    self.cursor.fetch_add(to_read as u64, Ordering::SeqCst);
-
-                    Ok(to_read)
-                } else {
-                    Ok(0)
-                }
-            }
-
-            async fn write(&mut self, _buf: &[u8]) -> Result<usize, IOError> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn seek(&mut self, pos: FileSize) -> IOResult<()> {
-                self.cursor.store(pos, Ordering::SeqCst);
-
-                Ok(())
-            }
-
-            async fn tell(&self) -> IOResult<FileSize> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn set_len(&mut self, len: FileSize) -> IOResult<()> {
-                self.data.lock().resize(len as usize, 0);
-
-                Ok(())
-            }
-
-            async fn metadata(&self) -> IOResult<FileStat> {
-                Ok(FileStat {
-                    size: self.data.lock().len() as _,
-                    r#type: FileType::File,
-                })
-            }
-        }
-
-        let filesystem = self.system.filesystem();
-
-        let file = filesystem.read(path);
-        if let Some(x) = file {
-            Ok(Box::new(FileImpl {
-                data: Arc::new(Mutex::new(x.to_vec())),
-                cursor: Arc::new(AtomicU64::new(0)),
-            }))
-        } else if create {
-            Ok(Box::new(FileImpl {
-                data: Arc::new(Mutex::new(vec![])),
-                cursor: Arc::new(AtomicU64::new(0)),
-            }))
-        } else {
-            Err(IOError::NotFound)
-        }
+        Ok(Box::new(FileImpl::new(self.system.clone(), path, write)?))
     }
 
     async fn unlink(&self, _path: &str) -> Result<(), IOError> {
@@ -250,13 +183,15 @@ where
             });
         }
 
-        let file = filesystem.read(path);
-
-        file.map(|x| FileStat {
-            size: x.len() as _,
-            r#type: FileType::File,
-        })
-        .ok_or(IOError::NotFound)
+        let size = filesystem.size(path);
+        if let Some(size) = size {
+            Ok(FileStat {
+                size: size as _,
+                r#type: FileType::File,
+            })
+        } else {
+            Err(IOError::NotFound)
+        }
     }
 
     async fn find_rustjar_class(&self, jvm: &Jvm, classpath: &str, class: &str) -> JvmResult<Option<Box<dyn ClassDefinition>>> {
