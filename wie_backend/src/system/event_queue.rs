@@ -56,6 +56,7 @@ pub enum Event {
     Redraw,
     Keydown(KeyCode),
     Keyup(KeyCode),
+    Keyrepeat(KeyCode),
 }
 
 #[derive(Default)]

@@ -6,7 +6,7 @@ mod window;
 
 use core::str;
 use std::{
-    collections::HashSet,
+    collections::{hash_map::Entry, HashMap},
     error::Error,
     fs,
     io::stderr,
@@ -173,25 +173,43 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         anyhow::bail!("Unknown file format");
     };
 
-    let mut key_events = HashSet::new();
+    let mut key_events = HashMap::new();
     window.run(move |event| {
         match event {
-            WindowCallbackEvent::Update => emulator.tick()?,
+            WindowCallbackEvent::Update => {
+                let now = SystemTime::now();
+
+                for entry in key_events.iter_mut() {
+                    let (keycode, time) = entry;
+
+                    // TODO const
+                    if now.duration_since(*time).unwrap().as_millis() > 100 {
+                        emulator.handle_event(Event::Keyrepeat(*keycode));
+                        *time = now;
+                    }
+                }
+
+                emulator.tick()?
+            }
             WindowCallbackEvent::Redraw => emulator.handle_event(Event::Redraw),
             WindowCallbackEvent::Keydown(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    if !key_events.contains(&keycode) {
+                    let entry = key_events.entry(keycode);
+                    if let Entry::Vacant(entry) = entry {
                         emulator.handle_event(Event::Keydown(keycode));
-                        key_events.insert(keycode);
+
+                        let now = SystemTime::now();
+
+                        entry.insert(now);
                     }
                 }
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(keycode) = convert_key(x) {
-                    if key_events.contains(&keycode) {
+                    if key_events.contains_key(&keycode) {
                         key_events.remove(&keycode);
+                        emulator.handle_event(Event::Keyup(keycode));
                     }
-                    emulator.handle_event(Event::Keyup(keycode));
                 }
             }
         }

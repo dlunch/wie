@@ -22,6 +22,7 @@ impl Canvas {
                 JavaMethodProto::new_abstract("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Default::default()),
                 JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, Default::default()),
                 JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, Default::default()),
+                JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, Default::default()),
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
             ],
             fields: vec![],
@@ -92,6 +93,12 @@ impl Canvas {
 
     async fn key_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::keyPressed({:?}, {})", &this, key);
+
+        Ok(())
+    }
+
+    async fn key_repeated(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::keyRepeated({:?}, {})", &this, key);
 
         Ok(())
     }
