@@ -82,7 +82,7 @@ impl File {
 
         let mode = unsafe { core::mem::transmute::<i32, Mode>(mode) };
 
-        let mode_string = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC { "w" } else { "rw" };
+        let mode_string = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC { "w" } else { "r" };
         let mode_string = JavaLangString::from_rust_string(jvm, mode_string).await?;
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (filename,)).await?;
