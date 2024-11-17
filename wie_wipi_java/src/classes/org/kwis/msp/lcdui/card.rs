@@ -134,15 +134,23 @@ impl Card {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, x, y, width, height);
 
-        let canvas = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
-        jvm.invoke_virtual(&canvas, "repaint", "(IIII)V", (x, y, width, height)).await
+        let canvas: ClassInstanceRef<Canvas> = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
+        if !canvas.is_null() {
+            let _: () = jvm.invoke_virtual(&canvas, "repaint", "(IIII)V", (x, y, width, height)).await?;
+        }
+
+        Ok(())
     }
 
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
 
-        let canvas = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
-        jvm.invoke_virtual(&canvas, "serviceRepaints", "()V", ()).await
+        let canvas: ClassInstanceRef<Canvas> = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
+        if !canvas.is_null() {
+            let _: () = jvm.invoke_virtual(&canvas, "serviceRepaints", "()V", ()).await?;
+        }
+
+        Ok(())
     }
 
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
