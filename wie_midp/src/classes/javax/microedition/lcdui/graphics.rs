@@ -601,8 +601,8 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
-        let x = (translate_x + x + x_delta).max(0);
-        let y = (translate_y + y + y_delta).max(0);
+        let x = translate_x + x + x_delta;
+        let y = translate_y + y + y_delta;
 
         let clip = Self::clip(jvm, &this).await?;
 
