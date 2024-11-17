@@ -74,6 +74,7 @@ impl Graphics {
                 JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
                 JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
+                JavaMethodProto::new("drawSubstring", "(Ljava/lang/String;IIIII)V", Self::draw_substring, Default::default()),
                 JavaMethodProto::new(
                     "drawImage",
                     "(Ljavax/microedition/lcdui/Image;III)V",
@@ -496,6 +497,40 @@ impl Graphics {
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
         canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
+
+        Ok(())
+    }
+    async fn draw_substring(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        string: ClassInstanceRef<String>,
+        offset: i32,
+        len: i32,
+        x: i32,
+        y: i32,
+        anchor: Anchor,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::drawSubstring({:?}, {:?}, {}, {}, {}, {})",
+            &this,
+            &string,
+            offset,
+            len,
+            x,
+            y
+        );
+
+        let string = JavaLangString::to_rust_string(jvm, &string).await?;
+        let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        canvas.draw_text(&substring, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
 
         Ok(())
     }
