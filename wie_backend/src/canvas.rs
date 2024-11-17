@@ -43,14 +43,18 @@ pub trait ImageBuffer: Send {
     fn put_pixels(&mut self, x: i32, y: i32, width: u32, colors: &[Color]);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub trait Canvas: Send {
     fn image(&self) -> &dyn Image;
-    #[allow(clippy::too_many_arguments)]
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip);
     fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color);
     fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment);
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
+    fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: u32, arc_angle: u32, color: Color, clip: Clip);
+    fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
     fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
+    fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: u32, arc_angle: u32, color: Color, clip: Clip);
+    fn fill_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
     fn put_pixel(&mut self, x: i32, y: i32, color: Color);
 }
 
@@ -300,6 +304,7 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 impl<T> Canvas for ImageBufferCanvas<T>
 where
     T: ImageBuffer + Image,
@@ -308,7 +313,6 @@ where
         &self.image_buffer
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip) {
         for y in 0..(h as i32) {
             for x in 0..(w as i32) {
@@ -421,6 +425,16 @@ where
         }
     }
 
+    fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, _start_angle: u32, _arc_angle: u32, color: Color, clip: Clip) {
+        // TODO unimplemented
+        self.draw_rect(x, y, w, h, color, clip);
+    }
+
+    fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, _arc_width: u32, _arc_height: u32, color: Color, clip: Clip) {
+        // TODO unimplemented
+        self.draw_rect(x, y, w, h, color, clip);
+    }
+
     fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
         // TODO use put_pixels
         for y in y..y + (h as i32) {
@@ -434,6 +448,16 @@ where
                 self.put_pixel(x, y, color);
             }
         }
+    }
+
+    fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, _start_angle: u32, _arc_angle: u32, color: Color, clip: Clip) {
+        // TODO unimplemented
+        self.fill_rect(x, y, w, h, color, clip);
+    }
+
+    fn fill_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, _arc_width: u32, _arc_height: u32, color: Color, clip: Clip) {
+        // TODO unimplemented
+        self.fill_rect(x, y, w, h, color, clip);
     }
 
     fn put_pixel(&mut self, x: i32, y: i32, color: Color) {

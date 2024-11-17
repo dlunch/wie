@@ -13,6 +13,7 @@ use crate::classes::org::kwis::msp::lcdui::{Display, Font, Image};
 // class org.kwis.msp.lcdui.Graphics
 pub struct Graphics;
 
+#[allow(clippy::too_many_arguments)]
 impl Graphics {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
@@ -33,8 +34,12 @@ impl Graphics {
                 JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, Default::default()),
                 JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, Default::default()),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
+                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, Default::default()),
+                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, Default::default()),
                 JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
+                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, Default::default()),
+                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, Default::default()),
                 JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
@@ -151,6 +156,60 @@ impl Graphics {
         jvm.invoke_virtual(&midp_graphics, "fillRect", "(IIII)V", (x, y, width, height)).await
     }
 
+    async fn fill_round_rect(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        arc_width: i32,
+        arc_height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::fillRoundRect({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            arc_width,
+            arc_height
+        );
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "fillRoundRect", "(IIIIII)V", (x, y, width, height, arc_width, arc_height))
+            .await
+    }
+
+    async fn fill_arc(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        start_angle: i32,
+        arc_angle: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::fillArc({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            start_angle,
+            arc_angle
+        );
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "fillArc", "(IIIIII)V", (x, y, width, height, start_angle, arc_angle))
+            .await
+    }
+
     async fn draw_line(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
 
@@ -171,6 +230,60 @@ impl Graphics {
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         jvm.invoke_virtual(&midp_graphics, "drawRect", "(IIII)V", (x, y, width, height)).await
+    }
+
+    async fn draw_round_rect(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        arc_width: i32,
+        arc_height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawRoundRect({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            arc_width,
+            arc_height
+        );
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "drawRoundRect", "(IIIIII)V", (x, y, width, height, arc_width, arc_height))
+            .await
+    }
+
+    async fn draw_arc(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        start_angle: i32,
+        arc_angle: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawArc({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            start_angle,
+            arc_angle
+        );
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "drawArc", "(IIIIII)V", (x, y, width, height, start_angle, arc_angle))
+            .await
     }
 
     async fn draw_char(
@@ -332,7 +445,6 @@ impl Graphics {
         jvm.invoke_virtual(&midp_graphics, "translate", "(II)V", (x, y)).await
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn set_rgb_pixels(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
