@@ -50,6 +50,7 @@ impl From<Anchor> for TextAlignment {
 // class javax.microedition.lcdui.Graphics
 pub struct Graphics;
 
+#[allow(clippy::too_many_arguments)]
 impl Graphics {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
@@ -64,8 +65,12 @@ impl Graphics {
                 JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
                 JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, Default::default()),
                 JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
+                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, Default::default()),
+                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, Default::default()),
                 JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
                 JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
+                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, Default::default()),
+                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, Default::default()),
                 JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
                 JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
@@ -103,7 +108,6 @@ impl Graphics {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn init_with_image(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::<init>({:?}, {:?})", &this, &image,);
 
@@ -231,6 +235,98 @@ impl Graphics {
         Ok(())
     }
 
+    async fn fill_round_rect(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        arc_width: i32,
+        arc_height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::fillRoundRect({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            arc_width,
+            arc_height
+        );
+
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.fill_round_rect(
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            width as _,
+            height as _,
+            arc_width as _,
+            arc_height as _,
+            Rgb8Pixel::to_color(rgb as _),
+            clip,
+        );
+
+        Ok(())
+    }
+
+    async fn fill_arc(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        start_angle: i32,
+        arc_angle: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::fillArc({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            start_angle,
+            arc_angle
+        );
+
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.fill_arc(
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            width as _,
+            height as _,
+            start_angle as _,
+            arc_angle as _,
+            Rgb8Pixel::to_color(rgb as _),
+            clip,
+        );
+
+        Ok(())
+    }
+
     async fn fill_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
         tracing::debug!(
             "javax.microedition.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})",
@@ -338,7 +434,6 @@ impl Graphics {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn draw_chars(
         jvm: &Jvm,
         _: &mut WieJvmContext,
@@ -481,6 +576,98 @@ impl Graphics {
         Ok(())
     }
 
+    async fn draw_round_rect(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        arc_width: i32,
+        arc_height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::drawRoundRect({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            arc_width,
+            arc_height
+        );
+
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.draw_round_rect(
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            width as _,
+            height as _,
+            arc_width as _,
+            arc_height as _,
+            Rgb8Pixel::to_color(rgb as _),
+            clip,
+        );
+
+        Ok(())
+    }
+
+    async fn draw_arc(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        start_angle: i32,
+        arc_angle: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::drawArc({:?}, {}, {}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height,
+            start_angle,
+            arc_angle
+        );
+
+        let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.draw_arc(
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            width as _,
+            height as _,
+            start_angle as _,
+            arc_angle as _,
+            Rgb8Pixel::to_color(rgb as _),
+            clip,
+        );
+
+        Ok(())
+    }
+
     async fn get_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getColor({:?})", &this);
 
@@ -549,7 +736,6 @@ impl Graphics {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn draw_rgb(
         jvm: &Jvm,
         _: &mut WieJvmContext,
