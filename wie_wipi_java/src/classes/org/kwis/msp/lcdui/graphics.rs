@@ -42,6 +42,7 @@ impl Graphics {
                 JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, Default::default()),
                 JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
+                JavaMethodProto::new("drawSubstring", "(Ljava/lang/String;IIIII)V", Self::draw_substring, Default::default()),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
                 JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, Default::default()),
@@ -323,6 +324,39 @@ impl Graphics {
 
         jvm.invoke_virtual(&midp_graphics, "drawString", "(Ljava/lang/String;III)V", (string, x, y, anchor))
             .await
+    }
+
+    async fn draw_substring(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        string: ClassInstanceRef<String>,
+        offset: i32,
+        len: i32,
+        x: i32,
+        y: i32,
+        anchor: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawSubstring({:?}, {:?}, {}, {}, {}, {}, {})",
+            &this,
+            &string,
+            offset,
+            len,
+            x,
+            y,
+            anchor
+        );
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "drawSubstring",
+            "(Ljava/lang/String;IIIII)V",
+            (string, offset, len, x, y, anchor),
+        )
+        .await
     }
 
     async fn draw_image(
