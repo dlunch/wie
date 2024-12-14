@@ -1,5 +1,8 @@
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::fmt::{self, Debug, Formatter};
+use core::{
+    fmt::{self, Debug, Formatter},
+    hash::{Hash, Hasher},
+};
 
 use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
 
@@ -85,11 +88,6 @@ impl ArrayClassInstance for JavaArrayClassInstance {
     fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
         self.class_instance.equals(other)
     }
-
-    fn hash_code(&self) -> i32 {
-        self.class_instance.hash_code()
-    }
-
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.element_size().unwrap();
 
@@ -162,6 +160,12 @@ impl ArrayClassInstance for JavaArrayClassInstance {
 impl Debug for JavaArrayClassInstance {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:#x}", self.class_instance.ptr_raw)
+    }
+}
+
+impl Hash for JavaArrayClassInstance {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.class_instance.hash(state);
     }
 }
 

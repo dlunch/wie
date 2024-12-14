@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
+    hash::{Hash, Hasher},
     iter,
     mem::size_of,
 };
@@ -117,13 +118,12 @@ impl ClassInstance for JavaClassInstance {
     }
 
     fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
-        let other_instance = other.as_any().downcast_ref::<JavaClassInstance>().unwrap();
+        let other = other.as_any().downcast_ref::<JavaClassInstance>();
+        if other.is_none() {
+            return Ok(false);
+        }
 
-        Ok(self.ptr_raw == other_instance.ptr_raw)
-    }
-
-    fn hash_code(&self) -> i32 {
-        self.ptr_raw as _
+        Ok(self.ptr_raw == other.unwrap().ptr_raw)
     }
 
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
@@ -170,5 +170,11 @@ impl ClassInstance for JavaClassInstance {
 impl Debug for JavaClassInstance {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:#x}", self.ptr_raw)
+    }
+}
+
+impl Hash for JavaClassInstance {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ptr_raw.hash(state)
     }
 }
