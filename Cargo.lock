@@ -459,7 +459,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#3b0c81b1d2058b3d06d6e0a3fa564d4586d98c27"
+source = "git+https://github.com/dlunch/RustJava.git#fc831707b4f01e2fb7cb548e19f6eb50b92b3611"
 dependencies = [
  "java_constants",
  "nom",
@@ -1280,7 +1280,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#3b0c81b1d2058b3d06d6e0a3fa564d4586d98c27"
+source = "git+https://github.com/dlunch/RustJava.git#fc831707b4f01e2fb7cb548e19f6eb50b92b3611"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1291,7 +1291,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#3b0c81b1d2058b3d06d6e0a3fa564d4586d98c27"
+source = "git+https://github.com/dlunch/RustJava.git#fc831707b4f01e2fb7cb548e19f6eb50b92b3611"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -1299,7 +1299,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#3b0c81b1d2058b3d06d6e0a3fa564d4586d98c27"
+source = "git+https://github.com/dlunch/RustJava.git#fc831707b4f01e2fb7cb548e19f6eb50b92b3611"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -1362,7 +1362,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#3b0c81b1d2058b3d06d6e0a3fa564d4586d98c27"
+source = "git+https://github.com/dlunch/RustJava.git#fc831707b4f01e2fb7cb548e19f6eb50b92b3611"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1380,7 +1380,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#3b0c81b1d2058b3d06d6e0a3fa564d4586d98c27"
+source = "git+https://github.com/dlunch/RustJava.git#fc831707b4f01e2fb7cb548e19f6eb50b92b3611"
 dependencies = [
  "async-recursion",
  "async-trait",
