@@ -304,6 +304,10 @@ impl ClassDefinition for JavaClassDefinition {
         self.field(name, descriptor, is_static).unwrap().map(|x| Box::new(x) as _)
     }
 
+    fn fields(&self) -> Vec<Box<dyn Field>> {
+        self.fields().unwrap().into_iter().map(|x| Box::new(x) as _).collect()
+    }
+
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field).unwrap();
