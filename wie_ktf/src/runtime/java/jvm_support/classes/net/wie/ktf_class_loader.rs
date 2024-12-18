@@ -125,7 +125,7 @@ impl KtfClassLoader {
             let class = JavaClassDefinition::from_raw(ptr_raw, &context.core);
             jvm.register_class(Box::new(class), Some(this.into())).await?;
 
-            Ok(jvm.resolve_class(&name).await?.java_class()?.into())
+            Ok(jvm.resolve_class(&name).await?.java_class().into())
         } else {
             Ok(None.into())
         }
