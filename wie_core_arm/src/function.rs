@@ -92,6 +92,13 @@ generate_fn_helper!(P0);
 generate_fn_helper!(P0, P1);
 generate_fn_helper!(P0, P1, P2);
 generate_fn_helper!(P0, P1, P2, P3);
+generate_fn_helper!(P0, P1, P2, P3, P4);
+generate_fn_helper!(P0, P1, P2, P3, P4, P5);
+generate_fn_helper!(P0, P1, P2, P3, P4, P5, P6);
+generate_fn_helper!(P0, P1, P2, P3, P4, P5, P6, P7);
+generate_fn_helper!(P0, P1, P2, P3, P4, P5, P6, P7, P8);
+generate_fn_helper!(P0, P1, P2, P3, P4, P5, P6, P7, P8, P9);
+generate_fn_helper!(P0, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10);
 
 #[async_trait::async_trait]
 pub trait EmulatedFunction<C, R, P> {
@@ -119,6 +126,13 @@ generate_emulated_function!(P0);
 generate_emulated_function!(P0, P1);
 generate_emulated_function!(P0, P1, P2);
 generate_emulated_function!(P0, P1, P2, P3);
+generate_emulated_function!(P0, P1, P2, P3, P4);
+generate_emulated_function!(P0, P1, P2, P3, P4, P5);
+generate_emulated_function!(P0, P1, P2, P3, P4, P5, P6);
+generate_emulated_function!(P0, P1, P2, P3, P4, P5, P6, P7);
+generate_emulated_function!(P0, P1, P2, P3, P4, P5, P6, P7, P8);
+generate_emulated_function!(P0, P1, P2, P3, P4, P5, P6, P7, P8, P9);
+generate_emulated_function!(P0, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10);
 
 pub trait EmulatedFunctionParam<T> {
     fn get(core: &mut ArmCore, pos: usize) -> T;
