@@ -18,7 +18,7 @@ use wie_wipi_c::{
 
 use context::LgtWIPICContext;
 
-use crate::runtime::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
+use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
 
 pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, function_index: u32) -> Result<u32> {
     let method = match function_index {
