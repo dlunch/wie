@@ -10,7 +10,7 @@ use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, Result, WieError};
 
-use super::{stdlib::get_stdlib_method, wipi_c::get_wipi_c_method};
+use super::{java::get_java_interface_method, stdlib::get_stdlib_method, wipi_c::get_wipi_c_method};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -88,17 +88,13 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
 
     if import_table == 0x1fb {
         return get_wipi_c_method(core, system, jvm, function_index);
+    } else if import_table == 0x64 {
+        return get_java_interface_method(core, function_index);
     } else if import_table == 1 {
         return get_stdlib_method(core, function_index);
     }
 
     Ok(match (import_table, function_index) {
-        (0x64, 0x03) => core.register_function(java_unk0, &())?,
-        (0x64, 0x06) => core.register_function(java_unk12, &())?,
-        (0x64, 0x07) => core.register_function(java_unk5, &())?,
-        (0x64, 0x14) => core.register_function(java_unk6, &())?,
-        (0x64, 0x82) => core.register_function(java_unk9, &())?,
-        (0x64, 0x83) => core.register_function(java_unk11, &())?,
         (0x1f8, 0x16) => core.register_function(unk0, &())?,
         (0x1f8, 0x17) => core.register_function(java_unk7, &())?,
         (0x1fc, 0x03) => core.register_function(java_unk1, &())?,
@@ -147,12 +143,6 @@ async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u3
     Ok(())
 }
 
-async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk0({:#x}, {:#x}, {:#x})", a0, a1, a2);
-
-    Ok(())
-}
-
 async fn java_unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk1({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
@@ -171,46 +161,10 @@ async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -
     Ok(())
 }
 
-async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("java_unk5({:#x}, {:#x})", a0, a1);
-
-    // a0: class list
-
-    Ok(())
-}
-
-async fn java_unk6(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk6({:#x}, {:#x}, {:#x})", a0, a1, a2);
-
-    // a0: importing classes, a1: fields? a2: static fields? a3: methods?
-
-    Ok(())
-}
-
 async fn java_unk7(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<u32> {
     tracing::warn!("java_unk7({:#x}, {:#x}, {:#x})", a0, a1, a2);
 
     // get jar path?
 
     Ok(0 as _)
-}
-
-async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("java_unk9({:#x})", a0);
-
-    Ok(())
-}
-
-async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("java_unk11({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
-
-    // invoke static? used to be called with org/kwis/msp/lcdui/Main
-
-    Err(WieError::Unimplemented("Java apps are not implemented yet".into()))
-}
-
-async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("java_unk12({:#x})", a0);
-
-    Ok(())
 }
