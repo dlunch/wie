@@ -51,8 +51,8 @@ impl JavaValueExt for JavaValue {
 
     fn from_raw64(raw: KtfJvmWord, raw_high: KtfJvmWord, r#type: &JavaType) -> JavaValue {
         match r#type {
-            JavaType::Long => JavaValue::Long(((raw_high as u64) << 32 | raw as u64) as i64),
-            JavaType::Double => JavaValue::Double(f64::from_bits((raw_high as u64) << 32 | raw as u64)),
+            JavaType::Long => JavaValue::Long((((raw_high as u64) << 32) | raw as u64) as i64),
+            JavaType::Double => JavaValue::Double(f64::from_bits(((raw_high as u64) << 32) | raw as u64)),
             _ => panic!(),
         }
     }
