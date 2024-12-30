@@ -150,6 +150,8 @@ impl JavaClassDefinition {
             },
         )?;
 
+        tracing::trace!("Wrote definition {} at {:#x}", proto.name, ptr_raw);
+
         let result = Self::from_raw(ptr_raw, core);
 
         Ok(result)
@@ -213,6 +215,14 @@ impl JavaClassDefinition {
     pub fn fields(&self) -> Result<Vec<JavaField>> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
+
+        if descriptor.ptr_fields_or_element_type == 0 {
+            return Ok(Vec::new());
+        }
+
+        if self.name()?.starts_with("[") {
+            return Ok(Vec::new());
+        }
 
         let ptr_fields = read_null_terminated_table(&self.core, descriptor.ptr_fields_or_element_type)?;
 

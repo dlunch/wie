@@ -8,7 +8,7 @@ use bytemuck::{Pod, Zeroable};
 
 use java_class_proto::JavaFieldProto;
 use java_constants::FieldAccessFlags;
-use jvm::{Field, JavaType};
+use jvm::Field;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, ByteWrite};
@@ -35,15 +35,14 @@ impl JavaField {
     }
 
     pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> Result<Self> {
-        let full_name = (JavaFullName {
+        let full_name = JavaFullName {
             tag: 0,
             name: proto.name,
             descriptor: proto.descriptor,
-        })
-        .as_bytes();
-
-        let ptr_name = Allocator::alloc(core, full_name.len() as u32)?;
-        core.write_bytes(ptr_name, &full_name)?;
+        };
+        let full_name_bytes = full_name.as_bytes();
+        let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
+        core.write_bytes(ptr_name, &full_name_bytes)?;
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaField>() as u32)?;
 
@@ -57,6 +56,8 @@ impl JavaField {
                 offset_or_value,
             },
         )?;
+
+        tracing::trace!("Wrote field {} at {:#x}", full_name.name, ptr_raw);
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -97,10 +98,6 @@ impl Field for JavaField {
         let raw: RawJavaField = read_generic(&self.core, self.ptr_raw).unwrap();
 
         FieldAccessFlags::from_bits_truncate(raw.access_flags as _)
-    }
-
-    fn r#type(&self) -> JavaType {
-        todo!()
     }
 }
 

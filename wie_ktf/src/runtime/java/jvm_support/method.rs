@@ -114,6 +114,8 @@ impl JavaMethod {
             },
         )?;
 
+        tracing::trace!("Wrote method {} at {:#x}", full_name.name, ptr_raw);
+
         Ok(Self::from_raw(ptr_raw, core))
     }
 

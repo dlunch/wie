@@ -5,6 +5,7 @@ use core::{
     iter,
     mem::size_of,
 };
+use java_constants::FieldAccessFlags;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -93,7 +94,7 @@ impl JavaClassInstance {
         )?;
         write_generic(core, ptr_fields, (vtable_index * 4) << 5)?;
 
-        tracing::trace!("Instantiate {}, vtable_index {:#x}", class.name()?, vtable_index);
+        tracing::trace!("Instantiate {}, vtable_index {:#x} at {:#x}", class.name()?, vtable_index, ptr_raw);
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -130,6 +131,8 @@ impl ClassInstance for JavaClassInstance {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let field_type = JavaType::parse(&field.descriptor());
 
+        assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
+
         let offset = field.offset().unwrap();
         let address = self.field_address(offset).unwrap();
 
@@ -150,6 +153,8 @@ impl ClassInstance for JavaClassInstance {
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let field_type = JavaType::parse(&field.descriptor());
+
+        assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
 
         let offset = field.offset().unwrap();
         let address = self.field_address(offset).unwrap();
