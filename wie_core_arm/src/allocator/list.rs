@@ -16,7 +16,7 @@ struct ListAllocationHeader {
 impl ListAllocationHeader {
     pub fn new(size: u32, in_use: bool) -> Self {
         Self {
-            data: size | (in_use as u32) << 31,
+            data: size | ((in_use as u32) << 31),
         }
     }
 
