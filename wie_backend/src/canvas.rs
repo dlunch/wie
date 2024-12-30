@@ -123,7 +123,7 @@ impl PixelType for Rgb8Pixel {
     type DataType = u32;
 
     fn from_color(color: Color) -> Self::DataType {
-        (color.r as u32) << 16 | (color.g as u32) << 8 | color.b as u32
+        ((color.r as u32) << 16) | ((color.g as u32) << 8) | color.b as u32
     }
 
     fn to_color(raw: Self::DataType) -> Color {
@@ -141,7 +141,7 @@ impl PixelType for ArgbPixel {
     type DataType = u32;
 
     fn from_color(color: Color) -> Self::DataType {
-        (color.a as u32) << 24 | (color.r as u32) << 16 | (color.g as u32) << 8 | color.b as u32
+        ((color.a as u32) << 24) | ((color.r as u32) << 16) | ((color.g as u32) << 8) | color.b as u32
     }
 
     fn to_color(raw: Self::DataType) -> Color {
@@ -160,7 +160,7 @@ impl PixelType for AbgrPixel {
     type DataType = u32;
 
     fn from_color(color: Color) -> Self::DataType {
-        (color.a as u32) << 24 | (color.b as u32) << 16 | (color.g as u32) << 8 | color.r as u32
+        ((color.a as u32) << 24) | ((color.b as u32) << 16) | ((color.g as u32) << 8) | color.r as u32
     }
 
     fn to_color(raw: Self::DataType) -> Color {
