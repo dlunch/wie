@@ -281,7 +281,7 @@ pub fn get_media_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(13, "MC_mdaUnk13"),
         media::get_volume.into_body(),
         gen_stub(15, "MC_mdaUnk15"),
-        gen_stub(16, "MC_mdaUnk16"),
+        media::vibrator.into_body(),
         gen_stub(17, "MC_mdaUnk17"),
         gen_stub(18, "MC_mdaUnk18"),
         gen_stub(19, "MC_mdaUnk19"),
