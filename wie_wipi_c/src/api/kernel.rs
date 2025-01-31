@@ -116,7 +116,7 @@ pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<W
 
     let memory = context.alloc(size)?;
 
-    let zero = iter::repeat(0).take(size as usize).collect::<Vec<_>>();
+    let zero = iter::repeat_n(0, size as _).collect::<Vec<_>>();
     context.write_bytes(context.data_ptr(memory)?, &zero)?;
 
     Ok(memory)
