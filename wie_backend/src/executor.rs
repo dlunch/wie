@@ -42,10 +42,7 @@ pub trait AsyncCallableResult {
 
 impl<R> AsyncCallableResult for core::result::Result<R, WieError> {
     fn err(self) -> Option<WieError> {
-        match self {
-            Ok(_) => None,
-            Err(e) => Some(e),
-        }
+        self.err()
     }
 }
 
