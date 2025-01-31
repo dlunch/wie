@@ -79,7 +79,7 @@ impl JavaClassInstance {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as _)?;
         let ptr_fields = Allocator::alloc(core, (field_size + 4) as _)?;
 
-        let zero = iter::repeat(0).take((field_size + 4) as _).collect::<Vec<_>>();
+        let zero = iter::repeat_n(0, (field_size + 4) as _).collect::<Vec<_>>();
         core.write_bytes(ptr_fields, &zero)?;
 
         let vtable_index = KtfJvmSupport::get_vtable_index(core, class)?;
