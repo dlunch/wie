@@ -217,7 +217,8 @@ async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u3
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    let result = core.run_function::<u32>(address, &[0, ptr_data]).await?;
+    // TODO correctly figure out parameter
+    let result = core.run_function::<u32>(address, &[ptr_data, ptr_data]).await?;
 
     write_generic(core, ptr_data, result)?;
     write_generic(core, ptr_data + 4, 0u32)?;
