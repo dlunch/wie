@@ -196,6 +196,10 @@ impl JavaMethod {
 
         let mut result = Vec::with_capacity(raw.exception_table_count as _);
 
+        if raw.exception_table_count == 0 {
+            return Ok(result);
+        }
+
         let mut cursor = raw.fn_body_native_or_exception_table;
         for _ in 0..raw.exception_table_count {
             let address = read_generic(&self.core, cursor)?;
