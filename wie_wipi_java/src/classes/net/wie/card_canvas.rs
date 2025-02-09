@@ -183,6 +183,8 @@ impl CardCanvas {
             .await?;
         let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
 
+        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
+
         Ok(())
     }
 
