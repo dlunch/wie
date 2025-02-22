@@ -14,7 +14,7 @@ use winit::{
     window::{Window as WinitWindow, WindowId},
 };
 
-use wie_backend::{canvas::Image, Screen};
+use wie_backend::{Screen, canvas::Image};
 
 #[derive(Debug)]
 pub enum WindowInternalEvent {
@@ -182,7 +182,7 @@ impl Scaler {
             Scaler::Hqx { scale } if *scale == 3 => hqx::hq3x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
             Scaler::Hqx { scale } if *scale == 4 => hqx::hq4x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
             Scaler::Hqx { scale } => panic!("invalid hqx scale factor {}", scale),
-            Scaler::Lanczos3 { scale: _, ref mut resizer } => {
+            Scaler::Lanczos3 { scale: _, resizer } => {
                 let (_, srcarr, _) = unsafe { src.align_to::<u8>() };
                 let srcimg = fast_image_resize::images::ImageRef::new(src_size.width, src_size.height, srcarr, PixelType::U8x4).unwrap();
                 let (_, dstarr, _) = unsafe { dst.as_mut_slice().align_to_mut::<u8>() };
