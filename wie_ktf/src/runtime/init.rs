@@ -7,7 +7,7 @@ use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, Result, WieError};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use crate::{
     emulator::IMAGE_BASE,

@@ -7,12 +7,12 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 use jvm::{
-    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
     Array, ArrayRawBufferMut, ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangClassLoader, JavaLangString},
 };
 
 use wie_backend::canvas::{
-    decode_image, ArgbPixel, Canvas, Color, Image as BackendImage, ImageBuffer, ImageBufferCanvas, PixelType, Rgb332Pixel, Rgb565Pixel,
+    ArgbPixel, Canvas, Color, Image as BackendImage, ImageBuffer, ImageBufferCanvas, PixelType, Rgb332Pixel, Rgb565Pixel, decode_image,
 };
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 

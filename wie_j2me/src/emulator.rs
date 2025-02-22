@@ -7,7 +7,7 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::{runtime::JavaLangString, Result as JvmResult};
+use jvm::{Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::{Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};

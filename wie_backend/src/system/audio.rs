@@ -3,7 +3,7 @@ use core::time::Duration;
 
 use smaf_player::{AudioBackend, SmafPlayer};
 
-use crate::{audio_sink::AudioSink, System};
+use crate::{System, audio_sink::AudioSink};
 
 struct AudioBackendImpl {
     system: System,

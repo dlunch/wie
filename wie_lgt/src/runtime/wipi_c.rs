@@ -4,16 +4,16 @@ mod context;
 
 use bytemuck::{Pod, Zeroable};
 
-use jvm::{runtime::JavaLangString, Jvm, Result as JvmResult};
+use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_rust::ClassDefinitionImpl;
 
 use wie_backend::System;
 use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmSupport;
-use wie_util::{read_generic, write_null_terminated_string_bytes, Result, WieError};
+use wie_util::{Result, WieError, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
-    api::{database, graphics, kernel, media, misc, net},
     MethodImpl, WIPICContext,
+    api::{database, graphics, kernel, media, misc, net},
 };
 
 use context::LgtWIPICContext;

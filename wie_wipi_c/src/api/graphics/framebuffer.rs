@@ -1,12 +1,12 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use bytemuck::{pod_collect_to_vec, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable, pod_collect_to_vec};
 
 use wie_backend::canvas::{ArgbPixel, Canvas, Image, ImageBufferCanvas, Rgb565Pixel, VecImageBuffer};
 use wie_util::Result;
 
-use crate::{context::WIPICContext, WIPICMemoryId, WIPICWord};
+use crate::{WIPICMemoryId, WIPICWord, context::WIPICContext};
 
 /// MC_GrpDisplayInfo
 #[repr(C)]

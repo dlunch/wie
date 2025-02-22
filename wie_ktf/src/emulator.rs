@@ -1,8 +1,8 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 
-use jvm::{runtime::JavaLangString, ClassInstance, Result as JvmResult};
+use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{extract_zip, Emulator, Event, Platform, System};
+use wie_backend::{Emulator, Event, Platform, System, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};

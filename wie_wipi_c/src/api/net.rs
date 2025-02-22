@@ -1,6 +1,6 @@
 use wie_util::Result;
 
-use crate::{context::WIPICContext, WIPICWord};
+use crate::{WIPICWord, context::WIPICContext};
 
 pub async fn connect(_context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPICWord) -> Result<i32> {
     tracing::warn!("stub MC_netConnect({:#x}, {:#x})", cb, param);

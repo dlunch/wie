@@ -4,7 +4,7 @@ use jvm::{JavaType, JavaValue};
 
 use wie_core_arm::ArmCore;
 
-use super::{array_class_instance::JavaArrayClassInstance, class_instance::JavaClassInstance, KtfJvmWord};
+use super::{KtfJvmWord, array_class_instance::JavaArrayClassInstance, class_instance::JavaClassInstance};
 
 pub trait JavaValueExt {
     fn from_raw(raw: KtfJvmWord, r#type: &JavaType, core: &ArmCore) -> JavaValue;

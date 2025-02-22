@@ -2,13 +2,13 @@ use alloc::format;
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
-use elf::{endian::AnyEndian, ElfBytes};
+use elf::{ElfBytes, endian::AnyEndian};
 
 use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, Result, WieError};
+use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{java::get_java_interface_method, stdlib::get_stdlib_method, wipi_c::get_wipi_c_method};
 
@@ -104,7 +104,7 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
             return Err(WieError::FatalError(format!(
                 "Unknown import function: {:#x}, {:#x}",
                 import_table, function_index
-            )))
+            )));
         }
     })
 }

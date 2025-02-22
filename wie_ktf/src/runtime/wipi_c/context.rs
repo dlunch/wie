@@ -1,13 +1,13 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
 use jvm::{
-    runtime::{JavaIoInputStream, JavaLangClassLoader},
     Jvm,
+    runtime::{JavaIoInputStream, JavaLangClassLoader},
 };
 
 use wie_backend::{AsyncCallable, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
-use wie_util::{read_generic, write_generic, ByteRead, ByteWrite, Result};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
 
 #[derive(Clone)]

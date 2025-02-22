@@ -2,8 +2,8 @@ use alloc::{vec, vec::Vec};
 
 use wie_util::WieError;
 use wie_wipi_c::{
-    api::{database, graphics, kernel, media, misc, net, uic, util},
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICWord,
+    api::{database, graphics, kernel, media, misc, net, uic, util},
 };
 
 fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {

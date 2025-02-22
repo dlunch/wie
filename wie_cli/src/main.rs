@@ -6,21 +6,21 @@ mod window;
 
 use core::str;
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     error::Error,
     fs,
     io::stderr,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{Receiver, Sender, channel},
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use clap::Parser;
 use midir::MidiOutput;
-use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
+use rodio::{OutputStream, Sink, buffer::SamplesBuffer};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{extract_zip, Emulator, Event, Instant, KeyCode, Platform, Screen};
+use wie_backend::{Emulator, Event, Instant, KeyCode, Platform, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;

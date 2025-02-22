@@ -5,8 +5,8 @@ use bytemuck::cast_vec;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
 use jvm::{
-    runtime::{JavaIoInputStream, JavaLangString},
     Array, ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangString},
 };
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};

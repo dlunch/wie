@@ -12,11 +12,11 @@ use bytemuck::{Pod, Zeroable};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, ByteWrite};
+use wie_util::{ByteWrite, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::KtfJvmSupport;
 
-use super::{class_definition::JavaClassDefinition, field::JavaField, value::JavaValueExt, KtfJvmWord, Result};
+use super::{KtfJvmWord, Result, class_definition::JavaClassDefinition, field::JavaField, value::JavaValueExt};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

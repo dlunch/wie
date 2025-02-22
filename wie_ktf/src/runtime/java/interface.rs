@@ -8,12 +8,12 @@ use alloc::{
 use core::mem::size_of;
 use wie_jvm_support::JvmSupport;
 
-use jvm::{runtime::JavaLangString, Jvm};
+use jvm::{Jvm, runtime::JavaLangString};
 
 use bytemuck::{Pod, Zeroable};
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, ByteRead, Result, WieError};
+use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, JavaMethodResult, KtfJvmSupport, KtfJvmWord};
 

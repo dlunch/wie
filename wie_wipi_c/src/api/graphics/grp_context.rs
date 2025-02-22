@@ -2,7 +2,7 @@ use core::mem;
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::{method::ParamConverter, WIPICContext, WIPICWord};
+use crate::{WIPICContext, WIPICWord, method::ParamConverter};
 
 /// _MC_GrpContext
 #[repr(C)]

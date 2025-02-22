@@ -3,13 +3,13 @@ use core::time::Duration;
 
 use spin::Mutex;
 
-use java_runtime::{get_runtime_class_proto, File, FileSize, FileStat, FileType, IOError, IOResult, Runtime, SpawnCallback, RT_RUSTJAR};
+use java_runtime::{File, FileSize, FileStat, FileType, IOError, IOResult, RT_RUSTJAR, Runtime, SpawnCallback, get_runtime_class_proto};
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
 use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;
 
-use crate::{JvmImplementation, JvmSupport, WieJavaClassProto, WieJvmContext, WIE_RUSTJAR};
+use crate::{JvmImplementation, JvmSupport, WIE_RUSTJAR, WieJavaClassProto, WieJvmContext};
 
 mod file;
 

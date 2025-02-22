@@ -1,4 +1,4 @@
-use bytemuck::{cast_vec, from_bytes, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable, cast_vec, from_bytes};
 
 use wie_util::{Result, WieError};
 

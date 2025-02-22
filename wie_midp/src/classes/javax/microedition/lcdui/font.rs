@@ -3,7 +3,7 @@ use alloc::{string::String as RustString, vec};
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::canvas;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
