@@ -19,12 +19,13 @@ pub struct ExecutorInner {
     last_task_id: usize,
 }
 
-#[async_trait::async_trait]
-pub trait AsyncCallable<R> {
-    async fn call(self) -> R;
+pub trait AsyncCallable<R>: Send
+where
+    R: Send,
+{
+    fn call(self) -> impl Future<Output = R> + Send;
 }
 
-#[async_trait::async_trait]
 impl<F, R, Fut> AsyncCallable<R> for F
 where
     F: FnOnce() -> Fut + 'static + Send,
@@ -36,11 +37,14 @@ where
     }
 }
 
-pub trait AsyncCallableResult {
+pub trait AsyncCallableResult: Send {
     fn err(self) -> Option<WieError>;
 }
 
-impl<R> AsyncCallableResult for core::result::Result<R, WieError> {
+impl<R> AsyncCallableResult for core::result::Result<R, WieError>
+where
+    R: Send,
+{
     fn err(self) -> Option<WieError> {
         self.err()
     }
@@ -72,7 +76,7 @@ impl Executor {
 
     pub fn spawn<C, R>(&mut self, callable: C) -> usize
     where
-        C: AsyncCallable<R> + 'static + Send,
+        C: AsyncCallable<R> + 'static,
         R: AsyncCallableResult,
     {
         let fut = async move {

@@ -29,9 +29,8 @@ impl WieJvmContext {
             callback: Box<dyn MethodBody<JavaError, WieJvmContext>>,
         }
 
-        #[async_trait::async_trait]
         impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, WieError> {
+            async fn call(self) -> Result<u32, WieError> {
                 let mut context = WieJvmContext { system: self.system };
 
                 let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;

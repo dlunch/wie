@@ -65,7 +65,7 @@ impl LgtEmulator {
         let main_class_name_clone = main_class_name.clone();
         let jar_filename = jar_filename.to_owned();
 
-        system.spawn(move || async move { Self::do_start(&mut core_clone, &mut system_clone, jar_filename, main_class_name_clone).await });
+        system.spawn(async move || Self::do_start(&mut core_clone, &mut system_clone, jar_filename, main_class_name_clone).await);
 
         Ok(Self { core, system })
     }
