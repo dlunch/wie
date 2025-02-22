@@ -115,7 +115,6 @@ impl WIPICContext for LgtWIPICContext {
             callback: WIPICMethodBody,
         }
 
-        #[async_trait::async_trait]
         impl AsyncCallable<Result<()>> for SpawnProxy {
             async fn call(mut self) -> Result<()> {
                 self.context.jvm.attach_thread().unwrap();

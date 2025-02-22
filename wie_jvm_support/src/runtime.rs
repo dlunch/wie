@@ -60,9 +60,8 @@ where
             callback: Box<dyn SpawnCallback>,
         }
 
-        #[async_trait::async_trait]
         impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
-            async fn call(mut self) -> Result<u32, WieError> {
+            async fn call(self) -> Result<u32, WieError> {
                 let result = self.callback.call().await;
                 if let Err(err) = result {
                     return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
