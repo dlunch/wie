@@ -5,7 +5,7 @@ use java_runtime::classes::java::{
     io::{DataInputStream, InputStream},
     lang::String,
 };
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 

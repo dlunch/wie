@@ -1,6 +1,6 @@
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 
-use super::{class_definition::JavaClassDefinition, Result};
+use super::{Result, class_definition::JavaClassDefinition};
 
 struct JavaVtableMethod {
     ptr_method: u32,

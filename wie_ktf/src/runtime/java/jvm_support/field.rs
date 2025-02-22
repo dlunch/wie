@@ -11,9 +11,9 @@ use java_constants::FieldAccessFlags;
 use jvm::Field;
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, write_generic, ByteWrite};
+use wie_util::{ByteWrite, read_generic, write_generic};
 
-use super::{name::JavaFullName, Result};
+use super::{Result, name::JavaFullName};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

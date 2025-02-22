@@ -4,8 +4,8 @@ use wie_backend::System;
 use wie_util::{ByteRead, ByteWrite, Result};
 
 use crate::{
-    method::{ParamConverter, ResultConverter},
     WIPICMemoryId, WIPICMethodBody, WIPICWord,
+    method::{ParamConverter, ResultConverter},
 };
 
 #[async_trait::async_trait]

@@ -7,9 +7,9 @@ use core::{
 use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
-use wie_util::{read_generic, write_generic, ByteRead, ByteWrite};
+use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
 
-use super::{array_class_definition::JavaArrayClassDefinition, class_instance::JavaClassInstance, value::JavaValueExt, Result};
+use super::{Result, array_class_definition::JavaArrayClassDefinition, class_instance::JavaClassInstance, value::JavaValueExt};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {

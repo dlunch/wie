@@ -7,8 +7,8 @@ mod runtime;
 
 use alloc::{boxed::Box, format};
 
-use java_runtime::{Runtime, RT_RUSTJAR};
-use jvm::{runtime::JavaLangString, JavaError, Jvm};
+use java_runtime::{RT_RUSTJAR, Runtime};
+use jvm::{JavaError, Jvm, runtime::JavaLangString};
 
 use wie_backend::System;
 use wie_util::{Result, WieError};

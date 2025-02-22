@@ -4,9 +4,9 @@ use core::{iter, mem::size_of};
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::Instant;
-use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes, Result, WieError};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::{context::WIPICContext, method::MethodBody, WIPICMemoryId, WIPICResult, WIPICWord};
+use crate::{WIPICMemoryId, WIPICResult, WIPICWord, context::WIPICContext, method::MethodBody};
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -305,9 +305,9 @@ pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPIC
 mod test {
     use alloc::{boxed::Box, string::String};
 
-    use wie_util::{read_null_terminated_string_bytes, write_null_terminated_string_bytes, Result};
+    use wie_util::{Result, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
 
-    use crate::{context::test::TestContext, method::MethodImpl, WIPICContext};
+    use crate::{WIPICContext, context::test::TestContext, method::MethodImpl};
 
     use super::sprintk;
 

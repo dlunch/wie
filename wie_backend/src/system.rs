@@ -8,10 +8,10 @@ use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 use wie_util::Result;
 
 use crate::{
+    AsyncCallable, Instant,
     executor::{AsyncCallableResult, Executor},
     platform::Platform,
     task::{SleepFuture, YieldFuture},
-    AsyncCallable, Instant,
 };
 
 use self::{audio::Audio, event_queue::EventQueue, file_system::Filesystem};

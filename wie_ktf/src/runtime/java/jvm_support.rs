@@ -16,13 +16,13 @@ use jvm_implementation::KtfJvmImplementation;
 
 use bytemuck::{Pod, Zeroable};
 
-use java_runtime::classes::java::util::{jar::JarEntry, Enumeration};
-use jvm::{runtime::JavaLangString, ClassDefinition, ClassInstance, ClassInstanceRef, Jvm};
+use java_runtime::classes::java::util::{Enumeration, jar::JarEntry};
+use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, runtime::JavaLangString};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
-use wie_util::{read_generic, read_null_terminated_table, write_generic, Result};
+use wie_util::{Result, read_generic, read_null_terminated_table, write_generic};
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -225,7 +225,7 @@ mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::sync::atomic::{AtomicBool, Ordering};
 
-    use jvm::{runtime::JavaLangString, Jvm};
+    use jvm::{Jvm, runtime::JavaLangString};
 
     use wie_backend::System;
     use wie_core_arm::{Allocator, ArmCore};

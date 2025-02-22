@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
 use wie_core_arm::ArmCore;
-use wie_util::{write_generic, Result};
+use wie_util::{Result, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 use crate::runtime::wipi_c::{context::KtfWIPICContext, method_table};

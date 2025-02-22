@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::io::InputStream;
-use jvm::{runtime::JavaIoInputStream, ClassInstanceRef, Jvm, Result};
+use jvm::{ClassInstanceRef, Jvm, Result, runtime::JavaIoInputStream};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 

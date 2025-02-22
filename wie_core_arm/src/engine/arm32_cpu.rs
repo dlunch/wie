@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::{array, cell::RefCell, ops::Range};
 
-use arm32_cpu::{reg, Cpu, Memory, Mode};
+use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_util::{Result, WieError};
 

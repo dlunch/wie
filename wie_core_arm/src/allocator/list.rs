@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_util::{read_generic, write_generic, Result, WieError};
+use wie_util::{Result, WieError, read_generic, write_generic};
 
 use crate::core::ArmCore;
 

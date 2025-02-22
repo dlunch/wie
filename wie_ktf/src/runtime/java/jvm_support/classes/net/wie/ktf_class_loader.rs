@@ -5,8 +5,8 @@ use bytemuck::cast_slice;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
 use jvm::{
-    runtime::{JavaIoInputStream, JavaLangString},
     ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangString},
 };
 
 use wie_backend::System;

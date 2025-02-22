@@ -2,7 +2,7 @@ use alloc::{format, string::String, vec};
 use core::cmp::min;
 
 use wie_core_arm::ArmCore;
-use wie_util::{read_null_terminated_string_bytes, write_null_terminated_string_bytes, ByteRead, ByteWrite, Result, WieError};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
 
 pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {

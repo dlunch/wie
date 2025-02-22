@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use jvm::runtime::{JavaIoInputStream, JavaLangClassLoader};
 
-use wie_backend::{extract_zip, Emulator, Event, Platform, System};
+use wie_backend::{Emulator, Event, Platform, System, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};

@@ -18,8 +18,8 @@ use wie_util::{
 };
 
 use super::{
-    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable_builder::JavaVtableBuilder, KtfJvmWord,
-    Result,
+    KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt,
+    vtable_builder::JavaVtableBuilder,
 };
 
 #[repr(C)]

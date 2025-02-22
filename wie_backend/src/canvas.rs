@@ -3,7 +3,7 @@ mod lbmp;
 use core::mem::size_of;
 
 use ab_glyph::{Font, FontRef, ScaleFont};
-use bytemuck::{cast_slice, pod_collect_to_vec, Pod};
+use bytemuck::{Pod, cast_slice, pod_collect_to_vec};
 use image::ImageReader;
 use num_traits::{Num, Zero};
 

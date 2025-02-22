@@ -8,7 +8,7 @@ use core::{
     result,
 };
 
-use bytemuck::{bytes_of, bytes_of_mut, AnyBitPattern, NoUninit};
+use bytemuck::{AnyBitPattern, NoUninit, bytes_of, bytes_of_mut};
 
 #[derive(Debug)]
 pub enum WieError {

@@ -4,12 +4,12 @@ mod list;
 use wie_util::Result;
 
 use crate::{
-    core::{HEAP_BASE, HEAP_SIZE},
     ArmCore,
+    core::{HEAP_BASE, HEAP_SIZE},
 };
 
 use self::{
-    bucket::{BucketAllocator, BUCKET_MAX},
+    bucket::{BUCKET_MAX, BucketAllocator},
     list::ListAllocator,
 };
 

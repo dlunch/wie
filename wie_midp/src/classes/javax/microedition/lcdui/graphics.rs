@@ -2,7 +2,7 @@ use alloc::{string::String as RustString, vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
-use jvm::{runtime::JavaLangString, Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
 use java_runtime::classes::java::lang::String;

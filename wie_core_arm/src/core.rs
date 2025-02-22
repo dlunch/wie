@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use spin::Mutex;
 
-use wie_util::{read_generic, ByteRead, ByteWrite, Result};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 
 use crate::{
     allocator::Allocator,

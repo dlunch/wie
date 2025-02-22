@@ -1,4 +1,4 @@
-use std::sync::{mpsc::Sender, Mutex};
+use std::sync::{Mutex, mpsc::Sender};
 
 use midir::MidiOutputConnection;
 
