@@ -257,7 +257,7 @@ mod test {
 
         let done_clone = done.clone();
         let mut system_clone = system.clone();
-        system.spawn(|| async move {
+        system.spawn(async move || {
             let jvm = init_jvm(&mut system_clone).await?;
 
             let string1 = JavaLangString::from_rust_string(&jvm, "test1").await.unwrap();

@@ -61,7 +61,7 @@ impl SktEmulator {
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
 
-        system.spawn(move || async move { Self::do_start(&mut system_clone, jar_filename_clone, properties, main_class_name).await });
+        system.spawn(async move || Self::do_start(&mut system_clone, jar_filename_clone, properties, main_class_name).await);
 
         Ok(Self { system })
     }

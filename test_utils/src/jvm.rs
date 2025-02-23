@@ -24,7 +24,7 @@ where
     let done_clone = done.clone();
     let system_clone = system.clone();
 
-    system.spawn(|| async move {
+    system.spawn(async move || {
         let jvm = JvmSupport::new_jvm(&system_clone, None, protos, &[], RustJavaJvmImplementation).await?;
         func(jvm).await.unwrap();
 
