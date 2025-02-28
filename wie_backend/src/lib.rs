@@ -8,6 +8,7 @@ mod platform;
 mod screen;
 mod system;
 mod task;
+mod task_runner;
 mod time;
 
 pub use self::{
@@ -17,6 +18,7 @@ pub use self::{
     platform::Platform,
     screen::Screen,
     system::{Event, KeyCode, System},
+    task_runner::{DefaultTaskRunner, TaskRunner},
     time::Instant,
 };
 

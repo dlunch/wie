@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{Emulator, Event, Platform, System, extract_zip};
+use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
@@ -58,7 +58,7 @@ impl KtfEmulator {
         files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<Self> {
         let mut core = ArmCore::new()?;
-        let mut system = System::new(platform, id);
+        let mut system = System::new(platform, id, DefaultTaskRunner);
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");

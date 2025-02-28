@@ -6,7 +6,7 @@ use core::{
 
 use jvm::{Jvm, Result as JvmResult};
 
-use wie_backend::System;
+use wie_backend::{DefaultTaskRunner, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto};
 use wie_util::{Result, WieError};
 
@@ -18,7 +18,7 @@ where
     T: FnOnce(Jvm) -> F + Send + 'static,
     F: Future<Output = JvmResult<()>> + Send,
 {
-    let mut system = System::new(Box::new(TestPlatform), "");
+    let mut system = System::new(Box::new(TestPlatform), "", DefaultTaskRunner);
 
     let done = Arc::new(AtomicBool::new(false));
     let done_clone = done.clone();

@@ -9,9 +9,10 @@ use wie_util::Result;
 
 use crate::{
     AsyncCallable, Instant,
-    executor::{AsyncCallableResult, Executor},
+    executor::Executor,
     platform::Platform,
     task::{SleepFuture, YieldFuture},
+    task_runner::TaskRunner,
 };
 
 use self::{audio::Audio, event_queue::EventQueue, file_system::Filesystem};
@@ -26,10 +27,14 @@ pub struct System {
     filesystem: Arc<Mutex<Filesystem>>,
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Option<Arc<RwLock<Audio>>>,
+    task_runner: Arc<dyn TaskRunner>,
 }
 
 impl System {
-    pub fn new(platform: Box<dyn Platform>, app_id: &str) -> Self {
+    pub fn new<T>(platform: Box<dyn Platform>, app_id: &str, task_runner: T) -> Self
+    where
+        T: TaskRunner + 'static,
+    {
         let audio_sink = platform.audio_sink();
 
         let platform = Arc::new(Mutex::new(platform));
@@ -41,6 +46,7 @@ impl System {
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: None,
+            task_runner: Arc::new(task_runner),
         };
 
         // late initialization
@@ -58,12 +64,12 @@ impl System {
         })
     }
 
-    pub fn spawn<C, R>(&mut self, callable: C)
+    pub fn spawn<C>(&mut self, callable: C)
     where
-        C: AsyncCallable<R> + 'static + Send,
-        R: AsyncCallableResult,
+        C: AsyncCallable<Result<()>> + 'static + Send,
     {
-        self.executor.spawn(callable);
+        let runner_clone = self.task_runner.clone();
+        self.executor.spawn(async move || runner_clone.run(Box::pin(callable.call())).await);
     }
 
     pub fn sleep(&mut self, until: Instant) -> SleepFuture {

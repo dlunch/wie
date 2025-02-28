@@ -87,7 +87,11 @@ impl Audio {
                 let player_clone = player.clone();
                 let backend = self.backend.clone();
 
-                self.system.clone().spawn(async move || player_clone.play(&*backend).await);
+                self.system.clone().spawn(async move || {
+                    player_clone.play(&*backend).await;
+
+                    Ok(())
+                });
             }
             None => return Err(AudioError::InvalidHandle),
         }
