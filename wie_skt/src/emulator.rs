@@ -10,7 +10,7 @@ use alloc::{
 
 use jvm::{Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{Emulator, Event, Platform, System};
+use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
 
@@ -52,7 +52,7 @@ impl SktEmulator {
         properties: BTreeMap<String, String>,
         files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<Self> {
-        let mut system = System::new(platform, id);
+        let mut system = System::new(platform, id, DefaultTaskRunner);
 
         for (filename, data) in files {
             system.filesystem().add(filename, data.clone())

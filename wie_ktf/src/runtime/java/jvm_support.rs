@@ -227,7 +227,7 @@ mod test {
 
     use jvm::{Jvm, runtime::JavaLangString};
 
-    use wie_backend::System;
+    use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::Result;
 
@@ -251,7 +251,7 @@ mod test {
 
     #[test]
     fn test_jvm_support() -> Result<()> {
-        let mut system = System::new(Box::new(TestPlatform), "");
+        let mut system = System::new(Box::new(TestPlatform), "", DefaultTaskRunner);
 
         let done = Arc::new(AtomicBool::new(false));
 

@@ -29,8 +29,8 @@ impl WieJvmContext {
             callback: Box<dyn MethodBody<JavaError, WieJvmContext>>,
         }
 
-        impl AsyncCallable<Result<u32, WieError>> for SpawnProxy {
-            async fn call(self) -> Result<u32, WieError> {
+        impl AsyncCallable<Result<(), WieError>> for SpawnProxy {
+            async fn call(self) -> Result<(), WieError> {
                 let mut context = WieJvmContext { system: self.system };
 
                 let result = self.callback.call(&self.jvm, &mut context, Box::new([])).await;
@@ -38,7 +38,7 @@ impl WieJvmContext {
                     return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
                 }
 
-                Ok(0) // TODO return value
+                Ok(())
             }
         }
 
