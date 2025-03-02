@@ -1,4 +1,4 @@
-use alloc::{collections::BTreeMap, sync::Arc};
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
 use core::time::Duration;
 
 use smaf_player::{AudioBackend, SmafPlayer};

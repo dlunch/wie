@@ -1,3 +1,5 @@
+use alloc::{boxed::Box, format};
+
 use bytemuck::{Pod, Zeroable, cast_vec, from_bytes};
 
 use wie_util::{Result, WieError};

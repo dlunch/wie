@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use crate::{audio_sink::AudioSink, database::DatabaseRepository, screen::Screen, time::Instant};
 
 pub trait Platform: Send {

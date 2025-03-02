@@ -1,10 +1,12 @@
-use alloc::sync::Arc;
+use alloc::{boxed::Box, sync::Arc};
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
 };
-use std::{collections::HashMap, sync::Mutex};
+
+use hashbrown::HashMap;
+use spin::Mutex;
 
 use wie_util::{Result, WieError};
 
@@ -89,12 +91,12 @@ impl Executor {
         };
 
         let task_id = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock();
             inner.last_task_id += 1;
             inner.last_task_id
         };
 
-        self.inner.lock().unwrap().tasks.insert(task_id, Box::pin(fut));
+        self.inner.lock().tasks.insert(task_id, Box::pin(fut));
 
         task_id
     }
@@ -113,7 +115,7 @@ impl Executor {
             }
 
             {
-                let inner = self.inner.lock().unwrap();
+                let inner = self.inner.lock();
                 let running_task_count = inner.tasks.len() - inner.sleeping_tasks.len();
                 if running_task_count == 0 && !inner.sleeping_tasks.is_empty() {
                     let next_wakeup = *inner.sleeping_tasks.values().min().unwrap();
@@ -130,13 +132,13 @@ impl Executor {
     }
 
     pub fn current_task_id(&self) -> u64 {
-        self.inner.lock().unwrap().current_task_id.unwrap() as _
+        self.inner.lock().current_task_id.unwrap() as _
     }
 
     fn step(&mut self, now: Instant) -> Result<()> {
         let mut next_tasks = HashMap::new();
-        let tasks = self.inner.lock().unwrap().tasks.drain().collect::<HashMap<_, _>>();
-        let mut sleeping_tasks = self.inner.lock().unwrap().sleeping_tasks.drain().collect::<HashMap<_, _>>();
+        let tasks = self.inner.lock().tasks.drain().collect::<HashMap<_, _>>();
+        let mut sleeping_tasks = self.inner.lock().sleeping_tasks.drain().collect::<HashMap<_, _>>();
 
         for (task_id, mut task) in tasks.into_iter() {
             let item = sleeping_tasks.get(&task_id);
@@ -151,7 +153,7 @@ impl Executor {
 
             let waker = self.create_waker();
             let mut context = Context::from_waker(&waker);
-            self.inner.lock().unwrap().current_task_id = Some(task_id);
+            self.inner.lock().current_task_id = Some(task_id);
 
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(x) => {
@@ -162,19 +164,19 @@ impl Executor {
                 }
             }
 
-            self.inner.lock().unwrap().current_task_id = None;
+            self.inner.lock().current_task_id = None;
         }
 
-        self.inner.lock().unwrap().sleeping_tasks.extend(sleeping_tasks);
-        self.inner.lock().unwrap().tasks.extend(next_tasks);
+        self.inner.lock().sleeping_tasks.extend(sleeping_tasks);
+        self.inner.lock().tasks.extend(next_tasks);
 
         Ok(())
     }
 
     pub(crate) fn sleep(&mut self, until: Instant) {
-        let task_id = self.inner.lock().unwrap().current_task_id.unwrap();
+        let task_id = self.inner.lock().current_task_id.unwrap();
 
-        self.inner.lock().unwrap().sleeping_tasks.insert(task_id, until);
+        self.inner.lock().sleeping_tasks.insert(task_id, until);
     }
 
     fn create_waker(&self) -> Waker {

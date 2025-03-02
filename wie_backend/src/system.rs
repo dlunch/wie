@@ -2,8 +2,9 @@ mod audio;
 mod event_queue;
 mod file_system;
 
-use alloc::sync::Arc;
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
+use alloc::{borrow::ToOwned, boxed::Box, string::String, sync::Arc};
+
+use spin::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use wie_util::Result;
 
@@ -58,7 +59,7 @@ impl System {
     pub fn tick(&mut self) -> Result<()> {
         let platform = self.platform.clone();
         self.executor.tick(move || {
-            let platform = platform.lock().unwrap();
+            let platform = platform.lock();
 
             platform.now()
         })
@@ -85,7 +86,7 @@ impl System {
     }
 
     pub fn filesystem(&self) -> MutexGuard<'_, Filesystem> {
-        self.filesystem.lock().unwrap()
+        self.filesystem.lock()
     }
 
     pub fn app_id(&self) -> &str {
@@ -93,14 +94,14 @@ impl System {
     }
 
     pub fn platform(&self) -> MutexGuard<'_, Box<dyn Platform>> {
-        self.platform.lock().unwrap()
+        self.platform.lock()
     }
 
     pub fn audio(&self) -> RwLockWriteGuard<'_, Audio> {
-        self.audio.as_ref().unwrap().write().unwrap()
+        self.audio.as_ref().unwrap().write()
     }
 
     pub fn event_queue(&self) -> RwLockWriteGuard<'_, EventQueue> {
-        self.event_queue.write().unwrap()
+        self.event_queue.write()
     }
 }

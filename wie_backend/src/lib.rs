@@ -1,3 +1,4 @@
+#![no_std]
 extern crate alloc;
 
 mod audio_sink;
@@ -22,7 +23,11 @@ pub use self::{
     time::Instant,
 };
 
-use alloc::collections::BTreeMap;
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec::Vec,
+};
 
 use wie_util::Result;
 
@@ -32,6 +37,8 @@ pub trait Emulator {
 }
 
 pub fn extract_zip(zip: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
+    extern crate std; // XXX
+
     use std::io::{Cursor, Read};
     use zip::ZipArchive;
 
