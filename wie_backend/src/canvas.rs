@@ -1,5 +1,6 @@
 mod lbmp;
 
+use alloc::{boxed::Box, string::ToString, vec, vec::Vec};
 use core::mem::size_of;
 
 use ab_glyph::{Font, FontRef, ScaleFont};
@@ -489,6 +490,8 @@ impl Clip {
 }
 
 pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
+    extern crate std; // XXX
+
     use std::io::Cursor;
 
     if data[0] == b'L' && data[1] == b'B' && data[2] == b'M' && data[3] == b'P' {

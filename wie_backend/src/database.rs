@@ -1,3 +1,5 @@
+use alloc::{boxed::Box, vec::Vec};
+
 pub type RecordId = u32;
 
 pub trait Database: Send {

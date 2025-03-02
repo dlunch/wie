@@ -1,6 +1,10 @@
-use alloc::string::String;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::cmp::min;
-use std::collections::HashMap;
+
+use hashbrown::HashMap;
 
 #[derive(Default)]
 pub struct Filesystem {
