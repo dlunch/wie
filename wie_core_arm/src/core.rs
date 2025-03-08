@@ -6,10 +6,10 @@ use spin::Mutex;
 use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 
 use crate::{
-    allocator::Allocator,
     context::ArmCoreContext,
     engine::{ArmEngine, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
+    thread_wrapper::ArmCoreThreadWrapper,
 };
 
 const FUNCTIONS_BASE: u32 = 0x71000000;
@@ -33,7 +33,6 @@ impl ArmCore {
         let mut engine = Box::new(crate::engine::Arm32CpuEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
-        engine.reg_write(ArmRegister::Cpsr, 0x10); // USR32
 
         let inner = ArmCoreInner {
             engine,
@@ -57,40 +56,22 @@ impl ArmCore {
         Ok(())
     }
 
-    async fn run_some(&mut self, context: &mut ArmCoreContext) -> Result<()> {
-        self.restore_context(context);
-        let pc = {
-            let mut inner = self.inner.lock();
-            inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?
-        };
-
-        if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&pc) {
-            let mut self1 = self.clone();
-
-            let function = {
-                let inner = self.inner.lock();
-
-                inner.functions.get(&pc).unwrap().clone()
-            };
-
-            function.call(&mut self1).await?;
-        }
-
-        *context = self.save_context();
-
-        Ok(())
+    pub fn run_in_thread<F, Fut>(&self, entry: F) -> Result<ArmCoreThreadWrapper>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        ArmCoreThreadWrapper::new(self.clone(), entry)
     }
 
     pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
     where
         R: RunFunctionResult<R>,
     {
+        // we don't need to save r0-r3, but to make it simple, we save all registers
         let previous_context = self.save_context();
-
-        let stack_base = Allocator::alloc(self, 0x1000)?;
         {
             let mut inner = self.inner.lock();
-            inner.engine.reg_write(ArmRegister::SP, stack_base + 0x1000);
 
             if !params.is_empty() {
                 inner.engine.reg_write(ArmRegister::R0, params[0]);
@@ -117,20 +98,30 @@ impl ArmCore {
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
         }
 
-        let mut context = self.save_context();
-
         loop {
-            let (pc, _) = self.read_pc_lr().unwrap();
+            let pc = {
+                let mut inner = self.inner.lock();
+                inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?
+            };
+
             if pc == RUN_FUNCTION_LR {
                 break;
             }
 
-            self.run_some(&mut context).await?;
+            if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&pc) {
+                let mut self1 = self.clone();
+
+                let function = {
+                    let inner = self.inner.lock();
+
+                    inner.functions.get(&pc).unwrap().clone()
+                };
+
+                function.call(&mut self1).await?;
+            }
         }
 
         let result = R::get(self);
-
-        Allocator::free(self, stack_base, 0x1000)?;
         self.restore_context(&previous_context);
 
         Ok(result)
