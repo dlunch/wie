@@ -1,8 +1,10 @@
+use core::pin::Pin;
+
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System, extract_zip};
+use wie_backend::{Emulator, Event, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
@@ -10,6 +12,17 @@ use wie_util::{Result, WieError};
 use crate::runtime::KtfJvmSupport;
 
 pub const IMAGE_BASE: u32 = 0x100000;
+
+struct KtfTaskRunner {
+    core: ArmCore,
+}
+
+#[async_trait::async_trait]
+impl TaskRunner for KtfTaskRunner {
+    async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) {
+        self.core.run_in_thread(async move || future.await).unwrap().await.unwrap();
+    }
+}
 
 pub struct KtfEmulator {
     core: ArmCore,
@@ -58,7 +71,7 @@ impl KtfEmulator {
         files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<Self> {
         let mut core = ArmCore::new()?;
-        let mut system = System::new(platform, id, DefaultTaskRunner);
+        let mut system = System::new(platform, id, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
