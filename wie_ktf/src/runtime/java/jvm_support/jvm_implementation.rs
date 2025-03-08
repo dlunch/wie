@@ -1,5 +1,8 @@
 use alloc::{boxed::Box, format};
-use core::ops::{Deref, DerefMut};
+use core::{
+    ops::{Deref, DerefMut},
+    pin::Pin,
+};
 
 use java_class_proto::JavaClassProto;
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
@@ -20,16 +23,18 @@ impl KtfJvmImplementation {
     }
 }
 
-#[async_trait::async_trait]
 impl JvmImplementation for KtfJvmImplementation {
-    async fn define_class_rust<C, Context>(&self, jvm: &Jvm, proto: JavaClassProto<C>, context: Context) -> JvmResult<Box<dyn ClassDefinition>>
+    fn define_class_rust<'a, C, Context>(
+        &'a self,
+        jvm: &'a Jvm,
+        proto: JavaClassProto<C>,
+        context: Context,
+    ) -> Pin<Box<dyn Future<Output = JvmResult<Box<dyn ClassDefinition>>> + Send + 'a>>
     where
         C: ?Sized + 'static + Send,
         Context: Sync + Send + DerefMut + Deref<Target = C> + Clone + 'static,
     {
-        Ok(Box::new(
-            JavaClassDefinition::new(&mut self.core.clone(), jvm, proto, context).await.unwrap(),
-        ))
+        Box::pin(async move { Ok(Box::new(JavaClassDefinition::new(&mut self.core.clone(), jvm, proto, context).await.unwrap()) as _) })
     }
 
     async fn define_class_java(&self, _jvm: &Jvm, _data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
