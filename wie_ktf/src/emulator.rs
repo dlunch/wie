@@ -19,8 +19,8 @@ struct KtfTaskRunner {
 
 #[async_trait::async_trait]
 impl TaskRunner for KtfTaskRunner {
-    async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) {
-        self.core.run_in_thread(async move || future.await).unwrap().await.unwrap();
+    async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
+        self.core.run_in_thread(async move || future.await)?.await
     }
 }
 
