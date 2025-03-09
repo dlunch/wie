@@ -20,7 +20,6 @@ pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
-    functions_count: usize,
 }
 
 #[derive(Clone)]
@@ -37,7 +36,6 @@ impl ArmCore {
         let inner = ArmCoreInner {
             engine,
             functions: BTreeMap::new(),
-            functions_count: 0,
         };
 
         Ok(Self {
@@ -136,15 +134,16 @@ impl ArmCore {
     {
         let mut inner = self.inner.lock();
 
+        let count = inner.functions.len();
+
         let bytes = [0x70, 0x47]; // BX LR
-        let address = FUNCTIONS_BASE as u64 + (inner.functions_count * 2) as u64;
+        let address = FUNCTIONS_BASE as u64 + (count * 2) as u64;
 
         inner.engine.mem_write(address as u32, &bytes)?;
 
         let callback = RegisteredFunctionHolder::new(function, context);
 
         inner.functions.insert(address as u32, Arc::new(Box::new(callback)));
-        inner.functions_count += 1;
 
         tracing::trace!("Register function at {:#x}", address);
 
