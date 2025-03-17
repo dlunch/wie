@@ -1392,7 +1392,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -2255,7 +2255,7 @@ dependencies = [
 [[package]]
 name = "smaf"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#4985bb5f6c3c15c4cb0372393ae9c64eeae56871"
+source = "git+https://github.com/dlunch/smaf.git#f56c19e105f2da49f70db04e13fa1b7b71d07221"
 dependencies = [
  "anyhow",
  "nom",
@@ -2265,7 +2265,7 @@ dependencies = [
 [[package]]
 name = "smaf_player"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#4985bb5f6c3c15c4cb0372393ae9c64eeae56871"
+source = "git+https://github.com/dlunch/smaf.git#f56c19e105f2da49f70db04e13fa1b7b71d07221"
 dependencies = [
  "async-trait",
  "futures",
