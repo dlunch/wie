@@ -6,6 +6,7 @@ mod context;
 mod core;
 mod engine;
 mod function;
+mod thread;
 mod thread_wrapper;
 
 pub use self::{

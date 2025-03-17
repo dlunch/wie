@@ -9,6 +9,7 @@ use crate::{
     context::ArmCoreContext,
     engine::{ArmEngine, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
+    thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
 };
 
@@ -19,6 +20,7 @@ pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
+    threads: BTreeMap<u32, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
 }
 
@@ -35,6 +37,7 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
+            threads: BTreeMap::new(),
             functions: BTreeMap::new(),
         };
 
@@ -59,7 +62,17 @@ impl ArmCore {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
-        ArmCoreThreadWrapper::new(self.clone(), entry)
+        let thread_id = self.inner.lock().threads.len() as u32 + 1;
+        let state = ThreadState::new(self.clone())?;
+        self.inner.lock().threads.insert(thread_id, state);
+
+        tracing::info!("Create thread: {}", thread_id);
+
+        ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
+    }
+
+    pub fn enter_thread_context(&self, thread_id: u32) -> ThreadContextGuard {
+        ThreadContextGuard::new(self.clone(), thread_id)
     }
 
     pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
@@ -416,4 +429,26 @@ impl RunFunctionResult<u32> for u32 {
 
 impl RunFunctionResult<()> for () {
     fn get(_: &ArmCore) {}
+}
+
+pub struct ThreadContextGuard {
+    core: ArmCore,
+    thread_id: u32,
+}
+
+impl ThreadContextGuard {
+    pub fn new(mut core: ArmCore, thread_id: u32) -> Self {
+        let context = core.inner.lock().threads.get(&thread_id).unwrap().context.clone(); // TODO we might not need clone
+        core.restore_context(&context);
+
+        Self { core, thread_id }
+    }
+}
+
+impl Drop for ThreadContextGuard {
+    fn drop(&mut self) {
+        let context = self.core.save_context();
+
+        self.core.inner.lock().threads.get_mut(&self.thread_id).unwrap().context = context;
+    }
 }
