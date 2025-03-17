@@ -34,9 +34,7 @@ impl Future for ArmCoreThreadWrapper {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let _ = self.core.enter_thread_context(self.thread_id);
 
-        let result = self.future.as_mut().poll(cx);
-
-        result
+        self.future.as_mut().poll(cx)
     }
 }
 
