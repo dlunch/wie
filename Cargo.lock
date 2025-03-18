@@ -449,7 +449,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0f313894e579bd86928b7e0b6e0a9b50f52cb257"
+source = "git+https://github.com/dlunch/RustJava.git#d7f6f44d2eb91f41c86ae480741001d50d52d8a9"
 dependencies = [
  "java_constants",
  "nom",
@@ -1260,7 +1260,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0f313894e579bd86928b7e0b6e0a9b50f52cb257"
+source = "git+https://github.com/dlunch/RustJava.git#d7f6f44d2eb91f41c86ae480741001d50d52d8a9"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1271,7 +1271,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0f313894e579bd86928b7e0b6e0a9b50f52cb257"
+source = "git+https://github.com/dlunch/RustJava.git#d7f6f44d2eb91f41c86ae480741001d50d52d8a9"
 dependencies = [
  "bitflags 2.9.0",
 ]
@@ -1279,7 +1279,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0f313894e579bd86928b7e0b6e0a9b50f52cb257"
+source = "git+https://github.com/dlunch/RustJava.git#d7f6f44d2eb91f41c86ae480741001d50d52d8a9"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1341,7 +1341,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0f313894e579bd86928b7e0b6e0a9b50f52cb257"
+source = "git+https://github.com/dlunch/RustJava.git#d7f6f44d2eb91f41c86ae480741001d50d52d8a9"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1359,7 +1359,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0f313894e579bd86928b7e0b6e0a9b50f52cb257"
+source = "git+https://github.com/dlunch/RustJava.git#d7f6f44d2eb91f41c86ae480741001d50d52d8a9"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -3599,9 +3599,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.2.3"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b280484c454e74e5fff658bbf7df8fdbe7a07c6b2de4a53def232c15ef138f3a"
+checksum = "938cc23ac49778ac8340e366ddc422b2227ea176edb447e23fc0627608dddadd"
 dependencies = [
  "arbitrary",
  "crc32fast",
