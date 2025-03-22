@@ -39,3 +39,9 @@ impl Future for ArmCoreThreadWrapper {
 }
 
 impl Unpin for ArmCoreThreadWrapper {}
+
+impl Drop for ArmCoreThreadWrapper {
+    fn drop(&mut self) {
+        self.core.delete_thread_context(self.thread_id);
+    }
+}

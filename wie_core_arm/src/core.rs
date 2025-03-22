@@ -20,6 +20,7 @@ pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
+    last_thread_id: u32,
     threads: BTreeMap<u32, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
 }
@@ -37,6 +38,7 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
+            last_thread_id: 0,
             threads: BTreeMap::new(),
             functions: BTreeMap::new(),
         };
@@ -62,13 +64,31 @@ impl ArmCore {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
-        let thread_id = self.inner.lock().threads.len() as u32 + 1;
         let state = ThreadState::new(self.clone())?;
-        self.inner.lock().threads.insert(thread_id, state);
+
+        let thread_id = {
+            let mut inner = self.inner.lock();
+
+            let thread_id = inner.last_thread_id + 1;
+            inner.last_thread_id += 1;
+            inner.threads.insert(thread_id, state);
+
+            thread_id
+        };
 
         tracing::info!("Create thread: {}", thread_id);
 
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
+    }
+
+    pub fn delete_thread_context(&self, thread_id: u32) {
+        tracing::info!("Terminate thread: {}", thread_id);
+
+        // we should exit inner lock first to run cleanup on thread state drop
+        let _ = {
+            let mut inner = self.inner.lock();
+            inner.threads.remove(&thread_id)
+        };
     }
 
     pub fn enter_thread_context(&self, thread_id: u32) -> ThreadContextGuard {
