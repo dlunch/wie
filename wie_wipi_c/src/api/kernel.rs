@@ -94,6 +94,7 @@ pub async fn set_timer(
 
     let wakeup = context.system().platform().now() + (((timeout_high as u64) << 32) | (timeout_low as u64)) as _;
 
+    // TODO: it would be better to use dedicated timer thread
     context.spawn(Box::new(TimerCallback { ptr_timer, wakeup, param }))?;
 
     Ok(())
