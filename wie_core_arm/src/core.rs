@@ -20,8 +20,8 @@ pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
-    last_thread_id: u32,
-    threads: BTreeMap<u32, ThreadState>,
+    last_thread_id: usize,
+    threads: BTreeMap<usize, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
 }
 
@@ -81,7 +81,7 @@ impl ArmCore {
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
     }
 
-    pub fn delete_thread_context(&self, thread_id: u32) {
+    pub fn delete_thread_context(&self, thread_id: usize) {
         tracing::info!("Terminate thread: {}", thread_id);
 
         // we should exit inner lock first to run cleanup on thread state drop
@@ -91,7 +91,7 @@ impl ArmCore {
         };
     }
 
-    pub fn enter_thread_context(&self, thread_id: u32) -> ThreadContextGuard {
+    pub fn enter_thread_context(&self, thread_id: usize) -> ThreadContextGuard {
         ThreadContextGuard::new(self.clone(), thread_id)
     }
 
@@ -453,11 +453,11 @@ impl RunFunctionResult<()> for () {
 
 pub struct ThreadContextGuard {
     core: ArmCore,
-    thread_id: u32,
+    thread_id: usize,
 }
 
 impl ThreadContextGuard {
-    pub fn new(mut core: ArmCore, thread_id: u32) -> Self {
+    pub fn new(mut core: ArmCore, thread_id: usize) -> Self {
         let context = core.inner.lock().threads.get(&thread_id).unwrap().context.clone(); // TODO we might not need clone
         core.restore_context(&context);
 
