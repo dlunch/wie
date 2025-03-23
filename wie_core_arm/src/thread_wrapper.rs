@@ -9,12 +9,12 @@ use crate::ArmCore;
 
 pub struct ArmCoreThreadWrapper {
     core: ArmCore,
-    thread_id: u32,
+    thread_id: usize,
     future: Pin<Box<dyn Future<Output = Result<()>> + Send>>,
 }
 
 impl ArmCoreThreadWrapper {
-    pub fn new<F, Fut>(core: ArmCore, thread_id: u32, entry: F) -> Result<Self>
+    pub fn new<F, Fut>(core: ArmCore, thread_id: usize, entry: F) -> Result<Self>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<()>> + Send + 'static,
