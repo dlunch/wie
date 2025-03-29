@@ -5,16 +5,16 @@ use core::{
 };
 use wie_util::Result;
 
-use crate::ArmCore;
+use crate::{ArmCore, ThreadId};
 
 pub struct ArmCoreThreadWrapper {
     core: ArmCore,
-    thread_id: usize,
+    thread_id: ThreadId,
     future: Pin<Box<dyn Future<Output = Result<()>> + Send>>,
 }
 
 impl ArmCoreThreadWrapper {
-    pub fn new<F, Fut>(core: ArmCore, thread_id: usize, entry: F) -> Result<Self>
+    pub fn new<F, Fut>(core: ArmCore, thread_id: ThreadId, entry: F) -> Result<Self>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<()>> + Send + 'static,
