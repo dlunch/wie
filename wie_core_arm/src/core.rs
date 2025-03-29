@@ -6,6 +6,7 @@ use spin::Mutex;
 use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 
 use crate::{
+    ThreadId,
     context::ArmCoreContext,
     engine::{ArmEngine, ArmRegister, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
@@ -20,8 +21,8 @@ pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 
 struct ArmCoreInner {
     engine: Box<dyn ArmEngine>,
-    last_thread_id: usize,
-    threads: BTreeMap<usize, ThreadState>,
+    last_thread_id: ThreadId,
+    threads: BTreeMap<ThreadId, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
 }
 
@@ -43,9 +44,14 @@ impl ArmCore {
             functions: BTreeMap::new(),
         };
 
-        Ok(Self {
+        let result = Self {
             inner: Arc::new(Mutex::new(inner)),
-        })
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::gdb::GdbTarget::start(result.clone());
+
+        Ok(result)
     }
 
     pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> Result<()> {
@@ -81,7 +87,7 @@ impl ArmCore {
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
     }
 
-    pub fn delete_thread_context(&self, thread_id: usize) {
+    pub fn delete_thread_context(&self, thread_id: ThreadId) {
         tracing::info!("Terminate thread: {}", thread_id);
 
         // we should exit inner lock first to run cleanup on thread state drop
@@ -91,7 +97,7 @@ impl ArmCore {
         };
     }
 
-    pub fn enter_thread_context(&self, thread_id: usize) -> ThreadContextGuard {
+    pub fn enter_thread_context(&self, thread_id: ThreadId) -> ThreadContextGuard {
         ThreadContextGuard::new(self.clone(), thread_id)
     }
 
@@ -453,11 +459,11 @@ impl RunFunctionResult<()> for () {
 
 pub struct ThreadContextGuard {
     core: ArmCore,
-    thread_id: usize,
+    thread_id: ThreadId,
 }
 
 impl ThreadContextGuard {
-    pub fn new(mut core: ArmCore, thread_id: usize) -> Self {
+    pub fn new(mut core: ArmCore, thread_id: ThreadId) -> Self {
         let context = core.inner.lock().threads.get(&thread_id).unwrap().context.clone(); // TODO we might not need clone
         core.restore_context(&context);
 
