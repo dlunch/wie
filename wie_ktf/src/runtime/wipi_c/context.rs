@@ -63,7 +63,6 @@ impl WIPICContext for KtfWIPICContext {
 
         impl ResultWriter<WIPICMethodResult> for WIPICMethodResult {
             fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
-                // we don't have 64bit return for now, just clearing r1
                 core.write_result(&self.result.results)?;
                 core.set_next_pc(next_pc)?;
 
