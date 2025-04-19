@@ -3,7 +3,7 @@ use core::{future::Future, marker::PhantomData};
 
 use wie_util::Result;
 
-use crate::ArmCore;
+use crate::{ArmCore, engine::ArmRegister};
 
 #[async_trait::async_trait]
 pub trait RegisteredFunction: Sync + Send {
@@ -45,7 +45,8 @@ where
     P: Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore) -> Result<()> {
-        let (pc, lr) = core.read_pc_lr()?;
+        let pc = core.read_reg(ArmRegister::PC)?;
+        let lr = core.read_reg(ArmRegister::LR)?;
 
         tracing::trace!("Registered function called at {:#x}, LR: {:#x}", pc, lr);
 

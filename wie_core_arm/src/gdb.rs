@@ -29,8 +29,9 @@ use gdbstub_arch::arm::{
     Armv4t,
     reg::{ArmCoreRegs, id::ArmCoreRegId},
 };
+use wie_util::WieError;
 
-use crate::ArmCore;
+use crate::{ArmCore, ArmRegister};
 
 type GdbTargetError = &'static str;
 
@@ -83,8 +84,31 @@ impl MultiThreadBase for GdbTarget {
     }
 
     #[inline(always)]
-    fn read_registers(&mut self, _regs: &mut ArmCoreRegs, _tid: Tid) -> TargetResult<(), Self> {
-        todo!()
+    fn read_registers(&mut self, regs: &mut ArmCoreRegs, _tid: Tid) -> TargetResult<(), Self> {
+        (|| {
+            regs.r[0] = self.core.read_reg(ArmRegister::R0)?;
+            regs.r[1] = self.core.read_reg(ArmRegister::R1)?;
+            regs.r[2] = self.core.read_reg(ArmRegister::R2)?;
+            regs.r[3] = self.core.read_reg(ArmRegister::R3)?;
+            regs.r[4] = self.core.read_reg(ArmRegister::R4)?;
+            regs.r[5] = self.core.read_reg(ArmRegister::R5)?;
+            regs.r[6] = self.core.read_reg(ArmRegister::R6)?;
+            regs.r[7] = self.core.read_reg(ArmRegister::R7)?;
+            regs.r[8] = self.core.read_reg(ArmRegister::R8)?;
+            regs.r[9] = self.core.read_reg(ArmRegister::SB)?;
+            regs.r[10] = self.core.read_reg(ArmRegister::SL)?;
+            regs.r[11] = self.core.read_reg(ArmRegister::FP)?;
+            regs.r[12] = self.core.read_reg(ArmRegister::IP)?;
+            regs.sp = self.core.read_reg(ArmRegister::SP)?;
+            regs.lr = self.core.read_reg(ArmRegister::LR)?;
+            regs.pc = self.core.read_reg(ArmRegister::PC)?;
+            regs.cpsr = self.core.read_reg(ArmRegister::Cpsr)?;
+
+            Ok::<(), WieError>(())
+        })()
+        .unwrap();
+
+        Ok(())
     }
 
     #[inline(always)]
