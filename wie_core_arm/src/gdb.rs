@@ -30,7 +30,7 @@ use gdbstub_arch::arm::{
     reg::{ArmCoreRegs, id::ArmCoreRegId},
 };
 
-use crate::ArmCore;
+use crate::{ArmCore, context::ArmCoreContext};
 
 type GdbTargetError = &'static str;
 
@@ -83,13 +83,55 @@ impl MultiThreadBase for GdbTarget {
     }
 
     #[inline(always)]
-    fn read_registers(&mut self, _regs: &mut ArmCoreRegs, _tid: Tid) -> TargetResult<(), Self> {
-        todo!()
+    fn read_registers(&mut self, regs: &mut ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
+        let thread_context = self.core.read_thread_context(tid.into()).unwrap();
+
+        regs.r[0] = thread_context.r0;
+        regs.r[1] = thread_context.r1;
+        regs.r[2] = thread_context.r2;
+        regs.r[3] = thread_context.r3;
+        regs.r[4] = thread_context.r4;
+        regs.r[5] = thread_context.r5;
+        regs.r[6] = thread_context.r6;
+        regs.r[7] = thread_context.r7;
+        regs.r[8] = thread_context.r8;
+        regs.r[9] = thread_context.sb;
+        regs.r[10] = thread_context.sl;
+        regs.r[11] = thread_context.fp;
+        regs.r[12] = thread_context.ip;
+        regs.sp = thread_context.sp;
+        regs.lr = thread_context.lr;
+        regs.pc = thread_context.pc;
+        regs.cpsr = thread_context.cpsr;
+
+        Ok(())
     }
 
     #[inline(always)]
-    fn write_registers(&mut self, _regs: &ArmCoreRegs, _tid: Tid) -> TargetResult<(), Self> {
-        todo!()
+    fn write_registers(&mut self, regs: &ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
+        let context = ArmCoreContext {
+            r0: regs.r[0],
+            r1: regs.r[1],
+            r2: regs.r[2],
+            r3: regs.r[3],
+            r4: regs.r[4],
+            r5: regs.r[5],
+            r6: regs.r[6],
+            r7: regs.r[7],
+            r8: regs.r[8],
+            sb: regs.r[9],
+            sl: regs.r[10],
+            fp: regs.r[11],
+            ip: regs.r[12],
+            sp: regs.sp,
+            lr: regs.lr,
+            pc: regs.pc,
+            cpsr: regs.cpsr,
+        };
+
+        self.core.write_thread_context(tid.into(), &context);
+
+        Ok(())
     }
 
     #[inline(always)]

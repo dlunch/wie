@@ -101,6 +101,20 @@ impl ArmCore {
         ThreadContextGuard::new(self.clone(), thread_id)
     }
 
+    pub fn read_thread_context(&self, thread_id: ThreadId) -> Result<ArmCoreContext> {
+        let inner = self.inner.lock();
+
+        let context = inner.threads.get(&thread_id).unwrap().context.clone();
+
+        Ok(context)
+    }
+
+    pub fn write_thread_context(&mut self, thread_id: ThreadId, context: &ArmCoreContext) {
+        let mut inner = self.inner.lock();
+
+        inner.threads.get_mut(&thread_id).unwrap().context = context.clone();
+    }
+
     pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
     where
         R: RunFunctionResult<R>,
