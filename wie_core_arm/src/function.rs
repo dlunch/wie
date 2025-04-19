@@ -155,7 +155,7 @@ pub trait ResultWriter<R> {
 
 impl ResultWriter<u32> for u32 {
     fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
-        core.write_result(&[self])?;
+        core.write_return_value(&[self])?;
         core.set_next_pc(next_pc)?;
 
         Ok(())
