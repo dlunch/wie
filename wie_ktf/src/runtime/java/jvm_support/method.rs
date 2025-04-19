@@ -12,7 +12,7 @@ use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, ResultWriter};
+use wie_core_arm::{Allocator, ArmCore, ArmRegister, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, ResultWriter};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::JavaClassDefinition;
@@ -363,7 +363,7 @@ where
         }
 
         let mut context = self.context.clone();
-        let (_, lr) = core.read_pc_lr()?;
+        let lr = core.read_reg(ArmRegister::LR)?;
 
         let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
         if let Err(x) = result {

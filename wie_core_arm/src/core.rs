@@ -254,13 +254,8 @@ impl ArmCore {
         }
     }
 
-    pub fn read_pc_lr(&self) -> Result<(u32, u32)> {
-        let inner = self.inner.lock();
-
-        let lr = inner.engine.reg_read(ArmRegister::LR);
-        let pc = inner.engine.reg_read(ArmRegister::PC);
-
-        Ok((pc, lr))
+    pub fn read_reg(&self, reg: ArmRegister) -> Result<u32> {
+        Ok(self.inner.lock().engine.reg_read(reg))
     }
 
     pub fn write_result(&mut self, result: &[u32]) -> Result<()> {
