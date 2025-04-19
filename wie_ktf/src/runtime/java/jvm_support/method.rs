@@ -396,7 +396,7 @@ pub struct JavaMethodResult {
 
 impl ResultWriter<JavaMethodResult> for JavaMethodResult {
     fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
-        core.write_result(&self.result)?;
+        core.write_return_value(&self.result)?;
 
         if let Some(x) = self.next_pc {
             core.set_next_pc(x)?;

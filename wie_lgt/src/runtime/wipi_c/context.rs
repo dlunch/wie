@@ -61,7 +61,7 @@ impl WIPICContext for LgtWIPICContext {
 
         impl ResultWriter<WIPICMethodResult> for WIPICMethodResult {
             fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
-                core.write_result(&self.result.results)?;
+                core.write_return_value(&self.result.results)?;
                 core.set_next_pc(next_pc)?;
 
                 Ok(())
