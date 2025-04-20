@@ -30,6 +30,8 @@ use gdbstub_arch::arm::{
     reg::{ArmCoreRegs, id::ArmCoreRegId},
 };
 
+use wie_util::{ByteRead, ByteWrite};
+
 use crate::{ArmCore, context::ArmCoreContext};
 
 type GdbTargetError = &'static str;
@@ -135,18 +137,26 @@ impl MultiThreadBase for GdbTarget {
     }
 
     #[inline(always)]
-    fn read_addrs(&mut self, _start_addr: u32, _data: &mut [u8], _tid: Tid) -> TargetResult<usize, Self> {
-        todo!()
+    fn read_addrs(&mut self, start_addr: u32, data: &mut [u8], _tid: Tid) -> TargetResult<usize, Self> {
+        Ok(self.core.read_bytes(start_addr, data).unwrap())
     }
 
     #[inline(always)]
-    fn write_addrs(&mut self, _start_addr: u32, _data: &[u8], _tid: Tid) -> TargetResult<(), Self> {
-        todo!()
+    fn write_addrs(&mut self, start_addr: u32, data: &[u8], _tid: Tid) -> TargetResult<(), Self> {
+        self.core.write_bytes(start_addr, data).unwrap();
+
+        Ok(())
     }
 
     #[inline(always)]
-    fn list_active_threads(&mut self, _thread_is_active: &mut dyn FnMut(Tid)) -> Result<(), Self::Error> {
-        todo!()
+    fn list_active_threads(&mut self, thread_is_active: &mut dyn FnMut(Tid)) -> Result<(), Self::Error> {
+        let thread_ids = self.core.get_thread_ids();
+
+        for thread_id in thread_ids {
+            thread_is_active(Tid::try_from(thread_id).unwrap());
+        }
+
+        Ok(())
     }
 }
 
