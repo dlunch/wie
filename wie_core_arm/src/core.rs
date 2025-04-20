@@ -1,4 +1,4 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use core::mem::size_of;
 
 use spin::Mutex;
@@ -113,6 +113,12 @@ impl ArmCore {
         let mut inner = self.inner.lock();
 
         inner.threads.get_mut(&thread_id).unwrap().context = context.clone();
+    }
+
+    pub fn get_thread_ids(&self) -> Vec<ThreadId> {
+        let inner = self.inner.lock();
+
+        inner.threads.keys().cloned().collect()
     }
 
     pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
