@@ -4,7 +4,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{Emulator, Event, Platform, System, TaskRunner, extract_zip};
+use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
@@ -30,7 +30,7 @@ pub struct KtfEmulator {
 }
 
 impl KtfEmulator {
-    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> Result<Self> {
+    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
         let adf = files.get("__adf__").unwrap();
         let adf = KtfAdf::parse(adf);
 
@@ -38,13 +38,20 @@ impl KtfEmulator {
 
         let jar_filename = format!("{}.jar", adf.aid);
 
-        Self::load(platform, &jar_filename, &adf.aid, Some(adf.mclass), &files)
+        Self::load(platform, &jar_filename, &adf.aid, Some(adf.mclass), &files, options)
     }
 
-    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
+    pub fn from_jar(
+        platform: Box<dyn Platform>,
+        jar_filename: &str,
+        jar: Vec<u8>,
+        id: &str,
+        main_class_name: Option<String>,
+        options: Options,
+    ) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, &files)
+        Self::load(platform, jar_filename, id, main_class_name, &files, options)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -69,8 +76,9 @@ impl KtfEmulator {
         id: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
+        options: Options,
     ) -> Result<Self> {
-        let mut core = ArmCore::new()?;
+        let mut core = ArmCore::new(options.enable_gdbserver)?;
         let mut system = System::new(platform, id, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {

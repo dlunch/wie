@@ -32,7 +32,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new() -> Result<Self> {
+    pub fn new(enable_gdbserver: bool) -> Result<Self> {
         let mut engine = Box::new(crate::engine::Arm32CpuEngine::new());
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
@@ -48,8 +48,12 @@ impl ArmCore {
             inner: Arc::new(Mutex::new(inner)),
         };
 
-        #[cfg(not(target_arch = "wasm32"))]
-        crate::gdb::GdbTarget::start(result.clone());
+        if enable_gdbserver {
+            #[cfg(not(target_arch = "wasm32"))]
+            crate::gdb::GdbTarget::start(result.clone());
+            #[cfg(target_arch = "wasm32")]
+            panic!("GDB server is not supported on wasm32"); // TODO graceful error handling
+        }
 
         Ok(result)
     }

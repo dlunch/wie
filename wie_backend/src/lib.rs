@@ -36,6 +36,10 @@ pub trait Emulator {
     fn tick(&mut self) -> Result<()>;
 }
 
+pub struct Options {
+    pub enable_gdbserver: bool,
+}
+
 pub fn extract_zip(zip: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
     extern crate std; // XXX
 

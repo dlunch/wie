@@ -2,7 +2,7 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use jvm::runtime::{JavaIoInputStream, JavaLangClassLoader};
 
-use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System, extract_zip};
+use wie_backend::{DefaultTaskRunner, Emulator, Event, Options, Platform, System, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
@@ -15,7 +15,7 @@ pub struct LgtEmulator {
 }
 
 impl LgtEmulator {
-    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>) -> Result<Self> {
+    pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
         let app_info = files.get("app_info").unwrap();
         let app_info = LgtAppInfo::parse(app_info);
 
@@ -23,13 +23,20 @@ impl LgtEmulator {
 
         let jar_filename = format!("{}.jar", app_info.aid);
 
-        Self::load(platform, &jar_filename, &app_info.aid, Some(app_info.mclass), &files)
+        Self::load(platform, &jar_filename, &app_info.aid, Some(app_info.mclass), &files, options)
     }
 
-    pub fn from_jar(platform: Box<dyn Platform>, jar_filename: &str, jar: Vec<u8>, id: &str, main_class_name: Option<String>) -> Result<Self> {
+    pub fn from_jar(
+        platform: Box<dyn Platform>,
+        jar_filename: &str,
+        jar: Vec<u8>,
+        id: &str,
+        main_class_name: Option<String>,
+        options: Options,
+    ) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, &files)
+        Self::load(platform, jar_filename, id, main_class_name, &files, options)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -48,8 +55,9 @@ impl LgtEmulator {
         id: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
+        options: Options,
     ) -> Result<Self> {
-        let mut core = ArmCore::new()?;
+        let mut core = ArmCore::new(options.enable_gdbserver)?;
         let mut system = System::new(platform, id, DefaultTaskRunner);
 
         for (filename, data) in files {

@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_allocator() -> Result<()> {
-        let mut core = ArmCore::new().unwrap();
+        let mut core = ArmCore::new(false).unwrap();
         core.map(0x40000000, 0x1000)?;
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
