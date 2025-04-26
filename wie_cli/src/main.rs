@@ -20,7 +20,7 @@ use midir::MidiOutput;
 use rodio::{OutputStream, Sink, buffer::SamplesBuffer};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{Emulator, Event, Instant, KeyCode, Platform, Screen, extract_zip};
+use wie_backend::{Emulator, Event, Instant, KeyCode, Options, Platform, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
@@ -122,6 +122,8 @@ impl Platform for WieCliPlatform {
 #[derive(Parser)]
 struct Args {
     filename: String,
+    #[arg(long, default_value_t = false)]
+    debug: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -130,10 +132,16 @@ fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    start(&Args::parse().filename)
+    let args = Args::parse();
+
+    let options = Options {
+        enable_gdbserver: args.debug,
+    };
+
+    start(&args.filename, options)
 }
 
-pub fn start(filename: &str) -> anyhow::Result<()> {
+pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
     let platform = Box::new(WieCliPlatform::new(Box::new(window.handle())));
 
@@ -142,9 +150,9 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         let files = extract_zip(&buf).unwrap();
 
         if KtfEmulator::loadable_archive(&files) {
-            Box::new(KtfEmulator::from_archive(platform, files)?)
+            Box::new(KtfEmulator::from_archive(platform, files, options)?)
         } else if LgtEmulator::loadable_archive(&files) {
-            Box::new(LgtEmulator::from_archive(platform, files)?)
+            Box::new(LgtEmulator::from_archive(platform, files, options)?)
         } else if SktEmulator::loadable_archive(&files) {
             Box::new(SktEmulator::from_archive(platform, files)?)
         } else {
@@ -161,9 +169,9 @@ pub fn start(filename: &str) -> anyhow::Result<()> {
         let filename_without_ext = filename.trim_end_matches(".jar");
 
         if KtfEmulator::loadable_jar(&buf) {
-            Box::new(KtfEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
+            Box::new(KtfEmulator::from_jar(platform, filename, buf, filename_without_ext, None, options)?)
         } else if LgtEmulator::loadable_jar(&buf) {
-            Box::new(LgtEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
+            Box::new(LgtEmulator::from_jar(platform, filename, buf, filename_without_ext, None, options)?)
         } else if SktEmulator::loadable_jar(&buf) {
             Box::new(SktEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
         } else {

@@ -236,7 +236,7 @@ mod test {
     use test_utils::TestPlatform;
 
     async fn init_jvm(system: &mut System) -> Result<Jvm> {
-        let mut core = ArmCore::new()?;
+        let mut core = ArmCore::new(false)?;
         Allocator::init(&mut core)?;
 
         let mut context = core.save_context();
