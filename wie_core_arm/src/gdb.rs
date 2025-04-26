@@ -14,7 +14,7 @@ use gdbstub::{
     conn::ConnectionExt,
     stub::{
         GdbStub, MultiThreadStopReason,
-        run_blocking::{self, BlockingEventLoop},
+        run_blocking::{BlockingEventLoop, Event, WaitForStopReasonError},
     },
     target::{
         Target, TargetResult,
@@ -181,13 +181,13 @@ impl BlockingEventLoop for GdbBlockingEventLoop {
     fn wait_for_stop_reason(
         target: &mut GdbTarget,
         conn: &mut Self::Connection,
-    ) -> Result<run_blocking::Event<MultiThreadStopReason<u32>>, run_blocking::WaitForStopReasonError<GdbTargetError, io::Error>> {
+    ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, io::Error>> {
         loop {
             if let Ok(x) = target.stop_event_rx.try_recv() {
-                return Ok(run_blocking::Event::TargetStopped(x));
+                return Ok(Event::TargetStopped(x));
             }
             if let Some(x) = conn.peek().unwrap() {
-                return Ok(run_blocking::Event::IncomingData(x));
+                return Ok(Event::IncomingData(x));
             }
 
             thread::sleep(Duration::from_millis(10)); // TODO is there a better way to do this?
