@@ -35,9 +35,9 @@ impl JvmSupport {
         let runtime = JvmRuntime::new(system.clone(), implementation, protos);
 
         let class_path = if let Some(x) = jar_name {
-            format!("{}:{}:{}", RT_RUSTJAR, WIE_RUSTJAR, x)
+            format!("{RT_RUSTJAR}:{WIE_RUSTJAR}:{x}")
         } else {
-            format!("{}:{}", RT_RUSTJAR, WIE_RUSTJAR,)
+            format!("{RT_RUSTJAR}:{WIE_RUSTJAR}")
         };
 
         let properties = [("file.encoding", "EUC-KR"), ("java.class.path", &class_path)]
@@ -51,7 +51,7 @@ impl JvmSupport {
             properties,
         )
         .await
-        .map_err(|x| WieError::FatalError(format!("Failed to create JVM: {}", x)))?;
+        .map_err(|x| WieError::FatalError(format!("Failed to create JVM: {x}")))?;
 
         Ok(jvm)
     }

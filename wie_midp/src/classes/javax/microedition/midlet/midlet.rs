@@ -64,7 +64,7 @@ impl MIDlet {
         tracing::debug!("javax.microedition.midlet.MIDlet::getAppProperty({:?}, {:?})", &this, key);
 
         let key = JavaLangString::to_rust_string(jvm, &key).await?;
-        let system_key = format!("wie.appProperty.{}", key);
+        let system_key = format!("wie.appProperty.{key}");
         let system_key = JavaLangString::from_rust_string(jvm, &system_key).await?;
 
         jvm.invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (system_key,))

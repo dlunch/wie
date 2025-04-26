@@ -82,7 +82,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x4ba => media::play.into_body(),
         0x4bd => media::stop.into_body(),
         0x578 => misc::back_light.into_body(),
-        _ => return Err(WieError::FatalError(format!("Unknown lgt wipi import: {:#x}", function_index))),
+        _ => return Err(WieError::FatalError(format!("Unknown lgt wipi import: {function_index:#x}"))),
     };
 
     let mut context = LgtWIPICContext::new(core.clone(), system.clone(), jvm.clone());

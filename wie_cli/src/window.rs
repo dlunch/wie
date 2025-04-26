@@ -128,8 +128,8 @@ impl fmt::Display for Scaler {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Scaler::Native => f.write_str("Native")?,
-            Scaler::Hqx { scale } => f.write_fmt(format_args!("Hq{}x", scale))?,
-            Scaler::Lanczos3 { scale, resizer: _ } => f.write_fmt(format_args!("Lanczos3({})", scale))?,
+            Scaler::Hqx { scale } => f.write_fmt(format_args!("Hq{scale}x"))?,
+            Scaler::Lanczos3 { scale, resizer: _ } => f.write_fmt(format_args!("Lanczos3({scale})"))?,
         }
         Ok(())
     }
@@ -181,7 +181,7 @@ impl Scaler {
             Scaler::Hqx { scale } if *scale == 2 => hqx::hq2x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
             Scaler::Hqx { scale } if *scale == 3 => hqx::hq3x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
             Scaler::Hqx { scale } if *scale == 4 => hqx::hq4x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
-            Scaler::Hqx { scale } => panic!("invalid hqx scale factor {}", scale),
+            Scaler::Hqx { scale } => panic!("invalid hqx scale factor {scale}"),
             Scaler::Lanczos3 { scale: _, resizer } => {
                 let (_, srcarr, _) = unsafe { src.align_to::<u8>() };
                 let srcimg = fast_image_resize::images::ImageRef::new(src_size.width, src_size.height, srcarr, PixelType::U8x4).unwrap();
@@ -243,7 +243,7 @@ where
     fn callback(&mut self, event: WindowCallbackEvent, event_loop: &ActiveEventLoop) {
         let result = (self.callback)(event);
         if let Err(x) = result {
-            tracing::error!(target: "wie", "{}", x);
+            tracing::error!(target: "wie", "{x}");
 
             event_loop.exit();
         }
@@ -418,7 +418,7 @@ where
                 scale_factor,
                 mut inner_size_writer,
             } => {
-                tracing::info!("ScaleFactorChanged {}", scale_factor);
+                tracing::info!("ScaleFactorChanged {scale_factor}");
                 self.update_scale_factor(Some(scale_factor), None);
                 let _ = inner_size_writer.request_inner_size(self.scaled_size);
                 // Will receive WindowEvent::Resized soon, so no need to call self.on_resize().

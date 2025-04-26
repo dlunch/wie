@@ -178,13 +178,13 @@ pub async fn load_native(
         .await?;
 
     if result != 0 {
-        return Err(WieError::FatalError(format!("Init failed with code {:#x}", result)));
+        return Err(WieError::FatalError(format!("Init failed with code {result:#x}")));
     }
 
     let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
 
     if result != 0 {
-        return Err(WieError::FatalError(format!("wipi init failed with code {:#x}", result)));
+        return Err(WieError::FatalError(format!("wipi init failed with code {result:#x}")));
     }
 
     Ok(exe_interface_functions.fn_get_class)
@@ -199,7 +199,7 @@ async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), pt
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm),
         "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm),
         _ => {
-            tracing::warn!("Unknown {}", name);
+            tracing::warn!("Unknown {name}");
 
             Ok(0)
         }
@@ -207,7 +207,7 @@ async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), pt
 }
 
 async fn alloc(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<u32> {
-    tracing::trace!("alloc({})", a0);
+    tracing::trace!("alloc({a0})");
 
     Allocator::alloc(core, a0)
 }

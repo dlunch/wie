@@ -11,7 +11,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x14 => core.register_function(java_load_classes, &())?,
         0x82 => core.register_function(java_unk9, &())?,
         0x83 => core.register_function(java_unk11, &())?,
-        _ => return Err(WieError::FatalError(format!("Unknown lgt java import: {:#x}", function_index))),
+        _ => return Err(WieError::FatalError(format!("Unknown lgt java import: {function_index:#x}"))),
     })
 }
 

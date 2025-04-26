@@ -65,7 +65,7 @@ impl wie_backend::Database for Database {
     fn add(&mut self, data: &[u8]) -> RecordId {
         let id = self.find_empty_record_id();
 
-        tracing::trace!("Adding record {} to database {:?}", id, &self.base_path);
+        tracing::trace!("Adding record {id} to database {:?}", &self.base_path);
 
         let path = self.get_path_for_record(id);
         fs::write(path, data).unwrap();
@@ -76,7 +76,7 @@ impl wie_backend::Database for Database {
     fn get(&self, id: RecordId) -> Option<Vec<u8>> {
         let path = self.get_path_for_record(id);
 
-        tracing::trace!("Read record {} from database {:?}", id, &self.base_path);
+        tracing::trace!("Read record {id} from database {:?}", &self.base_path);
 
         fs::read(path).ok()
     }
@@ -84,7 +84,7 @@ impl wie_backend::Database for Database {
     fn set(&mut self, id: RecordId, data: &[u8]) -> bool {
         let path = self.get_path_for_record(id);
 
-        tracing::trace!("Set record {} to database {:?}", id, &self.base_path);
+        tracing::trace!("Set record {id} to database {:?}", &self.base_path);
 
         fs::write(path, data).is_ok()
     }
@@ -92,7 +92,7 @@ impl wie_backend::Database for Database {
     fn delete(&mut self, id: RecordId) -> bool {
         let path = self.get_path_for_record(id);
 
-        tracing::trace!("Delete record {} from database {:?}", id, &self.base_path);
+        tracing::trace!("Delete record {id} from database {:?}", &self.base_path);
 
         fs::remove_file(path).is_ok()
     }

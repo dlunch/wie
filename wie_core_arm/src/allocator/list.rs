@@ -80,7 +80,7 @@ impl ListAllocator {
         loop {
             let header: ListAllocationHeader = read_generic(core, cursor)?;
             if header.size() == 0 {
-                return Err(WieError::FatalError(format!("Invalid allocation header at {:#x}", cursor)));
+                return Err(WieError::FatalError(format!("Invalid allocation header at {cursor:#x}")));
             }
 
             if !header.in_use() && header.size() >= size {

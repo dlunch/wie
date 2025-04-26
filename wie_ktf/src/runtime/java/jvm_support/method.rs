@@ -293,7 +293,7 @@ impl Method for JavaMethod {
         self.run(args).await.map_err(|x| match x {
             WieError::FatalError(x) => JavaError::FatalError(x),
             WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
-            _ => JavaError::FatalError(format!("{}", x)),
+            _ => JavaError::FatalError(format!("{x}")),
         })
     }
 

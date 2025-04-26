@@ -102,8 +102,7 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
         (0x201, 0x03) => core.register_function(java_unk3, &())?,
         _ => {
             return Err(WieError::FatalError(format!(
-                "Unknown import function: {:#x}, {:#x}",
-                import_table, function_index
+                "Unknown import function: {import_table:#x}, {function_index:#x}"
             )));
         }
     })
