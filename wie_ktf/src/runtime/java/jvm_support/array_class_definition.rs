@@ -129,7 +129,7 @@ impl ArrayClassDefinition for JavaArrayClassDefinition {
 
     fn instantiate_array(&self, length: usize) -> JvmResult<Box<dyn ClassInstance>> {
         Ok(Box::new(
-            JavaArrayClassInstance::new(&mut self.core.clone(), self, length).map_err(|x| JavaError::FatalError(format!("{}", x)))?,
+            JavaArrayClassInstance::new(&mut self.core.clone(), self, length).map_err(|x| JavaError::FatalError(format!("{x}")))?,
         ))
     }
 }

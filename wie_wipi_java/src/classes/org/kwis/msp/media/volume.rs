@@ -30,7 +30,7 @@ impl Volume {
     }
 
     async fn set(_: &Jvm, _: &mut WieJvmContext, level: i32) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Volume::set({})", level);
+        tracing::warn!("stub org.kwis.msp.media.Volume::set({level})");
 
         Ok(())
     }

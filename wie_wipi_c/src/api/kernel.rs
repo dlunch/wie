@@ -275,7 +275,7 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
                     }
                     'x' => {
                         let byte = arg_iter.next().unwrap();
-                        result += &format!("{:x}", byte);
+                        result += &format!("{byte:x}");
                         break;
                     }
                     '0' => flag = Some('0'),

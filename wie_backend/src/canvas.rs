@@ -283,9 +283,7 @@ where
     fn blend_pixel(&mut self, x: i32, y: i32, color: Color) {
         if x < 0 || y < 0 || (x as u32) >= self.image_buffer.width() || (y as u32) >= self.image_buffer.height() {
             tracing::warn!(
-                "out of bounds: x={}, y={}, width={}, height={}",
-                x,
-                y,
+                "out of bounds: x={x}, y={y}, width={}, height={}",
                 self.image_buffer.width(),
                 self.image_buffer.height()
             );

@@ -16,7 +16,7 @@ pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32>
         0x414 => core.register_function(memcpy, &())?,
         0x418 => core.register_function(memset, &())?,
         0x424 => core.register_function(unk3, &())?,
-        _ => return Err(WieError::FatalError(format!("Unknown lgt stdlib import: {:#x}", function_index))),
+        _ => return Err(WieError::FatalError(format!("Unknown lgt stdlib import: {function_index:#x}"))),
     })
 }
 

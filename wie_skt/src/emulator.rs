@@ -84,7 +84,7 @@ impl SktEmulator {
         ];
         let properties = properties
             .into_iter()
-            .map(|(k, v)| (format!("wie.appProperty.{}", k), v))
+            .map(|(k, v)| (format!("wie.appProperty.{k}"), v))
             .collect::<Vec<_>>();
         let properties = system_properties
             .into_iter()

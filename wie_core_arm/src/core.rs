@@ -86,13 +86,13 @@ impl ArmCore {
             thread_id
         };
 
-        tracing::info!("Create thread: {}", thread_id);
+        tracing::info!("Create thread: {thread_id}");
 
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
     }
 
     pub fn delete_thread_context(&self, thread_id: ThreadId) {
-        tracing::info!("Terminate thread: {}", thread_id);
+        tracing::info!("Terminate thread: {thread_id}");
 
         // we should exit inner lock first to run cleanup on thread state drop
         let _ = {
@@ -387,7 +387,7 @@ impl ArmCore {
             "<Unknown>".to_owned()
         };
 
-        format!("{:#x}: {}\n", address, description)
+        format!("{address:#x}: {description}\n")
     }
 
     fn dump_call_stack(&self, image_base: u32) -> Result<String> {

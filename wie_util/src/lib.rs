@@ -22,11 +22,11 @@ pub enum WieError {
 impl Display for WieError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            WieError::InvalidMemoryAccess(address) => write!(f, "Invalid memory access; address: {}", address),
+            WieError::InvalidMemoryAccess(address) => write!(f, "Invalid memory access; address: {address}"),
             WieError::AllocationFailure => write!(f, "Allocation failure"),
-            WieError::JavaException(exception) => write!(f, "Java exception: {:#x}", exception),
-            WieError::Unimplemented(message) => write!(f, "Unimplemented: {}", message),
-            WieError::FatalError(message) => write!(f, "Fatal error: {}", message),
+            WieError::JavaException(exception) => write!(f, "Java exception: {exception:#x}"),
+            WieError::Unimplemented(message) => write!(f, "Unimplemented: {message}"),
+            WieError::FatalError(message) => write!(f, "Fatal error: {message}"),
         }
     }
 }

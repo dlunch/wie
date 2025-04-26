@@ -70,14 +70,14 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
 
         Ok(0)
     } else {
-        tracing::error!("load_java_class({}) failed", name);
+        tracing::error!("load_java_class({name}) failed");
 
         Ok(1)
     }
 }
 
 pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord, a1: u32) -> Result<JavaMethodResult> {
-    tracing::warn!("java_throw({:#x}, {})", ptr_error, a1);
+    tracing::warn!("java_throw({ptr_error:#x}, {a1})");
 
     let error = String::from_utf8(read_null_terminated_string_bytes(core, ptr_error)?).unwrap();
 
@@ -89,13 +89,13 @@ pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord
 async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr_fullname: u32) -> Result<u32> {
     let fullname = KtfJvmSupport::read_name(core, ptr_fullname)?;
 
-    tracing::debug!("get_java_method({:#x}, {})", ptr_class, fullname);
+    tracing::debug!("get_java_method({ptr_class:#x}, {fullname})");
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let method = find_java_method(&class, &fullname.name, &fullname.descriptor).await?;
 
     if method.is_none() {
-        return Err(WieError::FatalError(format!("Method {} not found from {}", fullname, class.name()?)));
+        return Err(WieError::FatalError(format!("Method {fullname} not found from {}", class.name()?)));
     }
     let method = method.unwrap();
 

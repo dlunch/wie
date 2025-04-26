@@ -63,7 +63,7 @@ impl CletWrapper {
 
         let _: () = context.core.run_function(start_clet as _, &[]).await.map_err(|x| match x {
             WieError::FatalError(x) => JavaError::FatalError(x),
-            _ => JavaError::FatalError(format!("{}", x)),
+            _ => JavaError::FatalError(format!("{x}")),
         })?;
 
         Ok(())

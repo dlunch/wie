@@ -301,7 +301,7 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn instantiate(&self) -> JvmResult<Box<dyn ClassInstance>> {
-        let instance = JavaClassInstance::new(&mut self.core.clone(), self).map_err(|x| JavaError::FatalError(format!("{}", x)))?;
+        let instance = JavaClassInstance::new(&mut self.core.clone(), self).map_err(|x| JavaError::FatalError(format!("{x}")))?;
 
         Ok(Box::new(instance))
     }

@@ -106,8 +106,8 @@ impl Emulator for LgtEmulator {
         self.system.tick().map_err(|x| {
             let reg_stack = self.core.dump_reg_stack(0x1000); // TODO: hardcode
             match x {
-                WieError::FatalError(msg) => WieError::FatalError(format!("{}\n{}", msg, reg_stack)),
-                _ => WieError::FatalError(format!("{}\n{}", x, reg_stack)),
+                WieError::FatalError(msg) => WieError::FatalError(format!("{msg}\n{reg_stack}")),
+                _ => WieError::FatalError(format!("{x}\n{reg_stack}")),
             }
         })
     }
