@@ -18,17 +18,10 @@ use gdbstub::{
     },
     target::{
         Target, TargetResult,
-        ext::base::{
-            BaseOps,
-            multithread::MultiThreadBase,
-            single_register_access::{SingleRegisterAccess, SingleRegisterAccessOps},
-        },
+        ext::base::{BaseOps, multithread::MultiThreadBase},
     },
 };
-use gdbstub_arch::arm::{
-    Armv4t,
-    reg::{ArmCoreRegs, id::ArmCoreRegId},
-};
+use gdbstub_arch::arm::{Armv4t, reg::ArmCoreRegs};
 
 use wie_util::{ByteRead, ByteWrite};
 
@@ -79,11 +72,6 @@ impl Target for GdbTarget {
 }
 
 impl MultiThreadBase for GdbTarget {
-    #[inline(always)]
-    fn support_single_register_access(&mut self) -> Option<SingleRegisterAccessOps<'_, Tid, Self>> {
-        Some(self)
-    }
-
     #[inline(always)]
     fn read_registers(&mut self, regs: &mut ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
         let thread_context = self.core.read_thread_context(tid.into()).unwrap();
@@ -157,16 +145,6 @@ impl MultiThreadBase for GdbTarget {
         }
 
         Ok(())
-    }
-}
-
-impl SingleRegisterAccess<Tid> for GdbTarget {
-    fn read_register(&mut self, _tid: Tid, _reg_id: ArmCoreRegId, _buf: &mut [u8]) -> TargetResult<usize, Self> {
-        todo!()
-    }
-
-    fn write_register(&mut self, _tid: Tid, _reg_id: ArmCoreRegId, _val: &[u8]) -> TargetResult<(), Self> {
-        todo!()
     }
 }
 
