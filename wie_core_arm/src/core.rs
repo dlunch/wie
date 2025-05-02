@@ -33,7 +33,11 @@ pub struct ArmCore {
 
 impl ArmCore {
     pub fn new(enable_gdbserver: bool) -> Result<Self> {
-        let mut engine = Box::new(crate::engine::Arm32CpuEngine::new());
+        let mut engine = if enable_gdbserver {
+            Box::new(crate::engine::DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>
+        } else {
+            Box::new(crate::engine::Arm32CpuEngine::new())
+        };
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
 
