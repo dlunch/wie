@@ -1,10 +1,12 @@
 mod arm32_cpu;
+mod debugged_arm32_cpu;
 
 use core::ops::Range;
 
 use wie_util::Result;
 
 pub use arm32_cpu::Arm32CpuEngine;
+pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 
 pub trait ArmEngine: Sync + Send {
     fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> Result<u32>;
