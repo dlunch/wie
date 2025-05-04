@@ -1,13 +1,26 @@
+use core::pin::Pin;
+
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
 use jvm::runtime::{JavaIoInputStream, JavaLangClassLoader};
 
-use wie_backend::{DefaultTaskRunner, Emulator, Event, Options, Platform, System, extract_zip};
+use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
 
 use crate::runtime::init::load_native;
+
+struct LgtTaskRunner {
+    core: ArmCore,
+}
+
+#[async_trait::async_trait]
+impl TaskRunner for LgtTaskRunner {
+    async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
+        self.core.run_in_thread(async move || future.await)?.await
+    }
+}
 
 pub struct LgtEmulator {
     core: ArmCore,
@@ -58,7 +71,7 @@ impl LgtEmulator {
         options: Options,
     ) -> Result<Self> {
         let mut core = ArmCore::new(options.enable_gdbserver)?;
-        let mut system = System::new(platform, id, DefaultTaskRunner);
+        let mut system = System::new(platform, id, LgtTaskRunner { core: core.clone() });
 
         for (filename, data) in files {
             system.filesystem().add(filename, data.clone())
