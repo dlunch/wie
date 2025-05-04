@@ -33,10 +33,10 @@ impl AudioSystem {
         }
     }
 
-    async fn get_audio_clip(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<AudioClip>> {
+    async fn get_audio_clip(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<AudioClip>> {
         tracing::warn!("stub com.skt.m.AudioSystem::getAudioClip({:?})", name);
 
-        Ok(None.into())
+        Err(jvm.exception("com/skt/m/UnsupportedFormatException", "Unsupported format").await)
     }
 
     async fn get_max_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
