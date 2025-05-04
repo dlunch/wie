@@ -57,10 +57,19 @@ impl Graphics2D {
         Ok(instance.into())
     }
 
-    async fn capture_lcd(_jvm: &Jvm, _context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
+    async fn capture_lcd(jvm: &Jvm, _context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
         tracing::warn!("stub com.skt.m.Graphics2D::captureLCD({}, {}, {}, {})", x, y, width, height);
 
-        Ok(None.into())
+        let image: ClassInstanceRef<Image> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Image",
+                "createImage",
+                "(II)Ljavax/microedition/lcdui/Image;",
+                (width, height),
+            )
+            .await?;
+
+        Ok(image)
     }
 
     #[allow(clippy::too_many_arguments)]
