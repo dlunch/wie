@@ -34,7 +34,7 @@ impl Graphics2D {
                     "drawImage",
                     "(IILjavax/microedition/lcdui/Image;IIIII)V",
                     Self::draw_image,
-                    MethodAccessFlags::STATIC,
+                    Default::default(),
                 ),
             ],
             fields: vec![],
@@ -67,6 +67,7 @@ impl Graphics2D {
     async fn draw_image(
         _jvm: &Jvm,
         _context: &mut WieJvmContext,
+        _this: ClassInstanceRef<Self>,
         tx: i32,
         ty: i32,
         src: ClassInstanceRef<Image>,
