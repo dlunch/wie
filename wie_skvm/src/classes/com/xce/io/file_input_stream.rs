@@ -22,6 +22,7 @@ impl FileInputStream {
                 JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, Default::default()),
                 JavaMethodProto::new("available", "()I", Self::available, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
+                JavaMethodProto::new("read", "()I", Self::read_byte, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("is", "Ljava/io/InputStream;", Default::default())],
         }
@@ -69,5 +70,14 @@ impl FileInputStream {
         let _: () = jvm.invoke_virtual(&is, "close", "()V", ()).await?;
 
         Ok(())
+    }
+
+    async fn read_byte(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("com.xce.io.FileInputStream::read({:?})", this);
+
+        let is = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
+        let read = jvm.invoke_virtual(&is, "read", "()I", ()).await?;
+
+        Ok(read)
     }
 }
