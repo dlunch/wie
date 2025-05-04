@@ -48,7 +48,7 @@ impl ParamConverter<i32> for i32 {
 impl ResultConverter<u64> for u64 {
     fn convert(_: &mut dyn WIPICContext, result: u64) -> WIPICResult {
         WIPICResult {
-            results: vec![(result << 32) as u32, result as u32],
+            results: vec![result as u32, (result << 32) as u32],
         }
     }
 }
