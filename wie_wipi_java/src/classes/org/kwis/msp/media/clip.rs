@@ -21,7 +21,7 @@ impl Clip {
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "org/kwis/msp/media/Clip",
-            parent_class: Some("java/lang/Object"),
+            parent_class: Some("org/kwis/msp/media/BaseClip"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
@@ -49,7 +49,7 @@ impl Clip {
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?})", &this, r#type);
 
-        let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+        let _: () = jvm.invoke_special(&this, "org/kwis/msp/media/BaseClip", "<init>", "()V", ()).await?;
 
         Ok(())
     }
