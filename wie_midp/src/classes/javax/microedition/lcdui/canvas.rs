@@ -24,6 +24,7 @@ impl Canvas {
                 JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, Default::default()),
                 JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, Default::default()),
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
+                JavaMethodProto::new("setFullScreenMode", "(Z)V", Self::set_full_screen_mode, Default::default()),
             ],
             fields: vec![],
         }
@@ -105,6 +106,12 @@ impl Canvas {
 
     async fn key_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::keyReleased({:?}, {})", &this, key);
+
+        Ok(())
+    }
+
+    async fn set_full_screen_mode(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::setFullScreenMode({this:?}, {mode})");
 
         Ok(())
     }
