@@ -7,7 +7,10 @@ use alloc::{
     vec::Vec,
 };
 
-use jvm::{Result as JvmResult, runtime::JavaLangString};
+use jvm::{
+    Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangString},
+};
 
 use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
@@ -60,8 +63,28 @@ impl J2MEEmulator {
         let main_class_name = if let Some(x) = main_class_name {
             x.replace('.', "/")
         } else {
-            // TODO we need to parse META-INF/MANIFEST.MF for midlet
-            return Err(WieError::FatalError("Main class not found".into()));
+            let class_loader = jvm
+                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
+                .await
+                .unwrap();
+
+            let resource_name = JavaLangString::from_rust_string(&jvm, "META-INF/MANIFEST.MF").await.unwrap();
+            let resource_stream = jvm
+                .invoke_virtual(
+                    &class_loader,
+                    "getResourceAsStream",
+                    "(Ljava/lang/String;)Ljava/io/InputStream;",
+                    (resource_name.clone(),),
+                )
+                .await
+                .unwrap();
+            let data = JavaIoInputStream::read_until_end(&jvm, &resource_stream).await.unwrap();
+
+            let descriptor = J2MEDescriptor::parse(&data);
+            if descriptor.main_class_name.is_empty() {
+                return Err(WieError::FatalError("Main class not found".into()));
+            }
+            descriptor.main_class_name.replace('.', "/")
         };
 
         let main_class_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
