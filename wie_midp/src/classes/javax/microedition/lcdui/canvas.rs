@@ -81,11 +81,12 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({:?}, {})", &this, key);
 
         let action = match key {
-            -1 => 1, // UP
-            -2 => 6, // DOWN
-            -3 => 2, // LEFT
-            -4 => 5, // RIGHT
-            -5 => 8, // FIRE,
+            -1 => 1,   // UP
+            -2 => 6,   // DOWN
+            -3 => 2,   // LEFT
+            -4 => 5,   // RIGHT
+            -5 => 8,   // FIRE,
+            -16 => 99, // CLEAR
             _ => key,
         };
 
