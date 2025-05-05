@@ -118,14 +118,17 @@ impl File {
     }
 
     async fn write_with_offset_length(
-        _jvm: &Jvm,
+        jvm: &Jvm,
         _: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         buf: ClassInstanceRef<ClassInstanceRef<Array<i8>>>,
         offset: i32,
         len: i32,
     ) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})", &this, &buf, offset, len);
+        tracing::debug!("org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})", &this, &buf, offset, len);
+
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (buf, offset, len)).await?;
 
         Ok(0)
     }
