@@ -21,7 +21,7 @@ impl TextBoxComponent {
     }
 
     async fn init(
-        _: &Jvm,
+        jvm: &Jvm,
         _: &mut WieJvmContext,
         this: ClassInstanceRef<TextBoxComponent>,
         data: ClassInstanceRef<String>,
@@ -33,6 +33,8 @@ impl TextBoxComponent {
             &data,
             constraint
         );
+
+        let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/TextComponent", "<init>", "()V", ()).await?;
 
         Ok(())
     }
