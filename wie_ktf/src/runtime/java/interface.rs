@@ -25,7 +25,7 @@ struct WIPIJBInterface {
     fn_java_jump_2: u32,
     fn_java_jump_3: u32,
     fn_get_java_method: u32,
-    fn_get_static_field: u32,
+    fn_get_field: u32,
     fn_unk4: u32,
     fn_unk5: u32,
     fn_unk7: u32,
@@ -42,7 +42,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: &Jvm) -> Result<u32> {
         fn_java_jump_2: core.register_function(java_jump_2, jvm)?,
         fn_java_jump_3: core.register_function(java_jump_3, jvm)?,
         fn_get_java_method: core.register_function(get_java_method, jvm)?,
-        fn_get_static_field: core.register_function(get_static_field, jvm)?,
+        fn_get_field: core.register_function(get_field, jvm)?,
         fn_unk4: core.register_function(jb_unk4, jvm)?,
         fn_unk5: core.register_function(jb_unk5, jvm)?,
         fn_unk7: core.register_function(jb_unk7, jvm)?,
@@ -171,13 +171,18 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
     Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
 }
 
-async fn get_static_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, field_name: u32) -> Result<u32> {
-    tracing::warn!("stub get_static_field({:#x}, {:#x})", ptr_class, field_name);
+async fn get_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, field_name: u32) -> Result<u32> {
+    tracing::warn!("stub get_field({:#x}, {:#x})", ptr_class, field_name);
 
     let field_name = KtfJvmSupport::read_name(core, field_name)?;
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let field = class.field(&field_name.name, &field_name.descriptor, true)?;
+    let field = if field.is_none() {
+        class.field(&field_name.name, &field_name.descriptor, false)?
+    } else {
+        field
+    };
 
     if let Some(x) = field {
         Ok(x.ptr_raw)
