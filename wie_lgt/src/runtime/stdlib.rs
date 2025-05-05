@@ -65,7 +65,7 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     let string = read_null_terminated_string_bytes(core, ptr_str)?;
     let string = String::from_utf8(string).unwrap();
 
-    Ok(string.parse().unwrap())
+    Ok(string.parse().unwrap_or(0))
 }
 
 async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
