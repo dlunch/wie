@@ -18,6 +18,8 @@ impl Component {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
+                JavaMethodProto::new("focusNotify", "(Z)V", Self::focus_notify, Default::default()),
+                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
                 JavaMethodProto::new("configure", "(IIIII)V", Self::configure, Default::default()),
                 JavaMethodProto::new("setFocus", "()V", Self::set_focus, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
@@ -38,6 +40,18 @@ impl Component {
         tracing::warn!("stub org.kwis.msp.lwc.Component::keyNotify({:?}, {:?}, {:?})", &this, r#type, chr);
 
         Ok(true)
+    }
+
+    async fn focus_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, focus: bool) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::focusNotify({:?}, {:?})", &this, focus);
+
+        Ok(())
+    }
+
+    async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::showNotify({:?}, {:?})", &this, show);
+
+        Ok(())
     }
 
     async fn configure(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32, w: i32, h: i32) -> JvmResult<()> {
