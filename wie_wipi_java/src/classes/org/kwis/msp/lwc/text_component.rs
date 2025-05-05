@@ -16,11 +16,20 @@ impl TextComponent {
             parent_class: Some("org/kwis/msp/lwc/Component"),
             interfaces: vec![],
             methods: vec![
+                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, Default::default()),
                 JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, Default::default()),
             ],
             fields: vec![],
         }
+    }
+
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>) -> JvmResult<()> {
+        tracing::debug!("stub org.kwis.msp.lwc.TextComponent::<init>({:?})", &this);
+
+        let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await?;
+
+        Ok(())
     }
 
     async fn set_max_length(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JvmResult<()> {
