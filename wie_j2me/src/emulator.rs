@@ -68,6 +68,7 @@ impl J2MEEmulator {
                 .await
                 .unwrap();
 
+            // TODO Use JarFile::getManifest
             let resource_name = JavaLangString::from_rust_string(&jvm, "META-INF/MANIFEST.MF").await.unwrap();
             let resource_stream = jvm
                 .invoke_virtual(
