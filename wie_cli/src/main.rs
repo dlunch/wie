@@ -166,16 +166,31 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
 
         Box::new(J2MEEmulator::from_jad_jar(platform, buf, jar_filename, jar)?)
     } else if filename.ends_with("jar") {
-        let filename_without_ext = filename.trim_end_matches(".jar");
+        let filename_without_path = filename[filename.rfind('/').unwrap_or(0) + 1..].to_owned();
+        let filename_without_ext = filename_without_path.trim_end_matches(".jar");
 
         if KtfEmulator::loadable_jar(&buf) {
-            Box::new(KtfEmulator::from_jar(platform, filename, buf, filename_without_ext, None, options)?)
+            Box::new(KtfEmulator::from_jar(
+                platform,
+                &filename_without_path,
+                buf,
+                filename_without_ext,
+                None,
+                options,
+            )?)
         } else if LgtEmulator::loadable_jar(&buf) {
-            Box::new(LgtEmulator::from_jar(platform, filename, buf, filename_without_ext, None, options)?)
+            Box::new(LgtEmulator::from_jar(
+                platform,
+                &filename_without_path,
+                buf,
+                filename_without_ext,
+                None,
+                options,
+            )?)
         } else if SktEmulator::loadable_jar(&buf) {
-            Box::new(SktEmulator::from_jar(platform, filename, buf, filename_without_ext, None)?)
+            Box::new(SktEmulator::from_jar(platform, &filename_without_path, buf, filename_without_ext, None)?)
         } else {
-            Box::new(J2MEEmulator::from_jar(platform, filename_without_ext, buf)?)
+            Box::new(J2MEEmulator::from_jar(platform, &filename_without_path, buf)?)
         }
     } else {
         anyhow::bail!("Unknown file format");
