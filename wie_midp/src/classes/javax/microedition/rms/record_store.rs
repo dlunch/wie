@@ -24,6 +24,7 @@ impl RecordStore {
                 JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, Default::default()),
                 JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, Default::default()),
                 JavaMethodProto::new("getRecord", "(I[BI)I", Self::get_record_array, Default::default()),
+                JavaMethodProto::new("getRecordSize", "(I)I", Self::get_record_size, Default::default()),
                 JavaMethodProto::new("setRecord", "(I[BII)V", Self::set_record, Default::default()),
                 JavaMethodProto::new("getNumRecords", "()I", Self::get_num_records, Default::default()),
                 JavaMethodProto::new("closeRecordStore", "()V", Self::close_record_store, Default::default()),
@@ -31,6 +32,12 @@ impl RecordStore {
                     "openRecordStore",
                     "(Ljava/lang/String;Z)Ljavax/microedition/rms/RecordStore;",
                     Self::open_record_store,
+                    MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "deleteRecordStore",
+                    "(Ljava/lang/String;)V",
+                    Self::delete_record_store,
                     MethodAccessFlags::STATIC,
                 ),
             ],
@@ -126,6 +133,21 @@ impl RecordStore {
         Ok(data_length as _)
     }
 
+    async fn get_record_size(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.rms.RecordStore::getRecordSize({:?}, {})", &this, record_id);
+
+        let database = Self::get_database(jvm, context, &this).await?;
+
+        let result = database.get(record_id as _);
+        if result.is_none() {
+            return Err(jvm.exception("javax/microedition/rms/InvalidRecordIDException", "Record not found").await);
+        }
+
+        let data = result.unwrap();
+
+        Ok(data.len() as _)
+    }
+
     async fn set_record(
         jvm: &Jvm,
         context: &mut WieJvmContext,
@@ -181,6 +203,12 @@ impl RecordStore {
             .await?;
 
         Ok(store.into())
+    }
+
+    async fn delete_record_store(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.rms.RecordStore::deleteRecordStore({name:?})");
+
+        Ok(())
     }
 
     async fn get_database(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {
