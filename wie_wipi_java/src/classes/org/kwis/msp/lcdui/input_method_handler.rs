@@ -14,7 +14,10 @@ impl InputMethodHandler {
             name: "org/kwis/msp/lcdui/InputMethodHandler",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "(I)V", Self::init, Default::default())],
+            methods: vec![
+                JavaMethodProto::new("<init>", "(I)V", Self::init, Default::default()),
+                JavaMethodProto::new("setCurrentMode", "(I)Z", Self::set_current_mode, Default::default()),
+            ],
             fields: vec![],
         }
     }
@@ -25,5 +28,11 @@ impl InputMethodHandler {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         Ok(())
+    }
+
+    async fn set_current_mode(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, mode: i32) -> JvmResult<bool> {
+        tracing::warn!("stub org.kwis.msp.lcdui.InputMethodHandler::setCurrentMode({this:?}, {mode})");
+
+        Ok(true)
     }
 }

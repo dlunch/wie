@@ -20,11 +20,10 @@ impl TextComponent {
                 JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, Default::default()),
                 JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new(
-                "imHandler",
-                "Lorg/kwis/msp/lcdui/InputMethodHandler;",
-                Default::default(),
-            )],
+            fields: vec![
+                JavaFieldProto::new("m_cPos", "I", Default::default()),
+                JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", Default::default()),
+            ],
         }
     }
 
