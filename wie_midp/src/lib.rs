@@ -5,9 +5,10 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 16] {
+pub fn get_protos() -> [WieJavaClassProto; 17] {
     [
         classes::javax::microedition::lcdui::Canvas::as_proto(),
+        classes::javax::microedition::lcdui::Command::as_proto(),
         classes::javax::microedition::lcdui::Display::as_proto(),
         classes::javax::microedition::lcdui::Displayable::as_proto(),
         classes::javax::microedition::lcdui::Font::as_proto(),
