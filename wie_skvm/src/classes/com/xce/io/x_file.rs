@@ -21,6 +21,8 @@ impl XFile {
                 JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("filesize", "(Ljava/lang/String;)I", Self::filesize, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("unlink", "(Ljava/lang/String;)I", Self::unlink, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("available", "()I", Self::available, Default::default()),
+                JavaMethodProto::new("read", "([BII)I", Self::read, Default::default()),
                 JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
@@ -88,6 +90,28 @@ impl XFile {
         tracing::warn!("stub com.xce.io.XFile::unlink({:?})", name);
 
         Ok(0)
+    }
+
+    async fn available(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub com.xce.io.XFile::available({this:?})");
+
+        Ok(100 as _)
+    }
+
+    async fn read(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        data: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        length: i32,
+    ) -> JvmResult<i32> {
+        tracing::debug!("com.xce.io.XFile::read({:?}, {:?}, {}, {})", this, data, offset, length);
+
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let read = jvm.invoke_virtual(&raf, "read", "([BII)I", (data, offset, length)).await?;
+
+        Ok(read)
     }
 
     async fn write(
