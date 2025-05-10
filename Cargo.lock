@@ -449,7 +449,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#75331d3bcf0ee57895298ab887ec46d1dfd39e90"
+source = "git+https://github.com/dlunch/RustJava.git#28fd95c9ba75b09a5e7e510cd1aa728227b94475"
 dependencies = [
  "java_constants",
  "nom",
@@ -1284,7 +1284,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#75331d3bcf0ee57895298ab887ec46d1dfd39e90"
+source = "git+https://github.com/dlunch/RustJava.git#28fd95c9ba75b09a5e7e510cd1aa728227b94475"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1295,7 +1295,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#75331d3bcf0ee57895298ab887ec46d1dfd39e90"
+source = "git+https://github.com/dlunch/RustJava.git#28fd95c9ba75b09a5e7e510cd1aa728227b94475"
 dependencies = [
  "bitflags 2.9.0",
 ]
@@ -1303,7 +1303,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#75331d3bcf0ee57895298ab887ec46d1dfd39e90"
+source = "git+https://github.com/dlunch/RustJava.git#28fd95c9ba75b09a5e7e510cd1aa728227b94475"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1365,7 +1365,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#75331d3bcf0ee57895298ab887ec46d1dfd39e90"
+source = "git+https://github.com/dlunch/RustJava.git#28fd95c9ba75b09a5e7e510cd1aa728227b94475"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1383,7 +1383,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#75331d3bcf0ee57895298ab887ec46d1dfd39e90"
+source = "git+https://github.com/dlunch/RustJava.git#28fd95c9ba75b09a5e7e510cd1aa728227b94475"
 dependencies = [
  "async-recursion",
  "async-trait",
