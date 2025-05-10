@@ -784,7 +784,7 @@ impl Graphics {
     }
 
     async fn get_translate_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::warn!("javax.microedition.lcdui.Graphics::getTranslateY({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateY({:?})", &this);
 
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
