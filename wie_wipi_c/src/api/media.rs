@@ -243,4 +243,3 @@ pub async fn unk18(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<W
 
     Ok(0)
 }
-
