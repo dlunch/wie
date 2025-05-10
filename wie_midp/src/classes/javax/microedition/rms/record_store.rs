@@ -22,6 +22,7 @@ impl RecordStore {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
                 JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, Default::default()),
+                JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, Default::default()),
                 JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, Default::default()),
                 JavaMethodProto::new("getRecord", "(I[BI)I", Self::get_record_array, Default::default()),
                 JavaMethodProto::new("getRecordSize", "(I)I", Self::get_record_size, Default::default()),
@@ -78,6 +79,12 @@ impl RecordStore {
         let id = database.add(&cast_vec(data));
 
         Ok(id as _)
+    }
+
+    async fn get_size_available(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::warn!("stub javax.microedition.rms.RecordStore::getSizeAvailable({:?})", &this);
+
+        Ok(1000000 as _)
     }
 
     async fn get_record(
