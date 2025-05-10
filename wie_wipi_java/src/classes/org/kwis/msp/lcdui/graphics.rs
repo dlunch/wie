@@ -29,6 +29,7 @@ impl Graphics {
                     Default::default(),
                 ),
                 JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, Default::default()),
+                JavaMethodProto::new("copyArea", "(IIIIII)V", Self::copy_area, Default::default()),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
                 JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
                 JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, Default::default()),
@@ -110,6 +111,22 @@ impl Graphics {
             .new_class("org/kwis/msp/lcdui/Font", "(Ljavax/microedition/lcdui/Font;)V", (midp_font,))
             .await?
             .into())
+    }
+
+    async fn copy_area(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        dx: i32,
+        dy: i32,
+        sx: i32,
+        sy: i32,
+        w: i32,
+        h: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::copyArea({this:?}, {dx}, {dy}, {sx}, {sy}, {w}, {h})");
+
+        Ok(())
     }
 
     async fn set_color(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, color: i32) -> JvmResult<()> {
