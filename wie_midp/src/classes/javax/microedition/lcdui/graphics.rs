@@ -430,7 +430,15 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
-        canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
+        let color: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        canvas.draw_text(
+            &string,
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            anchor.into(),
+            Rgb8Pixel::to_color(color as _),
+        );
 
         Ok(())
     }
@@ -465,7 +473,15 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
-        canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
+        let color: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        canvas.draw_text(
+            &string,
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            anchor.into(),
+            Rgb8Pixel::to_color(color as _),
+        );
 
         Ok(())
     }
@@ -496,7 +512,15 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
-        canvas.draw_text(&string, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
+        let color: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        canvas.draw_text(
+            &string,
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            anchor.into(),
+            Rgb8Pixel::to_color(color as _),
+        );
 
         Ok(())
     }
@@ -530,7 +554,15 @@ impl Graphics {
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
-        canvas.draw_text(&substring, (translate_x + x) as _, (translate_y + y) as _, anchor.into());
+        let color: i32 = jvm.get_field(&this, "color", "I").await?;
+
+        canvas.draw_text(
+            &substring,
+            (translate_x + x) as _,
+            (translate_y + y) as _,
+            anchor.into(),
+            Rgb8Pixel::to_color(color as _),
+        );
 
         Ok(())
     }

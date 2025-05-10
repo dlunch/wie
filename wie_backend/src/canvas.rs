@@ -49,7 +49,7 @@ pub trait Canvas: Send {
     fn image(&self) -> &dyn Image;
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip);
     fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color);
-    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment);
+    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color);
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
     fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: u32, arc_angle: u32, color: Color, clip: Clip);
     fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
@@ -360,7 +360,7 @@ where
         }
     }
 
-    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment) {
+    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color) {
         let font = FONT.as_scaled(FONT.pt_to_px_scale(10.0).unwrap());
 
         let total_width = string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>();
@@ -386,9 +386,9 @@ where
                         y + glyph_y as i32,
                         Color {
                             a: (c * 255.0) as u8,
-                            r: 0,
-                            g: 0,
-                            b: 0,
+                            r: color.r,
+                            g: color.g,
+                            b: color.b,
                         },
                     )
                 });
