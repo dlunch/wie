@@ -449,7 +449,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#21b045ebea8910d69469e4e5720b03cc5e64f43f"
+source = "git+https://github.com/dlunch/RustJava.git#4a32cdfcfad0baac024d7834df893762fcaaf6e8"
 dependencies = [
  "java_constants",
  "nom",
@@ -867,11 +867,12 @@ dependencies = [
 
 [[package]]
 name = "flate2"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11faaf5a5236997af9848be0bef4db95824b1d534ebc64d0f0c6cf3e67bd38dc"
+checksum = "7ced92e76e966ca2fd84c8f7aa01a4aea65b0eb6648d72f7c8f3e2764a67fece"
 dependencies = [
  "crc32fast",
+ "libz-rs-sys",
  "miniz_oxide",
 ]
 
@@ -1284,7 +1285,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#21b045ebea8910d69469e4e5720b03cc5e64f43f"
+source = "git+https://github.com/dlunch/RustJava.git#4a32cdfcfad0baac024d7834df893762fcaaf6e8"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1295,7 +1296,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#21b045ebea8910d69469e4e5720b03cc5e64f43f"
+source = "git+https://github.com/dlunch/RustJava.git#4a32cdfcfad0baac024d7834df893762fcaaf6e8"
 dependencies = [
  "bitflags 2.9.1",
 ]
@@ -1303,7 +1304,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#21b045ebea8910d69469e4e5720b03cc5e64f43f"
+source = "git+https://github.com/dlunch/RustJava.git#4a32cdfcfad0baac024d7834df893762fcaaf6e8"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1318,7 +1319,7 @@ dependencies = [
  "parking_lot",
  "tracing",
  "url",
- "zip",
+ "zip 3.0.0",
 ]
 
 [[package]]
@@ -1365,7 +1366,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#21b045ebea8910d69469e4e5720b03cc5e64f43f"
+source = "git+https://github.com/dlunch/RustJava.git#4a32cdfcfad0baac024d7834df893762fcaaf6e8"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1383,7 +1384,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#21b045ebea8910d69469e4e5720b03cc5e64f43f"
+source = "git+https://github.com/dlunch/RustJava.git#4a32cdfcfad0baac024d7834df893762fcaaf6e8"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -1416,7 +1417,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -1434,6 +1435,15 @@ dependencies = [
  "bitflags 2.9.1",
  "libc",
  "redox_syscall 0.5.10",
+]
+
+[[package]]
+name = "libz-rs-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6489ca9bd760fe9642d7644e827b0c9add07df89857b0416ee15c1cc1a3b8c5a"
+dependencies = [
+ "zlib-rs",
 ]
 
 [[package]]
@@ -2891,7 +2901,7 @@ dependencies = [
  "spin",
  "tracing",
  "wie_util",
- "zip",
+ "zip 2.6.1",
 ]
 
 [[package]]
@@ -3649,6 +3659,26 @@ dependencies = [
  "memchr",
  "zopfli",
 ]
+
+[[package]]
+name = "zip"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12598812502ed0105f607f941c386f43d441e00148fce9dec3ca5ffb0bde9308"
+dependencies = [
+ "arbitrary",
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "zopfli",
+]
+
+[[package]]
+name = "zlib-rs"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "868b928d7949e09af2f6086dfc1e01936064cc7a819253bce650d4e2a2d63ba8"
 
 [[package]]
 name = "zopfli"
