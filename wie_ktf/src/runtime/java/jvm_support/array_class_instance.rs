@@ -88,6 +88,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
     fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
         self.class_instance.equals(other)
     }
+
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.element_size().unwrap();
 
