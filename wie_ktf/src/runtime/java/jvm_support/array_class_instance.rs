@@ -86,7 +86,12 @@ impl ArrayClassInstance for JavaArrayClassInstance {
     }
 
     fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
-        self.class_instance.equals(other)
+        let other = other.as_any().downcast_ref::<JavaArrayClassInstance>();
+        if other.is_none() {
+            return Ok(false);
+        }
+
+        Ok(self.class_instance.ptr_raw == other.unwrap().class_instance.ptr_raw)
     }
 
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
