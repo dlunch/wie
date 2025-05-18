@@ -66,13 +66,13 @@ struct InitParam3 {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct WipiExe {
+pub struct WipiExe {
     ptr_exe_interface: u32,
     ptr_name: u32,
     unk1: u32,
     unk2: u32,
     fn_unk1: u32,
-    fn_init: u32,
+    pub fn_init: u32,
     unk3: u32,
     unk4: u32,
     fn_unk3: u32,
@@ -94,12 +94,12 @@ struct ExeInterface {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct ExeInterfaceFunctions {
+pub struct ExeInterfaceFunctions {
     unk1: u32,
     unk2: u32,
     fn_init: u32,
     fn_get_default_dll: u32,
-    fn_get_class: u32,
+    pub fn_get_class: u32,
     fn_unk2: u32,
     fn_unk3: u32,
 }
@@ -112,7 +112,7 @@ pub async fn load_native(
     data: &[u8],
     ptr_jvm_context: u32,
     ptr_jvm_exception_context: u32,
-) -> Result<u32> {
+) -> Result<(ExeInterfaceFunctions, WipiExe)> {
     let bss_start = filename.find("client.bin").unwrap() + 10;
     let bss_size = filename[bss_start..].parse::<u32>().unwrap();
 
@@ -181,13 +181,7 @@ pub async fn load_native(
         return Err(WieError::FatalError(format!("Init failed with code {result:#x}")));
     }
 
-    let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
-
-    if result != 0 {
-        return Err(WieError::FatalError(format!("wipi init failed with code {result:#x}")));
-    }
-
-    Ok(exe_interface_functions.fn_get_class)
+    Ok((exe_interface_functions, wipi_exe))
 }
 
 async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), ptr_name: u32) -> Result<u32> {
