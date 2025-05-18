@@ -29,7 +29,10 @@ impl KtfClassLoader {
                 JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;I)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new("fnGetClass", "I", Default::default())],
+            fields: vec![
+                JavaFieldProto::new("fnGetClass", "I", Default::default()),
+                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
+            ],
         }
     }
 
@@ -47,6 +50,9 @@ impl KtfClassLoader {
             .await?;
 
         jvm.put_field(&mut this, "fnGetClass", "I", fn_get_class).await?;
+
+        let native_strings = jvm.new_class("java/util/Vector", "()V", ()).await?;
+        jvm.put_field(&mut this, "nativeStrings", "Ljava/util/Vector;", native_strings).await?;
 
         Ok(())
     }

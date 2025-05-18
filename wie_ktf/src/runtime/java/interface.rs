@@ -6,9 +6,10 @@ use alloc::{
     vec::Vec,
 };
 use core::mem::size_of;
+use java_runtime::classes::java::util::Vector;
 use wie_jvm_support::JvmSupport;
 
-use jvm::{Jvm, runtime::JavaLangString};
+use jvm::{ClassInstanceRef, Jvm, runtime::JavaLangString};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -167,6 +168,15 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
     let rust_string = String::from_utf16(&bytes_u16).unwrap();
 
     let instance = JavaLangString::from_rust_string(jvm, &rust_string).await.unwrap();
+
+    // Add to class loader to not to be garbage collected
+    // TODO encapsulation?
+    let class_loader = KtfJvmSupport::class_loader(core)?;
+    let strings_field: ClassInstanceRef<Vector> = jvm.get_field(&class_loader, "nativeStrings", "Ljava/util/Vector;").await.unwrap();
+    let _: bool = jvm
+        .invoke_virtual(&strings_field, "add", "(Ljava/lang/Object;)Z", (instance.clone(),))
+        .await
+        .unwrap();
 
     Ok(KtfJvmSupport::class_instance_raw(&instance) as _)
 }
