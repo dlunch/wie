@@ -199,6 +199,7 @@ impl Display {
         let screen = platform.screen();
 
         screen.paint(&*image);
+        jvm.collect_garbage()?;
 
         Ok(())
     }
