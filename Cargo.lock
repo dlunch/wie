@@ -1319,7 +1319,7 @@ dependencies = [
  "parking_lot",
  "tracing",
  "url",
- "zip 3.0.0",
+ "zip",
 ]
 
 [[package]]
@@ -2901,7 +2901,7 @@ dependencies = [
  "spin",
  "tracing",
  "wie_util",
- "zip 2.6.1",
+ "zip",
 ]
 
 [[package]]
@@ -3643,21 +3643,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.100",
-]
-
-[[package]]
-name = "zip"
-version = "2.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dcb24d0152526ae49b9b96c1dcf71850ca1e0b882e4e28ed898a93c41334744"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "crossbeam-utils",
- "flate2",
- "indexmap",
- "memchr",
- "zopfli",
 ]
 
 [[package]]
