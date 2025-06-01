@@ -40,11 +40,15 @@ impl JvmSupport {
             format!("{RT_RUSTJAR}:{WIE_RUSTJAR}")
         };
 
-        let properties = [("file.encoding", "EUC-KR"), ("java.class.path", &class_path)]
-            .iter()
-            .chain(properties.iter())
-            .copied()
-            .collect();
+        let properties = [
+            ("file.encoding", "EUC-KR"),
+            ("java.class.path", &class_path),
+            ("rustjava.disable_explicit_gc", "true"),
+        ]
+        .iter()
+        .chain(properties.iter())
+        .copied()
+        .collect();
         let jvm = Jvm::new(
             java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
             move || runtime.current_task_id(),
