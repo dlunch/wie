@@ -297,11 +297,18 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
     Ok(result)
 }
 
+pub async fn exit(_context: &mut dyn WIPICContext, code: i32) -> Result<()> {
+    tracing::warn!("stub MC_knlExit({})", code);
+
+    Ok(())
+}
+
 pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     tracing::warn!("stub MC_knlGetCurProgramID()");
 
     Ok(1)
 }
+
 #[cfg(test)]
 mod test {
     use alloc::{boxed::Box, string::String};

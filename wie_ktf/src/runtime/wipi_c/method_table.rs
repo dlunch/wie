@@ -24,7 +24,7 @@ where
         gen_stub(4, "MC_knlMExecute"),
         gen_stub(5, "MC_knlLoad"),
         gen_stub(6, "MC_knlMLoad"),
-        gen_stub(7, "MC_knlExit"),
+        kernel::exit.into_body(),
         gen_stub(8, "MC_knlProgramStop"),
         kernel::get_cur_program_id.into_body(),
         gen_stub(10, "MC_knlGetParentProgramID"),
