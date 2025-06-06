@@ -1,7 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 
 use hashbrown::HashMap;
@@ -19,7 +16,9 @@ impl Filesystem {
     }
 
     pub fn add(&mut self, path: &str, data: Vec<u8>) {
-        self.virtual_files.insert(path.to_string(), data);
+        let normalized_path = Self::normalize_path(path);
+
+        self.virtual_files.insert(normalized_path.into(), data);
     }
 
     pub fn exists(&self, path: &str) -> bool {
