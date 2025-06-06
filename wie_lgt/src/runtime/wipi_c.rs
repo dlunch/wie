@@ -81,6 +81,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x4c5 => media::clip_alloc_player.into_body(),
         0x4c6 => media::clip_free_player.into_body(),
         0x4d1 => media::set_mute_state.into_body(),
+        0x4d2 => media::get_mute_state.into_body(),
         0x4ba => media::play.into_body(),
         0x4bd => media::stop.into_body(),
         0x578 => misc::back_light.into_body(),
