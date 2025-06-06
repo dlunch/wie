@@ -438,3 +438,11 @@ pub async fn get_framebuffer_height(context: &mut dyn WIPICContext, framebuffer:
 
     Ok(framebuffer.height as _)
 }
+
+pub async fn get_framebuffer_bpp(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<i32> {
+    tracing::debug!("MC_GRP_GET_FRAME_BUFFER_BPP({:#x})", framebuffer.0);
+
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+
+    Ok(framebuffer.bpp as _)
+}
