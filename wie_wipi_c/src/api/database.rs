@@ -32,7 +32,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     let ptr_handle = context.alloc_raw(size_of::<DatabaseHandle>() as _)?;
     write_generic(context, ptr_handle, handle)?;
 
-    tracing::debug!("Created database handle {:#x}", ptr_handle);
+    tracing::debug!("Created database handle {ptr_handle:#x} for {name}");
 
     Ok(ptr_handle as _)
 }
