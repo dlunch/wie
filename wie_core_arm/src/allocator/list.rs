@@ -29,6 +29,9 @@ impl ListAllocationHeader {
     }
 }
 
+const CANARY_SIZE: u32 = 4;
+const CANARY_VALUE: u32 = 0xDEADBEEF;
+
 pub struct ListAllocator;
 
 impl ListAllocator {
@@ -41,7 +44,7 @@ impl ListAllocator {
     }
 
     pub fn alloc(core: &mut ArmCore, base_address: u32, base_size: u32, size: u32) -> Result<u32> {
-        let size_to_alloc = (size as usize + size_of::<ListAllocationHeader>()).next_multiple_of(4) as u32;
+        let size_to_alloc = (size as usize + size_of::<ListAllocationHeader>()).next_multiple_of(4) as u32 + CANARY_SIZE;
 
         let address = Self::find_address(core, base_address, base_size, size_to_alloc)?;
 
@@ -56,6 +59,9 @@ impl ListAllocator {
             write_generic(core, address + size_to_alloc, next_header)?;
         }
 
+        // write canary
+        write_generic(core, address + size_to_alloc - CANARY_SIZE, CANARY_VALUE)?;
+
         tracing::trace!("Allocated {:#x} bytes at {:#x}", size, address + size_of::<ListAllocationHeader>() as u32);
 
         Ok(address + size_of::<ListAllocationHeader>() as u32)
@@ -67,7 +73,13 @@ impl ListAllocator {
         tracing::trace!("Freeing {:#x}", address);
 
         let header: ListAllocationHeader = read_generic(core, base_address)?;
-        assert!(header.in_use());
+        debug_assert!(header.in_use());
+
+        let canary_value: u32 = read_generic(core, base_address + header.size() - CANARY_SIZE)?;
+        debug_assert!(
+            canary_value == CANARY_VALUE,
+            "Invalid canary value at {base_address:#x}: expected {CANARY_VALUE:#x}, got {canary_value:#x}"
+        );
 
         let header = ListAllocationHeader::new(header.size(), false);
         write_generic(core, base_address, header)?;
