@@ -43,7 +43,7 @@ impl JvmSupport {
         let properties = [
             ("file.encoding", "EUC-KR"),
             ("java.class.path", &class_path),
-            ("rustjava.disable_explicit_gc", "true"),
+            //("rustjava.disable_explicit_gc", "true"),
         ]
         .iter()
         .chain(properties.iter())
