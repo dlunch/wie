@@ -16,7 +16,7 @@ use bytemuck::{Pod, Zeroable};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaMethod, JavaMethodResult, KtfJvmSupport, KtfJvmWord};
+use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, KtfJvmSupport, KtfJvmWord};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -130,7 +130,7 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    core.run_function::<u32>(address, &[arg1]).await
+    core.run_function::<u32>(address, &[arg1, 0, 0]).await
 }
 
 async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
@@ -248,7 +248,7 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, addr
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    core.run_function::<u32>(address, &[arg1, arg2]).await
+    core.run_function::<u32>(address, &[arg1, arg2, 0]).await
 }
 
 async fn java_jump_3(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, arg3: u32, address: u32) -> Result<u32> {
@@ -297,8 +297,18 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
     Ok(raw)
 }
 
-pub async fn java_array_store_check_object_type(_: &mut ArmCore, _: &mut Jvm, vtable: u32, value: u32) -> Result<u32> {
-    tracing::warn!("stub java_array_store_check_object_type({:#x}, {:#x})", vtable, value);
+pub async fn java_check_type(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, ptr_instance: u32, unk: u32) -> Result<u32> {
+    tracing::warn!("stub java_check_type({:#x}, {:#x}, {:#x})", ptr_class, ptr_instance, unk);
 
-    Ok(1)
+    let instance = JavaClassInstance::from_raw(ptr_instance, core);
+
+    // TODO is it correct?
+    if instance.class()?.name()?.starts_with('[') || unk != 0 {
+        return Ok(1);
+    }
+
+    let class = JavaClassDefinition::from_raw(ptr_class, core);
+    let result = jvm.is_instance(&instance, &class.name()?);
+
+    Ok(if result { 1 } else { 0 })
 }

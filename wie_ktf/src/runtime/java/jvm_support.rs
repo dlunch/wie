@@ -31,14 +31,16 @@ use crate::runtime::init::load_native;
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
-    class_instance::JavaClassInstance,
     classes::net::wie::{ClassLoaderContext, KtfClassLoader},
     name::JavaFullName,
 };
 
-pub use array_class_definition::JavaArrayClassDefinition;
-pub use class_definition::JavaClassDefinition;
-pub use method::{JavaMethod, JavaMethodResult};
+pub use self::{
+    array_class_definition::JavaArrayClassDefinition,
+    class_definition::JavaClassDefinition,
+    class_instance::JavaClassInstance,
+    method::{JavaMethod, JavaMethodResult},
+};
 
 pub type KtfJvmWord = u32;
 
