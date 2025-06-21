@@ -34,11 +34,11 @@ impl KtfEmulator {
         let adf = files.get("__adf__").unwrap();
         let adf = KtfAdf::parse(adf);
 
-        tracing::info!("Loading app {}, mclass {}", adf.aid, adf.mclass);
+        tracing::info!("Loading app {}, pid {}, mclass {}", adf.aid, adf.pid, adf.mclass);
 
         let jar_filename = format!("{}.jar", adf.aid);
 
-        Self::load(platform, &jar_filename, &adf.aid, Some(adf.mclass), &files, options)
+        Self::load(platform, &jar_filename, &adf.pid, Some(adf.mclass), &files, options)
     }
 
     pub fn from_jar(
@@ -152,12 +152,14 @@ impl Emulator for KtfEmulator {
 
 struct KtfAdf {
     aid: String,
+    pid: String,
     mclass: String,
 }
 
 impl KtfAdf {
     pub fn parse(data: &[u8]) -> Self {
         let mut aid = String::new();
+        let mut pid = String::new();
         let mut mclass = String::new();
 
         let mut lines = data.split(|x| *x == b'\n');
@@ -165,12 +167,14 @@ impl KtfAdf {
         for line in &mut lines {
             if line.starts_with(b"AID:") {
                 aid = String::from_utf8_lossy(&line[4..]).into();
+            } else if line.starts_with(b"PID:") {
+                pid = String::from_utf8_lossy(&line[4..]).into();
             } else if line.starts_with(b"MClass:") {
                 mclass = String::from_utf8_lossy(&line[7..]).into();
             }
             // TODO load name, it's in euc-kr..
         }
 
-        Self { aid, mclass }
+        Self { aid, pid, mclass }
     }
 }
