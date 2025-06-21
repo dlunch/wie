@@ -32,11 +32,11 @@ impl LgtEmulator {
         let app_info = files.get("app_info").unwrap();
         let app_info = LgtAppInfo::parse(app_info);
 
-        tracing::info!("Loading app {}, mclass {}", app_info.aid, app_info.mclass);
+        tracing::info!("Loading app {}, pid {}, mclass {}", app_info.aid, app_info.pid, app_info.mclass);
 
         let jar_filename = format!("{}.jar", app_info.aid);
 
-        Self::load(platform, &jar_filename, &app_info.aid, Some(app_info.mclass), &files, options)
+        Self::load(platform, &jar_filename, &app_info.pid, Some(app_info.mclass), &files, options)
     }
 
     pub fn from_jar(
@@ -129,12 +129,14 @@ impl Emulator for LgtEmulator {
 // almost similar to KtfAdf.. can we merge these?
 struct LgtAppInfo {
     aid: String,
+    pid: String,
     mclass: String,
 }
 
 impl LgtAppInfo {
     pub fn parse(data: &[u8]) -> Self {
         let mut aid = String::new();
+        let mut pid = String::new();
         let mut mclass = String::new();
 
         let mut lines = data.split(|x| *x == b'\n');
@@ -142,12 +144,14 @@ impl LgtAppInfo {
         for line in &mut lines {
             if line.starts_with(b"AID:") {
                 aid = String::from_utf8_lossy(&line[4..]).into();
+            } else if line.starts_with(b"PID:") {
+                pid = String::from_utf8_lossy(&line[4..]).into();
             } else if line.starts_with(b"MClass:") {
                 mclass = String::from_utf8_lossy(&line[7..]).into();
             }
             // TODO load name, it's in euc-kr..
         }
 
-        Self { aid, mclass }
+        Self { aid, pid, mclass }
     }
 }
