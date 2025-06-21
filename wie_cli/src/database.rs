@@ -43,7 +43,7 @@ impl Database {
         Ok(Self { base_path })
     }
 
-    fn find_empty_record_id(&mut self) -> RecordId {
+    fn find_empty_record_id(&self) -> RecordId {
         let mut record_id = 0;
 
         loop {
@@ -62,6 +62,10 @@ impl Database {
 }
 
 impl wie_backend::Database for Database {
+    fn next_id(&self) -> RecordId {
+        self.find_empty_record_id()
+    }
+
     fn add(&mut self, data: &[u8]) -> RecordId {
         let id = self.find_empty_record_id();
 

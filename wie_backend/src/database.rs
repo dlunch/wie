@@ -3,6 +3,7 @@ use alloc::{boxed::Box, vec::Vec};
 pub type RecordId = u32;
 
 pub trait Database: Send {
+    fn next_id(&self) -> RecordId;
     fn add(&mut self, data: &[u8]) -> RecordId;
     fn get(&self, id: RecordId) -> Option<Vec<u8>>;
     fn set(&mut self, id: RecordId, data: &[u8]) -> bool;

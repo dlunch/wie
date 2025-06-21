@@ -23,6 +23,7 @@ impl RecordStore {
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
                 JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, Default::default()),
                 JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, Default::default()),
+                JavaMethodProto::new("getNextRecordID", "()I", Self::get_next_record_id, Default::default()),
                 JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, Default::default()),
                 JavaMethodProto::new("getRecord", "(I[BI)I", Self::get_record_array, Default::default()),
                 JavaMethodProto::new("getRecordSize", "(I)I", Self::get_record_size, Default::default()),
@@ -85,6 +86,16 @@ impl RecordStore {
         tracing::warn!("stub javax.microedition.rms.RecordStore::getSizeAvailable({:?})", &this);
 
         Ok(1000000 as _)
+    }
+
+    async fn get_next_record_id(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.rms.RecordStore::getNextRecordID({:?})", &this);
+
+        let database = Self::get_database(jvm, context, &this).await?;
+
+        let next_id = database.next_id();
+
+        Ok(next_id as _)
     }
 
     async fn get_record(
