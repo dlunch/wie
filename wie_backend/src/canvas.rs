@@ -361,7 +361,8 @@ where
     }
 
     fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color) {
-        let font = FONT.as_scaled(FONT.pt_to_px_scale(10.0).unwrap());
+        let size = 10.0; // TODO
+        let font = FONT.as_scaled(FONT.pt_to_px_scale(size).unwrap());
 
         let total_width = string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>();
         let x = match text_alignment {
@@ -381,9 +382,10 @@ where
 
             if let Some(outlined_glyph) = font.outline_glyph(glyph) {
                 outlined_glyph.draw(|glyph_x: u32, glyph_y, c| {
+                    let bounds = outlined_glyph.px_bounds();
                     self.blend_pixel(
-                        x + (glyph_x as f32 + position) as i32,
-                        y + glyph_y as i32,
+                        x + (glyph_x as f32 + bounds.min.x + position) as i32,
+                        y + (glyph_y as f32 + bounds.min.y + size) as i32,
                         Color {
                             a: (c * 255.0) as u8,
                             r: color.r,
