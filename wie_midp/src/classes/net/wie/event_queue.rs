@@ -42,11 +42,12 @@ impl KeyboardEventType {
 #[allow(clippy::upper_case_acronyms)]
 #[allow(non_camel_case_types)]
 pub enum MIDPKeyCode {
-    UP = 1, // MIDP Canvas's name
-    DOWN = 6,
-    LEFT = 2,
-    RIGHT = 5,
-    FIRE = 8,
+    // keycode is for skvm
+    UP = 141, // MIDP Canvas's name
+    DOWN = 146,
+    LEFT = 142,
+    RIGHT = 145,
+    FIRE = 148,
 
     KEY_NUM0 = 48,
     KEY_NUM1 = 49,
