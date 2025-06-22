@@ -74,7 +74,7 @@ async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, 
 
     // invoke static? used to be called with org/kwis/msp/lcdui/Main
 
-    Err(WieError::Unimplemented("Java apps are not implemented yet".into()))
+    Err(WieError::Unimplemented("LGT Java apps are not implemented yet".into()))
 }
 
 async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
