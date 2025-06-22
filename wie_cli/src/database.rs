@@ -44,7 +44,7 @@ impl Database {
     }
 
     fn find_empty_record_id(&self) -> RecordId {
-        let mut record_id = 0;
+        let mut record_id = 1; // XXX midp requires first record to be 1
 
         loop {
             let path = self.base_path.join(record_id.to_string());
