@@ -82,7 +82,7 @@ impl Graphics2D {
     async fn draw_image(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
-        _this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         tx: i32,
         ty: i32,
         src: ClassInstanceRef<Image>,
@@ -92,23 +92,13 @@ impl Graphics2D {
         sh: i32,
         mode: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "com.skt.m.Graphics2D::drawImage({}, {}, {:?}, {}, {}, {}, {}, {})",
-            tx,
-            ty,
-            &src,
-            sx,
-            sy,
-            sw,
-            sh,
-            mode
-        );
+        tracing::debug!("com.skt.m.Graphics2D::drawImage({this:?}, {tx}, {ty}, {src:?}, {sx}, {sy}, {sw}, {sh}, {mode})");
 
         if src.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "img is null").await);
         }
 
-        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&_this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         let src_image = Image::image(jvm, &src).await?;
 
         let image = Graphics::image(jvm, &mut graphics).await?;
