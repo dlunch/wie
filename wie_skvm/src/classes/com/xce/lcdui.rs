@@ -1,4 +1,4 @@
 mod toolkit;
-mod xdisplay;
+mod x_display;
 
-pub use {toolkit::Toolkit, xdisplay::XDisplay};
+pub use {toolkit::Toolkit, x_display::XDisplay};
