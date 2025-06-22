@@ -97,17 +97,17 @@ impl Image {
         jvm: &Jvm,
         _: &mut WieJvmContext,
         data: ClassInstanceRef<Array<i8>>,
-        width: i32,
-        height: i32,
+        image_offset: i32,
+        image_length: i32,
     ) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, width, height);
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, image_offset, image_length);
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm
             .invoke_static(
                 "javax/microedition/lcdui/Image",
                 "createImage",
                 "([BII)Ljavax/microedition/lcdui/Image;",
-                (data, width, height),
+                (data, image_offset, image_length),
             )
             .await?;
 
