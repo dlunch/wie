@@ -54,7 +54,7 @@ impl Graphics2D {
     }
 
     async fn get_graphics2d(jvm: &Jvm, _context: &mut WieJvmContext, graphics: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Self>> {
-        tracing::warn!("stub com.skt.m.Graphics2D::getGraphics2D({:?})", graphics);
+        tracing::debug!("com.skt.m.Graphics2D::getGraphics2D({:?})", graphics);
 
         let instance = jvm
             .new_class("com/skt/m/Graphics2D", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics,))
