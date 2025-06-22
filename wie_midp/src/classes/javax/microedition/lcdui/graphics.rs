@@ -855,7 +855,7 @@ impl Graphics {
         Ok(())
     }
 
-    async fn image(jvm: &Jvm, this: &mut ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Image>> {
+    pub async fn image(jvm: &Jvm, this: &mut ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Image>> {
         let image: ClassInstanceRef<Image> = jvm.get_field(this, "img", "Ljavax/microedition/lcdui/Image;").await?;
 
         if !image.is_null() {
@@ -879,7 +879,7 @@ impl Graphics {
         }
     }
 
-    async fn clip(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Clip> {
+    pub async fn clip(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<Clip> {
         let x: i32 = jvm.get_field(this, "clipX", "I").await?;
         let y: i32 = jvm.get_field(this, "clipY", "I").await?;
         let width: i32 = jvm.get_field(this, "clipWidth", "I").await?;
