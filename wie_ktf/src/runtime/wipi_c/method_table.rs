@@ -1,4 +1,4 @@
-use alloc::{vec, vec::Vec};
+use alloc::{format, vec, vec::Vec};
 
 use wie_util::WieError;
 use wie_wipi_c::{
@@ -6,8 +6,8 @@ use wie_wipi_c::{
     api::{database, graphics, kernel, media, misc, net, uic, util},
 };
 
-fn gen_stub(_id: WIPICWord, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(name.into())) };
+fn gen_stub(id: WIPICWord, name: &'static str) -> WIPICMethodBody {
+    let body = move |_: &mut dyn WIPICContext| async move { Err::<(), _>(WieError::Unimplemented(format!("{id}: {name}"))) };
 
     body.into_body()
 }
