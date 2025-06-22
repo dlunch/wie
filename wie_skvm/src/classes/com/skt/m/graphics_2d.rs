@@ -1,9 +1,10 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
+use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
+use wie_backend::canvas::Clip;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::{Graphics, Image};
 
@@ -37,14 +38,17 @@ impl Graphics2D {
                     Default::default(),
                 ),
             ],
-            fields: vec![],
+            fields: vec![JavaFieldProto::new("graphics", "Ljavax/microedition/lcdui/Graphics;", Default::default())],
         }
     }
 
-    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+    async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
         tracing::debug!("com.skt.m.Graphics2D::<init>({:?}, {:?})", &this, graphics);
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
+            .await?;
 
         Ok(())
     }
@@ -76,7 +80,7 @@ impl Graphics2D {
 
     #[allow(clippy::too_many_arguments)]
     async fn draw_image(
-        _jvm: &Jvm,
+        jvm: &Jvm,
         _context: &mut WieJvmContext,
         _this: ClassInstanceRef<Self>,
         tx: i32,
@@ -88,8 +92,8 @@ impl Graphics2D {
         sh: i32,
         mode: i32,
     ) -> JvmResult<()> {
-        tracing::warn!(
-            "stub com.skt.m.Graphics2D::drawImage({}, {}, {:?}, {}, {}, {}, {}, {})",
+        tracing::debug!(
+            "com.skt.m.Graphics2D::drawImage({}, {}, {:?}, {}, {}, {}, {}, {})",
             tx,
             ty,
             &src,
@@ -98,6 +102,32 @@ impl Graphics2D {
             sw,
             sh,
             mode
+        );
+
+        if src.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "img is null").await);
+        }
+
+        let mut graphics: ClassInstanceRef<Graphics> = jvm.get_field(&_this, "graphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let src_image = Image::image(jvm, &src).await?;
+
+        let image = Graphics::image(jvm, &mut graphics).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        canvas.draw(
+            tx as _,
+            ty as _,
+            sw as _,
+            sh as _,
+            &*src_image,
+            sx,
+            sy,
+            Clip {
+                x: tx,
+                y: ty,
+                width: sw as _,
+                height: sh as _,
+            },
         );
 
         Ok(())
