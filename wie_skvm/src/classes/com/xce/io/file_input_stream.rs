@@ -50,8 +50,7 @@ impl FileInputStream {
     ) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::<init>({:?}, {:?})", this, file);
 
-        let file = XFile::file(jvm, file).await?;
-        let is = jvm.new_class("java/io/FileInputStream", "(Ljava/io/File;)V", (file,)).await?;
+        let is = XFile::input_stream(jvm, file).await?;
         jvm.put_field(&mut this, "is", "Ljava/io/InputStream;", is).await?;
 
         Ok(())
