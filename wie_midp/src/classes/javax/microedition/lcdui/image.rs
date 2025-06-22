@@ -135,13 +135,13 @@ impl Image {
         jvm: &Jvm,
         _: &mut WieJvmContext,
         data: ClassInstanceRef<Array<i8>>,
-        offset: i32,
-        length: i32,
+        image_offset: i32,
+        image_length: i32,
     ) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("javax.microedition.lcdui.Image::createImage({:?}, {}, {})", &data, offset, length);
+        tracing::debug!("javax.microedition.lcdui.Image::createImage({data:?}, {image_offset}, {image_length})");
 
-        let mut image_data = vec![0; length as usize];
-        jvm.array_raw_buffer(&data).await?.read(offset as _, &mut image_data)?;
+        let mut image_data = vec![0; image_length as usize];
+        jvm.array_raw_buffer(&data).await?.read(image_offset as _, &mut image_data)?;
 
         let image = {
             let result = decode_image(&cast_vec(image_data));
