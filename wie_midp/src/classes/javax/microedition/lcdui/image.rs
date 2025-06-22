@@ -276,7 +276,7 @@ where
     fn get_pixel(&self, x: i32, y: i32) -> Color {
         let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
-        let mut buffer = [0; 4];
+        let mut buffer = vec![0; self.bytes_per_pixel() as usize];
         self.raw_buffer.read(offset as _, &mut buffer).unwrap();
 
         T::to_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]))
