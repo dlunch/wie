@@ -229,10 +229,11 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
             }
             WindowCallbackEvent::Keyup(x) => {
                 if let Some(keycode) = convert_key(x)
-                    && key_events.contains_key(&keycode) {
-                        key_events.remove(&keycode);
-                        emulator.handle_event(Event::Keyup(keycode));
-                    }
+                    && key_events.contains_key(&keycode)
+                {
+                    key_events.remove(&keycode);
+                    emulator.handle_event(Event::Keyup(keycode));
+                }
             }
         }
 
