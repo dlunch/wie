@@ -114,11 +114,10 @@ async fn find_java_method(class: &JavaClassDefinition, name: &str, descriptor: &
         method
     }; // TODO it's not good pattern...
 
-    if method.is_none() {
-        if let Some(x) = class.parent_class()? {
+    if method.is_none()
+        && let Some(x) = class.parent_class()? {
             return find_java_method(&x, name, descriptor).await;
         }
-    }
 
     Ok(method)
 }
