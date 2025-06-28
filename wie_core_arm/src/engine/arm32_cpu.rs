@@ -118,7 +118,7 @@ impl EmulatedMemory {
         }
     }
 
-    fn as_arm32cpu_memory(&mut self) -> Arm32CpuMemory {
+    fn as_arm32cpu_memory(&mut self) -> Arm32CpuMemory<'_> {
         Arm32CpuMemory::new(self)
     }
 
