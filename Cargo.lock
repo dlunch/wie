@@ -3013,6 +3013,7 @@ dependencies = [
  "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
+ "wipi_types",
 ]
 
 [[package]]
@@ -3569,6 +3570,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06928c8748d81b05c9be96aad92e1b6ff01833332f281e8cfca3be4b35fc9ec"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "wipi_types"
+version = "0.0.1"
+source = "git+https://github.com/dlunch/wipi.git#5e45159ffa7b74accd22244e8ea4a1a73b94349c"
+dependencies = [
+ "bytemuck",
 ]
 
 [[package]]

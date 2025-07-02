@@ -9,6 +9,8 @@ use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
+use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, WipiExe};
+
 use crate::{
     emulator::IMAGE_BASE,
     runtime::{
@@ -62,46 +64,6 @@ struct InitParam3 {
     short: u32,
     int: u32,
     long: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct WipiExe {
-    ptr_exe_interface: u32,
-    ptr_name: u32,
-    unk1: u32,
-    unk2: u32,
-    fn_unk1: u32,
-    pub fn_init: u32,
-    unk3: u32,
-    unk4: u32,
-    fn_unk3: u32,
-    unk5: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct ExeInterface {
-    ptr_functions: u32,
-    ptr_name: u32,
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    unk6: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct ExeInterfaceFunctions {
-    unk1: u32,
-    unk2: u32,
-    fn_init: u32,
-    fn_get_default_dll: u32,
-    pub fn_get_class: u32,
-    fn_unk2: u32,
-    fn_unk3: u32,
 }
 
 pub async fn load_native(
