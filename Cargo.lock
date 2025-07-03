@@ -3575,9 +3575,10 @@ dependencies = [
 [[package]]
 name = "wipi_types"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/wipi.git#5e45159ffa7b74accd22244e8ea4a1a73b94349c"
+source = "git+https://github.com/dlunch/wipi.git#49a2b52f22c4902e1ae54741d04451ce63bec681"
 dependencies = [
  "bytemuck",
+ "cfg-if",
 ]
 
 [[package]]
