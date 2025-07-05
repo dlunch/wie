@@ -1,15 +1,12 @@
 use alloc::{format, string::String};
 use core::mem::size_of;
-
-use bytemuck::{Pod, Zeroable};
-
 use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, WipiExe};
+use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam1, InitParam3, InitParam4, WipiExe};
 
 use crate::{
     emulator::IMAGE_BASE,
@@ -18,54 +15,6 @@ use crate::{
         wipi_c::interface::get_wipic_knl_interface,
     },
 };
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam0 {
-    unk: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam4 {
-    fn_get_interface: u32,
-    fn_java_throw: u32,
-    unk1: u32,
-    unk2: u32,
-    fn_java_check_type: u32,
-    fn_java_new: u32,
-    fn_java_array_new: u32,
-    unk6: u32,
-    fn_java_class_load: u32,
-    unk7: u32,
-    unk8: u32,
-    fn_alloc: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam1 {
-    ptr_jvm_exception_context: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam3 {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    // java array allocation pool for primitive type
-    boolean: u32,
-    char: u32,
-    float: u32,
-    double: u32,
-    byte: u32,
-    short: u32,
-    int: u32,
-    long: u32,
-}
-
 pub async fn load_native(
     core: &mut ArmCore,
     system: &mut System,
