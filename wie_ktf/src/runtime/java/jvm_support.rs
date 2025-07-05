@@ -27,6 +27,8 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic};
 
+use wipi_types::ktf::InitParam2;
+
 use crate::runtime::init::load_native;
 
 use self::{
@@ -53,15 +55,6 @@ struct KtfJvmExceptionContext {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct KtfJvmContext {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    ptr_vtables: [u32; 128],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
 struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
     class_loader: u32,
@@ -74,13 +67,13 @@ pub struct KtfJvmSupport;
 
 impl KtfJvmSupport {
     pub async fn init(core: &mut ArmCore, system: &mut System, jar_name: Option<&str>) -> Result<(Jvm, Box<dyn ClassInstance>)> {
-        let jvm_context = KtfJvmContext {
+        let jvm_context = InitParam2 {
             unk1: 0,
             unk2: 0,
             unk3: 0,
-            ptr_vtables: [0; 128],
+            ptr_java_vtables: [0; 128],
         };
-        let ptr_jvm_context = Allocator::alloc(core, size_of::<KtfJvmContext>() as u32)?;
+        let ptr_jvm_context = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
         write_generic(core, ptr_jvm_context, jvm_context)?;
 
         let jvm_exception_context = KtfJvmExceptionContext {
