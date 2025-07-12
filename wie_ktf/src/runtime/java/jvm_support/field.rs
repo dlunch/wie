@@ -4,25 +4,15 @@ use core::{
     mem::size_of,
 };
 
-use bytemuck::{Pod, Zeroable};
-
 use java_class_proto::JavaFieldProto;
 use java_constants::FieldAccessFlags;
 use jvm::Field;
+use wipi_types::ktf::java::JavaFieldDefinition as RawJavaField;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{ByteWrite, read_generic, write_generic};
 
 use super::{Result, name::JavaFullName};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct RawJavaField {
-    access_flags: u32,
-    ptr_class: u32,
-    ptr_name: u32,
-    offset_or_value: u32,
-}
 
 pub struct JavaField {
     pub(crate) ptr_raw: u32,

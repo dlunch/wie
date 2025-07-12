@@ -6,11 +6,13 @@ use core::{
 };
 use wie_jvm_support::JvmSupport;
 
-use bytemuck::{Pod, Zeroable};
-
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use wipi_types::ktf::java::{
+    JavaExceptionHandler as RawJavaExceptionHandler, JavaMethodDefinition as RawJavaMethod,
+    JavaMethodExceptionTableEntry as RawJavaMethodExceptionTableEntry,
+};
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, ResultWriter};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
@@ -18,41 +20,6 @@ use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 use crate::runtime::java::jvm_support::JavaClassDefinition;
 
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct RawJavaMethod {
-    fn_body: u32,
-    ptr_class: u32,
-    fn_body_native_or_exception_table: u32,
-    ptr_name: u32,
-    exception_table_count: u16,
-    unk3: u16,
-    index_in_vtable: u16,
-    access_flags: u16,
-    unk6: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct MethodExceptionTableEntry {
-    from_pc: u32,
-    to_pc: u32,
-    target: u32,
-    ptr_class: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct KtfJvmExceptionHandler {
-    ptr_method: u32,
-    ptr_this: u32,
-    ptr_old_handler: u32,
-    current_pc: u32,
-    unk3: u32,
-    ptr_functions: u32, // function table to restore context
-    context: [u32; 11], // r4-lr
-}
 
 pub struct JavaMethod {
     pub(crate) ptr_raw: u32,
@@ -191,7 +158,7 @@ impl JavaMethod {
         }
     }
 
-    fn exception_table(&self) -> Result<Vec<MethodExceptionTableEntry>> {
+    fn exception_table(&self) -> Result<Vec<RawJavaMethodExceptionTableEntry>> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
 
         let mut result = Vec::with_capacity(raw.exception_table_count as _);
@@ -220,7 +187,7 @@ impl JavaMethod {
             return Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await);
         }
 
-        let exception_handler: KtfJvmExceptionHandler = read_generic(core, current_java_exception_handler)?;
+        let exception_handler: RawJavaExceptionHandler = read_generic(core, current_java_exception_handler)?;
 
         let method = JavaMethod::from_raw(exception_handler.ptr_method, core);
         let exception_table = method.exception_table()?;
