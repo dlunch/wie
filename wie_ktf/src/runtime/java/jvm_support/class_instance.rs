@@ -7,9 +7,8 @@ use core::{
 };
 use java_constants::FieldAccessFlags;
 
-use bytemuck::{Pod, Zeroable};
-
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
+use wipi_types::ktf::java::JavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{ByteWrite, read_generic, write_generic};
@@ -17,21 +16,6 @@ use wie_util::{ByteWrite, read_generic, write_generic};
 use crate::runtime::java::jvm_support::KtfJvmSupport;
 
 use super::{KtfJvmWord, Result, class_definition::JavaClassDefinition, field::JavaField, value::JavaValueExt};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct RawJavaClassInstance {
-    ptr_fields: u32,
-    ptr_class: u32,
-}
-
-#[allow(dead_code)]
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct RawJavaClassInstanceFields {
-    vtable_index: u32, // left shifted by 5
-    fields: [u32; 1],
-}
 
 #[derive(Clone)]
 pub struct JavaClassInstance {

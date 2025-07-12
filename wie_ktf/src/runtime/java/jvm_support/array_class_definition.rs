@@ -9,15 +9,13 @@ use core::{
 };
 
 use jvm::{ArrayClassDefinition, ClassInstance, JavaError, JavaType, Jvm, Result as JvmResult};
+use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
 use super::{
-    KtfJvmSupport, Result,
-    array_class_instance::JavaArrayClassInstance,
-    class_definition::{JavaClassDefinition, RawJavaClass, RawJavaClassDescriptor},
-    vtable_builder::JavaVtableBuilder,
+    KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition, vtable_builder::JavaVtableBuilder,
 };
 
 #[derive(Clone)]

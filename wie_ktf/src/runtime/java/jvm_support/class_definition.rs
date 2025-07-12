@@ -5,11 +5,10 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use bytemuck::{Pod, Zeroable};
-
 use java_class_proto::JavaClassProto;
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{
@@ -21,34 +20,6 @@ use super::{
     KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt,
     vtable_builder::JavaVtableBuilder,
 };
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub(super) struct RawJavaClass {
-    pub(super) ptr_next: u32,
-    pub(super) unk1: u32,
-    pub(super) ptr_descriptor: u32,
-    pub(super) ptr_vtable: u32,
-    pub(super) vtable_count: u16,
-    pub(super) unk_flag: u16,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub(super) struct RawJavaClassDescriptor {
-    pub(super) ptr_name: u32,
-    pub(super) unk1: u32,
-    pub(super) ptr_parent_class: u32,
-    pub(super) ptr_methods: u32,
-    pub(super) ptr_interfaces: u32,
-    pub(super) ptr_fields_or_element_type: u32, // for array class, this is element type
-    pub(super) method_count: u16,
-    pub(super) fields_size: u16,
-    pub(super) access_flag: u16,
-    pub(super) unk6: u16,
-    pub(super) unk7: u16,
-    pub(super) unk8: u16,
-}
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
