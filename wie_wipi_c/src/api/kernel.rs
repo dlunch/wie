@@ -175,14 +175,14 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WI
 }
 
 pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: WIPICWord, a1: WIPICWord, a2: WIPICWord, a3: WIPICWord) -> Result<()> {
-    tracing::warn!("stub MC_knlPrintk({:#x}, {:#x}, {:#x}, {:#x}, {:#x})", ptr_format, a0, a1, a2, a3);
+    tracing::debug!("MC_knlPrintk({:#x}, {:#x}, {:#x}, {:#x}, {:#x})", ptr_format, a0, a1, a2, a3);
 
     let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
     let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
 
     let result = sprintf(context, &format_string, &[a0, a1, a2, a3])?;
 
-    tracing::info!("printk: {}", result);
+    context.system().platform().write_stdout(result.as_bytes());
 
     Ok(())
 }
