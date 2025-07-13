@@ -116,6 +116,7 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
     assert_eq!(elf.ehdr.class, elf::file::Class::ELF32, "Invalid file type");
     assert_eq!(elf.ehdr.osabi, 97, "Invalid OSABI");
     assert_eq!(elf.ehdr.e_phnum, 0, "Invalid file type");
+    assert_eq!(elf.ehdr.e_flags, elf::abi::EF_ARM_SOFT_FLOAT | 6, "Invalid flags");
 
     let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab().unwrap();
     let (shdrs, strtab) = (shdrs_opt.unwrap(), strtab_opt.unwrap());
