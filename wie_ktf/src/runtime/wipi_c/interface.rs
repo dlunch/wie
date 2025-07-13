@@ -1,11 +1,11 @@
 use alloc::vec::Vec;
-use core::mem::size_of;
+use core::mem::{size_of, size_of_val};
 use jvm::Jvm;
 
 use bytemuck::{Pod, Zeroable};
 
 use wie_backend::System;
-use wie_core_arm::ArmCore;
+use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
@@ -48,10 +48,11 @@ fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) 
 }
 
 pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm) -> Result<u32> {
-    let kernel_methods = method_table::get_kernel_method_table(get_wipic_interfaces);
-
     let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone());
-    let address = write_methods(&mut context, kernel_methods).unwrap();
+    let kernel_interface = method_table::get_kernel_interface(&mut context, get_wipic_interfaces)?;
+
+    let address = Allocator::alloc(core, size_of_val(&kernel_interface) as u32)?;
+    write_generic(core, address, kernel_interface)?;
 
     Ok(address)
 }
