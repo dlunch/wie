@@ -27,6 +27,4 @@ wie_wipi_c = { workspace = true }
 wie_wipi_java = { workspace = true }
 
 [dev-dependencies]
-futures-test = { workspace = true }
-
 test_utils = { workspace = true }
