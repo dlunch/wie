@@ -20,6 +20,7 @@ use wie_backend::{Screen, canvas::Image};
 pub enum WindowInternalEvent {
     RequestRedraw,
     Paint(Vec<u32>),
+    Quit,
 }
 
 pub enum WindowCallbackEvent {
@@ -36,6 +37,10 @@ pub struct WindowHandle {
 }
 
 impl WindowHandle {
+    pub fn send_quit_event(&self) {
+        self.send_event(WindowInternalEvent::Quit).unwrap();
+    }
+
     fn send_event(&self, event: WindowInternalEvent) -> wie_util::Result<()> {
         self.event_loop_proxy.send_event(event).unwrap();
 
@@ -366,7 +371,7 @@ where
         self.on_resize();
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: WindowInternalEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: WindowInternalEvent) {
         match event {
             WindowInternalEvent::RequestRedraw => {
                 self.window.as_ref().unwrap().request_redraw();
@@ -374,6 +379,9 @@ where
             WindowInternalEvent::Paint(data) => {
                 self.last_frame = Some(data);
                 self.paint_last_frame();
+            }
+            WindowInternalEvent::Quit => {
+                event_loop.exit();
             }
         }
     }

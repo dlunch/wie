@@ -29,17 +29,17 @@ use wie_skt::SktEmulator;
 use self::{
     audio_sink::AudioSink,
     database::DatabaseRepository,
-    window::{WindowCallbackEvent, WindowImpl},
+    window::{WindowCallbackEvent, WindowHandle, WindowImpl},
 };
 
 struct WieCliPlatform {
     audio_thread_tx: Sender<(u8, u32, Vec<i16>)>,
     database_repository: DatabaseRepository,
-    window: Box<dyn Screen>,
+    window: WindowHandle,
 }
 
 impl WieCliPlatform {
-    fn new(window: Box<dyn Screen>) -> Self {
+    fn new(window: WindowHandle) -> Self {
         let (tx, rx) = channel();
         thread::spawn(|| Self::audio_thread(rx));
 
@@ -79,7 +79,7 @@ impl WieCliPlatform {
 
 impl Platform for WieCliPlatform {
     fn screen(&mut self) -> &mut dyn Screen {
-        self.window.as_mut()
+        &mut self.window
     }
 
     fn now(&self) -> Instant {
@@ -117,6 +117,10 @@ impl Platform for WieCliPlatform {
 
         eprintln!("{str}")
     }
+
+    fn exit(&self) {
+        self.window.send_quit_event();
+    }
 }
 
 #[derive(Parser)]
@@ -143,7 +147,7 @@ fn main() -> anyhow::Result<()> {
 
 pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
-    let platform = Box::new(WieCliPlatform::new(Box::new(window.handle())));
+    let platform = Box::new(WieCliPlatform::new(window.handle()));
 
     let buf = fs::read(filename)?;
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("zip") {

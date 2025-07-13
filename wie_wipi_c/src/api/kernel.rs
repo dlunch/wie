@@ -297,8 +297,10 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
     Ok(result)
 }
 
-pub async fn exit(_context: &mut dyn WIPICContext, code: i32) -> Result<()> {
-    tracing::warn!("stub MC_knlExit({})", code);
+pub async fn exit(context: &mut dyn WIPICContext, code: i32) -> Result<()> {
+    tracing::debug!("MC_knlExit({})", code);
+
+    context.system().platform().exit();
 
     Ok(())
 }
