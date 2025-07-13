@@ -2,7 +2,7 @@ use alloc::{format, vec, vec::Vec};
 
 use wipi_types::ktf::kernel::WIPICKnlInterface;
 
-use wie_util::{WieError, Result};
+use wie_util::{Result, WieError};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICWord,
     api::{database, graphics, kernel, media, misc, net, uic, util},
