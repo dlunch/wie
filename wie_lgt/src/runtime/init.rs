@@ -111,10 +111,11 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
 fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
     let elf = ElfBytes::<AnyEndian>::minimal_parse(data).unwrap();
 
-    assert!(elf.ehdr.e_machine == elf::abi::EM_ARM, "Invalid machine type");
-    assert!(elf.ehdr.e_type == elf::abi::ET_EXEC, "Invalid file type");
-    assert!(elf.ehdr.class == elf::file::Class::ELF32, "Invalid file type");
-    assert!(elf.ehdr.e_phnum == 0, "Invalid file type");
+    assert_eq!(elf.ehdr.e_machine, elf::abi::EM_ARM, "Invalid machine type");
+    assert_eq!(elf.ehdr.e_type, elf::abi::ET_EXEC, "Invalid file type");
+    assert_eq!(elf.ehdr.class, elf::file::Class::ELF32, "Invalid file type");
+    assert_eq!(elf.ehdr.osabi, 97, "Invalid OSABI");
+    assert_eq!(elf.ehdr.e_phnum, 0, "Invalid file type");
 
     let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab().unwrap();
     let (shdrs, strtab) = (shdrs_opt.unwrap(), strtab_opt.unwrap());
