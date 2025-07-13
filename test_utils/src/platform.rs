@@ -32,7 +32,7 @@ impl Platform for TestPlatform {
     fn exit(&self) {}
 }
 
-struct TestAudioSink;
+pub struct TestAudioSink;
 
 impl AudioSink for TestAudioSink {
     fn play_wave(&self, _channel: u8, _sampling_rate: u32, _wave_data: &[i16]) {
