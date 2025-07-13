@@ -28,6 +28,8 @@ impl Platform for TestPlatform {
     fn write_stdout(&self, _buf: &[u8]) {}
 
     fn write_stderr(&self, _buf: &[u8]) {}
+
+    fn exit(&self) {}
 }
 
 struct TestAudioSink;
