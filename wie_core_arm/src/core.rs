@@ -161,6 +161,12 @@ impl ArmCore {
 
             inner.engine.reg_write(ArmRegister::PC, address);
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
+
+            if address & 1 == 1 {
+                // set thumb mode
+                let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
+                inner.engine.reg_write(ArmRegister::Cpsr, cpsr | 0x20);
+            }
         }
 
         loop {
