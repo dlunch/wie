@@ -2,10 +2,9 @@ use alloc::{boxed::Box, format, string::ToString, vec};
 
 mod context;
 
-use bytemuck::{Pod, Zeroable};
-
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_rust::ClassDefinitionImpl;
+use wipi_types::lgt::CletFunctions;
 
 use wie_backend::System;
 use wie_core_arm::ArmCore;
@@ -95,22 +94,10 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
     Ok(address)
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable, Debug)]
-struct CletFunctions {
-    start_clet: u32,
-    pause_clet: u32,
-    resume_clet: u32,
-    destroy_clet: u32,
-    paint_clet: u32,
-    handle_clet_event: u32,
-}
-
 async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({:#x}, {:#x})", function_table, a1);
 
     let functions: CletFunctions = read_generic(core, function_table)?;
-    tracing::info!("CletFunctions: {:x?}", functions);
 
     let context = CletWrapperContext { core: core.clone() };
     let clet_wrapper_class = ClassDefinitionImpl::from_class_proto(CletWrapper::as_proto(), Box::new(context.clone()) as Box<_>);
