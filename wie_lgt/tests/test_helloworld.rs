@@ -8,7 +8,7 @@ use std::{
 
 use test_utils::{TestPlatform, TestPlatformEvent};
 use wie_backend::{Emulator, Options, extract_zip};
-use wie_ktf::KtfEmulator;
+use wie_lgt::LgtEmulator;
 use wie_util::Result;
 
 #[test]
@@ -29,8 +29,8 @@ pub fn test_helloworld() -> Result<()> {
 
     let platform = Box::new(TestPlatform::with_event_handler(event_handler));
 
-    let archive = extract_zip(include_bytes!("../../test_data/helloworld_ktf.zip"))?;
-    let mut emulator = KtfEmulator::from_archive(platform, archive, Options { enable_gdbserver: false })?;
+    let archive = extract_zip(include_bytes!("../../test_data/helloworld_lgt.zip"))?;
+    let mut emulator = LgtEmulator::from_archive(platform, archive, Options { enable_gdbserver: false })?;
 
     while !exited.load(Ordering::SeqCst) {
         emulator.tick()?;

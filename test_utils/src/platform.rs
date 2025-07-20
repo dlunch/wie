@@ -1,23 +1,52 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use wie_backend::{AudioSink, Instant, Platform};
+use wie_backend::{AudioSink, DatabaseRepository, Instant, Platform, Screen, canvas::Image};
+use wie_util::Result;
 
 static TEST_EPOCH: AtomicU64 = AtomicU64::new(0);
 
-pub struct TestPlatform;
+pub enum TestPlatformEvent {
+    Stdout(Vec<u8>),
+    Exit,
+}
+
+#[derive(Default)]
+pub struct TestPlatform {
+    screen: TestScreen,
+    event_handler: Option<Box<dyn Fn(TestPlatformEvent) + Sync + Send>>,
+}
+
+impl TestPlatform {
+    pub fn new() -> Self {
+        Self {
+            screen: TestScreen,
+            event_handler: None,
+        }
+    }
+
+    pub fn with_event_handler<T>(event_handler: T) -> Self
+    where
+        T: Fn(TestPlatformEvent) + Sync + Send + 'static,
+    {
+        Self {
+            screen: TestScreen,
+            event_handler: Some(Box::new(event_handler)),
+        }
+    }
+}
 
 impl Platform for TestPlatform {
-    fn screen(&mut self) -> &mut dyn wie_backend::Screen {
-        todo!()
+    fn screen(&mut self) -> &mut dyn Screen {
+        &mut self.screen
     }
 
     fn now(&self) -> Instant {
         let epoch = TEST_EPOCH.fetch_add(8, Ordering::SeqCst);
-        Instant::from_epoch_millis(epoch) // tODO
+        Instant::from_epoch_millis(epoch) // TODO
     }
 
-    fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {
+    fn database_repository(&self) -> &dyn DatabaseRepository {
         todo!()
     }
 
@@ -25,11 +54,19 @@ impl Platform for TestPlatform {
         Box::new(TestAudioSink)
     }
 
-    fn write_stdout(&self, _buf: &[u8]) {}
+    fn write_stdout(&self, buf: &[u8]) {
+        if let Some(event_handler) = &self.event_handler {
+            (event_handler)(TestPlatformEvent::Stdout(buf.to_vec()))
+        }
+    }
 
     fn write_stderr(&self, _buf: &[u8]) {}
 
-    fn exit(&self) {}
+    fn exit(&self) {
+        if let Some(event_handler) = &self.event_handler {
+            (event_handler)(TestPlatformEvent::Exit);
+        }
+    }
 }
 
 pub struct TestAudioSink;
@@ -53,5 +90,24 @@ impl AudioSink for TestAudioSink {
 
     fn midi_control_change(&self, _channel_id: u8, _control: u8, _value: u8) {
         todo!()
+    }
+}
+
+#[derive(Default)]
+pub struct TestScreen;
+
+impl Screen for TestScreen {
+    fn request_redraw(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn paint(&mut self, _image: &dyn Image) {}
+
+    fn width(&self) -> u32 {
+        320
+    }
+
+    fn height(&self) -> u32 {
+        240
     }
 }

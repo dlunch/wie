@@ -3027,6 +3027,7 @@ dependencies = [
  "java_runtime",
  "jvm",
  "jvm_rust",
+ "test_utils",
  "tracing",
  "wie_backend",
  "wie_core_arm",

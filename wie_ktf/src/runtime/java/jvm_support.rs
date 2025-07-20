@@ -287,7 +287,7 @@ mod test {
 
     #[test]
     fn test_jvm_support() -> Result<()> {
-        let mut system = System::new(Box::new(TestPlatform), "", DefaultTaskRunner);
+        let mut system = System::new(Box::new(TestPlatform::new()), "", DefaultTaskRunner);
 
         let done = Arc::new(AtomicBool::new(false));
 
