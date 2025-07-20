@@ -29,6 +29,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
         0x6a => unk1.into_body(),
+        0x6b => kernel::exit.into_body(),
         0x75 => kernel::alloc.into_body(),
         0x76 => kernel::calloc.into_body(),
         0x77 => kernel::free.into_body(),
