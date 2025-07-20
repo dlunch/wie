@@ -16,6 +16,7 @@ java_constants = { workspace = true }
 java_runtime = { workspace = true }
 jvm = { workspace = true }
 jvm_rust = { workspace = true }
+wipi_types = { workspace = true, features = ["lgt"] }
 
 wie_backend = { workspace = true }
 wie_core_arm = { workspace = true }

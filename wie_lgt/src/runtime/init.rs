@@ -1,41 +1,16 @@
 use alloc::format;
 use core::mem::size_of;
 
-use bytemuck::{Pod, Zeroable};
 use elf::{ElfBytes, endian::AnyEndian};
 
 use jvm::Jvm;
+use wipi_types::lgt::{InitParam1, InitParam2, InitStruct};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{java::get_java_interface_method, stdlib::get_stdlib_method, wipi_c::get_wipi_c_method};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitStruct {
-    unk1: u32,
-    fn_init: u32,
-    ptr_str_init: u32, // pointer to string "init"
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam1 {
-    unk1: [u8; 512],
-    unk2: [u8; 20],
-    ptr_init_struct: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct InitParam2 {
-    fn_get_import_table: u32,
-    fn_get_import_function: u32,
-    fn_unk3: u32,
-    fn_unk4: u32,
-}
 
 pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;

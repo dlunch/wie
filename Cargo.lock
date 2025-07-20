@@ -3035,6 +3035,7 @@ dependencies = [
  "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
+ "wipi_types",
 ]
 
 [[package]]
@@ -3571,7 +3572,7 @@ dependencies = [
 [[package]]
 name = "wipi_types"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/wipi.git#3a940113bb4a2b918396f46c6450a5f67816153b"
+source = "git+https://github.com/dlunch/wipi.git#184dff05f6cf75296f2c456f41936f0cb791af57"
 dependencies = [
  "bytemuck",
  "cfg-if",
