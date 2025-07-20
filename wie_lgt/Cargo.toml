@@ -25,3 +25,6 @@ wie_midp = { workspace = true }
 wie_util = { workspace = true }
 wie_wipi_c = { workspace = true }
 wie_wipi_java = { workspace = true }
+
+[dev-dependencies]
+test_utils = { workspace = true }
