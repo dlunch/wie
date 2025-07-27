@@ -161,14 +161,15 @@ impl BlockingEventLoop for GdbBlockingEventLoop {
         conn: &mut Self::Connection,
     ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, io::Error>> {
         loop {
-            if let Ok(x) = target.stop_event_rx.try_recv() {
-                return Ok(Event::TargetStopped(x));
+            match target.stop_event_rx.recv_timeout(Duration::from_millis(10)) {
+                Ok(x) => return Ok(Event::TargetStopped(x)),
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    if let Some(x) = conn.peek().unwrap() {
+                        return Ok(Event::IncomingData(x));
+                    }
+                }
+                Err(_) => return Err(WaitForStopReasonError::Target("Target error")),
             }
-            if let Some(x) = conn.peek().unwrap() {
-                return Ok(Event::IncomingData(x));
-            }
-
-            thread::sleep(Duration::from_millis(10)); // TODO is there a better way to do this?
         }
     }
 
