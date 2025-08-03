@@ -7,8 +7,6 @@ use spin::Mutex;
 
 use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 
-#[cfg(target_arch = "wasm32")]
-use crate::engine;
 use crate::{
     ThreadId,
     context::ArmCoreContext,
