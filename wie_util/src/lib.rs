@@ -3,6 +3,7 @@ extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
 use core::{
+    any::Any,
     error::Error,
     fmt::{self, Display, Formatter},
     result,
@@ -141,4 +142,22 @@ where
         cursor += 4;
     }
     write_generic(writer, cursor, 0u32)
+}
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T> AsAny for T
+where
+    T: Any,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
