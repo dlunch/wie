@@ -1,10 +1,14 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use core::mem::size_of;
+#[cfg(target_arch = "wasm32")]
+use core::panic;
 
 use spin::Mutex;
 
 use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 
+#[cfg(target_arch = "wasm32")]
+use crate::engine;
 use crate::{
     ThreadId,
     context::ArmCoreContext,
@@ -19,8 +23,8 @@ pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
 
-struct ArmCoreInner {
-    engine: Box<dyn ArmEngine>,
+pub(crate) struct ArmCoreInner {
+    pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
@@ -28,13 +32,18 @@ struct ArmCoreInner {
 
 #[derive(Clone)]
 pub struct ArmCore {
-    inner: Arc<Mutex<ArmCoreInner>>, // TODO can we change it to another lock like async-lock?
+    pub(crate) inner: Arc<Mutex<ArmCoreInner>>, // TODO can we change it to another lock like async-lock?
 }
 
 impl ArmCore {
     pub fn new(enable_gdbserver: bool) -> Result<Self> {
         let mut engine = if enable_gdbserver {
-            Box::new(crate::engine::DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>
+            #[cfg(not(target_arch = "wasm32"))]
+            let engine = Box::new(crate::engine::DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>;
+            #[cfg(target_arch = "wasm32")]
+            let engine = Box::new(crate::engine::Arm32CpuEngine::new());
+
+            engine
         } else {
             Box::new(crate::engine::Arm32CpuEngine::new())
         };
@@ -172,7 +181,7 @@ impl ArmCore {
         loop {
             let pc = {
                 let mut inner = self.inner.lock();
-                inner.engine.run(RUN_FUNCTION_LR, FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000, 1000)?
+                inner.engine.run(RUN_FUNCTION_LR, &(FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000), 1000)?
             };
 
             if pc == RUN_FUNCTION_LR {

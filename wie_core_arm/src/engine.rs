@@ -1,15 +1,17 @@
 mod arm32_cpu;
+#[cfg(not(target_arch = "wasm32"))]
 mod debugged_arm32_cpu;
 
 use core::ops::Range;
 
-use wie_util::Result;
+use wie_util::{AsAny, Result};
 
 pub use arm32_cpu::Arm32CpuEngine;
+#[cfg(not(target_arch = "wasm32"))]
 pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 
-pub trait ArmEngine: Sync + Send {
-    fn run(&mut self, end: u32, hook: Range<u32>, count: u32) -> Result<u32>;
+pub trait ArmEngine: Send + AsAny {
+    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<u32>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);

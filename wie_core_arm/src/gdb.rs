@@ -3,12 +3,11 @@ extern crate std; // we need thread
 use std::{
     io,
     net::{TcpListener, TcpStream},
-    println,
-    sync::mpsc,
-    thread,
+    println, thread,
     time::Duration,
 };
 
+use crossbeam::channel;
 use gdbstub::{
     common::{Signal, Tid},
     conn::ConnectionExt,
@@ -18,7 +17,10 @@ use gdbstub::{
     },
     target::{
         Target, TargetResult,
-        ext::base::{BaseOps, multithread::MultiThreadBase},
+        ext::base::{
+            BaseOps,
+            multithread::{MultiThreadBase, MultiThreadResume},
+        },
     },
 };
 use gdbstub_arch::arm::{Armv4t, reg::ArmCoreRegs};
@@ -32,18 +34,11 @@ type GdbTargetError = &'static str;
 #[allow(dead_code)]
 pub struct GdbTarget {
     core: ArmCore,
-    stop_event_tx: mpsc::Sender<MultiThreadStopReason<u32>>,
-    stop_event_rx: mpsc::Receiver<MultiThreadStopReason<u32>>,
 }
 
 impl GdbTarget {
     pub fn start(core: ArmCore) {
-        let (tx, rx) = mpsc::channel();
-        let this = GdbTarget {
-            core,
-            stop_event_tx: tx,
-            stop_event_rx: rx,
-        };
+        let this = GdbTarget { core };
         thread::spawn(|| this.run_gdb_server());
     }
 
@@ -148,6 +143,24 @@ impl MultiThreadBase for GdbTarget {
     }
 }
 
+impl MultiThreadResume for GdbTarget {
+    fn resume(&mut self) -> Result<(), Self::Error> {
+        let engine = &self.core.inner.lock().engine;
+        let debugged_engine = engine.as_any().downcast_ref::<crate::engine::DebuggedArm32CpuEngine>().unwrap();
+        debugged_engine.resume_event_tx.send(()).unwrap();
+
+        Ok(())
+    }
+
+    fn clear_resume_actions(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn set_resume_action_continue(&mut self, _tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
 struct GdbBlockingEventLoop;
 
 impl BlockingEventLoop for GdbBlockingEventLoop {
@@ -160,10 +173,14 @@ impl BlockingEventLoop for GdbBlockingEventLoop {
         target: &mut GdbTarget,
         conn: &mut Self::Connection,
     ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, io::Error>> {
+        let engine = &target.core.inner.lock().engine;
+        let debugged_engine = engine.as_any().downcast_ref::<crate::engine::DebuggedArm32CpuEngine>().unwrap();
+        let stop_event_rx = debugged_engine.stop_event_rx.clone();
+
         loop {
-            match target.stop_event_rx.recv_timeout(Duration::from_millis(10)) {
+            match stop_event_rx.recv_timeout(Duration::from_millis(10)) {
                 Ok(x) => return Ok(Event::TargetStopped(x)),
-                Err(mpsc::RecvTimeoutError::Timeout) => {
+                Err(channel::RecvTimeoutError::Timeout) => {
                     if let Some(x) = conn.peek().unwrap() {
                         return Ok(Event::IncomingData(x));
                     }

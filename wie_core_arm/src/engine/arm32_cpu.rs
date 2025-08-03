@@ -22,7 +22,7 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, hook: Range<u32>, mut count: u32) -> Result<u32> {
+    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<u32> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
             if pc < 0x1000 {
