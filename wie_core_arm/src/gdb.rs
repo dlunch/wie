@@ -64,6 +64,11 @@ impl Target for GdbTarget {
     fn base_ops(&mut self) -> BaseOps<'_, Self::Arch, Self::Error> {
         BaseOps::MultiThread(self)
     }
+
+    #[inline(always)]
+    fn guard_rail_implicit_sw_breakpoints(&self) -> bool {
+        true
+    }
 }
 
 impl MultiThreadBase for GdbTarget {
