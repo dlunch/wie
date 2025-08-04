@@ -37,6 +37,13 @@ impl DataBase {
                 JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, Default::default()),
                 JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, Default::default()),
                 JavaMethodProto::new("updateRecord", "(I[B)V", Self::update_record, Default::default()),
+                JavaMethodProto::new("updateRecord", "(I[BII)V", Self::update_record_with_offset, Default::default()),
+                JavaMethodProto::new(
+                    "deleteDataBase",
+                    "(Ljava/lang/String;)V",
+                    Self::delete_data_base,
+                    MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![JavaFieldProto::new(
                 "recordStore",
@@ -187,9 +194,49 @@ impl DataBase {
 
         let length = jvm.array_length(&data).await? as i32;
 
+        let _: () = jvm
+            .invoke_virtual(&this, "updateRecord", "(I[BII)V", (record_id, data, 0, length))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn update_record_with_offset(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        record_id: i32,
+        data: ClassInstanceRef<Array<i8>>,
+        offset: i32,
+        num_bytes: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.db.DataBase::updateRecord({:?}, {}, {:?}, {}, {})",
+            &this,
+            record_id,
+            &data,
+            offset,
+            num_bytes
+        );
+
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         let _: () = jvm
-            .invoke_virtual(&record_store, "setRecord", "(I[BII)V", (record_id, data, 0, length))
+            .invoke_virtual(&record_store, "setRecord", "(I[BII)V", (record_id, data, offset, num_bytes))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn delete_data_base(jvm: &Jvm, _: &mut WieJvmContext, data_base_name: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.db.DataBase::deleteDataBase({data_base_name:?})");
+
+        let _: () = jvm
+            .invoke_static(
+                "javax/microedition/rms/RecordStore",
+                "deleteRecordStore",
+                "(Ljava/lang/String;)V",
+                (data_base_name,),
+            )
             .await?;
 
         Ok(())
