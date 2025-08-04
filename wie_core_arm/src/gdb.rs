@@ -27,7 +27,7 @@ use gdbstub_arch::arm::{Armv4t, reg::ArmCoreRegs};
 
 use wie_util::{ByteRead, ByteWrite};
 
-use crate::{ArmCore, context::ArmCoreContext};
+use crate::{ArmCore, context::ArmCoreContext, engine::DebuggedArm32CpuEngine};
 
 type GdbTargetError = &'static str;
 
@@ -146,7 +146,7 @@ impl MultiThreadBase for GdbTarget {
 impl MultiThreadResume for GdbTarget {
     fn resume(&mut self) -> Result<(), Self::Error> {
         let engine = &self.core.inner.lock().engine;
-        let debugged_engine = engine.as_any().downcast_ref::<crate::engine::DebuggedArm32CpuEngine>().unwrap();
+        let debugged_engine = engine.as_any().downcast_ref::<DebuggedArm32CpuEngine>().unwrap();
         debugged_engine.resume_event_tx.send(()).unwrap();
 
         Ok(())
@@ -174,7 +174,7 @@ impl BlockingEventLoop for GdbBlockingEventLoop {
         conn: &mut Self::Connection,
     ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, io::Error>> {
         let engine = &target.core.inner.lock().engine;
-        let debugged_engine = engine.as_any().downcast_ref::<crate::engine::DebuggedArm32CpuEngine>().unwrap();
+        let debugged_engine = engine.as_any().downcast_ref::<DebuggedArm32CpuEngine>().unwrap();
         let stop_event_rx = debugged_engine.stop_event_rx.clone();
 
         loop {
