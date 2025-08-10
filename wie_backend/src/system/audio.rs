@@ -46,7 +46,7 @@ impl Audio {
                 let mut system_clone = system.clone();
                 let sink_clone = self.sink.clone();
 
-                system.clone().spawn(async move || {
+                system.spawn(async move || {
                     player.play(&mut system_clone, &**sink_clone).await;
 
                     Ok(())

@@ -42,9 +42,11 @@ impl WieJvmContext {
             }
         }
 
-        self.system().clone().spawn(SpawnProxy {
+        let system = self.system();
+
+        system.spawn(SpawnProxy {
             jvm: jvm.clone(),
-            system: self.system.clone(),
+            system: system.clone(),
             callback,
         });
 

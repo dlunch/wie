@@ -76,7 +76,7 @@ impl Executor {
         Self { inner }
     }
 
-    pub fn spawn<C, R>(&mut self, callable: C) -> usize
+    pub fn spawn<C, R>(&self, callable: C) -> usize
     where
         C: AsyncCallable<R> + 'static,
         R: AsyncCallableResult,

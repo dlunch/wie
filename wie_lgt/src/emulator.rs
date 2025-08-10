@@ -71,7 +71,7 @@ impl LgtEmulator {
         options: Options,
     ) -> Result<Self> {
         let mut core = ArmCore::new(options.enable_gdbserver)?;
-        let mut system = System::new(platform, id, LgtTaskRunner { core: core.clone() });
+        let system = System::new(platform, id, LgtTaskRunner { core: core.clone() });
 
         for (filename, data) in files {
             system.filesystem().add(filename, data.clone())

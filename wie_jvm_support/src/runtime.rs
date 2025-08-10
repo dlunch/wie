@@ -71,7 +71,7 @@ where
             }
         }
 
-        self.system.clone().spawn(SpawnProxy { jvm: jvm.clone(), callback });
+        self.system.spawn(SpawnProxy { jvm: jvm.clone(), callback });
     }
 
     fn now(&self) -> u64 {
