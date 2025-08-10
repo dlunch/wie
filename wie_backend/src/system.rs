@@ -60,7 +60,7 @@ impl System {
         })
     }
 
-    pub fn spawn<C>(&mut self, callable: C)
+    pub fn spawn<C>(&self, callable: C)
     where
         C: AsyncCallable<Result<()>> + 'static + Send,
     {

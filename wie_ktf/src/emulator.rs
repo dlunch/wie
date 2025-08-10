@@ -79,7 +79,7 @@ impl KtfEmulator {
         options: Options,
     ) -> Result<Self> {
         let mut core = ArmCore::new(options.enable_gdbserver)?;
-        let mut system = System::new(platform, id, KtfTaskRunner { core: core.clone() });
+        let system = System::new(platform, id, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
