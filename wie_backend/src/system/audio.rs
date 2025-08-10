@@ -1,48 +1,8 @@
-use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
-use core::time::Duration;
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 
-use smaf_player::{AudioBackend, SmafPlayer};
+use smaf_player::{SmafEvent, parse_smaf};
 
 use crate::{System, audio_sink::AudioSink};
-
-struct AudioBackendImpl {
-    system: System,
-    sink: Box<dyn AudioSink>,
-}
-
-#[async_trait::async_trait]
-impl AudioBackend for AudioBackendImpl {
-    fn play_wave(&self, channel: u8, sampling_rate: u32, wave_data: &[i16]) {
-        self.sink.play_wave(channel, sampling_rate, wave_data);
-    }
-
-    fn midi_note_on(&self, channel_id: u8, note: u8, velocity: u8) {
-        self.sink.midi_note_on(channel_id, note, velocity);
-    }
-
-    fn midi_note_off(&self, channel_id: u8, note: u8, velocity: u8) {
-        self.sink.midi_note_off(channel_id, note, velocity);
-    }
-
-    fn midi_program_change(&self, channel_id: u8, program: u8) {
-        self.sink.midi_program_change(channel_id, program);
-    }
-
-    fn midi_control_change(&self, channel_id: u8, control: u8, value: u8) {
-        self.sink.midi_control_change(channel_id, control, value);
-    }
-
-    async fn sleep(&self, duration: Duration) {
-        let now = self.system.platform().now();
-        let end = now + duration.as_millis() as _;
-
-        self.system.clone().sleep(end).await
-    }
-
-    fn now_millis(&self) -> u64 {
-        self.system.platform().now().raw()
-    }
-}
 
 pub type AudioHandle = u32;
 #[derive(Debug)]
@@ -52,21 +12,19 @@ pub enum AudioError {
 }
 
 enum AudioFile {
-    Smaf(SmafPlayer),
+    Smaf(Vec<u8>),
 }
 
 pub struct Audio {
-    system: System,
-    backend: Arc<AudioBackendImpl>,
+    sink: Arc<Box<dyn AudioSink>>,
     files: BTreeMap<AudioHandle, AudioFile>,
     last_audio_handle: AudioHandle,
 }
 
 impl Audio {
-    pub fn new(sink: Box<dyn AudioSink>, system: System) -> Self {
+    pub fn new(sink: Box<dyn AudioSink>) -> Self {
         Self {
-            system: system.clone(),
-            backend: Arc::new(AudioBackendImpl { sink, system }),
+            sink: Arc::new(sink),
             files: BTreeMap::new(),
             last_audio_handle: 0,
         }
@@ -76,19 +34,20 @@ impl Audio {
         let audio_handle = self.last_audio_handle;
 
         self.last_audio_handle += 1;
-        self.files.insert(audio_handle, AudioFile::Smaf(SmafPlayer::new(data.to_vec())));
+        self.files.insert(audio_handle, AudioFile::Smaf(data.to_vec()));
 
         Ok(audio_handle)
     }
 
-    pub fn play(&self, audio_handle: AudioHandle) -> Result<(), AudioError> {
+    pub fn play(&self, system: &System, audio_handle: AudioHandle) -> Result<(), AudioError> {
         match self.files.get(&audio_handle) {
-            Some(AudioFile::Smaf(player)) => {
-                let player_clone = player.clone();
-                let backend = self.backend.clone();
+            Some(AudioFile::Smaf(data)) => {
+                let player = SmafPlayer::new(data);
+                let mut system_clone = system.clone();
+                let sink_clone = self.sink.clone();
 
-                self.system.clone().spawn(async move || {
-                    player_clone.play(&*backend).await;
+                system.clone().spawn(async move || {
+                    player.play(&mut system_clone, &**sink_clone).await;
 
                     Ok(())
                 });
@@ -97,5 +56,48 @@ impl Audio {
         }
 
         Ok(())
+    }
+}
+
+pub struct SmafPlayer {
+    events: Vec<(usize, SmafEvent)>,
+}
+
+impl SmafPlayer {
+    pub fn new(data: &[u8]) -> Self {
+        Self { events: parse_smaf(data) }
+    }
+
+    pub async fn play(&self, system: &mut System, sink: &dyn AudioSink) {
+        let mut play_time = 0;
+        for (time, event) in &self.events {
+            let now = system.platform().now();
+            system.sleep(now + ((time - play_time) as u64)).await;
+
+            match event {
+                SmafEvent::Wave {
+                    channel,
+                    sampling_rate,
+                    data,
+                } => {
+                    sink.play_wave(*channel, *sampling_rate, data);
+                }
+                SmafEvent::MidiNoteOn { channel, note, velocity } => {
+                    sink.midi_note_on(*channel, *note, *velocity);
+                }
+                SmafEvent::MidiNoteOff { channel, note, velocity } => {
+                    sink.midi_note_off(*channel, *note, *velocity);
+                }
+                SmafEvent::MidiProgramChange { channel, program } => {
+                    sink.midi_program_change(*channel, *program);
+                }
+                SmafEvent::MidiControlChange { channel, control, value } => {
+                    sink.midi_control_change(*channel, *control, *value);
+                }
+                SmafEvent::End => {}
+            }
+
+            play_time = *time;
+        }
     }
 }

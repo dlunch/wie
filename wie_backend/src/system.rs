@@ -27,7 +27,7 @@ pub struct System {
     platform: Arc<Mutex<Box<dyn Platform>>>,
     filesystem: Arc<Mutex<Filesystem>>,
     event_queue: Arc<RwLock<EventQueue>>,
-    audio: Option<Arc<RwLock<Audio>>>,
+    audio: Arc<RwLock<Audio>>,
     task_runner: Arc<dyn TaskRunner>,
 }
 
@@ -40,20 +40,15 @@ impl System {
 
         let platform = Arc::new(Mutex::new(platform));
 
-        let mut result = Self {
+        Self {
             app_id: app_id.to_owned(),
             executor: Executor::new(),
             platform: platform.clone(),
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
-            audio: None,
+            audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
             task_runner: Arc::new(task_runner),
-        };
-
-        // late initialization
-        result.audio = Some(Arc::new(RwLock::new(Audio::new(audio_sink, result.clone()))));
-
-        result
+        }
     }
 
     pub fn tick(&mut self) -> Result<()> {
@@ -98,7 +93,7 @@ impl System {
     }
 
     pub fn audio(&self) -> RwLockWriteGuard<'_, Audio> {
-        self.audio.as_ref().unwrap().write()
+        self.audio.as_ref().write()
     }
 
     pub fn event_queue(&self) -> RwLockWriteGuard<'_, EventQueue> {
