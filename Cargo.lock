@@ -2946,6 +2946,7 @@ name = "wie_cli"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "directories",
  "fast_image_resize",
