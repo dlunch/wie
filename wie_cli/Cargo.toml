@@ -12,11 +12,11 @@ anyhow = { version = "^1.0", features = ["backtrace"] }
 clap = { version = "^4.5", features = ["derive"] }
 directories = { version = "^6.0" }
 fast_image_resize = "5.2.1"
-rodio = { version = "^0.20", default-features = false }
-midir = { version = "^0.10", default-features = false }
+rodio = { version = "^0.21", features = ["playback"] }
+midir = { version = "^0.10" }
 softbuffer = { version = "^0.4" }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
-winit = { version = "^0.30", features = ["x11", "wayland", "rwh_06"], default-features = false }
+winit = { version = "^0.30", features = ["x11", "wayland", "rwh_06"] }
 hqx = { git = "https://github.com/CryZe/wasmboy-rs", tag = "v0.1.3" }
 
 wie_backend = { workspace = true }

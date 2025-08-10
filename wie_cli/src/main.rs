@@ -17,7 +17,7 @@ use std::{
 
 use clap::Parser;
 use midir::MidiOutput;
-use rodio::{OutputStream, Sink, buffer::SamplesBuffer};
+use rodio::{OutputStreamBuilder, Sink, buffer::SamplesBuffer, conversions::SampleTypeConverter};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie_backend::{Emulator, Event, Instant, KeyCode, Options, Platform, Screen, extract_zip};
@@ -51,7 +51,7 @@ impl WieCliPlatform {
     }
 
     fn audio_thread(rx: Receiver<(u8, u32, Vec<i16>)>) {
-        let default_output = OutputStream::try_default();
+        let default_output = OutputStreamBuilder::open_default_stream();
         if default_output.is_err() {
             // do nothing if we can't open output
             loop {
@@ -59,8 +59,7 @@ impl WieCliPlatform {
             }
         }
 
-        let (_output_stream, stream_handle) = default_output.unwrap();
-        let sink = Sink::try_new(&stream_handle).unwrap();
+        let sink = Sink::connect_new(default_output.unwrap().mixer());
 
         loop {
             let result = rx.recv();
@@ -69,7 +68,11 @@ impl WieCliPlatform {
             }
             let (channel, sampling_rate, wave_data) = result.unwrap();
 
-            let buffer = SamplesBuffer::new(channel as _, sampling_rate as _, wave_data);
+            let buffer = SamplesBuffer::new(
+                channel as _,
+                sampling_rate as _,
+                SampleTypeConverter::new(wave_data.into_iter()).collect::<Vec<_>>(),
+            );
 
             // TODO we should be able to play multiple audio at once
             sink.append(buffer);
