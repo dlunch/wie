@@ -59,7 +59,8 @@ impl WieCliPlatform {
             }
         }
 
-        let sink = Sink::connect_new(default_output.unwrap().mixer());
+        let output_stream = default_output.unwrap();
+        let sink = Sink::connect_new(output_stream.mixer());
 
         loop {
             let result = rx.recv();
