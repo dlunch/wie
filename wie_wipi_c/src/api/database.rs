@@ -53,8 +53,8 @@ pub async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> Resul
 pub async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbListRecords({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
-    let db = get_database_from_db_id(context, db_id);
-    let ids = db.get_record_ids();
+    let db = get_database_from_db_id(context, db_id).await;
+    let ids = db.get_record_ids().await;
 
     let mut cursor = 0;
     for &id in &ids {
@@ -70,9 +70,9 @@ pub async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf
 
     let mut buf = vec![0; buf_len as _];
     context.read_bytes(buf_ptr, &mut buf)?;
-    let mut db = get_database_from_db_id(context, db_id);
+    let mut db = get_database_from_db_id(context, db_id).await;
 
-    db.set(1, &buf);
+    db.set(1, &buf).await;
 
     Ok(1)
 }
@@ -80,9 +80,9 @@ pub async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf
 pub async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> Result<i32> {
     tracing::debug!("MC_dbDeleteRecord({:#x}, {})", db_id, rec_id);
 
-    let mut db = get_database_from_db_id(context, db_id);
+    let mut db = get_database_from_db_id(context, db_id).await;
 
-    let result = db.delete(rec_id as _);
+    let result = db.delete(rec_id as _).await;
 
     if result {
         Ok(0) // success
@@ -99,9 +99,9 @@ pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_
         return Ok(-25); // M_E_INVALIDHANDLE
     }
 
-    let db = get_database_from_db_id(context, db_id);
+    let db = get_database_from_db_id(context, db_id).await;
 
-    if let Some(x) = db.get(1) {
+    if let Some(x) = db.get(1).await {
         if buf_len < x.len() as _ {
             return Ok(-18); // M_E_SHORTBUF
         }
@@ -116,9 +116,9 @@ pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_
 pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbSelectRecord({:#x}, {}, {:#x}, {})", db_id, rec_id, buf_ptr, buf_len);
 
-    let db = get_database_from_db_id(context, db_id);
+    let db = get_database_from_db_id(context, db_id).await;
 
-    if let Some(x) = db.get(rec_id as _) {
+    if let Some(x) = db.get(rec_id as _).await {
         if buf_len < x.len() as _ {
             return Ok(-18); // M_E_SHORTBUF
         }
@@ -136,12 +136,12 @@ pub async fn unk16(_context: &mut dyn WIPICContext) -> Result<i32> {
     Ok(1)
 }
 
-fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Box<dyn Database> {
+async fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Box<dyn Database> {
     let handle: DatabaseHandle = read_generic(context, db_id as _).unwrap();
 
     let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
     let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
     let app_id = context.system().app_id().to_owned();
 
-    context.system().platform().database_repository().open(db_name, &app_id)
+    context.system().platform().database_repository().open(db_name, &app_id).await
 }

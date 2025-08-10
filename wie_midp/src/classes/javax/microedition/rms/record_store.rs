@@ -77,7 +77,7 @@ impl RecordStore {
 
         let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
 
-        let id = database.add(&cast_vec(data));
+        let id = database.add(&cast_vec(data)).await;
 
         Ok(id as _)
     }
@@ -93,7 +93,7 @@ impl RecordStore {
 
         let database = Self::get_database(jvm, context, &this).await?;
 
-        let next_id = database.next_id();
+        let next_id = database.next_id().await;
 
         Ok(next_id as _)
     }
@@ -108,7 +108,7 @@ impl RecordStore {
 
         let database = Self::get_database(jvm, context, &this).await?;
 
-        let result = database.get(record_id as _);
+        let result = database.get(record_id as _).await;
         if result.is_none() {
             return Err(jvm.exception("javax/microedition/rms/InvalidRecordIDException", "Record not found").await);
         }
@@ -139,7 +139,7 @@ impl RecordStore {
 
         let database = Self::get_database(jvm, context, &this).await?;
 
-        let result = database.get(record_id as _);
+        let result = database.get(record_id as _).await;
         if result.is_none() {
             return Err(jvm.exception("javax/microedition/rms/InvalidRecordIDException", "Record not found").await);
         }
@@ -156,7 +156,7 @@ impl RecordStore {
 
         let database = Self::get_database(jvm, context, &this).await?;
 
-        let result = database.get(record_id as _);
+        let result = database.get(record_id as _).await;
         if result.is_none() {
             return Err(jvm.exception("javax/microedition/rms/InvalidRecordIDException", "Record not found").await);
         }
@@ -187,7 +187,7 @@ impl RecordStore {
         let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
 
         let mut database = Self::get_database(jvm, context, &this).await?;
-        database.set(record_id as _, &cast_vec(data));
+        database.set(record_id as _, &cast_vec(data)).await;
 
         Ok(())
     }
@@ -197,7 +197,7 @@ impl RecordStore {
 
         let database = Self::get_database(jvm, context, &this).await?;
 
-        let count = database.get_record_ids().len();
+        let count = database.get_record_ids().await.len();
 
         Ok(count as _)
     }
@@ -235,6 +235,6 @@ impl RecordStore {
 
         let app_id = context.system().app_id().to_owned();
 
-        Ok(context.system().platform().database_repository().open(&db_name_str, &app_id))
+        Ok(context.system().platform().database_repository().open(&db_name_str, &app_id).await)
     }
 }

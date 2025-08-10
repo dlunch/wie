@@ -22,8 +22,9 @@ impl DatabaseRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl wie_backend::DatabaseRepository for DatabaseRepository {
-    fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
+    async fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
         let path = self.get_path_for_database(name, app_id);
 
         Box::new(Database::new(path).unwrap())
@@ -61,12 +62,13 @@ impl Database {
     }
 }
 
+#[async_trait::async_trait]
 impl wie_backend::Database for Database {
-    fn next_id(&self) -> RecordId {
+    async fn next_id(&self) -> RecordId {
         self.find_empty_record_id()
     }
 
-    fn add(&mut self, data: &[u8]) -> RecordId {
+    async fn add(&mut self, data: &[u8]) -> RecordId {
         let id = self.find_empty_record_id();
 
         tracing::trace!("Adding record {id} to database {:?}", &self.base_path);
@@ -77,7 +79,7 @@ impl wie_backend::Database for Database {
         id
     }
 
-    fn get(&self, id: RecordId) -> Option<Vec<u8>> {
+    async fn get(&self, id: RecordId) -> Option<Vec<u8>> {
         let path = self.get_path_for_record(id);
 
         tracing::trace!("Read record {id} from database {:?}", &self.base_path);
@@ -85,7 +87,7 @@ impl wie_backend::Database for Database {
         fs::read(path).ok()
     }
 
-    fn set(&mut self, id: RecordId, data: &[u8]) -> bool {
+    async fn set(&mut self, id: RecordId, data: &[u8]) -> bool {
         let path = self.get_path_for_record(id);
 
         tracing::trace!("Set record {id} to database {:?}", &self.base_path);
@@ -93,7 +95,7 @@ impl wie_backend::Database for Database {
         fs::write(path, data).is_ok()
     }
 
-    fn delete(&mut self, id: RecordId) -> bool {
+    async fn delete(&mut self, id: RecordId) -> bool {
         let path = self.get_path_for_record(id);
 
         tracing::trace!("Delete record {id} from database {:?}", &self.base_path);
@@ -101,7 +103,7 @@ impl wie_backend::Database for Database {
         fs::remove_file(path).is_ok()
     }
 
-    fn get_record_ids(&self) -> Vec<RecordId> {
+    async fn get_record_ids(&self) -> Vec<RecordId> {
         fs::read_dir(&self.base_path)
             .unwrap()
             .filter(|x| x.as_ref().unwrap().path().is_file())
