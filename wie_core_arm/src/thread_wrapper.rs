@@ -32,7 +32,7 @@ impl Future for ArmCoreThreadWrapper {
 
     #[tracing::instrument(name = "native thread", fields(id = self.thread_id), skip_all)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let _ = self.core.enter_thread_context(self.thread_id);
+        let _guard = self.core.enter_thread_context(self.thread_id);
 
         self.future.as_mut().poll(cx)
     }

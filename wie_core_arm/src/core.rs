@@ -106,7 +106,7 @@ impl ArmCore {
         tracing::info!("Terminate thread: {thread_id}");
 
         // we should exit inner lock first to run cleanup on thread state drop
-        let _ = {
+        {
             let mut inner = self.inner.lock();
             inner.threads.remove(&thread_id)
         };
