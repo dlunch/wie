@@ -180,8 +180,7 @@ impl EventQueue {
                     let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
                 }
 
-                let until = context.system().platform().now() + 16;
-                context.system().sleep(until).await; // TODO we need to wait for events
+                context.system().sleep(16).await; // TODO we need to wait for events
             }
         }
 

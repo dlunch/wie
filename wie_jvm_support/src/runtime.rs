@@ -44,10 +44,7 @@ where
     T: JvmImplementation + Sync + Send + 'static,
 {
     async fn sleep(&self, duration: Duration) {
-        let now = self.system.platform().now();
-        let until = now + duration.as_millis() as u64;
-
-        self.system.clone().sleep(until).await; // TODO remove clone
+        self.system.sleep(duration.as_millis() as _).await;
     }
 
     async fn r#yield(&self) {

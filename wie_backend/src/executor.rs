@@ -19,6 +19,7 @@ pub struct ExecutorInner {
     tasks: HashMap<usize, Task>,
     sleeping_tasks: HashMap<usize, Instant>,
     last_task_id: usize,
+    last_now: Instant,
 }
 
 pub trait AsyncCallable<R>: Send
@@ -71,6 +72,7 @@ impl Executor {
             tasks: HashMap::new(),
             sleeping_tasks: HashMap::new(),
             last_task_id: 0,
+            last_now: Instant::from_epoch_millis(0),
         }));
 
         Self { inner }
@@ -136,6 +138,8 @@ impl Executor {
     }
 
     fn step(&mut self, now: Instant) -> Result<()> {
+        self.inner.lock().last_now = now;
+
         let mut next_tasks = HashMap::new();
         let tasks = self.inner.lock().tasks.drain().collect::<HashMap<_, _>>();
         let mut sleeping_tasks = self.inner.lock().sleeping_tasks.drain().collect::<HashMap<_, _>>();
@@ -173,9 +177,10 @@ impl Executor {
         Ok(())
     }
 
-    pub(crate) fn sleep(&self, until: Instant) {
+    pub(crate) fn sleep(&self, timeout: u64) {
         let task_id = self.inner.lock().current_task_id.unwrap();
 
+        let until = self.inner.lock().last_now + timeout;
         self.inner.lock().sleeping_tasks.insert(task_id, until);
     }
 

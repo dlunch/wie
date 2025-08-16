@@ -71,8 +71,7 @@ impl SmafPlayer {
     pub async fn play(&self, system: &mut System, sink: &dyn AudioSink) {
         let mut play_time = 0;
         for (time, event) in &self.events {
-            let now = system.platform().now();
-            system.sleep(now + ((time - play_time) as u64)).await;
+            system.sleep((time - play_time) as _).await;
 
             match event {
                 SmafEvent::Wave {
