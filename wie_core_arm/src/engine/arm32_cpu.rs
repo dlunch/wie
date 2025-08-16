@@ -105,7 +105,7 @@ impl ArmRegister {
     }
 }
 
-const TOTAL_MEMORY: usize = 0xffffffff;
+const TOTAL_MEMORY: usize = 0x100000000;
 const PAGE_SIZE: usize = 0x10000;
 const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
