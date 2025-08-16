@@ -173,7 +173,7 @@ impl Executor {
         Ok(())
     }
 
-    pub(crate) fn sleep(&mut self, until: Instant) {
+    pub(crate) fn sleep(&self, until: Instant) {
         let task_id = self.inner.lock().current_task_id.unwrap();
 
         self.inner.lock().sleeping_tasks.insert(task_id, until);
