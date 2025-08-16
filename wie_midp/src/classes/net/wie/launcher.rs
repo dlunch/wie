@@ -43,11 +43,11 @@ impl Launcher {
     async fn start_midlet(jvm: &Jvm, context: &mut WieJvmContext, midlet: ClassInstanceRef<()>) -> JvmResult<()> {
         tracing::debug!("net.wie.Launcher::startMIDlet({:?})", &midlet);
 
-        // spawn event loop
-        context.spawn(jvm, Box::new(EventLoopRunner))?;
-
         // run startApp
         let _: () = jvm.invoke_virtual(&midlet, "startApp", "()V", (None,)).await?;
+
+        // spawn event loop
+        context.spawn(jvm, Box::new(EventLoopRunner))?;
 
         Ok(())
     }
