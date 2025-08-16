@@ -23,7 +23,7 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWor
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let (width, height) = {
-        let mut platform = context.system().platform();
+        let platform = context.system().platform();
         let screen = platform.screen();
         (screen.width(), screen.height())
     };
@@ -204,7 +204,7 @@ pub async fn flush(
 
     let src_canvas = framebuffer.image(context)?;
 
-    let mut platform = context.system().platform();
+    let platform = context.system().platform();
     let screen = platform.screen();
 
     screen.paint(&*src_canvas);
@@ -245,7 +245,7 @@ pub async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWor
 
     assert_eq!(reserved, 0);
 
-    let mut platform = context.system().platform();
+    let platform = context.system().platform();
     let screen = platform.screen();
 
     let info = WIPICDisplayInfo {
@@ -259,7 +259,6 @@ pub async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWor
         green_mask: 0x7e0,
         blue_mask: 0x1f,
     };
-    drop(platform);
 
     write_generic(context, out_ptr, info)?;
     Ok(1)
@@ -392,7 +391,7 @@ pub async fn draw_string(_: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i32, y
 pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
     tracing::warn!("stub MC_grpRepaint({}, {}, {}, {}, {})", lcd, x, y, width, height);
 
-    let mut platform = context.system().platform();
+    let platform = context.system().platform();
     let screen = platform.screen();
     screen.request_redraw().unwrap();
 

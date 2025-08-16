@@ -24,7 +24,7 @@ pub use self::event_queue::{Event, KeyCode};
 pub struct System {
     app_id: String,
     executor: Executor,
-    platform: Arc<Mutex<Box<dyn Platform>>>,
+    platform: Arc<Box<dyn Platform>>,
     filesystem: Arc<Mutex<Filesystem>>,
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Arc<RwLock<Audio>>,
@@ -41,7 +41,7 @@ impl System {
         Self {
             app_id: app_id.to_owned(),
             executor: Executor::new(),
-            platform: Arc::new(Mutex::new(platform)),
+            platform: Arc::new(platform),
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
@@ -51,11 +51,7 @@ impl System {
 
     pub fn tick(&mut self) -> Result<()> {
         let platform = self.platform.clone();
-        self.executor.tick(move || {
-            let platform = platform.lock();
-
-            platform.now()
-        })
+        self.executor.tick(move || platform.now())
     }
 
     pub fn spawn<C>(&self, callable: C)
@@ -86,8 +82,8 @@ impl System {
         &self.app_id
     }
 
-    pub fn platform(&self) -> MutexGuard<'_, Box<dyn Platform>> {
-        self.platform.lock()
+    pub fn platform(&self) -> &dyn Platform {
+        self.platform.as_ref().as_ref()
     }
 
     pub fn audio(&self) -> RwLockWriteGuard<'_, Audio> {

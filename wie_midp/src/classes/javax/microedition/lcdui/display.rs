@@ -61,7 +61,7 @@ impl Display {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         let (width, height) = {
-            let mut platform = context.system().platform();
+            let platform = context.system().platform();
             let screen = platform.screen();
             (screen.width() as i32, screen.height() as i32)
         };
@@ -195,7 +195,7 @@ impl Display {
         let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
         let image = Image::image(jvm, &screen_image).await?;
 
-        let mut platform = context.system().platform();
+        let platform = context.system().platform();
         let screen = platform.screen();
 
         screen.paint(&*image);

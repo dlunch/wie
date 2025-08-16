@@ -53,7 +53,7 @@ impl Screen for WindowHandle {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
 
-    fn paint(&mut self, image: &dyn Image) {
+    fn paint(&self, image: &dyn Image) {
         let data = image
             .colors()
             .iter()
