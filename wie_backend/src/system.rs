@@ -69,7 +69,7 @@ impl System {
     }
 
     pub fn sleep(&self, until: Instant) -> SleepFuture {
-        SleepFuture::new(until, &mut self.executor)
+        SleepFuture::new(until, &self.executor)
     }
 
     pub fn current_task_id(&self) -> u64 {
