@@ -3,7 +3,6 @@ use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_backend::Instant;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::{WIPICMemoryId, WIPICResult, WIPICWord, context::WIPICContext, method::MethodBody};
@@ -74,7 +73,7 @@ pub async fn set_timer(
 
     struct TimerCallback {
         ptr_timer: u32,
-        wakeup: Instant,
+        timeout: u64,
         param: WIPICWord,
     }
 
@@ -84,7 +83,7 @@ pub async fn set_timer(
         async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICResult> {
             let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
 
-            context.system().sleep(self.wakeup).await;
+            context.system().sleep(self.timeout).await;
 
             context.call_function(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
 
@@ -92,10 +91,10 @@ pub async fn set_timer(
         }
     }
 
-    let wakeup = context.system().platform().now() + (((timeout_high as u64) << 32) | (timeout_low as u64)) as _;
+    let timeout = (((timeout_high as u64) << 32) | (timeout_low as u64)) as _;
 
     // TODO: it would be better to use dedicated timer thread
-    context.spawn(Box::new(TimerCallback { ptr_timer, wakeup, param }))?;
+    context.spawn(Box::new(TimerCallback { ptr_timer, timeout, param }))?;
 
     Ok(())
 }

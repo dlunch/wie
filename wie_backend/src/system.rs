@@ -9,7 +9,7 @@ use spin::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 use wie_util::Result;
 
 use crate::{
-    AsyncCallable, Instant,
+    AsyncCallable,
     executor::Executor,
     platform::Platform,
     task::{SleepFuture, YieldFuture},
@@ -38,12 +38,10 @@ impl System {
     {
         let audio_sink = platform.audio_sink();
 
-        let platform = Arc::new(Mutex::new(platform));
-
         Self {
             app_id: app_id.to_owned(),
             executor: Executor::new(),
-            platform: platform.clone(),
+            platform: Arc::new(Mutex::new(platform)),
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
@@ -68,8 +66,8 @@ impl System {
         self.executor.spawn(async move || runner_clone.run(Box::pin(callable.call())).await);
     }
 
-    pub fn sleep(&self, until: Instant) -> SleepFuture {
-        SleepFuture::new(until, &self.executor)
+    pub fn sleep(&self, timeout: u64) -> SleepFuture {
+        SleepFuture::new(timeout, &self.executor)
     }
 
     pub fn current_task_id(&self) -> u64 {
