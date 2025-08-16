@@ -105,12 +105,12 @@ impl ArmRegister {
     }
 }
 
-const TOTAL_MEMORY: usize = 0x100000000;
+const TOTAL_MEMORY: u64 = 0x100000000;
 const PAGE_SIZE: usize = 0x10000;
 const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
 struct EmulatedMemory {
-    pages: [Option<Box<[u8; PAGE_SIZE]>>; TOTAL_MEMORY / PAGE_SIZE],
+    pages: [Option<Box<[u8; PAGE_SIZE]>>; (TOTAL_MEMORY / PAGE_SIZE as u64) as usize],
 }
 
 impl EmulatedMemory {
