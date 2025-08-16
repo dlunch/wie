@@ -64,7 +64,7 @@ impl Canvas {
             height
         );
 
-        let mut platform = context.system().platform();
+        let platform = context.system().platform();
         let screen = platform.screen();
         screen.request_redraw().unwrap();
 

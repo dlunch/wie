@@ -37,8 +37,8 @@ impl TestPlatform {
 }
 
 impl Platform for TestPlatform {
-    fn screen(&mut self) -> &mut dyn Screen {
-        &mut self.screen
+    fn screen(&self) -> &dyn Screen {
+        &self.screen
     }
 
     fn now(&self) -> Instant {
@@ -101,7 +101,7 @@ impl Screen for TestScreen {
         Ok(())
     }
 
-    fn paint(&mut self, _image: &dyn Image) {}
+    fn paint(&self, _image: &dyn Image) {}
 
     fn width(&self) -> u32 {
         320
