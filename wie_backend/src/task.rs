@@ -39,7 +39,8 @@ pub struct SleepFuture {
 }
 
 impl SleepFuture {
-    pub fn new(until: Instant, executor: &mut Executor) -> Self {
+    pub fn new(until: Instant, executor: &Executor) -> Self {
+        // we need executor from outside before rust `context_ext` stabilization
         executor.sleep(until);
 
         Self { polled: false }

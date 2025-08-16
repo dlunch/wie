@@ -68,7 +68,7 @@ impl System {
         self.executor.spawn(async move || runner_clone.run(Box::pin(callable.call())).await);
     }
 
-    pub fn sleep(&mut self, until: Instant) -> SleepFuture {
+    pub fn sleep(&self, until: Instant) -> SleepFuture {
         SleepFuture::new(until, &mut self.executor)
     }
 
