@@ -18,7 +18,7 @@ where
     T: FnOnce(Jvm) -> F + Send + 'static,
     F: Future<Output = JvmResult<()>> + Send,
 {
-    let mut system = System::new(Box::new(TestPlatform::new()), "", DefaultTaskRunner);
+    let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
 
     let done = Arc::new(AtomicBool::new(false));
     let done_clone = done.clone();

@@ -161,7 +161,7 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
 
     // OEMC_knlGetProgramInfo? get app id
     let result = context.alloc_raw(0x10)?;
-    let app_id = context.system().app_id().to_string();
+    let app_id = context.system().aid().to_string();
     write_null_terminated_string_bytes(context, result, app_id.as_bytes())?;
 
     Ok(result)

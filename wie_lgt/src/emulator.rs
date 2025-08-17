@@ -36,20 +36,29 @@ impl LgtEmulator {
 
         let jar_filename = format!("{}.jar", app_info.aid);
 
-        Self::load(platform, &jar_filename, &app_info.pid, Some(app_info.mclass), &files, options)
+        Self::load(
+            platform,
+            &jar_filename,
+            &app_info.pid,
+            &app_info.aid,
+            Some(app_info.mclass),
+            &files,
+            options,
+        )
     }
 
     pub fn from_jar(
         platform: Box<dyn Platform>,
         jar_filename: &str,
         jar: Vec<u8>,
-        id: &str,
+        pid: &str,
+        aid: &str,
         main_class_name: Option<String>,
         options: Options,
     ) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, &files, options)
+        Self::load(platform, jar_filename, pid, aid, main_class_name, &files, options)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -65,13 +74,14 @@ impl LgtEmulator {
     fn load(
         platform: Box<dyn Platform>,
         jar_filename: &str,
-        id: &str,
+        pid: &str,
+        aid: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
         options: Options,
     ) -> Result<Self> {
         let mut core = ArmCore::new(options.enable_gdbserver)?;
-        let system = System::new(platform, id, LgtTaskRunner { core: core.clone() });
+        let system = System::new(platform, pid, aid, LgtTaskRunner { core: core.clone() });
 
         for (filename, data) in files {
             system.filesystem().add(filename, data.clone())

@@ -41,7 +41,7 @@ impl J2MEEmulator {
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<Self> {
-        let system = System::new(platform, id, DefaultTaskRunner);
+        let system = System::new(platform, id, id, DefaultTaskRunner);
 
         for (path, data) in files {
             system.filesystem().add(path, data.clone());

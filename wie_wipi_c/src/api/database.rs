@@ -143,7 +143,7 @@ async fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> 
     let db_name = str::from_utf8(&handle.name[..name_length]).unwrap();
 
     let system = context.system();
-    let app_id = system.app_id().to_owned();
+    let pid = system.pid().to_owned();
 
-    system.platform().database_repository().open(system, db_name, &app_id).await
+    system.platform().database_repository().open(system, db_name, &pid).await
 }

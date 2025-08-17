@@ -22,7 +22,8 @@ pub use self::event_queue::{Event, KeyCode};
 
 #[derive(Clone)]
 pub struct System {
-    app_id: String,
+    pid: String,
+    aid: String,
     executor: Executor,
     platform: Arc<Box<dyn Platform>>,
     filesystem: Arc<Mutex<Filesystem>>,
@@ -32,14 +33,15 @@ pub struct System {
 }
 
 impl System {
-    pub fn new<T>(platform: Box<dyn Platform>, app_id: &str, task_runner: T) -> Self
+    pub fn new<T>(platform: Box<dyn Platform>, pid: &str, aid: &str, task_runner: T) -> Self
     where
         T: TaskRunner + 'static,
     {
         let audio_sink = platform.audio_sink();
 
         Self {
-            app_id: app_id.to_owned(),
+            pid: pid.to_owned(),
+            aid: aid.to_owned(), // TODO create metadata dictionary or something
             executor: Executor::new(),
             platform: Arc::new(platform),
             filesystem: Arc::new(Mutex::new(Filesystem::new())),
@@ -78,8 +80,12 @@ impl System {
         self.filesystem.lock()
     }
 
-    pub fn app_id(&self) -> &str {
-        &self.app_id
+    pub fn pid(&self) -> &str {
+        &self.pid
+    }
+
+    pub fn aid(&self) -> &str {
+        &self.aid
     }
 
     pub fn platform(&self) -> &dyn Platform {

@@ -183,6 +183,7 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
                 &filename_without_path,
                 buf,
                 filename_without_ext,
+                filename_without_ext,
                 None,
                 options,
             )?)
@@ -191,6 +192,7 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
                 platform,
                 &filename_without_path,
                 buf,
+                filename_without_ext,
                 filename_without_ext,
                 None,
                 options,
