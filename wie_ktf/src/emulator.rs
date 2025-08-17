@@ -38,20 +38,21 @@ impl KtfEmulator {
 
         let jar_filename = format!("{}.jar", adf.aid);
 
-        Self::load(platform, &jar_filename, &adf.pid, Some(adf.mclass), &files, options)
+        Self::load(platform, &jar_filename, &adf.pid, &adf.aid, Some(adf.mclass), &files, options)
     }
 
     pub fn from_jar(
         platform: Box<dyn Platform>,
         jar_filename: &str,
         jar: Vec<u8>,
-        id: &str,
+        pid: &str,
+        aid: &str,
         main_class_name: Option<String>,
         options: Options,
     ) -> Result<Self> {
         let files = [(jar_filename.to_owned(), jar)].into_iter().collect();
 
-        Self::load(platform, jar_filename, id, main_class_name, &files, options)
+        Self::load(platform, jar_filename, pid, aid, main_class_name, &files, options)
     }
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
@@ -73,13 +74,14 @@ impl KtfEmulator {
     fn load(
         platform: Box<dyn Platform>,
         jar_filename: &str,
-        id: &str,
+        pid: &str,
+        aid: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
         options: Options,
     ) -> Result<Self> {
         let mut core = ArmCore::new(options.enable_gdbserver)?;
-        let system = System::new(platform, id, KtfTaskRunner { core: core.clone() });
+        let system = System::new(platform, pid, aid, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");

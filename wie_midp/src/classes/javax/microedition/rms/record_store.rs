@@ -234,8 +234,8 @@ impl RecordStore {
         let db_name_str = JavaLangString::to_rust_string(jvm, &db_name).await?;
 
         let system = context.system();
-        let app_id = system.app_id().to_owned();
+        let pid = system.pid().to_owned();
 
-        Ok(system.platform().database_repository().open(system, &db_name_str, &app_id).await)
+        Ok(system.platform().database_repository().open(system, &db_name_str, &pid).await)
     }
 }
