@@ -26,7 +26,7 @@ pub async fn connect(context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPIC
 
     context.spawn(Box::new(ConnectCallback { cb, param }))?;
 
-    Ok(-1) // M_E_ERROR
+    Ok(0)
 }
 
 pub async fn close(_context: &mut dyn WIPICContext) -> Result<()> {
