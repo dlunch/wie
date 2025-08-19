@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use wie_backend::System;
+use wie_backend::{Instant, System};
 use wie_util::{ByteRead, ByteWrite, Result};
 
 use crate::{
@@ -21,6 +21,7 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send {
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()>;
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>>;
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>>;
+    fn set_timer(&mut self, due: Instant, callback: WIPICMethodBody);
 }
 
 pub struct WIPICResult {
@@ -81,7 +82,7 @@ impl ResultConverter<()> for () {
 pub mod test {
     use alloc::{boxed::Box, vec::Vec};
 
-    use wie_backend::System;
+    use wie_backend::{Instant, System};
     use wie_util::{ByteRead, ByteWrite, Result};
 
     use crate::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
@@ -147,6 +148,10 @@ pub mod test {
         }
 
         async fn read_resource(&self, _name: &str) -> Result<Vec<u8>> {
+            todo!()
+        }
+
+        fn set_timer(&mut self, _due: Instant, _callback: WIPICMethodBody) {
             todo!()
         }
     }
