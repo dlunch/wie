@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
@@ -143,7 +143,9 @@ impl EventQueue {
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
 
+        let mut pending_timer_events = Vec::new();
         loop {
+            let now = context.system().platform().now();
             let maybe_event = context.system().event_queue().pop();
 
             if let Some(x) = maybe_event {
@@ -167,6 +169,17 @@ impl EventQueue {
                         MIDPKeyCode::from_key_code(x) as _,
                         0,
                     ],
+                    Event::Timer { due, callback } => {
+                        // TODO we should wait for timer more efficiently
+                        if due < now {
+                            callback().await.unwrap();
+                        } else {
+                            // push it to event queue again
+                            pending_timer_events.push(Event::Timer { due, callback });
+                        }
+
+                        continue;
+                    }
                 };
 
                 jvm.store_array(&mut event, 0, event_data).await?;
@@ -181,7 +194,15 @@ impl EventQueue {
                 }
 
                 context.system().sleep(16).await; // TODO we need to wait for events
+
+                for event in pending_timer_events.drain(..) {
+                    context.system().event_queue().push(event);
+                }
             }
+        }
+
+        for event in pending_timer_events {
+            context.system().event_queue().push(event);
         }
 
         Ok(())

@@ -1,4 +1,9 @@
-use alloc::collections::VecDeque;
+use alloc::{boxed::Box, collections::VecDeque};
+use core::pin::Pin;
+
+use wie_util::Result;
+
+use crate::Instant;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -51,12 +56,27 @@ impl KeyCode {
     }
 }
 
-#[derive(Debug)]
+type TimerCallback = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+
 pub enum Event {
     Redraw,
     Keydown(KeyCode),
     Keyup(KeyCode),
     Keyrepeat(KeyCode),
+    Timer { due: Instant, callback: TimerCallback },
+}
+
+impl Event {
+    pub fn timer<F, Fut>(due: Instant, callback: F) -> Self
+    where
+        F: FnOnce() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        Event::Timer {
+            due,
+            callback: Box::new(move || Box::pin(callback())),
+        }
+    }
 }
 
 #[derive(Default)]

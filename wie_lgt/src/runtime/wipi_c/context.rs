@@ -5,7 +5,7 @@ use jvm::{
     runtime::{JavaIoInputStream, JavaLangClassLoader},
 };
 
-use wie_backend::{AsyncCallable, System};
+use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
@@ -153,6 +153,19 @@ impl WIPICContext for LgtWIPICContext {
             .unwrap();
 
         Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap())
+    }
+
+    fn set_timer(&mut self, due: Instant, callback: WIPICMethodBody) {
+        let context = self.clone();
+
+        self.system().event_queue().push(Event::timer(due, move || {
+            let mut context = context.clone();
+
+            async move {
+                callback.call(&mut context, Box::new([])).await?;
+                Ok(())
+            }
+        }))
     }
 }
 

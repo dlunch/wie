@@ -73,7 +73,6 @@ pub async fn set_timer(
 
     struct TimerCallback {
         ptr_timer: u32,
-        timeout: u64,
         param: WIPICWord,
     }
 
@@ -83,18 +82,16 @@ pub async fn set_timer(
         async fn call(&self, context: &mut dyn WIPICContext, _: Box<[WIPICWord]>) -> Result<WIPICResult> {
             let timer: WIPICTimer = read_generic(context, self.ptr_timer)?;
 
-            context.system().sleep(self.timeout).await;
-
             context.call_function(timer.fn_callback, &[self.ptr_timer, self.param]).await?;
 
             Ok(WIPICResult { results: Vec::new() })
         }
     }
 
+    let now = context.system().platform().now();
     let timeout = (((timeout_high as u64) << 32) | (timeout_low as u64)) as _;
 
-    // TODO: it would be better to use dedicated timer thread
-    context.spawn(Box::new(TimerCallback { ptr_timer, timeout, param }))?;
+    context.set_timer(now + timeout, Box::new(TimerCallback { ptr_timer, param }));
 
     Ok(())
 }
