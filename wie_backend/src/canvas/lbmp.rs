@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, format};
 
-use bytemuck::{Pod, Zeroable, cast_vec, from_bytes};
+use bytemuck::{Pod, Zeroable, from_bytes, pod_collect_to_vec};
 
 use wie_util::{Result, WieError};
 
@@ -34,7 +34,7 @@ pub fn decode_lbmp(data: &[u8]) -> Result<Box<dyn Image>> {
         Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(
             header.width,
             header.height,
-            cast_vec(data.to_vec()),
+            pod_collect_to_vec(data),
         ))
     } else {
         return Err(WieError::Unimplemented(format!("Unsupported type {}", header.r#type)));
