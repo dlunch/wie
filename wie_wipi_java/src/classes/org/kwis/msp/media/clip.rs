@@ -2,12 +2,9 @@ use alloc::vec;
 
 use bytemuck::cast_vec;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_class_proto::JavaMethodProto;
 use java_runtime::classes::java::lang::String;
-use jvm::{
-    Array, ClassInstanceRef, Jvm, Result as JvmResult,
-    runtime::{JavaIoInputStream, JavaLangString},
-};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaIoInputStream};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::media::Player;
@@ -42,7 +39,7 @@ impl Clip {
                 ),
                 JavaMethodProto::new("setBuffer", "([BI)V", Self::set_buffer, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new("player", "Ljavax/microedition/media/Player;", Default::default())],
+            fields: vec![],
         }
     }
 
@@ -138,25 +135,13 @@ impl Clip {
     async fn set_buffer(
         jvm: &Jvm,
         _: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         buffer: ClassInstanceRef<Array<i8>>,
         size: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.media.Clip::setBuffer({:?}, {:?}, {})", &this, &buffer, size);
+        tracing::debug!("org.kwis.msp.media.Clip::setBuffer({this:?}, {buffer:?}, {size})");
 
-        let input_stream = jvm.new_class("java/io/ByteArrayInputStream", "([B)V", (buffer,)).await?;
-        let r#type = JavaLangString::from_rust_string(jvm, "application/vnd.smaf").await?;
-
-        let player: ClassInstanceRef<Player> = jvm
-            .invoke_static(
-                "javax/microedition/media/Manager",
-                "createPlayer",
-                "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
-                (input_stream, r#type),
-            )
-            .await?;
-
-        jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", player).await?;
+        let _: i32 = jvm.invoke_virtual(&this, "putData", "([BII)I", (buffer, 0, size)).await?;
 
         Ok(())
     }
