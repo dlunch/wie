@@ -409,11 +409,23 @@ where
             if x < clip.x || x >= clip.x + clip.width as i32 {
                 continue;
             }
+            if y < 0 || y >= self.image_buffer.height() as i32 {
+                continue;
+            }
+            if y < clip.y || y >= clip.y + clip.height as i32 {
+                continue;
+            }
 
             self.put_pixel(x, y, color);
             self.put_pixel(x, y + (h as i32) - 1, color);
         }
         for y in y..y + (h as i32) {
+            if x < 0 || x >= self.image_buffer.width() as i32 {
+                continue;
+            }
+            if x < clip.x || x >= clip.x + clip.width as i32 {
+                continue;
+            }
             if y < 0 || y >= self.image_buffer.height() as i32 {
                 continue;
             }
