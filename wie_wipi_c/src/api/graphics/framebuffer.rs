@@ -61,7 +61,7 @@ impl WIPICFramebuffer {
     pub fn from_image(context: &mut dyn WIPICContext, image: &dyn Image) -> Result<Self> {
         let buf = context.alloc(image.width() * image.height() * image.bytes_per_pixel())?;
 
-        context.write_bytes(context.data_ptr(buf)?, image.raw())?;
+        context.write_bytes(context.data_ptr(buf)?, &image.raw())?;
 
         Ok(Self {
             width: image.width(),
@@ -135,7 +135,7 @@ pub struct FramebufferCanvas<'a> {
 
 impl Drop for FramebufferCanvas<'_> {
     fn drop(&mut self) {
-        self.framebuffer.write(self.context, self.canvas.image().raw()).unwrap()
+        self.framebuffer.write(self.context, &self.canvas.image().raw()).unwrap()
     }
 }
 

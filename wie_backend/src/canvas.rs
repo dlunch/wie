@@ -1,6 +1,6 @@
 mod lbmp;
 
-use alloc::{boxed::Box, string::ToString, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, string::ToString, vec, vec::Vec};
 use core::mem::size_of;
 
 use ab_glyph::{Font, FontRef, ScaleFont};
@@ -35,7 +35,7 @@ pub trait Image: Send {
     fn height(&self) -> u32;
     fn bytes_per_pixel(&self) -> u32;
     fn get_pixel(&self, x: i32, y: i32) -> Color;
-    fn raw(&self) -> &[u8];
+    fn raw(&self) -> Cow<[u8]>;
     fn colors(&self) -> Vec<Color>;
 }
 
@@ -222,8 +222,8 @@ where
         T::to_color(raw)
     }
 
-    fn raw(&self) -> &[u8] {
-        cast_slice(&self.data)
+    fn raw(&self) -> Cow<[u8]> {
+        cast_slice(&self.data).into()
     }
 
     fn colors(&self) -> Vec<Color> {
