@@ -35,7 +35,7 @@ pub trait Image: Send {
     fn height(&self) -> u32;
     fn bytes_per_pixel(&self) -> u32;
     fn get_pixel(&self, x: i32, y: i32) -> Color;
-    fn raw(&self) -> Cow<[u8]>;
+    fn raw(&self) -> Cow<'_, [u8]>;
     fn colors(&self) -> Vec<Color>;
 }
 
@@ -222,7 +222,7 @@ where
         T::to_color(raw)
     }
 
-    fn raw(&self) -> Cow<[u8]> {
+    fn raw(&self) -> Cow<'_, [u8]> {
         cast_slice(&self.data).into()
     }
 

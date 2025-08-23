@@ -296,7 +296,7 @@ where
         T::to_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]))
     }
 
-    fn raw(&self) -> Cow<[u8]> {
+    fn raw(&self) -> Cow<'_, [u8]> {
         let size = self.width() * self.height() * self.bytes_per_pixel();
         let mut buffer = vec![0; size as usize];
         self.raw_buffer.read(0, &mut buffer).unwrap();
