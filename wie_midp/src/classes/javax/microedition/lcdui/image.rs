@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, vec, vec::Vec};
 use core::marker::PhantomData;
 
 use bytemuck::cast_vec;
@@ -53,6 +53,12 @@ impl Image {
                     "createImage",
                     "(Ljava/lang/String;)Ljavax/microedition/lcdui/Image;",
                     Self::create_image_from_name,
+                    MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "createImage",
+                    "(Ljavax/microedition/lcdui/Image;)Ljavax/microedition/lcdui/Image;",
+                    Self::create_image_from_image,
                     MethodAccessFlags::STATIC,
                 ),
             ],
@@ -155,7 +161,15 @@ impl Image {
             }
         };
 
-        Self::create_image_instance(jvm, image.width(), image.height(), image.raw(), image.bytes_per_pixel()).await
+        Self::create_image_instance(jvm, image.width(), image.height(), &image.raw(), image.bytes_per_pixel()).await
+    }
+
+    async fn create_image_from_image(jvm: &Jvm, _: &mut WieJvmContext, image: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("javax.microedition.lcdui.Image::createImage({image:?})");
+
+        let src_image = Image::image(jvm, &image).await?;
+
+        Self::create_image_instance(jvm, src_image.width(), src_image.height(), &src_image.raw(), src_image.bytes_per_pixel()).await
     }
 
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
@@ -282,14 +296,16 @@ where
         T::to_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]))
     }
 
-    fn raw(&self) -> &[u8] {
-        unimplemented!()
-    }
-
-    fn colors(&self) -> Vec<Color> {
+    fn raw(&self) -> Cow<[u8]> {
         let size = self.width() * self.height() * self.bytes_per_pixel();
         let mut buffer = vec![0; size as usize];
         self.raw_buffer.read(0, &mut buffer).unwrap();
+
+        Cow::Owned(buffer)
+    }
+
+    fn colors(&self) -> Vec<Color> {
+        let buffer = self.raw();
 
         buffer
             .chunks_exact(size_of::<T::DataType>())

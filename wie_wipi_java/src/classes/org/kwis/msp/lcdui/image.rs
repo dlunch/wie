@@ -39,6 +39,12 @@ impl Image {
                     Self::create_image_from_data,
                     MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new(
+                    "createImage",
+                    "(Lorg/kwis/msp/lcdui/Image;)Lorg/kwis/msp/lcdui/Image;",
+                    Self::create_image_from_image,
+                    MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, Default::default()),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
@@ -113,6 +119,26 @@ impl Image {
 
         let instance = jvm
             .new_class("org/kwis/msp/lcdui/Image", "(Ljavax/microedition/lcdui/Image;)V", (midp_image,))
+            .await?;
+
+        Ok(instance.into())
+    }
+
+    async fn create_image_from_image(jvm: &Jvm, _: &mut WieJvmContext, image: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({image:?})");
+
+        let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&image, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
+        let midp_image_clone: ClassInstanceRef<MidpImage> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Image",
+                "createImage",
+                "(Ljavax/microedition/lcdui/Image;)Ljavax/microedition/lcdui/Image;",
+                (midp_image,),
+            )
+            .await?;
+
+        let instance = jvm
+            .new_class("org/kwis/msp/lcdui/Image", "(Ljavax/microedition/lcdui/Image;)V", (midp_image_clone,))
             .await?;
 
         Ok(instance.into())
