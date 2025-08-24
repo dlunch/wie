@@ -58,6 +58,7 @@ impl Graphics {
                 JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, Default::default()),
                 JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
                 JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, Default::default()),
+                JavaMethodProto::new("encodeImage", "(IIII)[B", Self::encode_image, Default::default()),
             ],
             fields: vec![JavaFieldProto::new(
                 "midpGraphics",
@@ -542,5 +543,67 @@ impl Graphics {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setXORMode({:?}, {})", &this, xor_mode);
 
         Ok(())
+    }
+
+    async fn encode_image(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<ClassInstanceRef<Array<u8>>> {
+        tracing::warn!(
+            "stub org.kwis.msp.lcdui.Graphics::encodeImage({:?}, {}, {}, {}, {})",
+            &this,
+            x,
+            y,
+            width,
+            height
+        );
+
+        if width <= 0 || height <= 0 {
+            return Ok(jvm.instantiate_array("B", 0).await?.into());
+        }
+
+        let w = width as u32;
+        let h = height as u32;
+
+        // Each BMP row is padded to a multiple of 4 bytes
+        let row_stride = (w * 3).div_ceil(4) * 4; // 24bpp (3 bytes per pixel)
+        let image_size = row_stride * h;
+        let header_size = 14 + 40; // BITMAPFILEHEADER (14) + BITMAPINFOHEADER (40)
+        let file_size = header_size as u32 + image_size;
+
+        let mut result = vec![0u8; file_size as usize];
+
+        // BITMAPFILEHEADER
+        result[0] = b'B';
+        result[1] = b'M';
+        result[2..6].copy_from_slice(&(file_size).to_le_bytes());
+        // reserved1 (2 bytes) + reserved2 (2 bytes) already zero
+        result[10..14].copy_from_slice(&(header_size as u32).to_le_bytes()); // pixel data offset
+
+        // BITMAPINFOHEADER
+        result[14..18].copy_from_slice(&(40u32).to_le_bytes()); // DIB header size
+        result[18..22].copy_from_slice(&width.to_le_bytes()); // width (i32)
+        result[22..26].copy_from_slice(&height.to_le_bytes()); // height (i32), positive = bottom-up
+        result[26..28].copy_from_slice(&(1u16).to_le_bytes()); // planes
+        result[28..30].copy_from_slice(&(24u16).to_le_bytes()); // bits per pixel
+        result[30..34].copy_from_slice(&(0u32).to_le_bytes()); // compression = BI_RGB
+        result[34..38].copy_from_slice(&image_size.to_le_bytes()); // image size
+        result[38..42].copy_from_slice(&(2835u32).to_le_bytes()); // X pixels per meter (72 DPI)
+        result[42..46].copy_from_slice(&(2835u32).to_le_bytes()); // Y pixels per meter (72 DPI)
+        result[46..50].copy_from_slice(&(0u32).to_le_bytes()); // colors used
+        result[50..54].copy_from_slice(&(0u32).to_le_bytes()); // important colors
+
+        // TODO: fill in pixel data
+
+        // Return as Java byte array
+        let mut data_array = jvm.instantiate_array("B", result.len()).await?;
+        jvm.array_raw_buffer_mut(&mut data_array).await?.write(0, &result)?;
+
+        Ok(data_array.into())
     }
 }
