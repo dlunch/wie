@@ -59,6 +59,7 @@ impl Graphics {
                 JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
                 JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, Default::default()),
                 JavaMethodProto::new("encodeImage", "(IIII)[B", Self::encode_image, Default::default()),
+                JavaMethodProto::new("getRGBPixels", "(IIII[III)V", Self::get_rgb_pixels, Default::default()),
             ],
             fields: vec![JavaFieldProto::new(
                 "midpGraphics",
@@ -605,5 +606,22 @@ impl Graphics {
         jvm.array_raw_buffer_mut(&mut data_array).await?.write(0, &result)?;
 
         Ok(data_array.into())
+    }
+
+    async fn get_rgb_pixels(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        pixels: ClassInstanceRef<Array<i32>>,
+        offset: i32,
+        bpl: i32,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getRGBPixels({this:?}, {x}, {y}, {width}, {height}, {pixels:?}, {offset}, {bpl})");
+
+        Ok(())
     }
 }
