@@ -187,9 +187,11 @@ impl Display {
                     &current_displayable,
                     "paint",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
-                    (screen_graphics,),
+                    (screen_graphics.clone(),),
                 )
                 .await?;
+
+            let _: () = jvm.invoke_virtual(&screen_graphics, "reset", "()V", ()).await?;
         }
 
         let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
