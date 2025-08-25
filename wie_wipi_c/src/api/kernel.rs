@@ -12,16 +12,12 @@ use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes
 
 use crate::{WIPICMemoryId, WIPICResult, WIPICWord, context::WIPICContext, method::MethodBody};
 
-#[repr(C, packed)]
+// timer structure is different from api header because lgt apps uses smaller memory for timer
+#[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICTimer {
-    unk1: WIPICWord,
-    unk2: WIPICWord,
-    unk3: WIPICWord,
     time: u64,
-
     param: WIPICWord,
-    unk4: WIPICWord,
     fn_callback: WIPICWord,
 }
 
@@ -53,12 +49,8 @@ pub async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_
     tracing::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
     let timer = WIPICTimer {
-        unk1: 0,
-        unk2: 0,
-        unk3: 0,
         time: 0,
         param: 0,
-        unk4: 0,
         fn_callback,
     };
 
@@ -74,7 +66,7 @@ pub async fn set_timer(
     timeout_high: WIPICWord,
     param: WIPICWord,
 ) -> Result<()> {
-    tracing::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_low, timeout_high, param);
+    tracing::debug!("MC_knlSetTimer({ptr_timer:#x}, {timeout_low}, {timeout_high}, {param:#x})");
 
     struct TimerCallback {
         ptr_timer: u32,
