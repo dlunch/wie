@@ -23,7 +23,7 @@ pub async fn load_native(
     data: &[u8],
     ptr_jvm_context: u32,
     ptr_jvm_exception_context: u32,
-) -> Result<(ExeInterfaceFunctions, WipiExe)> {
+) -> Result<ExeInterfaceFunctions> {
     let bss_start = filename.find("client.bin").unwrap() + 10;
     let bss_size = filename[bss_start..].parse::<u32>().unwrap();
 
@@ -92,7 +92,13 @@ pub async fn load_native(
         return Err(WieError::FatalError(format!("Init failed with code {result:#x}")));
     }
 
-    Ok((exe_interface_functions, wipi_exe))
+    // call init
+    let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
+    if result != 0 {
+        return Err(WieError::FatalError(format!("wipi init failed with code {result:#x}")));
+    }
+
+    Ok(exe_interface_functions)
 }
 
 async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), ptr_name: u32) -> Result<u32> {

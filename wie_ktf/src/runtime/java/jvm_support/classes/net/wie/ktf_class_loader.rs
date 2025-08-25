@@ -1,18 +1,24 @@
 use alloc::{boxed::Box, vec};
 
+use bytemuck::cast_slice;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm::{
+    ClassInstanceRef, Jvm, Result as JvmResult,
+    runtime::{JavaIoInputStream, JavaLangString},
+};
 
+use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::write_null_terminated_string_bytes;
 
-use crate::runtime::java::jvm_support::class_definition::JavaClassDefinition;
+use crate::runtime::{init::load_native, java::jvm_support::class_definition::JavaClassDefinition};
 
 #[derive(Clone)]
 pub struct ClassLoaderContext {
     pub core: ArmCore,
+    pub system: System,
 }
 
 type ClassLoaderProto = JavaClassProto<ClassLoaderContext>;
@@ -27,7 +33,7 @@ impl KtfClassLoader {
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;I)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
             ],
             fields: vec![
@@ -40,24 +46,47 @@ impl KtfClassLoader {
 
     async fn init(
         jvm: &Jvm,
-        _context: &mut ClassLoaderContext,
+        context: &mut ClassLoaderContext,
         mut this: ClassInstanceRef<Self>,
         parent: ClassInstanceRef<ClassLoader>,
-        fn_get_class: i32,
+        binary_name: ClassInstanceRef<String>,
+        ptr_jvm_context: i32,
+        ptr_jvm_exception_context: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.KtfClassLoader::<init>({this:?}, {parent:?}, {fn_get_class:?})");
+        tracing::debug!("net.wie.KtfClassLoader::<init>({this:?}, {parent:?}, {binary_name:?})");
 
         let _: () = jvm
             .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
-
-        jvm.put_field(&mut this, "fnGetClass", "I", fn_get_class).await?;
 
         let native_strings = jvm.new_class("java/util/Vector", "()V", ()).await?;
         jvm.put_field(&mut this, "nativeStrings", "Ljava/util/Vector;", native_strings).await?;
 
         jvm.put_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;", this.clone())
             .await?;
+
+        // load client.bin
+        let name_rust = JavaLangString::to_rust_string(jvm, &binary_name).await.unwrap();
+        let data_stream = jvm
+            .invoke_virtual(&this, "getResourceAsStream", "(Ljava/lang/String;)Ljava/io/InputStream;", (binary_name,))
+            .await
+            .unwrap();
+        let data = JavaIoInputStream::read_until_end(jvm, &data_stream).await.unwrap();
+
+        // load binary
+        let native_functions = load_native(
+            &mut context.core,
+            &mut context.system,
+            jvm,
+            &name_rust,
+            cast_slice(&data),
+            ptr_jvm_context as _,
+            ptr_jvm_exception_context as _,
+        )
+        .await
+        .unwrap();
+
+        jvm.put_field(&mut this, "fnGetClass", "I", native_functions.fn_get_class as i32).await?;
 
         Ok(())
     }
