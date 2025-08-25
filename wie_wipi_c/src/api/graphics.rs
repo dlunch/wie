@@ -18,9 +18,15 @@ use self::{
 };
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
+const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
 
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICMemoryId> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
+
+    let framebuffer_ptr: u32 = read_generic(context, SCREEN_FRAMEBUFFER_PTR)?;
+    if framebuffer_ptr != 0 {
+        return Ok(WIPICMemoryId(framebuffer_ptr));
+    }
 
     let (width, height) = {
         let platform = context.system().platform();
@@ -28,11 +34,11 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWor
         (screen.width(), screen.height())
     };
 
-    // TODO: this leaks the memory. we should return static memory pointer
     let framebuffer = WIPICFramebuffer::new(context, width, height, FRAMEBUFFER_DEPTH)?;
 
     let memory = context.alloc(size_of::<WIPICFramebuffer>() as WIPICWord)?;
     write_generic(context, context.data_ptr(memory)?, framebuffer)?;
+    write_generic(context, SCREEN_FRAMEBUFFER_PTR, memory.0)?;
 
     Ok(memory)
 }
