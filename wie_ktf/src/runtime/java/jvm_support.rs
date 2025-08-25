@@ -99,11 +99,6 @@ impl KtfJvmSupport {
 
         // used in tests
         if jar_name.is_none() {
-            let context_data = KtfJvmSupportContext {
-                ptr_vtables_base: ptr_jvm_context + 12,
-                ptr_jvm_exception_context,
-            };
-            write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
             return Ok((jvm, system_class_loader));
         }
 
@@ -174,12 +169,6 @@ impl KtfJvmSupport {
             )
             .await
             .unwrap();
-
-        let context_data = KtfJvmSupportContext {
-            ptr_vtables_base: ptr_jvm_context + 12,
-            ptr_jvm_exception_context,
-        };
-        write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
         // call init with our class loader loaded
         let result = core.run_function::<u32>(wipi_exe.fn_init, &[]).await?;
