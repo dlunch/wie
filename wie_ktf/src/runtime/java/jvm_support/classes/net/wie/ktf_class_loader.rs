@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, vec};
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
+use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -32,6 +33,7 @@ impl KtfClassLoader {
             fields: vec![
                 JavaFieldProto::new("fnGetClass", "I", Default::default()),
                 JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
+                JavaFieldProto::new("instance", "Lnet/wie/KtfClassLoader;", FieldAccessFlags::STATIC),
             ],
         }
     }
@@ -53,6 +55,9 @@ impl KtfClassLoader {
 
         let native_strings = jvm.new_class("java/util/Vector", "()V", ()).await?;
         jvm.put_field(&mut this, "nativeStrings", "Ljava/util/Vector;", native_strings).await?;
+
+        jvm.put_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;", this.clone())
+            .await?;
 
         Ok(())
     }
