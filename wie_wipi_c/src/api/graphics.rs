@@ -28,6 +28,7 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWor
         (screen.width(), screen.height())
     };
 
+    // TODO: this leaks the memory. we should return static memory pointer
     let framebuffer = WIPICFramebuffer::new(context, width, height, FRAMEBUFFER_DEPTH)?;
 
     let memory = context.alloc(size_of::<WIPICFramebuffer>() as WIPICWord)?;
