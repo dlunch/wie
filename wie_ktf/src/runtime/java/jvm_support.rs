@@ -81,7 +81,6 @@ impl KtfJvmSupport {
             ptr_vtables_base: ptr_jvm_context + 12,
             ptr_jvm_exception_context,
         };
-        core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];

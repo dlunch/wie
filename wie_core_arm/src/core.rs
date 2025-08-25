@@ -16,6 +16,7 @@ use crate::{
     thread_wrapper::ArmCoreThreadWrapper,
 };
 
+const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
@@ -47,6 +48,7 @@ impl ArmCore {
         };
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
+        engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
 
         let inner = ArmCoreInner {
             engine,
