@@ -57,7 +57,6 @@ struct KtfJvmExceptionContext {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
-    class_loader: u32,
     ptr_jvm_exception_context: u32,
 }
 
@@ -85,7 +84,6 @@ impl KtfJvmSupport {
 
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
-            class_loader: 0,
             ptr_jvm_exception_context,
         };
         core.map(SUPPORT_CONTEXT_BASE, 0x1000)?;
@@ -103,7 +101,6 @@ impl KtfJvmSupport {
         if jar_name.is_none() {
             let context_data = KtfJvmSupportContext {
                 ptr_vtables_base: ptr_jvm_context + 12,
-                class_loader: KtfJvmSupport::class_instance_raw(&system_class_loader),
                 ptr_jvm_exception_context,
             };
             write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
@@ -180,7 +177,6 @@ impl KtfJvmSupport {
 
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
-            class_loader: KtfJvmSupport::class_instance_raw(&class_loader),
             ptr_jvm_exception_context,
         };
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
@@ -192,12 +188,6 @@ impl KtfJvmSupport {
         }
 
         Ok((jvm, class_loader))
-    }
-
-    pub fn class_loader(core: &ArmCore) -> Result<Box<dyn ClassInstance>> {
-        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
-
-        Ok(Box::new(JavaClassInstance::from_raw(context_data.class_loader, core)))
     }
 
     pub fn class_definition_raw(definition: &dyn ClassDefinition) -> Result<u32> {

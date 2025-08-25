@@ -122,7 +122,12 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
         return Ok(());
     }
 
-    let result = jvm.register_class(Box::new(class), Some(KtfJvmSupport::class_loader(core)?)).await;
+    let ktf_class_loader = jvm
+        .get_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;")
+        .await
+        .unwrap();
+
+    let result = jvm.register_class(Box::new(class), Some(ktf_class_loader)).await;
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
     }
@@ -152,8 +157,11 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
 
     // Add to class loader to not to be garbage collected
     // TODO encapsulation?
-    let class_loader = KtfJvmSupport::class_loader(core)?;
-    let strings_field: ClassInstanceRef<Vector> = jvm.get_field(&class_loader, "nativeStrings", "Ljava/util/Vector;").await.unwrap();
+    let ktf_class_loader = jvm
+        .get_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;")
+        .await
+        .unwrap();
+    let strings_field: ClassInstanceRef<Vector> = jvm.get_field(&ktf_class_loader, "nativeStrings", "Ljava/util/Vector;").await.unwrap();
     let _: bool = jvm
         .invoke_virtual(&strings_field, "add", "(Ljava/lang/Object;)Z", (instance.clone(),))
         .await
