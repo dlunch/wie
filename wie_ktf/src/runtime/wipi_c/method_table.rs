@@ -86,6 +86,7 @@ where
         oemc_get_token: context.register_function(gen_stub(64, "OEMC_knlGetToken"))?,
     })
 }
+
 pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
     vec![
         graphics::get_image_property.into_body(),
@@ -98,7 +99,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(7, "MC_grpGetContext"),
         graphics::put_pixel.into_body(),
         gen_stub(9, "MC_grpDrawLine"),
-        gen_stub(10, "MC_grpDrawRect"),
+        graphics::draw_rect.into_body(),
         graphics::fill_rect.into_body(),
         graphics::copy_frame_buffer.into_body(),
         graphics::draw_image.into_body(),
