@@ -274,7 +274,7 @@ pub fn get_media_method_table() -> Vec<WIPICMethodBody> {
         media::clip_put_data.into_body(),
         gen_stub(5, "MC_mdaUnk5"),
         gen_stub(6, "MC_mdaUnk6"),
-        gen_stub(7, "MC_mdaUnk7"),
+        media::unk7.into_body(),
         media::play.into_body(),
         media::pause.into_body(),
         media::resume.into_body(),

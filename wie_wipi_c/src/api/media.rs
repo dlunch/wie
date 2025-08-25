@@ -234,6 +234,12 @@ pub async fn record(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<
     Ok(0)
 }
 
+pub async fn unk7(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
+    tracing::warn!("stub MC_mdaUnk7({:#x})", clip);
+
+    Ok(0)
+}
+
 pub async fn unk17(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::warn!("stub MC_mdaUnk17({:#x})", clip);
 
