@@ -233,7 +233,14 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
             let mut flag = None;
             let mut width = None;
             loop {
-                let c = chars.next().unwrap();
+                let c = chars.next();
+                if c.is_none() {
+                    // broken formats..
+                    result.push('%');
+                    break;
+                }
+                let c = c.unwrap();
+
                 match c {
                     '%' => {
                         result.push('%');
