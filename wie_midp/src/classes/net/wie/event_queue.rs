@@ -62,7 +62,7 @@ pub enum MIDPKeyCode {
     KEY_POUND = 35, // #
     KEY_STAR = 42,  // *
 
-    CLEAR = -16,
+    CLEAR = 8,
 }
 
 impl MIDPKeyCode {
