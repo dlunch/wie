@@ -98,7 +98,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         graphics::set_context.into_body(),
         gen_stub(7, "MC_grpGetContext"),
         graphics::put_pixel.into_body(),
-        gen_stub(9, "MC_grpDrawLine"),
+        graphics::draw_line.into_body(),
         graphics::draw_rect.into_body(),
         graphics::fill_rect.into_body(),
         graphics::copy_frame_buffer.into_body(),
