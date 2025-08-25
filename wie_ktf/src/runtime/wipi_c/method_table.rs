@@ -33,7 +33,7 @@ where
         get_app_manager_id: context.register_function(gen_stub(11, "MC_knlGetAppManagerID"))?,
         get_program_info: context.register_function(gen_stub(12, "MC_knlGetProgramInfo"))?,
         get_access_level: context.register_function(gen_stub(13, "MC_knlGetAccessLevel"))?,
-        get_program_name: context.register_function(gen_stub(14, "MC_knlGetProgramName"))?,
+        get_program_name: context.register_function(kernel::get_program_name.into_body())?,
         create_shared_buf: context.register_function(gen_stub(15, "MC_knlCreateSharedBuf"))?,
         destroy_shared_buf: context.register_function(gen_stub(16, "MC_knlDestroySharedBuf"))?,
         get_shared_buf: context.register_function(gen_stub(17, "MC_knlGetSharedBuf"))?,
