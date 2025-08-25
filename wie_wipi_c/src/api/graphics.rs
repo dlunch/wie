@@ -413,6 +413,24 @@ pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICMemo
     })
 }
 
+pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, pgc: WIPICWord) -> Result<()> {
+    tracing::debug!("MC_grpDrawRect({:#x}, {x}, {y}, {w}, {h}, {pgc:#x})", dst.0);
+
+    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+    let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
+    let mut canvas = framebuffer.canvas(context)?;
+
+    let clip = Clip {
+        x: x as _,
+        y: y as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    canvas.draw_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl), clip);
+    Ok(())
+}
+
 // it's not documented api, but lgt apps gets pointer via api call
 pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<WIPICWord> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_POINTER({:#x})", framebuffer.0);
