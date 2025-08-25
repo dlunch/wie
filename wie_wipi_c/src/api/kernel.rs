@@ -1,4 +1,9 @@
-use alloc::{boxed::Box, format, str, string::String, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format, str,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
@@ -305,6 +310,22 @@ pub async fn get_cur_program_id(_context: &mut dyn WIPICContext) -> Result<WIPIC
     tracing::warn!("stub MC_knlGetCurProgramID()");
 
     Ok(1)
+}
+
+pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWord, buf_size: i32) -> Result<i32> {
+    tracing::debug!("MC_knlGetProgramName({name_buf:#x}, {buf_size})");
+
+    let aid = context.system().aid().to_string();
+
+    if buf_size < aid.len() as i32 + 1 {
+        return Ok(-18); // M_E_SHORTBUF
+    }
+
+    let aid_bytes = aid.as_bytes();
+    context.write_bytes(name_buf, aid_bytes)?;
+    context.write_bytes(name_buf + aid_bytes.len() as u32, &[0])?;
+
+    Ok(0)
 }
 
 #[cfg(test)]
