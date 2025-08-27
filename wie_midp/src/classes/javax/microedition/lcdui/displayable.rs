@@ -5,7 +5,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::Display;
+use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display};
 
 // class javax.microedition.lcdui.Displayable
 pub struct Displayable;
@@ -18,6 +18,18 @@ impl Displayable {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new(
+                    "addCommand",
+                    "(Ljavax/microedition/lcdui/Command;)V",
+                    Self::add_command,
+                    Default::default(),
+                ),
+                JavaMethodProto::new(
+                    "setCommandListener",
+                    "(Ljavax/microedition/lcdui/CommandListener;)V",
+                    Self::set_command_listener,
+                    Default::default(),
+                ),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 // wie private methods...
@@ -40,6 +52,28 @@ impl Displayable {
         tracing::debug!("javax.microedition.lcdui.Displayable::<init>({:?})", &this);
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
+
+        Ok(())
+    }
+
+    async fn add_command(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        command: ClassInstanceRef<Command>,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Displayable::addCommand({this:?}, {command:?})");
+
+        Ok(())
+    }
+
+    async fn set_command_listener(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        listener: ClassInstanceRef<CommandListener>,
+    ) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.lcdui.Displayable::setCommandListener({this:?}, {listener:?})");
 
         Ok(())
     }
