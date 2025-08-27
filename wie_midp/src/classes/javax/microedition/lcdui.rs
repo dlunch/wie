@@ -1,3 +1,4 @@
+mod alert;
 mod canvas;
 mod command;
 mod display;
@@ -6,5 +7,9 @@ mod font;
 pub mod game;
 mod graphics;
 mod image;
+mod screen;
 
-pub use {canvas::Canvas, command::Command, display::Display, displayable::Displayable, font::Font, graphics::Graphics, image::Image};
+pub use {
+    alert::Alert, canvas::Canvas, command::Command, display::Display, displayable::Displayable, font::Font, graphics::Graphics, image::Image,
+    screen::Screen,
+};
