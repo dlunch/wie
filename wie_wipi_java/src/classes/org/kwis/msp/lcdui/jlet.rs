@@ -39,6 +39,7 @@ impl Jlet {
                     Self::get_app_property,
                     Default::default(),
                 ),
+                JavaMethodProto::new("notifyDestroyed", "()V", Self::notify_destroyed, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("wipiMidlet", "Lnet/wie/WIPIMIDlet;", Default::default()),
@@ -116,6 +117,17 @@ impl Jlet {
             .await?;
 
         Ok(value)
+    }
+
+    async fn notify_destroyed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({:?})", &this);
+
+        let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
+        let _: () = jvm.invoke_virtual(&midlet, "notifyDestroyed", "()V", ()).await?;
+
+        let _: () = jvm.invoke_virtual(&this, "destroyApp", "(Z)V", (false,)).await?;
+
+        Ok(())
     }
 
     pub async fn midlet(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MIDlet>> {

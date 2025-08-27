@@ -27,6 +27,7 @@ impl MIDlet {
                     Default::default(),
                 ),
                 JavaMethodProto::new_abstract("startApp", "([Ljava/lang/String;)V", Default::default()),
+                JavaMethodProto::new("notifyDestroyed", "()V", Self::notify_destroyed, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("currentMIDlet", "Ljavax/microedition/midlet/MIDlet;", FieldAccessFlags::STATIC),
@@ -69,6 +70,12 @@ impl MIDlet {
 
         jvm.invoke_static("java/lang/System", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;", (system_key,))
             .await
+    }
+
+    async fn notify_destroyed(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyDestroyed({:?})", &this);
+
+        Ok(())
     }
 
     pub async fn display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Display>> {
