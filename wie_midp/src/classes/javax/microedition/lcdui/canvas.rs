@@ -5,6 +5,8 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+use crate::classes::net::wie::MIDPKeyCode;
+
 // class javax.microedition.lcdui.Canvas
 pub struct Canvas;
 
@@ -80,13 +82,13 @@ impl Canvas {
     async fn get_game_action(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({:?}, {})", &this, key);
 
-        let action = match key {
-            -1 => 1,   // UP
-            -2 => 6,   // DOWN
-            -3 => 2,   // LEFT
-            -4 => 5,   // RIGHT
-            -5 => 8,   // FIRE,
-            -16 => 99, // CLEAR
+        let action = match MIDPKeyCode::from_raw(key) {
+            MIDPKeyCode::UP => 1,     // UP
+            MIDPKeyCode::DOWN => 6,   // DOWN
+            MIDPKeyCode::LEFT => 2,   // LEFT
+            MIDPKeyCode::RIGHT => 5,  // RIGHT
+            MIDPKeyCode::FIRE => 8,   // FIRE,
+            MIDPKeyCode::CLEAR => 99, // CLEAR
             _ => key,
         };
 
