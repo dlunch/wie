@@ -680,17 +680,17 @@ impl Graphics {
         let mut canvas = Image::canvas(jvm, &image).await?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
-            -((src_image.width() / 2) as i32)
+            -width / 2
         } else if anchor.contains(Anchor::RIGHT) {
-            -(src_image.width() as i32)
+            -height
         } else {
             0
         };
 
         let y_delta = if anchor.contains(Anchor::VCENTER) {
-            -((src_image.height() / 2) as i32)
+            -height / 2
         } else if anchor.contains(Anchor::BOTTOM) {
-            -(src_image.height() as i32)
+            -height
         } else {
             0
         };
