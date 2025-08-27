@@ -86,6 +86,8 @@ impl CardCanvas {
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "<init>", "()V", ()).await?;
 
+        let _: () = jvm.invoke_virtual(&this, "setFullScreenMode", "(Z)V", (true,)).await?;
+
         let cards = jvm.new_class("java/util/Vector", "()V", ()).await?;
         jvm.put_field(&mut this, "cards", "Ljava/util/Vector;", cards).await?;
 
