@@ -1,4 +1,5 @@
 mod alert;
+mod alert_type;
 mod canvas;
 mod command;
 mod command_listener;
@@ -11,6 +12,6 @@ mod image;
 mod screen;
 
 pub use {
-    alert::Alert, canvas::Canvas, command::Command, command_listener::CommandListener, display::Display, displayable::Displayable, font::Font,
-    graphics::Graphics, image::Image, screen::Screen,
+    alert::Alert, alert_type::AlertType, canvas::Canvas, command::Command, command_listener::CommandListener, display::Display,
+    displayable::Displayable, font::Font, graphics::Graphics, image::Image, screen::Screen,
 };
