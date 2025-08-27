@@ -83,13 +83,12 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({:?}, {})", &this, key);
 
         let action = match MIDPKeyCode::from_raw(key) {
-            MIDPKeyCode::UP => 1,     // UP
-            MIDPKeyCode::DOWN => 6,   // DOWN
-            MIDPKeyCode::LEFT => 2,   // LEFT
-            MIDPKeyCode::RIGHT => 5,  // RIGHT
-            MIDPKeyCode::FIRE => 8,   // FIRE,
-            MIDPKeyCode::CLEAR => 99, // CLEAR
-            _ => key,
+            MIDPKeyCode::UP => 1,    // UP
+            MIDPKeyCode::DOWN => 6,  // DOWN
+            MIDPKeyCode::LEFT => 2,  // LEFT
+            MIDPKeyCode::RIGHT => 5, // RIGHT
+            MIDPKeyCode::FIRE => 8,  // FIRE,
+            _ => 0,
         };
 
         Ok(action)
