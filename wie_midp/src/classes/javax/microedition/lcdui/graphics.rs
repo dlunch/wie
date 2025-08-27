@@ -81,6 +81,12 @@ impl Graphics {
                     Self::draw_image,
                     Default::default(),
                 ),
+                JavaMethodProto::new(
+                    "drawRegion",
+                    "(Ljavax/microedition/lcdui/Image;IIIIIIII)V",
+                    Self::draw_region,
+                    Default::default(),
+                ),
                 JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
                 JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, Default::default()),
                 JavaMethodProto::new("getColor", "()I", Self::get_color, Default::default()),
@@ -641,6 +647,63 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw(x as _, y as _, src_image.width(), src_image.height(), &*src_image, 0, 0, clip);
+
+        Ok(())
+    }
+
+    async fn draw_region(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        img: ClassInstanceRef<Image>,
+        src_x: i32,
+        src_y: i32,
+        width: i32,
+        height: i32,
+        transform: i32,
+        x: i32,
+        y: i32,
+        anchor: Anchor,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Graphics::drawRegion({this:?}, {img:?}, {src_x}, {src_y}, {width}, {height}, {transform}, {x}, {y}, {})",
+            anchor.0
+        );
+
+        if img.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "img is null").await);
+        }
+
+        let src_image = Image::image(jvm, &img).await?;
+
+        let image = Self::image(jvm, &mut this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+
+        let x_delta = if anchor.contains(Anchor::HCENTER) {
+            -((src_image.width() / 2) as i32)
+        } else if anchor.contains(Anchor::RIGHT) {
+            -(src_image.width() as i32)
+        } else {
+            0
+        };
+
+        let y_delta = if anchor.contains(Anchor::VCENTER) {
+            -((src_image.height() / 2) as i32)
+        } else if anchor.contains(Anchor::BOTTOM) {
+            -(src_image.height() as i32)
+        } else {
+            0
+        };
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let x = translate_x + x + x_delta;
+        let y = translate_y + y + y_delta;
+
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.draw(x as _, y as _, width as _, height as _, &*src_image, src_x, src_y, clip);
 
         Ok(())
     }
