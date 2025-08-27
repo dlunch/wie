@@ -3,6 +3,7 @@ mod command;
 mod display;
 mod displayable;
 mod font;
+pub mod game;
 mod graphics;
 mod image;
 
