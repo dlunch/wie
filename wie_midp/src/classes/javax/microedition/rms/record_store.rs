@@ -42,6 +42,12 @@ impl RecordStore {
                     Self::delete_record_store,
                     MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new(
+                    "listRecordStores",
+                    "()[Ljava/lang/String;",
+                    Self::list_record_stores,
+                    MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
         }
@@ -227,6 +233,14 @@ impl RecordStore {
         tracing::warn!("stub javax.microedition.rms.RecordStore::deleteRecordStore({name:?})");
 
         Ok(())
+    }
+
+    async fn list_record_stores(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Array<String>>> {
+        tracing::warn!("stub javax.microedition.rms.RecordStore::listRecordStores()");
+
+        let result = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
+
+        Ok(result.into())
     }
 
     async fn get_database(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<Box<dyn Database>> {

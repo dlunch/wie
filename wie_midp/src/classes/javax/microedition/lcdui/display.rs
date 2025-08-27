@@ -35,6 +35,7 @@ impl Display {
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
+                JavaMethodProto::new("vibrate", "(I)Z", Self::vibrate, Default::default()),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
@@ -143,6 +144,12 @@ impl Display {
         let display = MIDlet::display(jvm, &midlet).await?;
 
         Ok(display)
+    }
+
+    async fn vibrate(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, duration: i32) -> JvmResult<bool> {
+        tracing::warn!("stub javax.microedition.lcdui.Display::vibrate({this:?}, {duration})");
+
+        Ok(false)
     }
 
     async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
