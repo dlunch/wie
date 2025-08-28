@@ -9,7 +9,10 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
 
-use crate::classes::org::kwis::msp::lcdui::{Card, Jlet, JletEventListener};
+use crate::classes::{
+    net::wie::WIPIKeyCode,
+    org::kwis::msp::lcdui::{Card, Jlet, JletEventListener},
+};
 
 // class org.kwis.msp.lcdui.Display
 pub struct Display;
@@ -202,9 +205,11 @@ impl Display {
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
             .await?;
 
+        let midp_keycode = WIPIKeyCode::from_raw(key).into_midp_key_code();
+
         let card_canvas = jvm.get_field(&display, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
 
-        let action: i32 = jvm.invoke_virtual(&card_canvas, "getGameAction", "(I)I", (key,)).await?;
+        let action: i32 = jvm.invoke_virtual(&card_canvas, "getGameAction", "(I)I", (midp_keycode as i32,)).await?;
 
         Ok(action)
     }
