@@ -327,9 +327,6 @@ where
     }
 
     fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color) {
-        let x2 = if x1 == x2 { x2 + 1 } else { x2 };
-        let y2 = if y1 == y2 { y2 + 1 } else { y2 };
-
         // bresenham's line drawing
         let dx = (x2 - x1).abs();
         let dy = (y2 - y1).abs();
@@ -340,7 +337,7 @@ where
         let mut x = x1;
         let mut y = y1;
 
-        while x != x2 && y != y2 {
+        while x != x2 || y != y2 {
             self.blend_pixel(x as _, y as _, color);
 
             let e2 = 2 * err;

@@ -14,11 +14,11 @@ use crate::classes::javax::microedition::lcdui::{Font, Image};
 
 bitflags::bitflags! {
     struct Anchor: i32 {
-        const TOP = 0;
         const HCENTER = 1;
         const VCENTER = 2;
         const LEFT = 4;
         const RIGHT = 8;
+        const TOP = 16;
         const BOTTOM = 32;
         const BASELINE = 64;
     }
