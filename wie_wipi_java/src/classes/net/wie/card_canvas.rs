@@ -11,7 +11,7 @@ use crate::classes::org::kwis::msp::lcdui::Card;
 #[repr(i32)]
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Copy, Clone)]
-enum WIPIKeyCode {
+pub enum WIPIKeyCode {
     UP = -1,
     DOWN = -2,
     LEFT = -3,
@@ -35,7 +35,11 @@ enum WIPIKeyCode {
 }
 
 impl WIPIKeyCode {
-    fn from_midp_key_code(keycode: MIDPKeyCode) -> Self {
+    pub fn from_raw(value: i32) -> Self {
+        unsafe { core::mem::transmute(value) }
+    }
+
+    pub fn from_midp_key_code(keycode: MIDPKeyCode) -> Self {
         match keycode {
             MIDPKeyCode::UP => Self::UP,
             MIDPKeyCode::DOWN => Self::DOWN,
@@ -55,6 +59,29 @@ impl WIPIKeyCode {
             MIDPKeyCode::KEY_POUND => Self::HASH,
             MIDPKeyCode::KEY_STAR => Self::STAR,
             MIDPKeyCode::CLEAR => Self::CLEAR,
+        }
+    }
+
+    pub fn into_midp_key_code(self) -> MIDPKeyCode {
+        match self {
+            Self::UP => MIDPKeyCode::UP,
+            Self::DOWN => MIDPKeyCode::DOWN,
+            Self::LEFT => MIDPKeyCode::LEFT,
+            Self::RIGHT => MIDPKeyCode::RIGHT,
+            Self::FIRE => MIDPKeyCode::FIRE,
+            Self::NUM0 => MIDPKeyCode::KEY_NUM0,
+            Self::NUM1 => MIDPKeyCode::KEY_NUM1,
+            Self::NUM2 => MIDPKeyCode::KEY_NUM2,
+            Self::NUM3 => MIDPKeyCode::KEY_NUM3,
+            Self::NUM4 => MIDPKeyCode::KEY_NUM4,
+            Self::NUM5 => MIDPKeyCode::KEY_NUM5,
+            Self::NUM6 => MIDPKeyCode::KEY_NUM6,
+            Self::NUM7 => MIDPKeyCode::KEY_NUM7,
+            Self::NUM8 => MIDPKeyCode::KEY_NUM8,
+            Self::NUM9 => MIDPKeyCode::KEY_NUM9,
+            Self::HASH => MIDPKeyCode::KEY_POUND,
+            Self::STAR => MIDPKeyCode::KEY_STAR,
+            Self::CLEAR => MIDPKeyCode::CLEAR,
         }
     }
 }
