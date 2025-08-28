@@ -319,6 +319,10 @@ where
     T: PixelType,
 {
     fn put_pixel(&mut self, x: i32, y: i32, color: Color) {
+        if x > self.width || y > self.height || x < 0 || y < 0 {
+            return;
+        }
+
         let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
         let raw = T::from_color(color);
@@ -328,6 +332,10 @@ where
     }
 
     fn put_pixels(&mut self, x: i32, y: i32, _width: u32, colors: &[Color]) {
+        if x > self.width || y > self.height || x < 0 || y < 0 {
+            return;
+        }
+
         let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
         let raw_bytes = colors
