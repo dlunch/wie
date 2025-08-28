@@ -198,18 +198,20 @@ impl Display {
         Ok(())
     }
 
-    async fn get_game_action(jvm: &Jvm, _: &mut WieJvmContext, key: i32) -> JvmResult<i32> {
+    async fn get_game_action(_jvm: &Jvm, _: &mut WieJvmContext, key: i32) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getGameAction({})", key);
 
-        let display = jvm
-            .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
-            .await?;
+        let key = WIPIKeyCode::from_raw(key);
 
-        let midp_keycode = WIPIKeyCode::from_raw(key).into_midp_key_code();
-
-        let card_canvas = jvm.get_field(&display, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
-
-        let action: i32 = jvm.invoke_virtual(&card_canvas, "getGameAction", "(I)I", (midp_keycode as i32,)).await?;
+        let action = match key {
+            WIPIKeyCode::UP => 1,
+            WIPIKeyCode::DOWN => 6,
+            WIPIKeyCode::LEFT => 2,
+            WIPIKeyCode::RIGHT => 5,
+            WIPIKeyCode::FIRE => 8,
+            WIPIKeyCode::CLEAR => 99,
+            _ => key as _,
+        };
 
         Ok(action)
     }

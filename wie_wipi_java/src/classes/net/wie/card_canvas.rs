@@ -61,29 +61,6 @@ impl WIPIKeyCode {
             MIDPKeyCode::CLEAR => Self::CLEAR,
         }
     }
-
-    pub fn into_midp_key_code(self) -> MIDPKeyCode {
-        match self {
-            Self::UP => MIDPKeyCode::UP,
-            Self::DOWN => MIDPKeyCode::DOWN,
-            Self::LEFT => MIDPKeyCode::LEFT,
-            Self::RIGHT => MIDPKeyCode::RIGHT,
-            Self::FIRE => MIDPKeyCode::FIRE,
-            Self::NUM0 => MIDPKeyCode::KEY_NUM0,
-            Self::NUM1 => MIDPKeyCode::KEY_NUM1,
-            Self::NUM2 => MIDPKeyCode::KEY_NUM2,
-            Self::NUM3 => MIDPKeyCode::KEY_NUM3,
-            Self::NUM4 => MIDPKeyCode::KEY_NUM4,
-            Self::NUM5 => MIDPKeyCode::KEY_NUM5,
-            Self::NUM6 => MIDPKeyCode::KEY_NUM6,
-            Self::NUM7 => MIDPKeyCode::KEY_NUM7,
-            Self::NUM8 => MIDPKeyCode::KEY_NUM8,
-            Self::NUM9 => MIDPKeyCode::KEY_NUM9,
-            Self::HASH => MIDPKeyCode::KEY_POUND,
-            Self::STAR => MIDPKeyCode::KEY_STAR,
-            Self::CLEAR => MIDPKeyCode::CLEAR,
-        }
-    }
 }
 
 // class net.wie.CardCanvas
