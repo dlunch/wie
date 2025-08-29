@@ -42,6 +42,7 @@ impl Graphics {
                 JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, Default::default()),
                 JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, Default::default()),
                 JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
+                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, Default::default()),
                 JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
                 JavaMethodProto::new("drawSubstring", "(Ljava/lang/String;IIIII)V", Self::draw_substring, Default::default()),
                 JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
@@ -319,6 +320,33 @@ impl Graphics {
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         jvm.invoke_virtual(&midp_graphics, "drawChar", "(CIII)V", (ch, x, y, anchor)).await
+    }
+
+    async fn draw_chars(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        chars: ClassInstanceRef<Array<JavaChar>>,
+        offset: i32,
+        length: i32,
+        x: i32,
+        y: i32,
+        anchor: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "org.kwis.msp.lcdui.Graphics::drawChars({:?}, {:?}, {}, {}, {}, {}, {})",
+            &this,
+            chars,
+            offset,
+            length,
+            x,
+            y,
+            anchor
+        );
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "drawChars", "([CIIIII)V", (chars, offset, length, x, y, anchor))
+            .await
     }
 
     async fn draw_string(
