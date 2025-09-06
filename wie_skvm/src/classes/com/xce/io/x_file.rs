@@ -3,12 +3,14 @@ use alloc::vec;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::{
-    io::{InputStream, OutputStream},
+    io::{InputStream, RandomAccessFile},
     lang::String,
 };
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+
+const READ_RESOURCE: i32 = 8;
 
 // class com.xce.io.XFile
 pub struct XFile;
@@ -30,8 +32,9 @@ impl XFile {
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
             fields: vec![
+                JavaFieldProto::new("mode", "I", Default::default()),
                 JavaFieldProto::new("is", "Ljava/io/InputStream;", Default::default()),
-                JavaFieldProto::new("os", "Ljava/io/OutputStream;", Default::default()),
+                JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", Default::default()),
             ],
         }
     }
@@ -47,22 +50,24 @@ impl XFile {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        if mode == 8 {
-            // READ_RESOURCE
+        if mode == READ_RESOURCE {
             let class = jvm.invoke_virtual(&this, "getClass", "()Ljava/lang/Class;", ()).await?;
             let resource_stream: ClassInstanceRef<InputStream> = jvm
                 .invoke_virtual(&class, "getResourceAsStream", "(Ljava/lang/String;)Ljava/io/InputStream;", (name,))
                 .await?;
 
             jvm.put_field(&mut this, "is", "Ljava/io/InputStream;", resource_stream).await?;
+            jvm.put_field(&mut this, "mode", "I", mode).await?;
         } else {
             let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
 
-            let is = jvm.new_class("java/io/FileInputStream", "(Ljava/io/File;)V", (file.clone(),)).await?;
-            let os = jvm.new_class("java/io/FileOutputStream", "(Ljava/io/File;)V", (file,)).await?;
+            let file_mode = JavaLangString::from_rust_string(jvm, "rw").await?;
 
-            jvm.put_field(&mut this, "is", "Ljava/io/InputStream;", is).await?;
-            jvm.put_field(&mut this, "os", "Ljava/io/OutputStream;", os).await?;
+            let raf = jvm
+                .new_class("java/io/RandomAccessFile", "(Ljava/io/File;Ljava/lang/String;)V", (file, file_mode))
+                .await?;
+            jvm.put_field(&mut this, "raf", "Ljava/io/RandomAccessFile;", raf).await?;
+            jvm.put_field(&mut this, "mode", "I", mode).await?;
         }
 
         Ok(())
@@ -95,10 +100,19 @@ impl XFile {
     async fn available(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::available({this:?})");
 
-        let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
-        let available = jvm.invoke_virtual(&is, "available", "()I", ()).await?;
+        let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
+        if mode == READ_RESOURCE {
+            let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
+            let available = jvm.invoke_virtual(&is, "available", "()I", ()).await?;
 
-        Ok(available)
+            Ok(available)
+        } else {
+            let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+            let file_length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
+            let file_pointer: i64 = jvm.invoke_virtual(&raf, "getFilePointer", "()J", ()).await?;
+
+            Ok((file_length - file_pointer) as i32)
+        }
     }
 
     async fn read(
@@ -111,10 +125,19 @@ impl XFile {
     ) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::read({:?}, {:?}, {}, {})", this, data, offset, length);
 
-        let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
-        let read: i32 = jvm.invoke_virtual(&is, "read", "([BII)I", (data, offset, length)).await?;
+        let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
 
-        Ok(read)
+        if mode == READ_RESOURCE {
+            let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
+            let read: i32 = jvm.invoke_virtual(&is, "read", "([BII)I", (data, offset, length)).await?;
+
+            Ok(read)
+        } else {
+            let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+            let read: i32 = jvm.invoke_virtual(&raf, "read", "([BII)I", (data, offset, length)).await?;
+
+            Ok(read)
+        }
     }
 
     async fn write(
@@ -127,9 +150,13 @@ impl XFile {
     ) -> JvmResult<i32> {
         tracing::debug!("com.xce.io.XFile::write({:?}, {:?}, {}, {})", this, data, offset, length);
 
-        let os: ClassInstanceRef<OutputStream> = jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await?;
+        let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
+        if mode == READ_RESOURCE {
+            return Err(jvm.exception("java/io/IOException", "File not opened for writing").await);
+        }
 
-        let _: () = jvm.invoke_virtual(&os, "write", "([BII)V", (data, offset, length)).await?;
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (data, offset, length)).await?;
 
         Ok(length)
     }
@@ -137,24 +164,21 @@ impl XFile {
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("com.xce.io.XFile::close({:?})", this);
 
-        let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
-        let os: ClassInstanceRef<OutputStream> = jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await?;
-
-        if !is.is_null() {
+        let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
+        if mode == READ_RESOURCE {
+            let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
             let _: () = jvm.invoke_virtual(&is, "close", "()V", ()).await?;
-        }
-        if !os.is_null() {
-            let _: () = jvm.invoke_virtual(&os, "close", "()V", ()).await?;
+        } else {
+            let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+            let _: () = jvm.invoke_virtual(&raf, "close", "()V", ()).await?;
         }
 
         Ok(())
     }
 
-    pub async fn input_stream(jvm: &Jvm, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
-        jvm.get_field(&this, "is", "Ljava/io/InputStream;").await
-    }
+    pub async fn raf(jvm: &Jvm, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<RandomAccessFile>> {
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
 
-    pub async fn output_stream(jvm: &Jvm, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<OutputStream>> {
-        jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await
+        Ok(raf)
     }
 }
