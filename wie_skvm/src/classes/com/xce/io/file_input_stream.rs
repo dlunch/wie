@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_runtime::classes::java::lang::String;
+use java_runtime::classes::java::{io::FileDescriptor, lang::String};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -50,7 +50,10 @@ impl FileInputStream {
     ) -> JvmResult<()> {
         tracing::debug!("com.xce.io.FileInputStream::<init>({:?}, {:?})", this, file);
 
-        let is = XFile::input_stream(jvm, file).await?;
+        let raf = XFile::raf(jvm, file).await?;
+        let fd: ClassInstanceRef<FileDescriptor> = jvm.invoke_virtual(&raf, "getFD", "()Ljava/io/FileDescriptor;", ()).await?;
+        let is = jvm.new_class("java/io/FileInputStream", "(Ljava/io/FileDescriptor;)V", (fd,)).await?;
+
         jvm.put_field(&mut this, "is", "Ljava/io/InputStream;", is).await?;
 
         Ok(())
