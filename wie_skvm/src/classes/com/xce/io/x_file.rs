@@ -30,6 +30,7 @@ impl XFile {
                 JavaMethodProto::new("read", "([BII)I", Self::read, Default::default()),
                 JavaMethodProto::new("write", "([BII)I", Self::write, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
+                JavaMethodProto::new("seek", "(II)I", Self::seek, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("mode", "I", Default::default()),
@@ -174,6 +175,33 @@ impl XFile {
         }
 
         Ok(())
+    }
+
+    async fn seek(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, n: i32, whence: i32) -> JvmResult<i32> {
+        tracing::debug!("com.xce.io.XFile::seek({this:?}, {n}, {whence})");
+
+        let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
+        if mode == READ_RESOURCE {
+            return Err(jvm.exception("java/io/IOException", "File not opened for writing").await);
+        }
+
+        let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
+        let new_pos = match whence {
+            0 => n as i64,
+            1 => {
+                let current: i64 = jvm.invoke_virtual(&raf, "getFilePointer", "()J", ()).await?;
+                current + n as i64
+            }
+            2 => {
+                let length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
+                length + n as i64
+            }
+            _ => return Err(jvm.exception("java/io/IOException", "Invalid whence").await),
+        };
+
+        let _: () = jvm.invoke_virtual(&raf, "seek", "(J)V", (new_pos,)).await?;
+
+        Ok(new_pos as i32)
     }
 
     pub async fn raf(jvm: &Jvm, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<RandomAccessFile>> {
