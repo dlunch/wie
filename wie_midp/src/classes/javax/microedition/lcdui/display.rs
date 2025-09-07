@@ -45,6 +45,7 @@ impl Display {
                 // wie private methods...
                 JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, Default::default()),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
+                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("currentDisplayable", "Ljavax/microedition/lcdui/Displayable;", Default::default()),
@@ -209,6 +210,33 @@ impl Display {
 
         screen.paint(&*image);
         jvm.collect_garbage()?;
+
+        Ok(())
+    }
+
+    async fn handle_notify_event(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        r#type: i32,
+        param1: i32,
+        param2: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Display::handleNotifyEvent({this:?}, {}, {param1}, {param2})",
+            r#type,
+        );
+
+        let current_displayable: ClassInstanceRef<Displayable> = jvm
+            .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
+
+        // TODO it would be better move this logic into displayable by merging all event handling into one method and override it in cardcanvas
+        if jvm.is_instance(&**current_displayable, "net/wie/CardCanvas") {
+            let _: () = jvm
+                .invoke_virtual(&current_displayable, "handleNotifyEvent", "(III)V", (r#type, param1, param2))
+                .await?;
+        }
 
         Ok(())
     }

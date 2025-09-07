@@ -125,7 +125,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(33, "MC_grpDestroyImage"),
         gen_stub(34, "MC_grpDecodeNextImage"),
         gen_stub(35, "MC_grpEncodeImage"),
-        gen_stub(36, "MC_grpPostEvent"),
+        graphics::post_event.into_body(),
         gen_stub(37, "MC_imHandleInput"),
         gen_stub(38, "MC_imSetCurrentMode"),
         gen_stub(39, "MC_imGetCurrentMode"),

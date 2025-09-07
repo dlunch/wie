@@ -6,7 +6,10 @@ use core::mem::size_of;
 
 use bytemuck::Zeroable;
 
-use wie_backend::canvas::{Clip, Color, PixelType, Rgb8Pixel};
+use wie_backend::{
+    Event,
+    canvas::{Clip, Color, PixelType, Rgb8Pixel},
+};
 use wie_util::{Result, read_generic, write_generic};
 
 use crate::{WIPICMemoryId, WIPICWord, context::WIPICContext};
@@ -447,6 +450,14 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICMemoryId, x1: i
 
     canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
+}
+
+pub async fn post_event(context: &mut dyn WIPICContext, id: i32, r#type: i32, param1: i32, param2: i32) -> Result<i32> {
+    tracing::debug!("MC_grpPostEvent({id}, {}, {param1}, {param2})", r#type);
+
+    context.system().event_queue().push(Event::Notify { r#type, param1, param2 });
+
+    Ok(0)
 }
 
 // it's not documented api, but lgt apps gets pointer via api call
