@@ -16,7 +16,7 @@ impl Card {
         WieJavaClassProto {
             name: "org/kwis/msp/lcdui/Card",
             parent_class: Some("java/lang/Object"),
-            interfaces: vec![],
+            interfaces: vec!["org/kwis/msp/lcdui/JletEventListener"],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("<init>", "(I)V", Self::init_int, Default::default()),
