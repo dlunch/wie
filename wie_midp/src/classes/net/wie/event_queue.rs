@@ -12,8 +12,10 @@ use crate::classes::javax::microedition::midlet::MIDlet;
 
 #[repr(i32)]
 enum EventQueueEvent {
+    // TODO it's wipi event codes
     KeyEvent = 1,
     RepaintEvent = 41,
+    NotifyEvent = 1000,
 }
 
 impl EventQueueEvent {
@@ -118,7 +120,7 @@ impl EventQueue {
             fields: vec![
                 JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", Default::default()),
-            ], // TODO: there must be elegant solution
+            ],
         }
     }
 
@@ -180,6 +182,8 @@ impl EventQueue {
 
                         continue;
                     }
+                    // wipi notifyEvent
+                    Event::Notify { r#type, param1, param2 } => vec![EventQueueEvent::NotifyEvent as i32, r#type, param1, param2],
                 };
 
                 jvm.store_array(&mut event, 0, event_data).await?;
@@ -239,6 +243,15 @@ impl EventQueue {
                 let code = event[2];
 
                 let _: () = jvm.invoke_virtual(&display, "handleKeyEvent", "(II)V", (event_type as i32, code)).await?;
+            }
+            EventQueueEvent::NotifyEvent => {
+                let r#type = event[1];
+                let param1 = event[2];
+                let param2 = event[3];
+
+                let _: () = jvm
+                    .invoke_virtual(&display, "handleNotifyEvent", "(III)V", (r#type, param1, param2))
+                    .await?;
             }
         }
 

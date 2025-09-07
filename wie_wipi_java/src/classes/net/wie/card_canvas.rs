@@ -80,6 +80,8 @@ impl CardCanvas {
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
                 JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, Default::default()),
                 JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, Default::default()),
+                // wie private
+                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("cards", "Ljava/util/Vector;", Default::default())],
         }
@@ -209,6 +211,24 @@ impl CardCanvas {
         }
 
         let _: () = jvm.invoke_virtual(&cards, "removeAllElements", "()V", ()).await?;
+
+        Ok(())
+    }
+
+    async fn handle_notify_event(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        r#type: i32,
+        param1: i32,
+        param2: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("net.wie.CardCanvas::handleNotifyEvent({this:?}, {}, {param1}, {param2})", r#type);
+
+        let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
+        let top_card = jvm.invoke_virtual(&cards, "firstElement", "()Ljava/lang/Object;", ()).await?;
+
+        let _: () = jvm.invoke_virtual(&top_card, "notifyEvent", "(III)V", (r#type, param1, param2)).await?;
 
         Ok(())
     }

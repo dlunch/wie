@@ -64,6 +64,7 @@ pub enum Event {
     Keyup(KeyCode),
     Keyrepeat(KeyCode),
     Timer { due: Instant, callback: TimerCallback },
+    Notify { r#type: i32, param1: i32, param2: i32 }, // wipi notifyEvent
 }
 
 impl Event {
