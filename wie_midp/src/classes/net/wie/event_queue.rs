@@ -11,6 +11,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use crate::classes::javax::microedition::midlet::MIDlet;
 
 #[repr(i32)]
+#[allow(clippy::enum_variant_names)]
 enum EventQueueEvent {
     // TODO it's wipi event codes
     KeyEvent = 1,
