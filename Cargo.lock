@@ -1306,7 +1306,7 @@ dependencies = [
  "parking_lot",
  "tracing",
  "url",
- "zip",
+ "zip 4.6.1",
 ]
 
 [[package]]
@@ -3143,7 +3143,7 @@ dependencies = [
  "spin",
  "tracing",
  "wie_util",
- "zip",
+ "zip 5.0.0",
 ]
 
 [[package]]
@@ -3915,6 +3915,20 @@ name = "zip"
 version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "caa8cd6af31c3b31c6631b8f483848b91589021b28fffe50adada48d4f4d2ed1"
+dependencies = [
+ "arbitrary",
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "zopfli",
+]
+
+[[package]]
+name = "zip"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9fdfa5f34b5980f2c21b3a2c68c09ade4debddc7be52c51056695effc73a08c"
 dependencies = [
  "arbitrary",
  "crc32fast",
