@@ -15,13 +15,6 @@ use crate::{WIPICMemoryId, WIPICResult, WIPICWord, context::WIPICContext, method
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICTimer {
-    unk1: WIPICWord,
-    unk2: WIPICWord,
-    unk3: WIPICWord,
-    time: u64,
-
-    param: WIPICWord,
-    unk4: WIPICWord,
     fn_callback: WIPICWord,
 }
 
@@ -52,15 +45,7 @@ pub async fn set_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICW
 pub async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_callback: WIPICWord) -> Result<()> {
     tracing::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
 
-    let timer = WIPICTimer {
-        unk1: 0,
-        unk2: 0,
-        unk3: 0,
-        time: 0,
-        param: 0,
-        unk4: 0,
-        fn_callback,
-    };
+    let timer = WIPICTimer { fn_callback };
 
     write_generic(context, ptr_timer, timer)?;
 
