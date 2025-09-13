@@ -37,6 +37,12 @@ impl Graphics2D {
                     Self::draw_image,
                     Default::default(),
                 ),
+                JavaMethodProto::new(
+                    "createMaskableImage",
+                    "(II)Ljavax/microedition/lcdui/Image;",
+                    Self::create_maskable_image,
+                    MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![JavaFieldProto::new("graphics", "Ljavax/microedition/lcdui/Graphics;", Default::default())],
         }
@@ -121,5 +127,20 @@ impl Graphics2D {
         );
 
         Ok(())
+    }
+
+    async fn create_maskable_image(jvm: &Jvm, _context: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("com.skt.m.Graphics2D::createMaskableImage({}, {})", width, height);
+
+        let image: ClassInstanceRef<Image> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Image",
+                "createImage",
+                "(II)Ljavax/microedition/lcdui/Image;",
+                (width, height),
+            )
+            .await?;
+
+        Ok(image)
     }
 }
