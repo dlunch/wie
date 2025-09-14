@@ -180,6 +180,7 @@ pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: W
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn sprintk(
     context: &mut dyn WIPICContext,
     dest: WIPICWord,
@@ -188,21 +189,15 @@ pub async fn sprintk(
     a1: WIPICWord,
     a2: WIPICWord,
     a3: WIPICWord,
+    a4: WIPICWord,
+    a5: WIPICWord,
 ) -> Result<WIPICWord> {
-    tracing::debug!(
-        "MC_knlSprintk({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
-        dest,
-        ptr_format,
-        a0,
-        a1,
-        a2,
-        a3
-    );
+    tracing::debug!("MC_knlSprintk({dest:#x}, {ptr_format:#x}, {a1}, {a2}, {a3}, {a4}, {a5})",);
 
     let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
     let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
 
-    let result = sprintf(context, &format_string, &[a0, a1, a2, a3])?;
+    let result = sprintf(context, &format_string, &[a0, a1, a2, a3, a4, a5])?;
 
     let result_bytes = encoding_rs::EUC_KR.encode(&result).0;
 
@@ -247,7 +242,7 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
                         break;
                     }
                     'd' => {
-                        let arg = *arg_iter.next().unwrap();
+                        let arg = *arg_iter.next().unwrap() as i32;
                         if let Some('0') = flag {
                             result += &format!("{:0width$}", arg, width = width.unwrap_or(0));
                         } else {
