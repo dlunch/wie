@@ -18,4 +18,5 @@ pub trait Database: Send {
 #[async_trait::async_trait]
 pub trait DatabaseRepository {
     async fn open(&self, system: &System, name: &str, app_id: &str) -> Box<dyn Database>;
+    async fn exists(&self, system: &System, name: &str, app_id: &str) -> bool;
 }

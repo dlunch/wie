@@ -14,13 +14,17 @@ struct DatabaseHandle {
     name: [u8; 32], // TODO hardcoded max size
 }
 
-pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, record_size: i32, create: i32, mode: i32) -> Result<i32> {
-    tracing::debug!("MC_dbOpenDataBase({:#x}, {}, {}, {})", ptr_name, record_size, create, mode);
+pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, mode: i32, r#type: i32) -> Result<i32> {
+    tracing::debug!("MC_dbOpenDataBase({ptr_name:#x}, {mode}, {}", r#type);
 
     let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
 
-    if record_size == 1 {
-        // TODO: is parameter record_size correct??
+    let system = context.system();
+    let pid = system.pid().to_owned();
+
+    let exists = system.platform().database_repository().exists(system, &name, &pid).await;
+
+    if !exists && mode == 1 {
         return Ok(-12); // M_E_NOENT
     }
 
@@ -41,7 +45,6 @@ pub async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> Resul
     tracing::debug!("MC_dbCloseDataBase({:#x})", db_id);
 
     if db_id < 0x10000 {
-        // TODO some apps store database id in 16bit, so we need to handle it
         return Ok(-25); // M_E_INVALIDHANDLE
     }
 
@@ -68,13 +71,17 @@ pub async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
 pub async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_db_write_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
+    if db_id < 0x10000 {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    }
+
     let mut buf = vec![0; buf_len as _];
     context.read_bytes(buf_ptr, &mut buf)?;
     let mut db = get_database_from_db_id(context, db_id).await;
 
     db.set(1, &buf).await;
 
-    Ok(1)
+    Ok(buf_len as _)
 }
 
 pub async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> Result<i32> {
@@ -95,7 +102,6 @@ pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_
     tracing::debug!("MC_db_read_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
 
     if db_id < 0x10000 {
-        // TODO some apps store database id in 16bit, so we need to handle it
         return Ok(-25); // M_E_INVALIDHANDLE
     }
 
@@ -107,7 +113,7 @@ pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_
         }
         context.write_bytes(buf_ptr, &x)?;
 
-        Ok(0)
+        Ok(x.len() as _)
     } else {
         Ok(-22) // M_E_BADRECID
     }
@@ -115,6 +121,10 @@ pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_
 
 pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbSelectRecord({:#x}, {}, {:#x}, {})", db_id, rec_id, buf_ptr, buf_len);
+
+    if db_id < 0x10000 {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    }
 
     let db = get_database_from_db_id(context, db_id).await;
 
