@@ -29,6 +29,12 @@ impl wie_backend::DatabaseRepository for DatabaseRepository {
 
         Box::new(Database::new(path).unwrap())
     }
+
+    async fn exists(&self, _system: &System, name: &str, app_id: &str) -> bool {
+        let path = self.get_path_for_database(name, app_id);
+
+        path.exists()
+    }
 }
 
 pub struct Database {
