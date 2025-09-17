@@ -1,12 +1,12 @@
 # WIE
 
-Emulator for old mobile apps based on WIPI, SKVM or J2ME.
+A standalone web-based emulator for old mobile apps based on WIPI, SKVM or J2ME.
 
-## Web Demo
+## Get Started
 
 [https://wie.dlunch.net](https://wie.dlunch.net)
 
-## Contributing guide
+## How to contribute
 
 https://github.com/dlunch/wie/blob/main/CONTRIBUTING.md
 
