@@ -166,11 +166,17 @@ impl DataBase {
         );
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        jvm.invoke_virtual(&record_store, "addRecord", "([BII)I", (data, offset, num_bytes)).await
+        let record_id = jvm
+            .invoke_virtual(&record_store, "addRecord", "([BII)I", (data, offset, num_bytes))
+            .await?;
+
+        Ok(DataBase::to_wipi_record_id(record_id))
     }
 
     async fn select_record(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<ClassInstanceRef<i8>> {
         tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
+
+        let record_id = DataBase::to_midp_record_id(record_id);
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         let result = jvm.invoke_virtual(&record_store, "getRecord", "(I)[B", (record_id,)).await;
@@ -219,6 +225,8 @@ impl DataBase {
             num_bytes
         );
 
+        let record_id = DataBase::to_midp_record_id(record_id);
+
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         let _: () = jvm
             .invoke_virtual(&record_store, "setRecord", "(I[BII)V", (record_id, data, offset, num_bytes))
@@ -240,5 +248,14 @@ impl DataBase {
             .await?;
 
         Ok(())
+    }
+
+    // wipi record id starts with 0 but midp record id starts with 1
+    fn to_midp_record_id(wipi_record_id: i32) -> i32 {
+        wipi_record_id + 1
+    }
+
+    fn to_wipi_record_id(midp_record_id: i32) -> i32 {
+        midp_record_id - 1
     }
 }
