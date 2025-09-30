@@ -3,7 +3,7 @@ use alloc::vec;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::Runnable;
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -168,12 +168,16 @@ impl Display {
         if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas") {
             let event_type = KeyboardEventType::from_raw(event_type);
 
-            match event_type {
+            let result: JvmResult<()> = match event_type {
                 // TODO we need enum
-                KeyboardEventType::KeyPressed => jvm.invoke_virtual(&current_displayable, "keyPressed", "(I)V", (code,)).await?,
-                KeyboardEventType::KeyReleased => jvm.invoke_virtual(&current_displayable, "keyReleased", "(I)V", (code,)).await?,
-                KeyboardEventType::KeyRepeated => jvm.invoke_virtual(&current_displayable, "keyRepeated", "(I)V", (code,)).await?,
+                KeyboardEventType::KeyPressed => jvm.invoke_virtual(&current_displayable, "keyPressed", "(I)V", (code,)).await,
+                KeyboardEventType::KeyReleased => jvm.invoke_virtual(&current_displayable, "keyReleased", "(I)V", (code,)).await,
+                KeyboardEventType::KeyRepeated => jvm.invoke_virtual(&current_displayable, "keyRepeated", "(I)V", (code,)).await,
                 _ => unimplemented!(),
+            };
+
+            if let Err(x) = result {
+                Self::handle_exception(jvm, x).await?;
             }
         }
 
@@ -190,14 +194,18 @@ impl Display {
         if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas") {
             let screen_graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
 
-            let _: () = jvm
+            let result: JvmResult<()> = jvm
                 .invoke_virtual(
                     &current_displayable,
                     "paint",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     (screen_graphics.clone(),),
                 )
-                .await?;
+                .await;
+
+            if let Err(x) = result {
+                Self::handle_exception(jvm, x).await?;
+            }
 
             let _: () = jvm.invoke_virtual(&screen_graphics, "reset", "()V", ()).await?;
         }
@@ -233,9 +241,13 @@ impl Display {
 
         // TODO it would be better move this logic into displayable by merging all event handling into one method and override it in cardcanvas
         if jvm.is_instance(&**current_displayable, "net/wie/CardCanvas") {
-            let _: () = jvm
+            let result: JvmResult<()> = jvm
                 .invoke_virtual(&current_displayable, "handleNotifyEvent", "(III)V", (r#type, param1, param2))
-                .await?;
+                .await;
+
+            if let Err(x) = result {
+                Self::handle_exception(jvm, x).await?;
+            }
         }
 
         Ok(())
@@ -243,5 +255,31 @@ impl Display {
 
     pub async fn screen_graphics(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
         jvm.get_field(this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
+    }
+
+    async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
+        if let JavaError::JavaException(x) = err {
+            if jvm.is_instance(&*x, "java/lang/Error") {
+                return Err(JavaError::JavaException(x));
+            }
+
+            let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await?;
+            let print_writer = jvm
+                .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))
+                .await?;
+
+            let _: () = jvm
+                .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
+                .await?;
+
+            let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await?;
+            let trace = JavaLangString::to_rust_string(jvm, &trace).await?;
+
+            tracing::warn!("Exception while event handling: {}", trace);
+
+            Ok(())
+        } else {
+            Err(err)
+        }
     }
 }
