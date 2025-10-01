@@ -7,12 +7,9 @@ use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLa
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::{
-    javax::microedition::{
-        lcdui::{Displayable, Graphics, Image},
-        midlet::MIDlet,
-    },
-    net::wie::KeyboardEventType,
+use crate::classes::javax::microedition::{
+    lcdui::{Displayable, Graphics, Image},
+    midlet::MIDlet,
 };
 
 // class javax.microedition.lcdui.Display
@@ -165,16 +162,10 @@ impl Display {
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
 
-        if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas") {
-            let event_type = KeyboardEventType::from_raw(event_type);
-
-            let result: JvmResult<()> = match event_type {
-                // TODO we need enum
-                KeyboardEventType::KeyPressed => jvm.invoke_virtual(&current_displayable, "keyPressed", "(I)V", (code,)).await,
-                KeyboardEventType::KeyReleased => jvm.invoke_virtual(&current_displayable, "keyReleased", "(I)V", (code,)).await,
-                KeyboardEventType::KeyRepeated => jvm.invoke_virtual(&current_displayable, "keyRepeated", "(I)V", (code,)).await,
-                _ => unimplemented!(),
-            };
+        if !current_displayable.is_null() {
+            let result: JvmResult<()> = jvm
+                .invoke_virtual(&current_displayable, "handleKeyEvent", "(II)V", (event_type, code))
+                .await;
 
             if let Err(x) = result {
                 Self::handle_exception(jvm, x).await?;
@@ -191,33 +182,32 @@ impl Display {
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
 
-        if !current_displayable.is_null() && jvm.is_instance(&**current_displayable, "javax/microedition/lcdui/Canvas") {
+        if !current_displayable.is_null() {
             let screen_graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
 
             let result: JvmResult<()> = jvm
                 .invoke_virtual(
                     &current_displayable,
-                    "paint",
+                    "handlePaintEvent",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     (screen_graphics.clone(),),
                 )
                 .await;
-
             if let Err(x) = result {
                 Self::handle_exception(jvm, x).await?;
             }
 
             let _: () = jvm.invoke_virtual(&screen_graphics, "reset", "()V", ()).await?;
+
+            let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
+            let image = Image::image(jvm, &screen_image).await?;
+
+            let platform = context.system().platform();
+            let screen = platform.screen();
+
+            screen.paint(&*image);
+            jvm.collect_garbage()?;
         }
-
-        let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
-        let image = Image::image(jvm, &screen_image).await?;
-
-        let platform = context.system().platform();
-        let screen = platform.screen();
-
-        screen.paint(&*image);
-        jvm.collect_garbage()?;
 
         Ok(())
     }
@@ -239,8 +229,7 @@ impl Display {
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
 
-        // TODO it would be better move this logic into displayable by merging all event handling into one method and override it in cardcanvas
-        if jvm.is_instance(&**current_displayable, "net/wie/CardCanvas") {
+        if !current_displayable.is_null() {
             let result: JvmResult<()> = jvm
                 .invoke_virtual(&current_displayable, "handleNotifyEvent", "(III)V", (r#type, param1, param2))
                 .await;
