@@ -5,7 +5,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display};
+use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display, Graphics};
 
 // class javax.microedition.lcdui.Displayable
 pub struct Displayable;
@@ -39,6 +39,14 @@ impl Displayable {
                     Self::set_display,
                     Default::default(),
                 ),
+                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
+                JavaMethodProto::new(
+                    "handlePaintEvent",
+                    "(Ljavax/microedition/lcdui/Graphics;)V",
+                    Self::handle_paint_event,
+                    Default::default(),
+                ),
+                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
             ],
             fields: vec![JavaFieldProto::new(
                 "currentDisplay",
@@ -95,7 +103,7 @@ impl Displayable {
     }
 
     async fn get_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::getWidth({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Displayable::getWidth({this:?})");
 
         let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         let width = if display.is_null() {
@@ -108,7 +116,7 @@ impl Displayable {
     }
 
     async fn get_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::getHeight({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Displayable::getHeight({this:?})");
 
         let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         let height = if display.is_null() {
@@ -118,5 +126,38 @@ impl Displayable {
         };
 
         Ok(height)
+    }
+
+    async fn handle_key_event(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Displayable::handleKeyEvent({this:?}, {event_type}, {code})");
+
+        Ok(())
+    }
+
+    async fn handle_paint_event(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        graphics: ClassInstanceRef<Graphics>,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Displayable::handlePaintEvent({this:?}, {graphics:?})");
+
+        Ok(())
+    }
+
+    async fn handle_notify_event(
+        _jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        r#type: i32,
+        param1: i32,
+        param2: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!(
+            "javax.microedition.lcdui.Displayable::handleNotifyEvent({this:?}, {}, {param1}, {param2})",
+            r#type,
+        );
+
+        Ok(())
     }
 }
