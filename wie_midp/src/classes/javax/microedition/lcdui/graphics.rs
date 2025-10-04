@@ -346,18 +346,6 @@ impl Graphics {
             height
         );
 
-        if x < 0 || y < 0 || width < 0 || height < 0 {
-            tracing::warn!(
-                "javax.microedition.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {}): invalid arguments",
-                &this,
-                x,
-                y,
-                width,
-                height
-            );
-            return Ok(());
-        }
-
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
         let image = Self::image(jvm, &mut this).await?;
