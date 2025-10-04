@@ -171,7 +171,7 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
 }
 
 async fn get_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, field_name: u32) -> Result<u32> {
-    tracing::warn!("stub get_field({:#x}, {:#x})", ptr_class, field_name);
+    tracing::debug!("get_field({:#x}, {:#x})", ptr_class, field_name);
 
     let field_name = KtfJvmSupport::read_name(core, field_name)?;
 
