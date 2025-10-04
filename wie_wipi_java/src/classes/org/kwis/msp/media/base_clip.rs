@@ -19,6 +19,7 @@ impl BaseClip {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("putData", "([BII)I", Self::put_data, Default::default()),
+                JavaMethodProto::new("clearData", "()V", Self::clear_data, Default::default()),
                 JavaMethodProto::new("availableDataSize", "()I", Self::available_data_size, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("player", "Ljavax/microedition/media/Player;", Default::default())],
@@ -64,5 +65,16 @@ impl BaseClip {
         jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", player).await?;
 
         Ok(length)
+    }
+
+    async fn clear_data(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.media.BaseClip::clearData({this:?})");
+
+        let player: ClassInstanceRef<Player> = jvm.get_field(&this, "player", "Ljavax/microedition/media/Player;").await?;
+        let _: () = jvm.invoke_virtual(&player, "close", "()V", ()).await?;
+
+        jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", None).await?;
+
+        Ok(())
     }
 }

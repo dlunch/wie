@@ -18,6 +18,7 @@ impl SmafPlayer {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/io/InputStream;)V", Self::init, Default::default()),
                 JavaMethodProto::new("start", "()V", Self::start, Default::default()),
+                JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("audioHandle", "I", Default::default())],
         }
@@ -44,6 +45,12 @@ impl SmafPlayer {
         let system = context.system();
 
         system.audio().play(system, audio_handle as u32).unwrap();
+
+        Ok(())
+    }
+
+    async fn close(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
+        tracing::warn!("stub net.wie.SmafPlayer::close({:?})", &this);
 
         Ok(())
     }
