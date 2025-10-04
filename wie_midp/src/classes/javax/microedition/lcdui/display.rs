@@ -29,6 +29,12 @@ impl Display {
                     Self::set_current,
                     Default::default(),
                 ),
+                JavaMethodProto::new(
+                    "getCurrent",
+                    "()Ljavax/microedition/lcdui/Displayable;",
+                    Self::get_current,
+                    Default::default(),
+                ),
                 JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
@@ -134,6 +140,16 @@ impl Display {
             .await?;
 
         Ok(())
+    }
+
+    async fn get_current(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Displayable>> {
+        tracing::debug!("javax.microedition.lcdui.Display::getCurrent({this:?})");
+
+        let current_displayable: ClassInstanceRef<Displayable> = jvm
+            .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
+
+        Ok(current_displayable)
     }
 
     async fn get_display(jvm: &Jvm, _context: &mut WieJvmContext, midlet: ClassInstanceRef<MIDlet>) -> JvmResult<ClassInstanceRef<Self>> {
