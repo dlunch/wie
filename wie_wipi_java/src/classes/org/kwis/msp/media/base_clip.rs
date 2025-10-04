@@ -71,6 +71,10 @@ impl BaseClip {
         tracing::debug!("org.kwis.msp.media.BaseClip::clearData({this:?})");
 
         let player: ClassInstanceRef<Player> = jvm.get_field(&this, "player", "Ljavax/microedition/media/Player;").await?;
+        if player.is_null() {
+            return Ok(());
+        }
+
         let _: () = jvm.invoke_virtual(&player, "close", "()V", ()).await?;
 
         jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", None).await?;
