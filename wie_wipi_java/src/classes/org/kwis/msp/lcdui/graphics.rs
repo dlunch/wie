@@ -56,6 +56,7 @@ impl Graphics {
                 JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, Default::default()),
                 JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
                 JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
+                JavaMethodProto::new("setPixel", "(II)V", Self::set_pixel, Default::default()),
                 JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, Default::default()),
                 JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
                 JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, Default::default()),
@@ -524,6 +525,13 @@ impl Graphics {
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         jvm.invoke_virtual(&midp_graphics, "translate", "(II)V", (x, y)).await
+    }
+
+    async fn set_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::setPixel({this:?}, {x}, {y})");
+
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "drawLine", "(IIII)V", (x, y, x, y)).await
     }
 
     async fn set_rgb_pixels(
