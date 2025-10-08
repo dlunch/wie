@@ -51,6 +51,13 @@ pub enum MIDPKeyCode {
     LEFT = 142,
     RIGHT = 145,
     FIRE = 148,
+    LEFT_SOFT_KEY = 6,
+    RIGHT_SOFT_KEY = 7,
+    CLEAR = 8,
+    CALL = 10,
+    HANGUP = -1,
+    VOLUME_UP = 13,
+    VOLUME_DOWN = 14,
 
     KEY_NUM0 = 48,
     KEY_NUM1 = 49,
@@ -64,8 +71,6 @@ pub enum MIDPKeyCode {
     KEY_NUM9 = 57,
     KEY_POUND = 35, // #
     KEY_STAR = 42,  // *
-
-    CLEAR = 8,
 }
 
 impl MIDPKeyCode {
@@ -80,6 +85,13 @@ impl MIDPKeyCode {
             KeyCode::LEFT => Self::LEFT,
             KeyCode::RIGHT => Self::RIGHT,
             KeyCode::OK => Self::FIRE,
+            KeyCode::LEFT_SOFT_KEY => Self::LEFT_SOFT_KEY,
+            KeyCode::RIGHT_SOFT_KEY => Self::RIGHT_SOFT_KEY,
+            KeyCode::CLEAR => Self::CLEAR,
+            KeyCode::CALL => Self::CALL,
+            KeyCode::HANGUP => Self::HANGUP,
+            KeyCode::VOLUME_UP => Self::VOLUME_UP,
+            KeyCode::VOLUME_DOWN => Self::VOLUME_DOWN,
             KeyCode::NUM0 => Self::KEY_NUM0,
             KeyCode::NUM1 => Self::KEY_NUM1,
             KeyCode::NUM2 => Self::KEY_NUM2,
@@ -92,7 +104,6 @@ impl MIDPKeyCode {
             KeyCode::NUM9 => Self::KEY_NUM9,
             KeyCode::HASH => Self::KEY_POUND,
             KeyCode::STAR => Self::KEY_STAR,
-            KeyCode::CLEAR => Self::CLEAR,
         }
     }
 }

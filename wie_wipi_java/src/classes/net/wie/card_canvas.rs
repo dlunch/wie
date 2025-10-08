@@ -9,7 +9,7 @@ use wie_midp::classes::{javax::microedition::lcdui::Graphics, net::wie::MIDPKeyC
 use crate::classes::org::kwis::msp::lcdui::Card;
 
 #[repr(i32)]
-#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 #[derive(Copy, Clone)]
 pub enum WIPIKeyCode {
     UP = -1,
@@ -17,6 +17,13 @@ pub enum WIPIKeyCode {
     LEFT = -3,
     RIGHT = -4,
     FIRE = -5, // Ok
+    LEFT_SOFT_KEY = -6,
+    RIGHT_SOFT_KEY = -7,
+    CLEAR = -16,
+    CALL = -10,
+    HANGUP = -11,
+    VOLUME_UP = -13,
+    VOLUME_DOWN = -14,
 
     NUM0 = 48,
     NUM1 = 49,
@@ -30,8 +37,6 @@ pub enum WIPIKeyCode {
     NUM9 = 57,
     HASH = 35, // #
     STAR = 42, // *
-
-    CLEAR = -16,
 }
 
 impl WIPIKeyCode {
@@ -46,6 +51,13 @@ impl WIPIKeyCode {
             MIDPKeyCode::LEFT => Self::LEFT,
             MIDPKeyCode::RIGHT => Self::RIGHT,
             MIDPKeyCode::FIRE => Self::FIRE,
+            MIDPKeyCode::LEFT_SOFT_KEY => Self::LEFT_SOFT_KEY,
+            MIDPKeyCode::RIGHT_SOFT_KEY => Self::RIGHT_SOFT_KEY,
+            MIDPKeyCode::CLEAR => Self::CLEAR,
+            MIDPKeyCode::CALL => Self::CALL,
+            MIDPKeyCode::HANGUP => Self::HANGUP,
+            MIDPKeyCode::VOLUME_UP => Self::VOLUME_UP,
+            MIDPKeyCode::VOLUME_DOWN => Self::VOLUME_DOWN,
             MIDPKeyCode::KEY_NUM0 => Self::NUM0,
             MIDPKeyCode::KEY_NUM1 => Self::NUM1,
             MIDPKeyCode::KEY_NUM2 => Self::NUM2,
@@ -58,7 +70,6 @@ impl WIPIKeyCode {
             MIDPKeyCode::KEY_NUM9 => Self::NUM9,
             MIDPKeyCode::KEY_POUND => Self::HASH,
             MIDPKeyCode::KEY_STAR => Self::STAR,
-            MIDPKeyCode::CLEAR => Self::CLEAR,
         }
     }
 }

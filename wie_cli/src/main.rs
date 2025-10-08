@@ -271,6 +271,12 @@ fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
         PhysicalKey::Code(WinitKeyCode::ArrowLeft) => Some(KeyCode::LEFT),
         PhysicalKey::Code(WinitKeyCode::ArrowRight) => Some(KeyCode::RIGHT),
         PhysicalKey::Code(WinitKeyCode::Backspace) => Some(KeyCode::CLEAR),
+        PhysicalKey::Code(WinitKeyCode::ShiftLeft) => Some(KeyCode::LEFT_SOFT_KEY),
+        PhysicalKey::Code(WinitKeyCode::ShiftRight) => Some(KeyCode::RIGHT_SOFT_KEY),
+        PhysicalKey::Code(WinitKeyCode::Backquote) => Some(KeyCode::VOLUME_UP),
+        PhysicalKey::Code(WinitKeyCode::Tab) => Some(KeyCode::VOLUME_DOWN),
+        PhysicalKey::Code(WinitKeyCode::F1) => Some(KeyCode::CALL),
+        PhysicalKey::Code(WinitKeyCode::F2) => Some(KeyCode::HANGUP),
         _ => None,
     }
 }
