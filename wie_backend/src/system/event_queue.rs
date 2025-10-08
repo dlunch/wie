@@ -5,7 +5,7 @@ use wie_util::Result;
 
 use crate::Instant;
 
-#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum KeyCode {
     UP,
@@ -13,6 +13,13 @@ pub enum KeyCode {
     LEFT,
     RIGHT,
     OK,
+    LEFT_SOFT_KEY,
+    RIGHT_SOFT_KEY,
+    CLEAR,
+    CALL,
+    HANGUP,
+    VOLUME_UP,
+    VOLUME_DOWN,
 
     NUM0,
     NUM1,
@@ -26,7 +33,6 @@ pub enum KeyCode {
     NUM9,
     HASH,
     STAR,
-    CLEAR,
 }
 
 impl KeyCode {
