@@ -16,10 +16,7 @@ use wie_util::{
     write_null_terminated_table,
 };
 
-use super::{
-    KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt,
-    vtable_builder::JavaVtableBuilder,
-};
+use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable::JavaVtable};
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
@@ -48,13 +45,11 @@ impl JavaClassDefinition {
 
         let field_offset_base: u32 = if let Some(x) = &parent_class { x.field_size()? as _ } else { 0 };
 
-        let mut vtable_builder = JavaVtableBuilder::new(&parent_class)?;
-
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(core, jvm, ptr_raw, method, &mut vtable_builder, context.clone())?;
+            let method = JavaMethod::new(core, jvm, ptr_raw, method, context.clone())?;
 
             methods.push(method.ptr_raw);
         }
@@ -104,10 +99,6 @@ impl JavaClassDefinition {
             },
         )?;
 
-        let vtable = vtable_builder.serialize();
-        let ptr_vtable = Allocator::alloc(core, ((vtable.len() + 1) * size_of::<u32>()) as _)?;
-        write_null_terminated_table(core, ptr_vtable, &vtable)?;
-
         write_generic(
             core,
             ptr_raw,
@@ -115,15 +106,21 @@ impl JavaClassDefinition {
                 ptr_next: ptr_raw + 4,
                 unk1: 0,
                 ptr_descriptor,
-                ptr_vtable,
-                vtable_count: vtable.len() as u16,
+                ptr_vtable: 0,
+                vtable_count: 0,
                 unk_flag: 8,
             },
         )?;
 
-        tracing::trace!("Wrote definition {} at {:#x}", proto.name, ptr_raw);
-
         let result = Self::from_raw(ptr_raw, core);
+        let vtable = JavaVtable::new(core, &result)?; // this will also fill each method's vtable index
+
+        // fill vtable info
+        // TODO we can calculate it before allocating the class
+        write_generic(core, ptr_raw + 12, vtable.ptr_raw)?;
+        write_generic(core, ptr_raw + 16, vtable.len()? as u16)?;
+
+        tracing::trace!("Wrote definition {} at {:#x}", proto.name, ptr_raw);
 
         Ok(result)
     }

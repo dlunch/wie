@@ -12,11 +12,9 @@ use jvm::{ArrayClassDefinition, ClassInstance, JavaError, JavaType, Jvm, Result 
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
+use wie_util::{write_generic, write_null_terminated_string_bytes};
 
-use super::{
-    KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition, vtable_builder::JavaVtableBuilder,
-};
+use super::{KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition};
 
 #[derive(Clone)]
 pub struct JavaArrayClassDefinition {
@@ -70,12 +68,6 @@ impl JavaArrayClassDefinition {
             },
         )?;
 
-        // TODO do we need vtable??
-        let vtable_builder = JavaVtableBuilder::new(&None)?;
-        let vtable = vtable_builder.serialize();
-        let ptr_vtable = Allocator::alloc(core, ((vtable.len() + 1) * size_of::<u32>()) as _)?;
-        write_null_terminated_table(core, ptr_vtable, &vtable)?;
-
         write_generic(
             core,
             ptr_raw,
@@ -83,7 +75,7 @@ impl JavaArrayClassDefinition {
                 ptr_next: ptr_raw + 4,
                 unk1: 0,
                 ptr_descriptor,
-                ptr_vtable,
+                ptr_vtable: 0,
                 vtable_count: 0,
                 unk_flag: 8,
             },

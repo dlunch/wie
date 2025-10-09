@@ -19,7 +19,7 @@ use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::JavaClassDefinition;
 
-use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt, vtable_builder::JavaVtableBuilder};
+use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt};
 
 pub struct JavaMethod {
     pub(crate) ptr_raw: u32,
@@ -31,14 +31,7 @@ impl JavaMethod {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new<C, Context>(
-        core: &mut ArmCore,
-        jvm: &Jvm,
-        ptr_class: u32,
-        proto: JavaMethodProto<C>,
-        vtable_builder: &mut JavaVtableBuilder,
-        context: Context,
-    ) -> Result<Self>
+    pub fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, ptr_class: u32, proto: JavaMethodProto<C>, context: Context) -> Result<Self>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -63,7 +56,6 @@ impl JavaMethod {
         };
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
-        let index_in_vtable = vtable_builder.add(ptr_raw, &full_name.name, &full_name.descriptor) as u16;
 
         write_generic(
             core,
@@ -75,7 +67,7 @@ impl JavaMethod {
                 ptr_name,
                 exception_table_count: 0,
                 unk3: 0,
-                index_in_vtable,
+                index_in_vtable: 0, // to be filled later
                 access_flags: access_flags.bits(),
                 unk6: 0,
             },
@@ -84,6 +76,16 @@ impl JavaMethod {
         tracing::trace!("Wrote method {} at {:#x}", full_name.name, ptr_raw);
 
         Ok(Self::from_raw(ptr_raw, core))
+    }
+
+    pub fn write_vtable_index(&mut self, new_index: u16) -> Result<()> {
+        let mut raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
+
+        raw.index_in_vtable = new_index;
+
+        write_generic(&mut self.core, self.ptr_raw, raw)?;
+
+        Ok(())
     }
 
     pub fn ptr_class(&self) -> u32 {

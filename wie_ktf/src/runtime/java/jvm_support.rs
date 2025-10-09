@@ -8,7 +8,7 @@ mod jvm_implementation;
 mod method;
 mod name;
 mod value;
-mod vtable_builder;
+mod vtable;
 
 use alloc::boxed::Box;
 use core::mem::size_of;
