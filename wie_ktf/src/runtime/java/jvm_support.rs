@@ -37,6 +37,7 @@ pub use self::{
     class_definition::JavaClassDefinition,
     class_instance::JavaClassInstance,
     method::{JavaMethod, JavaMethodResult},
+    vtable::JavaVtable,
 };
 
 pub type KtfJvmWord = u32;
