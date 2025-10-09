@@ -15,7 +15,9 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use crate::runtime::java::jvm_support::{JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, KtfJvmSupport, KtfJvmWord};
+use crate::runtime::java::jvm_support::{
+    JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmWord,
+};
 
 pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: &Jvm) -> Result<u32> {
     let interface = WIPIJBInterface {
@@ -73,14 +75,21 @@ async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr
 
     tracing::debug!("get_java_method({ptr_class:#x}, {fullname})");
 
-    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    let method = find_java_method(&class, &fullname.name, &fullname.descriptor).await?;
+    // ptr_class might be vtable
+    let first_item: u32 = read_generic(core, ptr_class)?;
+    let method = if first_item != ptr_class + 4 {
+        // ptr_class is vtable
+        let vtable = JavaVtable::from_raw(core, ptr_class);
+        vtable.find_method(&fullname.name, &fullname.descriptor)?
+    } else {
+        let class = KtfJvmSupport::class_from_raw(core, ptr_class);
+        find_java_method(&class, &fullname.name, &fullname.descriptor).await?
+    };
 
     if method.is_none() {
-        return Err(WieError::FatalError(format!("Method {fullname} not found from {}", class.name()?)));
+        return Err(WieError::FatalError(format!("Method {fullname} not found from {ptr_class:#x}")));
     }
     let method = method.unwrap();
-
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
     Ok(method.ptr_raw)

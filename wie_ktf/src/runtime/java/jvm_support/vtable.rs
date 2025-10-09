@@ -27,6 +27,25 @@ impl JavaVtable {
         Ok(Self { ptr_raw, core: core.clone() })
     }
 
+    pub fn from_raw(core: &ArmCore, ptr_raw: u32) -> Self {
+        Self { ptr_raw, core: core.clone() }
+    }
+
+    pub fn find_method(&self, name: &str, descriptor: &str) -> Result<Option<JavaMethod>> {
+        let items = read_null_terminated_table(&self.core, self.ptr_raw)?;
+
+        for &ptr_method in &items {
+            let method = JavaMethod::from_raw(ptr_method, &self.core);
+            let method_name = method.name()?;
+
+            if method_name.name == name && method_name.descriptor == descriptor {
+                return Ok(Some(method));
+            }
+        }
+
+        Ok(None)
+    }
+
     pub fn len(&self) -> Result<usize> {
         let items = read_null_terminated_table(&self.core, self.ptr_raw)?;
 
