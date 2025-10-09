@@ -180,6 +180,9 @@ impl KtfJvmSupport {
         let ptr_vtables = read_null_terminated_table(core, context_data.ptr_vtables_base)?;
 
         let ptr_vtable = class.ptr_vtable()?;
+        if ptr_vtable == 0 {
+            return Ok(0);
+        }
 
         for (index, &current_ptr_vtable) in ptr_vtables.iter().enumerate() {
             if ptr_vtable == current_ptr_vtable {

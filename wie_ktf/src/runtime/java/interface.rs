@@ -78,8 +78,8 @@ async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr
     // ptr_class might be vtable
     let first_item: u32 = read_generic(core, ptr_class)?;
     let method = if first_item != ptr_class + 4 {
-        // ptr_class is vtable
-        let vtable = JavaVtable::from_raw(core, ptr_class);
+        // ptr_class is pointer to vtable
+        let vtable = JavaVtable::from_raw(core, first_item);
         vtable.find_method(&fullname.name, &fullname.descriptor)?
     } else {
         let class = KtfJvmSupport::class_from_raw(core, ptr_class);
