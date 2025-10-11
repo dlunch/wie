@@ -23,6 +23,7 @@ impl BaseClip {
                 JavaMethodProto::new("availableDataSize", "()I", Self::available_data_size, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("player", "Ljavax/microedition/media/Player;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

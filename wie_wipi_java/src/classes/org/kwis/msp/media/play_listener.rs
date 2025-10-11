@@ -13,6 +13,7 @@ impl PlayListener {
             interfaces: vec![],
             methods: vec![],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 }

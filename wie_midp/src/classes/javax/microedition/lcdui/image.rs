@@ -68,6 +68,7 @@ impl Image {
                 JavaFieldProto::new("imgData", "[B", Default::default()),
                 JavaFieldProto::new("bpl", "I", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

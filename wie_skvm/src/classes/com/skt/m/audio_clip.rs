@@ -2,6 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 
+use java_constants::ClassAccessFlags;
 use wie_jvm_support::WieJavaClassProto;
 
 // interface com.skt.m.AudioClip
@@ -15,6 +16,7 @@ impl AudioClip {
             interfaces: vec![],
             methods: vec![JavaMethodProto::new_abstract("play", "()V", Default::default())],
             fields: vec![],
+            access_flags: ClassAccessFlags::INTERFACE,
         }
     }
 }

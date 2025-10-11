@@ -24,6 +24,7 @@ impl FileOutputStream {
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("os", "Ljava/io/OutputStream;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

@@ -68,6 +68,7 @@ impl Graphics {
                 "Ljavax/microedition/lcdui/Graphics;",
                 Default::default(),
             )],
+            access_flags: Default::default(),
         }
     }
 

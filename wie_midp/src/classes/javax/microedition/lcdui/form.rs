@@ -23,6 +23,7 @@ impl Form {
                 JavaMethodProto::new("append", "(Ljava/lang/String;)I", Self::append_string, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

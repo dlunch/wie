@@ -21,6 +21,7 @@ impl SmafPlayer {
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("audioHandle", "I", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

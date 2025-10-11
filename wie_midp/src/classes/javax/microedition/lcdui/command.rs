@@ -26,6 +26,7 @@ impl Command {
                 JavaFieldProto::new("commandType", "I", Default::default()),
                 JavaFieldProto::new("priority", "I", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

@@ -27,6 +27,7 @@ impl ShellComponent {
                 JavaMethodProto::new("hide", "()V", Self::hide, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

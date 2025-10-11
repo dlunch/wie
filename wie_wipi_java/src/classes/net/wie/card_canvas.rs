@@ -95,6 +95,7 @@ impl CardCanvas {
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("cards", "Ljava/util/Vector;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

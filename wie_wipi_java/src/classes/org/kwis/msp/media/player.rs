@@ -22,6 +22,7 @@ impl Player {
                 JavaMethodProto::new("stop", "(Lorg/kwis/msp/media/Clip;)Z", Self::stop, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

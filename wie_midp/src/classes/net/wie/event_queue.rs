@@ -133,6 +133,7 @@ impl EventQueue {
                 JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

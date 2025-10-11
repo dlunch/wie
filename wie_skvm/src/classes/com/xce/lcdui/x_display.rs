@@ -31,6 +31,7 @@ impl XDisplay {
                 JavaFieldProto::new("height", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("height2", "I", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

@@ -32,6 +32,7 @@ impl XTextField {
                 JavaMethodProto::new("getText", "()Ljava/lang/String;", Self::get_text, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("text", "Ljava/lang/String;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

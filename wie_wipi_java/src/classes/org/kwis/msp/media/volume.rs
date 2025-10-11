@@ -20,6 +20,7 @@ impl Volume {
                 JavaMethodProto::new("get", "()I", Self::get, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

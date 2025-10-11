@@ -6,7 +6,7 @@ use core::{
 };
 
 use java_class_proto::JavaClassProto;
-use java_constants::{FieldAccessFlags, MethodAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
@@ -266,6 +266,13 @@ impl ClassDefinition for JavaClassDefinition {
 
     fn super_class_name(&self) -> Option<String> {
         self.parent_class().unwrap().map(|x| x.name().unwrap())
+    }
+
+    fn access_flags(&self) -> ClassAccessFlags {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw).unwrap();
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor).unwrap();
+
+        ClassAccessFlags::from_bits_truncate(descriptor.access_flag)
     }
 
     fn instantiate(&self) -> JvmResult<Box<dyn ClassInstance>> {

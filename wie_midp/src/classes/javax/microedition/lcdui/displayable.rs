@@ -53,6 +53,7 @@ impl Displayable {
                 "Ljavax/microedition/lcdui/Display;",
                 Default::default(),
             )],
+            access_flags: Default::default(),
         }
     }
 

@@ -41,6 +41,7 @@ impl KtfClassLoader {
                 JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
                 JavaFieldProto::new("instance", "Lnet/wie/KtfClassLoader;", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

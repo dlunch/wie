@@ -23,6 +23,7 @@ impl ContainerComponent {
                 JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

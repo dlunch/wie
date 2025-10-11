@@ -1,6 +1,7 @@
 use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::ClassAccessFlags;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -8,7 +9,7 @@ use wie_midp::classes::javax::microedition::lcdui::Canvas;
 
 use crate::classes::org::kwis::msp::lcdui::Display;
 
-// class org.kwis.msp.lcdui.Card
+// abstract class org.kwis.msp.lcdui.Card
 pub struct Card;
 
 impl Card {
@@ -41,6 +42,7 @@ impl Card {
                 JavaFieldProto::new("w", "I", Default::default()),
                 JavaFieldProto::new("h", "I", Default::default()),
             ],
+            access_flags: ClassAccessFlags::ABSTRACT,
         }
     }
 

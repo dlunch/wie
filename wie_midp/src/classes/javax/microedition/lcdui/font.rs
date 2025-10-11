@@ -44,6 +44,7 @@ impl Font {
                 JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

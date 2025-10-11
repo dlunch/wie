@@ -30,6 +30,7 @@ impl AudioSystem {
                 JavaMethodProto::new("setVolume", "(Ljava/lang/String;I)V", Self::set_volume, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

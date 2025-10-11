@@ -66,6 +66,7 @@ impl Display {
                 JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
                 JavaFieldProto::new("cardCanvas", "Lnet/wie/CardCanvas;", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

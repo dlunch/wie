@@ -19,6 +19,7 @@ impl InputMethodHandler {
                 JavaMethodProto::new("setCurrentMode", "(I)Z", Self::set_current_mode, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

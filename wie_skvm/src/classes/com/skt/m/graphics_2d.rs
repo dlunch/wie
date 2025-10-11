@@ -45,6 +45,7 @@ impl Graphics2D {
                 ),
             ],
             fields: vec![JavaFieldProto::new("graphics", "Ljavax/microedition/lcdui/Graphics;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

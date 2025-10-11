@@ -52,6 +52,7 @@ impl File {
                 JavaFieldProto::new("file", "Ljava/io/File;", Default::default()),
                 JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 
