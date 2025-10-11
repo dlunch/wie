@@ -40,6 +40,7 @@ impl Clip {
                 JavaMethodProto::new("setBuffer", "([BI)V", Self::set_buffer, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

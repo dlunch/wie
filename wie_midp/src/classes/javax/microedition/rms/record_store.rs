@@ -50,6 +50,7 @@ impl RecordStore {
                 ),
             ],
             fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

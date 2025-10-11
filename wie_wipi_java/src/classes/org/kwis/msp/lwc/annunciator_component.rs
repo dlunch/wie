@@ -19,6 +19,7 @@ impl AnnunciatorComponent {
                 JavaMethodProto::new("show", "()V", Self::show, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

@@ -24,6 +24,7 @@ impl TextComponent {
                 JavaFieldProto::new("m_cPos", "I", Default::default()),
                 JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

@@ -32,6 +32,7 @@ impl GameCanvas {
                 "Ljavax/microedition/lcdui/Image;",
                 Default::default(),
             )],
+            access_flags: Default::default(),
         }
     }
 

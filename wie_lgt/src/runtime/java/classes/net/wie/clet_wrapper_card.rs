@@ -26,6 +26,7 @@ impl CletWrapperCard {
                 JavaFieldProto::new("paintClet", "I", Default::default()),
                 JavaFieldProto::new("handleCletEvent", "I", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

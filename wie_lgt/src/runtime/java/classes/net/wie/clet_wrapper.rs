@@ -30,6 +30,7 @@ impl CletWrapper {
                 JavaFieldProto::new("paintClet", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

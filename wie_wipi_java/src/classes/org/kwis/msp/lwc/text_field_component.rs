@@ -17,6 +17,7 @@ impl TextFieldComponent {
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default())],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

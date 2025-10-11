@@ -25,6 +25,7 @@ impl FileSystem {
                 JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

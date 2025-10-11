@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::ClassAccessFlags;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -10,7 +11,7 @@ use crate::classes::{
     net::wie::{KeyboardEventType, MIDPKeyCode},
 };
 
-// class javax.microedition.lcdui.Canvas
+// abstract class javax.microedition.lcdui.Canvas
 pub struct Canvas;
 
 impl Canvas {
@@ -40,6 +41,7 @@ impl Canvas {
                 ),
             ],
             fields: vec![],
+            access_flags: ClassAccessFlags::ABSTRACT,
         }
     }
 

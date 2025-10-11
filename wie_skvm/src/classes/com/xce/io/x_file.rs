@@ -37,6 +37,7 @@ impl XFile {
                 JavaFieldProto::new("is", "Ljava/io/InputStream;", Default::default()),
                 JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

@@ -21,6 +21,7 @@ impl ProgressBar {
                 JavaMethodProto::new("setValue", "(I)V", Self::set_value, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

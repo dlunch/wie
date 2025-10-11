@@ -23,6 +23,7 @@ impl EventQueue {
                 JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("wieEventQueue", "Lnet/wie/EventQueue;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

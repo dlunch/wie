@@ -27,6 +27,7 @@ impl ChoiceGroup {
                 ),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

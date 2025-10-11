@@ -1,7 +1,7 @@
 use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::FieldAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -9,7 +9,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::Display;
 
-// class javax.microedition.midlet.MIDlet
+// abstract class javax.microedition.midlet.MIDlet
 pub struct MIDlet;
 
 impl MIDlet {
@@ -33,6 +33,7 @@ impl MIDlet {
                 JavaFieldProto::new("currentMIDlet", "Ljavax/microedition/midlet/MIDlet;", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("display", "Ljavax/microedition/lcdui/Display;", Default::default()),
             ],
+            access_flags: ClassAccessFlags::ABSTRACT,
         }
     }
 

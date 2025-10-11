@@ -25,6 +25,7 @@ impl Component {
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

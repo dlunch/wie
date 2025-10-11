@@ -22,6 +22,7 @@ impl Vibrator {
                 MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
             )],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

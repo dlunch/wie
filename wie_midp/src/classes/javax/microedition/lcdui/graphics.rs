@@ -112,6 +112,7 @@ impl Graphics {
                 JavaFieldProto::new("translateY", "I", Default::default()),
                 JavaFieldProto::new("color", "I", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

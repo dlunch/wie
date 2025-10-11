@@ -25,6 +25,7 @@ impl Network {
                 ),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

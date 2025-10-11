@@ -29,6 +29,7 @@ impl WIPIMIDlet {
                 ),
             ],
             fields: vec![JavaFieldProto::new("jlet", "Lorg/kwis/msp/lcdui/Jlet;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

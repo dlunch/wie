@@ -26,6 +26,7 @@ impl AlertType {
                 JavaFieldProto::new("INFO", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("WARNING", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

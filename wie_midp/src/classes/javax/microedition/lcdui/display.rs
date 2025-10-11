@@ -57,6 +57,7 @@ impl Display {
                 JavaFieldProto::new("width", "I", Default::default()),
                 JavaFieldProto::new("height", "I", Default::default()),
             ],
+            access_flags: Default::default(),
         }
     }
 

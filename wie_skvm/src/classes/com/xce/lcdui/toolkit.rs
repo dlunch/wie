@@ -25,6 +25,7 @@ impl Toolkit {
                 JavaFieldProto::new("DEFAULT_FONT", "Ljavax/microedition/lcdui/Font;", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("FONT_HEIGHT", "I", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

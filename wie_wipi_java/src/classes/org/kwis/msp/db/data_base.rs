@@ -50,6 +50,7 @@ impl DataBase {
                 "Ljavax/microedition/rms/RecordStore;",
                 Default::default(),
             )],
+            access_flags: Default::default(),
         }
     }
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, record_store: ClassInstanceRef<RecordStore>) -> JvmResult<()> {

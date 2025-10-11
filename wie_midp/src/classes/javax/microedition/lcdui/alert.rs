@@ -24,6 +24,7 @@ impl Alert {
                 JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, Default::default()),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

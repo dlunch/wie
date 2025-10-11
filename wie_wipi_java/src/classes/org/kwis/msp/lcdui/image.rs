@@ -50,6 +50,7 @@ impl Image {
                 JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("midpImage", "Ljavax/microedition/lcdui/Image;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

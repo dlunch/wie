@@ -17,6 +17,7 @@ impl BackLight {
             interfaces: vec![],
             methods: vec![JavaMethodProto::new("on", "(I)V", Self::on, MethodAccessFlags::STATIC)],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 

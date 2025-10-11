@@ -26,6 +26,7 @@ impl FileInputStream {
                 JavaMethodProto::new("read", "([BII)I", Self::read_array, Default::default()),
             ],
             fields: vec![JavaFieldProto::new("is", "Ljava/io/InputStream;", Default::default())],
+            access_flags: Default::default(),
         }
     }
 

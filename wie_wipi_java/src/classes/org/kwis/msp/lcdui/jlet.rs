@@ -47,6 +47,7 @@ impl Jlet {
                 JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", Default::default()),
                 JavaFieldProto::new("currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
             ],
+            access_flags: Default::default(),
         }
     }
 

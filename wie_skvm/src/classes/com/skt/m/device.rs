@@ -24,6 +24,7 @@ impl Device {
                 JavaMethodProto::new("setKeyRepeatTime", "(II)V", Self::set_key_repeat_time, MethodAccessFlags::STATIC),
             ],
             fields: vec![],
+            access_flags: Default::default(),
         }
     }
 
