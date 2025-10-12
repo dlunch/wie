@@ -24,7 +24,7 @@ impl SchemeNotFoundException {
         }
     }
 
-    async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<SchemeNotFoundException>) -> Result<()> {
+    async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
         tracing::debug!("org.kwis.msf.io.SchemeNotFoundException::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/io/IOException", "<init>", "()V", ()).await?;
@@ -32,12 +32,7 @@ impl SchemeNotFoundException {
         Ok(())
     }
 
-    async fn init_with_message(
-        jvm: &Jvm,
-        _: &mut WieJvmContext,
-        this: ClassInstanceRef<SchemeNotFoundException>,
-        message: ClassInstanceRef<String>,
-    ) -> Result<()> {
+    async fn init_with_message(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, message: ClassInstanceRef<String>) -> Result<()> {
         tracing::debug!("org.kwis.msf.io.SchemeNotFoundException::<init>({this:?}, {message:?})");
 
         let _: () = jvm
