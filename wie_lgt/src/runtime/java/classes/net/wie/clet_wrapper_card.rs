@@ -3,6 +3,7 @@ use alloc::{format, vec};
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
 
+use wie_midp::classes::javax::microedition::lcdui::Graphics;
 use wie_util::WieError;
 
 use super::CletWrapperContext;
@@ -52,7 +53,12 @@ impl CletWrapperCard {
         Ok(())
     }
 
-    async fn paint(jvm: &Jvm, context: &mut CletWrapperContext, this: ClassInstanceRef<Self>, _graphics: ClassInstanceRef<()>) -> JvmResult<()> {
+    async fn paint(
+        jvm: &Jvm,
+        context: &mut CletWrapperContext,
+        this: ClassInstanceRef<Self>,
+        _graphics: ClassInstanceRef<Graphics>,
+    ) -> JvmResult<()> {
         tracing::debug!("net.wie.CletWrapperCard::paint({:?})", &this);
 
         let paint_clet: i32 = jvm.get_field(&this, "paintClet", "I").await?;
