@@ -7,6 +7,8 @@ use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runt
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+use crate::classes::javax::microedition::midlet::MIDlet;
+
 // class net.wie.Launcher
 pub struct Launcher;
 
@@ -41,7 +43,7 @@ impl Launcher {
             .await
     }
 
-    async fn start_midlet(jvm: &Jvm, context: &mut WieJvmContext, midlet: ClassInstanceRef<()>) -> JvmResult<()> {
+    async fn start_midlet(jvm: &Jvm, context: &mut WieJvmContext, midlet: ClassInstanceRef<MIDlet>) -> JvmResult<()> {
         tracing::debug!("net.wie.Launcher::startMIDlet({:?})", &midlet);
 
         // run startApp
