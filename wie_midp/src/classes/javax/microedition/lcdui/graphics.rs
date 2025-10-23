@@ -128,8 +128,8 @@ impl Graphics {
 
         jvm.put_field(&mut this, "width", "I", width).await?;
         jvm.put_field(&mut this, "height", "I", height).await?;
-        jvm.put_field(&mut this, "clipWidth", "I", width).await?;
-        jvm.put_field(&mut this, "clipHeight", "I", height).await?;
+
+        let _: () = jvm.invoke_virtual(&this, "reset", "()V", ()).await?;
 
         Ok(())
     }
