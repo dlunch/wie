@@ -137,7 +137,26 @@ impl Display {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::setCurrent({:?}, {:?})", &this, displayable);
 
-        jvm.put_field(&mut this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;", displayable)
+        let old_displayable: ClassInstanceRef<Displayable> = jvm
+            .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
+            .await?;
+
+        if !old_displayable.is_null() {
+            let _: () = jvm
+                .invoke_virtual(&old_displayable, "setDisplay", "(Ljavax/microedition/lcdui/Display;)V", (None,))
+                .await?;
+        }
+
+        jvm.put_field(
+            &mut this,
+            "currentDisplayable",
+            "Ljavax/microedition/lcdui/Displayable;",
+            displayable.clone(),
+        )
+        .await?;
+
+        let _: () = jvm
+            .invoke_virtual(&displayable, "setDisplay", "(Ljavax/microedition/lcdui/Display;)V", (this.clone(),))
             .await?;
 
         Ok(())
