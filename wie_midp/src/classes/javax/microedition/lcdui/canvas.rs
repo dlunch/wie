@@ -7,7 +7,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::{
-    javax::microedition::lcdui::Graphics,
+    javax::microedition::lcdui::{Display, Graphics},
     net::wie::{KeyboardEventType, MIDPKeyCode},
 };
 
@@ -125,8 +125,20 @@ impl Canvas {
         Ok(())
     }
 
-    async fn set_full_screen_mode(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Canvas::setFullScreenMode({this:?}, {mode})");
+    async fn set_full_screen_mode(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::setFullScreenMode({this:?}, {mode})");
+
+        let previous_mode: bool = jvm.get_field(&this, "isInFullScreenMode", "Z").await?;
+        if previous_mode == mode {
+            return Ok(());
+        }
+
+        let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        if !display.is_null() {
+            let _: () = jvm.invoke_virtual(&display, "setFullscreen", "(Z)V", (mode,)).await?;
+        }
+
+        jvm.put_field(&mut this, "isInFullScreenMode", "Z", mode).await?;
 
         Ok(())
     }

@@ -48,11 +48,10 @@ impl Displayable {
                 ),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
             ],
-            fields: vec![JavaFieldProto::new(
-                "currentDisplay",
-                "Ljavax/microedition/lcdui/Display;",
-                Default::default(),
-            )],
+            fields: vec![
+                JavaFieldProto::new("currentDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
+                JavaFieldProto::new("isInFullScreenMode", "Z", Default::default()),
+            ],
             access_flags: Default::default(),
         }
     }
