@@ -49,8 +49,10 @@ impl Display {
                 JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, Default::default()),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
+                JavaMethodProto::new("setFullscreen", "(Z)V", Self::set_fullscreen, Default::default()),
             ],
             fields: vec![
+                JavaFieldProto::new("isInFullScreenMode", "Z", Default::default()),
                 JavaFieldProto::new("currentDisplayable", "Ljavax/microedition/lcdui/Displayable;", Default::default()),
                 JavaFieldProto::new("screenImage", "Ljavax/microedition/lcdui/Image;", Default::default()),
                 JavaFieldProto::new("screenGraphics", "Ljavax/microedition/lcdui/Graphics;", Default::default()),
@@ -159,6 +161,9 @@ impl Display {
             .invoke_virtual(&displayable, "setDisplay", "(Ljavax/microedition/lcdui/Display;)V", (this.clone(),))
             .await?;
 
+        let fullscreen_mode: bool = jvm.get_field(&displayable, "isInFullScreenMode", "Z").await?;
+        jvm.put_field(&mut this, "isInFullScreenMode", "Z", fullscreen_mode).await?;
+
         Ok(())
     }
 
@@ -220,6 +225,8 @@ impl Display {
 
         if !current_displayable.is_null() {
             let screen_graphics: ClassInstanceRef<Graphics> = jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+
+            // TODO draw title and bottom soft bar if not fullscreen
 
             let result: JvmResult<()> = jvm
                 .invoke_virtual(
@@ -306,5 +313,17 @@ impl Display {
         } else {
             Err(err)
         }
+    }
+
+    async fn set_fullscreen(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, fullscreen: bool) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::setFullscreen({this:?}, {fullscreen})");
+
+        jvm.put_field(&mut this, "isInFullScreenMode", "Z", fullscreen).await?;
+
+        let platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw().unwrap();
+
+        Ok(())
     }
 }
