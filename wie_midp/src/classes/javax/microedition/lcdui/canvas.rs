@@ -56,32 +56,27 @@ impl Canvas {
     }
 
     async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::repaint({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?})");
 
-        jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
+        let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let _: () = jvm.invoke_virtual(&display, "repaint", "(IIII)V", (0, 0, -1, -1)).await?;
+
+        Ok(())
     }
 
     async fn repaint_with_area(
-        _jvm: &Jvm,
-        context: &mut WieJvmContext,
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         x: i32,
         y: i32,
         width: i32,
         height: i32,
     ) -> JvmResult<()> {
-        tracing::warn!(
-            "stub javax.microedition.lcdui.Canvas::repaint({:?}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?}, {x}, {y}, {width}, {height})");
 
-        let platform = context.system().platform();
-        let screen = platform.screen();
-        screen.request_redraw().unwrap();
+        let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let _: () = jvm.invoke_virtual(&display, "repaint", "(IIII)V", (x, y, width, height)).await?;
 
         Ok(())
     }
