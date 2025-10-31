@@ -50,6 +50,7 @@ impl Display {
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
                 JavaMethodProto::new("setFullscreen", "(Z)V", Self::set_fullscreen, Default::default()),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("isInFullScreenMode", "Z", Default::default()),
@@ -164,6 +165,11 @@ impl Display {
         let fullscreen_mode: bool = jvm.get_field(&displayable, "isInFullScreenMode", "Z").await?;
         jvm.put_field(&mut this, "isInFullScreenMode", "Z", fullscreen_mode).await?;
 
+        let width: i32 = jvm.get_field(&this, "width", "I").await?;
+        let height: i32 = jvm.get_field(&this, "height", "I").await?;
+
+        let _: () = jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
+
         Ok(())
     }
 
@@ -189,6 +195,24 @@ impl Display {
         tracing::warn!("stub javax.microedition.lcdui.Display::vibrate({this:?}, {duration})");
 
         Ok(false)
+    }
+
+    async fn repaint(
+        _jvm: &Jvm,
+        context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::repaint({this:?}, {x}, {y}, {width}, {height})");
+
+        let platform = context.system().platform();
+        let screen = platform.screen();
+        screen.request_redraw().unwrap();
+
+        Ok(())
     }
 
     async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
