@@ -137,10 +137,12 @@ impl Display {
         Ok(None.into())
     }
 
-    async fn is_double_buffered(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Display::isDoubleBuffered({:?})", &this);
+    async fn is_double_buffered(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::isDoubleBuffered({this:?})");
 
-        Ok(true)
+        let canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
+
+        jvm.invoke_virtual(&canvas, "isDoubleBuffered", "()Z", ()).await
     }
 
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
