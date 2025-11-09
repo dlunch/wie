@@ -30,10 +30,36 @@ pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
     Ok(context.system().platform().now().raw())
 }
 
-pub async fn get_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICWord, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
-    tracing::warn!("stub MC_knlGetSystemProperty({:#x}, {:#x}, {:#x})", ptr_id, p_out, buf_size);
+pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWord, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
+    tracing::debug!("MC_knlGetSystemProperty({ptr_id:#x}, {p_out:#x}, {buf_size:#x})");
 
-    Ok(-9) // M_E_INVALID
+    let id = String::from_utf8(read_null_terminated_string_bytes(context, ptr_id)?).unwrap();
+
+    let value = match id.as_ref() {
+        "RSSILEVEL" => "30",
+        "BATTERYLEVEL" => "100",
+        "PHONEMODEL" => "Emulator",
+        "PHONENUMBER" => "", // putting this cause some game to fail authentication
+        "ANNUN_CALL" => "0",
+        "ANNUN_SMS" => "0",
+        "ANNUN_SILENT" => "0",
+        "ANNUN_ALARM" => "0",
+        "ANNUN_SECURITY" => "0",
+        "CURRENTCH" => "0",
+        _ => {
+            tracing::warn!("unknown system property id: {}", id);
+            return Ok(-9); // M_E_INVALID
+        }
+    };
+
+    let bytes = value.as_bytes();
+    if bytes.len() + 1 > buf_size as usize {
+        return Ok(-18); // M_E_SHORTBUF
+    }
+
+    write_null_terminated_string_bytes(context, p_out, value.as_bytes())?;
+
+    Ok(0)
 }
 
 pub async fn set_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICWord, ptr_value: WIPICWord) -> Result<()> {
