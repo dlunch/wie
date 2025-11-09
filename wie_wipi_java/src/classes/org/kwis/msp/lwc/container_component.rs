@@ -20,7 +20,13 @@ impl ContainerComponent {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new("addComponent", "(Lorg/kwis/msp/lwc/Component;)I", Self::add_component, Default::default()),
-                JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component, Default::default()),
+                JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component_index, Default::default()),
+                JavaMethodProto::new(
+                    "removeComponent",
+                    "(Lorg/kwis/msp/lwc/Component;)V",
+                    Self::remove_component,
+                    Default::default(),
+                ),
             ],
             fields: vec![],
             access_flags: Default::default(),
@@ -41,8 +47,14 @@ impl ContainerComponent {
         Ok(0)
     }
 
-    async fn remove_component(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
+    async fn remove_component_index(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.Component::removeComponent({this:?}, {index})");
+
+        Ok(())
+    }
+
+    async fn remove_component(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, component: ClassInstanceRef<Component>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.Component::removeComponent({this:?}, {component:?})");
 
         Ok(())
     }

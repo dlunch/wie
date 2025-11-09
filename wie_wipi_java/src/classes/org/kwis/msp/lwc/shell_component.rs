@@ -17,6 +17,7 @@ impl ShellComponent {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_size, Default::default()),
                 JavaMethodProto::new(
                     "setWorkComponent",
                     "(Lorg/kwis/msp/lwc/Component;)V",
@@ -35,6 +36,24 @@ impl ShellComponent {
         tracing::debug!("stub org.kwis.msp.lwc.ShellComponent::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await?;
+
+        Ok(())
+    }
+
+    async fn init_with_size(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("stub org.kwis.msp.lwc.ShellComponent::<init>({this:?}, {x}, {y}, {width}, {height})");
+
+        let _: () = jvm
+            .invoke_special(&this, "org/kwis/msp/lwc/ContainerComponent", "<init>", "()V", ())
+            .await?;
 
         Ok(())
     }
