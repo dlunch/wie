@@ -80,15 +80,22 @@ async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr
     let method = if first_item != ptr_class + 4 {
         // ptr_class is pointer to vtable
         let vtable = JavaVtable::from_raw(core, first_item);
-        vtable.find_method(&fullname.name, &fullname.descriptor)?
+        let method = vtable.find_method(&fullname.name, &fullname.descriptor)?;
+
+        if method.is_none() {
+            return Err(WieError::FatalError(format!("Method {fullname} not found from {ptr_class:#x}")));
+        }
+        method
     } else {
         let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-        find_java_method(&class, &fullname.name, &fullname.descriptor).await?
-    };
+        let method = find_java_method(&class, &fullname.name, &fullname.descriptor).await?;
 
-    if method.is_none() {
-        return Err(WieError::FatalError(format!("Method {fullname} not found from {ptr_class:#x}")));
-    }
+        if method.is_none() {
+            return Err(WieError::FatalError(format!("Method {fullname} not found from {}", class.name()?)));
+        }
+
+        method
+    };
     let method = method.unwrap();
     tracing::trace!("get_java_method result {:#x}", method.ptr_raw);
 
