@@ -1,5 +1,6 @@
 use alloc::vec;
 
+use java_constants::ClassAccessFlags;
 use wie_jvm_support::WieJavaClassProto;
 
 // interface org.kwis.msp.media.PlayListener
@@ -13,7 +14,7 @@ impl PlayListener {
             interfaces: vec![],
             methods: vec![],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::INTERFACE,
         }
     }
 }
