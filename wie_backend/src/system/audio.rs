@@ -57,6 +57,25 @@ impl Audio {
 
         Ok(())
     }
+
+    pub fn stop(&self, _system: &System, audio_handle: AudioHandle) -> Result<(), AudioError> {
+        match self.files.get(&audio_handle) {
+            Some(_audio_file) => {
+                // TODO
+            }
+            None => return Err(AudioError::InvalidHandle),
+        }
+
+        Ok(())
+    }
+
+    pub fn close(&mut self, audio_handle: AudioHandle) -> Result<(), AudioError> {
+        if self.files.remove(&audio_handle).is_none() {
+            return Err(AudioError::InvalidHandle);
+        }
+
+        Ok(())
+    }
 }
 
 pub struct SmafPlayer {
