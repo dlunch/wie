@@ -147,6 +147,14 @@ pub async fn create_image(
     Ok(1) // MC_GRP_IMAGE_DONE
 }
 
+pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICMemoryId) -> Result<()> {
+    tracing::debug!("MC_grpDestroyImage({:#x})", image.0);
+
+    context.free(image)?;
+
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn draw_image(
     context: &mut dyn WIPICContext,

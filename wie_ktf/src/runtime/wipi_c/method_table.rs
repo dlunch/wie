@@ -122,7 +122,7 @@ pub fn get_graphics_method_table() -> Vec<WIPICMethodBody> {
         graphics::get_string_width.into_body(),
         gen_stub(31, "MC_grpGetUnicodeStringWidth"),
         graphics::create_image.into_body(),
-        gen_stub(33, "MC_grpDestroyImage"),
+        graphics::destroy_image.into_body(),
         gen_stub(34, "MC_grpDecodeNextImage"),
         gen_stub(35, "MC_grpEncodeImage"),
         graphics::post_event.into_body(),
