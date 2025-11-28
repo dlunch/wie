@@ -32,7 +32,7 @@ impl AnnunciatorComponent {
     }
 
     async fn show(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::show");
+        tracing::warn!("stub org.kwis.msp.lwc.AnnunciatorComponent::show()");
 
         Ok(())
     }
