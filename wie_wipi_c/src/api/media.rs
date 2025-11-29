@@ -86,6 +86,11 @@ pub async fn clip_create(context: &mut dyn WIPICContext, ptr_type: WIPICWord, bu
 pub async fn clip_free(context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_mdaClipFree({:#x})", clip);
 
+    // some app call clip free with null clip...
+    if clip == 0 {
+        return Ok(0);
+    }
+
     context.free_raw(clip, size_of::<MdaClip>() as u32)?;
 
     Ok(0)
