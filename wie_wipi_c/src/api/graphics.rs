@@ -399,7 +399,7 @@ pub async fn draw_string(_: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i32, y
 }
 
 pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
-    tracing::warn!("stub MC_grpRepaint({}, {}, {}, {}, {})", lcd, x, y, width, height);
+    tracing::debug!("MC_grpRepaint({}, {}, {}, {}, {})", lcd, x, y, width, height);
 
     let platform = context.system().platform();
     let screen = platform.screen();
