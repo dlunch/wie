@@ -201,22 +201,14 @@ pub async fn draw_image(
 
 pub async fn flush(
     context: &mut dyn WIPICContext,
-    a0: WIPICWord,
+    i: WIPICWord,
     framebuffer: WIPICMemoryId,
-    a2: WIPICWord,
-    a3: WIPICWord,
-    a4: WIPICWord,
-    a5: WIPICWord,
+    x: WIPICWord,
+    y: WIPICWord,
+    w: WIPICWord,
+    h: WIPICWord,
 ) -> Result<()> {
-    tracing::debug!(
-        "MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
-        a0,
-        framebuffer.0,
-        a2,
-        a3,
-        a4,
-        a5
-    );
+    tracing::debug!("MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", i, framebuffer.0, x, y, w, h);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
 
