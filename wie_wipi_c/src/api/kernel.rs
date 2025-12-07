@@ -154,6 +154,7 @@ pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord
     tracing::debug!("MC_knlGetResourceID({:#x}, {:#x})", ptr_name, ptr_size);
 
     let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
+    tracing::debug!("  resource name: {}", name);
 
     let size = context.get_resource_size(&name).await?;
 
@@ -175,10 +176,14 @@ pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord
     Ok(ptr_handle as _)
 }
 
-pub async fn get_resource(context: &mut dyn WIPICContext, id: WIPICWord, buf: WIPICMemoryId, buf_size: WIPICWord) -> Result<i32> {
+pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICMemoryId, buf_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
-    let handle: ResourceHandle = read_generic(context, id)?;
+    if id < 0 {
+        return Ok(-9); // M_E_INVALID
+    }
+
+    let handle: ResourceHandle = read_generic(context, id as _)?;
     let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
     let name = str::from_utf8(&handle.name[..name_length]).unwrap();
 
