@@ -7,3 +7,4 @@ license.workspace = true
 [dependencies]
 bytemuck = { workspace = true }
 tracing = { workspace = true }
+tracing-attributes = { version = "<0.1.29" } # Pin this to avoid compile error with no-std https://github.com/tokio-rs/tracing/issues/3388
