@@ -46,6 +46,7 @@ impl Audio {
                 let mut system_clone = system.clone();
                 let sink_clone = self.sink.clone();
 
+                // TODO use dedicated audio player task
                 system.spawn(async move || {
                     player.play(&mut system_clone, &**sink_clone).await;
 
