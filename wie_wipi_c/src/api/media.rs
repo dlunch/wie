@@ -2,9 +2,11 @@ use alloc::vec;
 
 use bytemuck::{Pod, Zeroable};
 
+use wipi_types::wipic::WIPICWord;
+
 use wie_util::{Result, read_generic, write_generic};
 
-use crate::{WIPICWord, context::WIPICContext};
+use crate::context::WIPICContext;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

@@ -1,9 +1,11 @@
 use wie_util::Result;
 
-use crate::{WIPICMemoryId, context::WIPICContext};
+use wipi_types::wipic::WIPICIndirectPtr;
 
-pub async fn create_application_context(_context: &mut dyn WIPICContext) -> Result<WIPICMemoryId> {
+use crate::context::WIPICContext;
+
+pub async fn create_application_context(_context: &mut dyn WIPICContext) -> Result<WIPICIndirectPtr> {
     tracing::warn!("stub MC_uicCreateApplicationContext");
 
-    Ok(WIPICMemoryId(0))
+    Ok(WIPICIndirectPtr(0))
 }

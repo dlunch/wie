@@ -4,11 +4,12 @@ use jvm::{
     Jvm,
     runtime::{JavaIoInputStream, JavaLangClassLoader},
 };
+use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
-use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
 
 // mostly same as ktf's one, can we merge those?
 #[derive(Clone)]
@@ -30,14 +31,14 @@ impl WIPICContext for LgtWIPICContext {
         Allocator::alloc(&mut self.core, size)
     }
 
-    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICMemoryId> {
+    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICIndirectPtr> {
         let address = Allocator::alloc(&mut self.core, size + size_of::<WIPICWord>() as WIPICWord)?;
         write_generic(&mut self.core, address, size)?;
 
-        Ok(WIPICMemoryId(address + size_of::<WIPICWord>() as WIPICWord))
+        Ok(WIPICIndirectPtr(address + size_of::<WIPICWord>() as WIPICWord))
     }
 
-    fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
+    fn free(&mut self, memory: WIPICIndirectPtr) -> Result<()> {
         let base_address = memory.0 - size_of::<WIPICWord>() as WIPICWord;
 
         let size: WIPICWord = read_generic(&self.core, base_address)?;
@@ -50,7 +51,7 @@ impl WIPICContext for LgtWIPICContext {
         Ok(())
     }
 
-    fn data_ptr(&self, memory: WIPICMemoryId) -> Result<WIPICWord> {
+    fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord> {
         Ok(memory.0)
     }
 

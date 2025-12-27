@@ -3,10 +3,12 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
+use wipi_types::wipic::WIPICWord;
+
 use wie_backend::Database;
 use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use crate::{WIPICWord, context::WIPICContext};
+use crate::context::WIPICContext;
 
 #[derive(Pod, Zeroable, Copy, Clone)]
 #[repr(C)]

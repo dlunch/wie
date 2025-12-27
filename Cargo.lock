@@ -3357,6 +3357,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_util",
+ "wipi_types",
 ]
 
 [[package]]

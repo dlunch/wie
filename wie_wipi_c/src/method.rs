@@ -1,7 +1,9 @@
 use alloc::boxed::Box;
 use core::{future::Future, marker::PhantomData};
 
-use crate::{WIPICContext, WIPICResult, WIPICWord};
+use wipi_types::wipic::WIPICWord;
+
+use crate::{WIPICContext, WIPICResult};
 
 macro_rules! __impl_fn_helper {
     ($context: ident, $raw_type: ty, $($arg: ident),*) => {

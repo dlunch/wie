@@ -8,9 +8,11 @@ use core::{iter, mem::size_of};
 
 use bytemuck::{Pod, Zeroable};
 
+use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
+
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::{WIPICMemoryId, WIPICResult, WIPICWord, context::WIPICContext, method::MethodBody};
+use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -125,13 +127,13 @@ pub async fn unset_timer(_: &mut dyn WIPICContext, a0: WIPICWord) -> Result<()> 
     Ok(())
 }
 
-pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICMemoryId> {
+pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlAlloc({:#x})", size);
 
     context.alloc(size)
 }
 
-pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICMemoryId> {
+pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlCalloc({:#x})", size);
 
     let memory = context.alloc(size)?;
@@ -142,7 +144,7 @@ pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<W
     Ok(memory)
 }
 
-pub async fn free(context: &mut dyn WIPICContext, memory: WIPICMemoryId) -> Result<WIPICMemoryId> {
+pub async fn free(context: &mut dyn WIPICContext, memory: WIPICIndirectPtr) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlFree({:#x})", memory.0);
 
     context.free(memory)?;
@@ -176,7 +178,7 @@ pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord
     Ok(ptr_handle as _)
 }
 
-pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICMemoryId, buf_size: WIPICWord) -> Result<i32> {
+pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICIndirectPtr, buf_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
 
     if id < 0 {

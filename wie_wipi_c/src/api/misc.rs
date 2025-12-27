@@ -1,6 +1,8 @@
 use wie_util::Result;
 
-use crate::{WIPICWord, context::WIPICContext};
+use wipi_types::wipic::WIPICWord;
+
+use crate::context::WIPICContext;
 
 pub async fn back_light(
     _context: &mut dyn WIPICContext,

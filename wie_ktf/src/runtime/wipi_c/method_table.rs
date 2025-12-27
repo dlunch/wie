@@ -1,10 +1,13 @@
 use alloc::{format, vec, vec::Vec};
 
-use wipi_types::ktf::wipic::{WIPICGraphicsInterface, WIPICKnlInterface};
+use wipi_types::{
+    ktf::wipic::{WIPICGraphicsInterface, WIPICKnlInterface},
+    wipic::WIPICWord,
+};
 
 use wie_util::{Result, WieError};
 use wie_wipi_c::{
-    MethodImpl, WIPICContext, WIPICMethodBody, WIPICWord,
+    MethodImpl, WIPICContext, WIPICMethodBody,
     api::{database, graphics, kernel, media, misc, net, uic, util},
 };
 
