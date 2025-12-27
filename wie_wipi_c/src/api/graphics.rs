@@ -201,7 +201,7 @@ pub async fn draw_image(
     Ok(())
 }
 
-pub async fn flush(
+pub async fn flush_lcd(
     context: &mut dyn WIPICContext,
     i: WIPICWord,
     framebuffer: WIPICIndirectPtr,
