@@ -113,7 +113,7 @@ pub fn get_graphics_interface(context: &mut dyn WIPICContext) -> Result<WIPICGra
         draw_unicode_string: context.register_function(gen_stub(18, "MC_grpDrawUnicodeString"))?,
         get_rgb_pixels: context.register_function(gen_stub(19, "MC_grpGetRGBPixels"))?,
         set_rgb_pixels: context.register_function(gen_stub(20, "MC_grpSetRGBPixels"))?,
-        flush: context.register_function(graphics::flush.into_body())?,
+        flush_lcd: context.register_function(graphics::flush_lcd.into_body())?,
         get_pixel_from_rgb: context.register_function(graphics::get_pixel_from_rgb.into_body())?,
         get_rgb_from_pixel: context.register_function(graphics::get_rgb_from_pixel.into_body())?,
         get_display_info: context.register_function(graphics::get_display_info.into_body())?,
