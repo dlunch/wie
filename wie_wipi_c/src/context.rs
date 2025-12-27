@@ -84,10 +84,12 @@ impl ResultConverter<()> for () {
 pub mod test {
     use alloc::{boxed::Box, vec::Vec};
 
+    use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
+
     use wie_backend::{Instant, System};
     use wie_util::{ByteRead, ByteWrite, Result};
 
-    use crate::{WIPICContext, WIPICIndirectPtr, WIPICMethodBody, WIPICWord};
+    use crate::{WIPICContext, WIPICMethodBody};
 
     pub struct TestContext {
         memory: [u8; 0x10000],
