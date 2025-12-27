@@ -4,11 +4,12 @@ use jvm::{
     Jvm,
     runtime::{JavaIoInputStream, JavaLangClassLoader},
 };
+use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
-use wie_wipi_c::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICResult, WIPICWord};
+use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
 
 #[derive(Clone)]
 pub struct KtfWIPICContext {
@@ -29,15 +30,15 @@ impl WIPICContext for KtfWIPICContext {
         Allocator::alloc(&mut self.core, size)
     }
 
-    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICMemoryId> {
+    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICIndirectPtr> {
         let ptr = Allocator::alloc(&mut self.core, size + 12)?; // all allocation has indirect pointer
         write_generic(&mut self.core, ptr, ptr + 4)?;
         write_generic(&mut self.core, ptr + 4, size)?;
 
-        Ok(WIPICMemoryId(ptr))
+        Ok(WIPICIndirectPtr(ptr))
     }
 
-    fn free(&mut self, memory: WIPICMemoryId) -> Result<()> {
+    fn free(&mut self, memory: WIPICIndirectPtr) -> Result<()> {
         let size: u32 = read_generic(&self.core, memory.0 + 4)?;
         Allocator::free(&mut self.core, memory.0, size + 12)?;
 
@@ -50,7 +51,7 @@ impl WIPICContext for KtfWIPICContext {
         Ok(())
     }
 
-    fn data_ptr(&self, memory: WIPICMemoryId) -> Result<WIPICWord> {
+    fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord> {
         let base: WIPICWord = read_generic(&self.core, memory.0)?;
 
         Ok(base + 8) // all data has offset of 8 bytes

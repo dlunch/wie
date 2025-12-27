@@ -1,8 +1,10 @@
 use alloc::{boxed::Box, vec::Vec};
 
+use wipi_types::wipic::WIPICWord;
+
 use wie_util::{Result, WieError};
 
-use crate::{WIPICResult, WIPICWord, context::WIPICContext, method::MethodBody};
+use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 
 pub async fn connect(context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPICWord) -> Result<i32> {
     tracing::warn!("stub MC_netConnect({:#x}, {:#x})", cb, param);

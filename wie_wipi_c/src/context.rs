@@ -1,20 +1,22 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
+use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
+
 use wie_backend::{Instant, System};
 use wie_util::{ByteRead, ByteWrite, Result};
 
 use crate::{
-    WIPICMemoryId, WIPICMethodBody, WIPICWord,
+    WIPICMethodBody,
     method::{ParamConverter, ResultConverter},
 };
 
 #[async_trait::async_trait]
 pub trait WIPICContext: ByteRead + ByteWrite + Send {
     fn alloc_raw(&mut self, size: WIPICWord) -> Result<WIPICWord>;
-    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICMemoryId>;
-    fn free(&mut self, memory: WIPICMemoryId) -> Result<()>;
+    fn alloc(&mut self, size: WIPICWord) -> Result<WIPICIndirectPtr>;
+    fn free(&mut self, memory: WIPICIndirectPtr) -> Result<()>;
     fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()>;
-    fn data_ptr(&self, memory: WIPICMemoryId) -> Result<WIPICWord>;
+    fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord>;
     fn register_function(&mut self, method: WIPICMethodBody) -> Result<WIPICWord>;
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord>;
     fn system(&mut self) -> &mut System;
@@ -34,9 +36,9 @@ impl ParamConverter<WIPICWord> for WIPICWord {
     }
 }
 
-impl ParamConverter<WIPICMemoryId> for WIPICMemoryId {
-    fn convert(_: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICMemoryId {
-        WIPICMemoryId(raw)
+impl ParamConverter<WIPICIndirectPtr> for WIPICIndirectPtr {
+    fn convert(_: &mut dyn WIPICContext, raw: WIPICWord) -> WIPICIndirectPtr {
+        WIPICIndirectPtr(raw)
     }
 }
 
@@ -60,8 +62,8 @@ impl ResultConverter<WIPICWord> for WIPICWord {
     }
 }
 
-impl ResultConverter<WIPICMemoryId> for WIPICMemoryId {
-    fn convert(_: &mut dyn WIPICContext, result: WIPICMemoryId) -> WIPICResult {
+impl ResultConverter<WIPICIndirectPtr> for WIPICIndirectPtr {
+    fn convert(_: &mut dyn WIPICContext, result: WIPICIndirectPtr) -> WIPICResult {
         WIPICResult { results: vec![result.0] }
     }
 }
@@ -85,7 +87,7 @@ pub mod test {
     use wie_backend::{Instant, System};
     use wie_util::{ByteRead, ByteWrite, Result};
 
-    use crate::{WIPICContext, WIPICMemoryId, WIPICMethodBody, WIPICWord};
+    use crate::{WIPICContext, WIPICIndirectPtr, WIPICMethodBody, WIPICWord};
 
     pub struct TestContext {
         memory: [u8; 0x10000],
@@ -111,11 +113,11 @@ pub mod test {
             Ok(address as WIPICWord)
         }
 
-        fn alloc(&mut self, size: WIPICWord) -> Result<WIPICMemoryId> {
-            Ok(WIPICMemoryId(Self::alloc_raw(self, size)?))
+        fn alloc(&mut self, size: WIPICWord) -> Result<WIPICIndirectPtr> {
+            Ok(WIPICIndirectPtr(Self::alloc_raw(self, size)?))
         }
 
-        fn free(&mut self, _memory: WIPICMemoryId) -> Result<()> {
+        fn free(&mut self, _memory: WIPICIndirectPtr) -> Result<()> {
             Ok(())
         }
 
@@ -123,7 +125,7 @@ pub mod test {
             Ok(())
         }
 
-        fn data_ptr(&self, memory: WIPICMemoryId) -> Result<WIPICWord> {
+        fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord> {
             Ok(memory.0)
         }
 

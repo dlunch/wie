@@ -12,10 +12,12 @@ use wie_backend::{
 };
 use wie_util::{Result, read_generic, write_generic};
 
-use crate::{WIPICMemoryId, WIPICWord, context::WIPICContext};
+use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICIndirectPtr, WIPICWord};
+
+use crate::context::WIPICContext;
 
 use self::{
-    framebuffer::{WIPICDisplayInfo, WIPICFramebuffer},
+    framebuffer::FrameBuffer,
     grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
     image::WIPICImage,
 };
@@ -23,12 +25,12 @@ use self::{
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
 
-pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICMemoryId> {
+pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({:#x})", a0);
 
     let framebuffer_ptr: u32 = read_generic(context, SCREEN_FRAMEBUFFER_PTR)?;
     if framebuffer_ptr != 0 {
-        return Ok(WIPICMemoryId(framebuffer_ptr));
+        return Ok(WIPICIndirectPtr(framebuffer_ptr));
     }
 
     let (width, height) = {
@@ -37,10 +39,10 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWor
         (screen.width(), screen.height())
     };
 
-    let framebuffer = WIPICFramebuffer::new(context, width, height, FRAMEBUFFER_DEPTH)?;
+    let framebuffer = FrameBuffer::new(context, width, height, FRAMEBUFFER_DEPTH)?;
 
     let memory = context.alloc(size_of::<WIPICFramebuffer>() as WIPICWord)?;
-    write_generic(context, context.data_ptr(memory)?, framebuffer)?;
+    write_generic(context, context.data_ptr(memory)?, framebuffer.0)?;
     write_generic(context, SCREEN_FRAMEBUFFER_PTR, memory.0)?;
 
     Ok(memory)
@@ -100,10 +102,10 @@ pub async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, o
     Ok(())
 }
 
-pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, p_gctx: WIPICWord) -> Result<()> {
+pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr, x: i32, y: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpPutPixel({:#x}, {}, {}, {:?})", dst_fb.0, x, y, p_gctx);
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst_fb)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
     let mut canvas = framebuffer.canvas(context)?;
@@ -111,10 +113,10 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x:
     Ok(())
 }
 
-pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
+pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpFillRect({:#x}, {}, {}, {}, {}, {:#x})", dst_fb.0, x, y, w, h, p_gctx);
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst_fb)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst_fb)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
 
@@ -132,7 +134,7 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICMemoryId, x:
 pub async fn create_image(
     context: &mut dyn WIPICContext,
     ptr_image: WIPICWord,
-    image_data: WIPICMemoryId,
+    image_data: WIPICIndirectPtr,
     offset: u32,
     len: u32,
 ) -> Result<WIPICWord> {
@@ -147,7 +149,7 @@ pub async fn create_image(
     Ok(1) // MC_GRP_IMAGE_DONE
 }
 
-pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICMemoryId) -> Result<()> {
+pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICIndirectPtr) -> Result<()> {
     tracing::debug!("MC_grpDestroyImage({:#x})", image.0);
 
     context.free(image)?;
@@ -158,12 +160,12 @@ pub async fn destroy_image(context: &mut dyn WIPICContext, image: WIPICMemoryId)
 #[allow(clippy::too_many_arguments)]
 pub async fn draw_image(
     context: &mut dyn WIPICContext,
-    framebuffer: WIPICMemoryId,
+    framebuffer: WIPICIndirectPtr,
     dx: i32,
     dy: i32,
     w: i32,
     h: i32,
-    image: WIPICMemoryId,
+    image: WIPICIndirectPtr,
     sx: i32,
     sy: i32,
     graphics_context: WIPICWord,
@@ -181,10 +183,10 @@ pub async fn draw_image(
         graphics_context
     );
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(framebuffer)?)?);
     let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
 
-    let src_image = image.img.image(context)?;
+    let src_image = FrameBuffer(image.img).image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
 
     let clip = Clip {
@@ -202,7 +204,7 @@ pub async fn draw_image(
 pub async fn flush(
     context: &mut dyn WIPICContext,
     i: WIPICWord,
-    framebuffer: WIPICMemoryId,
+    framebuffer: WIPICIndirectPtr,
     x: WIPICWord,
     y: WIPICWord,
     w: WIPICWord,
@@ -210,7 +212,7 @@ pub async fn flush(
 ) -> Result<()> {
     tracing::debug!("MC_grpFlushLcd({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})", i, framebuffer.0, x, y, w, h);
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(framebuffer)?)?);
 
     let src_canvas = framebuffer.image(context)?;
 
@@ -277,7 +279,7 @@ pub async fn get_display_info(context: &mut dyn WIPICContext, reserved: WIPICWor
 #[allow(clippy::too_many_arguments)]
 pub async fn copy_area(
     context: &mut dyn WIPICContext,
-    dst: WIPICMemoryId,
+    dst: WIPICIndirectPtr,
     dx: i32,
     dy: i32,
     w: i32,
@@ -294,7 +296,7 @@ pub async fn copy_area(
         return Ok(());
     }
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
 
     let image = framebuffer.image(context)?;
     let mut canvas = framebuffer.canvas(context)?;
@@ -311,18 +313,18 @@ pub async fn copy_area(
     Ok(())
 }
 
-pub async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> Result<WIPICMemoryId> {
+pub async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_grpCreateOffScreenFrameBuffer({}, {})", w, h);
 
-    let framebuffer = WIPICFramebuffer::new(context, w as _, h as _, FRAMEBUFFER_DEPTH)?;
+    let framebuffer = FrameBuffer::new(context, w as _, h as _, FRAMEBUFFER_DEPTH)?;
 
     let memory = context.alloc(size_of::<WIPICFramebuffer>() as WIPICWord)?;
-    write_generic(context, context.data_ptr(memory)?, framebuffer)?;
+    write_generic(context, context.data_ptr(memory)?, framebuffer.0)?;
 
     Ok(memory)
 }
 
-pub async fn destroy_offscreen_framebuffer(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<()> {
+pub async fn destroy_offscreen_framebuffer(context: &mut dyn WIPICContext, framebuffer: WIPICIndirectPtr) -> Result<()> {
     tracing::debug!("MC_grpDestroyOffScreenFrameBuffer({:#x})", framebuffer.0);
 
     context.free(framebuffer)?;
@@ -333,12 +335,12 @@ pub async fn destroy_offscreen_framebuffer(context: &mut dyn WIPICContext, frame
 #[allow(clippy::too_many_arguments)]
 pub async fn copy_frame_buffer(
     context: &mut dyn WIPICContext,
-    dst: WIPICMemoryId,
+    dst: WIPICIndirectPtr,
     dx: i32,
     dy: i32,
     w: i32,
     h: i32,
-    src: WIPICMemoryId,
+    src: WIPICIndirectPtr,
     sx: i32,
     sy: i32,
     pgc: WIPICWord,
@@ -356,8 +358,8 @@ pub async fn copy_frame_buffer(
         pgc
     );
 
-    let src_framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(src)?)?;
-    let dst_framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+    let src_framebuffer = FrameBuffer(read_generic(context, context.data_ptr(src)?)?);
+    let dst_framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
 
     let src_image = src_framebuffer.image(context)?;
     let mut dst_canvas = dst_framebuffer.canvas(context)?;
@@ -392,7 +394,15 @@ pub async fn get_string_width(_: &mut dyn WIPICContext, font: i32, ptr_string: W
     Ok(10)
 }
 
-pub async fn draw_string(_: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i32, y: i32, string: WIPICWord, length: i32, pgc: WIPICWord) -> Result<()> {
+pub async fn draw_string(
+    _: &mut dyn WIPICContext,
+    dst: WIPICIndirectPtr,
+    x: i32,
+    y: i32,
+    string: WIPICWord,
+    length: i32,
+    pgc: WIPICWord,
+) -> Result<()> {
     tracing::warn!("stub MC_grpDrawString({:#x}, {}, {}, {:#x}, {}, {:#x})", dst.0, x, y, string, length, pgc);
 
     Ok(())
@@ -408,7 +418,7 @@ pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, w
     Ok(())
 }
 
-pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICMemoryId, property: i32) -> Result<i32> {
+pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICIndirectPtr, property: i32) -> Result<i32> {
     tracing::debug!("MC_grpGetImageProperty({:#x}, {})", image.0, property);
 
     let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
@@ -423,10 +433,10 @@ pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICMemo
     })
 }
 
-pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i32, y: i32, w: i32, h: i32, pgc: WIPICWord) -> Result<()> {
+pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x: i32, y: i32, w: i32, h: i32, pgc: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpDrawRect({:#x}, {x}, {y}, {w}, {h}, {pgc:#x})", dst.0);
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
     let mut canvas = framebuffer.canvas(context)?;
 
@@ -441,10 +451,10 @@ pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICMemoryId, x: i3
     Ok(())
 }
 
-pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICMemoryId, x1: i32, y1: i32, x2: i32, y2: i32, pgc: WIPICWord) -> Result<()> {
+pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1: i32, y1: i32, x2: i32, y2: i32, pgc: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpDrawLine({:#x}, {x1}, {y1}, {x2}, {y2}, {pgc:#x})", dst.0);
 
-    let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(dst)?)?;
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
     let mut canvas = framebuffer.canvas(context)?;
 
@@ -461,7 +471,7 @@ pub async fn post_event(context: &mut dyn WIPICContext, id: i32, r#type: i32, pa
 }
 
 // it's not documented api, but lgt apps gets pointer via api call
-pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<WIPICWord> {
+pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, framebuffer: WIPICIndirectPtr) -> Result<WIPICWord> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_POINTER({:#x})", framebuffer.0);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
@@ -469,7 +479,7 @@ pub async fn get_framebuffer_pointer(context: &mut dyn WIPICContext, framebuffer
     Ok(framebuffer.buf.0)
 }
 
-pub async fn get_framebuffer_width(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<i32> {
+pub async fn get_framebuffer_width(context: &mut dyn WIPICContext, framebuffer: WIPICIndirectPtr) -> Result<i32> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_WIDTH({:#x})", framebuffer.0);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
@@ -477,7 +487,7 @@ pub async fn get_framebuffer_width(context: &mut dyn WIPICContext, framebuffer: 
     Ok(framebuffer.width as _)
 }
 
-pub async fn get_framebuffer_height(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<i32> {
+pub async fn get_framebuffer_height(context: &mut dyn WIPICContext, framebuffer: WIPICIndirectPtr) -> Result<i32> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_HEIGHT({:#x})", framebuffer.0);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
@@ -485,7 +495,7 @@ pub async fn get_framebuffer_height(context: &mut dyn WIPICContext, framebuffer:
     Ok(framebuffer.height as _)
 }
 
-pub async fn get_framebuffer_bpp(context: &mut dyn WIPICContext, framebuffer: WIPICMemoryId) -> Result<i32> {
+pub async fn get_framebuffer_bpp(context: &mut dyn WIPICContext, framebuffer: WIPICIndirectPtr) -> Result<i32> {
     tracing::debug!("MC_GRP_GET_FRAME_BUFFER_BPP({:#x})", framebuffer.0);
 
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;

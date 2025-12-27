@@ -11,6 +11,8 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
+wipi_types = { workspace = true }
+
 wie_util = { workspace = true }
 wie_backend = { workspace = true }
 

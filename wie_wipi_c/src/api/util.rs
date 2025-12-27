@@ -1,6 +1,8 @@
 use wie_util::Result;
 
-use crate::{WIPICWord, context::WIPICContext};
+use wipi_types::wipic::WIPICWord;
+
+use crate::context::WIPICContext;
 
 pub async fn htons(_context: &mut dyn WIPICContext, val: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_utilHtons({})", val);
