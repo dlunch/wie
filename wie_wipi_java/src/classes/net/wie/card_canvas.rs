@@ -214,7 +214,7 @@ impl CardCanvas {
         let class_name: ClassInstanceRef<String> = jvm.invoke_virtual(&class, "getName", "()Ljava/lang/String;", ()).await?;
         let class_name_str = JavaLangString::to_rust_string(jvm, &class_name).await?;
 
-        if class_name_str == "CletCard" {
+        if class_name_str == "CletCard" || class_name_str == "net/wie/CletWrapperCard" {
             let wipi_display: ClassInstanceRef<Display> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
                 .await?;
