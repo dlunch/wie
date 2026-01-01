@@ -113,13 +113,13 @@ impl Platform for WieCliPlatform {
     fn write_stdout(&self, buf: &[u8]) {
         let str = str::from_utf8(buf).unwrap();
 
-        println!("{str}")
+        print!("{str}")
     }
 
     fn write_stderr(&self, buf: &[u8]) {
         let str = str::from_utf8(buf).unwrap();
 
-        eprintln!("{str}")
+        eprint!("{str}")
     }
 
     fn exit(&self) {
