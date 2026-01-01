@@ -51,6 +51,7 @@ impl Display {
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
                 JavaMethodProto::new("setFullscreen", "(Z)V", Self::set_fullscreen, Default::default()),
                 JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, Default::default()),
+                JavaMethodProto::new("disablePaint", "()V", Self::disable_paint, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("isInFullScreenMode", "Z", Default::default()),
@@ -59,6 +60,7 @@ impl Display {
                 JavaFieldProto::new("screenGraphics", "Ljavax/microedition/lcdui/Graphics;", Default::default()),
                 JavaFieldProto::new("width", "I", Default::default()),
                 JavaFieldProto::new("height", "I", Default::default()),
+                JavaFieldProto::new("paintDisabled", "Z", Default::default()),
             ],
             access_flags: Default::default(),
         }
@@ -260,19 +262,23 @@ impl Display {
                     (screen_graphics.clone(),),
                 )
                 .await;
+            let _: () = jvm.invoke_virtual(&screen_graphics, "reset", "()V", ()).await?;
+
             if let Err(x) = result {
                 Self::handle_exception(jvm, x).await?;
             }
 
-            let _: () = jvm.invoke_virtual(&screen_graphics, "reset", "()V", ()).await?;
+            // HACK: disable paint for clet apps, as they handle paint by themselves
+            let disable_paint: bool = jvm.get_field(&this, "paintDisabled", "Z").await?;
+            if !disable_paint {
+                let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
+                let image = Image::image(jvm, &screen_image).await?;
 
-            let screen_image: ClassInstanceRef<Image> = jvm.get_field(&this, "screenImage", "Ljavax/microedition/lcdui/Image;").await?;
-            let image = Image::image(jvm, &screen_image).await?;
+                let platform = context.system().platform();
+                let screen = platform.screen();
 
-            let platform = context.system().platform();
-            let screen = platform.screen();
-
-            screen.paint(&*image);
+                screen.paint(&*image);
+            }
             jvm.collect_garbage()?;
         }
 
@@ -347,6 +353,14 @@ impl Display {
         let platform = context.system().platform();
         let screen = platform.screen();
         screen.request_redraw().unwrap();
+
+        Ok(())
+    }
+
+    async fn disable_paint(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::disablePaint({this:?})");
+
+        jvm.put_field(&mut this, "paintDisabled", "Z", true).await?;
 
         Ok(())
     }
