@@ -1,12 +1,16 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use java_runtime::classes::java::lang::{Class, String};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::{javax::microedition::lcdui::Graphics, net::wie::MIDPKeyCode};
+use wie_midp::classes::{
+    javax::microedition::lcdui::{Display as MidpDisplay, Graphics as MidpGraphics},
+    net::wie::MIDPKeyCode,
+};
 
-use crate::classes::org::kwis::msp::lcdui::Card;
+use crate::classes::org::kwis::msp::lcdui::{Card, Display};
 
 #[repr(i32)]
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
@@ -112,7 +116,7 @@ impl CardCanvas {
         Ok(())
     }
 
-    async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+    async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<MidpGraphics>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::paint({:?}, {:?})", this, g);
 
         let graphics = jvm
@@ -204,6 +208,20 @@ impl CardCanvas {
         let _: () = jvm.invoke_virtual(&c, "showNotify", "(Z)V", (true,)).await?;
 
         let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
+
+        // HACK: disable java level paint on clet app
+        let class: ClassInstanceRef<Class> = jvm.invoke_virtual(&c, "getClass", "()Ljava/lang/Class;", ()).await?;
+        let class_name: ClassInstanceRef<String> = jvm.invoke_virtual(&class, "getName", "()Ljava/lang/String;", ()).await?;
+        let class_name_str = JavaLangString::to_rust_string(jvm, &class_name).await?;
+
+        if class_name_str == "CletCard" {
+            let wipi_display: ClassInstanceRef<Display> = jvm
+                .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
+                .await?;
+            let midp_display: ClassInstanceRef<MidpDisplay> =
+                jvm.get_field(&wipi_display, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+            let _: () = jvm.invoke_virtual(&midp_display, "disablePaint", "()V", ()).await?;
+        }
 
         Ok(())
     }
