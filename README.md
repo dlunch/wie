@@ -6,8 +6,7 @@ This project is dedicated to digital preservation and educational research. Our 
 
 ## Get Started
 
-[https://wie-site.dlunch.net](Homepage)
-[https://wie.dlunch.net](Try in browser)
+[Homepage](https://wie-site.dlunch.net) | [Try in browser](https://wie.dlunch.net)
 
 ## How to contribute
 
