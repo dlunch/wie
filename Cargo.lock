@@ -839,9 +839,9 @@ checksum = "af9673d8203fcb076b19dfd17e38b3d4ae9f44959416ea532ce72415a6020365"
 
 [[package]]
 name = "fast_image_resize"
-version = "5.5.0"
+version = "5.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbc7fe45cf92b43817ff62a3723e862b85bd1d06288f63007f7645d1d2f7a060"
+checksum = "6b6e793dfd0ee192d1999c655797ecc956c82d1f6d367be20bf6b81d6a1c87ac"
 dependencies = [
  "cfg-if",
  "document-features",
