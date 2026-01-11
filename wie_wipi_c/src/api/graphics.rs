@@ -12,14 +12,14 @@ use wie_backend::{
 };
 use wie_util::{Result, read_generic, write_generic};
 
-use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICIndirectPtr, WIPICWord};
+use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICImage, WIPICIndirectPtr, WIPICWord};
 
 use crate::context::WIPICContext;
 
 use self::{
     framebuffer::FrameBuffer,
     grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
-    image::WIPICImage,
+    image::create_wipi_image,
 };
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
@@ -140,7 +140,7 @@ pub async fn create_image(
 ) -> Result<WIPICWord> {
     tracing::debug!("MC_grpCreateImage({:#x}, {:#x}, {}, {})", ptr_image, image_data.0, offset, len);
 
-    let image = WIPICImage::new(context, image_data, offset, len)?;
+    let image = create_wipi_image(context, image_data, offset, len)?;
 
     let memory = context.alloc(size_of::<WIPICImage>() as WIPICWord)?;
     write_generic(context, ptr_image, memory)?;
