@@ -1,30 +1,8 @@
 use core::mem;
 
-use bytemuck::{Pod, Zeroable};
-
 use wipi_types::wipic::WIPICWord;
 
 use crate::{WIPICContext, method::ParamConverter};
-
-/// _MC_GrpContext
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct WIPICGraphicsContext {
-    pub mask: WIPICWord,
-    /// top-left x, y, bottom-right x, y
-    pub clip: [WIPICWord; 4],
-    pub fgpxl: WIPICWord,
-    pub bgpxl: WIPICWord,
-    pub transpxl: WIPICWord,
-    pub alpha: WIPICWord,
-    /// x, y
-    pub offset: [WIPICWord; 2],
-    pub pixel_op_func_ptr: WIPICWord, // MC_GrpPixelOpProc
-    pub param1: WIPICWord,
-    pub reserved: WIPICWord,
-    pub font: WIPICWord,
-    pub style: WIPICWord,
-}
 
 #[repr(u32)]
 #[derive(Debug)]
