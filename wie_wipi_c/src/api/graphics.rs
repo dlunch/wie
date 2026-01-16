@@ -4,23 +4,17 @@ mod image;
 
 use core::mem::size_of;
 
-use bytemuck::Zeroable;
-
 use wie_backend::{
     Event,
     canvas::{Clip, Color, PixelType, Rgb8Pixel},
 };
 use wie_util::{Result, read_generic, write_generic};
 
-use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICImage, WIPICIndirectPtr, WIPICWord};
+use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICGraphicsContext, WIPICImage, WIPICIndirectPtr, WIPICWord};
 
 use crate::context::WIPICContext;
 
-use self::{
-    framebuffer::FrameBuffer,
-    grp_context::{WIPICGraphicsContext, WIPICGraphicsContextIdx},
-    image::create_wipi_image,
-};
+use self::{framebuffer::FrameBuffer, grp_context::WIPICGraphicsContextIdx, image::create_wipi_image};
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
@@ -51,7 +45,7 @@ pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWor
 pub async fn init_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpInitContext({:#x})", p_grp_ctx);
 
-    let grp_ctx: WIPICGraphicsContext = WIPICGraphicsContext::zeroed();
+    let grp_ctx = WIPICGraphicsContext::default();
     write_generic(context, p_grp_ctx, grp_ctx)?;
     Ok(())
 }
