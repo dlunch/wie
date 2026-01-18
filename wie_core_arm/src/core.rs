@@ -20,7 +20,7 @@ const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
-pub const HEAP_SIZE: u32 = 0x1000000; // 16mb
+pub const HEAP_SIZE: u32 = 0x10000000; // 256 MB
 
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
