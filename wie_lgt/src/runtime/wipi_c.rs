@@ -28,6 +28,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x36 => graphics::get_framebuffer_bpp.into_body(),
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
+        0x68 => unk13.into_body(),
         0x6a => unk1.into_body(),
         0x6b => kernel::exit.into_body(),
         0x75 => kernel::alloc.into_body(),
@@ -52,6 +53,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0xce => graphics::set_context.into_body(),
         0xd0 => graphics::put_pixel.into_body(),
         0xd3 => graphics::fill_rect.into_body(),
+        0xd4 => graphics::copy_frame_buffer.into_body(),
         0xd5 => graphics::draw_image.into_body(),
         0xda => graphics::draw_string.into_body(),
         0xde => graphics::flush_lcd.into_body(),
@@ -238,6 +240,14 @@ async fn unk12(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     tracing::warn!("stub unk12({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
 
     // database
+
+    Ok(0)
+}
+
+async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk13({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+
+    // kernel
 
     Ok(0)
 }
