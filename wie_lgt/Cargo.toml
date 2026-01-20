@@ -9,6 +9,7 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 tracing = { workspace = true }
 
+chrono = { version = "^0.4", default-features = false, features = ["alloc"] }
 elf = { version = "^0.8" }
 
 java_class_proto = { workspace = true }
