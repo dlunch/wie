@@ -13,6 +13,7 @@ pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32>
         0x3fb => core.register_function(atoi, &())?,
         0x405 => core.register_function(strcpy, &())?,
         0x406 => core.register_function(strncpy, &())?,
+        0x407 => core.register_function(strcat, &())?,
         0x409 => core.register_function(strcmp, &())?,
         0x40a => core.register_function(unk4, &())?,
         0x410 => core.register_function(unk5, &())?,
@@ -43,6 +44,18 @@ async fn strncpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32, size: u
     let bytes = &src[..size_to_copy as usize];
 
     core.write_bytes(dst, bytes)?;
+
+    Ok(())
+}
+
+async fn strcat(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
+    tracing::debug!("strcat({ptr_dst:#x}, {ptr_src:#x})");
+
+    let src = read_null_terminated_string_bytes(core, ptr_src)?;
+    let dst = read_null_terminated_string_bytes(core, ptr_dst)?;
+
+    let offset = dst.len();
+    write_null_terminated_string_bytes(core, ptr_dst + offset as u32, &src)?;
 
     Ok(())
 }
