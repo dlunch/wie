@@ -3272,6 +3272,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytemuck",
+ "chrono",
  "elf",
  "java_class_proto",
  "java_constants",
