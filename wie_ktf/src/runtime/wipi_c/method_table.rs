@@ -1,7 +1,7 @@
 use alloc::{format, vec, vec::Vec};
 
 use wipi_types::{
-    ktf::wipic::{WIPICGraphicsInterface, WIPICKnlInterface},
+    ktf::wipic::{WIPICDatabaseInterface, WIPICGraphicsInterface, WIPICKnlInterface},
     wipic::WIPICWord,
 };
 
@@ -177,26 +177,26 @@ pub fn get_misc_method_table() -> Vec<WIPICMethodBody> {
     ]
 }
 
-pub fn get_database_method_table() -> Vec<WIPICMethodBody> {
-    vec![
-        database::open_database.into_body(),
-        database::read_record_single.into_body(),
-        database::write_record_single.into_body(),
-        database::close_database.into_body(),
-        database::select_record.into_body(),
-        gen_stub(5, "MC_dbUpdateRecord"),
-        database::delete_record.into_body(),
-        database::list_record.into_body(),
-        gen_stub(8, "MC_dbSortRecords"),
-        gen_stub(9, "MC_dbGetAccessMode"),
-        gen_stub(10, "MC_dbGetNumberOfRecords"),
-        gen_stub(11, "MC_dbGetRecordSize"),
-        gen_stub(12, "MC_dbListDataBases"),
-        gen_stub(13, ""),
-        gen_stub(14, ""),
-        gen_stub(15, ""),
-        database::unk16.into_body(),
-    ]
+pub fn get_database_interface(context: &mut dyn WIPICContext) -> Result<WIPICDatabaseInterface> {
+    Ok(WIPICDatabaseInterface {
+        open_database: context.register_function(database::open_database.into_body())?,
+        read_record_single: context.register_function(database::read_record_single.into_body())?,
+        write_record_single: context.register_function(database::write_record_single.into_body())?,
+        close_database: context.register_function(database::close_database.into_body())?,
+        select_record: context.register_function(database::select_record.into_body())?,
+        update_record: context.register_function(gen_stub(5, "MC_dbUpdateRecord"))?,
+        delete_record: context.register_function(database::delete_record.into_body())?,
+        list_record: context.register_function(database::list_record.into_body())?,
+        sort_records: context.register_function(gen_stub(8, "MC_dbSortRecords"))?,
+        get_access_mode: context.register_function(gen_stub(9, "MC_dbGetAccessMode"))?,
+        get_number_of_records: context.register_function(gen_stub(10, "MC_dbGetNumberOfRecords"))?,
+        get_record_size: context.register_function(gen_stub(11, "MC_dbGetRecordSize"))?,
+        list_databases: context.register_function(gen_stub(12, "MC_dbListDataBases"))?,
+        unk13: context.register_function(gen_stub(13, ""))?,
+        unk14: context.register_function(gen_stub(14, ""))?,
+        unk15: context.register_function(gen_stub(15, ""))?,
+        unk16: context.register_function(database::unk16.into_body())?,
+    })
 }
 
 pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {
