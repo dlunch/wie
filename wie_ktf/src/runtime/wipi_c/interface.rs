@@ -13,7 +13,7 @@ use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 use crate::runtime::wipi_c::{
     context::KtfWIPICContext,
-    method_table::{self, get_graphics_interface},
+    method_table::{self, get_database_interface, get_graphics_interface},
 };
 
 fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) -> Result<u32> {
@@ -51,6 +51,7 @@ pub async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> Result<u32>
     tracing::trace!("get_wipic_interfaces");
 
     let graphics_interface = get_graphics_interface(context)?;
+    let database_interface = get_database_interface(context)?;
 
     let util_interface = write_methods(context, method_table::get_util_method_table())?;
     let misc_interface = write_methods(context, method_table::get_misc_method_table())?;
@@ -58,7 +59,7 @@ pub async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> Result<u32>
     let interface_3 = write_methods(context, method_table::get_unk3_method_table())?;
     let interface_4 = write_methods(context, method_table::get_stub_method_table(4))?;
     let interface_5 = write_methods(context, method_table::get_stub_method_table(5))?;
-    let database_interface = write_methods(context, method_table::get_database_method_table())?;
+    let database_interface = write_interface(context, database_interface)?;
     let interface_7 = write_methods(context, method_table::get_stub_method_table(7))?;
     let uic_interface = write_methods(context, method_table::get_uic_method_table())?;
     let media_interface = write_methods(context, method_table::get_media_method_table())?;
