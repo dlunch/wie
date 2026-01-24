@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use smaf_player::{SmafEvent, parse_smaf};
 
@@ -18,6 +19,7 @@ enum AudioFile {
 pub struct Audio {
     sink: Arc<Box<dyn AudioSink>>,
     files: BTreeMap<AudioHandle, AudioFile>,
+    playing: BTreeMap<AudioHandle, Arc<AtomicBool>>,
     last_audio_handle: AudioHandle,
 }
 
@@ -26,6 +28,7 @@ impl Audio {
         Self {
             sink: Arc::new(sink),
             files: BTreeMap::new(),
+            playing: BTreeMap::new(),
             last_audio_handle: 0,
         }
     }
@@ -39,16 +42,20 @@ impl Audio {
         Ok(audio_handle)
     }
 
-    pub fn play(&self, system: &System, audio_handle: AudioHandle) -> Result<(), AudioError> {
+    pub fn play(&mut self, system: &System, audio_handle: AudioHandle) -> Result<(), AudioError> {
         match self.files.get(&audio_handle) {
             Some(AudioFile::Smaf(data)) => {
                 let player = SmafPlayer::new(data);
                 let mut system_clone = system.clone();
                 let sink_clone = self.sink.clone();
 
+                let stop_flag = Arc::new(AtomicBool::new(false));
+                let stop_flag_clone = stop_flag.clone();
+                self.playing.insert(audio_handle, stop_flag);
+
                 // TODO use dedicated audio player task
                 system.spawn(async move || {
-                    player.play(&mut system_clone, &**sink_clone).await;
+                    player.play(&mut system_clone, &**sink_clone, &stop_flag_clone).await;
 
                     Ok(())
                 });
@@ -59,10 +66,10 @@ impl Audio {
         Ok(())
     }
 
-    pub fn stop(&self, _system: &System, audio_handle: AudioHandle) -> Result<(), AudioError> {
-        match self.files.get(&audio_handle) {
-            Some(_audio_file) => {
-                // TODO
+    pub fn stop(&mut self, audio_handle: AudioHandle) -> Result<(), AudioError> {
+        match self.playing.remove(&audio_handle) {
+            Some(stop_flag) => {
+                stop_flag.store(true, Ordering::Relaxed);
             }
             None => return Err(AudioError::InvalidHandle),
         }
@@ -88,10 +95,18 @@ impl SmafPlayer {
         Self { events: parse_smaf(data) }
     }
 
-    pub async fn play(&self, system: &mut System, sink: &dyn AudioSink) {
-        let mut play_time = 0;
+    pub async fn play(&self, system: &mut System, sink: &dyn AudioSink, stop_flag: &AtomicBool) {
+        let start_time = system.platform().now();
         for (time, event) in &self.events {
-            system.sleep((time - play_time) as _).await;
+            if stop_flag.load(Ordering::Relaxed) {
+                Self::send_all_notes_off(sink);
+                break;
+            }
+
+            let now = system.platform().now();
+            if (*time as u64) > now - start_time {
+                system.sleep(((*time as u64) - (now - start_time)) as _).await;
+            }
 
             match event {
                 SmafEvent::Wave {
@@ -115,8 +130,13 @@ impl SmafPlayer {
                 }
                 SmafEvent::End => {}
             }
+        }
+    }
 
-            play_time = *time;
+    fn send_all_notes_off(sink: &dyn AudioSink) {
+        const MIDI_CC_ALL_NOTES_OFF: u8 = 123;
+        for channel in 0..16 {
+            sink.midi_control_change(channel, MIDI_CC_ALL_NOTES_OFF, 0);
         }
     }
 }

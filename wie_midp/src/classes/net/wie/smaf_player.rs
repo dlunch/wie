@@ -58,7 +58,7 @@ impl SmafPlayer {
 
         let system = context.system();
 
-        system.audio().stop(system, audio_handle as u32).unwrap();
+        system.audio().stop(audio_handle as u32).unwrap();
 
         Ok(())
     }
