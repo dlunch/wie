@@ -41,7 +41,7 @@ impl Player {
     }
 
     async fn stop(jvm: &Jvm, _: &mut WieJvmContext, clip: ClassInstanceRef<Clip>) -> JvmResult<bool> {
-        tracing::debug!("stub org.kwis.msp.media.Player::stop({clip:?})");
+        tracing::debug!("org.kwis.msp.media.Player::stop({clip:?})");
 
         let player = Clip::player(jvm, &clip).await?;
 
