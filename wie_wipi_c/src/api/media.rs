@@ -229,8 +229,18 @@ pub async fn resume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<
     Ok(0)
 }
 
-pub async fn stop(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaStop({:#x})", clip);
+pub async fn stop(context: &mut dyn WIPICContext, ptr_clip: WIPICWord) -> Result<WIPICWord> {
+    tracing::debug!("MC_mdaStop({:#x})", ptr_clip);
+
+    let clip: MdaClip = read_generic(context, ptr_clip)?;
+
+    let system = context.system();
+
+    let result = system.audio().stop(clip.handle);
+
+    if let Err(x) = result {
+        tracing::error!("Failed to stop audio: {:?}", x);
+    }
 
     Ok(0)
 }
