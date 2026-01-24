@@ -96,10 +96,14 @@ impl SmafPlayer {
     }
 
     pub async fn play(&self, system: &mut System, sink: &dyn AudioSink, stop_flag: &AtomicBool) {
+        let mut active_notes: Vec<(u8, u8)> = Vec::new();
+
         let start_time = system.platform().now();
         for (time, event) in &self.events {
             if stop_flag.load(Ordering::Relaxed) {
-                Self::send_all_notes_off(sink);
+                for (channel, note) in &active_notes {
+                    sink.midi_note_off(*channel, *note, 0);
+                }
                 break;
             }
 
@@ -118,9 +122,11 @@ impl SmafPlayer {
                 }
                 SmafEvent::MidiNoteOn { channel, note, velocity } => {
                     sink.midi_note_on(*channel, *note, *velocity);
+                    active_notes.push((*channel, *note));
                 }
                 SmafEvent::MidiNoteOff { channel, note, velocity } => {
                     sink.midi_note_off(*channel, *note, *velocity);
+                    active_notes.retain(|(c, n)| !(*c == *channel && *n == *note));
                 }
                 SmafEvent::MidiProgramChange { channel, program } => {
                     sink.midi_program_change(*channel, *program);
@@ -130,13 +136,6 @@ impl SmafPlayer {
                 }
                 SmafEvent::End => {}
             }
-        }
-    }
-
-    fn send_all_notes_off(sink: &dyn AudioSink) {
-        const MIDI_CC_ALL_NOTES_OFF: u8 = 123;
-        for channel in 0..16 {
-            sink.midi_control_change(channel, MIDI_CC_ALL_NOTES_OFF, 0);
         }
     }
 }
