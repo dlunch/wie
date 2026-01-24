@@ -116,7 +116,7 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
 
     let clip = Clip {
         x: x as _,
-        y: x as _,
+        y: y as _,
         width: w as _,
         height: h as _,
     };
