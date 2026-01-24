@@ -101,9 +101,6 @@ impl SmafPlayer {
         let start_time = system.platform().now();
         for (time, event) in &self.events {
             if stop_flag.load(Ordering::Relaxed) {
-                for (channel, note) in &active_notes {
-                    sink.midi_note_off(*channel, *note, 0);
-                }
                 break;
             }
 
@@ -136,6 +133,10 @@ impl SmafPlayer {
                 }
                 SmafEvent::End => {}
             }
+        }
+
+        for (channel, note) in &active_notes {
+            sink.midi_note_off(*channel, *note, 0);
         }
     }
 }
