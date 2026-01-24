@@ -4,9 +4,11 @@ mod image;
 
 use core::mem::size_of;
 
+use alloc::string::String;
+
 use wie_backend::{
     Event,
-    canvas::{Clip, Color, PixelType, Rgb8Pixel},
+    canvas::{Clip, Color, PixelType, Rgb8Pixel, TextAlignment},
 };
 use wie_util::{Result, read_generic, write_generic};
 
@@ -389,15 +391,25 @@ pub async fn get_string_width(_: &mut dyn WIPICContext, font: i32, ptr_string: W
 }
 
 pub async fn draw_string(
-    _: &mut dyn WIPICContext,
+    context: &mut dyn WIPICContext,
     dst: WIPICIndirectPtr,
     x: i32,
     y: i32,
-    string: WIPICWord,
+    ptr_string: WIPICWord,
     length: i32,
     pgc: WIPICWord,
 ) -> Result<()> {
-    tracing::warn!("stub MC_grpDrawString({:#x}, {}, {}, {:#x}, {}, {:#x})", dst.0, x, y, string, length, pgc);
+    tracing::debug!("MC_grpDrawString({:#x}, {}, {}, {:#x}, {}, {:#x})", dst.0, x, y, ptr_string, length, pgc);
+
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
+    let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
+
+    let mut string_bytes = alloc::vec![0u8; length as usize];
+    context.read_bytes(ptr_string, &mut string_bytes)?;
+    let string = String::from_utf8_lossy(&string_bytes);
+
+    let mut canvas = framebuffer.canvas(context)?;
+    canvas.draw_text(&string, x, y, TextAlignment::Left, Rgb8Pixel::to_color(gctx.fgpxl));
 
     Ok(())
 }
