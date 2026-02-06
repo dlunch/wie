@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use core::{fmt::Debug, fmt::Formatter, num::NonZeroU32};
-use std::fmt;
+use std::{fmt, vec};
 
 use fast_image_resize::ResizeAlg;
 use fast_image_resize::{PixelType, ResizeOptions, SrcCropping};
@@ -113,7 +113,7 @@ impl WindowImpl {
             context: None,
             surface: None,
             callback: Box::new(callback),
-            last_frame: None,
+            last_frame: vec![0u32; (self.width * self.height) as usize],
         };
 
         Ok(self.event_loop.run_app(&mut handler)?)
@@ -233,7 +233,7 @@ where
     /// Size of the OS window.
     window_size: PhysicalSize<u32>,
     /// Last content screen image data.
-    last_frame: Option<Vec<u32>>,
+    last_frame: Vec<u32>,
 
     window: Option<Arc<WinitWindow>>,
     context: Option<Context<Arc<WinitWindow>>>,
@@ -313,10 +313,7 @@ where
 
     /// Displays the last content frame to the window.
     fn paint_last_frame(&mut self) -> Option<()> {
-        let data = self.last_frame.as_ref()?;
-        if data.len() != self.content_size.width as usize * self.content_size.height as usize {
-            return None;
-        }
+        let data = &self.last_frame;
         let data_to_blit = if self.scaled_image_buf.len() == data.len() {
             data
         } else {
@@ -377,7 +374,7 @@ where
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowInternalEvent::Paint(data) => {
-                self.last_frame = Some(data);
+                self.last_frame = data;
                 self.paint_last_frame();
             }
             WindowInternalEvent::Quit => {
