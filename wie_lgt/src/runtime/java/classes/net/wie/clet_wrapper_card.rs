@@ -62,7 +62,10 @@ impl CletWrapperCard {
         tracing::debug!("net.wie.CletWrapperCard::paint({:?})", &this);
 
         let paint_clet: i32 = jvm.get_field(&this, "paintClet", "I").await?;
-        let _: () = context.core.run_function(paint_clet as _, &[]).await.unwrap();
+        let _: () = context.core.run_function(paint_clet as _, &[]).await.map_err(|x| match x {
+            WieError::FatalError(x) => JavaError::FatalError(x),
+            _ => JavaError::FatalError(format!("{x}")),
+        })?;
 
         Ok(())
     }
