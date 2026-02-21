@@ -167,7 +167,7 @@ dependencies = [
 [[package]]
 name = "arm32_cpu"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/arm32_cpu.git#8565f1efd3fad97c1846c8edadd1c86708bf6bb5"
+source = "git+https://github.com/dlunch/arm32_cpu.git#1d6c91ae40010624fbb91c45c5f72e0dcc91fbd5"
 dependencies = [
  "log",
 ]
