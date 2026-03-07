@@ -35,7 +35,7 @@ impl Manager {
         stream: ClassInstanceRef<InputStream>,
         r#type: ClassInstanceRef<String>,
     ) -> Result<ClassInstanceRef<Player>> {
-        tracing::debug!("javax.microedition.media.Manager::createPlayer({:?}, {:?})", &stream, &r#type);
+        tracing::debug!("javax.microedition.media.Manager::createPlayer({stream:?}, {type:?})");
 
         let type_string = JavaLangString::to_rust_string(jvm, &r#type).await?;
         if type_string == "application/vnd.smaf" {

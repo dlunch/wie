@@ -11,7 +11,7 @@ pub async fn back_light(
     color: WIPICWord,
     timeout: WIPICWord,
 ) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_miscBackLight({}, {}, {}, {})", id, on_off, color, timeout);
+    tracing::warn!("stub MC_miscBackLight({id}, {on_off}, {color}, {timeout})");
 
     Ok(0)
 }

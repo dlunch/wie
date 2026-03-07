@@ -22,7 +22,7 @@ impl BackLight {
     }
 
     async fn on(_jvm: &Jvm, _: &mut WieJvmContext, timeout: i32) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.BackLight::on({:?})", timeout);
+        tracing::warn!("stub com.skt.m.BackLight::on({timeout:?})");
 
         Ok(())
     }

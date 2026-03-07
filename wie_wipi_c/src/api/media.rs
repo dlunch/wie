@@ -78,7 +78,7 @@ struct MdaClip {
 }
 
 pub async fn clip_create(context: &mut dyn WIPICContext, ptr_type: WIPICWord, buf_size: WIPICWord, callback: WIPICWord) -> Result<WIPICWord> {
-    tracing::debug!("MC_mdaClipCreate({:#x}, {:#x}, {:#x})", ptr_type, buf_size, callback);
+    tracing::debug!("MC_mdaClipCreate({ptr_type:#x}, {buf_size:#x}, {callback:#x})");
 
     let clip = context.alloc_raw(size_of::<MdaClip>() as u32)?;
 
@@ -86,7 +86,7 @@ pub async fn clip_create(context: &mut dyn WIPICContext, ptr_type: WIPICWord, bu
 }
 
 pub async fn clip_free(context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::debug!("MC_mdaClipFree({:#x})", clip);
+    tracing::debug!("MC_mdaClipFree({clip:#x})");
 
     // some app call clip free with null clip...
     if clip == 0 {
@@ -99,13 +99,13 @@ pub async fn clip_free(context: &mut dyn WIPICContext, clip: WIPICWord) -> Resul
 }
 
 pub async fn clip_get_type(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipGetType({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
+    tracing::warn!("stub MC_mdaClipGetType({clip:#x}, {buf:#x}, {buf_size:#x})");
 
     Ok(0)
 }
 
 pub async fn get_mute_state(_context: &mut dyn WIPICContext, source: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaGetMuteState({:#x})", source);
+    tracing::warn!("stub MC_mdaGetMuteState({source:#x})");
 
     Ok(0)
 }
@@ -117,13 +117,13 @@ pub async fn clip_get_info(
     buf: WIPICWord,
     buf_size: WIPICWord,
 ) -> Result<WIPICWord> {
-    tracing::warn!("stub OEMC_mdaClipGetInfo({:#x}, {:#x}, {:#x}, {:#x})", clip, command, buf, buf_size);
+    tracing::warn!("stub OEMC_mdaClipGetInfo({clip:#x}, {command:#x}, {buf:#x}, {buf_size:#x})");
 
     Ok(0)
 }
 
 pub async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_mdaClipPutData({:#x}, {:#x}, {:#x})", ptr_clip, buf, buf_size);
+    tracing::debug!("MC_mdaClipPutData({ptr_clip:#x}, {buf:#x}, {buf_size:#x})");
 
     if ptr_clip == 0 {
         return Ok(-1);
@@ -134,7 +134,7 @@ pub async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, 
 
     let handle = context.system().audio().load_smaf(&data);
     if let Err(x) = handle {
-        tracing::error!("Failed to load audio: {:?}", x);
+        tracing::error!("Failed to load audio: {x:?}");
         return Ok(0);
     }
 
@@ -148,25 +148,25 @@ pub async fn clip_put_data(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, 
 }
 
 pub async fn clip_get_data(_context: &mut dyn WIPICContext, clip: WIPICWord, buf: WIPICWord, buf_size: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipGetData({:#x}, {:#x}, {:#x})", clip, buf, buf_size);
+    tracing::warn!("stub MC_mdaClipGetData({clip:#x}, {buf:#x}, {buf_size:#x})");
 
     Ok(0)
 }
 
 pub async fn clip_set_position(_context: &mut dyn WIPICContext, clip: WIPICWord, ms: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipSetPosition({:#x}, {:#x})", clip, ms);
+    tracing::warn!("stub MC_mdaClipSetPosition({clip:#x}, {ms:#x})");
 
     Ok(0)
 }
 
 pub async fn clip_get_volume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipGetVolume({:#x})", clip);
+    tracing::warn!("stub MC_mdaClipGetVolume({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn clip_set_volume(_context: &mut dyn WIPICContext, clip: WIPICWord, volume: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipSetVolume({:#x}, {:#x})", clip, volume);
+    tracing::warn!("stub MC_mdaClipSetVolume({clip:#x}, {volume:#x})");
 
     Ok(0)
 }
@@ -178,7 +178,7 @@ pub async fn get_volume(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
 }
 
 pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<()> {
-    tracing::debug!("MC_mdaPlay({:#x}, {})", ptr_clip, repeat);
+    tracing::debug!("MC_mdaPlay({ptr_clip:#x}, {repeat})");
 
     let clip: MdaClip = read_generic(context, ptr_clip)?;
 
@@ -187,50 +187,50 @@ pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: W
     let result = system.audio().play(system, clip.handle);
 
     if let Err(x) = result {
-        tracing::error!("Failed to load audio: {:?}", x);
+        tracing::error!("Failed to load audio: {x:?}");
     }
 
     Ok(())
 }
 
 pub async fn clip_alloc_player(_context: &mut dyn WIPICContext, clip: WIPICWord, param: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipAllocPlayer({:#x}, {:#x})", clip, param);
+    tracing::warn!("stub MC_mdaClipAllocPlayer({clip:#x}, {param:#x})");
 
     Ok(0)
 }
 
 pub async fn clip_free_player(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaClipFreePlayer({:#x})", clip);
+    tracing::warn!("stub MC_mdaClipFreePlayer({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn vibrator(_context: &mut dyn WIPICContext, level: i32, timeout: i32) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaVibrator({}, {})", level, timeout);
+    tracing::warn!("stub MC_mdaVibrator({level}, {timeout})");
 
     Ok(0)
 }
 
 pub async fn set_mute_state(_context: &mut dyn WIPICContext, source: i32, b_mute: i32) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaSetMuteState({:#x}, {})", source, b_mute);
+    tracing::warn!("stub MC_mdaSetMuteState({source:#x}, {b_mute})");
 
     Ok(0)
 }
 
 pub async fn pause(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaPause({:#x})", clip);
+    tracing::warn!("stub MC_mdaPause({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn resume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaResume({:#x})", clip);
+    tracing::warn!("stub MC_mdaResume({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn stop(context: &mut dyn WIPICContext, ptr_clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::debug!("MC_mdaStop({:#x})", ptr_clip);
+    tracing::debug!("MC_mdaStop({ptr_clip:#x})");
 
     let clip: MdaClip = read_generic(context, ptr_clip)?;
 
@@ -239,32 +239,32 @@ pub async fn stop(context: &mut dyn WIPICContext, ptr_clip: WIPICWord) -> Result
     let result = system.audio().stop(clip.handle);
 
     if let Err(x) = result {
-        tracing::error!("Failed to stop audio: {:?}", x);
+        tracing::error!("Failed to stop audio: {x:?}");
     }
 
     Ok(0)
 }
 
 pub async fn record(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaRecord({:#x})", clip);
+    tracing::warn!("stub MC_mdaRecord({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn unk7(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaUnk7({:#x})", clip);
+    tracing::warn!("stub MC_mdaUnk7({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn unk17(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaUnk17({:#x})", clip);
+    tracing::warn!("stub MC_mdaUnk17({clip:#x})");
 
     Ok(0)
 }
 
 pub async fn unk18(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaUnk18({:#x})", clip);
+    tracing::warn!("stub MC_mdaUnk18({clip:#x})");
 
     Ok(0)
 }

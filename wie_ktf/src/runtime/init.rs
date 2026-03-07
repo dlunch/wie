@@ -29,10 +29,10 @@ pub async fn load_native(
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 
-    tracing::debug!("Loaded at {:#x}, size {:#x}, bss {:#x}", IMAGE_BASE, data.len(), bss_size);
+    tracing::debug!("Loaded at {IMAGE_BASE:#x}, size {:#x}, bss {bss_size:#x}", data.len());
 
     let wipi_exe = core.run_function(IMAGE_BASE + 1, &[bss_size]).await?;
-    tracing::debug!("Got wipi_exe {:#x}", wipi_exe);
+    tracing::debug!("Got wipi_exe {wipi_exe:#x}");
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
@@ -102,7 +102,7 @@ pub async fn load_native(
 }
 
 async fn get_interface(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), ptr_name: u32) -> Result<u32> {
-    tracing::trace!("get_interface({:#x})", ptr_name);
+    tracing::trace!("get_interface({ptr_name:#x})");
 
     let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
 

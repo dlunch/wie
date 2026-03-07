@@ -45,14 +45,7 @@ impl XTextField {
         constraints: i32,
         canvas: ClassInstanceRef<Canvas>,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "com.xce.lcdui.XTextField::<init>({:?}, {:?}, {}, {}, {:?})",
-            &this,
-            &text2,
-            max_size,
-            constraints,
-            &canvas
-        );
+        tracing::debug!("com.xce.lcdui.XTextField::<init>({this:?}, {text2:?}, {max_size}, {constraints}, {canvas:?})");
 
         // Call the parent constructor
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;

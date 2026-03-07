@@ -120,7 +120,7 @@ impl JavaClassDefinition {
         write_generic(core, ptr_raw + 12, vtable.ptr_raw)?;
         write_generic(core, ptr_raw + 16, vtable.len()? as u16)?;
 
-        tracing::trace!("Wrote definition {} at {:#x}", proto.name, ptr_raw);
+        tracing::trace!("Wrote definition {} at {ptr_raw:#x}", proto.name);
 
         Ok(result)
     }

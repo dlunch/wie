@@ -35,10 +35,10 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
 
     write_generic(core, ptr_init_param_2, init_param_2)?;
 
-    tracing::debug!("ptr_init_param_1: {:#x}", ptr_init_param_1);
-    tracing::debug!("ptr_init_param_2: {:#x}", ptr_init_param_2);
+    tracing::debug!("ptr_init_param_1: {ptr_init_param_1:#x}");
+    tracing::debug!("ptr_init_param_2: {ptr_init_param_2:#x}");
 
-    tracing::debug!("Calling entrypoint {:#x}", entrypoint);
+    tracing::debug!("Calling entrypoint {entrypoint:#x}");
     let _: () = core.run_function(entrypoint + 1, &[ptr_init_param_1, ptr_init_param_2, 0]).await?;
 
     let init_param_1: InitParam1 = read_generic(core, ptr_init_param_1)?;
@@ -53,13 +53,13 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
 }
 
 async fn get_import_table(_core: &mut ArmCore, _: &mut (), import_table: u32) -> Result<u32> {
-    tracing::debug!("get_import_table({:#x})", import_table);
+    tracing::debug!("get_import_table({import_table:#x})");
 
     Ok(import_table)
 }
 
 async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), import_table: u32, function_index: u32) -> Result<u32> {
-    tracing::debug!("get_import_function({:#x}, {})", import_table, function_index);
+    tracing::debug!("get_import_function({import_table:#x}, {function_index})");
 
     if import_table == 0x1fb {
         return get_wipi_c_method(core, system, jvm, function_index);
@@ -100,7 +100,7 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
         let section_name = strtab.get(shdr.sh_name as usize).unwrap();
 
         if shdr.sh_addr != 0 {
-            tracing::debug!("Section {} at {:x}", section_name, shdr.sh_addr);
+            tracing::debug!("Section {section_name} at {:x}", shdr.sh_addr);
 
             let data = elf.section_data(&shdr).unwrap().0;
 
@@ -114,31 +114,31 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
 }
 
 async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("clet_unk0({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("clet_unk0({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(())
 }
 
 async fn java_unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk1({:#x}, {:#x}, {:#x})", a0, a1, a2);
+    tracing::warn!("java_unk1({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
 async fn java_unk2(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk2({:#x}, {:#x}, {:#x})", a0, a1, a2);
+    tracing::warn!("java_unk2({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
 async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk3({:#x}, {:#x}, {:#x})", a0, a1, a2);
+    tracing::warn!("java_unk3({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
 async fn java_unk7(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<u32> {
-    tracing::warn!("java_unk7({:#x}, {:#x}, {:#x})", a0, a1, a2);
+    tracing::warn!("java_unk7({a0:#x}, {a1:#x}, {a2:#x})");
 
     // get jar path?
 

@@ -43,7 +43,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: &Jvm) -> Result<u32> {
 }
 
 pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32, ptr_name: u32) -> Result<u32> {
-    tracing::trace!("load_java_class({:#x}, {:#x})", ptr_target, ptr_name);
+    tracing::trace!("load_java_class({ptr_target:#x}, {ptr_name:#x})");
 
     let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
     let class = jvm.resolve_class(&name).await;
@@ -121,7 +121,7 @@ async fn find_java_method(class: &JavaClassDefinition, name: &str, descriptor: &
 }
 
 async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -> Result<u32> {
-    tracing::trace!("java_jump_1({:#x}, {:#x})", arg1, address);
+    tracing::trace!("java_jump_1({arg1:#x}, {address:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
@@ -131,7 +131,7 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -
 }
 
 async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
-    tracing::trace!("register_class({:#x})", ptr_class);
+    tracing::trace!("register_class({ptr_class:#x})");
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     if jvm.has_class(&class.name()?) {
@@ -152,7 +152,7 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
 }
 
 async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, length: u32) -> Result<u32> {
-    tracing::trace!("register_java_string({:#x}, {:#x})", offset, length);
+    tracing::trace!("register_java_string({offset:#x}, {length:#x})");
 
     let mut cursor = offset;
     let length = if length == 0xffff_ffff {
@@ -187,7 +187,7 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
 }
 
 async fn get_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, field_name: u32) -> Result<u32> {
-    tracing::debug!("get_field({:#x}, {:#x})", ptr_class, field_name);
+    tracing::debug!("get_field({ptr_class:#x}, {field_name:#x})");
 
     let field_name = KtfJvmSupport::read_name(core, field_name)?;
 
@@ -202,36 +202,36 @@ async fn get_field(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, field_nam
     if let Some(x) = field {
         Ok(x.ptr_raw)
     } else {
-        Err(WieError::FatalError(format!("Field {} not found from {}", field_name, class.name()?)))
+        Err(WieError::FatalError(format!("Field {field_name} not found from {}", class.name()?)))
     }
 }
 
 async fn jb_unk4(_: &mut ArmCore, _: &mut Jvm, a0: u32, a1: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk4({:#x}, {:#x})", a0, a1);
+    tracing::warn!("stub jb_unk4({a0:#x}, {a1:#x})");
 
     Ok(0)
 }
 
 async fn jb_unk5(_: &mut ArmCore, _: &mut Jvm, a0: u32, a1: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk5({:#x}, {:#x})", a0, a1);
+    tracing::warn!("stub jb_unk5({a0:#x}, {a1:#x})");
 
     Ok(0)
 }
 
 async fn jb_unk7(_: &mut ArmCore, _: &mut Jvm, a0: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk7({:#x})", a0);
+    tracing::warn!("stub jb_unk7({a0:#x})");
 
     Ok(0)
 }
 
 async fn jb_unk8(_: &mut ArmCore, _: &mut Jvm, a0: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk8({:#x})", a0);
+    tracing::warn!("stub jb_unk8({a0:#x})");
 
     Ok(0)
 }
 
 async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u32) -> Result<u32> {
-    tracing::trace!("java_jump_native({:#x}, {:#x})", address, ptr_data);
+    tracing::trace!("java_jump_native({address:#x}, {ptr_data:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
@@ -247,7 +247,7 @@ async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u3
 }
 
 async fn java_jump_2(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, address: u32) -> Result<u32> {
-    tracing::trace!("java_jump_2({:#x}, {:#x}, {:#x})", arg1, arg2, address);
+    tracing::trace!("java_jump_2({arg1:#x}, {arg2:#x}, {address:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
@@ -257,7 +257,7 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, addr
 }
 
 async fn java_jump_3(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, arg3: u32, address: u32) -> Result<u32> {
-    tracing::trace!("java_jump_3({:#x}, {:#x}, {:#x}, {:#x})", arg1, arg2, arg3, address);
+    tracing::trace!("java_jump_3({arg1:#x}, {arg2:#x}, {arg3:#x}, {address:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
@@ -267,7 +267,7 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, arg3
 }
 
 pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<u32> {
-    tracing::trace!("java_new({:#x})", ptr_class);
+    tracing::trace!("java_new({ptr_class:#x})");
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
@@ -283,7 +283,7 @@ pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Resu
 }
 
 pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32, count: u32) -> Result<u32> {
-    tracing::trace!("java_array_new({:#x}, {:#x})", element_type, count);
+    tracing::trace!("java_array_new({element_type:#x}, {count:#x})");
 
     let element_type_name = if element_type > 0x100 {
         // HACK: we don't have element type class
@@ -303,7 +303,7 @@ pub async fn java_array_new(core: &mut ArmCore, jvm: &mut Jvm, element_type: u32
 }
 
 pub async fn java_check_type(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, ptr_instance: u32, unk: u32) -> Result<u32> {
-    tracing::warn!("stub java_check_type({:#x}, {:#x}, {:#x})", ptr_class, ptr_instance, unk);
+    tracing::warn!("stub java_check_type({ptr_class:#x}, {ptr_instance:#x}, {unk:#x})");
 
     let instance = JavaClassInstance::from_raw(ptr_instance, core);
 

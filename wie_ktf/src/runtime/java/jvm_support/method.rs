@@ -73,7 +73,7 @@ impl JavaMethod {
             },
         )?;
 
-        tracing::trace!("Wrote method {} at {:#x}", full_name.name, ptr_raw);
+        tracing::trace!("Wrote method {} at {ptr_raw:#x}", full_name.name);
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -181,7 +181,7 @@ impl JavaMethod {
     }
 
     pub async fn handle_exception(core: &mut ArmCore, jvm: &Jvm, exception: Box<dyn ClassInstance>) -> Result<JavaMethodResult> {
-        tracing::warn!("Java exception thrown: {:?}", exception);
+        tracing::warn!("Java exception thrown: {exception:?}");
 
         let current_java_exception_handler = KtfJvmSupport::current_java_exception_handler(core)?;
 

@@ -78,7 +78,7 @@ impl JavaClassInstance {
         )?;
         write_generic(core, ptr_fields, (vtable_index * 4) << 5)?;
 
-        tracing::trace!("Instantiate {}, vtable_index {:#x} at {:#x}", class.name()?, vtable_index, ptr_raw);
+        tracing::trace!("Instantiate {}, vtable_index {vtable_index:#x} at {ptr_raw:#x}", class.name()?);
 
         Ok(Self::from_raw(ptr_raw, core))
     }

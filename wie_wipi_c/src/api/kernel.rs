@@ -49,7 +49,7 @@ pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWo
         "ANNUN_SECURITY" => "0",
         "CURRENTCH" => "0",
         _ => {
-            tracing::warn!("unknown system property id: {}", id);
+            tracing::warn!("unknown system property id: {id}");
             return Ok(-9); // M_E_INVALID
         }
     };
@@ -65,13 +65,13 @@ pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWo
 }
 
 pub async fn set_system_property(_context: &mut dyn WIPICContext, ptr_id: WIPICWord, ptr_value: WIPICWord) -> Result<()> {
-    tracing::warn!("stub MC_knlSetSystemProperty({:#x}, {:#x})", ptr_id, ptr_value);
+    tracing::warn!("stub MC_knlSetSystemProperty({ptr_id:#x}, {ptr_value:#x})");
 
     Ok(())
 }
 
 pub async fn def_timer(context: &mut dyn WIPICContext, ptr_timer: WIPICWord, fn_callback: WIPICWord) -> Result<()> {
-    tracing::debug!("MC_knlDefTimer({:#x}, {:#x})", ptr_timer, fn_callback);
+    tracing::debug!("MC_knlDefTimer({ptr_timer:#x}, {fn_callback:#x})");
 
     let timer = WIPICTimer { fn_callback };
 
@@ -87,7 +87,7 @@ pub async fn set_timer(
     timeout_high: WIPICWord,
     param: WIPICWord,
 ) -> Result<()> {
-    tracing::debug!("MC_knlSetTimer({:#x}, {:#x}, {:#x}, {:#x})", ptr_timer, timeout_low, timeout_high, param);
+    tracing::debug!("MC_knlSetTimer({ptr_timer:#x}, {timeout_low:#x}, {timeout_high:#x}, {param:#x})");
 
     struct TimerCallback {
         ptr_timer: WIPICWord,
@@ -122,19 +122,19 @@ pub async fn set_timer(
 }
 
 pub async fn unset_timer(_: &mut dyn WIPICContext, a0: WIPICWord) -> Result<()> {
-    tracing::warn!("stub MC_knlUnsetTimer({:#x})", a0);
+    tracing::warn!("stub MC_knlUnsetTimer({a0:#x})");
 
     Ok(())
 }
 
 pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
-    tracing::debug!("MC_knlAlloc({:#x})", size);
+    tracing::debug!("MC_knlAlloc({size:#x})");
 
     context.alloc(size)
 }
 
 pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
-    tracing::debug!("MC_knlCalloc({:#x})", size);
+    tracing::debug!("MC_knlCalloc({size:#x})");
 
     let memory = context.alloc(size)?;
 
@@ -153,10 +153,10 @@ pub async fn free(context: &mut dyn WIPICContext, memory: WIPICIndirectPtr) -> R
 }
 
 pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord, ptr_size: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_knlGetResourceID({:#x}, {:#x})", ptr_name, ptr_size);
+    tracing::debug!("MC_knlGetResourceID({ptr_name:#x}, {ptr_size:#x})");
 
     let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
-    tracing::debug!("  resource name: {}", name);
+    tracing::debug!("  resource name: {name}");
 
     let size = context.get_resource_size(&name).await?;
 
@@ -179,7 +179,7 @@ pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord
 }
 
 pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICIndirectPtr, buf_size: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_knlGetResource({}, {:#x}, {})", id, buf.0, buf_size);
+    tracing::debug!("MC_knlGetResource({id}, {:#x}, {buf_size})", buf.0);
 
     if id < 0 {
         return Ok(-9); // M_E_INVALID
@@ -201,7 +201,7 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICInd
 }
 
 pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: WIPICWord, a1: WIPICWord, a2: WIPICWord, a3: WIPICWord) -> Result<()> {
-    tracing::debug!("MC_knlPrintk({:#x}, {:#x}, {:#x}, {:#x}, {:#x})", ptr_format, a0, a1, a2, a3);
+    tracing::debug!("MC_knlPrintk({ptr_format:#x}, {a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
     let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
@@ -277,9 +277,9 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
                     'd' => {
                         let arg = *arg_iter.next().unwrap() as i32;
                         if let Some('0') = flag {
-                            result += &format!("{:0width$}", arg, width = width.unwrap_or(0));
+                            result += &format!("{arg:0width$}", width = width.unwrap_or(0));
                         } else {
-                            result += &format!("{:width$}", arg, width = width.unwrap_or(0));
+                            result += &format!("{arg:width$}", width = width.unwrap_or(0));
                         }
                         break;
                     }
@@ -314,7 +314,7 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
                             width = Some(c.to_digit(10).unwrap() as usize)
                         }
                     }
-                    _ => unimplemented!("Unknown format: {}", c),
+                    _ => unimplemented!("Unknown format: {c}"),
                 }
             }
         } else {
@@ -326,7 +326,7 @@ fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result
 }
 
 pub async fn exit(context: &mut dyn WIPICContext, code: i32) -> Result<()> {
-    tracing::debug!("MC_knlExit({})", code);
+    tracing::debug!("MC_knlExit({code})");
 
     context.system().platform().exit();
 

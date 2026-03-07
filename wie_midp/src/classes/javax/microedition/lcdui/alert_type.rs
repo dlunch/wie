@@ -31,7 +31,7 @@ impl AlertType {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Alert::<init>({this:?}, {})", r#type);
+        tracing::debug!("javax.microedition.lcdui.Alert::<init>({this:?}, {type})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 

@@ -43,7 +43,7 @@ pub struct Database {
 
 impl Database {
     pub fn new(base_path: PathBuf) -> anyhow::Result<Self> {
-        tracing::trace!("Opening database at {:?}", base_path);
+        tracing::trace!("Opening database at {base_path:?}");
 
         fs::create_dir_all(&base_path)?;
 

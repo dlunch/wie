@@ -19,7 +19,7 @@ impl BucketAllocator {
             let header_length = BUCKET_SIZE / bucket / 8;
             let header_address = base_address + i as u32 * BUCKET_SIZE as u32;
 
-            tracing::info!("Bucket {} header size {}", bucket, BUCKET_SIZE / bucket / 8);
+            tracing::info!("Bucket {bucket} header size {}", BUCKET_SIZE / bucket / 8);
 
             core.write_bytes(header_address, &vec![0xff; header_length])?;
         }

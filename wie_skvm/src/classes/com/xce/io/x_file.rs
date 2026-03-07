@@ -48,7 +48,7 @@ impl XFile {
         name: ClassInstanceRef<String>,
         mode: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.XFile::<init>({:?}, {:?}, {:?})", this, name, mode);
+        tracing::debug!("com.xce.io.XFile::<init>({this:?}, {name:?}, {mode:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -76,7 +76,7 @@ impl XFile {
     }
 
     async fn exists(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
-        tracing::debug!("com.xce.io.XFile::exists({:?})", name);
+        tracing::debug!("com.xce.io.XFile::exists({name:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
         let exists = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
@@ -85,7 +85,7 @@ impl XFile {
     }
 
     async fn filesize(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
-        tracing::debug!("com.xce.io.XFile::filesize({:?})", name);
+        tracing::debug!("com.xce.io.XFile::filesize({name:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
         let size: i64 = jvm.invoke_virtual(&file, "length", "()J", ()).await?;
@@ -94,7 +94,7 @@ impl XFile {
     }
 
     async fn unlink(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {
-        tracing::warn!("stub com.xce.io.XFile::unlink({:?})", name);
+        tracing::warn!("stub com.xce.io.XFile::unlink({name:?})");
 
         Ok(0)
     }
@@ -125,7 +125,7 @@ impl XFile {
         offset: i32,
         length: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!("com.xce.io.XFile::read({:?}, {:?}, {}, {})", this, data, offset, length);
+        tracing::debug!("com.xce.io.XFile::read({this:?}, {data:?}, {offset}, {length})");
 
         let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
 
@@ -150,7 +150,7 @@ impl XFile {
         offset: i32,
         length: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!("com.xce.io.XFile::write({:?}, {:?}, {}, {})", this, data, offset, length);
+        tracing::debug!("com.xce.io.XFile::write({this:?}, {data:?}, {offset}, {length})");
 
         let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
         if mode == READ_RESOURCE {
@@ -164,7 +164,7 @@ impl XFile {
     }
 
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.XFile::close({:?})", this);
+        tracing::debug!("com.xce.io.XFile::close({this:?})");
 
         let mode: i32 = jvm.get_field(&this, "mode", "I").await?;
         if mode == READ_RESOURCE {

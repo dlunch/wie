@@ -81,14 +81,7 @@ impl Image {
         img_data: ClassInstanceRef<Array<i8>>,
         bpl: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Image::<init>({:?}, {}, {}, {:?}, {})",
-            &this,
-            width,
-            height,
-            &img_data,
-            bpl
-        );
+        tracing::debug!("javax.microedition.lcdui.Image::<init>({this:?}, {width}, {height}, {img_data:?}, {bpl})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -101,7 +94,7 @@ impl Image {
     }
 
     async fn create_image(jvm: &Jvm, _: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("javax.microedition.lcdui.Image::createImage({}, {})", width, height);
+        tracing::debug!("javax.microedition.lcdui.Image::createImage({width}, {height})");
 
         let bytes_per_pixel = 4;
 
@@ -116,7 +109,7 @@ impl Image {
     }
 
     async fn create_image_from_name(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("javax.microedition.lcdui.Image::createImage({:?})", &name);
+        tracing::debug!("javax.microedition.lcdui.Image::createImage({name:?})");
 
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
@@ -174,7 +167,7 @@ impl Image {
     }
 
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
-        tracing::debug!("javax.microedition.lcdui.Image::getGraphics({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Image::getGraphics({this:?})");
 
         let instance = jvm
             .new_class(
@@ -188,13 +181,13 @@ impl Image {
     }
 
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Image::getWidth({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Image::getWidth({this:?})");
 
         jvm.get_field(&this, "w", "I").await
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Image::getHeight({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Image::getHeight({this:?})");
 
         jvm.get_field(&this, "h", "I").await
     }
@@ -209,7 +202,7 @@ impl Image {
             1 => Box::new(JavaImageBuffer::<Rgb332Pixel>::new(jvm, this).await?) as _,
             2 => Box::new(JavaImageBuffer::<Rgb565Pixel>::new(jvm, this).await?) as _,
             4 => Box::new(JavaImageBuffer::<ArgbPixel>::new(jvm, this).await?) as _,
-            _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
+            _ => unimplemented!("Unsupported pixel format: {bytes_per_pixel}"),
         })
     }
 
@@ -223,7 +216,7 @@ impl Image {
             1 => Box::new(ImageBufferCanvas::new(JavaImageBuffer::<Rgb332Pixel>::new(jvm, this).await?)) as _,
             2 => Box::new(ImageBufferCanvas::new(JavaImageBuffer::<Rgb565Pixel>::new(jvm, this).await?)) as _,
             4 => Box::new(ImageBufferCanvas::new(JavaImageBuffer::<ArgbPixel>::new(jvm, this).await?)) as _,
-            _ => unimplemented!("Unsupported pixel format: {}", bytes_per_pixel),
+            _ => unimplemented!("Unsupported pixel format: {bytes_per_pixel}"),
         })
     }
 

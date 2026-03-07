@@ -318,7 +318,7 @@ pub fn get_net_method_table() -> Vec<WIPICMethodBody> {
 
 fn gen_unk_stub(id: u32, index: u32) -> WIPICMethodBody {
     let body = move |_: &mut dyn WIPICContext| async move {
-        tracing::warn!("stub unk{}-{}", id, index);
+        tracing::warn!("stub unk{id}-{index}");
         Ok::<u32, _>(0)
     };
 

@@ -35,7 +35,7 @@ impl AudioSystem {
     }
 
     async fn get_audio_clip(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<AudioClip>> {
-        tracing::debug!("com.skt.m.AudioSystem::getAudioClip({:?})", name);
+        tracing::debug!("com.skt.m.AudioSystem::getAudioClip({name:?})");
 
         let audio_clip = jvm.new_class("net/wie/WieAudioClip", "(Ljava/lang/String;)V", (name,)).await?;
 
@@ -43,19 +43,19 @@ impl AudioSystem {
     }
 
     async fn get_max_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
-        tracing::warn!("stub com.skt.m.AudioSystem::getMaxVolume({:?})", format);
+        tracing::warn!("stub com.skt.m.AudioSystem::getMaxVolume({format:?})");
 
         Ok(0)
     }
 
     async fn get_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>) -> JvmResult<i32> {
-        tracing::warn!("stub com.skt.m.AudioSystem::getVolume({:?})", format);
+        tracing::warn!("stub com.skt.m.AudioSystem::getVolume({format:?})");
 
         Ok(0)
     }
 
     async fn set_volume(_jvm: &Jvm, _context: &mut WieJvmContext, format: ClassInstanceRef<String>, level: i32) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.AudioSystem::setVolume({:?}, {})", format, level);
+        tracing::warn!("stub com.skt.m.AudioSystem::setVolume({format:?}, {level})");
 
         Ok(())
     }

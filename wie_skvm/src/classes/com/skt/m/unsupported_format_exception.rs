@@ -25,7 +25,7 @@ impl UnsupportedFormatException {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
-        tracing::debug!("com.skt.m.UnsupportedFormatException::<init>({:?})", &this);
+        tracing::debug!("com.skt.m.UnsupportedFormatException::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Exception", "<init>", "()V", ()).await?;
 
@@ -33,7 +33,7 @@ impl UnsupportedFormatException {
     }
 
     async fn init_with_message(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, message: ClassInstanceRef<String>) -> Result<()> {
-        tracing::debug!("com.skt.m.UnsupportedFormatException::<init>({:?}, {:?})", &this, &message);
+        tracing::debug!("com.skt.m.UnsupportedFormatException::<init>({this:?}, {message:?})");
 
         let _: () = jvm
             .invoke_special(&this, "java/lang/Exception", "<init>", "(Ljava/lang/String;)V", (message,))

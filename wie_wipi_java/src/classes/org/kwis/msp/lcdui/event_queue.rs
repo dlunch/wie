@@ -28,7 +28,7 @@ impl EventQueue {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<EventQueue>, jlet: ClassInstanceRef<Jlet>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({:?}, {:?})", &this, &jlet);
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::<init>({this:?}, {jlet:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -46,7 +46,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({this:?}, {event:?})");
 
         let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lnet/wie/EventQueue;").await?;
         let _: () = jvm.invoke_virtual(&wie_event_queue, "getNextEvent", "([I)V", (event,)).await?;
@@ -60,7 +60,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
+        tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({this:?}, {event:?})");
 
         let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lnet/wie/EventQueue;").await?;
         let _: () = jvm.invoke_virtual(&wie_event_queue, "dispatchEvent", "([I)V", (event,)).await?;

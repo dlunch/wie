@@ -104,7 +104,7 @@ impl CardCanvas {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::<init>({:?})", this);
+        tracing::debug!("net.wie.CardCanvas::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Canvas", "<init>", "()V", ()).await?;
 
@@ -117,7 +117,7 @@ impl CardCanvas {
     }
 
     async fn paint(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, g: ClassInstanceRef<MidpGraphics>) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::paint({:?}, {:?})", this, g);
+        tracing::debug!("net.wie.CardCanvas::paint({this:?}, {g:?})");
 
         let graphics = jvm
             .new_class("org/kwis/msp/lcdui/Graphics", "(Ljavax/microedition/lcdui/Graphics;)V", (g,))
@@ -137,7 +137,7 @@ impl CardCanvas {
     }
 
     async fn key_pressed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::keyPressed({:?}, {})", this, key_code);
+        tracing::debug!("net.wie.CardCanvas::keyPressed({this:?}, {key_code})");
 
         let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
 
@@ -157,7 +157,7 @@ impl CardCanvas {
     }
 
     async fn key_repeated(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::keyRepeated({:?}, {})", this, key_code);
+        tracing::debug!("net.wie.CardCanvas::keyRepeated({this:?}, {key_code})");
 
         let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
 
@@ -177,7 +177,7 @@ impl CardCanvas {
     }
 
     async fn key_released(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::keyReleased({:?}, {})", this, key_code);
+        tracing::debug!("net.wie.CardCanvas::keyReleased({this:?}, {key_code})");
 
         let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
 
@@ -197,7 +197,7 @@ impl CardCanvas {
     }
 
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::pushCard({:?}, {:?})", &this, &c);
+        tracing::debug!("net.wie.CardCanvas::pushCard({this:?}, {c:?})");
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let _: () = jvm.invoke_virtual(&cards, "addElement", "(Ljava/lang/Object;)V", (c.clone(),)).await?;
@@ -253,7 +253,7 @@ impl CardCanvas {
         param1: i32,
         param2: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.CardCanvas::handleNotifyEvent({this:?}, {}, {param1}, {param2})", r#type);
+        tracing::debug!("net.wie.CardCanvas::handleNotifyEvent({this:?}, {type}, {param1}, {param2})");
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let top_card = jvm.invoke_virtual(&cards, "firstElement", "()Ljava/lang/Object;", ()).await?;

@@ -67,7 +67,7 @@ impl Display {
     }
 
     async fn init(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Display::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Display::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -101,7 +101,7 @@ impl Display {
     }
 
     async fn get_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Display::getWidth({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Display::getWidth({this:?})");
 
         let width = jvm.get_field(&this, "width", "I").await?;
 
@@ -109,7 +109,7 @@ impl Display {
     }
 
     async fn get_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Display::getHeight({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Display::getHeight({this:?})");
 
         let height = jvm.get_field(&this, "height", "I").await?;
 
@@ -122,7 +122,7 @@ impl Display {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Runnable>,
     ) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Display::callSerially({:?}, {:?})", &this, &event);
+        tracing::debug!("javax.microedition.lcdui.Display::callSerially({this:?}, {event:?})");
 
         let event_queue = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
@@ -140,7 +140,7 @@ impl Display {
         mut this: ClassInstanceRef<Self>,
         displayable: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Display::setCurrent({:?}, {:?})", &this, displayable);
+        tracing::debug!("javax.microedition.lcdui.Display::setCurrent({this:?}, {displayable:?})");
 
         let old_displayable: ClassInstanceRef<Displayable> = jvm
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
@@ -186,7 +186,7 @@ impl Display {
     }
 
     async fn get_display(jvm: &Jvm, _context: &mut WieJvmContext, midlet: ClassInstanceRef<MIDlet>) -> JvmResult<ClassInstanceRef<Self>> {
-        tracing::debug!("javax.microedition.lcdui.Display::getDisplay({:?})", midlet);
+        tracing::debug!("javax.microedition.lcdui.Display::getDisplay({midlet:?})");
 
         let display = MIDlet::display(jvm, &midlet).await?;
 
@@ -218,12 +218,7 @@ impl Display {
     }
 
     async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Display::handleKeyEvent({:?}, {:?}, {})",
-            &this,
-            event_type,
-            code
-        );
+        tracing::debug!("javax.microedition.lcdui.Display::handleKeyEvent({this:?}, {event_type:?}, {code})");
 
         let current_displayable: ClassInstanceRef<Displayable> = jvm
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
@@ -243,7 +238,7 @@ impl Display {
     }
 
     async fn handle_paint_event(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Display::handlePaintEvent({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Display::handlePaintEvent({this:?})");
 
         let current_displayable: ClassInstanceRef<Displayable> = jvm
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
@@ -337,7 +332,7 @@ impl Display {
             let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await?;
             let trace = JavaLangString::to_rust_string(jvm, &trace).await?;
 
-            tracing::warn!("Exception while event handling: {}", trace);
+            tracing::warn!("Exception while event handling: {trace}");
 
             Ok(())
         } else {

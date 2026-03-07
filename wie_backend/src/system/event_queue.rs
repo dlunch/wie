@@ -57,7 +57,7 @@ impl KeyCode {
             "#" => KeyCode::HASH,
             "*" => KeyCode::STAR,
             "CLR" => KeyCode::CLEAR,
-            _ => unimplemented!("Unknown key: {}", string),
+            _ => unimplemented!("Unknown key: {string}"),
         }
     }
 }

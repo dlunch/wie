@@ -31,7 +31,7 @@ impl FileInputStream {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileInputStream::<init>({:?}, {:?})", this, name);
+        tracing::debug!("com.xce.io.FileInputStream::<init>({this:?}, {name:?})");
 
         let _: () = jvm.invoke_special(&this, "java/io/InputStream", "<init>", "()V", ()).await?;
 
@@ -49,7 +49,7 @@ impl FileInputStream {
         mut this: ClassInstanceRef<Self>,
         file: ClassInstanceRef<XFile>,
     ) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileInputStream::<init>({:?}, {:?})", this, file);
+        tracing::debug!("com.xce.io.FileInputStream::<init>({this:?}, {file:?})");
 
         let raf = XFile::raf(jvm, file).await?;
         let fd: ClassInstanceRef<FileDescriptor> = jvm.invoke_virtual(&raf, "getFD", "()Ljava/io/FileDescriptor;", ()).await?;
@@ -61,7 +61,7 @@ impl FileInputStream {
     }
 
     async fn available(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("com.xce.io.FileInputStream::available({:?})", this);
+        tracing::debug!("com.xce.io.FileInputStream::available({this:?})");
 
         let is = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
         let available = jvm.invoke_virtual(&is, "available", "()I", ()).await?;
@@ -70,7 +70,7 @@ impl FileInputStream {
     }
 
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileInputStream::close({:?})", this);
+        tracing::debug!("com.xce.io.FileInputStream::close({this:?})");
 
         let is = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
         let _: () = jvm.invoke_virtual(&is, "close", "()V", ()).await?;
@@ -79,7 +79,7 @@ impl FileInputStream {
     }
 
     async fn read_byte(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("com.xce.io.FileInputStream::read({:?})", this);
+        tracing::debug!("com.xce.io.FileInputStream::read({this:?})");
 
         let is = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
         let read = jvm.invoke_virtual(&is, "read", "()I", ()).await?;

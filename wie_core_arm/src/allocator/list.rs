@@ -62,7 +62,7 @@ impl ListAllocator {
         // write canary
         write_generic(core, address + size_to_alloc - CANARY_SIZE, CANARY_VALUE)?;
 
-        tracing::trace!("Allocated {:#x} bytes at {:#x}", size, address + size_of::<ListAllocationHeader>() as u32);
+        tracing::trace!("Allocated {size:#x} bytes at {:#x}", address + size_of::<ListAllocationHeader>() as u32);
 
         Ok(address + size_of::<ListAllocationHeader>() as u32)
     }
@@ -70,7 +70,7 @@ impl ListAllocator {
     pub fn free(core: &mut ArmCore, address: u32) -> Result<()> {
         let base_address = address - size_of::<ListAllocationHeader>() as u32;
 
-        tracing::trace!("Freeing {:#x}", address);
+        tracing::trace!("Freeing {address:#x}");
 
         let header: ListAllocationHeader = read_generic(core, base_address)?;
         debug_assert!(header.in_use());

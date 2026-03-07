@@ -32,7 +32,7 @@ impl Vibration {
     }
 
     async fn start(_jvm: &Jvm, _context: &mut WieJvmContext, level: i32, timeout: i32) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.Vibration::start({}, {})", level, timeout);
+        tracing::warn!("stub com.skt.m.Vibration::start({level}, {timeout})");
 
         Ok(())
     }

@@ -47,7 +47,7 @@ impl Canvas {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Canvas::<init>({this:?})");
 
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Displayable", "<init>", "()V", ())
@@ -83,13 +83,13 @@ impl Canvas {
     }
 
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Canvas::serviceRepaints({:?})", &this);
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
 
         jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
     }
 
     async fn get_game_action(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({:?}, {})", &this, key);
+        tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({this:?}, {key})");
 
         let action = match MIDPKeyCode::from_raw(key) {
             MIDPKeyCode::UP => 1,    // UP
@@ -104,19 +104,19 @@ impl Canvas {
     }
 
     async fn key_pressed(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::keyPressed({:?}, {})", &this, key);
+        tracing::debug!("javax.microedition.lcdui.Canvas::keyPressed({this:?}, {key})");
 
         Ok(())
     }
 
     async fn key_repeated(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::keyRepeated({:?}, {})", &this, key);
+        tracing::debug!("javax.microedition.lcdui.Canvas::keyRepeated({this:?}, {key})");
 
         Ok(())
     }
 
     async fn key_released(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::keyReleased({:?}, {})", &this, key);
+        tracing::debug!("javax.microedition.lcdui.Canvas::keyReleased({this:?}, {key})");
 
         Ok(())
     }

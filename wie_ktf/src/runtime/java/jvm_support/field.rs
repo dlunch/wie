@@ -47,7 +47,7 @@ impl JavaField {
             },
         )?;
 
-        tracing::trace!("Wrote field {} at {:#x}", full_name.name, ptr_raw);
+        tracing::trace!("Wrote field {} at {ptr_raw:#x}", full_name.name);
 
         Ok(Self::from_raw(ptr_raw, core))
     }

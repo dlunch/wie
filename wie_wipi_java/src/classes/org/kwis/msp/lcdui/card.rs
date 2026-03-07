@@ -47,7 +47,7 @@ impl Card {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?})", &this);
+        tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({this:?})");
 
         let display: ClassInstanceRef<Display> = jvm
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
@@ -62,7 +62,7 @@ impl Card {
 
     // not in reference, but called by some clet
     async fn init_int(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, a0: i32) -> JvmResult<()> {
-        tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({:?}, {})", &this, a0);
+        tracing::debug!("stub org.kwis.msp.lcdui.Card::<init>({this:?}, {a0})");
 
         let display: ClassInstanceRef<Display> = jvm
             .invoke_static("org/kwis/msp/lcdui/Display", "getDefaultDisplay", "()Lorg/kwis/msp/lcdui/Display;", [])
@@ -81,8 +81,8 @@ impl Card {
         mut this: ClassInstanceRef<Card>,
         display: ClassInstanceRef<Display>,
     ) -> JvmResult<()> {
-        let log = format!("org.kwis.msp.lcdui.Card::<init>({:?}, {:?})", &this, &display);
-        tracing::debug!("{}", log); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
+        let log = format!("org.kwis.msp.lcdui.Card::<init>({this:?}, {display:?})");
+        tracing::debug!("{log}"); // splitted format as tracing macro doesn't like variable named `display` https://github.com/tokio-rs/tracing/issues/2332
 
         let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", []).await?;
         let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", []).await?;
@@ -97,25 +97,25 @@ impl Card {
     }
 
     async fn is_shown(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Card::isShown({:?})", &this);
+        tracing::warn!("stub org.kwis.msp.lcdui.Card::isShown({this:?})");
 
         Ok(true)
     }
 
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Card::getWidth({this:?})");
 
         jvm.get_field(&this, "w", "I").await
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Card::getHeight({this:?})");
 
         jvm.get_field(&this, "h", "I").await
     }
 
     async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({this:?})");
 
         let width: i32 = jvm.get_field(&this, "w", "I").await?;
         let height: i32 = jvm.get_field(&this, "h", "I").await?;
@@ -134,7 +134,7 @@ impl Card {
         width: i32,
         height: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({:?}, {}, {}, {}, {})", &this, x, y, width, height);
+        tracing::debug!("org.kwis.msp.lcdui.Card::repaint({this:?}, {x}, {y}, {width}, {height})");
 
         let canvas: ClassInstanceRef<Canvas> = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
         if !canvas.is_null() {
@@ -145,7 +145,7 @@ impl Card {
     }
 
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::serviceRepaints({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Card::serviceRepaints({this:?})");
 
         let canvas: ClassInstanceRef<Canvas> = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
         if !canvas.is_null() {
@@ -156,19 +156,19 @@ impl Card {
     }
 
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::showNotify({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Card::showNotify({this:?})");
 
         Ok(())
     }
 
     async fn key_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Card>, r#type: i32, key: i32) -> JvmResult<bool> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::keyNotify({:?}, {}, {})", &this, r#type, key);
+        tracing::debug!("org.kwis.msp.lcdui.Card::keyNotify({this:?}, {type}, {key})");
 
         Ok(false)
     }
 
     async fn set_canvas(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Card>, canvas: ClassInstanceRef<Canvas>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Card::setCanvas({:?}, {:?})", &this, &canvas);
+        tracing::debug!("org.kwis.msp.lcdui.Card::setCanvas({this:?}, {canvas:?})");
 
         jvm.put_field(&mut this, "canvas", "Ljavax/microedition/lcdui/Canvas;", canvas).await
     }

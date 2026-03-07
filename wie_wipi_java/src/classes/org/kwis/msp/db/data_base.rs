@@ -54,7 +54,7 @@ impl DataBase {
         }
     }
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, record_store: ClassInstanceRef<RecordStore>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.db.DataBase::<init>({:?}, {:?})", &this, &record_store);
+        tracing::debug!("org.kwis.msp.db.DataBase::<init>({this:?}, {record_store:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -71,12 +71,7 @@ impl DataBase {
         record_size: i32,
         create: bool,
     ) -> JvmResult<ClassInstanceRef<DataBase>> {
-        tracing::warn!(
-            "org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {})",
-            &data_base_name,
-            record_size,
-            create
-        );
+        tracing::warn!("org.kwis.msp.db.DataBase::openDataBase({data_base_name:?}, {record_size}, {create})");
 
         let result = jvm
             .invoke_static(
@@ -98,13 +93,7 @@ impl DataBase {
         create: bool,
         flags: i32,
     ) -> JvmResult<ClassInstanceRef<DataBase>> {
-        tracing::debug!(
-            "org.kwis.msp.db.DataBase::openDataBase({:?}, {}, {}, {})",
-            &data_base_name,
-            record_size,
-            create,
-            flags
-        );
+        tracing::debug!("org.kwis.msp.db.DataBase::openDataBase({data_base_name:?}, {record_size}, {create}, {flags})");
 
         let record_store: ClassInstanceRef<RecordStore> = jvm
             .invoke_static(
@@ -123,14 +112,14 @@ impl DataBase {
     }
 
     async fn get_number_of_records(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({:?})", &this);
+        tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({this:?})");
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         jvm.invoke_virtual(&record_store, "getNumRecords", "()I", ()).await
     }
 
     async fn close_data_base(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.db.DataBase::closeDataBase({:?})", &this);
+        tracing::debug!("org.kwis.msp.db.DataBase::closeDataBase({this:?})");
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         jvm.invoke_virtual(&record_store, "closeRecordStore", "()V", ()).await
@@ -142,7 +131,7 @@ impl DataBase {
         this: ClassInstanceRef<Self>,
         data: ClassInstanceRef<Array<i8>>,
     ) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({:?}, {:?})", &this, &data);
+        tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({this:?}, {data:?})");
 
         let length = jvm.array_length(&data).await? as i32;
         let result = jvm.invoke_virtual(&this, "insertRecord", "([BII)I", (data, 0, length)).await?;
@@ -158,13 +147,7 @@ impl DataBase {
         offset: i32,
         num_bytes: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!(
-            "org.kwis.msp.db.DataBase::insertRecord({:?}, {:?}, {}, {})",
-            &this,
-            &data,
-            offset,
-            num_bytes
-        );
+        tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({this:?}, {data:?}, {offset}, {num_bytes})");
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         let record_id = jvm
@@ -175,7 +158,7 @@ impl DataBase {
     }
 
     async fn select_record(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<ClassInstanceRef<i8>> {
-        tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({:?}, {})", &this, record_id);
+        tracing::debug!("org.kwis.msp.db.DataBase::selectRecord({this:?}, {record_id})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
 
@@ -197,7 +180,7 @@ impl DataBase {
         record_id: i32,
         data: ClassInstanceRef<Array<i8>>,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.db.DataBase::updateRecord({:?}, {}, {:?})", &this, record_id, &data);
+        tracing::debug!("org.kwis.msp.db.DataBase::updateRecord({this:?}, {record_id}, {data:?})");
 
         let length = jvm.array_length(&data).await? as i32;
 
@@ -217,14 +200,7 @@ impl DataBase {
         offset: i32,
         num_bytes: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "org.kwis.msp.db.DataBase::updateRecord({:?}, {}, {:?}, {}, {})",
-            &this,
-            record_id,
-            &data,
-            offset,
-            num_bytes
-        );
+        tracing::debug!("org.kwis.msp.db.DataBase::updateRecord({this:?}, {record_id}, {data:?}, {offset}, {num_bytes})");
 
         let record_id = DataBase::to_midp_record_id(record_id);
 

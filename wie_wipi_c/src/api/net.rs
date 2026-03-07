@@ -7,7 +7,7 @@ use wie_util::{Result, WieError};
 use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 
 pub async fn connect(context: &mut dyn WIPICContext, cb: WIPICWord, param: WIPICWord) -> Result<i32> {
-    tracing::warn!("stub MC_netConnect({:#x}, {:#x})", cb, param);
+    tracing::warn!("stub MC_netConnect({cb:#x}, {param:#x})");
 
     struct ConnectCallback {
         cb: WIPICWord,
@@ -38,7 +38,7 @@ pub async fn close(_context: &mut dyn WIPICContext) -> Result<()> {
 }
 
 pub async fn socket_close(_context: &mut dyn WIPICContext, fd: i32) -> Result<i32> {
-    tracing::warn!("stub MC_netSocketClose({})", fd);
+    tracing::warn!("stub MC_netSocketClose({fd})");
 
     Ok(-1) // M_E_ERROR
 }

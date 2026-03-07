@@ -160,7 +160,7 @@ where
     }
 
     async fn open(&self, path: &str, write: bool) -> Result<Box<dyn File>, IOError> {
-        tracing::debug!("open({:?}, {:?})", path, write);
+        tracing::debug!("open({path:?}, {write:?})");
 
         Ok(Box::new(FileImpl::new(self.system.clone(), path, write)?))
     }

@@ -38,7 +38,7 @@ impl MIDlet {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.midlet.MIDlet::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.midlet.MIDlet::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -63,7 +63,7 @@ impl MIDlet {
         this: ClassInstanceRef<Self>,
         key: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<String>> {
-        tracing::debug!("javax.microedition.midlet.MIDlet::getAppProperty({:?}, {:?})", &this, key);
+        tracing::debug!("javax.microedition.midlet.MIDlet::getAppProperty({this:?}, {key:?})");
 
         let key = JavaLangString::to_rust_string(jvm, &key).await?;
         let system_key = format!("wie.appProperty.{key}");
@@ -74,7 +74,7 @@ impl MIDlet {
     }
 
     async fn notify_destroyed(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyDestroyed({:?})", &this);
+        tracing::warn!("stub javax.microedition.midlet.MIDlet::notifyDestroyed({this:?})");
 
         Ok(())
     }

@@ -28,7 +28,7 @@ impl Main {
     }
 
     async fn main(jvm: &Jvm, _: &mut WieJvmContext, args: ClassInstanceRef<Array<String>>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Main::main({:?})", &args);
+        tracing::debug!("org.kwis.msp.lcdui.Main::main({args:?})");
 
         let wipi_midlet = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await?;
 

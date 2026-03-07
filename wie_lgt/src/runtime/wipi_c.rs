@@ -106,7 +106,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
 }
 
 async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
-    tracing::debug!("clet_register({:#x}, {:#x})", function_table, a1);
+    tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
     let functions: CletFunctions = read_generic(core, function_table)?;
 
@@ -151,7 +151,7 @@ async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a
 }
 
 async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk0({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk0({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // graphics
 
@@ -159,7 +159,7 @@ async fn unk0(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u3
 }
 
 async fn unk1(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk1({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk1({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // kernel
 
@@ -178,19 +178,19 @@ async fn unk2(context: &mut dyn WIPICContext) -> Result<u32> {
 }
 
 async fn unk3(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk3({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk3({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(0)
 }
 
 async fn unk4(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk4({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk4({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(0)
 }
 
 async fn unk5(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk5({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk5({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // media
 
@@ -198,19 +198,19 @@ async fn unk5(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u3
 }
 
 async fn unk6(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk6({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk6({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(0)
 }
 
 async fn unk7(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk7({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk7({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(0)
 }
 
 async fn unk8(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk8({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk8({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // file io?
 
@@ -218,7 +218,7 @@ async fn unk8(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u3
 }
 
 async fn unk9(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk9({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk9({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // database
 
@@ -226,19 +226,19 @@ async fn unk9(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u3
 }
 
 async fn unk10(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk10({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk10({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(0)
 }
 
 async fn unk11(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk11({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk11({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(0)
 }
 
 async fn unk12(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk12({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk12({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // database
 
@@ -246,7 +246,7 @@ async fn unk12(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
 }
 
 async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
-    tracing::warn!("stub unk13({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("stub unk13({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // kernel
 

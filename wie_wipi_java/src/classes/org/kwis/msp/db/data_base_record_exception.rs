@@ -25,7 +25,7 @@ impl DataBaseRecordException {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBaseRecordException>) -> Result<()> {
-        tracing::debug!("org.kwis.msp.db.DataBaseRecordException::<init>({:?})", &this);
+        tracing::debug!("org.kwis.msp.db.DataBaseRecordException::<init>({this:?})");
 
         let _: () = jvm
             .invoke_special(&this, "org/kwis/msp/db/DataBaseException", "<init>", "()V", ())
@@ -40,7 +40,7 @@ impl DataBaseRecordException {
         this: ClassInstanceRef<DataBaseRecordException>,
         message: ClassInstanceRef<String>,
     ) -> Result<()> {
-        tracing::debug!("org.kwis.msp.db.DataBaseRecordException::<init>({:?}, {:?})", &this, &message);
+        tracing::debug!("org.kwis.msp.db.DataBaseRecordException::<init>({this:?}, {message:?})");
 
         let _: () = jvm
             .invoke_special(&this, "org/kwis/msp/db/DataBaseException", "<init>", "(Ljava/lang/String;)V", (message,))

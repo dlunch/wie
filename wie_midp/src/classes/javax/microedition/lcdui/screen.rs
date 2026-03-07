@@ -21,7 +21,7 @@ impl Screen {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Screen::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Screen::<init>({this:?})");
 
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Displayable", "<init>", "()V", ())

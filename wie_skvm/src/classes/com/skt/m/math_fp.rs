@@ -28,7 +28,7 @@ impl MathFP {
     }
 
     async fn parse_fp_string(jvm: &Jvm, _context: &mut WieJvmContext, s: ClassInstanceRef<String>) -> JvmResult<i64> {
-        tracing::debug!("com.skt.m.MathFP::parseFPString({:?})", &s);
+        tracing::debug!("com.skt.m.MathFP::parseFPString({s:?})");
 
         let s = JavaLangString::to_rust_string(jvm, &s).await?;
 
