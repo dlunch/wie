@@ -30,7 +30,7 @@ impl FileSystem {
     }
 
     async fn is_file(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
-        tracing::debug!("org.kwis.msp.io.FileSystem::is_file({:?})", &name);
+        tracing::debug!("org.kwis.msp.io.FileSystem::is_file({name:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
         let is_file = jvm.invoke_virtual(&file, "isFile", "()Z", ()).await?;
@@ -39,7 +39,7 @@ impl FileSystem {
     }
 
     async fn is_directory(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
-        tracing::debug!("org.kwis.msp.io.FileSystem::isDirectory({:?}, {:?})", &name, flag);
+        tracing::debug!("org.kwis.msp.io.FileSystem::isDirectory({name:?}, {flag:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
         let is_directory = jvm.invoke_virtual(&file, "isDirectory", "()Z", ()).await?;
@@ -48,14 +48,14 @@ impl FileSystem {
     }
 
     async fn exists(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<bool> {
-        tracing::debug!("org.kwis.msp.io.FileSystem::exists({:?})", &name);
+        tracing::debug!("org.kwis.msp.io.FileSystem::exists({name:?})");
 
         jvm.invoke_static("org/kwis/msp/io/FileSystem", "exists", "(Ljava/lang/String;I)Z", (name, 0))
             .await
     }
 
     async fn exists_with_flag(jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<bool> {
-        tracing::debug!("org.kwis.msp.io.FileSystem::exists({:?}, {:?})", &name, flag);
+        tracing::debug!("org.kwis.msp.io.FileSystem::exists({name:?}, {flag:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
         let exists = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
@@ -64,7 +64,7 @@ impl FileSystem {
     }
 
     async fn mkdir(_jvm: &Jvm, _context: &mut WieJvmContext, name: ClassInstanceRef<String>, flag: i32) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.io.FileSystem::mkdir({:?}, {:?})", &name, flag);
+        tracing::warn!("stub org.kwis.msp.io.FileSystem::mkdir({name:?}, {flag:?})");
 
         Ok(())
     }

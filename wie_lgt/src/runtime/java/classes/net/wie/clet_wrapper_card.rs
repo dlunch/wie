@@ -38,12 +38,7 @@ impl CletWrapperCard {
         paint_clet: i32,
         handle_clet_event: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "net.wie.CletWrapperCard::<init>({:?}, {:#x}, {:#x})",
-            &this,
-            paint_clet,
-            handle_clet_event
-        );
+        tracing::debug!("net.wie.CletWrapperCard::<init>({this:?}, {paint_clet:#x}, {handle_clet_event:#x})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lcdui/Card", "<init>", "()V", ()).await?;
 
@@ -59,7 +54,7 @@ impl CletWrapperCard {
         this: ClassInstanceRef<Self>,
         _graphics: ClassInstanceRef<Graphics>,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.CletWrapperCard::paint({:?})", &this);
+        tracing::debug!("net.wie.CletWrapperCard::paint({this:?})");
 
         let paint_clet: i32 = jvm.get_field(&this, "paintClet", "I").await?;
         let _: () = context.core.run_function(paint_clet as _, &[]).await.map_err(|x| match x {
@@ -71,7 +66,7 @@ impl CletWrapperCard {
     }
 
     async fn key_notify(jvm: &Jvm, context: &mut CletWrapperContext, this: ClassInstanceRef<Self>, r#type: i32, key: i32) -> JvmResult<bool> {
-        tracing::debug!("net.wie.CletWrapperCard::keyNotify({:?}, {}, {})", &this, r#type, key);
+        tracing::debug!("net.wie.CletWrapperCard::keyNotify({this:?}, {type}, {key})");
 
         let handle_clet_event: i32 = jvm.get_field(&this, "handleCletEvent", "I").await?;
         let r#type = r#type + 501; // TODO constants
@@ -95,7 +90,7 @@ impl CletWrapperCard {
         param1: i32,
         param2: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.CletWrapperCard::notifyEvent({this:?}, {}, {param1}, {param2})", r#type);
+        tracing::debug!("net.wie.CletWrapperCard::notifyEvent({this:?}, {type}, {param1}, {param2})");
 
         let handle_clet_event: i32 = jvm.get_field(&this, "handleCletEvent", "I").await?;
         let _: () = context

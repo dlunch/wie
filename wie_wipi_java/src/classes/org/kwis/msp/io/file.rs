@@ -57,7 +57,7 @@ impl File {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, filename: ClassInstanceRef<String>, mode: i32) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?})", &this, &filename, mode);
+        tracing::debug!("org.kwis.msp.io.File::<init>({this:?}, {filename:?}, {mode:?})");
 
         let _: () = jvm
             .invoke_special(&this, "org/kwis/msp/io/File", "<init>", "(Ljava/lang/String;II)V", (filename, mode, 0))
@@ -74,7 +74,7 @@ impl File {
         mode: i32,
         flag: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.io.File::<init>({:?}, {:?}, {:?}, {:?})", &this, &filename, mode, flag);
+        tracing::debug!("org.kwis.msp.io.File::<init>({this:?}, {filename:?}, {mode:?}, {flag:?})");
 
         let name = JavaLangString::to_rust_string(jvm, &filename).await?;
         if name.is_empty() {
@@ -126,7 +126,7 @@ impl File {
         offset: i32,
         len: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.io.File::write({:?}, {:?}, {:?}, {:?})", &this, &buf, offset, len);
+        tracing::debug!("org.kwis.msp.io.File::write({this:?}, {buf:?}, {offset:?}, {len:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (buf, offset, len)).await?;
@@ -135,7 +135,7 @@ impl File {
     }
 
     async fn seek(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, pos: i32) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.io.File::seek({:?}, {:?})", &this, pos);
+        tracing::debug!("org.kwis.msp.io.File::seek({this:?}, {pos:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm.invoke_virtual(&raf, "seek", "(J)V", (pos as i64,)).await?;
@@ -157,7 +157,7 @@ impl File {
         offset: i32,
         length: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.io.File::read({:?}, {:?})", &this, &buf);
+        tracing::debug!("org.kwis.msp.io.File::read({this:?}, {buf:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
         let read = jvm.invoke_virtual(&raf, "read", "([BII)I", (buf, offset, length)).await?;
@@ -166,7 +166,7 @@ impl File {
     }
 
     async fn close(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.io.File::close({:?})", &this);
+        tracing::debug!("org.kwis.msp.io.File::close({this:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
         let _: () = jvm.invoke_virtual(&raf, "close", "()V", ()).await?;
@@ -175,7 +175,7 @@ impl File {
     }
 
     async fn size_of(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.io.File::sizeOf({:?})", &this);
+        tracing::debug!("org.kwis.msp.io.File::sizeOf({this:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
         let length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
@@ -184,7 +184,7 @@ impl File {
     }
 
     async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
-        tracing::debug!("org.kwis.msp.io.File::openInputStream({:?})", &this);
+        tracing::debug!("org.kwis.msp.io.File::openInputStream({this:?})");
 
         let file: ClassInstanceRef<File> = jvm.get_field(&this, "file", "Ljava/io/File;").await?;
         let input_stream = jvm.new_class("java/io/FileInputStream", "(Ljava/io/File;)V", (file,)).await?;
@@ -193,7 +193,7 @@ impl File {
     }
 
     async fn open_data_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<DataInputStream>> {
-        tracing::debug!("org.kwis.msp.io.File::openDataInputStream({:?})", &this);
+        tracing::debug!("org.kwis.msp.io.File::openDataInputStream({this:?})");
 
         let input_stream: ClassInstanceRef<InputStream> = jvm.invoke_virtual(&this, "openInputStream", "()Ljava/io/InputStream;", ()).await?;
         let data_input_stream = jvm

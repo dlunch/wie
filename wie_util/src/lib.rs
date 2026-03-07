@@ -84,8 +84,6 @@ where
         }
     }
 
-    // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, result);
-
     Ok(result)
 }
 
@@ -96,8 +94,6 @@ where
     // TODO temp
     writer.write_bytes(address, bytes)?;
     writer.write_bytes(address + bytes.len() as u32, &[0])?;
-
-    // tracing::trace!("Write address: {:#x}, data: {:02x?}", address, bytes);
 
     Ok(())
 }

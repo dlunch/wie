@@ -45,7 +45,7 @@ impl Clip {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?})", &this, r#type);
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/media/BaseClip", "<init>", "()V", ()).await?;
 
@@ -59,7 +59,7 @@ impl Clip {
         r#type: ClassInstanceRef<String>,
         resource_name: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, &r#type, &resource_name);
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?}, {resource_name:?})");
 
         let class = jvm.invoke_virtual(&r#type, "getClass", "()Ljava/lang/Class;", ()).await?;
         let resource_stream = jvm
@@ -95,7 +95,7 @@ impl Clip {
         r#type: ClassInstanceRef<String>,
         data: ClassInstanceRef<Array<i8>>,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {:?})", &this, r#type, &data);
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?}, {data:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
         let length = jvm.array_length(&data).await?;
@@ -112,7 +112,7 @@ impl Clip {
         r#type: ClassInstanceRef<String>,
         size: i32,
     ) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.media.Clip::<init>({:?}, {:?}, {})", &this, r#type, size);
+        tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?}, {size})");
 
         let data = jvm.instantiate_array("B", size as _).await?;
 
@@ -122,13 +122,13 @@ impl Clip {
     }
 
     async fn set_volume(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Clip>, level: i32) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({:?}, {})", &this, level);
+        tracing::warn!("stub org.kwis.msp.media.Clip::setVolume({this:?}, {level})");
 
         Ok(())
     }
 
     async fn set_listener(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, listener: ClassInstanceRef<PlayListener>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Clip::setListener({:?}, {:?})", &this, &listener);
+        tracing::warn!("stub org.kwis.msp.media.Clip::setListener({this:?}, {listener:?})");
 
         Ok(())
     }

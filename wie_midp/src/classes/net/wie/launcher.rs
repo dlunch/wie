@@ -33,7 +33,7 @@ impl Launcher {
     }
 
     async fn start(jvm: &Jvm, _context: &mut WieJvmContext, main_class: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::debug!("net.wie.Launcher::start({:?})", &main_class);
+        tracing::debug!("net.wie.Launcher::start({main_class:?})");
 
         // create main class
         let main_class = JavaLangString::to_rust_string(jvm, &main_class).await?;
@@ -44,7 +44,7 @@ impl Launcher {
     }
 
     async fn start_midlet(jvm: &Jvm, context: &mut WieJvmContext, midlet: ClassInstanceRef<MIDlet>) -> JvmResult<()> {
-        tracing::debug!("net.wie.Launcher::startMIDlet({:?})", &midlet);
+        tracing::debug!("net.wie.Launcher::startMIDlet({midlet:?})");
 
         // run startApp
         let _: () = jvm.invoke_virtual(&midlet, "startApp", "()V", (None,)).await?;

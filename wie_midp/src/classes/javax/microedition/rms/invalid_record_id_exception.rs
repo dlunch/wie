@@ -25,7 +25,7 @@ impl InvalidRecordIDException {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
-        tracing::debug!("javax.microedition.rms.InvalidRecordIDException::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.rms.InvalidRecordIDException::<init>({this:?})");
 
         let _: () = jvm
             .invoke_special(&this, "javax/microedition/rms/RecordStoreException", "<init>", "()V", ())
@@ -35,7 +35,7 @@ impl InvalidRecordIDException {
     }
 
     async fn init_with_message(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, message: ClassInstanceRef<String>) -> Result<()> {
-        tracing::debug!("javax.microedition.rms.InvalidRecordIDException::<init>({:?}, {:?})", &this, &message);
+        tracing::debug!("javax.microedition.rms.InvalidRecordIDException::<init>({this:?}, {message:?})");
 
         let _: () = jvm
             .invoke_special(

@@ -38,19 +38,19 @@ impl Component {
     }
 
     async fn key_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, r#type: i32, chr: i32) -> JvmResult<bool> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::keyNotify({:?}, {:?}, {:?})", &this, r#type, chr);
+        tracing::warn!("stub org.kwis.msp.lwc.Component::keyNotify({this:?}, {type:?}, {chr:?})");
 
         Ok(true)
     }
 
     async fn focus_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, focus: bool) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::focusNotify({:?}, {:?})", &this, focus);
+        tracing::warn!("stub org.kwis.msp.lwc.Component::focusNotify({this:?}, {focus:?})");
 
         Ok(())
     }
 
     async fn show_notify(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, show: bool) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::showNotify({:?}, {:?})", &this, show);
+        tracing::warn!("stub org.kwis.msp.lwc.Component::showNotify({this:?}, {show:?})");
 
         Ok(())
     }
@@ -62,13 +62,13 @@ impl Component {
     }
 
     async fn set_focus(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::setFocus({:?})", &this,);
+        tracing::warn!("stub org.kwis.msp.lwc.Component::setFocus({this:?})");
 
         Ok(())
     }
 
     async fn get_height(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({:?})", &this,);
+        tracing::warn!("stub org.kwis.msp.lwc.Component::getHeight({this:?})");
 
         Ok(0)
     }

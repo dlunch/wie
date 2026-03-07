@@ -98,7 +98,7 @@ impl KtfClassLoader {
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<Class>> {
-        tracing::debug!("net.wie.KtfClassLoader::findClass({:?}, {:?})", &this, name);
+        tracing::debug!("net.wie.KtfClassLoader::findClass({this:?}, {name:?})");
 
         let fn_get_class: i32 = jvm.get_field(&this, "fnGetClass", "I").await?;
 

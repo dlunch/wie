@@ -52,7 +52,7 @@ impl Jlet {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -97,7 +97,7 @@ impl Jlet {
     }
 
     async fn get_event_queue(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<EventQueue>> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getEventQueue({this:?})");
 
         let eq = jvm.get_field(&this, "eq", "Lorg/kwis/msp/lcdui/EventQueue;").await?;
 
@@ -110,7 +110,7 @@ impl Jlet {
         this: ClassInstanceRef<Self>,
         key: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<String>> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({:?}, {:?})", &this, &key);
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::getAppProperty({this:?}, {key:?})");
 
         let midlet = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
         let value = jvm
@@ -121,7 +121,7 @@ impl Jlet {
     }
 
     async fn notify_destroyed(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({this:?})");
 
         let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
         let _: () = jvm.invoke_virtual(&midlet, "notifyDestroyed", "()V", ()).await?;

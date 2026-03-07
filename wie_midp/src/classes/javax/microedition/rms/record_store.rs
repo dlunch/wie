@@ -55,7 +55,7 @@ impl RecordStore {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, db_name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.rms.RecordStore::<init>({:?}, {:?})", &this, &db_name);
+        tracing::debug!("javax.microedition.rms.RecordStore::<init>({this:?}, {db_name:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -72,13 +72,7 @@ impl RecordStore {
         offset: i32,
         length: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!(
-            "javax.microedition.rms.RecordStore::addRecord({:?}, {:?}, {}, {})",
-            &this,
-            &data,
-            offset,
-            length
-        );
+        tracing::debug!("javax.microedition.rms.RecordStore::addRecord({this:?}, {data:?}, {offset}, {length})");
 
         let mut database = Self::get_database(jvm, context, &this).await?;
 
@@ -90,13 +84,13 @@ impl RecordStore {
     }
 
     async fn get_size_available(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::warn!("stub javax.microedition.rms.RecordStore::getSizeAvailable({:?})", &this);
+        tracing::warn!("stub javax.microedition.rms.RecordStore::getSizeAvailable({this:?})");
 
         Ok(1000000 as _)
     }
 
     async fn get_next_record_id(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.rms.RecordStore::getNextRecordID({:?})", &this);
+        tracing::debug!("javax.microedition.rms.RecordStore::getNextRecordID({this:?})");
 
         let database = Self::get_database(jvm, context, &this).await?;
 
@@ -111,7 +105,7 @@ impl RecordStore {
         this: ClassInstanceRef<Self>,
         record_id: i32,
     ) -> JvmResult<ClassInstanceRef<Array<i8>>> {
-        tracing::debug!("javax.microedition.rms.RecordStore::getRecord({:?}, {})", &this, record_id);
+        tracing::debug!("javax.microedition.rms.RecordStore::getRecord({this:?}, {record_id})");
 
         let database = Self::get_database(jvm, context, &this).await?;
 
@@ -136,13 +130,7 @@ impl RecordStore {
         mut buffer: ClassInstanceRef<Array<i8>>,
         offset: i32,
     ) -> JvmResult<i32> {
-        tracing::debug!(
-            "javax.microedition.rms.RecordStore::getRecord({:?}, {}, {:?}, {})",
-            &this,
-            record_id,
-            &buffer,
-            offset
-        );
+        tracing::debug!("javax.microedition.rms.RecordStore::getRecord({this:?}, {record_id}, {buffer:?}, {offset})");
 
         let database = Self::get_database(jvm, context, &this).await?;
 
@@ -159,7 +147,7 @@ impl RecordStore {
     }
 
     async fn get_record_size(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, record_id: i32) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.rms.RecordStore::getRecordSize({:?}, {})", &this, record_id);
+        tracing::debug!("javax.microedition.rms.RecordStore::getRecordSize({this:?}, {record_id})");
 
         let database = Self::get_database(jvm, context, &this).await?;
 
@@ -182,14 +170,7 @@ impl RecordStore {
         offset: i32,
         length: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.rms.RecordStore::setRecord({:?}, {}, {:?}, {}, {})",
-            &this,
-            record_id,
-            &data,
-            offset,
-            length
-        );
+        tracing::debug!("javax.microedition.rms.RecordStore::setRecord({this:?}, {record_id}, {data:?}, {offset}, {length})");
 
         let data: Vec<i8> = jvm.load_array(&data, offset as _, length as _).await?;
 
@@ -200,7 +181,7 @@ impl RecordStore {
     }
 
     async fn get_num_records(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.rms.RecordStore::getNumRecords({:?})", &this);
+        tracing::debug!("javax.microedition.rms.RecordStore::getNumRecords({this:?})");
 
         let database = Self::get_database(jvm, context, &this).await?;
 
@@ -210,7 +191,7 @@ impl RecordStore {
     }
 
     async fn close_record_store(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.rms.RecordStore::closeRecordStore({:?})", &this);
+        tracing::warn!("stub javax.microedition.rms.RecordStore::closeRecordStore({this:?})");
 
         Ok(())
     }
@@ -221,7 +202,7 @@ impl RecordStore {
         name: ClassInstanceRef<String>,
         create: bool,
     ) -> JvmResult<ClassInstanceRef<Self>> {
-        tracing::debug!("javax.microedition.rms.RecordStore::openRecordStore({:?}, {:?})", name, create);
+        tracing::debug!("javax.microedition.rms.RecordStore::openRecordStore({name:?}, {create:?})");
 
         let store = jvm
             .new_class("javax/microedition/rms/RecordStore", "(Ljava/lang/String;)V", (name,))

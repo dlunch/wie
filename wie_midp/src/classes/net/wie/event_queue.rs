@@ -138,7 +138,7 @@ impl EventQueue {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.EventQueue::<init>({:?})", &this);
+        tracing::debug!("net.wie.EventQueue::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -156,7 +156,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.EventQueue::getNextEvent({:?}, {:?})", &this, &event);
+        tracing::debug!("net.wie.EventQueue::getNextEvent({this:?}, {event:?})");
 
         let mut pending_timer_events = Vec::new();
         loop {
@@ -231,7 +231,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.EventQueue::dispatchEvent({:?}, {:?})", &this, &event);
+        tracing::debug!("net.wie.EventQueue::dispatchEvent({this:?}, {event:?})");
 
         let current_midlet: ClassInstanceRef<MIDlet> = jvm
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
@@ -294,7 +294,7 @@ impl EventQueue {
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Runnable>,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.EventQueue::callSerially({:?}, {:?})", &this, &event);
+        tracing::debug!("net.wie.EventQueue::callSerially({this:?}, {event:?})");
 
         let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
         jvm.invoke_virtual(&call_serially_events, "addElement", "(Ljava/lang/Object;)V", [event.into()])

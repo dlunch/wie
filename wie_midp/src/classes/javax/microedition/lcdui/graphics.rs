@@ -117,7 +117,7 @@ impl Graphics {
     }
 
     async fn init_with_image(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::<init>({:?}, {:?})", &this, &image,);
+        tracing::debug!("javax.microedition.lcdui.Graphics::<init>({this:?}, {image:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -135,7 +135,7 @@ impl Graphics {
     }
 
     async fn reset(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::reset({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::reset({this:?})");
 
         let width: i32 = jvm.get_field(&this, "width", "I").await?;
         let height: i32 = jvm.get_field(&this, "height", "I").await?;
@@ -152,7 +152,7 @@ impl Graphics {
     }
 
     async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Font>> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getFont({:?})", &this);
+        tracing::warn!("stub javax.microedition.lcdui.Graphics::getFont({this:?})");
 
         let instance = jvm.new_class("javax/microedition/lcdui/Font", "()V", []).await?;
 
@@ -160,7 +160,7 @@ impl Graphics {
     }
 
     async fn set_color(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::setColor({:?}, {})", &this, rgb);
+        tracing::debug!("javax.microedition.lcdui.Graphics::setColor({this:?}, {rgb})");
 
         jvm.put_field(&mut this, "color", "I", rgb).await?;
 
@@ -168,7 +168,7 @@ impl Graphics {
     }
 
     async fn set_color_by_rgb(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, r: i32, g: i32, b: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::setColor({:?}, {}, {}, {})", &this, r, g, b);
+        tracing::debug!("javax.microedition.lcdui.Graphics::setColor({this:?}, {r}, {g}, {b})");
 
         let rgb = (r << 16) | (g << 8) | b;
 
@@ -178,7 +178,7 @@ impl Graphics {
     }
 
     async fn set_font(_jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::setFont({:?}, {:?})", &this, &font);
+        tracing::warn!("stub javax.microedition.lcdui.Graphics::setFont({this:?}, {font:?})");
 
         Ok(())
     }
@@ -192,14 +192,7 @@ impl Graphics {
         width: i32,
         height: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::setClip({:?}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::setClip({this:?}, {x}, {y}, {width}, {height})");
 
         jvm.put_field(&mut this, "clipX", "I", x).await?;
         jvm.put_field(&mut this, "clipY", "I", y).await?;
@@ -218,14 +211,7 @@ impl Graphics {
         width: i32,
         height: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::clipRect({:?}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::clipRect({this:?}, {x}, {y}, {width}, {height})");
 
         let current_clip = Self::clip(jvm, &this).await?;
         let rect = Clip {
@@ -256,16 +242,7 @@ impl Graphics {
         arc_width: i32,
         arc_height: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::fillRoundRect({:?}, {}, {}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height,
-            arc_width,
-            arc_height
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::fillRoundRect({this:?}, {x}, {y}, {width}, {height}, {arc_width}, {arc_height})");
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -302,16 +279,7 @@ impl Graphics {
         start_angle: i32,
         arc_angle: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::fillArc({:?}, {}, {}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height,
-            start_angle,
-            arc_angle
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::fillArc({this:?}, {x}, {y}, {width}, {height}, {start_angle}, {arc_angle})");
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -338,14 +306,7 @@ impl Graphics {
     }
 
     async fn fill_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::fillRect({:?}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::fillRect({this:?}, {x}, {y}, {width}, {height})");
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -370,14 +331,7 @@ impl Graphics {
     }
 
     async fn draw_rect(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x: i32, y: i32, width: i32, height: i32) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawRect({:?}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawRect({this:?}, {x}, {y}, {width}, {height})");
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -410,14 +364,7 @@ impl Graphics {
         y: i32,
         anchor: Anchor,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawChar({:?}, {}, {}, {}, {})",
-            &this,
-            ch,
-            x,
-            y,
-            anchor.0
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawChar({this:?}, {ch}, {x}, {y}, {})", anchor.0);
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
@@ -451,15 +398,7 @@ impl Graphics {
         y: i32,
         anchor: Anchor,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawChar({:?}, {:?}, {}, {}, {}, {})",
-            &this,
-            &chars,
-            offset,
-            length,
-            x,
-            y
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawChar({this:?}, {chars:?}, {offset}, {length}, {x}, {y})");
 
         let image = Self::image(jvm, &mut this).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
@@ -493,11 +432,7 @@ impl Graphics {
         anchor: Anchor,
     ) -> JvmResult<()> {
         tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawString({:?}, {:?}, {}, {}, {})",
-            &this,
-            &string,
-            x,
-            y,
+            "javax.microedition.lcdui.Graphics::drawString({this:?}, {string:?}, {x}, {y}, {})",
             anchor.0
         );
 
@@ -532,15 +467,7 @@ impl Graphics {
         y: i32,
         anchor: Anchor,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawSubstring({:?}, {:?}, {}, {}, {}, {})",
-            &this,
-            &string,
-            offset,
-            len,
-            x,
-            y
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawSubstring({this:?}, {string:?}, {offset}, {len}, {x}, {y})");
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
         let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
@@ -565,7 +492,7 @@ impl Graphics {
     }
 
     async fn draw_line(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, x1: i32, y1: i32, x2: i32, y2: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::drawLine({:?}, {}, {}, {}, {})", &this, x1, y1, x2, y2);
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawLine({this:?}, {x1}, {y1}, {x2}, {y2})");
 
         let color: i32 = jvm.get_field(&this, "color", "I").await?;
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
@@ -593,14 +520,7 @@ impl Graphics {
         y: i32,
         anchor: Anchor,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawImage({:?}, {:?}, {}, {}, {})",
-            &this,
-            &img,
-            x,
-            y,
-            anchor.0
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawImage({this:?}, {img:?}, {x}, {y}, {})", anchor.0);
 
         if img.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "img is null").await);
@@ -708,16 +628,7 @@ impl Graphics {
         arc_width: i32,
         arc_height: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawRoundRect({:?}, {}, {}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height,
-            arc_width,
-            arc_height
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawRoundRect({this:?}, {x}, {y}, {width}, {height}, {arc_width}, {arc_height})");
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -754,16 +665,7 @@ impl Graphics {
         start_angle: i32,
         arc_angle: i32,
     ) -> JvmResult<()> {
-        tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawArc({:?}, {}, {}, {}, {}, {}, {})",
-            &this,
-            x,
-            y,
-            width,
-            height,
-            start_angle,
-            arc_angle
-        );
+        tracing::debug!("javax.microedition.lcdui.Graphics::drawArc({this:?}, {x}, {y}, {width}, {height}, {start_angle}, {arc_angle})");
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -790,7 +692,7 @@ impl Graphics {
     }
 
     async fn get_color(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getColor({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getColor({this:?})");
 
         let color: i32 = jvm.get_field(&this, "color", "I").await?;
 
@@ -798,7 +700,7 @@ impl Graphics {
     }
 
     async fn get_clip_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getClipX({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipX({this:?})");
 
         let clip_x: i32 = jvm.get_field(&this, "clipX", "I").await?;
 
@@ -806,7 +708,7 @@ impl Graphics {
     }
 
     async fn get_clip_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getClipY({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipY({this:?})");
 
         let clip_y: i32 = jvm.get_field(&this, "clipY", "I").await?;
 
@@ -814,7 +716,7 @@ impl Graphics {
     }
 
     async fn get_clip_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getClipWidth({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipWidth({this:?})");
 
         let clip_width: i32 = jvm.get_field(&this, "clipWidth", "I").await?;
 
@@ -822,7 +724,7 @@ impl Graphics {
     }
 
     async fn get_clip_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getClipHeight({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getClipHeight({this:?})");
 
         let clip_height: i32 = jvm.get_field(&this, "clipHeight", "I").await?;
 
@@ -830,7 +732,7 @@ impl Graphics {
     }
 
     async fn get_translate_x(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateX({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateX({this:?})");
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
 
@@ -838,7 +740,7 @@ impl Graphics {
     }
 
     async fn get_translate_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateY({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Graphics::getTranslateY({this:?})");
 
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
@@ -846,7 +748,7 @@ impl Graphics {
     }
 
     async fn translate(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, x: i32, y: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::translate({:?}, {}, {})", &this, x, y);
+        tracing::debug!("javax.microedition.lcdui.Graphics::translate({this:?}, {x}, {y})");
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -871,16 +773,7 @@ impl Graphics {
         process_alpha: bool,
     ) -> JvmResult<()> {
         tracing::debug!(
-            "javax.microedition.lcdui.Graphics::drawRGB({:?}, {:?}, {}, {}, {}, {}, {}, {}, {})",
-            &this,
-            &rgb_data,
-            offset,
-            scan_length,
-            x,
-            y,
-            width,
-            height,
-            process_alpha
+            "javax.microedition.lcdui.Graphics::drawRGB({this:?}, {rgb_data:?}, {offset}, {scan_length}, {x}, {y}, {width}, {height}, {process_alpha})"
         );
 
         // TODO proper scanlength support
@@ -898,7 +791,7 @@ impl Graphics {
     }
 
     async fn set_gray_scale(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Graphics::setGrayScale({:?}, {})", &this, value);
+        tracing::debug!("javax.microedition.lcdui.Graphics::setGrayScale({this:?}, {value})");
 
         let color = (value << 16) | (value << 8) | value;
 

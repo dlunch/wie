@@ -50,7 +50,7 @@ impl Graphics2D {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
-        tracing::debug!("com.skt.m.Graphics2D::<init>({:?}, {:?})", &this, graphics);
+        tracing::debug!("com.skt.m.Graphics2D::<init>({this:?}, {graphics:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -61,7 +61,7 @@ impl Graphics2D {
     }
 
     async fn get_graphics2d(jvm: &Jvm, _context: &mut WieJvmContext, graphics: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Self>> {
-        tracing::debug!("com.skt.m.Graphics2D::getGraphics2D({:?})", graphics);
+        tracing::debug!("com.skt.m.Graphics2D::getGraphics2D({graphics:?})");
 
         let instance = jvm
             .new_class("com/skt/m/Graphics2D", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics,))
@@ -71,7 +71,7 @@ impl Graphics2D {
     }
 
     async fn capture_lcd(jvm: &Jvm, _context: &mut WieJvmContext, x: i32, y: i32, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::warn!("stub com.skt.m.Graphics2D::captureLCD({}, {}, {}, {})", x, y, width, height);
+        tracing::warn!("stub com.skt.m.Graphics2D::captureLCD({x}, {y}, {width}, {height})");
 
         let image: ClassInstanceRef<Image> = jvm
             .invoke_static(
@@ -131,7 +131,7 @@ impl Graphics2D {
     }
 
     async fn create_maskable_image(jvm: &Jvm, _context: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("com.skt.m.Graphics2D::createMaskableImage({}, {})", width, height);
+        tracing::debug!("com.skt.m.Graphics2D::createMaskableImage({width}, {height})");
 
         let image: ClassInstanceRef<Image> = jvm
             .invoke_static(

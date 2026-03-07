@@ -17,7 +17,7 @@ struct DatabaseHandle {
 }
 
 pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, mode: i32, r#type: i32) -> Result<i32> {
-    tracing::debug!("MC_dbOpenDataBase({ptr_name:#x}, {mode}, {}", r#type);
+    tracing::debug!("MC_dbOpenDataBase({ptr_name:#x}, {mode}, {type})");
 
     let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
 
@@ -44,7 +44,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
 }
 
 pub async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> Result<i32> {
-    tracing::debug!("MC_dbCloseDataBase({:#x})", db_id);
+    tracing::debug!("MC_dbCloseDataBase({db_id:#x})");
 
     if db_id < 0x10000 {
         return Ok(-25); // M_E_INVALIDHANDLE
@@ -56,7 +56,7 @@ pub async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> Resul
 }
 
 pub async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_dbListRecords({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    tracing::debug!("MC_dbListRecords({db_id:#x}, {buf_ptr:#x}, {buf_len})");
 
     let db = get_database_from_db_id(context, db_id).await;
     let ids = db.get_record_ids().await;
@@ -71,7 +71,7 @@ pub async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
 }
 
 pub async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_db_write_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    tracing::debug!("MC_db_write_record_single({db_id:#x}, {buf_ptr:#x}, {buf_len})");
 
     if db_id < 0x10000 {
         return Ok(-25); // M_E_INVALIDHANDLE
@@ -87,7 +87,7 @@ pub async fn write_record_single(context: &mut dyn WIPICContext, db_id: i32, buf
 }
 
 pub async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> Result<i32> {
-    tracing::debug!("MC_dbDeleteRecord({:#x}, {})", db_id, rec_id);
+    tracing::debug!("MC_dbDeleteRecord({db_id:#x}, {rec_id})");
 
     let mut db = get_database_from_db_id(context, db_id).await;
 
@@ -101,7 +101,7 @@ pub async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i
 }
 
 pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_db_read_record_single({:#x}, {:#x}, {})", db_id, buf_ptr, buf_len);
+    tracing::debug!("MC_db_read_record_single({db_id:#x}, {buf_ptr:#x}, {buf_len})");
 
     if db_id < 0x10000 {
         return Ok(-25); // M_E_INVALIDHANDLE
@@ -122,7 +122,7 @@ pub async fn read_record_single(context: &mut dyn WIPICContext, db_id: i32, buf_
 }
 
 pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
-    tracing::debug!("MC_dbSelectRecord({:#x}, {}, {:#x}, {})", db_id, rec_id, buf_ptr, buf_len);
+    tracing::debug!("MC_dbSelectRecord({db_id:#x}, {rec_id}, {buf_ptr:#x}, {buf_len})");
 
     if db_id < 0x10000 {
         return Ok(-25); // M_E_INVALIDHANDLE

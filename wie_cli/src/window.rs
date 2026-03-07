@@ -407,7 +407,7 @@ where
                 self.callback(WindowCallbackEvent::Redraw, event_loop);
             }
             WindowEvent::Resized(new_size) => {
-                tracing::debug!("WindowResized {:?}", new_size);
+                tracing::debug!("WindowResized {new_size:?}");
                 self.window_size = new_size;
                 if self.window_size != self.scaled_size {
                     // Determine the new scale factor.

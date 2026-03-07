@@ -34,7 +34,7 @@ impl WIPIMIDlet {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.WIPIMIDlet::<init>({:?})", this);
+        tracing::debug!("net.wie.WIPIMIDlet::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/midlet/MIDlet", "<init>", "()V", ()).await?;
 
@@ -47,7 +47,7 @@ impl WIPIMIDlet {
         mut this: ClassInstanceRef<Self>,
         jlet: ClassInstanceRef<Jlet>,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.WIPIMIDlet::setCurrentJlet({:?}, {:?})", this, jlet);
+        tracing::debug!("net.wie.WIPIMIDlet::setCurrentJlet({this:?}, {jlet:?})");
 
         jvm.put_field(&mut this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;", jlet).await?;
 
@@ -55,7 +55,7 @@ impl WIPIMIDlet {
     }
 
     async fn start_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.WIPIMIDlet::startApp({:?})", this);
+        tracing::debug!("net.wie.WIPIMIDlet::startApp({this:?})");
 
         let args_array = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
 
@@ -66,7 +66,7 @@ impl WIPIMIDlet {
     }
 
     async fn pause_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.WIPIMIDlet::pauseApp({:?})", this);
+        tracing::debug!("net.wie.WIPIMIDlet::pauseApp({this:?})");
 
         let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm.invoke_virtual(&jlet, "pauseApp", "()V", ()).await?;
@@ -75,7 +75,7 @@ impl WIPIMIDlet {
     }
 
     async fn destroy_app(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, unconditional: bool) -> JvmResult<()> {
-        tracing::debug!("net.wie.WIPIMIDlet::destroyApp({:?}, {:?})", this, unconditional);
+        tracing::debug!("net.wie.WIPIMIDlet::destroyApp({this:?}, {unconditional:?})");
 
         let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
         let _: () = jvm.invoke_virtual(&jlet, "destroyApp", "(Z)V", (unconditional,)).await?;

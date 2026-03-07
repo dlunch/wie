@@ -29,7 +29,7 @@ impl FileOutputStream {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileOutputStream::<init>({:?}, {:?})", this, name);
+        tracing::debug!("com.xce.io.FileOutputStream::<init>({this:?}, {name:?})");
 
         let _: () = jvm.invoke_special(&this, "java/io/OutputStream", "<init>", "()V", ()).await?;
 
@@ -47,7 +47,7 @@ impl FileOutputStream {
         mut this: ClassInstanceRef<Self>,
         file: ClassInstanceRef<XFile>,
     ) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileOutputStream::<init>({:?})", file);
+        tracing::debug!("com.xce.io.FileOutputStream::<init>({file:?})");
 
         let raf = XFile::raf(jvm, file).await?;
         let fd: ClassInstanceRef<FileDescriptor> = jvm.invoke_virtual(&raf, "getFD", "()Ljava/io/FileDescriptor;", ()).await?;
@@ -59,7 +59,7 @@ impl FileOutputStream {
     }
 
     async fn write(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, byte: i32) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileOutputStream::write({:?}, {:?})", this, byte);
+        tracing::debug!("com.xce.io.FileOutputStream::write({this:?}, {byte:?})");
 
         let os = jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await?;
         let _: () = jvm.invoke_virtual(&os, "write", "(I)V", (byte,)).await?;
@@ -68,7 +68,7 @@ impl FileOutputStream {
     }
 
     async fn close(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("com.xce.io.FileOutputStream::close({:?})", this);
+        tracing::debug!("com.xce.io.FileOutputStream::close({this:?})");
 
         let os = jvm.get_field(&this, "os", "Ljava/io/OutputStream;").await?;
         let _: () = jvm.invoke_virtual(&os, "close", "()V", ()).await?;

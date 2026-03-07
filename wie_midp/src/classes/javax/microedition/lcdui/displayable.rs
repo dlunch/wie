@@ -57,7 +57,7 @@ impl Displayable {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Displayable::<init>({:?})", &this);
+        tracing::debug!("javax.microedition.lcdui.Displayable::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -93,8 +93,8 @@ impl Displayable {
         display: ClassInstanceRef<Display>,
     ) -> JvmResult<()> {
         // tracing hates variable named `display`..
-        let log = format!("javax.microedition.lcdui.Displayable::setDisplay({:?}, {:?})", &this, &display);
-        tracing::debug!("{}", log);
+        let log = format!("javax.microedition.lcdui.Displayable::setDisplay({this:?}, {display:?})");
+        tracing::debug!("{log}");
 
         jvm.put_field(&mut this, "currentDisplay", "Ljavax/microedition/lcdui/Display;", display)
             .await?;

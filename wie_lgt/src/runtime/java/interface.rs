@@ -16,13 +16,13 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
 }
 
 async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
-    tracing::warn!("java_unk0({:#x}, {:#x}, {:#x})", a0, a1, a2);
+    tracing::warn!("java_unk0({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
 async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("java_unk5({:#x}, {:#x})", a0, a1);
+    tracing::warn!("java_unk5({a0:#x}, {a1:#x})");
 
     // a0: class list
 
@@ -46,31 +46,20 @@ async fn java_load_classes(
     static_method_offsets: u32,
 ) -> Result<()> {
     tracing::debug!(
-        "java_load_classes({:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x}, {:#x})",
-        classes,
-        fields,
-        static_fields,
-        virtual_methods,
-        a4,
-        static_methods,
-        field_offsets,
-        static_field_offsets,
-        virtual_method_offsets,
-        a9,
-        static_method_offsets,
+        "java_load_classes({classes:#x}, {fields:#x}, {static_fields:#x}, {virtual_methods:#x}, {a4:#x}, {static_methods:#x}, {field_offsets:#x}, {static_field_offsets:#x}, {virtual_method_offsets:#x}, {a9:#x}, {static_method_offsets:#x})"
     );
 
     Ok(())
 }
 
 async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("java_unk9({:#x})", a0);
+    tracing::warn!("java_unk9({a0:#x})");
 
     Ok(())
 }
 
 async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("java_unk11({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("java_unk11({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // invoke static? used to be called with org/kwis/msp/lcdui/Main
 
@@ -78,7 +67,7 @@ async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, 
 }
 
 async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("java_unk12({:#x})", a0);
+    tracing::warn!("java_unk12({a0:#x})");
 
     Ok(())
 }

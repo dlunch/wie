@@ -26,7 +26,7 @@ impl ProgressBar {
     }
 
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, name: ClassInstanceRef<String>) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.ProgressBar::<init>({:?}, {:?})", &this, name);
+        tracing::warn!("stub com.skt.m.ProgressBar::<init>({this:?}, {name:?})");
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
@@ -34,13 +34,13 @@ impl ProgressBar {
     }
 
     async fn set_max_value(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.ProgressBar::setMaxValue({:?}, {:?})", &this, value);
+        tracing::warn!("stub com.skt.m.ProgressBar::setMaxValue({this:?}, {value:?})");
 
         Ok(())
     }
 
     async fn set_value(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
-        tracing::warn!("stub com.skt.m.ProgressBar::setValue({:?}, {:?})", &this, value);
+        tracing::warn!("stub com.skt.m.ProgressBar::setValue({this:?}, {value:?})");
 
         Ok(())
     }

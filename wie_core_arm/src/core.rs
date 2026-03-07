@@ -227,13 +227,13 @@ impl ArmCore {
 
         inner.functions.insert(address as u32, Arc::new(Box::new(callback)));
 
-        tracing::trace!("Register function at {:#x}", address);
+        tracing::trace!("Register function at {address:#x}");
 
         Ok(address as u32 + 1)
     }
 
     pub fn map(&mut self, address: u32, size: u32) -> Result<()> {
-        tracing::trace!("Map address: {:#x}, size: {:#x}", address, size);
+        tracing::trace!("Map address: {address:#x}, size: {size:#x}");
 
         let mut inner = self.inner.lock();
 
@@ -456,7 +456,7 @@ impl ArmCore {
             inner.engine.mem_read(address, size_of::<u32>(), &mut value)?;
             let value_u32 = u32::from_le_bytes(value);
 
-            result += &format!("SP+{:#x}: {:#x}\n", i * 4, value_u32);
+            result += &format!("SP+{:#x}: {value_u32:#x}\n", i * 4);
         }
 
         Ok(result)
@@ -469,15 +469,12 @@ impl ByteRead for ArmCore {
 
         let read = inner.engine.mem_read(address, result.len(), result)?;
 
-        // tracing::trace!("Read address: {:#x}, data: {:02x?}", address, data);
-
         Ok(read)
     }
 }
 
 impl ByteWrite for ArmCore {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> wie_util::Result<()> {
-        // tracing::trace!("Write address: {:#x}, data: {:02x?}", address, data);
         let mut inner = self.inner.lock();
 
         inner.engine.mem_write(address, data)?;

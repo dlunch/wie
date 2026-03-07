@@ -29,7 +29,7 @@ impl TextComponent {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<TextComponent>) -> JvmResult<()> {
-        tracing::debug!("stub org.kwis.msp.lwc.TextComponent::<init>({:?})", &this);
+        tracing::debug!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lwc/Component", "<init>", "()V", ()).await?;
 
@@ -43,13 +43,13 @@ impl TextComponent {
     }
 
     async fn set_max_length(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({:?}, {})", &this, max_length);
+        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?}, {max_length})");
 
         Ok(())
     }
 
     async fn get_string(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>) -> JvmResult<ClassInstanceRef<String>> {
-        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({:?})", &this);
+        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?})");
 
         let result = JavaLangString::from_rust_string(jvm, "temp").await?;
 

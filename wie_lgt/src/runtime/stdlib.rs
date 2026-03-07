@@ -27,7 +27,7 @@ pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32>
 }
 
 async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {
-    tracing::debug!("strcpy({:#x}, {:#x})", dst, ptr_src);
+    tracing::debug!("strcpy({dst:#x}, {ptr_src:#x})");
 
     let src = read_null_terminated_string_bytes(core, ptr_src)?;
     write_null_terminated_string_bytes(core, dst, &src)?;
@@ -36,7 +36,7 @@ async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Resul
 }
 
 async fn strncpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32, size: u32) -> Result<()> {
-    tracing::debug!("strncpy({:#x}, {:#x}, {:#x})", dst, ptr_src, size);
+    tracing::debug!("strncpy({dst:#x}, {ptr_src:#x}, {size:#x})");
 
     let src = read_null_terminated_string_bytes(core, ptr_src)?;
 
@@ -61,7 +61,7 @@ async fn strcat(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> R
 }
 
 async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) -> Result<u32> {
-    tracing::debug!("strcmp({:#x}, {:#x})", ptr_str1, ptr_str2);
+    tracing::debug!("strcmp({ptr_str1:#x}, {ptr_str2:#x})");
 
     let str1 = read_null_terminated_string_bytes(core, ptr_str1)?;
     let str2 = read_null_terminated_string_bytes(core, ptr_str2)?;
@@ -70,7 +70,7 @@ async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) ->
 }
 
 async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
-    tracing::debug!("strlen({:#x})", ptr_str);
+    tracing::debug!("strlen({ptr_str:#x})");
 
     let string = read_null_terminated_string_bytes(core, ptr_str)?;
 
@@ -78,7 +78,7 @@ async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
 }
 
 async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
-    tracing::debug!("atoi({:#x})", ptr_str);
+    tracing::debug!("atoi({ptr_str:#x})");
 
     let string = read_null_terminated_string_bytes(core, ptr_str)?;
     let string = String::from_utf8(string).unwrap();
@@ -87,7 +87,7 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
 }
 
 async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
-    tracing::debug!("memcpy({:#x}, {:#x}, {:#x})", dst, src, size);
+    tracing::debug!("memcpy({dst:#x}, {src:#x}, {size:#x})");
 
     let mut memory = vec![0u8; size as usize];
 
@@ -98,7 +98,7 @@ async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -
 }
 
 async fn memset(core: &mut ArmCore, _: &mut (), dst: u32, value: u32, size: u32) -> Result<()> {
-    tracing::debug!("memset({:#x}, {:#x}, {:#x})", dst, value, size);
+    tracing::debug!("memset({dst:#x}, {value:#x}, {size:#x})");
 
     let memory = vec![value as u8; size as usize];
     core.write_bytes(dst, &memory)?;
@@ -135,7 +135,7 @@ async fn localtime(core: &mut ArmCore, _: &mut (), ptr_time: u32) -> Result<u32>
 }
 
 async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("unk2({:#x})", a0);
+    tracing::warn!("unk2({a0:#x})");
 
     // error exit?
 
@@ -143,7 +143,7 @@ async fn unk2(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
 }
 
 async fn unk3(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
-    tracing::warn!("unk3({:#x})", a0);
+    tracing::warn!("unk3({a0:#x})");
 
     let _: () = core.run_function(a0, &[]).await?;
 
@@ -151,7 +151,7 @@ async fn unk3(core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
 }
 
 async fn unk4(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("unk4({:#x}, {:#x}, {:#x}, {:#x})", a0, a1, a2, a3);
+    tracing::warn!("unk4({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     Ok(())
 }

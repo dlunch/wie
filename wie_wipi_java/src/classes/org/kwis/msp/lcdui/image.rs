@@ -55,7 +55,7 @@ impl Image {
     }
 
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Image>, image: ClassInstanceRef<MidpImage>) -> JvmResult<()> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::<init>({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Image::<init>({this:?})");
 
         jvm.put_field(&mut this, "midpImage", "Ljavax/microedition/lcdui/Image;", image).await?;
 
@@ -63,7 +63,7 @@ impl Image {
     }
 
     async fn create_image(jvm: &Jvm, _: &mut WieJvmContext, width: i32, height: i32) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({}, {})", width, height);
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({width}, {height})");
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm
             .invoke_static(
@@ -82,7 +82,7 @@ impl Image {
     }
 
     async fn create_image_from_name(jvm: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?})", &name);
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({name:?})");
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm
             .invoke_static(
@@ -107,7 +107,7 @@ impl Image {
         image_offset: i32,
         image_length: i32,
     ) -> JvmResult<ClassInstanceRef<Image>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({:?}, {}, {})", &data, image_offset, image_length);
+        tracing::debug!("org.kwis.msp.lcdui.Image::createImage({data:?}, {image_offset}, {image_length})");
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm
             .invoke_static(
@@ -146,7 +146,7 @@ impl Image {
     }
 
     async fn get_graphics(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Graphics>> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Image::getGraphics({this:?})");
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 
@@ -162,7 +162,7 @@ impl Image {
     }
 
     async fn get_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Image::getWidth({this:?})");
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 
@@ -170,7 +170,7 @@ impl Image {
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
-        tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({:?})", &this);
+        tracing::debug!("org.kwis.msp.lcdui.Image::getHeight({this:?})");
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 

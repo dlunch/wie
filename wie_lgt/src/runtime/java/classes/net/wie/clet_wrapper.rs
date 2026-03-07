@@ -35,7 +35,7 @@ impl CletWrapper {
     }
 
     async fn init(jvm: &Jvm, _context: &mut CletWrapperContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("net.wie.CletWrapper::<init>({:?})", &this);
+        tracing::debug!("net.wie.CletWrapper::<init>({this:?})");
 
         let _: () = jvm.invoke_special(&this, "org/kwis/msp/lcdui/Jlet", "<init>", "()V", ()).await?;
 
@@ -48,7 +48,7 @@ impl CletWrapper {
         this: ClassInstanceRef<Self>,
         args: ClassInstanceRef<Array<String>>,
     ) -> JvmResult<()> {
-        tracing::debug!("net.wie.CletWrapper::startApp({:?}, {:?})", &this, &args);
+        tracing::debug!("net.wie.CletWrapper::startApp({this:?}, {args:?})");
 
         let start_clet: i32 = jvm.get_static_field("net/wie/CletWrapper", "startClet", "I").await?;
         let paint_clet: i32 = jvm.get_static_field("net/wie/CletWrapper", "paintClet", "I").await?;
