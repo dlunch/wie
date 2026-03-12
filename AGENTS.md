@@ -6,6 +6,7 @@
 - **Test single**: `cargo test -p wie_ktf test_helloworld` or `cargo test -p <crate> <test_name>`
 - **Lint**: `cargo clippy --workspace`
 - **Format**: `cargo fmt` (uses rustfmt.toml: max_width=150, use_field_init_shorthand=true)
+- **Pre-commit (MANDATORY)**: Always run `cargo fmt` and `cargo clippy --workspace` before every commit. CI will reject unformatted or lint-failing code.
 
 ## Code Style Guidelines
 - **Edition**: Rust 2024
