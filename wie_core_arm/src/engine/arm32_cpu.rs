@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::{array, cell::RefCell, ops::Range};
 
-use arm32_cpu::{Cpu, Memory, Mode, reg};
+use arm32_cpu::{reg, Cpu, Memory, Mode};
 
 use wie_util::{Result, WieError};
 
@@ -67,13 +67,11 @@ impl ArmEngine for Arm32CpuEngine {
     }
 
     fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()> {
-        self.mem.write_range(address, data);
-
-        Ok(())
+        self.mem.write_range(address, data)
     }
 
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
-        Ok(self.mem.read_range(address, size, result))
+        self.mem.read_range(address, size, result)
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
@@ -136,13 +134,15 @@ impl EmulatedMemory {
         }
     }
 
-    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> usize {
+    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
         let mut remaining_size = size;
         let mut current_address = address;
 
         while remaining_size > 0 {
             let page_address = current_address & !PAGE_MASK;
-            let page_data = self.pages[page_address as usize / PAGE_SIZE].as_ref().unwrap();
+            let page_data = self.pages[page_address as usize / PAGE_SIZE]
+                .as_ref()
+                .ok_or(WieError::InvalidMemoryAccess(current_address))?;
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(remaining_size);
 
@@ -151,16 +151,18 @@ impl EmulatedMemory {
             current_address += available_bytes as u32;
         }
 
-        size
+        Ok(size)
     }
 
-    fn write_range(&mut self, address: u32, data: &[u8]) {
+    fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
         let mut current_address = address;
         let mut data_index = 0;
 
         while data_index < data.len() {
             let page_address = current_address & !PAGE_MASK;
-            let page_data = self.pages[page_address as usize / PAGE_SIZE].as_mut().unwrap();
+            let page_data = self.pages[page_address as usize / PAGE_SIZE]
+                .as_mut()
+                .ok_or(WieError::InvalidMemoryAccess(current_address))?;
             let offset = (current_address - page_address) as usize;
             let available_bytes = (PAGE_SIZE - offset).min(data.len() - data_index);
 
@@ -168,6 +170,8 @@ impl EmulatedMemory {
             data_index += available_bytes;
             current_address += available_bytes as u32;
         }
+
+        Ok(())
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
@@ -318,15 +322,15 @@ mod tests {
         memory.map(0x11000, 0x1000);
         memory.map(0x20000, 0x10000);
 
-        memory.write_range(0x10000, &[123; 0x1000]);
+        memory.write_range(0x10000, &[123; 0x1000]).unwrap();
 
         let mut buf = [0; 0x1000];
-        memory.read_range(0x10000, 0x1000, &mut buf);
+        memory.read_range(0x10000, 0x1000, &mut buf).unwrap();
         assert_eq!(buf, [123; 0x1000]);
 
-        memory.write_range(0x10900, &[100; 0x1000]);
+        memory.write_range(0x10900, &[100; 0x1000]).unwrap();
 
-        memory.read_range(0x10900, 0x1000, &mut buf);
+        memory.read_range(0x10900, 0x1000, &mut buf).unwrap();
         assert_eq!(buf, [100; 0x1000]);
 
         let mut arm32cpu_memory = memory.as_arm32cpu_memory();
@@ -354,23 +358,21 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_memory_unmapped_read() {
         let mut memory = EmulatedMemory::new();
 
         memory.map(0x10000, 0x10000);
 
         let mut buf = [0; 0x1000];
-        memory.read_range(0x1f500, 0x1000, &mut buf);
+        assert!(memory.read_range(0x1f500, 0x1000, &mut buf).is_err());
     }
 
     #[test]
-    #[should_panic]
     fn test_memory_unmapped_write() {
         let mut memory = EmulatedMemory::new();
 
         memory.map(0x10000, 0x10000);
 
-        memory.write_range(0x1f500, &[12; 0x1000]);
+        assert!(memory.write_range(0x1f500, &[12; 0x1000]).is_err());
     }
 }
