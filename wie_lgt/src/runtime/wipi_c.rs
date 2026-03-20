@@ -25,6 +25,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x32 => graphics::get_framebuffer_pointer.into_body(),
         0x33 => graphics::get_framebuffer_width.into_body(),
         0x34 => graphics::get_framebuffer_height.into_body(),
+        0x35 => graphics::get_framebuffer_bpl.into_body(),
         0x36 => graphics::get_framebuffer_bpp.into_body(),
         0x64 => kernel::printk.into_body(),
         0x65 => kernel::sprintk.into_body(),
