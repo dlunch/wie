@@ -62,6 +62,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0xdf => graphics::get_pixel_from_rgb.into_body(),
         0xe0 => graphics::get_rgb_from_pixel.into_body(),
         0xe1 => graphics::get_display_info.into_body(),
+        0xe2 => graphics::repaint.into_body(),
         0xe3 => graphics::get_font.into_body(),
         0xe4 => graphics::get_font_height.into_body(),
         0xe9 => graphics::create_image.into_body(),
@@ -88,6 +89,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x4b9 => media::clip_set_volume.into_body(),
         0x4c0 => unk5.into_body(),
         0x4c1 => media::vibrator.into_body(),
+        0x4c2 => unk14.into_body(),
         0x4c5 => media::clip_alloc_player.into_body(),
         0x4c6 => media::clip_free_player.into_body(),
         0x4d1 => media::set_mute_state.into_body(),
@@ -250,6 +252,14 @@ async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     tracing::warn!("stub unk13({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // kernel
+
+    Ok(0)
+}
+
+async fn unk14(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk14({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
+
+    // media
 
     Ok(0)
 }

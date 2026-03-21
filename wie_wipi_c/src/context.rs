@@ -101,7 +101,7 @@ pub mod test {
         pub fn new() -> Self {
             Self {
                 memory: [0; 0x10000],
-                last_alloc: 0,
+                last_alloc: 1000, // avoid using null pointer
             }
         }
     }
