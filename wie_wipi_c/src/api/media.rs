@@ -236,11 +236,7 @@ pub async fn stop(context: &mut dyn WIPICContext, ptr_clip: WIPICWord) -> Result
 
     let system = context.system();
 
-    let result = system.audio().stop(clip.handle);
-
-    if let Err(x) = result {
-        tracing::error!("Failed to stop audio: {x:?}");
-    }
+    system.audio().stop(clip.handle);
 
     Ok(0)
 }
