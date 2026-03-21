@@ -49,6 +49,10 @@ where
     T: Copy + AnyBitPattern + NoUninit,
     R: ?Sized + ByteRead,
 {
+    if address == 0 {
+        return Err(WieError::InvalidMemoryAccess(address));
+    }
+
     unsafe {
         #[allow(clippy::uninit_assumed_init)] // XXX
         let destination = &mut core::mem::MaybeUninit::<T>::uninit().assume_init();
@@ -63,6 +67,10 @@ pub fn read_null_terminated_string_bytes<R>(reader: &R, address: u32) -> Result<
 where
     R: ?Sized + ByteRead,
 {
+    if address == 0 {
+        return Err(WieError::InvalidMemoryAccess(address));
+    }
+
     let mut result = Vec::with_capacity(20);
     let mut cursor = address;
     let mut buffer = [0; 4];
@@ -91,6 +99,10 @@ pub fn write_null_terminated_string_bytes<W>(writer: &mut W, address: u32, bytes
 where
     W: ?Sized + ByteWrite,
 {
+    if address == 0 {
+        return Err(WieError::InvalidMemoryAccess(address));
+    }
+
     // TODO temp
     writer.write_bytes(address, bytes)?;
     writer.write_bytes(address + bytes.len() as u32, &[0])?;
@@ -103,6 +115,10 @@ where
     W: ?Sized + ByteWrite,
     T: NoUninit,
 {
+    if address == 0 {
+        return Err(WieError::InvalidMemoryAccess(address));
+    }
+
     let data_slice = bytes_of(&data);
 
     writer.write_bytes(address, data_slice)
@@ -112,6 +128,10 @@ pub fn read_null_terminated_table<R>(reader: &R, base_address: u32) -> Result<Ve
 where
     R: ?Sized + ByteRead,
 {
+    if base_address == 0 {
+        return Err(WieError::InvalidMemoryAccess(base_address));
+    }
+
     let mut cursor = base_address;
     let mut result = Vec::new();
     loop {
@@ -131,6 +151,10 @@ pub fn write_null_terminated_table<W>(writer: &mut W, base_address: u32, items: 
 where
     W: ?Sized + ByteWrite,
 {
+    if base_address == 0 {
+        return Err(WieError::InvalidMemoryAccess(base_address));
+    }
+
     let mut cursor = base_address;
     for &item in items {
         write_generic(writer, cursor, item)?;
