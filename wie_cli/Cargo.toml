@@ -28,4 +28,5 @@ wie_lgt = { path = "../wie_lgt" }
 wie_skt = { path = "../wie_skt" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "=0.3.85" } # We need 0.3.85 to not break midir wasm build
+web-sys = { version = "=0.3.85" }                        # We need 0.3.85 to not break midir wasm build
+getrandom = { version = "^0.4", features = ["wasm_js"] } # not direct dependency, but broken without it in wasm build
