@@ -66,15 +66,10 @@ impl Audio {
         Ok(())
     }
 
-    pub fn stop(&mut self, audio_handle: AudioHandle) -> Result<(), AudioError> {
-        match self.playing.remove(&audio_handle) {
-            Some(stop_flag) => {
-                stop_flag.store(true, Ordering::Relaxed);
-            }
-            None => return Err(AudioError::InvalidHandle),
+    pub fn stop(&mut self, audio_handle: AudioHandle) {
+        if let Some(stop_flag) = self.playing.remove(&audio_handle) {
+            stop_flag.store(true, Ordering::Relaxed);
         }
-
-        Ok(())
     }
 
     pub fn close(&mut self, audio_handle: AudioHandle) -> Result<(), AudioError> {
