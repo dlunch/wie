@@ -36,7 +36,7 @@ impl XDisplay {
     }
 
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
-        tracing::debug!("com.xce.lcdui.Toolkit::<clinit>()");
+        tracing::debug!("com.xce.lcdui.XDisplay::<clinit>()");
 
         // TODO: temp
         jvm.put_static_field("com/xce/lcdui/XDisplay", "width", "I", 240).await?;
