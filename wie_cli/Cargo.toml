@@ -26,3 +26,6 @@ wie_j2me = { path = "../wie_j2me" }
 wie_ktf = { path = "../wie_ktf" }
 wie_lgt = { path = "../wie_lgt" }
 wie_skt = { path = "../wie_skt" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "=0.3.85" } # We need 0.3.85 to not break midir wasm build
