@@ -85,6 +85,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
         0x4b0 => media::clip_create.into_body(),
         0x4b1 => media::clip_free.into_body(),
         0x4b3 => media::clip_put_data.into_body(),
+        0x4b6 => unk15.into_body(),
         0x4b8 => media::clip_get_volume.into_body(),
         0x4b9 => media::clip_set_volume.into_body(),
         0x4c0 => unk5.into_body(),
@@ -258,6 +259,14 @@ async fn unk13(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
 
 async fn unk14(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
     tracing::warn!("stub unk14({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
+
+    // media
+
+    Ok(0)
+}
+
+async fn unk15(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk15({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // media
 
