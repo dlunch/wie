@@ -10,6 +10,7 @@ use std::{
     error::Error,
     fs,
     io::stderr,
+    num::NonZero,
     sync::mpsc::{Receiver, Sender, channel},
     thread,
     time::{SystemTime, UNIX_EPOCH},
@@ -17,7 +18,7 @@ use std::{
 
 use clap::Parser;
 use midir::MidiOutput;
-use rodio::{OutputStreamBuilder, Sink, buffer::SamplesBuffer, conversions::SampleTypeConverter};
+use rodio::{DeviceSinkBuilder, Player, buffer::SamplesBuffer, conversions::SampleTypeConverter};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
 use wie_backend::{Emulator, Event, Instant, KeyCode, Options, Platform, Screen, extract_zip};
@@ -51,7 +52,7 @@ impl WieCliPlatform {
     }
 
     fn audio_thread(rx: Receiver<(u8, u32, Vec<i16>)>) {
-        let default_output = OutputStreamBuilder::open_default_stream();
+        let default_output = DeviceSinkBuilder::open_default_sink();
         if default_output.is_err() {
             // do nothing if we can't open output
             loop {
@@ -59,8 +60,8 @@ impl WieCliPlatform {
             }
         }
 
-        let output_stream = default_output.unwrap();
-        let sink = Sink::connect_new(output_stream.mixer());
+        let output_sink = default_output.unwrap();
+        let player = Player::connect_new(output_sink.mixer());
 
         loop {
             let result = rx.recv();
@@ -69,14 +70,21 @@ impl WieCliPlatform {
             }
             let (channel, sampling_rate, wave_data) = result.unwrap();
 
+            let Some(channel_count) = NonZero::new(channel.into()) else {
+                continue;
+            };
+            let Some(sample_rate) = NonZero::new(sampling_rate) else {
+                continue;
+            };
+
             let buffer = SamplesBuffer::new(
-                channel as _,
-                sampling_rate as _,
+                channel_count,
+                sample_rate,
                 SampleTypeConverter::new(wave_data.into_iter()).collect::<Vec<_>>(),
             );
 
             // TODO we should be able to play multiple audio at once
-            sink.append(buffer);
+            player.append(buffer);
         }
     }
 }
