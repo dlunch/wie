@@ -112,12 +112,6 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
 pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpFillRect({:#x}, {x}, {y}, {w}, {h}, {p_gctx:#x})", dst_fb.0);
 
-    if dst_fb.0 == 0 {
-        tracing::warn!("MC_grpFillRect: framebuffer pointer is null");
-
-        return Ok(());
-    }
-
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst_fb)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
     let mut canvas = framebuffer.canvas(context)?;
