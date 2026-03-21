@@ -10,6 +10,7 @@ use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangSt
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
+const READ: i32 = 1;
 const READ_RESOURCE: i32 = 8;
 
 // class com.xce.io.XFile
@@ -63,7 +64,8 @@ impl XFile {
         } else {
             let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
 
-            let file_mode = JavaLangString::from_rust_string(jvm, "rw").await?;
+            let file_mode = if mode == READ { "r" } else { "rw" };
+            let file_mode = JavaLangString::from_rust_string(jvm, file_mode).await?;
 
             let raf = jvm
                 .new_class("java/io/RandomAccessFile", "(Ljava/io/File;Ljava/lang/String;)V", (file, file_mode))
