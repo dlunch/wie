@@ -1,10 +1,10 @@
-use alloc::{format, vec};
+use alloc::{string::ToString, vec};
 
+use futures::TryFutureExt;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_midp::classes::javax::microedition::lcdui::Graphics;
-use wie_util::WieError;
 
 use super::CletWrapperContext;
 
@@ -57,12 +57,12 @@ impl CletWrapperCard {
         tracing::debug!("net.wie.CletWrapperCard::paint({this:?})");
 
         let paint_clet: i32 = jvm.get_field(&this, "paintClet", "I").await?;
-        let _: () = context.core.run_function(paint_clet as _, &[]).await.map_err(|x| match x {
-            WieError::FatalError(x) => JavaError::FatalError(x),
-            _ => JavaError::FatalError(format!("{x}")),
-        })?;
 
-        Ok(())
+        context
+            .core
+            .run_function(paint_clet as _, &[])
+            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .await
     }
 
     async fn key_notify(jvm: &Jvm, context: &mut CletWrapperContext, this: ClassInstanceRef<Self>, r#type: i32, key: i32) -> JvmResult<bool> {
@@ -73,11 +73,8 @@ impl CletWrapperCard {
         let _: () = context
             .core
             .run_function(handle_clet_event as _, &[r#type as _, key as _, 0 as _])
-            .await
-            .map_err(|x| match x {
-                WieError::FatalError(x) => JavaError::FatalError(x),
-                _ => JavaError::FatalError(format!("{x}")),
-            })?;
+            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .await?;
 
         Ok(true)
     }
@@ -96,11 +93,8 @@ impl CletWrapperCard {
         let _: () = context
             .core
             .run_function(handle_clet_event as _, &[r#type as _, param1 as _, param2 as _])
-            .await
-            .map_err(|x| match x {
-                WieError::FatalError(x) => JavaError::FatalError(x),
-                _ => JavaError::FatalError(format!("{x}")),
-            })?;
+            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .await?;
 
         Ok(())
     }

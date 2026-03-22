@@ -37,6 +37,7 @@ async-trait = { version = "^0.1", default-features = false }
 bitflags = { version = "^2.11", default-features = false }
 bytemuck = { version = "^1.25", default-features = false, features = ["derive"] }
 dyn-clone = { version = "^1.0", default-features = false }
+futures = { version = "^0.3", default-features = false, features = ["alloc"] }
 spin = { version = "^0.10", features = ["spin_mutex", "rwlock"], default-features = false }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 

@@ -8,7 +8,7 @@ use core::{
     mem::size_of,
 };
 
-use jvm::{ArrayClassDefinition, ClassInstance, JavaError, JavaType, Jvm, Result as JvmResult};
+use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
@@ -110,6 +110,7 @@ impl JavaArrayClassDefinition {
     }
 }
 
+#[async_trait::async_trait]
 impl ArrayClassDefinition for JavaArrayClassDefinition {
     fn element_type_name(&self) -> String {
         let class_name = self.class.name().unwrap();
@@ -117,10 +118,15 @@ impl ArrayClassDefinition for JavaArrayClassDefinition {
         class_name[1..].into()
     }
 
-    fn instantiate_array(&self, length: usize) -> JvmResult<Box<dyn ClassInstance>> {
-        Ok(Box::new(
-            JavaArrayClassInstance::new(&mut self.core.clone(), self, length).map_err(|x| JavaError::FatalError(format!("{x}")))?,
-        ))
+    async fn instantiate_array(&self, jvm: &Jvm, length: usize) -> JvmResult<Box<dyn ClassInstance>> {
+        Ok(Box::new(match JavaArrayClassInstance::new(&mut self.core.clone(), self, length) {
+            Ok(x) => x,
+            Err(x) => {
+                return Err(jvm
+                    .exception("java/lang/RuntimeException", &format!("Failed to instantiate array: {x}"))
+                    .await);
+            }
+        }))
     }
 }
 

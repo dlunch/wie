@@ -9,6 +9,7 @@ async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
 dyn-clone = { workspace = true }
+futures = { workspace = true }
 tracing = { workspace = true }
 
 java_class_proto = { workspace = true }
