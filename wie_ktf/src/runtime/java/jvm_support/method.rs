@@ -1,9 +1,15 @@
-use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
     ops::{Deref, DerefMut},
 };
+use futures::TryFutureExt;
 use wie_jvm_support::JvmSupport;
 
 use java_class_proto::JavaMethodProto;
@@ -258,12 +264,16 @@ impl Method for JavaMethod {
         name.descriptor
     }
 
-    async fn run(&self, _jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        self.run(args).await.map_err(|x| match x {
-            WieError::FatalError(x) => JavaError::FatalError(x),
-            WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
-            _ => JavaError::FatalError(format!("{x}")),
-        })
+    async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
+        let jvm_clone = jvm.clone();
+        self.run(args)
+            .or_else(async move |x| {
+                Err(match x {
+                    WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
+                    _ => jvm_clone.exception("java/lang/RuntimeException", &x.to_string()).await,
+                })
+            })
+            .await
     }
 
     fn access_flags(&self) -> MethodAccessFlags {
@@ -335,16 +345,13 @@ where
         let (_, lr) = core.read_pc_lr()?;
 
         let result = self.proto.body.call(&self.jvm, &mut context, args.into_boxed_slice()).await;
-        if let Err(x) = result {
-            if let JavaError::JavaException(x) = x {
-                // if we executed this from rust code, we should propagate this down
-                if lr == RUN_FUNCTION_LR {
-                    let java_exception = KtfJvmSupport::class_instance_raw(&x);
-                    return Err(WieError::JavaException(java_exception));
-                }
-                return JavaMethod::handle_exception(core, &self.jvm, x).await;
+        if let Err(JavaError::JavaException(x)) = result {
+            // if we executed this from rust code, we should propagate this down
+            if lr == RUN_FUNCTION_LR {
+                let java_exception = KtfJvmSupport::class_instance_raw(&x);
+                return Err(WieError::JavaException(java_exception));
             }
-            return Err(JvmSupport::to_wie_err(&self.jvm, x).await);
+            return JavaMethod::handle_exception(core, &self.jvm, x).await;
         }
 
         let result = if matches!(self.return_type, JavaType::Double | JavaType::Long) {

@@ -7,7 +7,7 @@ use core::{
 
 use java_class_proto::JavaClassProto;
 use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
@@ -275,10 +275,13 @@ impl ClassDefinition for JavaClassDefinition {
         ClassAccessFlags::from_bits_truncate(descriptor.access_flag)
     }
 
-    fn instantiate(&self) -> JvmResult<Box<dyn ClassInstance>> {
-        let instance = JavaClassInstance::new(&mut self.core.clone(), self).map_err(|x| JavaError::FatalError(format!("{x}")))?;
-
-        Ok(Box::new(instance))
+    async fn instantiate(&self, jvm: &Jvm) -> JvmResult<Box<dyn ClassInstance>> {
+        match JavaClassInstance::new(&mut self.core.clone(), self) {
+            Ok(instance) => Ok(Box::new(instance)),
+            Err(e) => Err(jvm
+                .exception("java/lang/RuntimeException", &format!("Failed to instantiate class: {e}"))
+                .await),
+        }
     }
 
     fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Method>> {

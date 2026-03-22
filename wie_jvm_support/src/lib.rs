@@ -78,7 +78,6 @@ impl JvmSupport {
 
                 WieError::FatalError(format!("\n{}", JavaLangString::to_rust_string(jvm, &trace).await.unwrap()))
             }
-            JavaError::FatalError(x) => WieError::FatalError(x),
         }
     }
 }

@@ -5,12 +5,12 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+async-recursion = { workspace = true }
 async-trait = { workspace = true }
 bitflags = { workspace = true }
 bytemuck = { workspace = true }
+futures = { workspace = true }
 tracing = { workspace = true }
-
-async-recursion = { workspace = true }
 
 java_class_proto = { workspace = true }
 java_constants = { workspace = true }

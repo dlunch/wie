@@ -315,29 +315,27 @@ impl Display {
     }
 
     async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
-        if let JavaError::JavaException(x) = err {
-            if jvm.is_instance(&*x, "java/lang/Error") {
-                return Err(JavaError::JavaException(x));
-            }
+        let JavaError::JavaException(x) = err;
 
-            let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await?;
-            let print_writer = jvm
-                .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))
-                .await?;
-
-            let _: () = jvm
-                .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
-                .await?;
-
-            let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await?;
-            let trace = JavaLangString::to_rust_string(jvm, &trace).await?;
-
-            tracing::warn!("Exception while event handling: {trace}");
-
-            Ok(())
-        } else {
-            Err(err)
+        if jvm.is_instance(&*x, "java/lang/Error") {
+            return Err(JavaError::JavaException(x));
         }
+
+        let string_writer = jvm.new_class("java/io/StringWriter", "()V", ()).await?;
+        let print_writer = jvm
+            .new_class("java/io/PrintWriter", "(Ljava/io/Writer;)V", (string_writer.clone(),))
+            .await?;
+
+        let _: () = jvm
+            .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
+            .await?;
+
+        let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await?;
+        let trace = JavaLangString::to_rust_string(jvm, &trace).await?;
+
+        tracing::warn!("Exception while event handling: {trace}");
+
+        Ok(())
     }
 
     async fn set_fullscreen(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, fullscreen: bool) -> JvmResult<()> {

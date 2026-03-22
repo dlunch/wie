@@ -1,9 +1,10 @@
 use alloc::{string::ToString, vec, vec::Vec};
 
+use futures::TryFutureExt;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_constants::{FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::Runnable;
-use jvm::{Array, ClassInstanceRef, JavaError, Jvm, Result as JvmResult};
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_backend::{Event, KeyCode};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -187,7 +188,9 @@ impl EventQueue {
                     Event::Timer { due, callback } => {
                         // TODO we should wait for timer more efficiently
                         if due < now {
-                            callback().await.map_err(|x| JavaError::FatalError(x.to_string()))?
+                            callback()
+                                .or_else(async |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+                                .await?
                         } else {
                             // push it to event queue again
                             pending_timer_events.push(Event::Timer { due, callback });
