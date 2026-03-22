@@ -16,6 +16,7 @@ pub enum WieError {
     InvalidMemoryAccess(u32),
     AllocationFailure,
     JavaException(u32), // to pass java exception down to rust
+    JavaExceptionUnwind { context_base: u32, target: u32, next_pc: u32 },
     Unimplemented(String),
     FatalError(String),
 }
@@ -26,6 +27,14 @@ impl Display for WieError {
             WieError::InvalidMemoryAccess(address) => write!(f, "Invalid memory access; address: {address}"),
             WieError::AllocationFailure => write!(f, "Allocation failure"),
             WieError::JavaException(exception) => write!(f, "Java exception: {exception:#x}"),
+            WieError::JavaExceptionUnwind {
+                context_base,
+                target,
+                next_pc,
+            } => write!(
+                f,
+                "Java exception unwind: context_base={context_base:#x}, target={target:#x}, next_pc={next_pc:#x}"
+            ),
             WieError::Unimplemented(message) => write!(f, "Unimplemented: {message}"),
             WieError::FatalError(message) => write!(f, "Fatal error: {message}"),
         }

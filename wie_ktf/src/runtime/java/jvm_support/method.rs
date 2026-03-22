@@ -213,9 +213,10 @@ impl JavaMethod {
                         exception_handler.ptr_method
                     );
 
-                    return Ok(JavaMethodResult {
-                        result: vec![contexts_base, entry.target],
-                        next_pc: Some(restore_context),
+                    return Err(WieError::JavaExceptionUnwind {
+                        context_base: contexts_base,
+                        target: entry.target,
+                        next_pc: restore_context,
                     });
                 }
             }
@@ -270,6 +271,11 @@ impl Method for JavaMethod {
             .or_else(async move |x| {
                 Err(match x {
                     WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
+                    WieError::JavaExceptionUnwind { .. } => {
+                        jvm_clone
+                            .exception("net/wie/WieError", "Java exception unwind crossed into JVM caller")
+                            .await
+                    }
                     _ => jvm_clone.exception("net/wie/WieError", &x.to_string()).await,
                 })
             })
@@ -368,6 +374,12 @@ where
 pub struct JavaMethodResult {
     result: Vec<u32>,
     next_pc: Option<u32>,
+}
+
+impl JavaMethodResult {
+    pub fn new(result: Vec<u32>, next_pc: Option<u32>) -> Self {
+        Self { result, next_pc }
+    }
 }
 
 impl ResultWriter<JavaMethodResult> for JavaMethodResult {

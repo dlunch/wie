@@ -43,6 +43,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     WieError::InvalidMemoryAccess(_) => MultiThreadStopReason::Signal(Signal::SIGSEGV),
                     WieError::Unimplemented(_) => MultiThreadStopReason::Signal(Signal::SIGSYS),
                     WieError::JavaException(_) => MultiThreadStopReason::Signal(Signal::SIGTRAP),
+                    WieError::JavaExceptionUnwind { .. } => MultiThreadStopReason::Signal(Signal::SIGTRAP),
                     WieError::FatalError(_) => MultiThreadStopReason::Signal(Signal::SIGABRT),
                 };
 
