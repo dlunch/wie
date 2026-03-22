@@ -70,6 +70,18 @@ pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord
     JavaMethod::handle_exception(core, jvm, exception).await
 }
 
+fn map_jump_result(result: core::result::Result<u32, WieError>) -> Result<JavaMethodResult> {
+    match result {
+        Ok(result) => Ok(JavaMethodResult::new(vec![result], None)),
+        Err(WieError::JavaExceptionUnwind {
+            context_base,
+            target,
+            next_pc,
+        }) => Ok(JavaMethodResult::new(vec![context_base, target], Some(next_pc))),
+        Err(err) => Err(err),
+    }
+}
+
 async fn get_java_method(core: &mut ArmCore, _jvm: &mut Jvm, ptr_class: u32, ptr_fullname: u32) -> Result<u32> {
     let fullname = KtfJvmSupport::read_name(core, ptr_fullname)?;
 
@@ -120,14 +132,14 @@ async fn find_java_method(class: &JavaClassDefinition, name: &str, descriptor: &
     Ok(method)
 }
 
-async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -> Result<u32> {
+async fn java_jump_1(core: &mut ArmCore, _: &mut Jvm, arg1: u32, address: u32) -> Result<JavaMethodResult> {
     tracing::trace!("java_jump_1({arg1:#x}, {address:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    core.run_function::<u32>(address, &[arg1, 0, 0]).await
+    map_jump_result(core.run_function::<u32>(address, &[arg1, 0, 0]).await)
 }
 
 async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
@@ -230,7 +242,7 @@ async fn jb_unk8(_: &mut ArmCore, _: &mut Jvm, a0: u32) -> Result<u32> {
     Ok(0)
 }
 
-async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u32) -> Result<u32> {
+async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u32) -> Result<JavaMethodResult> {
     tracing::trace!("java_jump_native({address:#x}, {ptr_data:#x})");
 
     if address == 0 {
@@ -238,32 +250,40 @@ async fn call_native(core: &mut ArmCore, _: &mut Jvm, address: u32, ptr_data: u3
     }
 
     // TODO correctly figure out parameter
-    let result = core.run_function::<u32>(address, &[ptr_data, ptr_data]).await?;
+    let result = match core.run_function::<u32>(address, &[ptr_data, ptr_data]).await {
+        Ok(result) => result,
+        Err(WieError::JavaExceptionUnwind {
+            context_base,
+            target,
+            next_pc,
+        }) => return Ok(JavaMethodResult::new(vec![context_base, target], Some(next_pc))),
+        Err(err) => return Err(err),
+    };
 
     write_generic(core, ptr_data, result)?;
     write_generic(core, ptr_data + 4, 0u32)?;
 
-    Ok(ptr_data)
+    Ok(JavaMethodResult::new(vec![ptr_data], None))
 }
 
-async fn java_jump_2(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, address: u32) -> Result<u32> {
+async fn java_jump_2(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, address: u32) -> Result<JavaMethodResult> {
     tracing::trace!("java_jump_2({arg1:#x}, {arg2:#x}, {address:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    core.run_function::<u32>(address, &[arg1, arg2, 0]).await
+    map_jump_result(core.run_function::<u32>(address, &[arg1, arg2, 0]).await)
 }
 
-async fn java_jump_3(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, arg3: u32, address: u32) -> Result<u32> {
+async fn java_jump_3(core: &mut ArmCore, _: &mut Jvm, arg1: u32, arg2: u32, arg3: u32, address: u32) -> Result<JavaMethodResult> {
     tracing::trace!("java_jump_3({arg1:#x}, {arg2:#x}, {arg3:#x}, {address:#x})");
 
     if address == 0 {
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    core.run_function::<u32>(address, &[arg1, arg2, arg3]).await
+    map_jump_result(core.run_function::<u32>(address, &[arg1, arg2, arg3]).await)
 }
 
 pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<u32> {
