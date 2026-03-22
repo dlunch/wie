@@ -189,7 +189,7 @@ impl EventQueue {
                         // TODO we should wait for timer more efficiently
                         if due < now {
                             callback()
-                                .or_else(async |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+                                .or_else(async |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
                                 .await?
                         } else {
                             // push it to event queue again

@@ -270,7 +270,7 @@ impl Method for JavaMethod {
             .or_else(async move |x| {
                 Err(match x {
                     WieError::JavaException(x) => JavaError::JavaException(Box::new(JavaClassInstance::from_raw(x, &self.core))),
-                    _ => jvm_clone.exception("java/lang/RuntimeException", &x.to_string()).await,
+                    _ => jvm_clone.exception("net/wie/WieError", &x.to_string()).await,
                 })
             })
             .await
