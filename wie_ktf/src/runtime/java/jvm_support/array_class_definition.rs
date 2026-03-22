@@ -122,9 +122,7 @@ impl ArrayClassDefinition for JavaArrayClassDefinition {
         Ok(Box::new(match JavaArrayClassInstance::new(&mut self.core.clone(), self, length) {
             Ok(x) => x,
             Err(x) => {
-                return Err(jvm
-                    .exception("java/lang/RuntimeException", &format!("Failed to instantiate array: {x}"))
-                    .await);
+                return Err(jvm.exception("net/wie/WieError", &format!("Failed to instantiate array: {x}")).await);
             }
         }))
     }

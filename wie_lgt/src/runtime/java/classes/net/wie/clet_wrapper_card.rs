@@ -61,7 +61,7 @@ impl CletWrapperCard {
         context
             .core
             .run_function(paint_clet as _, &[])
-            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
             .await
     }
 
@@ -73,7 +73,7 @@ impl CletWrapperCard {
         let _: () = context
             .core
             .run_function(handle_clet_event as _, &[r#type as _, key as _, 0 as _])
-            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
             .await?;
 
         Ok(true)
@@ -93,7 +93,7 @@ impl CletWrapperCard {
         let _: () = context
             .core
             .run_function(handle_clet_event as _, &[r#type as _, param1 as _, param2 as _])
-            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
             .await?;
 
         Ok(())

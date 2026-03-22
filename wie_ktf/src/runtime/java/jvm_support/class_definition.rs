@@ -278,9 +278,7 @@ impl ClassDefinition for JavaClassDefinition {
     async fn instantiate(&self, jvm: &Jvm) -> JvmResult<Box<dyn ClassInstance>> {
         match JavaClassInstance::new(&mut self.core.clone(), self) {
             Ok(instance) => Ok(Box::new(instance)),
-            Err(e) => Err(jvm
-                .exception("java/lang/RuntimeException", &format!("Failed to instantiate class: {e}"))
-                .await),
+            Err(e) => Err(jvm.exception("net/wie/WieError", &format!("Failed to instantiate class: {e}")).await),
         }
     }
 

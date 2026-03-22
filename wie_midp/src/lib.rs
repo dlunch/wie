@@ -5,7 +5,7 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 25] {
+pub fn get_protos() -> [WieJavaClassProto; 26] {
     [
         classes::javax::microedition::lcdui::Alert::as_proto(),
         classes::javax::microedition::lcdui::AlertType::as_proto(),
@@ -32,5 +32,6 @@ pub fn get_protos() -> [WieJavaClassProto; 25] {
         classes::net::wie::EventQueue::as_proto(),
         classes::net::wie::Launcher::as_proto(),
         classes::net::wie::SmafPlayer::as_proto(),
+        classes::net::wie::WieError::as_proto(),
     ]
 }

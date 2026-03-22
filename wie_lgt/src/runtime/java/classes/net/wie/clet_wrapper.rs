@@ -66,7 +66,7 @@ impl CletWrapper {
         context
             .core
             .run_function(start_clet as _, &[])
-            .or_else(async move |x| Err(jvm.exception("java/lang/RuntimeException", &x.to_string()).await))
+            .or_else(async move |x| Err(jvm.exception("net/wie/WieError", &x.to_string()).await))
             .await
     }
 }
