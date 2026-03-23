@@ -49,7 +49,7 @@ LGT-specific: provides C standard library functions (memcpy, strlen, etc.) that 
 1. Platform parses `binary.mod` as ELF, loads sections into memory at their specified addresses
 2. Calls the ELF entrypoint with platform-owned initialization blocks
    - one of these blocks contains the import-resolution callbacks
-3. The binary resolves all needed platform functions via the import table
+3. The binary stores the import-resolution callbacks and uses them on demand when platform functions are needed
 4. The binary returns a pointer to a structure containing its initialization entry
 5. Platform calls that initialization entry to start the app
 
