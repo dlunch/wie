@@ -84,22 +84,36 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
 }
 
 fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
-    let elf = ElfBytes::<AnyEndian>::minimal_parse(data).unwrap();
+    let elf = ElfBytes::<AnyEndian>::minimal_parse(data).map_err(|x| WieError::FatalError(format!("Failed to parse ELF binary.mod: {x}")))?;
 
-    assert_eq!(elf.ehdr.e_machine, elf::abi::EM_ARM, "Invalid machine type");
-    assert_eq!(elf.ehdr.e_type, elf::abi::ET_EXEC, "Invalid file type");
-    assert_eq!(elf.ehdr.class, elf::file::Class::ELF32, "Invalid file type");
+    if elf.ehdr.e_machine != elf::abi::EM_ARM {
+        return Err(WieError::FatalError(format!("Invalid ELF machine type: {}", elf.ehdr.e_machine)));
+    }
+    if elf.ehdr.e_type != elf::abi::ET_EXEC {
+        return Err(WieError::FatalError(format!("Invalid ELF file type: {}", elf.ehdr.e_type)));
+    }
+    if elf.ehdr.class != elf::file::Class::ELF32 {
+        return Err(WieError::FatalError(format!("Invalid ELF class: {:?}", elf.ehdr.class)));
+    }
 
-    let (shdrs_opt, strtab_opt) = elf.section_headers_with_strtab().unwrap();
-    let (shdrs, strtab) = (shdrs_opt.unwrap(), strtab_opt.unwrap());
+    let (shdrs_opt, strtab_opt) = elf
+        .section_headers_with_strtab()
+        .map_err(|x| WieError::FatalError(format!("Failed to read ELF section headers: {x}")))?;
+    let shdrs = shdrs_opt.ok_or_else(|| WieError::FatalError("ELF is missing section headers".into()))?;
+    let strtab = strtab_opt.ok_or_else(|| WieError::FatalError("ELF is missing section name string table".into()))?;
 
     for shdr in shdrs {
-        let section_name = strtab.get(shdr.sh_name as usize).unwrap();
+        let section_name = strtab
+            .get(shdr.sh_name as usize)
+            .map_err(|x| WieError::FatalError(format!("Invalid ELF section name index {}: {x}", shdr.sh_name)))?;
 
         if shdr.sh_addr != 0 {
             tracing::debug!("Section {section_name} at {:x}", shdr.sh_addr);
 
-            let data = elf.section_data(&shdr).unwrap().0;
+            let data = elf
+                .section_data(&shdr)
+                .map_err(|x| WieError::FatalError(format!("Failed to read ELF section {section_name}: {x}")))?
+                .0;
 
             core.load(data, shdr.sh_addr as u32, shdr.sh_size as usize)?;
         }

@@ -204,16 +204,14 @@ impl Display {
     async fn get_game_action(_jvm: &Jvm, _: &mut WieJvmContext, key: i32) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Display::getGameAction({key})");
 
-        let key = WIPIKeyCode::from_raw(key);
-
-        let action = match key {
-            WIPIKeyCode::UP => 1,
-            WIPIKeyCode::DOWN => 6,
-            WIPIKeyCode::LEFT => 2,
-            WIPIKeyCode::RIGHT => 5,
-            WIPIKeyCode::FIRE => 8,
-            WIPIKeyCode::CLEAR => 99,
-            _ => key as _,
+        let action = match WIPIKeyCode::from_raw(key) {
+            Some(WIPIKeyCode::UP) => 1,
+            Some(WIPIKeyCode::DOWN) => 6,
+            Some(WIPIKeyCode::LEFT) => 2,
+            Some(WIPIKeyCode::RIGHT) => 5,
+            Some(WIPIKeyCode::FIRE) => 8,
+            Some(WIPIKeyCode::CLEAR) => 99,
+            _ => key,
         };
 
         Ok(action)

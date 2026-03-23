@@ -92,11 +92,11 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::getGameAction({this:?}, {key})");
 
         let action = match MIDPKeyCode::from_raw(key) {
-            MIDPKeyCode::UP => 1,    // UP
-            MIDPKeyCode::DOWN => 6,  // DOWN
-            MIDPKeyCode::LEFT => 2,  // LEFT
-            MIDPKeyCode::RIGHT => 5, // RIGHT
-            MIDPKeyCode::FIRE => 8,  // FIRE,
+            Some(MIDPKeyCode::UP) => 1,    // UP
+            Some(MIDPKeyCode::DOWN) => 6,  // DOWN
+            Some(MIDPKeyCode::LEFT) => 2,  // LEFT
+            Some(MIDPKeyCode::RIGHT) => 5, // RIGHT
+            Some(MIDPKeyCode::FIRE) => 8,  // FIRE,
             _ => 0,
         };
 
@@ -148,7 +148,11 @@ impl Canvas {
     async fn handle_key_event(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::handleKeyEvent({this:?}, {event_type}, {code})");
 
-        let event_type = KeyboardEventType::from_raw(event_type);
+        let event_type = if let Some(event_type) = KeyboardEventType::from_raw(event_type) {
+            event_type
+        } else {
+            return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid keyboard event type").await);
+        };
 
         let _: () = match event_type {
             KeyboardEventType::KeyPressed => jvm.invoke_virtual(&this, "keyPressed", "(I)V", (code,)).await,
