@@ -31,7 +31,9 @@ pub struct KtfEmulator {
 
 impl KtfEmulator {
     pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
-        let adf = files.get("__adf__").unwrap();
+        let adf = files
+            .get("__adf__")
+            .ok_or_else(|| WieError::FatalError("Missing __adf__ in KTF archive".into()))?;
         let adf = KtfAdf::parse(adf);
 
         tracing::info!("Loading app {}, pid {}, mclass {}", adf.aid, adf.pid, adf.mclass);
@@ -60,7 +62,9 @@ impl KtfEmulator {
     }
 
     pub fn loadable_jar(jar: &[u8]) -> bool {
-        let files = extract_zip(jar).unwrap();
+        let Ok(files) = extract_zip(jar) else {
+            return false;
+        };
 
         for name in files.keys() {
             if name.starts_with("client.bin") {

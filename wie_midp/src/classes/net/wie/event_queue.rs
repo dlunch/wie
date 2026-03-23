@@ -21,8 +21,13 @@ enum EventQueueEvent {
 }
 
 impl EventQueueEvent {
-    fn from_raw(raw: i32) -> Self {
-        unsafe { core::mem::transmute(raw) }
+    fn from_raw(raw: i32) -> Option<Self> {
+        Some(match raw {
+            x if x == Self::KeyEvent as i32 => Self::KeyEvent,
+            x if x == Self::RepaintEvent as i32 => Self::RepaintEvent,
+            x if x == Self::NotifyEvent as i32 => Self::NotifyEvent,
+            _ => return None,
+        })
     }
 }
 
@@ -37,8 +42,14 @@ pub enum KeyboardEventType {
 }
 
 impl KeyboardEventType {
-    pub fn from_raw(raw: i32) -> Self {
-        unsafe { core::mem::transmute(raw) }
+    pub fn from_raw(raw: i32) -> Option<Self> {
+        Some(match raw {
+            x if x == Self::KeyPressed as i32 => Self::KeyPressed,
+            x if x == Self::KeyReleased as i32 => Self::KeyReleased,
+            x if x == Self::KeyRepeated as i32 => Self::KeyRepeated,
+            x if x == Self::KeyTyped as i32 => Self::KeyTyped,
+            _ => return None,
+        })
     }
 }
 
@@ -75,8 +86,34 @@ pub enum MIDPKeyCode {
 }
 
 impl MIDPKeyCode {
-    pub fn from_raw(raw: i32) -> Self {
-        unsafe { core::mem::transmute(raw) }
+    pub fn from_raw(raw: i32) -> Option<Self> {
+        Some(match raw {
+            x if x == Self::UP as i32 => Self::UP,
+            x if x == Self::DOWN as i32 => Self::DOWN,
+            x if x == Self::LEFT as i32 => Self::LEFT,
+            x if x == Self::RIGHT as i32 => Self::RIGHT,
+            x if x == Self::FIRE as i32 => Self::FIRE,
+            x if x == Self::LEFT_SOFT_KEY as i32 => Self::LEFT_SOFT_KEY,
+            x if x == Self::RIGHT_SOFT_KEY as i32 => Self::RIGHT_SOFT_KEY,
+            x if x == Self::CLEAR as i32 => Self::CLEAR,
+            x if x == Self::CALL as i32 => Self::CALL,
+            x if x == Self::HANGUP as i32 => Self::HANGUP,
+            x if x == Self::VOLUME_UP as i32 => Self::VOLUME_UP,
+            x if x == Self::VOLUME_DOWN as i32 => Self::VOLUME_DOWN,
+            x if x == Self::KEY_NUM0 as i32 => Self::KEY_NUM0,
+            x if x == Self::KEY_NUM1 as i32 => Self::KEY_NUM1,
+            x if x == Self::KEY_NUM2 as i32 => Self::KEY_NUM2,
+            x if x == Self::KEY_NUM3 as i32 => Self::KEY_NUM3,
+            x if x == Self::KEY_NUM4 as i32 => Self::KEY_NUM4,
+            x if x == Self::KEY_NUM5 as i32 => Self::KEY_NUM5,
+            x if x == Self::KEY_NUM6 as i32 => Self::KEY_NUM6,
+            x if x == Self::KEY_NUM7 as i32 => Self::KEY_NUM7,
+            x if x == Self::KEY_NUM8 as i32 => Self::KEY_NUM8,
+            x if x == Self::KEY_NUM9 as i32 => Self::KEY_NUM9,
+            x if x == Self::KEY_POUND as i32 => Self::KEY_POUND,
+            x if x == Self::KEY_STAR as i32 => Self::KEY_STAR,
+            _ => return None,
+        })
     }
 
     fn from_key_code(keycode: KeyCode) -> Self {
@@ -250,12 +287,24 @@ impl EventQueue {
             .await?;
 
         let event = jvm.load_array(&event, 0, 4).await?;
-        match EventQueueEvent::from_raw(event[0]) {
+        let event_kind = if let Some(event_kind) = EventQueueEvent::from_raw(event[0]) {
+            event_kind
+        } else {
+            return Err(jvm
+                .exception("java/lang/IllegalArgumentException", "Invalid event queue event type")
+                .await);
+        };
+
+        match event_kind {
             EventQueueEvent::RepaintEvent => {
                 let _: () = jvm.invoke_virtual(&display, "handlePaintEvent", "()V", ()).await?;
             }
             EventQueueEvent::KeyEvent => {
-                let event_type = KeyboardEventType::from_raw(event[1]);
+                let event_type = if let Some(event_type) = KeyboardEventType::from_raw(event[1]) {
+                    event_type
+                } else {
+                    return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid keyboard event type").await);
+                };
                 let code = event[2];
 
                 let _: () = jvm.invoke_virtual(&display, "handleKeyEvent", "(II)V", (event_type as i32, code)).await?;

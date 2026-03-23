@@ -29,7 +29,9 @@ pub struct LgtEmulator {
 
 impl LgtEmulator {
     pub fn from_archive(platform: Box<dyn Platform>, files: BTreeMap<String, Vec<u8>>, options: Options) -> Result<Self> {
-        let app_info = files.get("app_info").unwrap();
+        let app_info = files
+            .get("app_info")
+            .ok_or_else(|| WieError::FatalError("Missing app_info in LGT archive".into()))?;
         let app_info = LgtAppInfo::parse(app_info);
 
         tracing::info!("Loading app {}, pid {}, mclass {}", app_info.aid, app_info.pid, app_info.mclass);
@@ -66,7 +68,9 @@ impl LgtEmulator {
     }
 
     pub fn loadable_jar(jar: &[u8]) -> bool {
-        let files = extract_zip(jar).unwrap();
+        let Ok(files) = extract_zip(jar) else {
+            return false;
+        };
 
         files.contains_key("binary.mod")
     }

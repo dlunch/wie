@@ -44,36 +44,63 @@ pub enum WIPIKeyCode {
 }
 
 impl WIPIKeyCode {
-    pub fn from_raw(value: i32) -> Self {
-        unsafe { core::mem::transmute(value) }
+    pub fn from_raw(value: i32) -> Option<Self> {
+        Some(match value {
+            x if x == Self::UP as i32 => Self::UP,
+            x if x == Self::DOWN as i32 => Self::DOWN,
+            x if x == Self::LEFT as i32 => Self::LEFT,
+            x if x == Self::RIGHT as i32 => Self::RIGHT,
+            x if x == Self::FIRE as i32 => Self::FIRE,
+            x if x == Self::LEFT_SOFT_KEY as i32 => Self::LEFT_SOFT_KEY,
+            x if x == Self::RIGHT_SOFT_KEY as i32 => Self::RIGHT_SOFT_KEY,
+            x if x == Self::CLEAR as i32 => Self::CLEAR,
+            x if x == Self::CALL as i32 => Self::CALL,
+            x if x == Self::HANGUP as i32 => Self::HANGUP,
+            x if x == Self::VOLUME_UP as i32 => Self::VOLUME_UP,
+            x if x == Self::VOLUME_DOWN as i32 => Self::VOLUME_DOWN,
+            x if x == Self::NUM0 as i32 => Self::NUM0,
+            x if x == Self::NUM1 as i32 => Self::NUM1,
+            x if x == Self::NUM2 as i32 => Self::NUM2,
+            x if x == Self::NUM3 as i32 => Self::NUM3,
+            x if x == Self::NUM4 as i32 => Self::NUM4,
+            x if x == Self::NUM5 as i32 => Self::NUM5,
+            x if x == Self::NUM6 as i32 => Self::NUM6,
+            x if x == Self::NUM7 as i32 => Self::NUM7,
+            x if x == Self::NUM8 as i32 => Self::NUM8,
+            x if x == Self::NUM9 as i32 => Self::NUM9,
+            x if x == Self::HASH as i32 => Self::HASH,
+            x if x == Self::STAR as i32 => Self::STAR,
+            _ => return None,
+        })
     }
 
-    pub fn from_midp_key_code(keycode: MIDPKeyCode) -> Self {
-        match keycode {
-            MIDPKeyCode::UP => Self::UP,
-            MIDPKeyCode::DOWN => Self::DOWN,
-            MIDPKeyCode::LEFT => Self::LEFT,
-            MIDPKeyCode::RIGHT => Self::RIGHT,
-            MIDPKeyCode::FIRE => Self::FIRE,
-            MIDPKeyCode::LEFT_SOFT_KEY => Self::LEFT_SOFT_KEY,
-            MIDPKeyCode::RIGHT_SOFT_KEY => Self::RIGHT_SOFT_KEY,
-            MIDPKeyCode::CLEAR => Self::CLEAR,
-            MIDPKeyCode::CALL => Self::CALL,
-            MIDPKeyCode::HANGUP => Self::HANGUP,
-            MIDPKeyCode::VOLUME_UP => Self::VOLUME_UP,
-            MIDPKeyCode::VOLUME_DOWN => Self::VOLUME_DOWN,
-            MIDPKeyCode::KEY_NUM0 => Self::NUM0,
-            MIDPKeyCode::KEY_NUM1 => Self::NUM1,
-            MIDPKeyCode::KEY_NUM2 => Self::NUM2,
-            MIDPKeyCode::KEY_NUM3 => Self::NUM3,
-            MIDPKeyCode::KEY_NUM4 => Self::NUM4,
-            MIDPKeyCode::KEY_NUM5 => Self::NUM5,
-            MIDPKeyCode::KEY_NUM6 => Self::NUM6,
-            MIDPKeyCode::KEY_NUM7 => Self::NUM7,
-            MIDPKeyCode::KEY_NUM8 => Self::NUM8,
-            MIDPKeyCode::KEY_NUM9 => Self::NUM9,
-            MIDPKeyCode::KEY_POUND => Self::HASH,
-            MIDPKeyCode::KEY_STAR => Self::STAR,
+    pub fn from_midp_raw(keycode: i32) -> i32 {
+        match MIDPKeyCode::from_raw(keycode) {
+            Some(MIDPKeyCode::UP) => Self::UP as i32,
+            Some(MIDPKeyCode::DOWN) => Self::DOWN as i32,
+            Some(MIDPKeyCode::LEFT) => Self::LEFT as i32,
+            Some(MIDPKeyCode::RIGHT) => Self::RIGHT as i32,
+            Some(MIDPKeyCode::FIRE) => Self::FIRE as i32,
+            Some(MIDPKeyCode::LEFT_SOFT_KEY) => Self::LEFT_SOFT_KEY as i32,
+            Some(MIDPKeyCode::RIGHT_SOFT_KEY) => Self::RIGHT_SOFT_KEY as i32,
+            Some(MIDPKeyCode::CLEAR) => Self::CLEAR as i32,
+            Some(MIDPKeyCode::CALL) => Self::CALL as i32,
+            Some(MIDPKeyCode::HANGUP) => Self::HANGUP as i32,
+            Some(MIDPKeyCode::VOLUME_UP) => Self::VOLUME_UP as i32,
+            Some(MIDPKeyCode::VOLUME_DOWN) => Self::VOLUME_DOWN as i32,
+            Some(MIDPKeyCode::KEY_NUM0) => Self::NUM0 as i32,
+            Some(MIDPKeyCode::KEY_NUM1) => Self::NUM1 as i32,
+            Some(MIDPKeyCode::KEY_NUM2) => Self::NUM2 as i32,
+            Some(MIDPKeyCode::KEY_NUM3) => Self::NUM3 as i32,
+            Some(MIDPKeyCode::KEY_NUM4) => Self::NUM4 as i32,
+            Some(MIDPKeyCode::KEY_NUM5) => Self::NUM5 as i32,
+            Some(MIDPKeyCode::KEY_NUM6) => Self::NUM6 as i32,
+            Some(MIDPKeyCode::KEY_NUM7) => Self::NUM7 as i32,
+            Some(MIDPKeyCode::KEY_NUM8) => Self::NUM8 as i32,
+            Some(MIDPKeyCode::KEY_NUM9) => Self::NUM9 as i32,
+            Some(MIDPKeyCode::KEY_POUND) => Self::HASH as i32,
+            Some(MIDPKeyCode::KEY_STAR) => Self::STAR as i32,
+            None => keycode,
         }
     }
 }
@@ -139,14 +166,14 @@ impl CardCanvas {
     async fn key_pressed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::keyPressed({this:?}, {key_code})");
 
-        let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
+        let key_code = WIPIKeyCode::from_midp_raw(key_code);
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
-            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (1i32, key_code as i32)).await?;
+            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (1i32, key_code)).await?;
 
             if !propagate {
                 break;
@@ -159,14 +186,14 @@ impl CardCanvas {
     async fn key_repeated(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::keyRepeated({this:?}, {key_code})");
 
-        let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
+        let key_code = WIPIKeyCode::from_midp_raw(key_code);
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
-            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (3i32, key_code as i32)).await?;
+            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (3i32, key_code)).await?;
 
             if !propagate {
                 break;
@@ -179,14 +206,14 @@ impl CardCanvas {
     async fn key_released(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, key_code: i32) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::keyReleased({this:?}, {key_code})");
 
-        let key_code = WIPIKeyCode::from_midp_key_code(MIDPKeyCode::from_raw(key_code));
+        let key_code = WIPIKeyCode::from_midp_raw(key_code);
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
-            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (2i32, key_code as i32)).await?;
+            let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (2i32, key_code)).await?;
 
             if !propagate {
                 break;

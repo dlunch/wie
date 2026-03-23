@@ -21,6 +21,18 @@ enum Mode {
     READ_WRITE = 4,
 }
 
+impl Mode {
+    fn from_raw(raw: i32) -> Option<Self> {
+        Some(match raw {
+            x if x == Self::READ_ONLY as i32 => Self::READ_ONLY,
+            x if x == Self::WRITE as i32 => Self::WRITE,
+            x if x == Self::WRITE_TRUNC as i32 => Self::WRITE_TRUNC,
+            x if x == Self::READ_WRITE as i32 => Self::READ_WRITE,
+            _ => return None,
+        })
+    }
+}
+
 // class org.kwis.msp.io.File
 pub struct File;
 
@@ -81,7 +93,11 @@ impl File {
             return Err(jvm.exception("java/io/IOException", "Invalid filename").await);
         }
 
-        let mode = unsafe { core::mem::transmute::<i32, Mode>(mode) };
+        let mode = if let Some(mode) = Mode::from_raw(mode) {
+            mode
+        } else {
+            return Err(jvm.exception("java/io/IOException", "Invalid mode").await);
+        };
 
         let mode_string = if mode == Mode::WRITE || mode == Mode::WRITE_TRUNC { "w" } else { "r" };
         let mode_string = JavaLangString::from_rust_string(jvm, mode_string).await?;

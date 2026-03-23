@@ -41,6 +41,10 @@ impl Filesystem {
         let normalized_path = Self::normalize_path(path);
 
         if let Some(data) = self.virtual_files.get(normalized_path) {
+            if offset >= data.len() {
+                return Some(0);
+            }
+
             let data_size = data.len();
             let size_to_read = min(count, data_size - offset);
 
