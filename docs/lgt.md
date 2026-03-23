@@ -1,6 +1,6 @@
 # LGT Platform Architecture
 
-LGT (LG Telecom) is a WIPI-based mobile platform. Currently only **Clet** (C native apps) execution is implemented. Java app support is not yet implemented.
+LGT (LG Telecom) is a carrier, and LGT devices shipped with their own WIPI implementation. Currently only **Clet** (C native apps) execution is implemented. Java app support is not yet implemented.
 
 ## App Structure
 
@@ -20,7 +20,7 @@ Not yet implemented.
 
 ## Platform Interfaces
 
-LGT uses an **import table** mechanism instead of KTF's direct callback approach.
+LGT uses its own WIPI-side import-table mechanism instead of KTF's direct callback approach.
 
 ### Import Table System
 
@@ -38,7 +38,7 @@ The binary uses these callbacks to resolve each platform function it needs. Know
 
 ### WIPI C Interface
 
-Same API surface as KTF (kernel, graphics, database, timer, etc.), but delivered through the import table rather than a named interface pointer.
+Provides the LGT-side WIPI C surface (kernel, graphics, database, timer, etc.), but delivered through the import table rather than a named interface pointer.
 
 ### Standard Library
 
@@ -55,8 +55,8 @@ LGT-specific: provides C standard library functions (memcpy, strlen, etc.) that 
 
 ## Key Differences from KTF
 
-| Aspect | KTF | LGT |
-|--------|-----|-----|
+| Aspect | KTF WIPI | LGT WIPI |
+|--------|----------|----------|
 | Binary format | Raw ARM (`client.bin`) | ELF (`binary.mod`) |
 | Function binding | Direct callback pointers | Import table lookup |
 | Java integration | AOT-compiled into ARM binary | Not yet implemented |
