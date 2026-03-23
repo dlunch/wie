@@ -1,6 +1,6 @@
 # KTF Platform Architecture
 
-KTF (Korea Telecom Freetel) is a WIPI-based mobile platform.
+KTF (Korea Telecom Freetel) is a carrier, and KTF devices shipped with their own WIPI implementation.
 
 ## App Structure
 
@@ -43,7 +43,7 @@ Obtained through the platform's interface lookup. This table provides helpers fo
 
 ### WIPI C Interface
 
-Obtained through the same interface lookup mechanism. This is the standard WIPI C API providing kernel, graphics, database, input, and timer functions.
+Obtained through the same interface lookup mechanism. This is the KTF-side WIPI C surface providing kernel, graphics, database, input, and timer functions.
 
 ## Initialization Sequence
 
