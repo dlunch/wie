@@ -1,7 +1,5 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use core::mem::size_of;
-#[cfg(target_arch = "wasm32")]
-use core::panic;
 
 use spin::Mutex;
 
@@ -71,6 +69,17 @@ impl ArmCore {
         Ok(result)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn debug_inner(&self) -> Option<Arc<crate::engine::DebugInner>> {
+        let inner = self.inner.lock();
+
+        inner
+            .engine
+            .as_any()
+            .downcast_ref::<crate::engine::DebuggedArm32CpuEngine>()
+            .map(|engine| engine.debug_inner())
+    }
+
     pub fn load(&mut self, data: &[u8], address: u32, map_size: usize) -> Result<()> {
         let mut inner = self.inner.lock();
 
@@ -102,9 +111,12 @@ impl ArmCore {
         tracing::info!("Create thread: {thread_id}");
 
         {
-            let mut inner = self.inner.lock();
-            let context = inner.threads.get(&thread_id).unwrap().context.clone();
-            inner.engine.on_thread_created(thread_id, &context);
+            let context = self.inner.lock().threads.get(&thread_id).unwrap().context.clone();
+
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(debug) = self.debug_inner() {
+                debug.on_thread_created(thread_id, &context);
+            }
         }
 
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
@@ -116,9 +128,13 @@ impl ArmCore {
         // we should exit inner lock first to run cleanup on thread state drop
         let _thread_state = {
             let mut inner = self.inner.lock();
-            inner.engine.on_thread_deleted(thread_id);
             inner.threads.remove(&thread_id)
         };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(debug) = self.debug_inner() {
+            debug.on_thread_deleted(thread_id);
+        }
     }
 
     pub fn enter_thread_context(&self, thread_id: ThreadId) -> ThreadContextGuard {
@@ -514,6 +530,11 @@ impl ThreadContextGuard {
         let context = core.inner.lock().threads.get(&thread_id).unwrap().context.clone(); // TODO we might not need clone
         core.restore_context(&context);
 
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(debug) = core.debug_inner() {
+            debug.on_thread_entered(thread_id);
+        }
+
         Self { core, thread_id }
     }
 }
@@ -522,6 +543,13 @@ impl Drop for ThreadContextGuard {
     fn drop(&mut self) {
         let context = self.core.save_context();
 
-        self.core.inner.lock().threads.get_mut(&self.thread_id).unwrap().context = context;
+        let mut inner = self.core.inner.lock();
+        inner.threads.get_mut(&self.thread_id).unwrap().context = context;
+        drop(inner);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(debug) = self.core.debug_inner() {
+            debug.on_thread_exited(self.thread_id);
+        }
     }
 }

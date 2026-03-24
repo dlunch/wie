@@ -19,6 +19,12 @@ enum ResumeMode {
     Step,
 }
 
+#[derive(Copy, Clone)]
+enum RunState {
+    Paused,
+    Running(ResumeMode),
+}
+
 pub(crate) struct DebugInner {
     cpu: Mutex<Arm32CpuEngine>,
     stop_event_tx: channel::Sender<MultiThreadStopReason<u32>>,
@@ -28,6 +34,7 @@ pub(crate) struct DebugInner {
     interrupt_pending: Mutex<bool>,
     breakpoints: Mutex<BTreeSet<u32>>,
     active_threads: Mutex<Vec<ThreadId>>,
+    current_thread: Mutex<Option<ThreadId>>,
     thread_ready_tx: channel::Sender<()>,
     pub(crate) thread_ready_rx: channel::Receiver<()>,
 }
@@ -47,6 +54,7 @@ impl DebugInner {
             interrupt_pending: Mutex::new(false),
             breakpoints: Mutex::new(BTreeSet::new()),
             active_threads: Mutex::new(Vec::new()),
+            current_thread: Mutex::new(None),
             thread_ready_tx,
             thread_ready_rx,
         })
@@ -130,6 +138,10 @@ impl DebugInner {
         self.active_threads.lock().clone()
     }
 
+    pub(crate) fn current_thread(&self) -> Option<ThreadId> {
+        *self.current_thread.lock()
+    }
+
     pub(crate) fn on_thread_created(&self, thread_id: ThreadId, context: &ArmCoreContext) {
         let mut active_threads = self.active_threads.lock();
         if !active_threads.contains(&thread_id) {
@@ -162,6 +174,22 @@ impl DebugInner {
 
     pub(crate) fn on_thread_deleted(&self, thread_id: ThreadId) {
         self.active_threads.lock().retain(|&x| x != thread_id);
+
+        let mut current_thread = self.current_thread.lock();
+        if *current_thread == Some(thread_id) {
+            *current_thread = None;
+        }
+    }
+
+    pub(crate) fn on_thread_entered(&self, thread_id: ThreadId) {
+        *self.current_thread.lock() = Some(thread_id);
+    }
+
+    pub(crate) fn on_thread_exited(&self, thread_id: ThreadId) {
+        let mut current_thread = self.current_thread.lock();
+        if *current_thread == Some(thread_id) {
+            *current_thread = None;
+        }
     }
 
     fn normalize_addr(addr: u32) -> u32 {
@@ -202,7 +230,7 @@ impl DebugInner {
 
 pub struct DebuggedArm32CpuEngine {
     debug: Arc<DebugInner>,
-    current_resume_mode: Option<ResumeMode>,
+    run_state: RunState,
     stopped_on_breakpoint: Option<u32>,
 }
 
@@ -212,7 +240,7 @@ impl DebuggedArm32CpuEngine {
 
         Self {
             debug,
-            current_resume_mode: None,
+            run_state: RunState::Paused,
             stopped_on_breakpoint: None,
         }
     }
@@ -220,25 +248,38 @@ impl DebuggedArm32CpuEngine {
     pub(crate) fn debug_inner(&self) -> Arc<DebugInner> {
         self.debug.clone()
     }
+
+    fn wait_for_resume_mode(&mut self) -> ResumeMode {
+        match self.run_state {
+            RunState::Running(mode) => mode,
+            RunState::Paused => {
+                let mode = self.debug.wait_for_resume();
+                self.run_state = RunState::Running(mode);
+                mode
+            }
+        }
+    }
+
+    fn stop(&mut self, reason: MultiThreadStopReason<u32>) {
+        self.debug.enqueue_stop_reason(reason);
+        self.run_state = RunState::Paused;
+    }
+
+    fn current_tid(&self) -> Tid {
+        let thread_id = self.debug.current_thread().unwrap_or(1);
+        Tid::try_from(thread_id).unwrap()
+    }
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
     fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> wie_util::Result<u32> {
         loop {
             if self.debug.take_interrupt() {
-                self.debug.enqueue_stop_reason(MultiThreadStopReason::SwBreak(Tid::new(1).unwrap()));
-                self.current_resume_mode = None;
+                self.stop(MultiThreadStopReason::SwBreak(self.current_tid()));
                 continue;
             }
 
-            let resume_mode = match self.current_resume_mode {
-                Some(mode) => mode,
-                None => {
-                    let mode = self.debug.wait_for_resume();
-                    self.current_resume_mode = Some(mode);
-                    mode
-                }
-            };
+            let resume_mode = self.wait_for_resume_mode();
 
             let current_pc = {
                 let cpu = self.debug.cpu.lock();
@@ -249,8 +290,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 self.stopped_on_breakpoint = None;
             } else if self.debug.breakpoints.lock().contains(&current_pc) {
                 self.stopped_on_breakpoint = Some(current_pc);
-                self.debug.enqueue_stop_reason(MultiThreadStopReason::Signal(Signal::SIGTRAP));
-                self.current_resume_mode = None;
+                self.stop(MultiThreadStopReason::Signal(Signal::SIGTRAP));
                 continue;
             }
 
@@ -267,15 +307,9 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             match result {
                 Ok(pc) => match resume_mode {
                     ResumeMode::Continue => return Ok(pc),
-                    ResumeMode::Step => {
-                        self.debug.enqueue_stop_reason(MultiThreadStopReason::Signal(Signal::SIGTRAP));
-                        self.current_resume_mode = None;
-                    }
+                    ResumeMode::Step => self.stop(MultiThreadStopReason::SwBreak(self.current_tid())),
                 },
-                Err(error) => {
-                    self.debug.enqueue_stop_reason(DebugInner::map_stop_reason(error));
-                    self.current_resume_mode = None;
-                }
+                Err(error) => self.stop(DebugInner::map_stop_reason(error)),
             }
         }
     }
@@ -302,13 +336,5 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.debug.cpu.lock().is_mapped(address, size)
-    }
-
-    fn on_thread_created(&mut self, thread_id: ThreadId, context: &ArmCoreContext) {
-        self.debug.on_thread_created(thread_id, context);
-    }
-
-    fn on_thread_deleted(&mut self, thread_id: ThreadId) {
-        self.debug.on_thread_deleted(thread_id);
     }
 }
