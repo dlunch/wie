@@ -110,10 +110,10 @@ impl ArmCore {
 
         tracing::info!("Create thread: {thread_id}");
 
+        #[cfg(not(target_arch = "wasm32"))]
         {
             let context = self.inner.lock().threads.get(&thread_id).unwrap().context.clone();
 
-            #[cfg(not(target_arch = "wasm32"))]
             if let Some(debug) = self.debug_inner() {
                 debug.on_thread_created(thread_id, &context);
             }
