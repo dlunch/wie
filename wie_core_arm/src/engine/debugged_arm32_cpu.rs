@@ -2,10 +2,6 @@ use alloc::{collections::BTreeSet, sync::Arc, vec::Vec};
 use core::ops::Range;
 
 use crossbeam::channel;
-use gdbstub::{
-    common::{Signal, Tid},
-    stub::MultiThreadStopReason,
-};
 use spin::Mutex;
 use wie_util::WieError;
 
@@ -25,10 +21,25 @@ enum RunState {
     Running(ResumeMode),
 }
 
+#[derive(Copy, Clone)]
+pub(crate) enum DebugSignal {
+    Kill,
+    Segv,
+    Sys,
+    Trap,
+    Abrt,
+}
+
+#[derive(Copy, Clone)]
+pub(crate) enum DebugStopReason {
+    Signal(DebugSignal),
+    SwBreak(ThreadId),
+}
+
 pub(crate) struct DebugInner {
     cpu: Mutex<Arm32CpuEngine>,
-    stop_event_tx: channel::Sender<MultiThreadStopReason<u32>>,
-    pub(crate) stop_event_rx: channel::Receiver<MultiThreadStopReason<u32>>,
+    stop_event_tx: channel::Sender<DebugStopReason>,
+    pub(crate) stop_event_rx: channel::Receiver<DebugStopReason>,
     resume_tx: channel::Sender<ResumeMode>,
     resume_rx: channel::Receiver<ResumeMode>,
     interrupt_pending: Mutex<bool>,
@@ -212,18 +223,14 @@ impl DebugInner {
         }
     }
 
-    pub(crate) fn enqueue_stop_reason(&self, reason: MultiThreadStopReason<u32>) {
-        self.stop_event_tx.send(reason).unwrap();
-    }
-
-    fn map_stop_reason(error: WieError) -> MultiThreadStopReason<u32> {
+    fn map_stop_reason(error: WieError) -> DebugStopReason {
         match error {
-            WieError::AllocationFailure => MultiThreadStopReason::Signal(Signal::SIGKILL),
-            WieError::InvalidMemoryAccess(_) => MultiThreadStopReason::Signal(Signal::SIGSEGV),
-            WieError::Unimplemented(_) => MultiThreadStopReason::Signal(Signal::SIGSYS),
-            WieError::JavaException(_) => MultiThreadStopReason::Signal(Signal::SIGTRAP),
-            WieError::JavaExceptionUnwind { .. } => MultiThreadStopReason::Signal(Signal::SIGTRAP),
-            WieError::FatalError(_) => MultiThreadStopReason::Signal(Signal::SIGABRT),
+            WieError::AllocationFailure => DebugStopReason::Signal(DebugSignal::Kill),
+            WieError::InvalidMemoryAccess(_) => DebugStopReason::Signal(DebugSignal::Segv),
+            WieError::Unimplemented(_) => DebugStopReason::Signal(DebugSignal::Sys),
+            WieError::JavaException(_) => DebugStopReason::Signal(DebugSignal::Trap),
+            WieError::JavaExceptionUnwind { .. } => DebugStopReason::Signal(DebugSignal::Trap),
+            WieError::FatalError(_) => DebugStopReason::Signal(DebugSignal::Abrt),
         }
     }
 }
@@ -260,14 +267,13 @@ impl DebuggedArm32CpuEngine {
         }
     }
 
-    fn stop(&mut self, reason: MultiThreadStopReason<u32>) {
-        self.debug.enqueue_stop_reason(reason);
+    fn stop(&mut self, reason: DebugStopReason) {
+        self.debug.stop_event_tx.send(reason).unwrap();
         self.run_state = RunState::Paused;
     }
 
-    fn current_tid(&self) -> Tid {
-        let thread_id = self.debug.current_thread().unwrap_or(1);
-        Tid::try_from(thread_id).unwrap()
+    fn current_thread_id(&self) -> ThreadId {
+        self.debug.current_thread().unwrap_or(1)
     }
 }
 
@@ -275,7 +281,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
     fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> wie_util::Result<u32> {
         loop {
             if self.debug.take_interrupt() {
-                self.stop(MultiThreadStopReason::SwBreak(self.current_tid()));
+                self.stop(DebugStopReason::SwBreak(self.current_thread_id()));
                 continue;
             }
 
@@ -290,7 +296,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 self.stopped_on_breakpoint = None;
             } else if self.debug.breakpoints.lock().contains(&current_pc) {
                 self.stopped_on_breakpoint = Some(current_pc);
-                self.stop(MultiThreadStopReason::Signal(Signal::SIGTRAP));
+                self.stop(DebugStopReason::Signal(DebugSignal::Trap));
                 continue;
             }
 
@@ -307,7 +313,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             match result {
                 Ok(pc) => match resume_mode {
                     ResumeMode::Continue => return Ok(pc),
-                    ResumeMode::Step => self.stop(MultiThreadStopReason::SwBreak(self.current_tid())),
+                    ResumeMode::Step => self.stop(DebugStopReason::SwBreak(self.current_thread_id())),
                 },
                 Err(error) => self.stop(DebugInner::map_stop_reason(error)),
             }

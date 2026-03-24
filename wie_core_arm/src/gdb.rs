@@ -28,9 +28,29 @@ use gdbstub::{
 };
 use gdbstub_arch::arm::{Armv4t, reg::ArmCoreRegs};
 
-use crate::{ArmCore, engine::DebugInner};
+use crate::{
+    ArmCore,
+    engine::{DebugInner, DebugSignal, DebugStopReason},
+};
 
 type GdbTargetError = &'static str;
+
+fn to_gdb_signal(signal: DebugSignal) -> Signal {
+    match signal {
+        DebugSignal::Kill => Signal::SIGKILL,
+        DebugSignal::Segv => Signal::SIGSEGV,
+        DebugSignal::Sys => Signal::SIGSYS,
+        DebugSignal::Trap => Signal::SIGTRAP,
+        DebugSignal::Abrt => Signal::SIGABRT,
+    }
+}
+
+fn to_gdb_stop_reason(reason: DebugStopReason) -> MultiThreadStopReason<u32> {
+    match reason {
+        DebugStopReason::Signal(signal) => MultiThreadStopReason::Signal(to_gdb_signal(signal)),
+        DebugStopReason::SwBreak(thread_id) => MultiThreadStopReason::SwBreak(Tid::try_from(thread_id).unwrap()),
+    }
+}
 
 #[allow(dead_code)]
 pub struct GdbTarget {
@@ -328,7 +348,7 @@ impl BlockingEventLoop for GdbBlockingEventLoop {
 
         loop {
             match stop_event_rx.recv_timeout(Duration::from_millis(10)) {
-                Ok(x) => return Ok(Event::TargetStopped(x)),
+                Ok(reason) => return Ok(Event::TargetStopped(to_gdb_stop_reason(reason))),
                 Err(channel::RecvTimeoutError::Timeout) => {
                     if conn.peek().unwrap().is_some() {
                         let x = conn.read().unwrap();

@@ -8,9 +8,9 @@ use wie_util::{AsAny, Result};
 
 pub use arm32_cpu::Arm32CpuEngine;
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) use debugged_arm32_cpu::DebugInner;
-#[cfg(not(target_arch = "wasm32"))]
 pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use debugged_arm32_cpu::{DebugInner, DebugSignal, DebugStopReason};
 
 pub trait ArmEngine: Send + AsAny {
     fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<u32>;
