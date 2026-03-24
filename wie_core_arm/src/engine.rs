@@ -6,7 +6,11 @@ use core::ops::Range;
 
 use wie_util::{AsAny, Result};
 
+use crate::{ThreadId, context::ArmCoreContext};
+
 pub use arm32_cpu::Arm32CpuEngine;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use debugged_arm32_cpu::DebugInner;
 #[cfg(not(target_arch = "wasm32"))]
 pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 
@@ -18,6 +22,8 @@ pub trait ArmEngine: Send + AsAny {
     fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
+    fn on_thread_created(&mut self, _thread_id: ThreadId, _context: &ArmCoreContext) {}
+    fn on_thread_deleted(&mut self, _thread_id: ThreadId) {}
 }
 
 #[allow(clippy::enum_variant_names)]

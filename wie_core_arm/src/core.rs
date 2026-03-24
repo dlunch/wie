@@ -63,9 +63,9 @@ impl ArmCore {
 
         if enable_gdbserver {
             #[cfg(not(target_arch = "wasm32"))]
-            crate::gdb::GdbTarget::start(result.clone());
+            crate::gdb::GdbTarget::start(result.clone())?;
             #[cfg(target_arch = "wasm32")]
-            panic!("GDB server is not supported on wasm32"); // TODO graceful error handling
+            panic!("GDB server is not supported on wasm32");
         }
 
         Ok(result)
@@ -101,6 +101,12 @@ impl ArmCore {
 
         tracing::info!("Create thread: {thread_id}");
 
+        {
+            let mut inner = self.inner.lock();
+            let context = inner.threads.get(&thread_id).unwrap().context.clone();
+            inner.engine.on_thread_created(thread_id, &context);
+        }
+
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
     }
 
@@ -110,6 +116,7 @@ impl ArmCore {
         // we should exit inner lock first to run cleanup on thread state drop
         let _thread_state = {
             let mut inner = self.inner.lock();
+            inner.engine.on_thread_deleted(thread_id);
             inner.threads.remove(&thread_id)
         };
     }
