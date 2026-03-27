@@ -112,10 +112,8 @@ impl ArmCore {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let context = self.inner.lock().threads.get(&thread_id).unwrap().context.clone();
-
             if let Some(debug) = self.debug_inner() {
-                debug.on_thread_created(thread_id, &context);
+                debug.on_thread_created(thread_id);
             }
         }
 

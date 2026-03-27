@@ -10,6 +10,7 @@ use std::{
 
 use crossbeam::channel;
 use gdbstub::{
+    arch::Arch,
     common::{Pid, Signal, Tid},
     conn::ConnectionExt,
     stub::{
@@ -17,20 +18,21 @@ use gdbstub::{
         run_blocking::{BlockingEventLoop, Event, WaitForStopReasonError},
     },
     target::{
-        Target, TargetResult,
+        Target, TargetError, TargetResult,
         ext::base::{
             BaseOps,
-            multithread::{MultiThreadBase, MultiThreadResume, MultiThreadSingleStep, MultiThreadSingleStepOps},
+            multithread::{MultiThreadBase, MultiThreadResume, MultiThreadResumeOps, MultiThreadSingleStep, MultiThreadSingleStepOps},
         },
         ext::breakpoints::{Breakpoints, BreakpointsOps, SwBreakpoint, SwBreakpointOps},
-        ext::extended_mode::{AttachKind, CurrentActivePid, CurrentActivePidOps, ExtendedMode, ExtendedModeOps, ShouldTerminate},
+        ext::extended_mode::{Args, AttachKind, CurrentActivePid, CurrentActivePidOps, ExtendedMode, ExtendedModeOps, ShouldTerminate},
     },
 };
-use gdbstub_arch::arm::{Armv4t, reg::ArmCoreRegs};
+use gdbstub_arch::arm::{ArmBreakpointKind, Armv4t, reg::ArmCoreRegs};
 
 use crate::{
     ArmCore,
-    engine::{DebugInner, DebugSignal, DebugStopReason},
+    context::ArmCoreContext,
+    engine::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason},
 };
 
 type GdbTargetError = &'static str;
@@ -52,12 +54,42 @@ fn to_gdb_stop_reason(reason: DebugStopReason) -> MultiThreadStopReason<u32> {
     }
 }
 
-#[allow(dead_code)]
+fn context_to_regs(ctx: &ArmCoreContext, regs: &mut ArmCoreRegs) {
+    regs.r = [
+        ctx.r0, ctx.r1, ctx.r2, ctx.r3, ctx.r4, ctx.r5, ctx.r6, ctx.r7, ctx.r8, ctx.sb, ctx.sl, ctx.fp, ctx.ip,
+    ];
+    regs.sp = ctx.sp;
+    regs.lr = ctx.lr;
+    regs.pc = ctx.pc;
+    regs.cpsr = ctx.cpsr;
+}
+
+fn regs_to_context(regs: &ArmCoreRegs) -> ArmCoreContext {
+    ArmCoreContext {
+        r0: regs.r[0],
+        r1: regs.r[1],
+        r2: regs.r[2],
+        r3: regs.r[3],
+        r4: regs.r[4],
+        r5: regs.r[5],
+        r6: regs.r[6],
+        r7: regs.r[7],
+        r8: regs.r[8],
+        sb: regs.r[9],
+        sl: regs.r[10],
+        fp: regs.r[11],
+        ip: regs.r[12],
+        sp: regs.sp,
+        lr: regs.lr,
+        pc: regs.pc,
+        cpsr: regs.cpsr,
+    }
+}
+
 pub struct GdbTarget {
     core: ArmCore,
     debug: Arc<DebugInner>,
-    do_step: bool,
-    startup_tx: Option<channel::Sender<io::Result<()>>>,
+    resume_step: bool,
 }
 
 impl GdbTarget {
@@ -77,12 +109,11 @@ impl GdbTarget {
         let this = GdbTarget {
             core,
             debug,
-            do_step: false,
-            startup_tx: Some(startup_tx),
+            resume_step: false,
         };
 
-        thread::spawn(|| {
-            let _ = this.run_gdb_server();
+        thread::spawn(move || {
+            let _ = this.run_gdb_server(startup_tx);
         });
 
         match startup_rx.recv() {
@@ -92,20 +123,14 @@ impl GdbTarget {
         }
     }
 
-    fn run_gdb_server(mut self) -> io::Result<()> {
+    fn run_gdb_server(mut self, startup_tx: channel::Sender<io::Result<()>>) -> io::Result<()> {
         let sock = TcpListener::bind("127.0.0.1:2159")?;
         println!("GDB server listening on {}", sock.local_addr()?);
 
+        let _ = startup_tx.send(Ok(()));
+
         loop {
-            let (stream, addr) = match sock.accept() {
-                Ok(result) => result,
-                Err(err) => {
-                    if let Some(startup_tx) = self.startup_tx.take() {
-                        let _ = startup_tx.send(Err(io::Error::new(err.kind(), format!("{err}"))));
-                    }
-                    return Err(err);
-                }
-            };
+            let (stream, addr) = sock.accept()?;
 
             println!("GDB client attached from {addr}");
 
@@ -143,9 +168,6 @@ impl GdbTarget {
             }
             println!("GDB server waiting for next client");
         }
-
-        #[allow(unreachable_code)]
-        Ok(())
     }
 }
 
@@ -176,57 +198,45 @@ impl Target for GdbTarget {
 }
 
 impl MultiThreadBase for GdbTarget {
-    fn support_resume(&mut self) -> Option<gdbstub::target::ext::base::multithread::MultiThreadResumeOps<'_, Self>> {
+    fn support_resume(&mut self) -> Option<MultiThreadResumeOps<'_, Self>> {
         Some(self)
     }
 
     #[inline(always)]
-    fn read_registers(&mut self, regs: &mut ArmCoreRegs, _tid: Tid) -> TargetResult<(), Self> {
-        let thread_context = self.debug.read_registers();
+    fn read_registers(&mut self, regs: &mut ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
+        let thread_id = u32::try_from(tid.get()).map_err(|_| TargetError::NonFatal)? as usize;
+        let ctx = if self.debug.current_thread() == Some(thread_id) {
+            self.debug.read_registers()
+        } else {
+            self.core.read_thread_context(thread_id).map_err(|_| TargetError::NonFatal)?
+        };
 
-        regs.r[0] = thread_context[0];
-        regs.r[1] = thread_context[1];
-        regs.r[2] = thread_context[2];
-        regs.r[3] = thread_context[3];
-        regs.r[4] = thread_context[4];
-        regs.r[5] = thread_context[5];
-        regs.r[6] = thread_context[6];
-        regs.r[7] = thread_context[7];
-        regs.r[8] = thread_context[8];
-        regs.r[9] = thread_context[9];
-        regs.r[10] = thread_context[10];
-        regs.r[11] = thread_context[11];
-        regs.r[12] = thread_context[12];
-        regs.sp = thread_context[13];
-        regs.lr = thread_context[14];
-        regs.pc = thread_context[15];
-        regs.cpsr = thread_context[16];
-
+        context_to_regs(&ctx, regs);
         Ok(())
     }
 
     #[inline(always)]
-    fn write_registers(&mut self, regs: &ArmCoreRegs, _tid: Tid) -> TargetResult<(), Self> {
-        self.debug.write_registers([
-            regs.r[0], regs.r[1], regs.r[2], regs.r[3], regs.r[4], regs.r[5], regs.r[6], regs.r[7], regs.r[8], regs.r[9], regs.r[10], regs.r[11],
-            regs.r[12], regs.sp, regs.lr, regs.pc, regs.cpsr,
-        ]);
+    fn write_registers(&mut self, regs: &ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
+        let thread_id = u32::try_from(tid.get()).map_err(|_| TargetError::NonFatal)? as usize;
+        let ctx = regs_to_context(regs);
+
+        if self.debug.current_thread() == Some(thread_id) {
+            self.debug.write_registers(&ctx);
+        } else {
+            self.core.write_thread_context(thread_id, &ctx);
+        }
 
         Ok(())
     }
 
     #[inline(always)]
     fn read_addrs(&mut self, start_addr: u32, data: &mut [u8], _tid: Tid) -> TargetResult<usize, Self> {
-        self.debug
-            .read_memory(start_addr, data)
-            .map_err(|_| gdbstub::target::TargetError::NonFatal)
+        self.debug.read_memory(start_addr, data).map_err(|_| TargetError::NonFatal)
     }
 
     #[inline(always)]
     fn write_addrs(&mut self, start_addr: u32, data: &[u8], _tid: Tid) -> TargetResult<(), Self> {
-        self.debug
-            .write_memory(start_addr, data)
-            .map_err(|_| gdbstub::target::TargetError::NonFatal)
+        self.debug.write_memory(start_addr, data).map_err(|_| TargetError::NonFatal)
     }
 
     #[inline(always)]
@@ -243,7 +253,7 @@ impl MultiThreadBase for GdbTarget {
 
 impl MultiThreadResume for GdbTarget {
     fn resume(&mut self) -> Result<(), Self::Error> {
-        if self.do_step {
+        if self.resume_step {
             self.debug.resume_step();
         } else {
             self.debug.resume_continue();
@@ -253,12 +263,12 @@ impl MultiThreadResume for GdbTarget {
     }
 
     fn clear_resume_actions(&mut self) -> Result<(), Self::Error> {
-        self.do_step = false;
+        self.resume_step = false;
         Ok(())
     }
 
     fn set_resume_action_continue(&mut self, _tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
-        self.do_step = false;
+        self.resume_step = false;
         Ok(())
     }
 
@@ -269,7 +279,7 @@ impl MultiThreadResume for GdbTarget {
 
 impl MultiThreadSingleStep for GdbTarget {
     fn set_resume_action_step(&mut self, _tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
-        self.do_step = true;
+        self.resume_step = true;
         Ok(())
     }
 }
@@ -281,26 +291,30 @@ impl Breakpoints for GdbTarget {
 }
 
 impl SwBreakpoint for GdbTarget {
-    fn add_sw_breakpoint(&mut self, addr: u32, _kind: <Self::Arch as gdbstub::arch::Arch>::BreakpointKind) -> TargetResult<bool, Self> {
-        self.debug.add_breakpoint(addr);
+    fn add_sw_breakpoint(&mut self, addr: u32, kind: <Self::Arch as Arch>::BreakpointKind) -> TargetResult<bool, Self> {
+        let kind = match kind {
+            ArmBreakpointKind::Thumb16 => DebugBreakpointKind::Thumb16,
+            ArmBreakpointKind::Thumb32 => DebugBreakpointKind::Thumb32,
+            ArmBreakpointKind::Arm32 => DebugBreakpointKind::Arm32,
+        };
+
+        self.debug.add_breakpoint(addr, kind).map_err(|_| TargetError::NonFatal)?;
 
         Ok(true)
     }
 
-    fn remove_sw_breakpoint(&mut self, addr: u32, _kind: <Self::Arch as gdbstub::arch::Arch>::BreakpointKind) -> TargetResult<bool, Self> {
-        self.debug.remove_breakpoint(addr);
+    fn remove_sw_breakpoint(&mut self, addr: u32, _kind: <Self::Arch as Arch>::BreakpointKind) -> TargetResult<bool, Self> {
+        self.debug.remove_breakpoint(addr).map_err(|_| TargetError::NonFatal)?;
 
         Ok(true)
     }
 }
 
 impl ExtendedMode for GdbTarget {
-    fn run(&mut self, _filename: Option<&[u8]>, _args: gdbstub::target::ext::extended_mode::Args<'_, '_>) -> TargetResult<Pid, Self> {
-        if let Some(startup_tx) = self.startup_tx.take() {
-            let _ = startup_tx.send(Ok(()));
+    fn run(&mut self, _filename: Option<&[u8]>, _args: Args<'_, '_>) -> TargetResult<Pid, Self> {
+        if self.debug.active_threads().is_empty() {
+            self.debug.wait_for_thread_ready();
         }
-
-        let _ = self.debug.thread_ready_rx.recv();
 
         Ok(Pid::new(1).unwrap())
     }
@@ -344,17 +358,17 @@ impl BlockingEventLoop for GdbBlockingEventLoop {
         target: &mut GdbTarget,
         conn: &mut Self::Connection,
     ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, io::Error>> {
-        let stop_event_rx = target.debug.stop_event_rx.clone();
-
         loop {
-            match stop_event_rx.recv_timeout(Duration::from_millis(10)) {
+            match target.debug.recv_stop_event_timeout(Duration::from_millis(10)) {
                 Ok(reason) => return Ok(Event::TargetStopped(to_gdb_stop_reason(reason))),
-                Err(channel::RecvTimeoutError::Timeout) => {
-                    if conn.peek().unwrap().is_some() {
-                        let x = conn.read().unwrap();
-                        return Ok(Event::IncomingData(x));
-                    }
-                }
+                Err(channel::RecvTimeoutError::Timeout) => match conn.peek() {
+                    Ok(Some(_)) => match conn.read() {
+                        Ok(byte) => return Ok(Event::IncomingData(byte)),
+                        Err(error) => return Err(WaitForStopReasonError::Connection(error)),
+                    },
+                    Ok(None) => {}
+                    Err(error) => return Err(WaitForStopReasonError::Connection(error)),
+                },
                 Err(_) => return Err(WaitForStopReasonError::Target("Target error")),
             }
         }
