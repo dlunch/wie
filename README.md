@@ -8,3 +8,8 @@ This project is dedicated to digital preservation and educational research. Our 
 
 - [Contribution guide](https://github.com/dlunch/wie/blob/main/CONTRIBUTING.md)
 - Architecture docs: [Emulator](docs/architecture.md) | [KTF](docs/ktf.md) | [LGT](docs/lgt.md)
+
+## Related projects
+
+- [RustJava](https://github.com/dlunch/RustJava)
+- [smaf](https://github.com/dlunch/smaf)
