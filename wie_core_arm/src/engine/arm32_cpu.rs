@@ -1,11 +1,11 @@
 use alloc::boxed::Box;
 use core::{array, cell::RefCell, ops::Range};
 
-use arm32_cpu::{Cpu, Memory, Mode, reg};
+use arm32_cpu::{reg, Cpu, Memory, Mode};
 
 use wie_util::{Result, WieError};
 
-use crate::engine::{ArmEngine, ArmRegister, MemoryPermission};
+use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory};
 
 pub struct Arm32CpuEngine {
     cpu: Cpu,
@@ -22,15 +22,29 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<u32> {
+    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<EngineRunResult> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
+
+            if pc == 0x08 && (self.cpu.reg_get(Mode::User, reg::CPSR) & 0x1f) == 0x13 {
+                let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
+                let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
+                let r12 = self.cpu.reg_get(Mode::User, 12);
+
+                let mut svc_bytes = [0u8; 4];
+                self.mem.read_range(lr - 4, 4, &mut svc_bytes)?;
+                let svc_immediate = u32::from_le_bytes(svc_bytes) & 0x00ff_ffff;
+                let category = SvcCategory::from_u32(svc_immediate)?;
+
+                return Ok(EngineRunResult::Svc { category, r12, lr, spsr });
+            }
+
             if pc < 0x1000 {
                 return Err(WieError::InvalidMemoryAccess(pc));
             }
 
             if pc == end || hook.contains(&pc) || count == 0 {
-                return Ok(pc);
+                return Ok(EngineRunResult::Normal(pc));
             }
 
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();

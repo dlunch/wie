@@ -2,9 +2,10 @@ mod arm32_cpu;
 #[cfg(not(target_arch = "wasm32"))]
 mod debugged_arm32_cpu;
 
+use alloc::format;
 use core::ops::Range;
 
-use wie_util::{AsAny, Result};
+use wie_util::{AsAny, Result, WieError};
 
 pub use arm32_cpu::Arm32CpuEngine;
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,8 +13,31 @@ pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum SvcCategory {
+    Init = 1,
+    Wipi = 2,
+    Java = 3,
+}
+
+impl SvcCategory {
+    pub fn from_u32(value: u32) -> Result<Self> {
+        match value {
+            1 => Ok(Self::Init),
+            2 => Ok(Self::Wipi),
+            3 => Ok(Self::Java),
+            _ => Err(WieError::FatalError(format!("Unknown SVC category {value}"))),
+        }
+    }
+}
+
+pub enum EngineRunResult {
+    Normal(u32),
+    Svc { category: SvcCategory, r12: u32, lr: u32, spsr: u32 },
+}
+
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<u32>;
+    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<EngineRunResult>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);

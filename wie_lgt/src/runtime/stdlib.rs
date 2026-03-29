@@ -2,26 +2,26 @@ use alloc::{format, string::String, vec};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::{Allocator, ArmCore, SvcCategory};
 use wie_util::{
     ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
 };
 
 pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {
-        0x3f6 => core.register_function(unk2, &())?,
-        0x3fb => core.register_function(atoi, &())?,
-        0x405 => core.register_function(strcpy, &())?,
-        0x406 => core.register_function(strncpy, &())?,
-        0x407 => core.register_function(strcat, &())?,
-        0x409 => core.register_function(strcmp, &())?,
-        0x40a => core.register_function(unk4, &())?,
-        0x410 => core.register_function(unk5, &())?,
-        0x411 => core.register_function(strlen, &())?,
-        0x414 => core.register_function(memcpy, &())?,
-        0x418 => core.register_function(memset, &())?,
-        0x420 => core.register_function(localtime, &())?,
-        0x424 => core.register_function(unk3, &())?,
+        0x3f6 => core.register_function(SvcCategory::Wipi, unk2, &())?,
+        0x3fb => core.register_function(SvcCategory::Wipi, atoi, &())?,
+        0x405 => core.register_function(SvcCategory::Wipi, strcpy, &())?,
+        0x406 => core.register_function(SvcCategory::Wipi, strncpy, &())?,
+        0x407 => core.register_function(SvcCategory::Wipi, strcat, &())?,
+        0x409 => core.register_function(SvcCategory::Wipi, strcmp, &())?,
+        0x40a => core.register_function(SvcCategory::Wipi, unk4, &())?,
+        0x410 => core.register_function(SvcCategory::Wipi, unk5, &())?,
+        0x411 => core.register_function(SvcCategory::Wipi, strlen, &())?,
+        0x414 => core.register_function(SvcCategory::Wipi, memcpy, &())?,
+        0x418 => core.register_function(SvcCategory::Wipi, memset, &())?,
+        0x420 => core.register_function(SvcCategory::Wipi, localtime, &())?,
+        0x424 => core.register_function(SvcCategory::Wipi, unk3, &())?,
         _ => return Err(WieError::FatalError(format!("Unknown lgt stdlib import: {function_index:#x}"))),
     })
 }

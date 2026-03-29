@@ -20,7 +20,7 @@ use wipi_types::ktf::java::{
     JavaMethodExceptionTableEntry as RawJavaMethodExceptionTableEntry,
 };
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, ResultWriter};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, ResultWriter, SvcCategory};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::JavaClassDefinition;
@@ -247,7 +247,7 @@ impl JavaMethod {
             return_type: return_type.clone(),
         };
 
-        core.register_function(proxy, &())
+        core.register_function(SvcCategory::Java, proxy, &())
     }
 }
 

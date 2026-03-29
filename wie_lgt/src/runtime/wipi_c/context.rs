@@ -7,7 +7,7 @@ use jvm::{
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
 
@@ -98,7 +98,7 @@ impl WIPICContext for LgtWIPICContext {
 
         let proxy = CMethodProxy { context: self.clone(), body };
 
-        self.core.register_function(proxy, &())
+        self.core.register_function(SvcCategory::Wipi, proxy, &())
     }
 
     fn system(&mut self) -> &mut System {
