@@ -17,8 +17,11 @@ use crate::{
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const SVC_FUNCTIONS_BASE: u32 = 0x71001000;
-const SVC_FUNCTIONS_SIZE: u32 = 0x1000;
+const SVC_FUNCTIONS_SIZE: u32 = 0x10000;
 const SVC_STUB_SIZE: u32 = 16;
+const ARM_LDR_R12_PC_PLUS_4: u32 = 0xe59fc004;
+const ARM_SVC_BASE: u32 = 0xef000000;
+const ARM_BX_LR: u32 = 0xe12fff1e;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000; // 256 MB
@@ -29,6 +32,7 @@ pub(crate) struct ArmCoreInner {
     threads: BTreeMap<ThreadId, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     svc_functions: BTreeMap<(u32, u32), Arc<Box<dyn RegisteredFunction>>>,
+    next_svc_function_address: u32,
 }
 
 #[derive(Clone)]
@@ -59,6 +63,7 @@ impl ArmCore {
             threads: BTreeMap::new(),
             functions: BTreeMap::new(),
             svc_functions: BTreeMap::new(),
+            next_svc_function_address: SVC_FUNCTIONS_BASE,
         };
 
         let result = Self {
@@ -275,7 +280,7 @@ impl ArmCore {
         Ok(address as u32 + 1)
     }
 
-    pub fn register_svc_function<F, C, R, P>(&mut self, immediate: u32, function: F, context: &C) -> Result<u32>
+    pub fn register_svc_function<F, C, R, P>(&mut self, immediate: u32, function_id: u32, function: F, context: &C) -> Result<u32>
     where
         F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
@@ -284,10 +289,20 @@ impl ArmCore {
     {
         let mut inner = self.inner.lock();
 
-        let function_id = inner.svc_functions.len() as u32 + 1;
-        let address = SVC_FUNCTIONS_BASE + inner.svc_functions.len() as u32 * SVC_STUB_SIZE;
+        if inner.svc_functions.contains_key(&(immediate, function_id)) {
+            return Err(wie_util::WieError::FatalError(format!(
+                "Duplicate SVC function {immediate}:{function_id}"
+            )));
+        }
+
+        let address = inner.next_svc_function_address;
+        if address + SVC_STUB_SIZE > SVC_FUNCTIONS_BASE + SVC_FUNCTIONS_SIZE {
+            return Err(wie_util::WieError::FatalError("SVC stub range exhausted".into()));
+        }
+
         let stub = svc_stub(immediate, function_id);
         inner.engine.mem_write(address, &stub)?;
+        inner.next_svc_function_address += SVC_STUB_SIZE;
 
         let callback = RegisteredFunctionHolder::new(function, context);
         inner.svc_functions.insert((immediate, function_id), Arc::new(Box::new(callback)));
@@ -529,14 +544,7 @@ impl ArmCore {
 }
 
 fn svc_stub(immediate: u32, function_id: u32) -> [u8; SVC_STUB_SIZE as usize] {
-    let mut result = [0; SVC_STUB_SIZE as usize];
-
-    result[0..4].copy_from_slice(&0xe59fc004u32.to_le_bytes());
-    result[4..8].copy_from_slice(&(0xef000000 | (immediate & 0x00ff_ffff)).to_le_bytes());
-    result[8..12].copy_from_slice(&0xe12fff1eu32.to_le_bytes());
-    result[12..16].copy_from_slice(&function_id.to_le_bytes());
-
-    result
+    bytemuck::cast([ARM_LDR_R12_PC_PLUS_4, ARM_SVC_BASE | (immediate & 0x00ff_ffff), ARM_BX_LR, function_id])
 }
 
 impl ByteRead for ArmCore {
@@ -611,7 +619,7 @@ impl Drop for ThreadContextGuard {
 mod tests {
     use wie_util::Result;
 
-    use super::ArmCore;
+    use super::{ArmCore, SVC_FUNCTIONS_BASE, SVC_STUB_SIZE};
 
     async fn increment(_core: &mut ArmCore, _context: &mut (), value: u32) -> Result<u32> {
         Ok(value + 1)
@@ -620,11 +628,41 @@ mod tests {
     #[futures_test::test]
     async fn test_svc_alloc_roundtrip() -> Result<()> {
         let mut core = ArmCore::new(false)?;
-        let address = core.register_svc_function(1, increment, &())?;
+        let address = core.register_svc_function(1, 1, increment, &())?;
 
         let result = core.run_function::<u32>(address, &[41]).await?;
 
         assert_eq!(result, 42);
+
+        Ok(())
+    }
+
+    async fn double(_core: &mut ArmCore, _context: &mut (), value: u32) -> Result<u32> {
+        Ok(value * 2)
+    }
+
+    #[futures_test::test]
+    async fn test_svc_dispatch_table_lookup() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        let increment_address = core.register_svc_function(1, 1, increment, &())?;
+        let double_address = core.register_svc_function(1, 2, double, &())?;
+
+        assert_eq!(core.run_function::<u32>(increment_address, &[20]).await?, 21);
+        assert_eq!(core.run_function::<u32>(double_address, &[20]).await?, 40);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_svc_stub_allocator_alignment() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        let first = core.register_svc_function(1, 1, increment, &())?;
+        let second = core.register_svc_function(1, 2, increment, &())?;
+
+        assert_eq!(first, SVC_FUNCTIONS_BASE);
+        assert_eq!(second, SVC_FUNCTIONS_BASE + SVC_STUB_SIZE);
+        assert_eq!(first % 4, 0);
+        assert_eq!(second % 4, 0);
 
         Ok(())
     }

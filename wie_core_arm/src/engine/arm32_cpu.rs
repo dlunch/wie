@@ -447,4 +447,19 @@ mod tests {
             _ => panic!("expected svc result"),
         }
     }
+
+    #[test]
+    fn test_engine_run_result_count_expired() {
+        let mut engine = Arm32CpuEngine::new();
+
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        engine.reg_write(ArmRegister::PC, 0x1000);
+
+        let result = engine.run(0x2000, &(0x3000..0x3004), 0).unwrap();
+
+        match result {
+            EngineRunResult::CountExpired { pc } => assert_eq!(pc, 0x1000),
+            _ => panic!("expected count-expired result"),
+        }
+    }
 }
