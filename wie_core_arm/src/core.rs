@@ -1,5 +1,5 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
-use core::mem::size_of;
+use core::mem::{size_of, take};
 
 use spin::Mutex;
 
@@ -15,7 +15,6 @@ use crate::{
 };
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
-const FUNCTIONS_BASE: u32 = 0x71000000;
 const SVC_FUNCTIONS_BASE: u32 = 0x71001000;
 const SVC_FUNCTIONS_SIZE: u32 = 0x10000;
 const SVC_STUB_SIZE: u32 = 16;
@@ -30,9 +29,25 @@ pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     svc_functions: BTreeMap<(u32, u32), Arc<Box<dyn RegisteredFunction>>>,
     next_svc_function_address: u32,
+}
+
+#[derive(Clone)]
+pub struct ArmCoreState {
+    engine: crate::engine::ArmEngineState,
+    last_thread_id: ThreadId,
+    threads: Vec<ThreadStateSnapshot>,
+    svc_functions: BTreeMap<(u32, u32), Arc<Box<dyn RegisteredFunction>>>,
+    next_svc_function_address: u32,
+}
+
+#[derive(Clone)]
+struct ThreadStateSnapshot {
+    thread_id: ThreadId,
+    context: ArmCoreContext,
+    stack_base: usize,
+    stack_size: usize,
 }
 
 #[derive(Clone)]
@@ -53,7 +68,6 @@ impl ArmCore {
             Box::new(crate::engine::Arm32CpuEngine::new())
         };
 
-        engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
         engine.mem_map(SVC_FUNCTIONS_BASE, SVC_FUNCTIONS_SIZE as usize, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
 
@@ -61,7 +75,6 @@ impl ArmCore {
             engine,
             last_thread_id: 0,
             threads: BTreeMap::new(),
-            functions: BTreeMap::new(),
             svc_functions: BTreeMap::new(),
             next_svc_function_address: SVC_FUNCTIONS_BASE,
         };
@@ -212,25 +225,13 @@ impl ArmCore {
         loop {
             let result = {
                 let mut inner = self.inner.lock();
-                inner.engine.run(RUN_FUNCTION_LR, &(FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000), 1000)?
+                inner.engine.run(RUN_FUNCTION_LR, 1000)?
             };
 
             match result {
                 EngineRunResult::ReachedEnd { pc } => {
                     debug_assert_eq!(pc, RUN_FUNCTION_LR);
                     break;
-                }
-                EngineRunResult::Hook { pc } => {
-                    let mut self1 = self.clone();
-                    let (_, lr) = self.read_pc_lr()?;
-
-                    let function = {
-                        let inner = self.inner.lock();
-
-                        inner.functions.get(&pc).unwrap().clone()
-                    };
-
-                    function.call(&mut self1, lr).await?;
                 }
                 EngineRunResult::CountExpired { .. } => continue,
                 EngineRunResult::Svc {
@@ -253,31 +254,6 @@ impl ArmCore {
         self.restore_context(&previous_context);
 
         Ok(result)
-    }
-
-    pub fn register_function<F, C, R, P>(&mut self, function: F, context: &C) -> Result<u32>
-    where
-        F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
-        C: Clone + 'static + Sync + Send,
-        R: ResultWriter<R> + 'static + Sync + Send,
-        P: 'static + Sync + Send,
-    {
-        let mut inner = self.inner.lock();
-
-        let count = inner.functions.len();
-
-        let bytes = [0x70, 0x47]; // BX LR
-        let address = FUNCTIONS_BASE as u64 + (count * 2) as u64;
-
-        inner.engine.mem_write(address as u32, &bytes)?;
-
-        let callback = RegisteredFunctionHolder::new(function, context);
-
-        inner.functions.insert(address as u32, Arc::new(Box::new(callback)));
-
-        tracing::trace!("Register function at {address:#x}");
-
-        Ok(address as u32 + 1)
     }
 
     pub fn register_svc_function<F, C, R, P>(&mut self, immediate: u32, function_id: u32, function: F, context: &C) -> Result<u32>
@@ -400,6 +376,65 @@ impl ArmCore {
         }
     }
 
+    pub fn save_state(&self) -> ArmCoreState {
+        let inner = self.inner.lock();
+
+        ArmCoreState {
+            engine: inner.engine.save_state(),
+            last_thread_id: inner.last_thread_id,
+            threads: inner
+                .threads
+                .iter()
+                .map(|(&thread_id, thread)| ThreadStateSnapshot {
+                    thread_id,
+                    context: thread.context.clone(),
+                    stack_base: thread.stack_base,
+                    stack_size: thread.stack_size,
+                })
+                .collect(),
+            svc_functions: inner.svc_functions.clone(),
+            next_svc_function_address: inner.next_svc_function_address,
+        }
+    }
+
+    pub fn restore_state(&mut self, state: &ArmCoreState) -> Result<()> {
+        let old_thread_ids = self.get_thread_ids();
+        let old_threads = {
+            let mut inner = self.inner.lock();
+            inner.engine.restore_state(&state.engine)?;
+            inner.last_thread_id = state.last_thread_id;
+            inner.svc_functions = state.svc_functions.clone();
+            inner.next_svc_function_address = state.next_svc_function_address;
+
+            let old_threads = take(&mut inner.threads);
+            inner.threads = state
+                .threads
+                .iter()
+                .map(|thread| {
+                    (
+                        thread.thread_id,
+                        ThreadState::from_parts(self.clone(), thread.context.clone(), thread.stack_base, thread.stack_size),
+                    )
+                })
+                .collect();
+
+            old_threads
+        };
+        drop(old_threads);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(debug) = self.debug_inner() {
+            for thread_id in old_thread_ids {
+                debug.on_thread_deleted(thread_id);
+            }
+            for thread in state.threads.iter() {
+                debug.on_thread_created(thread.thread_id);
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn read_pc_lr(&self) -> Result<(u32, u32)> {
         let inner = self.inner.lock();
 
@@ -491,7 +526,7 @@ impl ArmCore {
     fn is_code_address(address: u32, image_base: u32) -> bool {
         // TODO image size temp
 
-        address % 2 == 1 && ((image_base..image_base + 0x100000).contains(&address) || (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address))
+        address % 2 == 1 && (image_base..image_base + 0x100000).contains(&address)
     }
 
     fn dump_regs(&self) -> String {
@@ -503,7 +538,7 @@ impl ArmCore {
     fn format_callstack_address(address: u32, image_base: u32) -> String {
         let description = if (image_base..image_base + 0x100000).contains(&address) {
             format!("<Base>+{:#x}", address - image_base)
-        } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address) {
+        } else if (SVC_FUNCTIONS_BASE..SVC_FUNCTIONS_BASE + SVC_FUNCTIONS_SIZE).contains(&address) {
             "<Native function>".to_owned()
         } else {
             "<Unknown>".to_owned()
@@ -691,12 +726,31 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn test_hook_roundtrip_still_works() -> Result<()> {
+    async fn test_save_restore_svc_function_table() -> Result<()> {
         let mut core = ArmCore::new(false)?;
-        let address = core.register_function(increment, &())?;
-        let result = core.run_function::<u32>(address, &[41]).await?;
+        let address = core.register_svc_function(1, 1, increment, &())?;
+        let state = core.save_state();
 
-        assert_eq!(result, 42);
+        assert_eq!(core.run_function::<u32>(address, &[41]).await?, 42);
+
+        core.restore_state(&state)?;
+
+        assert_eq!(core.run_function::<u32>(address, &[41]).await?, 42);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_save_restore_svc_allocator_cursor() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        core.register_svc_function(1, 1, increment, &())?;
+        let state = core.save_state();
+        let expected = core.register_svc_function(1, 2, increment, &())?;
+
+        core.restore_state(&state)?;
+
+        let restored = core.register_svc_function(1, 2, increment, &())?;
+        assert_eq!(restored, expected);
 
         Ok(())
     }

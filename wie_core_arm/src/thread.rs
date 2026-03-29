@@ -41,6 +41,15 @@ impl ThreadState {
             stack_size: STACK_SIZE as _,
         })
     }
+
+    pub(crate) fn from_parts(core: ArmCore, context: ArmCoreContext, stack_base: usize, stack_size: usize) -> Self {
+        Self {
+            core,
+            context,
+            stack_base,
+            stack_size,
+        }
+    }
 }
 
 impl Drop for ThreadState {

@@ -1,5 +1,5 @@
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
-use core::{ops::Range, time::Duration};
+use core::time::Duration;
 
 use crossbeam::channel;
 use spin::Mutex;
@@ -421,8 +421,8 @@ impl DebuggedArm32CpuEngine {
         self.debug.current_thread().unwrap_or(1)
     }
 
-    fn handle_breakpoint_reinsert(&mut self, addr: u32, end: u32, hook: &Range<u32>, resume_mode: ResumeMode) -> wie_util::Result<()> {
-        let result = self.debug.cpu.lock().run(end, hook, 1);
+    fn handle_breakpoint_reinsert(&mut self, addr: u32, end: u32, resume_mode: ResumeMode) -> wie_util::Result<()> {
+        let result = self.debug.cpu.lock().run(end, 1);
         if let Err(error) = self.debug.reinsert_breakpoint(addr) {
             self.stop(DebugStopReason::Signal(DebugSignal::Abrt));
             return Err(error);
@@ -439,7 +439,7 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> wie_util::Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
         loop {
             if self.debug.take_interrupt() {
                 self.stop(DebugStopReason::Signal(DebugSignal::Trap));
@@ -449,7 +449,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             let resume_mode = self.wait_for_resume_mode();
 
             if let Some(addr) = self.pending_breakpoint_reinsert.take() {
-                self.handle_breakpoint_reinsert(addr, end, hook, resume_mode)?;
+                self.handle_breakpoint_reinsert(addr, end, resume_mode)?;
                 continue;
             }
 
@@ -479,7 +479,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 ResumeMode::Step => 1,
             };
 
-            let result = self.debug.cpu.lock().run(end, hook, run_count);
+            let result = self.debug.cpu.lock().run(end, run_count);
 
             match result {
                 Ok(result) => match resume_mode {
@@ -513,6 +513,14 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.debug.cpu.lock().is_mapped(address, size)
+    }
+
+    fn save_state(&self) -> super::ArmEngineState {
+        self.debug.cpu.lock().save_state()
+    }
+
+    fn restore_state(&mut self, state: &super::ArmEngineState) -> wie_util::Result<()> {
+        self.debug.cpu.lock().restore_state(state)
     }
 }
 

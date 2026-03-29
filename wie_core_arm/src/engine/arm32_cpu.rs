@@ -1,11 +1,14 @@
-use alloc::boxed::Box;
-use core::{array, cell::RefCell, ops::Range};
+use alloc::{boxed::Box, vec::Vec};
+use core::{array, cell::RefCell};
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_util::{Result, WieError};
 
-use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
+use crate::{
+    context::ArmCoreContext,
+    engine::{ArmEngine, ArmEngineState, ArmRegister, EngineRunResult, MemoryPermission},
+};
 
 pub struct Arm32CpuEngine {
     cpu: Cpu,
@@ -22,14 +25,11 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<EngineRunResult> {
+    fn run(&mut self, end: u32, mut count: u32) -> Result<EngineRunResult> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
             if pc == end {
                 return Ok(EngineRunResult::ReachedEnd { pc });
-            }
-            if hook.contains(&pc) {
-                return Ok(EngineRunResult::Hook { pc });
             }
             if count == 0 {
                 return Ok(EngineRunResult::CountExpired { pc });
@@ -86,9 +86,66 @@ impl ArmEngine for Arm32CpuEngine {
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.mem.is_mapped(address, size)
     }
+
+    fn save_state(&self) -> ArmEngineState {
+        ArmEngineState {
+            context: self.read_context(),
+            pages: self.mem.snapshot_pages(),
+        }
+    }
+
+    fn restore_state(&mut self, state: &ArmEngineState) -> Result<()> {
+        self.mem = EmulatedMemory::new();
+        self.mem.restore_pages(&state.pages)?;
+        self.write_context(&state.context);
+
+        Ok(())
+    }
 }
 
 impl Arm32CpuEngine {
+    fn read_context(&self) -> ArmCoreContext {
+        ArmCoreContext {
+            r0: self.reg_read(ArmRegister::R0),
+            r1: self.reg_read(ArmRegister::R1),
+            r2: self.reg_read(ArmRegister::R2),
+            r3: self.reg_read(ArmRegister::R3),
+            r4: self.reg_read(ArmRegister::R4),
+            r5: self.reg_read(ArmRegister::R5),
+            r6: self.reg_read(ArmRegister::R6),
+            r7: self.reg_read(ArmRegister::R7),
+            r8: self.reg_read(ArmRegister::R8),
+            sb: self.reg_read(ArmRegister::SB),
+            sl: self.reg_read(ArmRegister::SL),
+            fp: self.reg_read(ArmRegister::FP),
+            ip: self.reg_read(ArmRegister::IP),
+            sp: self.reg_read(ArmRegister::SP),
+            lr: self.reg_read(ArmRegister::LR),
+            pc: self.reg_read(ArmRegister::PC),
+            cpsr: self.reg_read(ArmRegister::Cpsr),
+        }
+    }
+
+    fn write_context(&mut self, context: &ArmCoreContext) {
+        self.reg_write(ArmRegister::R0, context.r0);
+        self.reg_write(ArmRegister::R1, context.r1);
+        self.reg_write(ArmRegister::R2, context.r2);
+        self.reg_write(ArmRegister::R3, context.r3);
+        self.reg_write(ArmRegister::R4, context.r4);
+        self.reg_write(ArmRegister::R5, context.r5);
+        self.reg_write(ArmRegister::R6, context.r6);
+        self.reg_write(ArmRegister::R7, context.r7);
+        self.reg_write(ArmRegister::R8, context.r8);
+        self.reg_write(ArmRegister::SB, context.sb);
+        self.reg_write(ArmRegister::SL, context.sl);
+        self.reg_write(ArmRegister::FP, context.fp);
+        self.reg_write(ArmRegister::IP, context.ip);
+        self.reg_write(ArmRegister::SP, context.sp);
+        self.reg_write(ArmRegister::LR, context.lr);
+        self.reg_write(ArmRegister::PC, context.pc);
+        self.reg_write(ArmRegister::Cpsr, context.cpsr);
+    }
+
     fn read_svc_result(&self) -> Result<Option<EngineRunResult>> {
         let pc = self.cpu.reg_get(Mode::User, reg::PC);
         let cpsr = self.cpu.reg_get(Mode::User, reg::CPSR);
@@ -192,6 +249,28 @@ impl EmulatedMemory {
         self.read_range(address, result.len(), &mut result)?;
 
         Ok(u32::from_le_bytes(result))
+    }
+
+    fn snapshot_pages(&self) -> Vec<(u32, Vec<u8>)> {
+        self.pages
+            .iter()
+            .enumerate()
+            .filter_map(|(index, page)| {
+                page.as_ref().map(|page| {
+                    let address = (index * PAGE_SIZE) as u32;
+                    (address, page.as_slice().to_vec())
+                })
+            })
+            .collect()
+    }
+
+    fn restore_pages(&mut self, pages: &[(u32, Vec<u8>)]) -> Result<()> {
+        for (address, data) in pages {
+            self.map(*address, data.len());
+            self.write_range(*address, data)?;
+        }
+
+        Ok(())
     }
 
     fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
@@ -428,7 +507,7 @@ mod tests {
         engine.reg_write(ArmRegister::PC, 0x1000);
         engine.reg_write(ArmRegister::IP, 0x1234_5678);
 
-        let result = engine.run(0x2000, &(0x3000..0x3004), 1).unwrap();
+        let result = engine.run(0x2000, 1).unwrap();
 
         match result {
             EngineRunResult::Svc {
@@ -455,11 +534,35 @@ mod tests {
         engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
         engine.reg_write(ArmRegister::PC, 0x1000);
 
-        let result = engine.run(0x2000, &(0x3000..0x3004), 0).unwrap();
+        let result = engine.run(0x2000, 0).unwrap();
 
         match result {
             EngineRunResult::CountExpired { pc } => assert_eq!(pc, 0x1000),
             _ => panic!("expected count-expired result"),
         }
+    }
+
+    #[test]
+    fn test_engine_save_restore_state() {
+        let mut engine = Arm32CpuEngine::new();
+
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(0x1000, &[1, 2, 3, 4]).unwrap();
+        engine.reg_write(ArmRegister::R0, 0x1234_5678);
+        engine.reg_write(ArmRegister::PC, 0x1001);
+
+        let state = engine.save_state();
+
+        engine.mem_write(0x1000, &[9, 9, 9, 9]).unwrap();
+        engine.reg_write(ArmRegister::R0, 0);
+        engine.reg_write(ArmRegister::PC, 0x2000);
+        engine.restore_state(&state).unwrap();
+
+        let mut bytes = [0; 4];
+        engine.mem_read(0x1000, 4, &mut bytes).unwrap();
+        assert_eq!(bytes, [1, 2, 3, 4]);
+        assert_eq!(engine.reg_read(ArmRegister::R0), 0x1234_5678);
+        assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
+        assert_eq!(engine.reg_read(ArmRegister::Cpsr) & 0x20, 0x20);
     }
 }
