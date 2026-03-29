@@ -3395,6 +3395,7 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "crossbeam",
+ "futures-test",
  "gdbstub",
  "gdbstub_arch",
  "spin",

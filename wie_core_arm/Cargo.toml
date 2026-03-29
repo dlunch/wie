@@ -21,4 +21,5 @@ gdbstub_arch = { version = "^0.3" }
 crossbeam = { version = "^0.8" }
 
 [dev-dependencies]
+futures-test = { workspace = true }
 test_utils = { workspace = true }

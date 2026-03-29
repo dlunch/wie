@@ -8,7 +8,7 @@ use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 use crate::{
     ThreadId,
     context::ArmCoreContext,
-    engine::{ArmEngine, ArmRegister, MemoryPermission},
+    engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
@@ -16,6 +16,9 @@ use crate::{
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
+const SVC_FUNCTIONS_BASE: u32 = 0x71001000;
+const SVC_FUNCTIONS_SIZE: u32 = 0x1000;
+const SVC_STUB_SIZE: u32 = 16;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000; // 256 MB
@@ -25,6 +28,7 @@ pub(crate) struct ArmCoreInner {
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
     functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
+    svc_functions: BTreeMap<(u32, u32), Arc<Box<dyn RegisteredFunction>>>,
 }
 
 #[derive(Clone)]
@@ -46,6 +50,7 @@ impl ArmCore {
         };
 
         engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
+        engine.mem_map(SVC_FUNCTIONS_BASE, SVC_FUNCTIONS_SIZE as usize, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
 
         let inner = ArmCoreInner {
@@ -53,6 +58,7 @@ impl ArmCore {
             last_thread_id: 0,
             threads: BTreeMap::new(),
             functions: BTreeMap::new(),
+            svc_functions: BTreeMap::new(),
         };
 
         let result = Self {
@@ -192,33 +198,49 @@ impl ArmCore {
             inner.engine.reg_write(ArmRegister::PC, address);
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
 
-            if address & 1 == 1 {
-                // set thumb mode
-                let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
-                inner.engine.reg_write(ArmRegister::Cpsr, cpsr | 0x20);
-            }
+            let mut cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
+            cpsr = (cpsr & !0x1f) | 0x10;
+            cpsr = if address & 1 == 1 { cpsr | 0x20 } else { cpsr & !0x20 };
+            inner.engine.reg_write(ArmRegister::Cpsr, cpsr);
         }
 
         loop {
-            let pc = {
+            let result = {
                 let mut inner = self.inner.lock();
                 inner.engine.run(RUN_FUNCTION_LR, &(FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000), 1000)?
             };
 
-            if pc == RUN_FUNCTION_LR {
-                break;
-            }
+            match result {
+                EngineRunResult::ReachedEnd { pc } => {
+                    debug_assert_eq!(pc, RUN_FUNCTION_LR);
+                    break;
+                }
+                EngineRunResult::Hook { pc } => {
+                    let mut self1 = self.clone();
+                    let (_, lr) = self.read_pc_lr()?;
 
-            if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&pc) {
-                let mut self1 = self.clone();
+                    let function = {
+                        let inner = self.inner.lock();
 
-                let function = {
-                    let inner = self.inner.lock();
+                        inner.functions.get(&pc).unwrap().clone()
+                    };
 
-                    inner.functions.get(&pc).unwrap().clone()
-                };
+                    function.call(&mut self1, lr).await?;
+                }
+                EngineRunResult::CountExpired { .. } => continue,
+                EngineRunResult::Svc {
+                    immediate, r12, lr, spsr, ..
+                } => {
+                    let mut self1 = self.clone();
 
-                function.call(&mut self1).await?;
+                    let function = {
+                        let mut inner = self.inner.lock();
+                        inner.engine.reg_write(ArmRegister::Cpsr, spsr);
+                        inner.svc_functions.get(&(immediate, r12)).unwrap().clone()
+                    };
+
+                    function.call(&mut self1, lr).await?;
+                }
             }
         }
 
@@ -251,6 +273,28 @@ impl ArmCore {
         tracing::trace!("Register function at {address:#x}");
 
         Ok(address as u32 + 1)
+    }
+
+    pub fn register_svc_function<F, C, R, P>(&mut self, immediate: u32, function: F, context: &C) -> Result<u32>
+    where
+        F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
+        C: Clone + 'static + Sync + Send,
+        R: ResultWriter<R> + 'static + Sync + Send,
+        P: 'static + Sync + Send,
+    {
+        let mut inner = self.inner.lock();
+
+        let function_id = inner.svc_functions.len() as u32 + 1;
+        let address = SVC_FUNCTIONS_BASE + inner.svc_functions.len() as u32 * SVC_STUB_SIZE;
+        let stub = svc_stub(immediate, function_id);
+        inner.engine.mem_write(address, &stub)?;
+
+        let callback = RegisteredFunctionHolder::new(function, context);
+        inner.svc_functions.insert((immediate, function_id), Arc::new(Box::new(callback)));
+
+        tracing::trace!("Register svc function #{function_id} at {address:#x}");
+
+        Ok(address)
     }
 
     pub fn map(&mut self, address: u32, size: u32) -> Result<()> {
@@ -484,6 +528,17 @@ impl ArmCore {
     }
 }
 
+fn svc_stub(immediate: u32, function_id: u32) -> [u8; SVC_STUB_SIZE as usize] {
+    let mut result = [0; SVC_STUB_SIZE as usize];
+
+    result[0..4].copy_from_slice(&0xe59fc004u32.to_le_bytes());
+    result[4..8].copy_from_slice(&(0xef000000 | (immediate & 0x00ff_ffff)).to_le_bytes());
+    result[8..12].copy_from_slice(&0xe12fff1eu32.to_le_bytes());
+    result[12..16].copy_from_slice(&function_id.to_le_bytes());
+
+    result
+}
+
 impl ByteRead for ArmCore {
     fn read_bytes(&self, address: u32, result: &mut [u8]) -> wie_util::Result<usize> {
         let mut inner = self.inner.lock();
@@ -549,5 +604,39 @@ impl Drop for ThreadContextGuard {
         if let Some(debug) = self.core.debug_inner() {
             debug.on_thread_exited(self.thread_id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wie_util::Result;
+
+    use super::ArmCore;
+
+    async fn increment(_core: &mut ArmCore, _context: &mut (), value: u32) -> Result<u32> {
+        Ok(value + 1)
+    }
+
+    #[futures_test::test]
+    async fn test_svc_alloc_roundtrip() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        let address = core.register_svc_function(1, increment, &())?;
+
+        let result = core.run_function::<u32>(address, &[41]).await?;
+
+        assert_eq!(result, 42);
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_hook_roundtrip_still_works() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        let address = core.register_function(increment, &())?;
+        let result = core.run_function::<u32>(address, &[41]).await?;
+
+        assert_eq!(result, 42);
+
+        Ok(())
     }
 }

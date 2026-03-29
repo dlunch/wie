@@ -5,7 +5,7 @@ use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_util::{Result, WieError};
 
-use crate::engine::{ArmEngine, ArmRegister, MemoryPermission};
+use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
 
 pub struct Arm32CpuEngine {
     cpu: Cpu,
@@ -22,15 +22,20 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<u32> {
+    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<EngineRunResult> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
+            if pc == end {
+                return Ok(EngineRunResult::ReachedEnd { pc });
+            }
+            if hook.contains(&pc) {
+                return Ok(EngineRunResult::Hook { pc });
+            }
+            if count == 0 {
+                return Ok(EngineRunResult::CountExpired { pc });
+            }
             if pc < 0x1000 {
                 return Err(WieError::InvalidMemoryAccess(pc));
-            }
-
-            if pc == end || hook.contains(&pc) || count == 0 {
-                return Ok(pc);
             }
 
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
@@ -42,6 +47,10 @@ impl ArmEngine for Arm32CpuEngine {
 
             if let Some(x) = arm32cpu_memory.memory_error() {
                 return Err(WieError::InvalidMemoryAccess(x));
+            }
+
+            if let Some(result) = self.read_svc_result()? {
+                return Ok(result);
             }
         }
     }
@@ -76,6 +85,30 @@ impl ArmEngine for Arm32CpuEngine {
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.mem.is_mapped(address, size)
+    }
+}
+
+impl Arm32CpuEngine {
+    fn read_svc_result(&self) -> Result<Option<EngineRunResult>> {
+        let pc = self.cpu.reg_get(Mode::User, reg::PC);
+        let cpsr = self.cpu.reg_get(Mode::User, reg::CPSR);
+
+        if pc != 0x08 || (cpsr & 0x1f) != 0x13 {
+            return Ok(None);
+        }
+
+        let r12 = self.cpu.reg_get(Mode::User, 12);
+        let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
+        let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
+        let svc = self.mem.read_word(lr - 4)? & 0x00ff_ffff;
+
+        Ok(Some(EngineRunResult::Svc {
+            pc,
+            immediate: svc,
+            r12,
+            lr,
+            spsr,
+        }))
     }
 }
 
@@ -152,6 +185,13 @@ impl EmulatedMemory {
         }
 
         Ok(size)
+    }
+
+    fn read_word(&self, address: u32) -> Result<u32> {
+        let mut result = [0; 4];
+        self.read_range(address, result.len(), &mut result)?;
+
+        Ok(u32::from_le_bytes(result))
     }
 
     fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
@@ -312,7 +352,9 @@ impl Memory for Arm32CpuMemory<'_> {
 mod tests {
     use arm32_cpu::Memory;
 
-    use super::EmulatedMemory;
+    use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
+
+    use super::{Arm32CpuEngine, EmulatedMemory};
 
     #[test]
     fn test_memory_basic() {
@@ -374,5 +416,35 @@ mod tests {
         memory.map(0x10000, 0x10000);
 
         assert!(memory.write_range(0x1f500, &[12; 0x1000]).is_err());
+    }
+
+    #[test]
+    fn test_engine_run_result_svc() {
+        let mut engine = Arm32CpuEngine::new();
+        let cpsr = engine.reg_read(ArmRegister::Cpsr);
+
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(0x1000, &0xef000001u32.to_le_bytes()).unwrap();
+        engine.reg_write(ArmRegister::PC, 0x1000);
+        engine.reg_write(ArmRegister::IP, 0x1234_5678);
+
+        let result = engine.run(0x2000, &(0x3000..0x3004), 1).unwrap();
+
+        match result {
+            EngineRunResult::Svc {
+                pc,
+                immediate,
+                r12,
+                lr,
+                spsr,
+            } => {
+                assert_eq!(pc, 0x08);
+                assert_eq!(immediate, 1);
+                assert_eq!(r12, 0x1234_5678);
+                assert_eq!(lr, 0x1004);
+                assert_eq!(spsr, cpsr);
+            }
+            _ => panic!("expected svc result"),
+        }
     }
 }

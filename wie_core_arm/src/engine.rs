@@ -13,13 +13,20 @@ pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<u32>;
+    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<EngineRunResult>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
     fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
+}
+
+pub enum EngineRunResult {
+    ReachedEnd { pc: u32 },
+    Hook { pc: u32 },
+    CountExpired { pc: u32 },
+    Svc { pc: u32, immediate: u32, r12: u32, lr: u32, spsr: u32 },
 }
 
 #[allow(clippy::enum_variant_names)]

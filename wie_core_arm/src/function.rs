@@ -7,7 +7,7 @@ use crate::ArmCore;
 
 #[async_trait::async_trait]
 pub trait RegisteredFunction: Sync + Send {
-    async fn call(&self, core: &mut ArmCore) -> Result<()>;
+    async fn call(&self, core: &mut ArmCore, next_pc: u32) -> Result<()>;
 }
 
 pub struct RegisteredFunctionHolder<F, C, R, P>
@@ -44,7 +44,7 @@ where
     R: ResultWriter<R> + Sync + Send,
     P: Sync + Send,
 {
-    async fn call(&self, core: &mut ArmCore) -> Result<()> {
+    async fn call(&self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
         let (pc, lr) = core.read_pc_lr()?;
 
         tracing::trace!("Registered function called at {pc:#x}, LR: {lr:#x}");
@@ -52,7 +52,7 @@ where
         let mut new_context = self.context.clone();
 
         let result = self.function.call(core, &mut new_context).await?;
-        result.write(core, lr)?;
+        result.write(core, next_pc)?;
 
         Ok(())
     }

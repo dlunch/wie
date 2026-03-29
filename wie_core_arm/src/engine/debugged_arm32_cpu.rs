@@ -7,7 +7,7 @@ use wie_util::WieError;
 
 use crate::{ThreadId, context::ArmCoreContext};
 
-use super::{Arm32CpuEngine, ArmEngine, ArmRegister, MemoryPermission};
+use super::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
 
 #[derive(Copy, Clone)]
 enum ResumeMode {
@@ -439,7 +439,7 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> wie_util::Result<u32> {
+    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> wie_util::Result<EngineRunResult> {
         loop {
             if self.debug.take_interrupt() {
                 self.stop(DebugStopReason::Signal(DebugSignal::Trap));
@@ -482,8 +482,8 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             let result = self.debug.cpu.lock().run(end, hook, run_count);
 
             match result {
-                Ok(pc) => match resume_mode {
-                    ResumeMode::Continue => return Ok(pc),
+                Ok(result) => match resume_mode {
+                    ResumeMode::Continue => return Ok(result),
                     ResumeMode::Step => self.stop(DebugStopReason::SwBreak(self.stop_thread_id())),
                 },
                 Err(error) => self.stop(DebugInner::map_stop_reason(error)),
