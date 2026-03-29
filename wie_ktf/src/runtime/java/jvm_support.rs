@@ -206,17 +206,20 @@ mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::sync::atomic::{AtomicBool, Ordering};
 
+    use java_class_proto::JavaMethodProto;
+    use java_constants::MethodAccessFlags;
     use jvm::{Jvm, runtime::JavaLangString};
+    use wipi_types::ktf::java::JavaMethodDefinition as RawJavaMethod;
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::Result;
+    use wie_util::{Result, read_generic};
 
-    use crate::runtime::java::jvm_support::KtfJvmSupport;
+    use crate::runtime::java::jvm_support::{KtfJvmSupport, method::JavaMethod};
 
     use test_utils::TestPlatform;
 
-    async fn init_jvm(system: &mut System) -> Result<Jvm> {
+    async fn init_core_and_jvm(system: &mut System) -> Result<(ArmCore, Jvm)> {
         let mut core = ArmCore::new(false)?;
         Allocator::init(&mut core)?;
 
@@ -227,7 +230,11 @@ mod test {
 
         let (jvm, _) = KtfJvmSupport::init(&mut core, system, None).await?;
 
-        Ok(jvm)
+        Ok((core, jvm))
+    }
+
+    async fn init_jvm(system: &mut System) -> Result<Jvm> {
+        Ok(init_core_and_jvm(system).await?.1)
     }
 
     #[test]
@@ -264,6 +271,64 @@ mod test {
             let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
 
             assert_eq!(time, 0x12345678_abcdef01);
+
+            Ok(())
+        });
+
+        loop {
+            system.tick()?;
+            if done.load(Ordering::Relaxed) {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_java_method_fn_body_split() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(async move || {
+            let (mut core, jvm) = init_core_and_jvm(&mut system_clone).await?;
+            let ptr_class = Allocator::alloc(&mut core, 0x20)?;
+
+            let regular = JavaMethod::new(
+                &mut core,
+                &jvm,
+                ptr_class,
+                JavaMethodProto::new(
+                    "regular",
+                    "()I",
+                    |_: &Jvm, _: &mut ()| async move { Ok::<i32, _>(1) },
+                    MethodAccessFlags::STATIC,
+                ),
+                Box::new(()),
+            )?;
+            let regular_raw: RawJavaMethod = read_generic(&core, regular.ptr_raw)?;
+            assert_ne!(regular_raw.fn_body, 0);
+            assert_eq!(regular_raw.fn_body_native_or_exception_table, 0);
+
+            let native = JavaMethod::new(
+                &mut core,
+                &jvm,
+                ptr_class,
+                JavaMethodProto::new(
+                    "native",
+                    "()I",
+                    |_: &Jvm, _: &mut ()| async move { Ok::<i32, _>(1) },
+                    MethodAccessFlags::STATIC | MethodAccessFlags::NATIVE,
+                ),
+                Box::new(()),
+            )?;
+            let native_raw: RawJavaMethod = read_generic(&core, native.ptr_raw)?;
+            assert_eq!(native_raw.fn_body, 0);
+            assert_ne!(native_raw.fn_body_native_or_exception_table, 0);
+
+            done_clone.store(true, Ordering::Relaxed);
 
             Ok(())
         });

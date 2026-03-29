@@ -27,6 +27,8 @@ use crate::runtime::java::jvm_support::JavaClassDefinition;
 
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt};
 
+const JAVA_SVC_IMMEDIATE: u32 = 3;
+
 pub struct JavaMethod {
     pub(crate) ptr_raw: u32,
     core: ArmCore,
@@ -53,15 +55,14 @@ impl JavaMethod {
         core.write_bytes(ptr_name, &full_name_bytes)?;
 
         let access_flags = proto.access_flags;
-        let fn_method = Self::register_java_method(core, jvm, proto, context)?;
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
+        let fn_method = Self::register_java_method(core, jvm, ptr_raw, proto, context)?;
 
         let (fn_body, fn_body_native) = if access_flags.contains(MethodAccessFlags::NATIVE) {
             (0, fn_method)
         } else {
             (fn_method, 0)
         };
-
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
 
         write_generic(
             core,
@@ -80,6 +81,16 @@ impl JavaMethod {
         )?;
 
         tracing::trace!("Wrote method {} at {ptr_raw:#x}", full_name.name);
+
+        Ok(Self::from_raw(ptr_raw, core))
+    }
+
+    pub fn restore<C, Context>(core: &mut ArmCore, jvm: &Jvm, ptr_raw: u32, proto: JavaMethodProto<C>, context: Context) -> Result<Self>
+    where
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
+    {
+        Self::register_java_handler(core, jvm, ptr_raw, proto, context)?;
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -225,7 +236,7 @@ impl JavaMethod {
         Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await)
     }
 
-    fn register_java_method<C, Context>(core: &mut ArmCore, jvm: &Jvm, proto: JavaMethodProto<C>, context: Context) -> Result<u32>
+    fn java_method_proxy<C, Context>(jvm: &Jvm, proto: JavaMethodProto<C>, context: Context) -> JavaMethodProxy<C, Context>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -235,19 +246,32 @@ impl JavaMethod {
 
         let mut parameter_types = parameter_types.to_vec();
         if !proto.access_flags.contains(MethodAccessFlags::STATIC) {
-            // TODO proper flag handling
-            parameter_types.insert(0, JavaType::Class("".into())); // TODO name
+            parameter_types.insert(0, JavaType::Class("".into()));
         }
 
-        let proxy = JavaMethodProxy {
+        JavaMethodProxy {
             jvm: jvm.clone(),
             proto,
             context,
             parameter_types,
             return_type: return_type.clone(),
-        };
+        }
+    }
 
-        core.register_function(proxy, &())
+    fn register_java_method<C, Context>(core: &mut ArmCore, jvm: &Jvm, function_id: u32, proto: JavaMethodProto<C>, context: Context) -> Result<u32>
+    where
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
+    {
+        core.register_svc_function(JAVA_SVC_IMMEDIATE, function_id, Self::java_method_proxy(jvm, proto, context), &())
+    }
+
+    fn register_java_handler<C, Context>(core: &mut ArmCore, jvm: &Jvm, function_id: u32, proto: JavaMethodProto<C>, context: Context) -> Result<()>
+    where
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
+    {
+        core.register_svc_handler(JAVA_SVC_IMMEDIATE, function_id, Self::java_method_proxy(jvm, proto, context), &())
     }
 }
 

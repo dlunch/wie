@@ -125,6 +125,25 @@ impl JavaClassDefinition {
         Ok(result)
     }
 
+    pub fn restore<C, Context>(core: &mut ArmCore, jvm: &Jvm, ptr_raw: u32, proto: JavaClassProto<C>, context: Context) -> Result<Self>
+    where
+        C: ?Sized + 'static + Send,
+        Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
+    {
+        let result = Self::from_raw(ptr_raw, core);
+
+        for method in proto.methods.into_iter() {
+            let is_static = method.access_flags.contains(MethodAccessFlags::STATIC);
+            let existing_method = result
+                .method(&method.name, &method.descriptor, is_static)?
+                .ok_or_else(|| wie_util::WieError::FatalError(format!("Restored method {}{} not found", method.name, method.descriptor)))?;
+
+            JavaMethod::restore(core, jvm, existing_method.ptr_raw, method, context.clone())?;
+        }
+
+        Ok(result)
+    }
+
     pub fn read_class_hierarchy(&self) -> Result<Vec<JavaClassDefinition>> {
         let mut result = vec![];
 

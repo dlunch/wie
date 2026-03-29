@@ -312,6 +312,29 @@ impl ArmCore {
         Ok(address)
     }
 
+    pub fn register_svc_handler<F, C, R, P>(&mut self, immediate: u32, function_id: u32, function: F, context: &C) -> Result<()>
+    where
+        F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
+        C: Clone + 'static + Sync + Send,
+        R: ResultWriter<R> + 'static + Sync + Send,
+        P: 'static + Sync + Send,
+    {
+        let mut inner = self.inner.lock();
+
+        if inner.svc_functions.contains_key(&(immediate, function_id)) {
+            return Err(wie_util::WieError::FatalError(format!(
+                "Duplicate SVC function {immediate}:{function_id}"
+            )));
+        }
+
+        let callback = RegisteredFunctionHolder::new(function, context);
+        inner.svc_functions.insert((immediate, function_id), Arc::new(Box::new(callback)));
+
+        tracing::trace!("Register svc handler #{function_id} for svc {immediate}");
+
+        Ok(())
+    }
+
     pub fn map(&mut self, address: u32, size: u32) -> Result<()> {
         tracing::trace!("Map address: {address:#x}, size: {size:#x}");
 
