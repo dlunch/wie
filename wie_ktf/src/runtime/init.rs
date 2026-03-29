@@ -3,7 +3,7 @@ use core::mem::size_of;
 use jvm::Jvm;
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::{Allocator, ArmCore, SvcCategory};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam1, InitParam3, InitParam4, WipiExe};
@@ -59,18 +59,18 @@ pub async fn load_native(
     write_generic(core, ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
-        fn_get_interface: core.register_function(get_interface, &(system.clone(), jvm.clone()))?,
-        fn_java_throw: core.register_function(java_throw, jvm)?,
+        fn_get_interface: core.register_function(SvcCategory::Init, get_interface, &(system.clone(), jvm.clone()))?,
+        fn_java_throw: core.register_function(SvcCategory::Init, java_throw, jvm)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_type: core.register_function(java_check_type, jvm)?,
-        fn_java_new: core.register_function(java_new, jvm)?,
-        fn_java_array_new: core.register_function(java_array_new, jvm)?,
+        fn_java_check_type: core.register_function(SvcCategory::Init, java_check_type, jvm)?,
+        fn_java_new: core.register_function(SvcCategory::Init, java_new, jvm)?,
+        fn_java_array_new: core.register_function(SvcCategory::Init, java_array_new, jvm)?,
         unk6: 0,
-        fn_java_class_load: core.register_function(java_class_load, jvm)?,
+        fn_java_class_load: core.register_function(SvcCategory::Init, java_class_load, jvm)?,
         unk7: 0,
         unk8: 0,
-        fn_alloc: core.register_function(alloc, &())?,
+        fn_alloc: core.register_function(SvcCategory::Init, alloc, &())?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;

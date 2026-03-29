@@ -7,7 +7,7 @@ use jvm_rust::ClassDefinitionImpl;
 use wipi_types::lgt::CletFunctions;
 
 use wie_backend::System;
-use wie_core_arm::ArmCore;
+use wie_core_arm::{ArmCore, SvcCategory};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
@@ -21,7 +21,7 @@ use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, Clet
 
 pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, function_index: u32) -> Result<u32> {
     let method = match function_index {
-        0x03 => return core.register_function(clet_register, jvm),
+        0x03 => return core.register_function(SvcCategory::Wipi, clet_register, jvm),
         0x32 => graphics::get_framebuffer_pointer.into_body(),
         0x33 => graphics::get_framebuffer_width.into_body(),
         0x34 => graphics::get_framebuffer_height.into_body(),

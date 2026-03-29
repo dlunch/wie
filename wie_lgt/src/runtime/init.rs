@@ -7,7 +7,7 @@ use jvm::Jvm;
 use wipi_types::lgt::{InitParam1, InitParam2, InitStruct};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::{Allocator, ArmCore, SvcCategory};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{java::get_java_interface_method, stdlib::get_stdlib_method, wipi_c::get_wipi_c_method};
@@ -27,8 +27,8 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
     write_generic(core, ptr_init_param_1, init_param_1)?;
 
     let init_param_2 = InitParam2 {
-        fn_get_import_table: core.register_function(get_import_table, &())?,
-        fn_get_import_function: core.register_function(get_import_function, &(system.clone(), jvm.clone()))?,
+        fn_get_import_table: core.register_function(SvcCategory::Init, get_import_table, &())?,
+        fn_get_import_function: core.register_function(SvcCategory::Init, get_import_function, &(system.clone(), jvm.clone()))?,
         fn_unk3: 0,
         fn_unk4: 0,
     };
@@ -70,11 +70,11 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
     }
 
     Ok(match (import_table, function_index) {
-        (0x1f8, 0x16) => core.register_function(unk0, &())?,
-        (0x1f8, 0x17) => core.register_function(java_unk7, &())?,
-        (0x1fc, 0x03) => core.register_function(java_unk1, &())?,
-        (0x1ff, 0x03) => core.register_function(java_unk2, &())?,
-        (0x201, 0x03) => core.register_function(java_unk3, &())?,
+        (0x1f8, 0x16) => core.register_function(SvcCategory::Init, unk0, &())?,
+        (0x1f8, 0x17) => core.register_function(SvcCategory::Init, java_unk7, &())?,
+        (0x1fc, 0x03) => core.register_function(SvcCategory::Init, java_unk1, &())?,
+        (0x1ff, 0x03) => core.register_function(SvcCategory::Init, java_unk2, &())?,
+        (0x201, 0x03) => core.register_function(SvcCategory::Init, java_unk3, &())?,
         _ => {
             return Err(WieError::FatalError(format!(
                 "Unknown import function: {import_table:#x}, {function_index:#x}"

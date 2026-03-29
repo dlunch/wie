@@ -8,7 +8,7 @@ use wie_util::{ByteRead, ByteWrite, Result, read_generic};
 use crate::{
     ThreadId,
     context::ArmCoreContext,
-    engine::{ArmEngine, ArmRegister, MemoryPermission},
+    engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory},
     function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
@@ -16,15 +16,19 @@ use crate::{
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
+const FUNCTIONS_SIZE: usize = 0x10000;
+const SVC_STUB_SIZE: u32 = 16;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
-pub const HEAP_SIZE: u32 = 0x10000000; // 256 MB
+pub const HEAP_SIZE: u32 = 0x10000000;
 
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    functions: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
+    svc_functions: BTreeMap<(SvcCategory, u32), Arc<Box<dyn RegisteredFunction>>>,
+    next_svc_id: BTreeMap<SvcCategory, u32>,
+    next_stub_address: u32,
 }
 
 #[derive(Clone)]
@@ -45,14 +49,16 @@ impl ArmCore {
             Box::new(crate::engine::Arm32CpuEngine::new())
         };
 
-        engine.mem_map(FUNCTIONS_BASE, 0x1000, MemoryPermission::ReadExecute);
+        engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
 
         let inner = ArmCoreInner {
             engine,
             last_thread_id: 0,
             threads: BTreeMap::new(),
-            functions: BTreeMap::new(),
+            svc_functions: BTreeMap::new(),
+            next_svc_id: BTreeMap::new(),
+            next_stub_address: FUNCTIONS_BASE,
         };
 
         let result = Self {
@@ -200,25 +206,32 @@ impl ArmCore {
         }
 
         loop {
-            let pc = {
+            let result = {
                 let mut inner = self.inner.lock();
-                inner.engine.run(RUN_FUNCTION_LR, &(FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000), 1000)?
+                inner.engine.run(RUN_FUNCTION_LR, &(0..0), 1000)?
             };
 
-            if pc == RUN_FUNCTION_LR {
-                break;
-            }
+            match result {
+                EngineRunResult::Normal(pc) => {
+                    if pc == RUN_FUNCTION_LR {
+                        break;
+                    }
+                }
+                EngineRunResult::Svc { category, r12, lr, spsr } => {
+                    {
+                        let mut inner = self.inner.lock();
+                        inner.engine.reg_write(ArmRegister::Cpsr, spsr);
+                        inner.engine.reg_write(ArmRegister::PC, lr);
+                    }
 
-            if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x1000).contains(&pc) {
-                let mut self1 = self.clone();
+                    let function = {
+                        let inner = self.inner.lock();
+                        inner.svc_functions.get(&(category, r12)).unwrap().clone()
+                    };
 
-                let function = {
-                    let inner = self.inner.lock();
-
-                    inner.functions.get(&pc).unwrap().clone()
-                };
-
-                function.call(&mut self1).await?;
+                    let mut self1 = self.clone();
+                    function.call(&mut self1).await?;
+                }
             }
         }
 
@@ -228,7 +241,7 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_function<F, C, R, P>(&mut self, function: F, context: &C) -> Result<u32>
+    pub fn register_function<F, C, R, P>(&mut self, category: SvcCategory, function: F, context: &C) -> Result<u32>
     where
         F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
@@ -237,20 +250,31 @@ impl ArmCore {
     {
         let mut inner = self.inner.lock();
 
-        let count = inner.functions.len();
+        let id = *inner.next_svc_id.entry(category).or_insert(0);
+        inner.next_svc_id.insert(category, id + 1);
 
-        let bytes = [0x70, 0x47]; // BX LR
-        let address = FUNCTIONS_BASE as u64 + (count * 2) as u64;
+        let address = inner.next_stub_address;
+        assert!(
+            address + SVC_STUB_SIZE <= FUNCTIONS_BASE + FUNCTIONS_SIZE as u32,
+            "SVC stub space exhausted"
+        );
+        inner.next_stub_address += SVC_STUB_SIZE;
 
-        inner.engine.mem_write(address as u32, &bytes)?;
+        let stub = [
+            0xe59fc004u32.to_le_bytes(),                     // LDR R12, [PC, #4]
+            (0xef000000u32 | category as u32).to_le_bytes(), // SVC #category
+            0xe12fff1eu32.to_le_bytes(),                     // BX LR
+            id.to_le_bytes(),                                // .word function_id
+        ]
+        .concat();
+        inner.engine.mem_write(address, &stub)?;
 
         let callback = RegisteredFunctionHolder::new(function, context);
+        inner.svc_functions.insert((category, id), Arc::new(Box::new(callback)));
 
-        inner.functions.insert(address as u32, Arc::new(Box::new(callback)));
+        tracing::trace!("Register SVC function at {address:#x}, category={category:?}, id={id}");
 
-        tracing::trace!("Register function at {address:#x}");
-
-        Ok(address as u32 + 1)
+        Ok(address)
     }
 
     pub fn map(&mut self, address: u32, size: u32) -> Result<()> {
@@ -409,7 +433,8 @@ impl ArmCore {
     fn is_code_address(address: u32, image_base: u32) -> bool {
         // TODO image size temp
 
-        address % 2 == 1 && ((image_base..image_base + 0x100000).contains(&address) || (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address))
+        (address % 2 == 1 && (image_base..image_base + 0x100000).contains(&address))
+            || (FUNCTIONS_BASE..FUNCTIONS_BASE + FUNCTIONS_SIZE as u32).contains(&address)
     }
 
     fn dump_regs(&self) -> String {
@@ -421,7 +446,7 @@ impl ArmCore {
     fn format_callstack_address(address: u32, image_base: u32) -> String {
         let description = if (image_base..image_base + 0x100000).contains(&address) {
             format!("<Base>+{:#x}", address - image_base)
-        } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + 0x10000).contains(&address) {
+        } else if (FUNCTIONS_BASE..FUNCTIONS_BASE + FUNCTIONS_SIZE as u32).contains(&address) {
             "<Native function>".to_owned()
         } else {
             "<Unknown>".to_owned()
