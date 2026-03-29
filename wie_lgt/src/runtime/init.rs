@@ -12,6 +12,10 @@ use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{java::get_java_interface_method, stdlib::get_stdlib_method, wipi_c::get_wipi_c_method};
 
+const SVC_INIT_CATEGORY: u32 = 1;
+const SVC_GET_IMPORT_TABLE: u32 = 1;
+const SVC_GET_IMPORT_FUNCTION: u32 = 2;
+
 pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
 
@@ -27,8 +31,13 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
     write_generic(core, ptr_init_param_1, init_param_1)?;
 
     let init_param_2 = InitParam2 {
-        fn_get_import_table: core.register_function(get_import_table, &())?,
-        fn_get_import_function: core.register_function(get_import_function, &(system.clone(), jvm.clone()))?,
+        fn_get_import_table: core.register_svc_function(SVC_INIT_CATEGORY, SVC_GET_IMPORT_TABLE, get_import_table, &())?,
+        fn_get_import_function: core.register_svc_function(
+            SVC_INIT_CATEGORY,
+            SVC_GET_IMPORT_FUNCTION,
+            get_import_function,
+            &(system.clone(), jvm.clone()),
+        )?,
         fn_unk3: 0,
         fn_unk4: 0,
     };

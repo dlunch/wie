@@ -12,6 +12,7 @@ use crate::{
     emulator::IMAGE_BASE,
     runtime::{
         java::interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
+        svc_ids::init as svc,
         wipi_c::interface::get_wipic_knl_interface,
     },
 };
@@ -59,18 +60,18 @@ pub async fn load_native(
     write_generic(core, ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
-        fn_get_interface: core.register_function(get_interface, &(system.clone(), jvm.clone()))?,
-        fn_java_throw: core.register_function(java_throw, jvm)?,
+        fn_get_interface: core.register_svc_function(svc::CATEGORY, svc::GET_INTERFACE, get_interface, &(system.clone(), jvm.clone()))?,
+        fn_java_throw: core.register_svc_function(svc::CATEGORY, svc::JAVA_THROW, java_throw, jvm)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_type: core.register_function(java_check_type, jvm)?,
-        fn_java_new: core.register_function(java_new, jvm)?,
-        fn_java_array_new: core.register_function(java_array_new, jvm)?,
+        fn_java_check_type: core.register_svc_function(svc::CATEGORY, svc::JAVA_CHECK_TYPE, java_check_type, jvm)?,
+        fn_java_new: core.register_svc_function(svc::CATEGORY, svc::JAVA_NEW, java_new, jvm)?,
+        fn_java_array_new: core.register_svc_function(svc::CATEGORY, svc::JAVA_ARRAY_NEW, java_array_new, jvm)?,
         unk6: 0,
-        fn_java_class_load: core.register_function(java_class_load, jvm)?,
+        fn_java_class_load: core.register_svc_function(svc::CATEGORY, svc::JAVA_CLASS_LOAD, java_class_load, jvm)?,
         unk7: 0,
         unk8: 0,
-        fn_alloc: core.register_function(alloc, &())?,
+        fn_alloc: core.register_svc_function(svc::CATEGORY, svc::ALLOC, alloc, &())?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;

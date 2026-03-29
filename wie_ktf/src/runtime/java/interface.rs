@@ -18,22 +18,23 @@ use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_st
 use crate::runtime::java::jvm_support::{
     JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmWord,
 };
+use crate::runtime::svc_ids::init as svc;
 
 pub fn get_wipi_jb_interface(core: &mut ArmCore, jvm: &Jvm) -> Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_java_jump_1: core.register_function(java_jump_1, jvm)?,
-        fn_java_jump_2: core.register_function(java_jump_2, jvm)?,
-        fn_java_jump_3: core.register_function(java_jump_3, jvm)?,
-        fn_get_java_method: core.register_function(get_java_method, jvm)?,
-        fn_get_field: core.register_function(get_field, jvm)?,
-        fn_unk4: core.register_function(jb_unk4, jvm)?,
-        fn_unk5: core.register_function(jb_unk5, jvm)?,
-        fn_unk7: core.register_function(jb_unk7, jvm)?,
-        fn_unk8: core.register_function(jb_unk8, jvm)?,
-        fn_register_class: core.register_function(register_class, jvm)?,
-        fn_register_java_string: core.register_function(register_java_string, jvm)?,
-        fn_call_native: core.register_function(call_native, jvm)?,
+        fn_java_jump_1: core.register_svc_function(svc::CATEGORY, svc::JAVA_JUMP_1, java_jump_1, jvm)?,
+        fn_java_jump_2: core.register_svc_function(svc::CATEGORY, svc::JAVA_JUMP_2, java_jump_2, jvm)?,
+        fn_java_jump_3: core.register_svc_function(svc::CATEGORY, svc::JAVA_JUMP_3, java_jump_3, jvm)?,
+        fn_get_java_method: core.register_svc_function(svc::CATEGORY, svc::GET_JAVA_METHOD, get_java_method, jvm)?,
+        fn_get_field: core.register_svc_function(svc::CATEGORY, svc::GET_FIELD, get_field, jvm)?,
+        fn_unk4: core.register_svc_function(svc::CATEGORY, svc::JB_UNK4, jb_unk4, jvm)?,
+        fn_unk5: core.register_svc_function(svc::CATEGORY, svc::JB_UNK5, jb_unk5, jvm)?,
+        fn_unk7: core.register_svc_function(svc::CATEGORY, svc::JB_UNK7, jb_unk7, jvm)?,
+        fn_unk8: core.register_svc_function(svc::CATEGORY, svc::JB_UNK8, jb_unk8, jvm)?,
+        fn_register_class: core.register_svc_function(svc::CATEGORY, svc::REGISTER_CLASS, register_class, jvm)?,
+        fn_register_java_string: core.register_svc_function(svc::CATEGORY, svc::REGISTER_JAVA_STRING, register_java_string, jvm)?,
+        fn_call_native: core.register_svc_function(svc::CATEGORY, svc::CALL_NATIVE, call_native, jvm)?,
     };
 
     let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;
