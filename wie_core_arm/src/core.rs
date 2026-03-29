@@ -406,6 +406,7 @@ impl ArmCore {
     }
 
     pub fn restore_state(&mut self, state: &ArmCoreState) -> Result<()> {
+        #[cfg(not(target_arch = "wasm32"))]
         let old_thread_ids = self.get_thread_ids();
         let old_threads = {
             let mut inner = self.inner.lock();
