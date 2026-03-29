@@ -1,4 +1,12 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    format,
+    string::String,
+    sync::Arc,
+    vec::Vec,
+};
 use core::mem::{size_of, take};
 
 use spin::Mutex;
@@ -38,7 +46,7 @@ pub struct ArmCoreState {
     engine: crate::engine::ArmEngineState,
     last_thread_id: ThreadId,
     threads: Vec<ThreadStateSnapshot>,
-    svc_functions: BTreeMap<(u32, u32), Arc<Box<dyn RegisteredFunction>>>,
+    svc_function_keys: BTreeSet<(u32, u32)>,
     next_svc_function_address: u32,
 }
 
@@ -392,7 +400,7 @@ impl ArmCore {
                     stack_size: thread.stack_size,
                 })
                 .collect(),
-            svc_functions: inner.svc_functions.clone(),
+            svc_function_keys: inner.svc_functions.keys().copied().collect(),
             next_svc_function_address: inner.next_svc_function_address,
         }
     }
@@ -401,12 +409,19 @@ impl ArmCore {
         let old_thread_ids = self.get_thread_ids();
         let old_threads = {
             let mut inner = self.inner.lock();
+            take(&mut inner.threads)
+        };
+        drop(old_threads);
+
+        {
+            let mut inner = self.inner.lock();
             inner.engine.restore_state(&state.engine)?;
             inner.last_thread_id = state.last_thread_id;
-            inner.svc_functions = state.svc_functions.clone();
+            if state.svc_function_keys.iter().any(|key| !inner.svc_functions.contains_key(key)) {
+                return Err(wie_util::WieError::FatalError("Missing SVC handler for restored state".into()));
+            }
+            inner.svc_functions.retain(|key, _| state.svc_function_keys.contains(key));
             inner.next_svc_function_address = state.next_svc_function_address;
-
-            let old_threads = take(&mut inner.threads);
             inner.threads = state
                 .threads
                 .iter()
@@ -417,10 +432,7 @@ impl ArmCore {
                     )
                 })
                 .collect();
-
-            old_threads
-        };
-        drop(old_threads);
+        }
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(debug) = self.debug_inner() {
@@ -526,7 +538,8 @@ impl ArmCore {
     fn is_code_address(address: u32, image_base: u32) -> bool {
         // TODO image size temp
 
-        address % 2 == 1 && (image_base..image_base + 0x100000).contains(&address)
+        (SVC_FUNCTIONS_BASE..SVC_FUNCTIONS_BASE + SVC_FUNCTIONS_SIZE).contains(&address)
+            || (address % 2 == 1 && (image_base..image_base + 0x100000).contains(&address))
     }
 
     fn dump_regs(&self) -> String {

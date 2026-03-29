@@ -1,5 +1,5 @@
 pub(crate) mod init {
-    pub const CATEGORY: u32 = 1;
+    pub const IMMEDIATE: u32 = 1;
     pub const GET_INTERFACE: u32 = 1;
     pub const JAVA_THROW: u32 = 2;
     pub const JAVA_CHECK_TYPE: u32 = 3;
