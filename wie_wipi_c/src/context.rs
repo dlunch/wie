@@ -17,7 +17,14 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send {
     fn free(&mut self, memory: WIPICIndirectPtr) -> Result<()>;
     fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()>;
     fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord>;
+    fn begin_function_table(&mut self, _table_id: WIPICWord) -> Result<()> {
+        Ok(())
+    }
+    fn end_function_table(&mut self) -> Result<()> {
+        Ok(())
+    }
     fn register_function(&mut self, method: WIPICMethodBody) -> Result<WIPICWord>;
+    fn register_function_with_id(&mut self, table_id: WIPICWord, method_id: WIPICWord, method: WIPICMethodBody) -> Result<WIPICWord>;
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord>;
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()>;
@@ -132,6 +139,10 @@ pub mod test {
         }
 
         fn register_function(&mut self, _method: WIPICMethodBody) -> Result<WIPICWord> {
+            todo!()
+        }
+
+        fn register_function_with_id(&mut self, _table_id: WIPICWord, _method_id: WIPICWord, _method: WIPICMethodBody) -> Result<WIPICWord> {
             todo!()
         }
 

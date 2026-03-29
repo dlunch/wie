@@ -19,9 +19,12 @@ use context::LgtWIPICContext;
 
 use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
 
+const SVC_WIPIC_CATEGORY: u32 = 2;
+const LGT_WIPIC_TABLE_ID: u32 = 0x1fb;
+
 pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, function_index: u32) -> Result<u32> {
     let method = match function_index {
-        0x03 => return core.register_function(clet_register, jvm),
+        0x03 => return core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_WIPIC_TABLE_ID << 16) | function_index, clet_register, jvm),
         0x32 => graphics::get_framebuffer_pointer.into_body(),
         0x33 => graphics::get_framebuffer_width.into_body(),
         0x34 => graphics::get_framebuffer_height.into_body(),
@@ -103,8 +106,7 @@ pub fn get_wipi_c_method(core: &mut ArmCore, system: &mut System, jvm: &Jvm, fun
     };
 
     let mut context = LgtWIPICContext::new(core.clone(), system.clone(), jvm.clone());
-    // lgt app calls get method only once per function, so it's okay to register function every time
-    let address = context.register_function(method)?;
+    let address = context.register_function_with_id(LGT_WIPIC_TABLE_ID, function_index, method)?;
 
     Ok(address)
 }

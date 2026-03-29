@@ -3,14 +3,17 @@ use alloc::format;
 use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError};
 
+const SVC_WIPIC_CATEGORY: u32 = 2;
+const LGT_JAVA_TABLE_ID: u32 = 0x64;
+
 pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {
-        0x03 => core.register_function(java_unk0, &())?,
-        0x06 => core.register_function(java_unk12, &())?,
-        0x07 => core.register_function(java_unk5, &())?,
-        0x14 => core.register_function(java_load_classes, &())?,
-        0x82 => core.register_function(java_unk9, &())?,
-        0x83 => core.register_function(java_unk11, &())?,
+        0x03 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_JAVA_TABLE_ID << 16) | function_index, java_unk0, &())?,
+        0x06 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_JAVA_TABLE_ID << 16) | function_index, java_unk12, &())?,
+        0x07 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_JAVA_TABLE_ID << 16) | function_index, java_unk5, &())?,
+        0x14 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_JAVA_TABLE_ID << 16) | function_index, java_load_classes, &())?,
+        0x82 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_JAVA_TABLE_ID << 16) | function_index, java_unk9, &())?,
+        0x83 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_JAVA_TABLE_ID << 16) | function_index, java_unk11, &())?,
         _ => return Err(WieError::FatalError(format!("Unknown lgt java import: {function_index:#x}"))),
     })
 }

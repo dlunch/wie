@@ -17,11 +17,19 @@ pub struct LgtWIPICContext {
     core: ArmCore,
     system: System,
     jvm: Jvm,
+    current_table_id: Option<WIPICWord>,
+    next_method_id: WIPICWord,
 }
 
 impl LgtWIPICContext {
     pub fn new(core: ArmCore, system: System, jvm: Jvm) -> Self {
-        Self { core, system, jvm }
+        Self {
+            core,
+            system,
+            jvm,
+            current_table_id: None,
+            next_method_id: 0,
+        }
     }
 }
 
@@ -55,7 +63,31 @@ impl WIPICContext for LgtWIPICContext {
         Ok(memory.0)
     }
 
+    fn begin_function_table(&mut self, table_id: WIPICWord) -> Result<()> {
+        self.current_table_id = Some(table_id);
+        self.next_method_id = 0;
+
+        Ok(())
+    }
+
+    fn end_function_table(&mut self) -> Result<()> {
+        self.current_table_id = None;
+        self.next_method_id = 0;
+
+        Ok(())
+    }
+
     fn register_function(&mut self, body: WIPICMethodBody) -> Result<WIPICWord> {
+        let table_id = self
+            .current_table_id
+            .ok_or_else(|| wie_util::WieError::FatalError("WIPIC table id is not set".into()))?;
+        let method_id = self.next_method_id;
+        self.next_method_id += 1;
+
+        self.register_function_with_id(table_id, method_id, body)
+    }
+
+    fn register_function_with_id(&mut self, table_id: WIPICWord, method_id: WIPICWord, body: WIPICMethodBody) -> Result<WIPICWord> {
         struct WIPICMethodResult {
             result: WIPICResult,
         }
@@ -98,7 +130,7 @@ impl WIPICContext for LgtWIPICContext {
 
         let proxy = CMethodProxy { context: self.clone(), body };
 
-        self.core.register_function(proxy, &())
+        self.core.register_svc_function(2, (table_id << 16) | method_id, proxy, &())
     }
 
     fn system(&mut self) -> &mut System {

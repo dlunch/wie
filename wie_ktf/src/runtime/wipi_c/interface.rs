@@ -16,6 +16,14 @@ use crate::runtime::wipi_c::{
     method_table::{self, get_database_interface, get_graphics_interface},
 };
 
+fn with_method_table<T>(context: &mut dyn WIPICContext, table_id: u32, f: impl FnOnce(&mut dyn WIPICContext) -> Result<T>) -> Result<T> {
+    context.begin_function_table(table_id)?;
+    let result = f(context);
+    context.end_function_table()?;
+
+    result
+}
+
 fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) -> Result<u32> {
     let address = context.alloc_raw((methods.len() * 4) as u32)?;
 
@@ -32,7 +40,9 @@ fn write_methods(context: &mut dyn WIPICContext, methods: Vec<WIPICMethodBody>) 
 
 pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm) -> Result<u32> {
     let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone());
-    let kernel_interface = method_table::get_kernel_interface(&mut context, get_wipic_interfaces)?;
+    let kernel_interface = with_method_table(&mut context, 0, |context| {
+        method_table::get_kernel_interface(context, get_wipic_interfaces)
+    })?;
 
     let address = Allocator::alloc(core, size_of_val(&kernel_interface) as u32)?;
     write_generic(core, address, kernel_interface)?;
@@ -50,26 +60,26 @@ fn write_interface<T: Pod>(context: &mut dyn WIPICContext, interface: T) -> Resu
 pub async fn get_wipic_interfaces(context: &mut dyn WIPICContext) -> Result<u32> {
     tracing::trace!("get_wipic_interfaces");
 
-    let graphics_interface = get_graphics_interface(context)?;
-    let database_interface = get_database_interface(context)?;
+    let graphics_interface = with_method_table(context, 3, get_graphics_interface)?;
+    let database_interface = with_method_table(context, 7, get_database_interface)?;
 
-    let util_interface = write_methods(context, method_table::get_util_method_table())?;
-    let misc_interface = write_methods(context, method_table::get_misc_method_table())?;
+    let util_interface = with_method_table(context, 1, |context| write_methods(context, method_table::get_util_method_table()))?;
+    let misc_interface = with_method_table(context, 2, |context| write_methods(context, method_table::get_misc_method_table()))?;
     let graphics_interface = write_interface(context, graphics_interface)?;
-    let interface_3 = write_methods(context, method_table::get_unk3_method_table())?;
-    let interface_4 = write_methods(context, method_table::get_stub_method_table(4))?;
-    let interface_5 = write_methods(context, method_table::get_stub_method_table(5))?;
+    let interface_3 = with_method_table(context, 4, |context| write_methods(context, method_table::get_unk3_method_table()))?;
+    let interface_4 = with_method_table(context, 5, |context| write_methods(context, method_table::get_stub_method_table(4)))?;
+    let interface_5 = with_method_table(context, 6, |context| write_methods(context, method_table::get_stub_method_table(5)))?;
     let database_interface = write_interface(context, database_interface)?;
-    let interface_7 = write_methods(context, method_table::get_stub_method_table(7))?;
-    let uic_interface = write_methods(context, method_table::get_uic_method_table())?;
-    let media_interface = write_methods(context, method_table::get_media_method_table())?;
-    let net_interface = write_methods(context, method_table::get_net_method_table())?;
-    let interface_11 = write_methods(context, method_table::get_stub_method_table(11))?;
-    let interface_12 = write_methods(context, method_table::get_unk12_method_table())?;
-    let interface_13 = write_methods(context, method_table::get_stub_method_table(13))?;
-    let interface_14 = write_methods(context, method_table::get_stub_method_table(14))?;
-    let interface_15 = write_methods(context, method_table::get_stub_method_table(15))?;
-    let interface_16 = write_methods(context, method_table::get_stub_method_table(16))?;
+    let interface_7 = with_method_table(context, 8, |context| write_methods(context, method_table::get_stub_method_table(7)))?;
+    let uic_interface = with_method_table(context, 9, |context| write_methods(context, method_table::get_uic_method_table()))?;
+    let media_interface = with_method_table(context, 10, |context| write_methods(context, method_table::get_media_method_table()))?;
+    let net_interface = with_method_table(context, 11, |context| write_methods(context, method_table::get_net_method_table()))?;
+    let interface_11 = with_method_table(context, 12, |context| write_methods(context, method_table::get_stub_method_table(11)))?;
+    let interface_12 = with_method_table(context, 13, |context| write_methods(context, method_table::get_unk12_method_table()))?;
+    let interface_13 = with_method_table(context, 14, |context| write_methods(context, method_table::get_stub_method_table(13)))?;
+    let interface_14 = with_method_table(context, 15, |context| write_methods(context, method_table::get_stub_method_table(14)))?;
+    let interface_15 = with_method_table(context, 16, |context| write_methods(context, method_table::get_stub_method_table(15)))?;
+    let interface_16 = with_method_table(context, 17, |context| write_methods(context, method_table::get_stub_method_table(16)))?;
 
     let interface = WIPICInterface {
         util_interface,

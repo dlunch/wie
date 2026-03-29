@@ -7,21 +7,24 @@ use wie_util::{
     ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
 };
 
+const SVC_WIPIC_CATEGORY: u32 = 2;
+const LGT_STDLIB_TABLE_ID: u32 = 1;
+
 pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {
-        0x3f6 => core.register_function(unk2, &())?,
-        0x3fb => core.register_function(atoi, &())?,
-        0x405 => core.register_function(strcpy, &())?,
-        0x406 => core.register_function(strncpy, &())?,
-        0x407 => core.register_function(strcat, &())?,
-        0x409 => core.register_function(strcmp, &())?,
-        0x40a => core.register_function(unk4, &())?,
-        0x410 => core.register_function(unk5, &())?,
-        0x411 => core.register_function(strlen, &())?,
-        0x414 => core.register_function(memcpy, &())?,
-        0x418 => core.register_function(memset, &())?,
-        0x420 => core.register_function(localtime, &())?,
-        0x424 => core.register_function(unk3, &())?,
+        0x3f6 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, unk2, &())?,
+        0x3fb => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, atoi, &())?,
+        0x405 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, strcpy, &())?,
+        0x406 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, strncpy, &())?,
+        0x407 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, strcat, &())?,
+        0x409 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, strcmp, &())?,
+        0x40a => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, unk4, &())?,
+        0x410 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, unk5, &())?,
+        0x411 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, strlen, &())?,
+        0x414 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, memcpy, &())?,
+        0x418 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, memset, &())?,
+        0x420 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, localtime, &())?,
+        0x424 => core.register_svc_function(SVC_WIPIC_CATEGORY, (LGT_STDLIB_TABLE_ID << 16) | function_index, unk3, &())?,
         _ => return Err(WieError::FatalError(format!("Unknown lgt stdlib import: {function_index:#x}"))),
     })
 }

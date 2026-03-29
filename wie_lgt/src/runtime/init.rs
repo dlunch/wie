@@ -15,6 +15,7 @@ use super::{java::get_java_interface_method, stdlib::get_stdlib_method, wipi_c::
 const SVC_INIT_CATEGORY: u32 = 1;
 const SVC_GET_IMPORT_TABLE: u32 = 1;
 const SVC_GET_IMPORT_FUNCTION: u32 = 2;
+const SVC_WIPIC_CATEGORY: u32 = 2;
 
 pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
@@ -79,11 +80,11 @@ async fn get_import_function(core: &mut ArmCore, (system, jvm): &mut (System, Jv
     }
 
     Ok(match (import_table, function_index) {
-        (0x1f8, 0x16) => core.register_function(unk0, &())?,
-        (0x1f8, 0x17) => core.register_function(java_unk7, &())?,
-        (0x1fc, 0x03) => core.register_function(java_unk1, &())?,
-        (0x1ff, 0x03) => core.register_function(java_unk2, &())?,
-        (0x201, 0x03) => core.register_function(java_unk3, &())?,
+        (0x1f8, 0x16) => core.register_svc_function(SVC_WIPIC_CATEGORY, (import_table << 16) | function_index, unk0, &())?,
+        (0x1f8, 0x17) => core.register_svc_function(SVC_WIPIC_CATEGORY, (import_table << 16) | function_index, java_unk7, &())?,
+        (0x1fc, 0x03) => core.register_svc_function(SVC_WIPIC_CATEGORY, (import_table << 16) | function_index, java_unk1, &())?,
+        (0x1ff, 0x03) => core.register_svc_function(SVC_WIPIC_CATEGORY, (import_table << 16) | function_index, java_unk2, &())?,
+        (0x201, 0x03) => core.register_svc_function(SVC_WIPIC_CATEGORY, (import_table << 16) | function_index, java_unk3, &())?,
         _ => {
             return Err(WieError::FatalError(format!(
                 "Unknown import function: {import_table:#x}, {function_index:#x}"
