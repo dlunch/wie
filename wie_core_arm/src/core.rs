@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use spin::Mutex;
 
-use wie_util::{ByteRead, ByteWrite, Result, read_generic};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{
     ThreadId,
@@ -224,7 +224,11 @@ impl ArmCore {
 
                     let function = {
                         let inner = self.inner.lock();
-                        inner.svc_functions.get(&(category, r12)).unwrap().clone()
+                        inner
+                            .svc_functions
+                            .get(&(category, r12))
+                            .cloned()
+                            .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler: category={category:?}, id={r12}")))?
                     };
 
                     let mut self1 = self.clone();
@@ -252,10 +256,9 @@ impl ArmCore {
         inner.next_svc_id.insert(category, id + 1);
 
         let address = inner.next_stub_address;
-        assert!(
-            address + SVC_STUB_SIZE <= FUNCTIONS_BASE + FUNCTIONS_SIZE as u32,
-            "SVC stub space exhausted"
-        );
+        if address + SVC_STUB_SIZE > FUNCTIONS_BASE + FUNCTIONS_SIZE as u32 {
+            return Err(WieError::FatalError("SVC stub space exhausted".into()));
+        }
         inner.next_stub_address += SVC_STUB_SIZE;
 
         let stub = [
