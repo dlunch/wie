@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use core::{array, cell::RefCell, ops::Range};
+use core::{array, cell::RefCell};
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 
@@ -22,7 +22,7 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, hook: &Range<u32>, mut count: u32) -> Result<EngineRunResult> {
+    fn run(&mut self, end: u32, mut count: u32) -> Result<EngineRunResult> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
 
@@ -31,9 +31,15 @@ impl ArmEngine for Arm32CpuEngine {
                 let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
                 let r12 = self.cpu.reg_get(Mode::User, 12);
 
-                let mut svc_bytes = [0u8; 4];
-                self.mem.read_range(lr - 4, 4, &mut svc_bytes)?;
-                let svc_immediate = u32::from_le_bytes(svc_bytes) & 0x00ff_ffff;
+                let svc_immediate = if spsr & (1 << 5) != 0 {
+                    let mut svc_bytes = [0u8; 2];
+                    self.mem.read_range(lr - 2, 2, &mut svc_bytes)?;
+                    u16::from_le_bytes(svc_bytes) as u32 & 0xff
+                } else {
+                    let mut svc_bytes = [0u8; 4];
+                    self.mem.read_range(lr - 4, 4, &mut svc_bytes)?;
+                    u32::from_le_bytes(svc_bytes) & 0x00ff_ffff
+                };
                 let category = SvcCategory::from_u32(svc_immediate)?;
 
                 return Ok(EngineRunResult::Svc { category, r12, lr, spsr });
@@ -43,7 +49,7 @@ impl ArmEngine for Arm32CpuEngine {
                 return Err(WieError::InvalidMemoryAccess(pc));
             }
 
-            if pc == end || hook.contains(&pc) || count == 0 {
+            if pc == end || count == 0 {
                 return Ok(EngineRunResult::Normal(pc));
             }
 
