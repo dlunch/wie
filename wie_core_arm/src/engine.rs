@@ -3,7 +3,6 @@ mod arm32_cpu;
 mod debugged_arm32_cpu;
 
 use alloc::format;
-use core::ops::Range;
 
 use wie_util::{AsAny, Result, WieError};
 
@@ -37,7 +36,7 @@ pub enum EngineRunResult {
 }
 
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, hook: &Range<u32>, count: u32) -> Result<EngineRunResult>;
+    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);

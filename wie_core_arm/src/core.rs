@@ -198,17 +198,15 @@ impl ArmCore {
             inner.engine.reg_write(ArmRegister::PC, address);
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
 
-            if address & 1 == 1 {
-                // set thumb mode
-                let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
-                inner.engine.reg_write(ArmRegister::Cpsr, cpsr | 0x20);
-            }
+            let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
+            let new_cpsr = (cpsr & !0x3f) | 0x1f | ((address & 1) << 5);
+            inner.engine.reg_write(ArmRegister::Cpsr, new_cpsr);
         }
 
         loop {
             let result = {
                 let mut inner = self.inner.lock();
-                inner.engine.run(RUN_FUNCTION_LR, &(0..0), 1000)?
+                inner.engine.run(RUN_FUNCTION_LR, 1000)?
             };
 
             match result {
@@ -261,12 +259,22 @@ impl ArmCore {
         inner.next_stub_address += SVC_STUB_SIZE;
 
         let stub = [
-            0xe59fc004u32.to_le_bytes(),                     // LDR R12, [PC, #4]
-            (0xef000000u32 | category as u32).to_le_bytes(), // SVC #category
-            0xe12fff1eu32.to_le_bytes(),                     // BX LR
-            id.to_le_bytes(),                                // .word function_id
+            0x10,
+            0xb4, // push {r4}
+            0x02,
+            0x4c, // ldr r4, [pc, #8]
+            0xa4,
+            0x46, // mov r12, r4
+            0x10,
+            0xbc, // pop {r4}
+            category as u8,
+            0xdf, // svc #category
+            0x70,
+            0x47, // bx lr
         ]
-        .concat();
+        .into_iter()
+        .chain(id.to_le_bytes())
+        .collect::<Vec<_>>();
         inner.engine.mem_write(address, &stub)?;
 
         let callback = RegisteredFunctionHolder::new(function, context);
@@ -274,7 +282,7 @@ impl ArmCore {
 
         tracing::trace!("Register SVC function at {address:#x}, category={category:?}, id={id}");
 
-        Ok(address)
+        Ok(address + 1)
     }
 
     pub fn map(&mut self, address: u32, size: u32) -> Result<()> {
@@ -573,6 +581,48 @@ impl Drop for ThreadContextGuard {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(debug) = self.core.debug_inner() {
             debug.on_thread_exited(self.thread_id);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn test_function(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn test_thumb_svc_stub_dispatch() {
+        let mut core = ArmCore::new(false).unwrap();
+        core.map(0x1000, 0x1000).unwrap();
+
+        let mut context = core.save_context();
+        context.sp = 0x2000;
+        core.restore_context(&context);
+
+        let first = core.register_function(SvcCategory::Init, test_function, &()).unwrap();
+        let second = core.register_function(SvcCategory::Init, test_function, &()).unwrap();
+        assert_eq!(first, FUNCTIONS_BASE + 1);
+        assert_eq!(second, FUNCTIONS_BASE + SVC_STUB_SIZE + 1);
+
+        let result = {
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
+            inner.engine.reg_write(ArmRegister::PC, second);
+            inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
+            inner.engine.run(RUN_FUNCTION_LR, 10).unwrap()
+        };
+
+        match result {
+            EngineRunResult::Svc { category, r12, lr, spsr } => {
+                assert_eq!(category, SvcCategory::Init);
+                assert_eq!(r12, 1);
+                assert_eq!(lr, FUNCTIONS_BASE + SVC_STUB_SIZE + 10);
+                assert_ne!(spsr & 0x20, 0);
+            }
+            EngineRunResult::Normal(pc) => panic!("expected SVC, got normal return at {pc:#x}"),
         }
     }
 }
