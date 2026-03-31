@@ -19,6 +19,28 @@ impl Arm32CpuEngine {
             mem: EmulatedMemory::new(),
         }
     }
+
+    fn is_svc_exception(&self) -> bool {
+        self.cpu.reg_get(Mode::User, reg::PC) == 0x08 && (self.cpu.reg_get(Mode::User, reg::CPSR) & 0x1f) == 0x13
+    }
+
+    fn read_svc_result(&mut self) -> Result<EngineRunResult> {
+        let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
+        let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
+        let r12 = self.cpu.reg_get(Mode::User, 12);
+
+        let svc_address = lr.checked_sub(2).ok_or(WieError::InvalidMemoryAccess(lr))?;
+        let mut svc_bytes = [0u8; 2];
+        self.mem.read_range(svc_address, 2, &mut svc_bytes)?;
+        let instruction = u16::from_le_bytes(svc_bytes);
+        if instruction & 0xff00 != 0xdf00 {
+            return Err(WieError::FatalError(format!("Invalid Thumb SVC instruction {instruction:#06x}")));
+        }
+
+        let category = SvcCategory::from_u32(instruction as u32 & 0xff)?;
+
+        Ok(EngineRunResult::Svc { category, r12, lr, spsr })
+    }
 }
 
 impl ArmEngine for Arm32CpuEngine {
@@ -26,22 +48,8 @@ impl ArmEngine for Arm32CpuEngine {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
 
-            if pc == 0x08 && (self.cpu.reg_get(Mode::User, reg::CPSR) & 0x1f) == 0x13 {
-                let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
-                let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
-                let r12 = self.cpu.reg_get(Mode::User, 12);
-
-                let svc_address = lr.checked_sub(2).ok_or(WieError::InvalidMemoryAccess(lr))?;
-                let mut svc_bytes = [0u8; 2];
-                self.mem.read_range(svc_address, 2, &mut svc_bytes)?;
-                let instruction = u16::from_le_bytes(svc_bytes);
-                if instruction & 0xff00 != 0xdf00 {
-                    return Err(WieError::FatalError(format!("Invalid Thumb SVC instruction {instruction:#06x}")));
-                }
-                let svc_immediate = instruction as u32 & 0xff;
-                let category = SvcCategory::from_u32(svc_immediate)?;
-
-                return Ok(EngineRunResult::Svc { category, r12, lr, spsr });
+            if self.is_svc_exception() {
+                return self.read_svc_result();
             }
 
             if pc < 0x1000 {
