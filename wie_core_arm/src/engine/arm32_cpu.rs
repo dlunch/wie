@@ -31,27 +31,14 @@ impl ArmEngine for Arm32CpuEngine {
                 let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
                 let r12 = self.cpu.reg_get(Mode::User, 12);
 
-                let svc_immediate = if spsr & (1 << 5) != 0 {
-                    let svc_address = lr.checked_sub(2).ok_or(WieError::InvalidMemoryAccess(lr))?;
-                    let mut svc_bytes = [0u8; 2];
-                    self.mem.read_range(svc_address, 2, &mut svc_bytes)?;
-                    let instruction = u16::from_le_bytes(svc_bytes);
-                    if instruction & 0xff00 != 0xdf00 {
-                        return Err(WieError::FatalError(format!("Invalid Thumb SVC instruction {instruction:#06x}")));
-                    }
-
-                    instruction as u32 & 0xff
-                } else {
-                    let svc_address = lr.checked_sub(4).ok_or(WieError::InvalidMemoryAccess(lr))?;
-                    let mut svc_bytes = [0u8; 4];
-                    self.mem.read_range(svc_address, 4, &mut svc_bytes)?;
-                    let instruction = u32::from_le_bytes(svc_bytes);
-                    if instruction & 0xff00_0000 != 0xef00_0000 {
-                        return Err(WieError::FatalError(format!("Invalid ARM SVC instruction {instruction:#010x}")));
-                    }
-
-                    instruction & 0x00ff_ffff
-                };
+                let svc_address = lr.checked_sub(2).ok_or(WieError::InvalidMemoryAccess(lr))?;
+                let mut svc_bytes = [0u8; 2];
+                self.mem.read_range(svc_address, 2, &mut svc_bytes)?;
+                let instruction = u16::from_le_bytes(svc_bytes);
+                if instruction & 0xff00 != 0xdf00 {
+                    return Err(WieError::FatalError(format!("Invalid Thumb SVC instruction {instruction:#06x}")));
+                }
+                let svc_immediate = instruction as u32 & 0xff;
                 let category = SvcCategory::from_u32(svc_immediate)?;
 
                 return Ok(EngineRunResult::Svc { category, r12, lr, spsr });
