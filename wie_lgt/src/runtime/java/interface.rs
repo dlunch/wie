@@ -1,27 +1,29 @@
 use alloc::format;
 
-use wie_core_arm::{ArmCore, SvcCategory};
+use wie_core_arm::{ArmCore, SvcHandle};
 use wie_util::{Result, WieError};
 
-pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
+use crate::runtime::svc_ids::InitSvcId;
+
+pub fn get_java_interface_method(core: &mut ArmCore, init_handle: SvcHandle, function_index: u32) -> Result<u32> {
     Ok(match function_index {
-        0x03 => core.register_function(SvcCategory::Init, java_unk0, &())?,
-        0x06 => core.register_function(SvcCategory::Init, java_unk12, &())?,
-        0x07 => core.register_function(SvcCategory::Init, java_unk5, &())?,
-        0x14 => core.register_function(SvcCategory::Init, java_load_classes, &())?,
-        0x82 => core.register_function(SvcCategory::Init, java_unk9, &())?,
-        0x83 => core.register_function(SvcCategory::Init, java_unk11, &())?,
+        0x03 => core.make_svc_stub(init_handle, InitSvcId::JavaInterfaceUnk0 as u32)?,
+        0x06 => core.make_svc_stub(init_handle, InitSvcId::JavaInterfaceUnk12 as u32)?,
+        0x07 => core.make_svc_stub(init_handle, InitSvcId::JavaInterfaceUnk5 as u32)?,
+        0x14 => core.make_svc_stub(init_handle, InitSvcId::JavaLoadClasses as u32)?,
+        0x82 => core.make_svc_stub(init_handle, InitSvcId::JavaUnk9 as u32)?,
+        0x83 => core.make_svc_stub(init_handle, InitSvcId::JavaUnk11 as u32)?,
         _ => return Err(WieError::FatalError(format!("Unknown lgt java import: {function_index:#x}"))),
     })
 }
 
-async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+pub(crate) async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk0({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
-async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
+pub(crate) async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
     tracing::warn!("java_unk5({a0:#x}, {a1:#x})");
 
     // a0: class list
@@ -30,7 +32,7 @@ async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn java_load_classes(
+pub(crate) async fn java_load_classes(
     _core: &mut ArmCore,
     _: &mut (),
     classes: u32,
@@ -52,13 +54,13 @@ async fn java_load_classes(
     Ok(())
 }
 
-async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
+pub(crate) async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     tracing::warn!("java_unk9({a0:#x})");
 
     Ok(())
 }
 
-async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
+pub(crate) async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
     tracing::warn!("java_unk11({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // invoke static? used to be called with org/kwis/msp/lcdui/Main
@@ -66,7 +68,7 @@ async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, 
     Err(WieError::Unimplemented("LGT Java apps are not implemented yet".into()))
 }
 
-async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
+pub(crate) async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     tracing::warn!("java_unk12({a0:#x})");
 
     Ok(())

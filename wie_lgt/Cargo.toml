@@ -8,6 +8,7 @@ license.workspace = true
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
 futures = { workspace = true }
+spin = { workspace = true }
 tracing = { workspace = true }
 
 chrono = { version = "^0.4", default-features = false, features = ["alloc"] }

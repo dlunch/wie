@@ -17,6 +17,7 @@ pub enum SvcCategory {
     Init = 1,
     Wipi = 2,
     Java = 3,
+    Stdlib = 4,
 }
 
 impl SvcCategory {
@@ -25,6 +26,7 @@ impl SvcCategory {
             1 => Ok(Self::Init),
             2 => Ok(Self::Wipi),
             3 => Ok(Self::Java),
+            4 => Ok(Self::Stdlib),
             _ => Err(WieError::FatalError(format!("Unknown SVC category {value}"))),
         }
     }

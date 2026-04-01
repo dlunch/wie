@@ -20,9 +20,14 @@ use wipi_types::ktf::java::{
     JavaMethodExceptionTableEntry as RawJavaMethodExceptionTableEntry,
 };
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, ResultWriter, SvcCategory};
+use alloc::sync::Arc;
+use wie_core_arm::{
+    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter,
+    SvcHandle,
+};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
+use crate::runtime::java::JavaSvcFunctions;
 use crate::runtime::java::jvm_support::JavaClassDefinition;
 
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt};
@@ -37,7 +42,15 @@ impl JavaMethod {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, ptr_class: u32, proto: JavaMethodProto<C>, context: Context) -> Result<Self>
+    pub fn new<C, Context>(
+        core: &mut ArmCore,
+        jvm: &Jvm,
+        ptr_class: u32,
+        proto: JavaMethodProto<C>,
+        context: Context,
+        java_handle: SvcHandle,
+        java_functions: JavaSvcFunctions,
+    ) -> Result<Self>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -52,16 +65,16 @@ impl JavaMethod {
         let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
         core.write_bytes(ptr_name, &full_name_bytes)?;
 
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
+
         let access_flags = proto.access_flags;
-        let fn_method = Self::register_java_method(core, jvm, proto, context)?;
+        let fn_method = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_handle, java_functions)?;
 
         let (fn_body, fn_body_native) = if access_flags.contains(MethodAccessFlags::NATIVE) {
             (0, fn_method)
         } else {
             (fn_method, 0)
         };
-
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
 
         write_generic(
             core,
@@ -225,7 +238,15 @@ impl JavaMethod {
         Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await)
     }
 
-    fn register_java_method<C, Context>(core: &mut ArmCore, jvm: &Jvm, proto: JavaMethodProto<C>, context: Context) -> Result<u32>
+    fn register_java_method<C, Context>(
+        core: &mut ArmCore,
+        jvm: &Jvm,
+        ptr_method: u32,
+        proto: JavaMethodProto<C>,
+        context: Context,
+        java_handle: SvcHandle,
+        java_functions: JavaSvcFunctions,
+    ) -> Result<u32>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -247,7 +268,12 @@ impl JavaMethod {
             return_type: return_type.clone(),
         };
 
-        core.register_function(SvcCategory::Java, proxy, &())
+        let proxy = RegisteredFunctionHolder::new(proxy, &());
+        java_functions
+            .lock()
+            .insert(ptr_method, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
+
+        core.make_svc_stub(java_handle, ptr_method)
     }
 }
 
