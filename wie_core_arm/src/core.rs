@@ -9,7 +9,7 @@ use crate::{
     ThreadId,
     context::ArmCoreContext,
     engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory},
-    function::{EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
+    function::{EmulatedSvcHandler, RegisteredSvcHandler, make_registered_svc_handler},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
 };
@@ -22,12 +22,22 @@ pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
 
+#[derive(Copy, Clone)]
+pub struct SvcHandle {
+    category: SvcCategory,
+}
+
+impl SvcHandle {
+    pub fn new(category: SvcCategory) -> Self {
+        Self { category }
+    }
+}
+
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    svc_functions: BTreeMap<(SvcCategory, u32), Arc<Box<dyn RegisteredFunction>>>,
-    next_svc_id: BTreeMap<SvcCategory, u32>,
+    svc_handlers: BTreeMap<SvcCategory, Arc<Box<dyn RegisteredSvcHandler>>>,
     next_stub_address: u32,
 }
 
@@ -56,8 +66,7 @@ impl ArmCore {
             engine,
             last_thread_id: 0,
             threads: BTreeMap::new(),
-            svc_functions: BTreeMap::new(),
-            next_svc_id: BTreeMap::new(),
+            svc_handlers: BTreeMap::new(),
             next_stub_address: FUNCTIONS_BASE,
         };
 
@@ -225,14 +234,14 @@ impl ArmCore {
                     let function = {
                         let inner = self.inner.lock();
                         inner
-                            .svc_functions
-                            .get(&(category, r12))
+                            .svc_handlers
+                            .get(&category)
                             .cloned()
-                            .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler: category={category:?}, id={r12}")))?
+                            .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler category: {category:?}")))?
                     };
 
                     let mut self1 = self.clone();
-                    function.call(&mut self1).await?;
+                    function.call(&mut self1, r12).await?;
                 }
             }
         }
@@ -243,17 +252,24 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_function<F, C, R, P>(&mut self, category: SvcCategory, function: F, context: &C) -> Result<u32>
+    pub fn register_svc_handler<F, C>(&mut self, category: SvcCategory, handler: F, context: &C) -> Result<SvcHandle>
     where
-        F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
+        F: EmulatedSvcHandler<C> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
-        R: ResultWriter<R> + 'static + Sync + Send,
-        P: 'static + Sync + Send,
     {
         let mut inner = self.inner.lock();
 
-        let id = *inner.next_svc_id.entry(category).or_insert(0);
-        inner.next_svc_id.insert(category, id + 1);
+        if inner.svc_handlers.contains_key(&category) {
+            return Err(WieError::FatalError(format!("SVC handler already registered for {category:?}")));
+        }
+
+        inner.svc_handlers.insert(category, make_registered_svc_handler(handler, context));
+
+        Ok(SvcHandle::new(category))
+    }
+
+    pub fn make_svc_stub(&mut self, handle: SvcHandle, id: u32) -> Result<u32> {
+        let mut inner = self.inner.lock();
 
         let address = inner.next_stub_address;
         if address + SVC_STUB_SIZE > FUNCTIONS_BASE + FUNCTIONS_SIZE as u32 {
@@ -270,7 +286,7 @@ impl ArmCore {
             0x46, // mov r12, r4
             0x10,
             0xbc, // pop {r4}
-            category as u8,
+            handle.category as u8,
             0xdf, // svc #category
             0x70,
             0x47, // bx lr
@@ -280,10 +296,7 @@ impl ArmCore {
         .collect::<Vec<_>>();
         inner.engine.mem_write(address, &stub)?;
 
-        let callback = RegisteredFunctionHolder::new(function, context);
-        inner.svc_functions.insert((category, id), Arc::new(Box::new(callback)));
-
-        tracing::trace!("Register SVC function at {address:#x}, category={category:?}, id={id}");
+        tracing::trace!("Register SVC stub at {address:#x}, category={:?}, id={id}", handle.category);
 
         Ok(address + 1)
     }
@@ -592,7 +605,9 @@ impl Drop for ThreadContextGuard {
 mod tests {
     use super::*;
 
-    async fn test_function(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    async fn test_svc_handler(_core: &mut ArmCore, seen_id: &mut Option<u32>, id: u32) -> Result<()> {
+        *seen_id = Some(id);
+
         Ok(())
     }
 
@@ -605,8 +620,9 @@ mod tests {
         context.sp = 0x2000;
         core.restore_context(&context);
 
-        let first = core.register_function(SvcCategory::Init, test_function, &()).unwrap();
-        let second = core.register_function(SvcCategory::Init, test_function, &()).unwrap();
+        let handle = core.register_svc_handler(SvcCategory::Init, test_svc_handler, &None).unwrap();
+        let first = core.make_svc_stub(handle, 0).unwrap();
+        let second = core.make_svc_stub(handle, 1).unwrap();
         assert_eq!(first, FUNCTIONS_BASE + 1);
         assert_eq!(second, FUNCTIONS_BASE + SVC_STUB_SIZE + 1);
 

@@ -85,7 +85,8 @@ impl KtfJvmSupport {
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
-        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], KtfJvmImplementation::new(core.clone())).await?;
+        let jvm_implementation = KtfJvmImplementation::new(core);
+        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], jvm_implementation.clone()).await?;
 
         let system_class_loader: Box<dyn ClassInstance> = jvm
             .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", [])
@@ -128,6 +129,8 @@ impl KtfJvmSupport {
                 core: core.clone(),
                 system: system.clone(),
             }) as Box<_>,
+            jvm_implementation.java_handle(),
+            jvm_implementation.java_functions(),
         )
         .await?;
 

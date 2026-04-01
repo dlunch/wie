@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -7,9 +7,9 @@ use jvm::{
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory};
-use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
-use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
+use wie_core_arm::{Allocator, ArmCore};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
+use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 // mostly same as ktf's one, can we merge those?
 #[derive(Clone)]
@@ -55,50 +55,10 @@ impl WIPICContext for LgtWIPICContext {
         Ok(memory.0)
     }
 
-    fn register_function(&mut self, body: WIPICMethodBody) -> Result<WIPICWord> {
-        struct WIPICMethodResult {
-            result: WIPICResult,
-        }
+    fn register_function(&mut self, _id: WIPICWord, body: WIPICMethodBody) -> Result<WIPICWord> {
+        let _ = body;
 
-        impl ResultWriter<WIPICMethodResult> for WIPICMethodResult {
-            fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
-                core.write_return_value(&self.result.results)?;
-                core.set_next_pc(next_pc)?;
-
-                Ok(())
-            }
-        }
-
-        struct CMethodProxy {
-            context: LgtWIPICContext,
-            body: WIPICMethodBody,
-        }
-
-        #[async_trait::async_trait]
-        impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
-            async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<WIPICMethodResult> {
-                let a0 = u32::get(core, 0);
-                let a1 = u32::get(core, 1);
-                let a2 = u32::get(core, 2);
-                let a3 = u32::get(core, 3);
-                let a4 = u32::get(core, 4);
-                let a5 = u32::get(core, 5);
-                let a6 = u32::get(core, 6);
-                let a7 = u32::get(core, 7);
-                let a8 = u32::get(core, 8); // TODO create arg proxy
-
-                let result = self
-                    .body
-                    .call(&mut self.context.clone(), vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
-                    .await?;
-
-                Ok(WIPICMethodResult { result })
-            }
-        }
-
-        let proxy = CMethodProxy { context: self.clone(), body };
-
-        self.core.register_function(SvcCategory::Wipi, proxy, &())
+        Err(WieError::FatalError("LGT WIPIC dynamic callback registration is not supported".into()))
     }
 
     fn system(&mut self) -> &mut System {

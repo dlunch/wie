@@ -10,11 +10,13 @@ use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::{Allocator, ArmCore, SvcHandle};
 use wie_util::{
     read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic, write_null_terminated_string_bytes,
     write_null_terminated_table,
 };
+
+use crate::runtime::java::JavaSvcFunctions;
 
 use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable::JavaVtable};
 
@@ -29,7 +31,14 @@ impl JavaClassDefinition {
         Self { ptr_raw, core: core.clone() }
     }
 
-    pub async fn new<C, Context>(core: &mut ArmCore, jvm: &Jvm, proto: JavaClassProto<C>, context: Context) -> Result<Self>
+    pub async fn new<C, Context>(
+        core: &mut ArmCore,
+        jvm: &Jvm,
+        proto: JavaClassProto<C>,
+        context: Context,
+        java_handle: SvcHandle,
+        java_functions: JavaSvcFunctions,
+    ) -> Result<Self>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -49,7 +58,7 @@ impl JavaClassDefinition {
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(core, jvm, ptr_raw, method, context.clone())?;
+            let method = JavaMethod::new(core, jvm, ptr_raw, method, context.clone(), java_handle, java_functions.clone())?;
 
             methods.push(method.ptr_raw);
         }

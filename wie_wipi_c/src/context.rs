@@ -11,13 +11,13 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-pub trait WIPICContext: ByteRead + ByteWrite + Send {
+pub trait WIPICContext: ByteRead + ByteWrite + Send + Sync {
     fn alloc_raw(&mut self, size: WIPICWord) -> Result<WIPICWord>;
     fn alloc(&mut self, size: WIPICWord) -> Result<WIPICIndirectPtr>;
     fn free(&mut self, memory: WIPICIndirectPtr) -> Result<()>;
     fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()>;
     fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord>;
-    fn register_function(&mut self, method: WIPICMethodBody) -> Result<WIPICWord>;
+    fn register_function(&mut self, id: WIPICWord, method: WIPICMethodBody) -> Result<WIPICWord>;
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord>;
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()>;
@@ -131,7 +131,7 @@ pub mod test {
             Ok(memory.0)
         }
 
-        fn register_function(&mut self, _method: WIPICMethodBody) -> Result<WIPICWord> {
+        fn register_function(&mut self, _id: WIPICWord, _method: WIPICMethodBody) -> Result<WIPICWord> {
             todo!()
         }
 

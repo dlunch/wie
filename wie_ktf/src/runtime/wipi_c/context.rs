@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -7,20 +7,32 @@ use jvm::{
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory};
+use wie_core_arm::{
+    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcHandle,
+};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
+
+use crate::runtime::wipi_c::WIPICSvcFunctions;
 
 #[derive(Clone)]
 pub struct KtfWIPICContext {
     core: ArmCore,
     system: System,
     jvm: Jvm, // We need jvm to access resource in jvm. TODO is there better way to do this?
+    svc_handle: SvcHandle,
+    svc_functions: WIPICSvcFunctions,
 }
 
 impl KtfWIPICContext {
-    pub fn new(core: ArmCore, system: System, jvm: Jvm) -> Self {
-        Self { core, system, jvm }
+    pub fn new(core: ArmCore, system: System, jvm: Jvm, svc_handle: SvcHandle, svc_functions: WIPICSvcFunctions) -> Self {
+        Self {
+            core,
+            system,
+            jvm,
+            svc_handle,
+            svc_functions,
+        }
     }
 }
 
@@ -57,7 +69,7 @@ impl WIPICContext for KtfWIPICContext {
         Ok(base + 8) // all data has offset of 8 bytes
     }
 
-    fn register_function(&mut self, body: WIPICMethodBody) -> Result<WIPICWord> {
+    fn register_function(&mut self, id: WIPICWord, body: WIPICMethodBody) -> Result<WIPICWord> {
         struct WIPICMethodResult {
             result: WIPICResult,
         }
@@ -99,8 +111,13 @@ impl WIPICContext for KtfWIPICContext {
         }
 
         let proxy = CMethodProxy { context: self.clone(), body };
+        let proxy = RegisteredFunctionHolder::new(proxy, &());
 
-        self.core.register_function(SvcCategory::Wipi, proxy, &())
+        self.svc_functions
+            .lock()
+            .insert(id, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
+
+        self.core.make_svc_stub(self.svc_handle, id)
     }
 
     fn system(&mut self) -> &mut System {

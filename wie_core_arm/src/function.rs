@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, sync::Arc};
 use core::{future::Future, marker::PhantomData};
 
 use wie_util::Result;
@@ -10,6 +10,16 @@ pub trait RegisteredFunction: Sync + Send {
     async fn call(&self, core: &mut ArmCore) -> Result<()>;
 }
 
+#[async_trait::async_trait]
+pub trait RegisteredSvcHandler: Sync + Send {
+    async fn call(&self, core: &mut ArmCore, id: u32) -> Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait EmulatedSvcHandler<C> {
+    async fn call(&self, core: &mut ArmCore, context: &mut C, id: u32) -> Result<()>;
+}
+
 pub struct RegisteredFunctionHolder<F, C, R, P>
 where
     F: EmulatedFunction<C, R, P> + 'static,
@@ -19,6 +29,33 @@ where
     function: Box<F>,
     context: C,
     _phantom: PhantomData<(C, R, P)>,
+}
+
+pub struct RegisteredSvcHandlerHolder<F, C>
+where
+    F: 'static,
+    C: Clone + 'static,
+{
+    function: Box<F>,
+    context: C,
+}
+
+trait SvcFnHelper<'a, C> {
+    type Output: Future<Output = Result<()>> + 'a + Send;
+    fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C, id: u32) -> Self::Output;
+}
+
+impl<'a, F, Fut, C> SvcFnHelper<'a, C> for F
+where
+    F: Fn(&'a mut ArmCore, &'a mut C, u32) -> Fut,
+    Fut: Future<Output = Result<()>> + 'a + Send,
+    C: 'a,
+{
+    type Output = Fut;
+
+    fn do_call(&self, core: &'a mut ArmCore, context: &'a mut C, id: u32) -> Fut {
+        self(core, context, id)
+    }
 }
 
 impl<F, C, R, P> RegisteredFunctionHolder<F, C, R, P>
@@ -33,6 +70,38 @@ where
             context: context.clone(),
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<F, C> RegisteredSvcHandlerHolder<F, C>
+where
+    F: 'static,
+    C: Clone + 'static,
+{
+    pub fn new(function: F, context: &C) -> Self {
+        Self {
+            function: Box::new(function),
+            context: context.clone(),
+        }
+    }
+}
+
+pub fn make_registered_svc_handler<F, C>(function: F, context: &C) -> Arc<Box<dyn RegisteredSvcHandler>>
+where
+    F: EmulatedSvcHandler<C> + 'static + Sync + Send,
+    C: Clone + Sync + Send + 'static,
+{
+    Arc::new(Box::new(RegisteredSvcHandlerHolder::new(function, context)))
+}
+
+#[async_trait::async_trait]
+impl<Func, C> EmulatedSvcHandler<C> for Func
+where
+    Func: for<'a> SvcFnHelper<'a, C> + Sync,
+    C: Send,
+{
+    async fn call(&self, core: &mut ArmCore, context: &mut C, id: u32) -> Result<()> {
+        self.do_call(core, context, id).await
     }
 }
 
@@ -55,6 +124,18 @@ where
         result.write(core, lr)?;
 
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl<F, C> RegisteredSvcHandler for RegisteredSvcHandlerHolder<F, C>
+where
+    F: EmulatedSvcHandler<C> + 'static + Sync + Send,
+    C: Clone + Sync + Send + 'static,
+{
+    async fn call(&self, core: &mut ArmCore, id: u32) -> Result<()> {
+        let mut context = self.context.clone();
+        self.function.call(core, &mut context, id).await
     }
 }
 

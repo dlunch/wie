@@ -2,28 +2,40 @@ use alloc::{format, string::String, vec};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
-use wie_core_arm::{Allocator, ArmCore, SvcCategory};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle};
 use wie_util::{
     ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
 };
 
-pub fn get_stdlib_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
-    Ok(match function_index {
-        0x3f6 => core.register_function(SvcCategory::Wipi, unk2, &())?,
-        0x3fb => core.register_function(SvcCategory::Wipi, atoi, &())?,
-        0x405 => core.register_function(SvcCategory::Wipi, strcpy, &())?,
-        0x406 => core.register_function(SvcCategory::Wipi, strncpy, &())?,
-        0x407 => core.register_function(SvcCategory::Wipi, strcat, &())?,
-        0x409 => core.register_function(SvcCategory::Wipi, strcmp, &())?,
-        0x40a => core.register_function(SvcCategory::Wipi, unk4, &())?,
-        0x410 => core.register_function(SvcCategory::Wipi, unk5, &())?,
-        0x411 => core.register_function(SvcCategory::Wipi, strlen, &())?,
-        0x414 => core.register_function(SvcCategory::Wipi, memcpy, &())?,
-        0x418 => core.register_function(SvcCategory::Wipi, memset, &())?,
-        0x420 => core.register_function(SvcCategory::Wipi, localtime, &())?,
-        0x424 => core.register_function(SvcCategory::Wipi, unk3, &())?,
-        _ => return Err(WieError::FatalError(format!("Unknown lgt stdlib import: {function_index:#x}"))),
-    })
+use crate::runtime::svc_ids::StdlibSvcId;
+
+pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<SvcHandle> {
+    async fn handle_stdlib_svc(core: &mut ArmCore, _: &mut (), id: u32) -> Result<()> {
+        let (_, lr) = core.read_pc_lr()?;
+
+        match id {
+            x if x == StdlibSvcId::Unk2 as u32 => EmulatedFunction::call(&unk2, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Atoi as u32 => EmulatedFunction::call(&atoi, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&strcpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strncpy as u32 => EmulatedFunction::call(&strncpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strcat as u32 => EmulatedFunction::call(&strcat, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strcmp as u32 => EmulatedFunction::call(&strcmp, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Unk4 as u32 => EmulatedFunction::call(&unk4, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Unk5 as u32 => EmulatedFunction::call(&unk5, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&strlen, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&memcpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&memset, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Unk3 as u32 => EmulatedFunction::call(&unk3, core, &mut ()).await?.write(core, lr),
+            _ => Err(WieError::FatalError(format!("Unknown lgt stdlib import: {id:#x}"))),
+        }
+    }
+
+    core.register_svc_handler(SvcCategory::Stdlib, handle_stdlib_svc, &())
+}
+
+pub fn get_stdlib_method(core: &mut ArmCore, stdlib_handle: SvcHandle, function_index: u32) -> Result<u32> {
+    core.make_svc_stub(stdlib_handle, function_index)
 }
 
 async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {
