@@ -4,7 +4,7 @@ use jvm::Jvm;
 
 use spin::Mutex;
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcId};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam1, InitParam3, InitParam4, WipiExe};
@@ -12,17 +12,15 @@ use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam
 use crate::{
     emulator::IMAGE_BASE,
     runtime::{
-        java::interface::{
-            call_native, get_field, get_java_method, get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_jump_1,
-            java_jump_2, java_jump_3, java_new, java_throw, jb_unk4, jb_unk5, jb_unk7, jb_unk8, register_class, register_java_string,
-        },
+        SVC_CATEGORY_INIT,
+        java::interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
         svc_ids::InitSvcId,
         wipi_c::{WIPICSvcFunctions, interface::get_wipic_knl_interface, register_wipic_svc_handler},
     },
 };
 
 pub(crate) fn register_init_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm, wipic_functions: WIPICSvcFunctions) -> Result<()> {
-    core.register_svc_handler(SvcCategory::Init, handle_init_svc, &(system.clone(), jvm.clone(), wipic_functions))
+    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(system.clone(), jvm.clone(), wipic_functions))
 }
 
 async fn handle_init_svc(core: &mut ArmCore, (system, jvm, wipic_functions): &mut (System, Jvm, WIPICSvcFunctions), id: SvcId) -> Result<()> {
@@ -38,18 +36,6 @@ async fn handle_init_svc(core: &mut ArmCore, (system, jvm, wipic_functions): &mu
         InitSvcId::JavaArrayNew => EmulatedFunction::call(&java_array_new, core, jvm).await?.write(core, lr),
         InitSvcId::JavaClassLoad => EmulatedFunction::call(&java_class_load, core, jvm).await?.write(core, lr),
         InitSvcId::Alloc => EmulatedFunction::call(&alloc, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaJump1 => EmulatedFunction::call(&java_jump_1, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaJump2 => EmulatedFunction::call(&java_jump_2, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaJump3 => EmulatedFunction::call(&java_jump_3, core, &mut ()).await?.write(core, lr),
-        InitSvcId::GetJavaMethod => EmulatedFunction::call(&get_java_method, core, &mut ()).await?.write(core, lr),
-        InitSvcId::GetField => EmulatedFunction::call(&get_field, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JbUnk4 => EmulatedFunction::call(&jb_unk4, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JbUnk5 => EmulatedFunction::call(&jb_unk5, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JbUnk7 => EmulatedFunction::call(&jb_unk7, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JbUnk8 => EmulatedFunction::call(&jb_unk8, core, &mut ()).await?.write(core, lr),
-        InitSvcId::RegisterClass => EmulatedFunction::call(&register_class, core, jvm).await?.write(core, lr),
-        InitSvcId::RegisterJavaString => EmulatedFunction::call(&register_java_string, core, jvm).await?.write(core, lr),
-        InitSvcId::CallNative => EmulatedFunction::call(&call_native, core, &mut ()).await?.write(core, lr),
     }
 }
 
@@ -101,18 +87,18 @@ pub async fn load_native(
     write_generic(core, ptr_param_3, param_3)?;
 
     let param_4 = InitParam4 {
-        fn_get_interface: core.make_svc_stub(SvcCategory::Init, InitSvcId::GetInterface as u32)?,
-        fn_java_throw: core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaThrow as u32)?,
+        fn_get_interface: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetInterface as u32)?,
+        fn_java_throw: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaThrow as u32)?,
         unk1: 0,
         unk2: 0,
-        fn_java_check_type: core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaCheckType as u32)?,
-        fn_java_new: core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaNew as u32)?,
-        fn_java_array_new: core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaArrayNew as u32)?,
+        fn_java_check_type: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaCheckType as u32)?,
+        fn_java_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaNew as u32)?,
+        fn_java_array_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaArrayNew as u32)?,
         unk6: 0,
-        fn_java_class_load: core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaClassLoad as u32)?,
+        fn_java_class_load: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaClassLoad as u32)?,
         unk7: 0,
         unk8: 0,
-        fn_alloc: core.make_svc_stub(SvcCategory::Init, InitSvcId::Alloc as u32)?,
+        fn_alloc: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::Alloc as u32)?,
     };
 
     let ptr_param_4 = Allocator::alloc(core, size_of::<InitParam4>() as u32)?;
@@ -150,7 +136,7 @@ async fn get_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm, wipic
 
     match name.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm, wipic_functions),
-        "WIPI_JBInterface" => get_wipi_jb_interface(core, jvm),
+        "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             tracing::warn!("Unknown {name}");
 

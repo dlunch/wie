@@ -2,8 +2,10 @@ use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
 
 use spin::Mutex;
 
-use wie_core_arm::{ArmCore, RegisteredFunction, SvcCategory, SvcId};
+use wie_core_arm::{ArmCore, RegisteredFunction, SvcId};
 use wie_util::{Result, WieError};
+
+use crate::runtime::SVC_CATEGORY_JAVA;
 
 pub mod interface;
 pub mod jvm_support;
@@ -23,5 +25,5 @@ pub(crate) fn register_java_svc_handler(core: &mut ArmCore, svc_functions: &Java
         function.call(core).await
     }
 
-    core.register_svc_handler(SvcCategory::Java, handle_java_svc, svc_functions)
+    core.register_svc_handler(SVC_CATEGORY_JAVA, handle_java_svc, svc_functions)
 }

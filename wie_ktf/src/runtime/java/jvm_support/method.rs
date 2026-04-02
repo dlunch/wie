@@ -23,12 +23,11 @@ use wipi_types::ktf::java::{
 use alloc::sync::Arc;
 use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter,
-    SvcCategory,
 };
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
-use crate::runtime::java::JavaSvcFunctions;
 use crate::runtime::java::jvm_support::JavaClassDefinition;
+use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt};
 
@@ -271,7 +270,7 @@ impl JavaMethod {
             .lock()
             .insert(ptr_method, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
 
-        core.make_svc_stub(SvcCategory::Java, ptr_method)
+        core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_method)
     }
 }
 
