@@ -146,10 +146,6 @@ pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm
     )
 }
 
-pub fn get_wipic_method(core: &mut ArmCore, wipic_handle: SvcHandle, function_index: u32) -> Result<u32> {
-    core.make_svc_stub(wipic_handle, function_index)
-}
-
 async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
