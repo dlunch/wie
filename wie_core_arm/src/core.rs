@@ -13,7 +13,7 @@ use crate::{
     ThreadId,
     context::ArmCoreContext,
     engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory},
-    function::{EmulatedSvcHandler, RegisteredSvcHandler, RegisteredSvcHandlerHolder},
+    function::{RegisteredFunction, RegisteredFunctionHolder},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
 };
@@ -41,7 +41,7 @@ pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    svc_handlers: BTreeMap<SvcCategory, Arc<Box<dyn RegisteredSvcHandler>>>,
+    svc_handlers: BTreeMap<SvcCategory, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
 }
 
@@ -244,8 +244,13 @@ impl ArmCore {
                             .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler category: {category:?}")))?
                     };
 
+                    {
+                        let mut inner = self.inner.lock();
+                        inner.engine.reg_write(ArmRegister::IP, r12);
+                    }
+
                     let mut self1 = self.clone();
-                    function.call(&mut self1, r12).await?;
+                    function.call(&mut self1).await?;
                 }
             }
         }
@@ -256,10 +261,12 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_svc_handler<F, C>(&mut self, category: SvcCategory, handler: F, context: &C) -> Result<SvcHandle>
+    pub fn register_svc_handler<F, C, R, P>(&mut self, category: SvcCategory, handler: F, context: &C) -> Result<SvcHandle>
     where
-        F: EmulatedSvcHandler<C> + 'static + Sync + Send,
+        F: crate::EmulatedFunction<C, R, P> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
+        R: crate::ResultWriter<R> + Sync + Send + 'static,
+        P: Sync + Send + 'static,
     {
         let mut inner = self.inner.lock();
 
@@ -269,7 +276,7 @@ impl ArmCore {
 
         inner
             .svc_handlers
-            .insert(category, Arc::new(Box::new(RegisteredSvcHandlerHolder::new(handler, context))));
+            .insert(category, Arc::new(Box::new(RegisteredFunctionHolder::new(handler, context))));
 
         Ok(SvcHandle::new(category))
     }
@@ -611,8 +618,8 @@ impl Drop for ThreadContextGuard {
 mod tests {
     use super::*;
 
-    async fn test_svc_handler(_core: &mut ArmCore, seen_id: &mut Option<u32>, id: u32) -> Result<()> {
-        *seen_id = Some(id);
+    async fn test_svc_handler(_core: &mut ArmCore, seen_id: &mut Option<u32>, id: crate::SvcId) -> Result<()> {
+        *seen_id = Some(id.0);
 
         Ok(())
     }
