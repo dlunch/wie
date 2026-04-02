@@ -7,7 +7,7 @@ use jvm::Jvm;
 use wipi_types::lgt::{InitParam1, InitParam2, InitStruct};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle, SvcId};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{
@@ -43,10 +43,10 @@ fn register_init_svc_handler(
     core.register_svc_handler(SvcCategory::Init, handle_init_svc, &context)
 }
 
-async fn handle_init_svc(core: &mut ArmCore, context: &mut LgtInitSvcContext, id: u32) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, context: &mut LgtInitSvcContext, id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
-    match InitSvcId::try_from(id)? {
+    match InitSvcId::try_from(id.0)? {
         InitSvcId::GetImportTable => EmulatedFunction::call(&get_import_table, core, &mut ()).await?.write(core, lr),
         InitSvcId::GetImportFunction => EmulatedFunction::call(&get_import_function, core, context).await?.write(core, lr),
         InitSvcId::Unk0 => EmulatedFunction::call(&unk0, core, &mut ()).await?.write(core, lr),

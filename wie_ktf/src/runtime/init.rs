@@ -4,7 +4,7 @@ use jvm::Jvm;
 
 use spin::Mutex;
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle, SvcId};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam1, InitParam3, InitParam4, WipiExe};
@@ -48,10 +48,10 @@ pub(crate) fn register_init_svc_handler(
     core.register_svc_handler(SvcCategory::Init, handle_init_svc, &context)
 }
 
-async fn handle_init_svc(core: &mut ArmCore, context: &mut KtfInitSvcContext, id: u32) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, context: &mut KtfInitSvcContext, id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
-    match InitSvcId::try_from(id)? {
+    match InitSvcId::try_from(id.0)? {
         InitSvcId::GetInterface => EmulatedFunction::call(&get_interface, core, context).await?.write(core, lr),
         InitSvcId::JavaThrow => EmulatedFunction::call(&java_throw, core, context).await?.write(core, lr),
         InitSvcId::JavaCheckType => EmulatedFunction::call(&java_check_type, core, context).await?.write(core, lr),

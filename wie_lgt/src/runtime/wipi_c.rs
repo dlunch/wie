@@ -7,7 +7,7 @@ use jvm_rust::ClassDefinitionImpl;
 use wipi_types::lgt::CletFunctions;
 
 use wie_backend::System;
-use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory, SvcHandle};
+use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory, SvcHandle, SvcId};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
@@ -26,10 +26,10 @@ struct LgtWIPICSvcContext {
 }
 
 pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<SvcHandle> {
-    async fn handle_wipic_svc(core: &mut ArmCore, context: &mut LgtWIPICSvcContext, id: u32) -> Result<()> {
+    async fn handle_wipic_svc(core: &mut ArmCore, context: &mut LgtWIPICSvcContext, id: SvcId) -> Result<()> {
         let mut wipic_context = LgtWIPICContext::new(core.clone(), context.system.clone(), context.jvm.clone());
         let (_, lr) = core.read_pc_lr()?;
-        let method = match id {
+        let method = match id.0 {
             0x03 => {
                 return EmulatedFunction::call(&clet_register, core, &mut context.jvm).await?.write(core, lr);
             }
@@ -110,7 +110,7 @@ pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm
             0x4bd => media::stop.into_body(),
             0x4ce => unk10.into_body(),
             0x578 => misc::back_light.into_body(),
-            _ => return Err(WieError::FatalError(format!("Unknown lgt WIPIC import: {id:#x}"))),
+            _ => return Err(WieError::FatalError(format!("Unknown lgt WIPIC import: {:#x}", id.0))),
         };
 
         let result = method

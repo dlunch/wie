@@ -18,5 +18,5 @@ pub use self::{
     allocator::Allocator,
     core::{ArmCore, RUN_FUNCTION_LR, RunFunctionResult, SvcHandle},
     engine::SvcCategory,
-    function::{EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter},
+    function::{EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcId},
 };
