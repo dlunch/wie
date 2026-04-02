@@ -11,7 +11,10 @@ use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCatego
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{
-    java::get_java_interface_method,
+    java::{
+        get_java_interface_method,
+        interface::{java_load_classes, java_unk0, java_unk5, java_unk9, java_unk11, java_unk12},
+    },
     stdlib::{get_stdlib_method, register_stdlib_svc_handler},
     svc_ids::InitSvcId,
     wipi_c::{get_wipic_method, register_wipic_svc_handler},
@@ -51,24 +54,12 @@ async fn handle_init_svc(core: &mut ArmCore, context: &mut LgtInitSvcContext, id
         InitSvcId::JavaUnk1 => EmulatedFunction::call(&java_unk1, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk2 => EmulatedFunction::call(&java_unk2, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk3 => EmulatedFunction::call(&java_unk3, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaInterfaceUnk0 => EmulatedFunction::call(&super::java::interface::java_unk0, core, &mut ())
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaInterfaceUnk12 => EmulatedFunction::call(&super::java::interface::java_unk12, core, &mut ())
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaInterfaceUnk5 => EmulatedFunction::call(&super::java::interface::java_unk5, core, &mut ())
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaLoadClasses => EmulatedFunction::call(&super::java::interface::java_load_classes, core, &mut ())
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaUnk9 => EmulatedFunction::call(&super::java::interface::java_unk9, core, &mut ())
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaUnk11 => EmulatedFunction::call(&super::java::interface::java_unk11, core, &mut ())
-            .await?
-            .write(core, lr),
+        InitSvcId::JavaInterfaceUnk0 => EmulatedFunction::call(&java_unk0, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaInterfaceUnk12 => EmulatedFunction::call(&java_unk12, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaInterfaceUnk5 => EmulatedFunction::call(&java_unk5, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaLoadClasses => EmulatedFunction::call(&java_load_classes, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaUnk9 => EmulatedFunction::call(&java_unk9, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaUnk11 => EmulatedFunction::call(&java_unk11, core, &mut ()).await?.write(core, lr),
     }
 }
 

@@ -89,7 +89,7 @@ pub mod test {
     use wie_backend::{Instant, System};
     use wie_util::{ByteRead, ByteWrite, Result};
 
-    use crate::{WIPICContext, WIPICMethodBody};
+    use super::{WIPICContext, WIPICMethodBody};
 
     pub struct TestContext {
         memory: [u8; 0x10000],

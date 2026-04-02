@@ -5,11 +5,15 @@ use spin::Mutex;
 
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::engine::{DebugInner, DebuggedArm32CpuEngine};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::gdb::GdbTarget;
 use crate::{
     ThreadId,
     context::ArmCoreContext,
-    engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory},
-    function::{EmulatedSvcHandler, RegisteredSvcHandler, make_registered_svc_handler},
+    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory},
+    function::{EmulatedSvcHandler, RegisteredSvcHandler, RegisteredSvcHandlerHolder},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
 };
@@ -50,13 +54,13 @@ impl ArmCore {
     pub fn new(enable_gdbserver: bool) -> Result<Self> {
         let mut engine = if enable_gdbserver {
             #[cfg(not(target_arch = "wasm32"))]
-            let engine = Box::new(crate::engine::DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>;
+            let engine = Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>;
             #[cfg(target_arch = "wasm32")]
-            let engine = Box::new(crate::engine::Arm32CpuEngine::new());
+            let engine = Box::new(Arm32CpuEngine::new());
 
             engine
         } else {
-            Box::new(crate::engine::Arm32CpuEngine::new())
+            Box::new(Arm32CpuEngine::new())
         };
 
         engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
@@ -76,7 +80,7 @@ impl ArmCore {
 
         if enable_gdbserver {
             #[cfg(not(target_arch = "wasm32"))]
-            crate::gdb::GdbTarget::start(result.clone())?;
+            GdbTarget::start(result.clone())?;
             #[cfg(target_arch = "wasm32")]
             panic!("GDB server is not supported on wasm32");
         }
@@ -85,13 +89,13 @@ impl ArmCore {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn debug_inner(&self) -> Option<Arc<crate::engine::DebugInner>> {
+    fn debug_inner(&self) -> Option<Arc<DebugInner>> {
         let inner = self.inner.lock();
 
         inner
             .engine
             .as_any()
-            .downcast_ref::<crate::engine::DebuggedArm32CpuEngine>()
+            .downcast_ref::<DebuggedArm32CpuEngine>()
             .map(|engine| engine.debug_inner())
     }
 
@@ -263,7 +267,9 @@ impl ArmCore {
             return Err(WieError::FatalError(format!("SVC handler already registered for {category:?}")));
         }
 
-        inner.svc_handlers.insert(category, make_registered_svc_handler(handler, context));
+        inner
+            .svc_handlers
+            .insert(category, Arc::new(Box::new(RegisteredSvcHandlerHolder::new(handler, context))));
 
         Ok(SvcHandle::new(category))
     }

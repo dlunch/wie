@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, sync::Arc};
+use alloc::boxed::Box;
 use core::{future::Future, marker::PhantomData};
 
 use wie_util::Result;
@@ -84,14 +84,6 @@ where
             context: context.clone(),
         }
     }
-}
-
-pub fn make_registered_svc_handler<F, C>(function: F, context: &C) -> Arc<Box<dyn RegisteredSvcHandler>>
-where
-    F: EmulatedSvcHandler<C> + 'static + Sync + Send,
-    C: Clone + Sync + Send + 'static,
-{
-    Arc::new(Box::new(RegisteredSvcHandlerHolder::new(function, context)))
 }
 
 #[async_trait::async_trait]
