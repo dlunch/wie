@@ -34,10 +34,6 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<SvcHandle> {
     core.register_svc_handler(SvcCategory::Stdlib, handle_stdlib_svc, &())
 }
 
-pub fn get_stdlib_method(core: &mut ArmCore, stdlib_handle: SvcHandle, function_index: u32) -> Result<u32> {
-    core.make_svc_stub(stdlib_handle, function_index)
-}
-
 async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {
     tracing::debug!("strcpy({dst:#x}, {ptr_src:#x})");
 

@@ -15,9 +15,9 @@ use super::{
         get_java_interface_method,
         interface::{java_load_classes, java_unk0, java_unk5, java_unk9, java_unk11, java_unk12},
     },
-    stdlib::{get_stdlib_method, register_stdlib_svc_handler},
+    stdlib::register_stdlib_svc_handler,
     svc_ids::InitSvcId,
-    wipi_c::{get_wipic_method, register_wipic_svc_handler},
+    wipi_c::register_wipic_svc_handler,
 };
 
 #[derive(Clone)]
@@ -116,11 +116,11 @@ async fn get_import_function(core: &mut ArmCore, context: &mut LgtInitSvcContext
     tracing::debug!("get_import_function({import_table:#x}, {function_index})");
 
     if import_table == 0x1fb {
-        return get_wipic_method(core, context.wipic_handle, function_index);
+        return core.make_svc_stub(context.wipic_handle, function_index);
     } else if import_table == 0x64 {
         return get_java_interface_method(core, context.init_handle, function_index);
     } else if import_table == 1 {
-        return get_stdlib_method(core, context.stdlib_handle, function_index);
+        return core.make_svc_stub(context.stdlib_handle, function_index);
     }
 
     Ok(match (import_table, function_index) {
