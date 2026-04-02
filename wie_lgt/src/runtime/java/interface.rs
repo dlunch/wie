@@ -1,18 +1,18 @@
 use alloc::format;
 
-use wie_core_arm::{ArmCore, SvcHandle};
+use wie_core_arm::{ArmCore, SvcCategory};
 use wie_util::{Result, WieError};
 
 use crate::runtime::svc_ids::InitSvcId;
 
-pub fn get_java_interface_method(core: &mut ArmCore, init_handle: SvcHandle, function_index: u32) -> Result<u32> {
+pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {
-        0x03 => core.make_svc_stub(init_handle, InitSvcId::JavaInterfaceUnk0 as u32)?,
-        0x06 => core.make_svc_stub(init_handle, InitSvcId::JavaInterfaceUnk12 as u32)?,
-        0x07 => core.make_svc_stub(init_handle, InitSvcId::JavaInterfaceUnk5 as u32)?,
-        0x14 => core.make_svc_stub(init_handle, InitSvcId::JavaLoadClasses as u32)?,
-        0x82 => core.make_svc_stub(init_handle, InitSvcId::JavaUnk9 as u32)?,
-        0x83 => core.make_svc_stub(init_handle, InitSvcId::JavaUnk11 as u32)?,
+        0x03 => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaInterfaceUnk0 as u32)?,
+        0x06 => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaInterfaceUnk12 as u32)?,
+        0x07 => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaInterfaceUnk5 as u32)?,
+        0x14 => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaLoadClasses as u32)?,
+        0x82 => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaUnk9 as u32)?,
+        0x83 => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaUnk11 as u32)?,
         _ => return Err(WieError::FatalError(format!("Unknown lgt java import: {function_index:#x}"))),
     })
 }

@@ -2,7 +2,7 @@ use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
 
 use spin::Mutex;
 
-use wie_core_arm::{ArmCore, RegisteredFunction, SvcCategory, SvcHandle, SvcId};
+use wie_core_arm::{ArmCore, RegisteredFunction, SvcCategory, SvcId};
 use wie_util::{Result, WieError};
 
 mod context;
@@ -11,7 +11,7 @@ mod method_table;
 
 pub(crate) type WIPICSvcFunctions = Arc<Mutex<BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>>>;
 
-pub(crate) fn register_wipic_svc_handler(core: &mut ArmCore, svc_functions: &WIPICSvcFunctions) -> Result<SvcHandle> {
+pub(crate) fn register_wipic_svc_handler(core: &mut ArmCore, svc_functions: &WIPICSvcFunctions) -> Result<()> {
     async fn handle_wipic_svc(core: &mut ArmCore, svc_functions: &mut WIPICSvcFunctions, id: SvcId) -> Result<()> {
         let function = {
             let svc_functions = svc_functions.lock();

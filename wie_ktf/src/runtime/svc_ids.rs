@@ -1,3 +1,5 @@
+use wie_core_arm::SvcId;
+
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum InitSvcId {
@@ -22,11 +24,11 @@ pub enum InitSvcId {
     CallNative = 18,
 }
 
-impl TryFrom<u32> for InitSvcId {
+impl TryFrom<SvcId> for InitSvcId {
     type Error = wie_util::WieError;
 
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        Ok(match value {
+    fn try_from(value: SvcId) -> Result<Self, Self::Error> {
+        Ok(match value.0 {
             0 => Self::GetInterface,
             1 => Self::JavaThrow,
             2 => Self::JavaCheckType,
@@ -46,7 +48,7 @@ impl TryFrom<u32> for InitSvcId {
             16 => Self::RegisterClass,
             17 => Self::RegisterJavaString,
             18 => Self::CallNative,
-            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF init SVC id {value}"))),
+            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF init SVC id {}", value.0))),
         })
     }
 }

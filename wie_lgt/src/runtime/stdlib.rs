@@ -2,14 +2,14 @@ use alloc::{format, string::String, vec};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle, SvcId};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcId};
 use wie_util::{
     ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
 };
 
 use crate::runtime::svc_ids::StdlibSvcId;
 
-pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<SvcHandle> {
+pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
     async fn handle_stdlib_svc(core: &mut ArmCore, _: &mut (), id: SvcId) -> Result<()> {
         let (_, lr) = core.read_pc_lr()?;
 
