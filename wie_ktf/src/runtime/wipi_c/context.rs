@@ -7,13 +7,11 @@ use jvm::{
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
-use wie_core_arm::{
-    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcCategory,
-};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
 
-use crate::runtime::wipi_c::WIPICSvcFunctions;
+use crate::runtime::{SVC_CATEGORY_WIPI, wipi_c::WIPICSvcFunctions};
 
 #[derive(Clone)]
 pub struct KtfWIPICContext {
@@ -115,7 +113,7 @@ impl WIPICContext for KtfWIPICContext {
             .lock()
             .insert(id, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
 
-        self.core.make_svc_stub(SvcCategory::Wipi, id)
+        self.core.make_svc_stub(SVC_CATEGORY_WIPI, id)
     }
 
     fn system(&mut self) -> &mut System {

@@ -2,12 +2,12 @@ use alloc::{format, string::String, vec};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcId};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_util::{
     ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
 };
 
-use crate::runtime::svc_ids::StdlibSvcId;
+use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
 
 pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
     async fn handle_stdlib_svc(core: &mut ArmCore, _: &mut (), id: SvcId) -> Result<()> {
@@ -31,7 +31,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
         }
     }
 
-    core.register_svc_handler(SvcCategory::Stdlib, handle_stdlib_svc, &())
+    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, &())
 }
 
 async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {

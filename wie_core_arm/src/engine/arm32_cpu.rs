@@ -5,7 +5,7 @@ use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_util::{Result, WieError};
 
-use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory};
+use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
 
 pub struct Arm32CpuEngine {
     cpu: Cpu,
@@ -37,7 +37,7 @@ impl Arm32CpuEngine {
             return Err(WieError::FatalError(format!("Invalid Thumb SVC instruction {instruction:#06x}")));
         }
 
-        let category = SvcCategory::from_u32(instruction as u32 & 0xff)?;
+        let category = instruction as u32 & 0xff;
 
         Ok(EngineRunResult::Svc { category, r12, lr, spsr })
     }

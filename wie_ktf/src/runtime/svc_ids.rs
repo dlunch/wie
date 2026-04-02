@@ -10,18 +10,6 @@ pub enum InitSvcId {
     JavaArrayNew = 4,
     JavaClassLoad = 5,
     Alloc = 6,
-    JavaJump1 = 7,
-    JavaJump2 = 8,
-    JavaJump3 = 9,
-    GetJavaMethod = 10,
-    GetField = 11,
-    JbUnk4 = 12,
-    JbUnk5 = 13,
-    JbUnk7 = 14,
-    JbUnk8 = 15,
-    RegisterClass = 16,
-    RegisterJavaString = 17,
-    CallNative = 18,
 }
 
 impl TryFrom<SvcId> for InitSvcId {
@@ -36,6 +24,33 @@ impl TryFrom<SvcId> for InitSvcId {
             4 => Self::JavaArrayNew,
             5 => Self::JavaClassLoad,
             6 => Self::Alloc,
+            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF init SVC id {}", value.0))),
+        })
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(u32)]
+pub enum JavaSvcId {
+    JavaJump1 = 7,
+    JavaJump2 = 8,
+    JavaJump3 = 9,
+    GetJavaMethod = 10,
+    GetField = 11,
+    JbUnk4 = 12,
+    JbUnk5 = 13,
+    JbUnk7 = 14,
+    JbUnk8 = 15,
+    RegisterClass = 16,
+    RegisterJavaString = 17,
+    CallNative = 18,
+}
+
+impl TryFrom<SvcId> for JavaSvcId {
+    type Error = wie_util::WieError;
+
+    fn try_from(value: SvcId) -> Result<Self, Self::Error> {
+        Ok(match value.0 {
             7 => Self::JavaJump1,
             8 => Self::JavaJump2,
             9 => Self::JavaJump3,
@@ -48,7 +63,7 @@ impl TryFrom<SvcId> for InitSvcId {
             16 => Self::RegisterClass,
             17 => Self::RegisterJavaString,
             18 => Self::CallNative,
-            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF init SVC id {}", value.0))),
+            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF Java SVC id {}", value.0))),
         })
     }
 }

@@ -31,6 +31,7 @@ use self::{
     classes::net::wie::{ClassLoaderContext, KtfClassLoader},
     name::JavaFullName,
 };
+use super::interface::register_java_interface_svc_functions;
 
 pub use self::{
     array_class_definition::JavaArrayClassDefinition,
@@ -87,6 +88,7 @@ impl KtfJvmSupport {
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
         let jvm_implementation = KtfJvmImplementation::new(core);
         let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], jvm_implementation.clone()).await?;
+        register_java_interface_svc_functions(&jvm_implementation.java_functions(), &jvm);
 
         let system_class_loader: Box<dyn ClassInstance> = jvm
             .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", [])

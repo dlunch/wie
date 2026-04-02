@@ -10,9 +10,9 @@ use crate::engine::{DebugInner, DebuggedArm32CpuEngine};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::gdb::GdbTarget;
 use crate::{
-    ThreadId,
+    EmulatedFunction, ResultWriter, ThreadId,
     context::ArmCoreContext,
-    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission, SvcCategory},
+    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission},
     function::{RegisteredFunction, RegisteredFunctionHolder},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
@@ -30,7 +30,7 @@ pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    svc_handlers: BTreeMap<SvcCategory, Arc<Box<dyn RegisteredFunction>>>,
+    svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
 }
 
@@ -230,7 +230,7 @@ impl ArmCore {
                             .svc_handlers
                             .get(&category)
                             .cloned()
-                            .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler category: {category:?}")))?
+                            .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler category: {category}")))?
                     };
 
                     {
@@ -250,17 +250,17 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_svc_handler<F, C, R, P>(&mut self, category: SvcCategory, handler: F, context: &C) -> Result<()>
+    pub fn register_svc_handler<F, C, R, P>(&mut self, category: u32, handler: F, context: &C) -> Result<()>
     where
-        F: crate::EmulatedFunction<C, R, P> + 'static + Sync + Send,
+        F: EmulatedFunction<C, R, P> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
-        R: crate::ResultWriter<R> + Sync + Send + 'static,
+        R: ResultWriter<R> + Sync + Send + 'static,
         P: Sync + Send + 'static,
     {
         let mut inner = self.inner.lock();
 
         if inner.svc_handlers.contains_key(&category) {
-            return Err(WieError::FatalError(format!("SVC handler already registered for {category:?}")));
+            return Err(WieError::FatalError(format!("SVC handler already registered for {category}")));
         }
 
         inner
@@ -270,11 +270,11 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn make_svc_stub(&mut self, category: SvcCategory, id: u32) -> Result<u32> {
+    pub fn make_svc_stub(&mut self, category: u32, id: u32) -> Result<u32> {
         let mut inner = self.inner.lock();
 
         if !inner.svc_handlers.contains_key(&category) {
-            return Err(WieError::FatalError(format!("Unknown SVC handler category: {category:?}")));
+            return Err(WieError::FatalError(format!("Unknown SVC handler category: {category}")));
         }
 
         let address = inner.next_stub_address;
@@ -302,7 +302,7 @@ impl ArmCore {
         .collect::<Vec<_>>();
         inner.engine.mem_write(address, &stub)?;
 
-        tracing::trace!("Register SVC stub at {address:#x}, category={category:?}, id={id}");
+        tracing::trace!("Register SVC stub at {address:#x}, category={category}, id={id}");
 
         Ok(address + 1)
     }
@@ -626,9 +626,9 @@ mod tests {
         context.sp = 0x2000;
         core.restore_context(&context);
 
-        core.register_svc_handler(SvcCategory::Init, test_svc_handler, &None).unwrap();
-        let first = core.make_svc_stub(SvcCategory::Init, 0).unwrap();
-        let second = core.make_svc_stub(SvcCategory::Init, 1).unwrap();
+        core.register_svc_handler(1, test_svc_handler, &None).unwrap();
+        let first = core.make_svc_stub(1, 0).unwrap();
+        let second = core.make_svc_stub(1, 1).unwrap();
         assert_eq!(first, FUNCTIONS_BASE + 1);
         assert_eq!(second, FUNCTIONS_BASE + SVC_STUB_SIZE + 1);
 
@@ -642,7 +642,7 @@ mod tests {
 
         match result {
             EngineRunResult::Svc { category, r12, lr, spsr } => {
-                assert_eq!(category, SvcCategory::Init);
+                assert_eq!(category, 1);
                 assert_eq!(r12, 1);
                 assert_eq!(lr, FUNCTIONS_BASE + SVC_STUB_SIZE + 10);
                 assert_ne!(spsr & 0x20, 0);

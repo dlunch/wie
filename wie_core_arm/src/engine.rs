@@ -2,9 +2,7 @@ mod arm32_cpu;
 #[cfg(not(target_arch = "wasm32"))]
 mod debugged_arm32_cpu;
 
-use alloc::format;
-
-use wie_util::{AsAny, Result, WieError};
+use wie_util::{AsAny, Result};
 
 pub use arm32_cpu::Arm32CpuEngine;
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,29 +10,9 @@ pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub enum SvcCategory {
-    Init = 1,
-    Wipi = 2,
-    Java = 3,
-    Stdlib = 4,
-}
-
-impl SvcCategory {
-    pub fn from_u32(value: u32) -> Result<Self> {
-        match value {
-            1 => Ok(Self::Init),
-            2 => Ok(Self::Wipi),
-            3 => Ok(Self::Java),
-            4 => Ok(Self::Stdlib),
-            _ => Err(WieError::FatalError(format!("Unknown SVC category {value}"))),
-        }
-    }
-}
-
 pub enum EngineRunResult {
     Normal(u32),
-    Svc { category: SvcCategory, r12: u32, lr: u32, spsr: u32 },
+    Svc { category: u32, r12: u32, lr: u32, spsr: u32 },
 }
 
 pub trait ArmEngine: Send + AsAny {

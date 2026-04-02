@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::ToString, vec};
+use alloc::{boxed::Box, string::ToString, vec};
 
 mod context;
 
@@ -7,17 +7,18 @@ use jvm_rust::ClassDefinitionImpl;
 use wipi_types::lgt::CletFunctions;
 
 use wie_backend::System;
-use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory, SvcId};
+use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
-use wie_util::{Result, WieError, read_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
-    MethodImpl, WIPICContext,
+    MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
     api::{database, graphics, kernel, media, misc, net},
 };
 
 use context::LgtWIPICContext;
 
 use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
+use crate::runtime::{SVC_CATEGORY_WIPI, svc_ids::WIPICSvcId};
 
 #[derive(Clone)]
 struct LgtWIPICSvcContext {
@@ -25,119 +26,147 @@ struct LgtWIPICSvcContext {
     jvm: Jvm,
 }
 
-pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
-    async fn handle_wipic_svc(core: &mut ArmCore, context: &mut LgtWIPICSvcContext, id: SvcId) -> Result<()> {
-        let mut wipic_context = LgtWIPICContext::new(core.clone(), context.system.clone(), context.jvm.clone());
-        let (_, lr) = core.read_pc_lr()?;
-        let method = match id.0 {
-            0x03 => {
-                return EmulatedFunction::call(&clet_register, core, &mut context.jvm).await?.write(core, lr);
-            }
-            0x32 => graphics::get_framebuffer_pointer.into_body(),
-            0x33 => graphics::get_framebuffer_width.into_body(),
-            0x34 => graphics::get_framebuffer_height.into_body(),
-            0x35 => graphics::get_framebuffer_bpl.into_body(),
-            0x36 => graphics::get_framebuffer_bpp.into_body(),
-            0x64 => kernel::printk.into_body(),
-            0x65 => kernel::sprintk.into_body(),
-            0x68 => unk13.into_body(),
-            0x6a => unk1.into_body(),
-            0x6b => kernel::exit.into_body(),
-            0x75 => kernel::alloc.into_body(),
-            0x76 => kernel::calloc.into_body(),
-            0x77 => kernel::free.into_body(),
-            0x78 => kernel::get_total_memory.into_body(),
-            0x79 => kernel::get_free_memory.into_body(),
-            0x7a => kernel::def_timer.into_body(),
-            0x7b => kernel::set_timer.into_body(),
-            0x7c => kernel::unset_timer.into_body(),
-            0x7d => kernel::current_time.into_body(),
-            0x7e => kernel::get_system_property.into_body(),
-            0x7f => kernel::set_system_property.into_body(),
-            0x80 => kernel::get_resource_id.into_body(),
-            0x81 => kernel::get_resource.into_body(),
-            0x97 => unk2.into_body(),
-            0xc8 => graphics::get_image_property.into_body(),
-            0xca => graphics::get_screen_framebuffer.into_body(),
-            0xcb => graphics::destroy_offscreen_framebuffer.into_body(),
-            0xcc => graphics::create_offscreen_framebuffer.into_body(),
-            0xcd => graphics::init_context.into_body(),
-            0xce => graphics::set_context.into_body(),
-            0xd0 => graphics::put_pixel.into_body(),
-            0xd2 => graphics::draw_rect.into_body(),
-            0xd3 => graphics::fill_rect.into_body(),
-            0xd4 => graphics::copy_frame_buffer.into_body(),
-            0xd5 => graphics::draw_image.into_body(),
-            0xda => graphics::draw_string.into_body(),
-            0xde => graphics::flush_lcd.into_body(),
-            0xdf => graphics::get_pixel_from_rgb.into_body(),
-            0xe0 => graphics::get_rgb_from_pixel.into_body(),
-            0xe1 => graphics::get_display_info.into_body(),
-            0xe2 => graphics::repaint.into_body(),
-            0xe3 => graphics::get_font.into_body(),
-            0xe4 => graphics::get_font_height.into_body(),
-            0xe9 => graphics::create_image.into_body(),
-            0xeb => unk0.into_body(),
-            0xee => unk11.into_body(),
-            0x12c => unk3.into_body(),
-            0x12d => unk4.into_body(),
-            0x12e => unk7.into_body(),
-            0x12f => unk6.into_body(),
-            0x190 => database::open_database.into_body(),
-            0x191 => database::read_record_single.into_body(),
-            0x192 => database::write_record_single.into_body(),
-            0x193 => database::close_database.into_body(),
-            0x194 => unk12.into_body(),
-            0x195 => unk9.into_body(),
-            0x1a0 => unk8.into_body(),
-            0x258 => net::connect.into_body(),
-            0x259 => net::close.into_body(),
-            0x25e => net::socket_close.into_body(),
-            0x4b0 => media::clip_create.into_body(),
-            0x4b1 => media::clip_free.into_body(),
-            0x4b3 => media::clip_put_data.into_body(),
-            0x4b6 => unk15.into_body(),
-            0x4b8 => media::clip_get_volume.into_body(),
-            0x4b9 => media::clip_set_volume.into_body(),
-            0x4c0 => unk5.into_body(),
-            0x4c1 => media::vibrator.into_body(),
-            0x4c2 => unk14.into_body(),
-            0x4c5 => media::clip_alloc_player.into_body(),
-            0x4c6 => media::clip_free_player.into_body(),
-            0x4d1 => media::set_mute_state.into_body(),
-            0x4d2 => media::get_mute_state.into_body(),
-            0x4ba => media::play.into_body(),
-            0x4bd => media::stop.into_body(),
-            0x4ce => unk10.into_body(),
-            0x578 => misc::back_light.into_body(),
-            _ => return Err(WieError::FatalError(format!("Unknown lgt WIPIC import: {:#x}", id.0))),
-        };
+struct WIPICMethodResult {
+    result: WIPICResult,
+}
 
-        let result = method
-            .call(
-                &mut wipic_context,
-                vec![
-                    u32::get(core, 0),
-                    u32::get(core, 1),
-                    u32::get(core, 2),
-                    u32::get(core, 3),
-                    u32::get(core, 4),
-                    u32::get(core, 5),
-                    u32::get(core, 6),
-                    u32::get(core, 7),
-                    u32::get(core, 8),
-                ]
-                .into_boxed_slice(),
-            )
-            .await?;
-        core.write_return_value(&result.results)?;
-        core.set_next_pc(core.read_pc_lr()?.1)?;
+impl ResultWriter<WIPICMethodResult> for WIPICMethodResult {
+    fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
+        core.write_return_value(&self.result.results)?;
+        core.set_next_pc(next_pc)?;
 
         Ok(())
     }
+}
+
+struct CMethodProxy {
+    context: LgtWIPICContext,
+    body: WIPICMethodBody,
+}
+
+#[async_trait::async_trait]
+impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
+    async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<WIPICMethodResult> {
+        let a0 = u32::get(core, 0);
+        let a1 = u32::get(core, 1);
+        let a2 = u32::get(core, 2);
+        let a3 = u32::get(core, 3);
+        let a4 = u32::get(core, 4);
+        let a5 = u32::get(core, 5);
+        let a6 = u32::get(core, 6);
+        let a7 = u32::get(core, 7);
+        let a8 = u32::get(core, 8);
+
+        let result = self
+            .body
+            .call(&mut self.context.clone(), vec![a0, a1, a2, a3, a4, a5, a6, a7, a8].into_boxed_slice())
+            .await?;
+
+        Ok(WIPICMethodResult { result })
+    }
+}
+
+pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
+    async fn handle_wipic_svc(core: &mut ArmCore, context: &mut LgtWIPICSvcContext, id: SvcId) -> Result<()> {
+        let wipic_context = LgtWIPICContext::new(core.clone(), context.system.clone(), context.jvm.clone());
+        let (_, lr) = core.read_pc_lr()?;
+        let method = match WIPICSvcId::try_from(id)? {
+            WIPICSvcId::CletRegister => {
+                return EmulatedFunction::call(&clet_register, core, &mut context.jvm).await?.write(core, lr);
+            }
+            WIPICSvcId::GetFramebufferPointer => graphics::get_framebuffer_pointer.into_body(),
+            WIPICSvcId::GetFramebufferWidth => graphics::get_framebuffer_width.into_body(),
+            WIPICSvcId::GetFramebufferHeight => graphics::get_framebuffer_height.into_body(),
+            WIPICSvcId::GetFramebufferBpl => graphics::get_framebuffer_bpl.into_body(),
+            WIPICSvcId::GetFramebufferBpp => graphics::get_framebuffer_bpp.into_body(),
+            WIPICSvcId::Printk => kernel::printk.into_body(),
+            WIPICSvcId::Sprintk => kernel::sprintk.into_body(),
+            WIPICSvcId::Unk13 => unk13.into_body(),
+            WIPICSvcId::Unk1 => unk1.into_body(),
+            WIPICSvcId::Exit => kernel::exit.into_body(),
+            WIPICSvcId::Alloc => kernel::alloc.into_body(),
+            WIPICSvcId::Calloc => kernel::calloc.into_body(),
+            WIPICSvcId::Free => kernel::free.into_body(),
+            WIPICSvcId::GetTotalMemory => kernel::get_total_memory.into_body(),
+            WIPICSvcId::GetFreeMemory => kernel::get_free_memory.into_body(),
+            WIPICSvcId::DefTimer => kernel::def_timer.into_body(),
+            WIPICSvcId::SetTimer => kernel::set_timer.into_body(),
+            WIPICSvcId::UnsetTimer => kernel::unset_timer.into_body(),
+            WIPICSvcId::CurrentTime => kernel::current_time.into_body(),
+            WIPICSvcId::GetSystemProperty => kernel::get_system_property.into_body(),
+            WIPICSvcId::SetSystemProperty => kernel::set_system_property.into_body(),
+            WIPICSvcId::GetResourceId => kernel::get_resource_id.into_body(),
+            WIPICSvcId::GetResource => kernel::get_resource.into_body(),
+            WIPICSvcId::Unk2 => unk2.into_body(),
+            WIPICSvcId::GetImageProperty => graphics::get_image_property.into_body(),
+            WIPICSvcId::GetScreenFramebuffer => graphics::get_screen_framebuffer.into_body(),
+            WIPICSvcId::DestroyOffscreenFramebuffer => graphics::destroy_offscreen_framebuffer.into_body(),
+            WIPICSvcId::CreateOffscreenFramebuffer => graphics::create_offscreen_framebuffer.into_body(),
+            WIPICSvcId::InitContext => graphics::init_context.into_body(),
+            WIPICSvcId::SetContext => graphics::set_context.into_body(),
+            WIPICSvcId::PutPixel => graphics::put_pixel.into_body(),
+            WIPICSvcId::DrawRect => graphics::draw_rect.into_body(),
+            WIPICSvcId::FillRect => graphics::fill_rect.into_body(),
+            WIPICSvcId::CopyFrameBuffer => graphics::copy_frame_buffer.into_body(),
+            WIPICSvcId::DrawImage => graphics::draw_image.into_body(),
+            WIPICSvcId::DrawString => graphics::draw_string.into_body(),
+            WIPICSvcId::FlushLcd => graphics::flush_lcd.into_body(),
+            WIPICSvcId::GetPixelFromRgb => graphics::get_pixel_from_rgb.into_body(),
+            WIPICSvcId::GetRgbFromPixel => graphics::get_rgb_from_pixel.into_body(),
+            WIPICSvcId::GetDisplayInfo => graphics::get_display_info.into_body(),
+            WIPICSvcId::Repaint => graphics::repaint.into_body(),
+            WIPICSvcId::GetFont => graphics::get_font.into_body(),
+            WIPICSvcId::GetFontHeight => graphics::get_font_height.into_body(),
+            WIPICSvcId::CreateImage => graphics::create_image.into_body(),
+            WIPICSvcId::Unk0 => unk0.into_body(),
+            WIPICSvcId::Unk11 => unk11.into_body(),
+            WIPICSvcId::Unk3 => unk3.into_body(),
+            WIPICSvcId::Unk4 => unk4.into_body(),
+            WIPICSvcId::Unk7 => unk7.into_body(),
+            WIPICSvcId::Unk6 => unk6.into_body(),
+            WIPICSvcId::OpenDatabase => database::open_database.into_body(),
+            WIPICSvcId::ReadRecordSingle => database::read_record_single.into_body(),
+            WIPICSvcId::WriteRecordSingle => database::write_record_single.into_body(),
+            WIPICSvcId::CloseDatabase => database::close_database.into_body(),
+            WIPICSvcId::Unk12 => unk12.into_body(),
+            WIPICSvcId::Unk9 => unk9.into_body(),
+            WIPICSvcId::Unk8 => unk8.into_body(),
+            WIPICSvcId::Connect => net::connect.into_body(),
+            WIPICSvcId::Close => net::close.into_body(),
+            WIPICSvcId::SocketClose => net::socket_close.into_body(),
+            WIPICSvcId::ClipCreate => media::clip_create.into_body(),
+            WIPICSvcId::ClipFree => media::clip_free.into_body(),
+            WIPICSvcId::ClipPutData => media::clip_put_data.into_body(),
+            WIPICSvcId::Unk15 => unk15.into_body(),
+            WIPICSvcId::ClipGetVolume => media::clip_get_volume.into_body(),
+            WIPICSvcId::ClipSetVolume => media::clip_set_volume.into_body(),
+            WIPICSvcId::Play => media::play.into_body(),
+            WIPICSvcId::Stop => media::stop.into_body(),
+            WIPICSvcId::Unk5 => unk5.into_body(),
+            WIPICSvcId::Vibrator => media::vibrator.into_body(),
+            WIPICSvcId::Unk14 => unk14.into_body(),
+            WIPICSvcId::ClipAllocPlayer => media::clip_alloc_player.into_body(),
+            WIPICSvcId::ClipFreePlayer => media::clip_free_player.into_body(),
+            WIPICSvcId::Unk10 => unk10.into_body(),
+            WIPICSvcId::SetMuteState => media::set_mute_state.into_body(),
+            WIPICSvcId::GetMuteState => media::get_mute_state.into_body(),
+            WIPICSvcId::BackLight => misc::back_light.into_body(),
+        };
+
+        EmulatedFunction::call(
+            &CMethodProxy {
+                context: wipic_context,
+                body: method,
+            },
+            core,
+            &mut (),
+        )
+        .await?
+        .write(core, lr)
+    }
 
     core.register_svc_handler(
-        SvcCategory::Wipi,
+        SVC_CATEGORY_WIPI,
         handle_wipic_svc,
         &LgtWIPICSvcContext {
             system: system.clone(),
