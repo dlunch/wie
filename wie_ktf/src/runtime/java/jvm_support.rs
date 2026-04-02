@@ -215,7 +215,7 @@ mod test {
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::Result;
 
-    use crate::runtime::java::jvm_support::KtfJvmSupport;
+    use super::KtfJvmSupport;
 
     use test_utils::TestPlatform;
 

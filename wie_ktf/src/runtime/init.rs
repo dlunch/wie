@@ -12,7 +12,10 @@ use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam
 use crate::{
     emulator::IMAGE_BASE,
     runtime::{
-        java::interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
+        java::interface::{
+            call_native, get_field, get_java_method, get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_jump_1,
+            java_jump_2, java_jump_3, java_new, java_throw, jb_unk4, jb_unk5, jb_unk7, jb_unk8, register_class, register_java_string,
+        },
         svc_ids::InitSvcId,
         wipi_c::{WIPICSvcFunctions, interface::get_wipic_knl_interface, register_wipic_svc_handler},
     },
@@ -56,44 +59,21 @@ async fn handle_init_svc(core: &mut ArmCore, context: &mut KtfInitSvcContext, id
         InitSvcId::JavaArrayNew => EmulatedFunction::call(&java_array_new, core, context).await?.write(core, lr),
         InitSvcId::JavaClassLoad => EmulatedFunction::call(&java_class_load, core, context).await?.write(core, lr),
         InitSvcId::Alloc => EmulatedFunction::call(&alloc, core, context).await?.write(core, lr),
-        InitSvcId::JavaJump1 => EmulatedFunction::call(&crate::runtime::java::interface::java_jump_1, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaJump2 => EmulatedFunction::call(&crate::runtime::java::interface::java_jump_2, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::JavaJump3 => EmulatedFunction::call(&crate::runtime::java::interface::java_jump_3, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::GetJavaMethod => EmulatedFunction::call(&crate::runtime::java::interface::get_java_method, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::GetField => EmulatedFunction::call(&crate::runtime::java::interface::get_field, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::JbUnk4 => EmulatedFunction::call(&crate::runtime::java::interface::jb_unk4, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::JbUnk5 => EmulatedFunction::call(&crate::runtime::java::interface::jb_unk5, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::JbUnk7 => EmulatedFunction::call(&crate::runtime::java::interface::jb_unk7, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::JbUnk8 => EmulatedFunction::call(&crate::runtime::java::interface::jb_unk8, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::RegisterClass => EmulatedFunction::call(&crate::runtime::java::interface::register_class, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::RegisterJavaString => EmulatedFunction::call(&crate::runtime::java::interface::register_java_string, core, context)
-            .await?
-            .write(core, lr),
-        InitSvcId::CallNative => EmulatedFunction::call(&crate::runtime::java::interface::call_native, core, context)
-            .await?
-            .write(core, lr),
+        InitSvcId::JavaJump1 => EmulatedFunction::call(&java_jump_1, core, context).await?.write(core, lr),
+        InitSvcId::JavaJump2 => EmulatedFunction::call(&java_jump_2, core, context).await?.write(core, lr),
+        InitSvcId::JavaJump3 => EmulatedFunction::call(&java_jump_3, core, context).await?.write(core, lr),
+        InitSvcId::GetJavaMethod => EmulatedFunction::call(&get_java_method, core, context).await?.write(core, lr),
+        InitSvcId::GetField => EmulatedFunction::call(&get_field, core, context).await?.write(core, lr),
+        InitSvcId::JbUnk4 => EmulatedFunction::call(&jb_unk4, core, context).await?.write(core, lr),
+        InitSvcId::JbUnk5 => EmulatedFunction::call(&jb_unk5, core, context).await?.write(core, lr),
+        InitSvcId::JbUnk7 => EmulatedFunction::call(&jb_unk7, core, context).await?.write(core, lr),
+        InitSvcId::JbUnk8 => EmulatedFunction::call(&jb_unk8, core, context).await?.write(core, lr),
+        InitSvcId::RegisterClass => EmulatedFunction::call(&register_class, core, context).await?.write(core, lr),
+        InitSvcId::RegisterJavaString => EmulatedFunction::call(&register_java_string, core, context).await?.write(core, lr),
+        InitSvcId::CallNative => EmulatedFunction::call(&call_native, core, context).await?.write(core, lr),
     }
 }
+
 pub async fn load_native(
     core: &mut ArmCore,
     system: &mut System,
