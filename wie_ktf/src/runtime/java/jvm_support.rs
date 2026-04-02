@@ -129,7 +129,6 @@ impl KtfJvmSupport {
                 core: core.clone(),
                 system: system.clone(),
             }) as Box<_>,
-            jvm_implementation.java_handle(),
             jvm_implementation.java_functions(),
         )
         .await?;

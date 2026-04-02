@@ -10,7 +10,7 @@ use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
-use wie_core_arm::{Allocator, ArmCore, SvcHandle};
+use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{
     read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic, write_null_terminated_string_bytes,
     write_null_terminated_table,
@@ -36,7 +36,6 @@ impl JavaClassDefinition {
         jvm: &Jvm,
         proto: JavaClassProto<C>,
         context: Context,
-        java_handle: SvcHandle,
         java_functions: JavaSvcFunctions,
     ) -> Result<Self>
     where
@@ -58,7 +57,7 @@ impl JavaClassDefinition {
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
-            let method = JavaMethod::new(core, jvm, ptr_raw, method, context.clone(), java_handle, java_functions.clone())?;
+            let method = JavaMethod::new(core, jvm, ptr_raw, method, context.clone(), java_functions.clone())?;
 
             methods.push(method.ptr_raw);
         }

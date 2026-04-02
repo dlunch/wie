@@ -7,7 +7,7 @@ use jvm::Jvm;
 use wipi_types::ktf::wipic::WIPICInterface;
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, SvcHandle};
+use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
@@ -33,14 +33,8 @@ fn write_methods(context: &mut dyn WIPICContext, table_id: WIPICTableId, methods
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(
-    core: &mut ArmCore,
-    system: &mut System,
-    jvm: &Jvm,
-    svc_handle: SvcHandle,
-    svc_functions: WIPICSvcFunctions,
-) -> Result<u32> {
-    let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone(), svc_handle, svc_functions);
+pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm, svc_functions: WIPICSvcFunctions) -> Result<u32> {
+    let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone(), svc_functions);
     let kernel_interface = method_table::get_kernel_interface(&mut context, get_wipic_interfaces)?;
 
     let address = Allocator::alloc(core, size_of_val(&kernel_interface) as u32)?;

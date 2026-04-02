@@ -1,3 +1,5 @@
+use wie_core_arm::SvcId;
+
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum InitSvcId {
@@ -16,11 +18,11 @@ pub enum InitSvcId {
     JavaUnk11 = 12,
 }
 
-impl TryFrom<u32> for InitSvcId {
+impl TryFrom<SvcId> for InitSvcId {
     type Error = wie_util::WieError;
 
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        Ok(match value {
+    fn try_from(value: SvcId) -> Result<Self, Self::Error> {
+        Ok(match value.0 {
             0 => Self::GetImportTable,
             1 => Self::GetImportFunction,
             2 => Self::Unk0,
@@ -34,7 +36,7 @@ impl TryFrom<u32> for InitSvcId {
             10 => Self::JavaLoadClasses,
             11 => Self::JavaUnk9,
             12 => Self::JavaUnk11,
-            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown LGT init SVC id {value}"))),
+            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown LGT init SVC id {}", value.0))),
         })
     }
 }

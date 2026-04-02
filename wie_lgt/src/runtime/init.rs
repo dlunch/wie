@@ -7,7 +7,7 @@ use jvm::Jvm;
 use wipi_types::lgt::{InitParam1, InitParam2, InitStruct};
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcHandle, SvcId};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcCategory, SvcId};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{
@@ -20,35 +20,18 @@ use super::{
     wipi_c::register_wipic_svc_handler,
 };
 
-#[derive(Clone)]
-struct LgtInitSvcContext {
-    init_handle: SvcHandle,
-    wipic_handle: SvcHandle,
-    stdlib_handle: SvcHandle,
+fn register_init_svc_handler(core: &mut ArmCore) -> Result<()> {
+    core.register_svc_handler(SvcCategory::Init, handle_init_svc, &(SvcCategory::Wipi, SvcCategory::Stdlib))
 }
 
-fn register_init_svc_handler(
-    core: &mut ArmCore,
-    _system: &System,
-    _jvm: &Jvm,
-    wipic_handle: SvcHandle,
-    stdlib_handle: SvcHandle,
-) -> Result<SvcHandle> {
-    let context = LgtInitSvcContext {
-        init_handle: SvcHandle::new(SvcCategory::Init),
-        wipic_handle,
-        stdlib_handle,
-    };
-
-    core.register_svc_handler(SvcCategory::Init, handle_init_svc, &context)
-}
-
-async fn handle_init_svc(core: &mut ArmCore, context: &mut LgtInitSvcContext, id: SvcId) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): &mut (SvcCategory, SvcCategory), id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
-    match InitSvcId::try_from(id.0)? {
+    match InitSvcId::try_from(id)? {
         InitSvcId::GetImportTable => EmulatedFunction::call(&get_import_table, core, &mut ()).await?.write(core, lr),
-        InitSvcId::GetImportFunction => EmulatedFunction::call(&get_import_function, core, context).await?.write(core, lr),
+        InitSvcId::GetImportFunction => get_import_function(core, *wipic_category, *stdlib_category, core.read_param(0)?, core.read_param(1)?)
+            .await?
+            .write(core, lr),
         InitSvcId::Unk0 => EmulatedFunction::call(&unk0, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk7 => EmulatedFunction::call(&java_unk7, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk1 => EmulatedFunction::call(&java_unk1, core, &mut ()).await?.write(core, lr),
@@ -65,9 +48,9 @@ async fn handle_init_svc(core: &mut ArmCore, context: &mut LgtInitSvcContext, id
 
 pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
-    let wipic_handle = register_wipic_svc_handler(core, system, jvm)?;
-    let stdlib_handle = register_stdlib_svc_handler(core)?;
-    let init_handle = register_init_svc_handler(core, system, jvm, wipic_handle, stdlib_handle)?;
+    register_wipic_svc_handler(core, system, jvm)?;
+    register_stdlib_svc_handler(core)?;
+    register_init_svc_handler(core)?;
 
     let ptr_init_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     let ptr_init_param_2 = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
@@ -81,8 +64,8 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
     write_generic(core, ptr_init_param_1, init_param_1)?;
 
     let init_param_2 = InitParam2 {
-        fn_get_import_table: core.make_svc_stub(init_handle, InitSvcId::GetImportTable as u32)?,
-        fn_get_import_function: core.make_svc_stub(init_handle, InitSvcId::GetImportFunction as u32)?,
+        fn_get_import_table: core.make_svc_stub(SvcCategory::Init, InitSvcId::GetImportTable as u32)?,
+        fn_get_import_function: core.make_svc_stub(SvcCategory::Init, InitSvcId::GetImportFunction as u32)?,
         fn_unk3: 0,
         fn_unk4: 0,
     };
@@ -112,23 +95,29 @@ async fn get_import_table(_core: &mut ArmCore, _: &mut (), import_table: u32) ->
     Ok(import_table)
 }
 
-async fn get_import_function(core: &mut ArmCore, context: &mut LgtInitSvcContext, import_table: u32, function_index: u32) -> Result<u32> {
+async fn get_import_function(
+    core: &mut ArmCore,
+    wipic_category: SvcCategory,
+    stdlib_category: SvcCategory,
+    import_table: u32,
+    function_index: u32,
+) -> Result<u32> {
     tracing::debug!("get_import_function({import_table:#x}, {function_index})");
 
     if import_table == 0x1fb {
-        return core.make_svc_stub(context.wipic_handle, function_index);
+        return core.make_svc_stub(wipic_category, function_index);
     } else if import_table == 0x64 {
-        return get_java_interface_method(core, context.init_handle, function_index);
+        return get_java_interface_method(core, function_index);
     } else if import_table == 1 {
-        return core.make_svc_stub(context.stdlib_handle, function_index);
+        return core.make_svc_stub(stdlib_category, function_index);
     }
 
     Ok(match (import_table, function_index) {
-        (0x1f8, 0x16) => core.make_svc_stub(context.init_handle, InitSvcId::Unk0 as u32)?,
-        (0x1f8, 0x17) => core.make_svc_stub(context.init_handle, InitSvcId::JavaUnk7 as u32)?,
-        (0x1fc, 0x03) => core.make_svc_stub(context.init_handle, InitSvcId::JavaUnk1 as u32)?,
-        (0x1ff, 0x03) => core.make_svc_stub(context.init_handle, InitSvcId::JavaUnk2 as u32)?,
-        (0x201, 0x03) => core.make_svc_stub(context.init_handle, InitSvcId::JavaUnk3 as u32)?,
+        (0x1f8, 0x16) => core.make_svc_stub(SvcCategory::Init, InitSvcId::Unk0 as u32)?,
+        (0x1f8, 0x17) => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaUnk7 as u32)?,
+        (0x1fc, 0x03) => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaUnk1 as u32)?,
+        (0x1ff, 0x03) => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaUnk2 as u32)?,
+        (0x201, 0x03) => core.make_svc_stub(SvcCategory::Init, InitSvcId::JavaUnk3 as u32)?,
         _ => {
             return Err(WieError::FatalError(format!(
                 "Unknown import function: {import_table:#x}, {function_index:#x}"

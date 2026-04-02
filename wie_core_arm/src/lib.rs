@@ -16,7 +16,7 @@ pub type ThreadId = usize;
 
 pub use self::{
     allocator::Allocator,
-    core::{ArmCore, RUN_FUNCTION_LR, RunFunctionResult, SvcHandle},
+    core::{ArmCore, RUN_FUNCTION_LR, RunFunctionResult},
     engine::SvcCategory,
     function::{EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcId},
 };

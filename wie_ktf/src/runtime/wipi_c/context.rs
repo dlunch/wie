@@ -8,7 +8,7 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{
-    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcHandle,
+    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcCategory,
 };
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody, WIPICResult};
@@ -20,17 +20,15 @@ pub struct KtfWIPICContext {
     core: ArmCore,
     system: System,
     jvm: Jvm, // We need jvm to access resource in jvm. TODO is there better way to do this?
-    svc_handle: SvcHandle,
     svc_functions: WIPICSvcFunctions,
 }
 
 impl KtfWIPICContext {
-    pub fn new(core: ArmCore, system: System, jvm: Jvm, svc_handle: SvcHandle, svc_functions: WIPICSvcFunctions) -> Self {
+    pub fn new(core: ArmCore, system: System, jvm: Jvm, svc_functions: WIPICSvcFunctions) -> Self {
         Self {
             core,
             system,
             jvm,
-            svc_handle,
             svc_functions,
         }
     }
@@ -117,7 +115,7 @@ impl WIPICContext for KtfWIPICContext {
             .lock()
             .insert(id, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
 
-        self.core.make_svc_stub(self.svc_handle, id)
+        self.core.make_svc_stub(SvcCategory::Wipi, id)
     }
 
     fn system(&mut self) -> &mut System {

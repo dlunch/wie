@@ -23,7 +23,7 @@ use wipi_types::ktf::java::{
 use alloc::sync::Arc;
 use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter,
-    SvcHandle,
+    SvcCategory,
 };
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
@@ -48,7 +48,6 @@ impl JavaMethod {
         ptr_class: u32,
         proto: JavaMethodProto<C>,
         context: Context,
-        java_handle: SvcHandle,
         java_functions: JavaSvcFunctions,
     ) -> Result<Self>
     where
@@ -68,7 +67,7 @@ impl JavaMethod {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
 
         let access_flags = proto.access_flags;
-        let fn_method = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_handle, java_functions)?;
+        let fn_method = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_functions)?;
 
         let (fn_body, fn_body_native) = if access_flags.contains(MethodAccessFlags::NATIVE) {
             (0, fn_method)
@@ -244,7 +243,6 @@ impl JavaMethod {
         ptr_method: u32,
         proto: JavaMethodProto<C>,
         context: Context,
-        java_handle: SvcHandle,
         java_functions: JavaSvcFunctions,
     ) -> Result<u32>
     where
@@ -273,7 +271,7 @@ impl JavaMethod {
             .lock()
             .insert(ptr_method, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
 
-        core.make_svc_stub(java_handle, ptr_method)
+        core.make_svc_stub(SvcCategory::Java, ptr_method)
     }
 }
 

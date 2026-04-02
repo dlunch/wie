@@ -26,17 +26,6 @@ pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
 
-#[derive(Copy, Clone)]
-pub struct SvcHandle {
-    category: SvcCategory,
-}
-
-impl SvcHandle {
-    pub fn new(category: SvcCategory) -> Self {
-        Self { category }
-    }
-}
-
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
@@ -261,7 +250,7 @@ impl ArmCore {
         Ok(result)
     }
 
-    pub fn register_svc_handler<F, C, R, P>(&mut self, category: SvcCategory, handler: F, context: &C) -> Result<SvcHandle>
+    pub fn register_svc_handler<F, C, R, P>(&mut self, category: SvcCategory, handler: F, context: &C) -> Result<()>
     where
         F: crate::EmulatedFunction<C, R, P> + 'static + Sync + Send,
         C: Clone + 'static + Sync + Send,
@@ -278,11 +267,15 @@ impl ArmCore {
             .svc_handlers
             .insert(category, Arc::new(Box::new(RegisteredFunctionHolder::new(handler, context))));
 
-        Ok(SvcHandle::new(category))
+        Ok(())
     }
 
-    pub fn make_svc_stub(&mut self, handle: SvcHandle, id: u32) -> Result<u32> {
+    pub fn make_svc_stub(&mut self, category: SvcCategory, id: u32) -> Result<u32> {
         let mut inner = self.inner.lock();
+
+        if !inner.svc_handlers.contains_key(&category) {
+            return Err(WieError::FatalError(format!("Unknown SVC handler category: {category:?}")));
+        }
 
         let address = inner.next_stub_address;
         if address + SVC_STUB_SIZE > FUNCTIONS_BASE + FUNCTIONS_SIZE as u32 {
@@ -299,7 +292,7 @@ impl ArmCore {
             0x46, // mov r12, r4
             0x10,
             0xbc, // pop {r4}
-            handle.category as u8,
+            category as u8,
             0xdf, // svc #category
             0x70,
             0x47, // bx lr
@@ -309,7 +302,7 @@ impl ArmCore {
         .collect::<Vec<_>>();
         inner.engine.mem_write(address, &stub)?;
 
-        tracing::trace!("Register SVC stub at {address:#x}, category={:?}, id={id}", handle.category);
+        tracing::trace!("Register SVC stub at {address:#x}, category={category:?}, id={id}");
 
         Ok(address + 1)
     }
@@ -633,9 +626,9 @@ mod tests {
         context.sp = 0x2000;
         core.restore_context(&context);
 
-        let handle = core.register_svc_handler(SvcCategory::Init, test_svc_handler, &None).unwrap();
-        let first = core.make_svc_stub(handle, 0).unwrap();
-        let second = core.make_svc_stub(handle, 1).unwrap();
+        core.register_svc_handler(SvcCategory::Init, test_svc_handler, &None).unwrap();
+        let first = core.make_svc_stub(SvcCategory::Init, 0).unwrap();
+        let second = core.make_svc_stub(SvcCategory::Init, 1).unwrap();
         assert_eq!(first, FUNCTIONS_BASE + 1);
         assert_eq!(second, FUNCTIONS_BASE + SVC_STUB_SIZE + 1);
 

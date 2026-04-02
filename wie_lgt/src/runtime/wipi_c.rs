@@ -7,7 +7,7 @@ use jvm_rust::ClassDefinitionImpl;
 use wipi_types::lgt::CletFunctions;
 
 use wie_backend::System;
-use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory, SvcHandle, SvcId};
+use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcCategory, SvcId};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
@@ -25,7 +25,7 @@ struct LgtWIPICSvcContext {
     jvm: Jvm,
 }
 
-pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<SvcHandle> {
+pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
     async fn handle_wipic_svc(core: &mut ArmCore, context: &mut LgtWIPICSvcContext, id: SvcId) -> Result<()> {
         let mut wipic_context = LgtWIPICContext::new(core.clone(), context.system.clone(), context.jvm.clone());
         let (_, lr) = core.read_pc_lr()?;

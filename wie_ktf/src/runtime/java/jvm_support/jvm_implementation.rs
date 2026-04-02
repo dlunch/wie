@@ -8,7 +8,7 @@ use java_class_proto::JavaClassProto;
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 use spin::Mutex;
 
-use wie_core_arm::{ArmCore, SvcHandle};
+use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmImplementation;
 
 use crate::runtime::java::{JavaSvcFunctions, register_java_svc_handler};
@@ -18,24 +18,18 @@ use super::{JavaArrayClassDefinition, JavaClassDefinition};
 #[derive(Clone)]
 pub struct KtfJvmImplementation {
     core: ArmCore,
-    java_handle: SvcHandle,
     java_functions: JavaSvcFunctions,
 }
 
 impl KtfJvmImplementation {
     pub fn new(core: &mut ArmCore) -> Self {
         let java_functions = Arc::new(Mutex::new(BTreeMap::new()));
-        let java_handle = register_java_svc_handler(core, &java_functions).unwrap();
+        register_java_svc_handler(core, &java_functions).unwrap();
 
         Self {
             core: core.clone(),
-            java_handle,
             java_functions,
         }
-    }
-
-    pub fn java_handle(&self) -> SvcHandle {
-        self.java_handle
     }
 
     pub fn java_functions(&self) -> JavaSvcFunctions {
@@ -56,7 +50,7 @@ impl JvmImplementation for KtfJvmImplementation {
     {
         Box::pin(async move {
             Ok(Box::new(
-                JavaClassDefinition::new(&mut self.core.clone(), jvm, proto, context, self.java_handle, self.java_functions.clone())
+                JavaClassDefinition::new(&mut self.core.clone(), jvm, proto, context, self.java_functions.clone())
                     .await
                     .unwrap(),
             ) as _)
