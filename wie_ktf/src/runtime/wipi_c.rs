@@ -5,7 +5,7 @@ use spin::Mutex;
 use wie_core_arm::{ArmCore, RegisteredFunction, SvcId};
 use wie_util::{Result, WieError};
 
-use crate::runtime::SVC_CATEGORY_WIPI;
+use crate::runtime::SVC_CATEGORY_WIPIC;
 
 mod context;
 pub mod interface;
@@ -26,5 +26,5 @@ pub(crate) fn register_wipic_svc_handler(core: &mut ArmCore, svc_functions: &WIP
         function.call(core).await
     }
 
-    core.register_svc_handler(SVC_CATEGORY_WIPI, handle_wipic_svc, svc_functions)
+    core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, svc_functions)
 }
