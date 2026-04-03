@@ -2,7 +2,6 @@ use alloc::{
     boxed::Box,
     format,
     string::{String, ToString},
-    sync::Arc,
     vec,
     vec::Vec,
 };
@@ -12,83 +11,53 @@ use java_runtime::classes::java::util::Vector;
 use jvm::{ClassInstanceRef, Jvm, runtime::JavaLangString};
 use wipi_types::ktf::java::WIPIJBInterface;
 
-use wie_core_arm::{Allocator, ArmCore, RegisteredFunction, RegisteredFunctionHolder};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
 use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use super::JavaSvcFunctions;
 use crate::runtime::java::jvm_support::{
     JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmWord,
 };
-use crate::runtime::{SVC_CATEGORY_JAVA, svc_ids::JavaSvcId};
+use crate::runtime::{SVC_CATEGORY_JAVA_INTERFACE, svc_ids::JavaSvcId};
 
-pub(crate) fn register_java_interface_svc_functions(java_functions: &JavaSvcFunctions, jvm: &Jvm) {
-    let mut java_functions = java_functions.lock();
-    java_functions.insert(
-        JavaSvcId::JavaJump1 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(java_jump_1, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::JavaJump2 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(java_jump_2, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::JavaJump3 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(java_jump_3, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::GetJavaMethod as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(get_java_method, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::GetField as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(get_field, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::JbUnk4 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(jb_unk4, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::JbUnk5 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(jb_unk5, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::JbUnk7 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(jb_unk7, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::JbUnk8 as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(jb_unk8, &())) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::RegisterClass as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(register_class, jvm)) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::RegisterJavaString as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(register_java_string, jvm)) as Box<dyn RegisteredFunction>),
-    );
-    java_functions.insert(
-        JavaSvcId::CallNative as u32,
-        Arc::new(Box::new(RegisteredFunctionHolder::new(call_native, &())) as Box<dyn RegisteredFunction>),
-    );
+pub(crate) fn register_java_interface_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
+    core.register_svc_handler(SVC_CATEGORY_JAVA_INTERFACE, handle_java_interface_svc, jvm)
+}
+
+async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<()> {
+    let (_, lr) = core.read_pc_lr()?;
+
+    match JavaSvcId::try_from(id)? {
+        JavaSvcId::JavaJump1 => EmulatedFunction::call(&java_jump_1, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::JavaJump2 => EmulatedFunction::call(&java_jump_2, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::JavaJump3 => EmulatedFunction::call(&java_jump_3, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::GetJavaMethod => EmulatedFunction::call(&get_java_method, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::GetField => EmulatedFunction::call(&get_field, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::JbUnk4 => EmulatedFunction::call(&jb_unk4, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::JbUnk5 => EmulatedFunction::call(&jb_unk5, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::JbUnk7 => EmulatedFunction::call(&jb_unk7, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::JbUnk8 => EmulatedFunction::call(&jb_unk8, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::RegisterClass => EmulatedFunction::call(&register_class, core, jvm).await?.write(core, lr),
+        JavaSvcId::RegisterJavaString => EmulatedFunction::call(&register_java_string, core, jvm).await?.write(core, lr),
+        JavaSvcId::CallNative => EmulatedFunction::call(&call_native, core, &mut ()).await?.write(core, lr),
+    }
 }
 
 pub fn get_wipi_jb_interface(core: &mut ArmCore) -> Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_java_jump_1: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JavaJump1 as u32)?,
-        fn_java_jump_2: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JavaJump2 as u32)?,
-        fn_java_jump_3: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JavaJump3 as u32)?,
-        fn_get_java_method: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::GetJavaMethod as u32)?,
-        fn_get_field: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::GetField as u32)?,
-        fn_unk4: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JbUnk4 as u32)?,
-        fn_unk5: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JbUnk5 as u32)?,
-        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JbUnk7 as u32)?,
-        fn_unk8: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::JbUnk8 as u32)?,
-        fn_register_class: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::RegisterClass as u32)?,
-        fn_register_java_string: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::RegisterJavaString as u32)?,
-        fn_call_native: core.make_svc_stub(SVC_CATEGORY_JAVA, JavaSvcId::CallNative as u32)?,
+        fn_java_jump_1: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump1 as u32)?,
+        fn_java_jump_2: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump2 as u32)?,
+        fn_java_jump_3: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump3 as u32)?,
+        fn_get_java_method: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetJavaMethod as u32)?,
+        fn_get_field: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetField as u32)?,
+        fn_unk4: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk4 as u32)?,
+        fn_unk5: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk5 as u32)?,
+        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk7 as u32)?,
+        fn_unk8: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk8 as u32)?,
+        fn_register_class: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterClass as u32)?,
+        fn_register_java_string: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterJavaString as u32)?,
+        fn_call_native: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::CallNative as u32)?,
     };
 
     let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;

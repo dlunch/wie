@@ -18,7 +18,7 @@ use wie_wipi_c::{
 use context::LgtWIPICContext;
 
 use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
-use crate::runtime::{SVC_CATEGORY_WIPI, svc_ids::WIPICSvcId};
+use crate::runtime::{SVC_CATEGORY_WIPIC, svc_ids::WIPICSvcId};
 
 #[derive(Clone)]
 struct LgtWIPICSvcContext {
@@ -166,7 +166,7 @@ pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm
     }
 
     core.register_svc_handler(
-        SVC_CATEGORY_WIPI,
+        SVC_CATEGORY_WIPIC,
         handle_wipic_svc,
         &LgtWIPICSvcContext {
             system: system.clone(),

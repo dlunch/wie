@@ -11,7 +11,7 @@ use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{
-    SVC_CATEGORY_INIT, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPI,
+    SVC_CATEGORY_INIT, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPIC,
     java::{
         get_java_interface_method,
         interface::{java_load_classes, java_unk0, java_unk5, java_unk9, java_unk11, java_unk12},
@@ -22,7 +22,7 @@ use super::{
 };
 
 fn register_init_svc_handler(core: &mut ArmCore) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(SVC_CATEGORY_WIPI, SVC_CATEGORY_STDLIB))
+    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(SVC_CATEGORY_WIPIC, SVC_CATEGORY_STDLIB))
 }
 
 async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): &mut (u32, u32), id: SvcId) -> Result<()> {
