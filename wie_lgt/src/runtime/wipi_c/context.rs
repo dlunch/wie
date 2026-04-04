@@ -55,9 +55,7 @@ impl WIPICContext for LgtWIPICContext {
         Ok(memory.0)
     }
 
-    fn register_function(&mut self, _id: WIPICWord, body: WIPICMethodBody) -> Result<WIPICWord> {
-        let _ = body;
-
+    fn make_svc_stub(&mut self, _id: WIPICWord) -> Result<WIPICWord> {
         Err(WieError::FatalError("LGT WIPIC dynamic callback registration is not supported".into()))
     }
 

@@ -12,7 +12,6 @@ use wie_util::{Result, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 use crate::runtime::wipi_c::{
-    WIPICSvcFunctions,
     context::KtfWIPICContext,
     method_table::{self, get_database_interface, get_graphics_interface},
 };
@@ -23,8 +22,8 @@ fn write_methods(context: &mut dyn WIPICContext, table_id: WIPICTableId, methods
     let address = context.alloc_raw((methods.len() * 4) as u32)?;
 
     let mut cursor = address;
-    for (index, method) in methods.into_iter().enumerate() {
-        let address = context.register_function(table_id.function_id(index as u16), method)?;
+    for (index, _) in methods.into_iter().enumerate() {
+        let address = context.make_svc_stub(table_id.function_id(index as u16))?;
 
         write_generic(context, cursor, address)?;
         cursor += 4;
@@ -33,9 +32,9 @@ fn write_methods(context: &mut dyn WIPICContext, table_id: WIPICTableId, methods
     Ok(address)
 }
 
-pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm, svc_functions: WIPICSvcFunctions) -> Result<u32> {
-    let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone(), svc_functions);
-    let kernel_interface = method_table::get_kernel_interface(&mut context, get_wipic_interfaces)?;
+pub fn get_wipic_knl_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm) -> Result<u32> {
+    let mut context = KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone());
+    let kernel_interface = method_table::get_kernel_interface(&mut context)?;
 
     let address = Allocator::alloc(core, size_of_val(&kernel_interface) as u32)?;
     write_generic(core, address, kernel_interface)?;

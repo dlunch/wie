@@ -17,7 +17,7 @@ pub trait WIPICContext: ByteRead + ByteWrite + Send + Sync {
     fn free(&mut self, memory: WIPICIndirectPtr) -> Result<()>;
     fn free_raw(&mut self, address: WIPICWord, size: WIPICWord) -> Result<()>;
     fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord>;
-    fn register_function(&mut self, id: WIPICWord, method: WIPICMethodBody) -> Result<WIPICWord>;
+    fn make_svc_stub(&mut self, id: WIPICWord) -> Result<WIPICWord>;
     async fn call_function(&mut self, address: WIPICWord, args: &[WIPICWord]) -> Result<WIPICWord>;
     fn system(&mut self) -> &mut System;
     fn spawn(&mut self, callback: WIPICMethodBody) -> Result<()>;
@@ -131,7 +131,7 @@ pub mod test {
             Ok(memory.0)
         }
 
-        fn register_function(&mut self, _id: WIPICWord, _method: WIPICMethodBody) -> Result<WIPICWord> {
+        fn make_svc_stub(&mut self, _id: WIPICWord) -> Result<WIPICWord> {
             todo!()
         }
 
