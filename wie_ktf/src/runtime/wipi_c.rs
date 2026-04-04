@@ -7,7 +7,7 @@ use wie_util::{Result, WieError};
 use wie_wipi_c::{WIPICMethodBody, WIPICResult};
 
 use crate::runtime::SVC_CATEGORY_WIPIC;
-use crate::runtime::svc_ids::WIPICTableId;
+use crate::runtime::svc_ids::{WIPICKernelMethodId, WIPICTableId};
 
 mod context;
 pub mod interface;
@@ -59,7 +59,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
     let table_id = WIPICTableId::try_from(id.0 >> 16)?;
     let function_id = id.0 as u16;
     let (_, lr) = core.read_pc_lr()?;
-    if table_id == WIPICTableId::Kernel && function_id == 33 {
+    if table_id == WIPICTableId::Kernel && function_id == WIPICKernelMethodId::Reserved1 as u16 {
         return interface::get_wipic_interfaces(core, &mut KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone()))
             .await?
             .write(core, lr);

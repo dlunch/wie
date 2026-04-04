@@ -156,6 +156,85 @@ impl From<WIPICKernelMethodId> for u16 {
     }
 }
 
+impl TryFrom<u16> for WIPICKernelMethodId {
+    type Error = wie_util::WieError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::Printk,
+            1 => Self::Sprintk,
+            2 => Self::GetExecNames,
+            3 => Self::Execute,
+            4 => Self::Mexecute,
+            5 => Self::Load,
+            6 => Self::Mload,
+            7 => Self::Exit,
+            8 => Self::ProgramStop,
+            9 => Self::GetCurProgramId,
+            10 => Self::GetParentProgramId,
+            11 => Self::GetAppManagerId,
+            12 => Self::GetProgramInfo,
+            13 => Self::GetAccessLevel,
+            14 => Self::GetProgramName,
+            15 => Self::CreateSharedBuf,
+            16 => Self::DestroySharedBuf,
+            17 => Self::GetSharedBuf,
+            18 => Self::GetSharedBufSize,
+            19 => Self::ResizeSharedBuf,
+            20 => Self::Alloc,
+            21 => Self::Calloc,
+            22 => Self::Free,
+            23 => Self::GetTotalMemory,
+            24 => Self::GetFreeMemory,
+            25 => Self::DefTimer,
+            26 => Self::SetTimer,
+            27 => Self::UnsetTimer,
+            28 => Self::CurrentTime,
+            29 => Self::GetSystemProperty,
+            30 => Self::SetSystemProperty,
+            31 => Self::GetResourceId,
+            32 => Self::GetResource,
+            33 => Self::Reserved1,
+            34 => Self::Reserved2,
+            35 => Self::Reserved3,
+            36 => Self::Reserved4,
+            37 => Self::Reserved5,
+            38 => Self::Reserved6,
+            39 => Self::Reserved7,
+            40 => Self::Reserved8,
+            41 => Self::Reserved9,
+            42 => Self::Reserved10,
+            43 => Self::Reserved11,
+            44 => Self::SendMessage,
+            45 => Self::SetTimerEx,
+            46 => Self::GetSystemState,
+            47 => Self::CreateSystemProgressBar,
+            48 => Self::SetSystemProgressBar,
+            49 => Self::DestroySystemProgressBar,
+            50 => Self::ExecuteEx,
+            51 => Self::GetProcAddress,
+            52 => Self::Unload,
+            53 => Self::CreateSysMessageBox,
+            54 => Self::DestroySysMessageBox,
+            55 => Self::GetProgramIdList,
+            56 => Self::GetProgramInfo2,
+            57 => Self::Reserved12,
+            58 => Self::Reserved13,
+            59 => Self::CreateAppPrivateArea,
+            60 => Self::GetAppPrivateArea,
+            61 => Self::CreateLibPrivateArea,
+            62 => Self::GetLibPrivateArea,
+            63 => Self::GetPlatformVersion,
+            64 => Self::GetToken,
+            _ => {
+                return Err(wie_util::WieError::FatalError(alloc::format!(
+                    "Unknown KTF WIPIC kernel method id {value}"
+                )));
+            }
+        })
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(u16)]
 pub enum WIPICGraphicsMethodId {
@@ -227,6 +306,80 @@ impl From<WIPICGraphicsMethodId> for u16 {
     }
 }
 
+impl TryFrom<u16> for WIPICGraphicsMethodId {
+    type Error = wie_util::WieError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::GetImageProperty,
+            1 => Self::GetImageFramebuffer,
+            2 => Self::GetScreenFramebuffer,
+            3 => Self::DestroyOffscreenFramebuffer,
+            4 => Self::CreateOffscreenFramebuffer,
+            5 => Self::InitContext,
+            6 => Self::SetContext,
+            7 => Self::GetContext,
+            8 => Self::PutPixel,
+            9 => Self::DrawLine,
+            10 => Self::DrawRect,
+            11 => Self::FillRect,
+            12 => Self::CopyFrameBuffer,
+            13 => Self::DrawImage,
+            14 => Self::CopyArea,
+            15 => Self::DrawArc,
+            16 => Self::FillArc,
+            17 => Self::DrawString,
+            18 => Self::DrawUnicodeString,
+            19 => Self::GetRgbPixels,
+            20 => Self::SetRgbPixels,
+            21 => Self::FlushLcd,
+            22 => Self::GetPixelFromRgb,
+            23 => Self::GetRgbFromPixel,
+            24 => Self::GetDisplayInfo,
+            25 => Self::Repaint,
+            26 => Self::GetFont,
+            27 => Self::GetFontHeight,
+            28 => Self::GetFontAscent,
+            29 => Self::GetFontDescent,
+            30 => Self::GetStringWidth,
+            31 => Self::GetUnicodeStringWidth,
+            32 => Self::CreateImage,
+            33 => Self::DestroyImage,
+            34 => Self::DecodeNextImage,
+            35 => Self::EncodeImage,
+            36 => Self::PostEvent,
+            37 => Self::HandleInput,
+            38 => Self::SetCurrentMode,
+            39 => Self::GetCurrentMode,
+            40 => Self::GetSupportModeCount,
+            41 => Self::GetSupportedModes,
+            42 => Self::FillPolygon,
+            43 => Self::DrawPolygon,
+            44 => Self::ShowAnnunciator,
+            45 => Self::GetAnnunciatorInfo,
+            46 => Self::SetAnnunciatorIcon,
+            47 => Self::GetIdleHelpLineInfo,
+            48 => Self::ShowHelpLine,
+            49 => Self::GetCharGlyph,
+            50 => Self::CreateImageEx,
+            51 => Self::HideHelpLine,
+            52 => Self::SetCloneScreenFramebuffer,
+            53 => Self::GetFontEx,
+            54 => Self::GetFontLists,
+            55 => Self::GetFontInfo,
+            56 => Self::SetFontHelpLine,
+            57 => Self::GetFontHelpLine,
+            58 => Self::EncodeImageEx,
+            59 => Self::GetImageInfo,
+            _ => {
+                return Err(wie_util::WieError::FatalError(alloc::format!(
+                    "Unknown KTF WIPIC graphics method id {value}"
+                )));
+            }
+        })
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(u16)]
 pub enum WIPICDatabaseMethodId {
@@ -252,6 +405,37 @@ pub enum WIPICDatabaseMethodId {
 impl From<WIPICDatabaseMethodId> for u16 {
     fn from(value: WIPICDatabaseMethodId) -> Self {
         value as u16
+    }
+}
+
+impl TryFrom<u16> for WIPICDatabaseMethodId {
+    type Error = wie_util::WieError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::OpenDatabase,
+            1 => Self::ReadRecordSingle,
+            2 => Self::WriteRecordSingle,
+            3 => Self::CloseDatabase,
+            4 => Self::SelectRecord,
+            5 => Self::UpdateRecord,
+            6 => Self::DeleteRecord,
+            7 => Self::ListRecord,
+            8 => Self::SortRecords,
+            9 => Self::GetAccessMode,
+            10 => Self::GetNumberOfRecords,
+            11 => Self::GetRecordSize,
+            12 => Self::ListDatabases,
+            13 => Self::Unk13,
+            14 => Self::Unk14,
+            15 => Self::Unk15,
+            16 => Self::Unk16,
+            _ => {
+                return Err(wie_util::WieError::FatalError(alloc::format!(
+                    "Unknown KTF WIPIC database method id {value}"
+                )));
+            }
+        })
     }
 }
 
