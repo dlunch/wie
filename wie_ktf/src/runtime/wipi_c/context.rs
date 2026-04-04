@@ -11,8 +11,6 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
-use crate::runtime::SVC_CATEGORY_WIPIC;
-
 #[derive(Clone)]
 pub struct KtfWIPICContext {
     core: ArmCore,
@@ -57,10 +55,6 @@ impl WIPICContext for KtfWIPICContext {
         let base: WIPICWord = read_generic(&self.core, memory.0)?;
 
         Ok(base + 8) // all data has offset of 8 bytes
-    }
-
-    fn make_svc_stub(&mut self, id: WIPICWord) -> Result<WIPICWord> {
-        self.core.make_svc_stub(SVC_CATEGORY_WIPIC, id)
     }
 
     fn system(&mut self) -> &mut System {
