@@ -8,7 +8,7 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 // mostly same as ktf's one, can we merge those?
@@ -53,10 +53,6 @@ impl WIPICContext for LgtWIPICContext {
 
     fn data_ptr(&self, memory: WIPICIndirectPtr) -> Result<WIPICWord> {
         Ok(memory.0)
-    }
-
-    fn make_svc_stub(&mut self, _id: WIPICWord) -> Result<WIPICWord> {
-        Err(WieError::FatalError("LGT WIPIC dynamic callback registration is not supported".into()))
     }
 
     fn system(&mut self) -> &mut System {

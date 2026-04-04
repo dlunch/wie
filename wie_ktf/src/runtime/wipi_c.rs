@@ -4,7 +4,7 @@ use jvm::Jvm;
 use wie_backend::System;
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_util::{Result, WieError};
-use wie_wipi_c::{MethodImpl, WIPICMethodBody, WIPICResult};
+use wie_wipi_c::{WIPICMethodBody, WIPICResult};
 
 use crate::runtime::SVC_CATEGORY_WIPIC;
 use crate::runtime::svc_ids::WIPICTableId;
@@ -58,14 +58,16 @@ impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
 async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
     let table_id = WIPICTableId::try_from(id.0 >> 16)?;
     let function_id = id.0 as u16;
-    let body = if table_id == WIPICTableId::Kernel && function_id == 33 {
-        interface::get_wipic_interfaces.into_body()
-    } else {
-        method_table::get_method_body(table_id, function_id)
-            .ok_or_else(|| WieError::FatalError(alloc::format!("Unknown KTF WIPIC SVC id {:#x}", id.0)))?
-    };
-
     let (_, lr) = core.read_pc_lr()?;
+    if table_id == WIPICTableId::Kernel && function_id == 33 {
+        return interface::get_wipic_interfaces(core, &mut KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone()))
+            .await?
+            .write(core, lr);
+    }
+
+    let body = method_table::get_method_body(table_id, function_id)
+        .ok_or_else(|| WieError::FatalError(alloc::format!("Unknown KTF WIPIC SVC id {:#x}", id.0)))?;
+
     EmulatedFunction::call(
         &CMethodProxy {
             context: KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone()),

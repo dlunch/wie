@@ -18,15 +18,15 @@ use crate::{
     },
 };
 
-pub(crate) fn register_init_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(system.clone(), jvm.clone()))
+pub(crate) fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
+    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, jvm)
 }
 
-async fn handle_init_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
     match InitSvcId::try_from(id)? {
-        InitSvcId::GetInterface => get_interface(core, system, jvm, core.read_param(0)?).await?.write(core, lr),
+        InitSvcId::GetInterface => get_interface(core, core.read_param(0)?).await?.write(core, lr),
         InitSvcId::JavaThrow => EmulatedFunction::call(&java_throw, core, jvm).await?.write(core, lr),
         InitSvcId::JavaCheckType => EmulatedFunction::call(&java_check_type, core, jvm).await?.write(core, lr),
         InitSvcId::JavaNew => EmulatedFunction::call(&java_new, core, jvm).await?.write(core, lr),
@@ -51,7 +51,7 @@ pub async fn load_native(
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 
     register_wipic_svc_handler(core, system, jvm)?;
-    register_init_svc_handler(core, system, jvm)?;
+    register_init_svc_handler(core, jvm)?;
 
     tracing::debug!("Loaded at {IMAGE_BASE:#x}, size {:#x}, bss {bss_size:#x}", data.len());
 
@@ -125,13 +125,13 @@ pub async fn load_native(
     Ok(exe_interface_functions)
 }
 
-async fn get_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm, ptr_name: u32) -> Result<u32> {
+async fn get_interface(core: &mut ArmCore, ptr_name: u32) -> Result<u32> {
     tracing::trace!("get_interface({ptr_name:#x})");
 
     let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
 
     match name.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core),
         "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             tracing::warn!("Unknown {name}");
