@@ -65,8 +65,8 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
     write_generic(core, ptr_init_param_1, init_param_1)?;
 
     let init_param_2 = InitParam2 {
-        fn_get_import_table: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetImportTable as u32)?,
-        fn_get_import_function: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetImportFunction as u32)?,
+        fn_get_import_table: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetImportTable)?,
+        fn_get_import_function: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetImportFunction)?,
         fn_unk3: 0,
         fn_unk4: 0,
     };
@@ -108,11 +108,11 @@ async fn get_import_function(core: &mut ArmCore, wipic_category: u32, stdlib_cat
     }
 
     Ok(match (import_table, function_index) {
-        (0x1f8, 0x16) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::Unk0 as u32)?,
-        (0x1f8, 0x17) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk7 as u32)?,
-        (0x1fc, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk1 as u32)?,
-        (0x1ff, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk2 as u32)?,
-        (0x201, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk3 as u32)?,
+        (0x1f8, 0x16) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::Unk0)?,
+        (0x1f8, 0x17) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk7)?,
+        (0x1fc, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk1)?,
+        (0x1ff, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk2)?,
+        (0x201, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk3)?,
         _ => {
             return Err(WieError::FatalError(format!(
                 "Unknown import function: {import_table:#x}, {function_index:#x}"
