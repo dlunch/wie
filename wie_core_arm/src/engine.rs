@@ -11,7 +11,8 @@ pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
 pub enum EngineRunResult {
-    Normal(u32),
+    End,
+    CountExhausted,
     Svc { category: u32, r12: u32, lr: u32, spsr: u32 },
 }
 

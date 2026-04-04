@@ -56,8 +56,12 @@ impl ArmEngine for Arm32CpuEngine {
                 return Err(WieError::InvalidMemoryAccess(pc));
             }
 
-            if pc == end || count == 0 {
-                return Ok(EngineRunResult::Normal(pc));
+            if pc == end {
+                return Ok(EngineRunResult::End);
+            }
+
+            if count == 0 {
+                return Ok(EngineRunResult::CountExhausted);
             }
 
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();

@@ -212,11 +212,8 @@ impl ArmCore {
             };
 
             match result {
-                EngineRunResult::Normal(pc) => {
-                    if pc == RUN_FUNCTION_LR {
-                        break;
-                    }
-                }
+                EngineRunResult::End => break,
+                EngineRunResult::CountExhausted => {}
                 EngineRunResult::Svc { category, r12, lr, spsr } => {
                     {
                         let mut inner = self.inner.lock();
@@ -647,7 +644,8 @@ mod tests {
                 assert_eq!(lr, FUNCTIONS_BASE + SVC_STUB_SIZE + 10);
                 assert_ne!(spsr & 0x20, 0);
             }
-            EngineRunResult::Normal(pc) => panic!("expected SVC, got normal return at {pc:#x}"),
+            EngineRunResult::End => panic!("expected SVC, got end"),
+            EngineRunResult::CountExhausted => panic!("expected SVC, got count exhausted"),
         }
     }
 }
