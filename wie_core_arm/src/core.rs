@@ -5,10 +5,6 @@ use spin::Mutex;
 
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::engine::{DebugInner, DebuggedArm32CpuEngine};
-#[cfg(not(target_arch = "wasm32"))]
-use crate::gdb::GdbTarget;
 use crate::{
     EmulatedFunction, ResultWriter, ThreadId,
     context::ArmCoreContext,
@@ -16,6 +12,11 @@ use crate::{
     function::{RegisteredFunction, RegisteredFunctionHolder},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
+};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::{
+    engine::{DebugInner, DebuggedArm32CpuEngine},
+    gdb::GdbTarget,
 };
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
