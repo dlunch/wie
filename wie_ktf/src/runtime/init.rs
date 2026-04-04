@@ -1,8 +1,7 @@
-use alloc::{collections::BTreeMap, format, string::String, sync::Arc};
+use alloc::{format, string::String};
 use core::mem::size_of;
 use jvm::Jvm;
 
-use spin::Mutex;
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
@@ -15,21 +14,19 @@ use crate::{
         SVC_CATEGORY_INIT,
         java::interface::{get_wipi_jb_interface, java_array_new, java_check_type, java_class_load, java_new, java_throw},
         svc_ids::InitSvcId,
-        wipi_c::{WIPICSvcFunctions, interface::get_wipic_knl_interface, register_wipic_svc_handler},
+        wipi_c::{interface::get_wipic_knl_interface, register_wipic_svc_handler},
     },
 };
 
-pub(crate) fn register_init_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm, wipic_functions: WIPICSvcFunctions) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(system.clone(), jvm.clone(), wipic_functions))
+pub(crate) fn register_init_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
+    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(system.clone(), jvm.clone()))
 }
 
-async fn handle_init_svc(core: &mut ArmCore, (system, jvm, wipic_functions): &mut (System, Jvm, WIPICSvcFunctions), id: SvcId) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
 
     match InitSvcId::try_from(id)? {
-        InitSvcId::GetInterface => get_interface(core, system, jvm, wipic_functions.clone(), core.read_param(0)?)
-            .await?
-            .write(core, lr),
+        InitSvcId::GetInterface => get_interface(core, system, jvm, core.read_param(0)?).await?.write(core, lr),
         InitSvcId::JavaThrow => EmulatedFunction::call(&java_throw, core, jvm).await?.write(core, lr),
         InitSvcId::JavaCheckType => EmulatedFunction::call(&java_check_type, core, jvm).await?.write(core, lr),
         InitSvcId::JavaNew => EmulatedFunction::call(&java_new, core, jvm).await?.write(core, lr),
@@ -53,9 +50,8 @@ pub async fn load_native(
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 
-    let wipic_functions = Arc::new(Mutex::new(BTreeMap::new()));
-    register_wipic_svc_handler(core, &wipic_functions)?;
-    register_init_svc_handler(core, system, jvm, wipic_functions.clone())?;
+    register_wipic_svc_handler(core, system, jvm)?;
+    register_init_svc_handler(core, system, jvm)?;
 
     tracing::debug!("Loaded at {IMAGE_BASE:#x}, size {:#x}, bss {bss_size:#x}", data.len());
 
@@ -129,13 +125,13 @@ pub async fn load_native(
     Ok(exe_interface_functions)
 }
 
-async fn get_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm, wipic_functions: WIPICSvcFunctions, ptr_name: u32) -> Result<u32> {
+async fn get_interface(core: &mut ArmCore, system: &mut System, jvm: &Jvm, ptr_name: u32) -> Result<u32> {
     tracing::trace!("get_interface({ptr_name:#x})");
 
     let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
 
     match name.as_str() {
-        "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm, wipic_functions),
+        "WIPIC_knlInterface" => get_wipic_knl_interface(core, system, jvm),
         "WIPI_JBInterface" => get_wipi_jb_interface(core),
         _ => {
             tracing::warn!("Unknown {name}");

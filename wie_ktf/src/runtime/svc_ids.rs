@@ -68,7 +68,7 @@ impl TryFrom<SvcId> for JavaSvcId {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(u32)]
 pub enum WIPICTableId {
     Kernel = 0,
@@ -94,5 +94,33 @@ pub enum WIPICTableId {
 impl WIPICTableId {
     pub const fn function_id(self, method_id: u16) -> u32 {
         ((self as u32) << 16) | method_id as u32
+    }
+}
+
+impl TryFrom<u32> for WIPICTableId {
+    type Error = wie_util::WieError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::Kernel,
+            1 => Self::Util,
+            2 => Self::Misc,
+            3 => Self::Graphics,
+            4 => Self::Interface3,
+            5 => Self::Interface4,
+            6 => Self::Interface5,
+            7 => Self::Database,
+            8 => Self::Interface7,
+            9 => Self::Uic,
+            10 => Self::Media,
+            11 => Self::Net,
+            12 => Self::Interface11,
+            13 => Self::Interface12,
+            14 => Self::Interface13,
+            15 => Self::Interface14,
+            16 => Self::Interface15,
+            17 => Self::Interface16,
+            _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF WIPIC table id {value}"))),
+        })
     }
 }
