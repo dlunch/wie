@@ -13,7 +13,7 @@ use super::{Result, array_class_definition::JavaArrayClassDefinition, class_inst
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
-    pub(crate) class_instance: JavaClassInstance,
+    pub class_instance: JavaClassInstance,
     core: ArmCore,
 }
 

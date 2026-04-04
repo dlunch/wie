@@ -15,7 +15,7 @@ use wie_util::{ByteWrite, read_generic, write_generic};
 use super::{Result, name::JavaFullName};
 
 pub struct JavaField {
-    pub(crate) ptr_raw: u32,
+    pub ptr_raw: u32,
     core: ArmCore,
 }
 

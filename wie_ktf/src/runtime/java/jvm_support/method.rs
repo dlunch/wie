@@ -32,7 +32,7 @@ use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt};
 
 pub struct JavaMethod {
-    pub(crate) ptr_raw: u32,
+    pub ptr_raw: u32,
     core: ArmCore,
 }
 

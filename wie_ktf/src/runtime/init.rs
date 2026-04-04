@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-pub(crate) fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
+pub fn register_init_svc_handler(core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
     core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, jvm)
 }
 

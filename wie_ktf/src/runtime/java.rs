@@ -10,7 +10,7 @@ use crate::runtime::SVC_CATEGORY_JAVA;
 pub mod interface;
 pub mod jvm_support;
 
-pub(crate) type JavaSvcFunctions = Arc<Mutex<BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>>>;
+pub type JavaSvcFunctions = Arc<Mutex<BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>>>;
 
 async fn handle_java_svc(core: &mut ArmCore, svc_functions: &mut JavaSvcFunctions, id: SvcId) -> Result<()> {
     let function = {
@@ -24,6 +24,6 @@ async fn handle_java_svc(core: &mut ArmCore, svc_functions: &mut JavaSvcFunction
     function.call(core).await
 }
 
-pub(crate) fn register_java_svc_handler(core: &mut ArmCore, svc_functions: &JavaSvcFunctions) -> Result<()> {
+pub fn register_java_svc_handler(core: &mut ArmCore, svc_functions: &JavaSvcFunctions) -> Result<()> {
     core.register_svc_handler(SVC_CATEGORY_JAVA, handle_java_svc, svc_functions)
 }
