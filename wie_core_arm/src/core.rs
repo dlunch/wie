@@ -215,7 +215,7 @@ impl ArmCore {
             match result {
                 EngineRunResult::End => break,
                 EngineRunResult::CountExhausted => {}
-                EngineRunResult::Svc { category, r12, lr, spsr } => {
+                EngineRunResult::Svc { category, lr, spsr } => {
                     {
                         let mut inner = self.inner.lock();
                         inner.engine.reg_write(ArmRegister::Cpsr, spsr);
@@ -230,11 +230,6 @@ impl ArmCore {
                             .cloned()
                             .ok_or_else(|| WieError::FatalError(format!("Unknown SVC handler category: {category}")))?
                     };
-
-                    {
-                        let mut inner = self.inner.lock();
-                        inner.engine.reg_write(ArmRegister::IP, r12);
-                    }
 
                     let mut self1 = self.clone();
                     function.call(&mut self1).await?;
@@ -639,9 +634,8 @@ mod tests {
         };
 
         match result {
-            EngineRunResult::Svc { category, r12, lr, spsr } => {
+            EngineRunResult::Svc { category, lr, spsr } => {
                 assert_eq!(category, 1);
-                assert_eq!(r12, 1);
                 assert_eq!(lr, FUNCTIONS_BASE + SVC_STUB_SIZE + 10);
                 assert_ne!(spsr & 0x20, 0);
             }
