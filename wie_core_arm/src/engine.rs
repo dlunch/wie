@@ -13,7 +13,7 @@ pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal
 pub enum EngineRunResult {
     End,
     CountExhausted,
-    Svc { category: u32, r12: u32, lr: u32, spsr: u32 },
+    Svc { category: u32, lr: u32, spsr: u32 },
 }
 
 pub trait ArmEngine: Send + AsAny {

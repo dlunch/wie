@@ -27,7 +27,6 @@ impl Arm32CpuEngine {
     fn read_svc_result(&mut self) -> Result<EngineRunResult> {
         let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
         let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
-        let r12 = self.cpu.reg_get(Mode::User, 12);
 
         let svc_address = lr.checked_sub(2).ok_or(WieError::InvalidMemoryAccess(lr))?;
         let mut svc_bytes = [0u8; 2];
@@ -39,7 +38,7 @@ impl Arm32CpuEngine {
 
         let category = instruction as u32 & 0xff;
 
-        Ok(EngineRunResult::Svc { category, r12, lr, spsr })
+        Ok(EngineRunResult::Svc { category, lr, spsr })
     }
 }
 
