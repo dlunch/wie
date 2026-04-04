@@ -12,7 +12,7 @@ struct JavaVtableMethod {
 }
 
 pub struct JavaVtable {
-    pub(crate) ptr_raw: u32,
+    pub ptr_raw: u32,
     core: ArmCore,
 }
 

@@ -18,7 +18,7 @@ use super::{KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance,
 
 #[derive(Clone)]
 pub struct JavaArrayClassDefinition {
-    pub(crate) class: JavaClassDefinition,
+    pub class: JavaClassDefinition,
     core: ArmCore,
 }
 

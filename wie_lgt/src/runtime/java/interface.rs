@@ -17,13 +17,13 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
     })
 }
 
-pub(crate) async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+pub async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk0({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
-pub(crate) async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
+pub async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
     tracing::warn!("java_unk5({a0:#x}, {a1:#x})");
 
     // a0: class list
@@ -32,7 +32,7 @@ pub(crate) async fn java_unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn java_load_classes(
+pub async fn java_load_classes(
     _core: &mut ArmCore,
     _: &mut (),
     classes: u32,
@@ -54,13 +54,13 @@ pub(crate) async fn java_load_classes(
     Ok(())
 }
 
-pub(crate) async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
+pub async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     tracing::warn!("java_unk9({a0:#x})");
 
     Ok(())
 }
 
-pub(crate) async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
+pub async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
     tracing::warn!("java_unk11({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // invoke static? used to be called with org/kwis/msp/lcdui/Main
@@ -68,7 +68,7 @@ pub(crate) async fn java_unk11(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32
     Err(WieError::Unimplemented("LGT Java apps are not implemented yet".into()))
 }
 
-pub(crate) async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
+pub async fn java_unk12(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     tracing::warn!("java_unk12({a0:#x})");
 
     Ok(())

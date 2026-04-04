@@ -22,7 +22,7 @@ use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaFi
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
-    pub(crate) ptr_raw: u32,
+    pub ptr_raw: u32,
     core: ArmCore,
 }
 
