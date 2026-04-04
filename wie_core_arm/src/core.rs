@@ -218,6 +218,7 @@ impl ArmCore {
                 EngineRunResult::Svc { category, lr, spsr } => {
                     {
                         let mut inner = self.inner.lock();
+                        // Restore the pre-exception execution state before running the Rust SVC handler.
                         inner.engine.reg_write(ArmRegister::Cpsr, spsr);
                         inner.engine.reg_write(ArmRegister::PC, lr);
                     }
