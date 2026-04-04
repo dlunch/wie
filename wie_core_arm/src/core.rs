@@ -264,8 +264,9 @@ impl ArmCore {
         Ok(())
     }
 
-    pub fn make_svc_stub(&mut self, category: u32, id: u32) -> Result<u32> {
+    pub fn make_svc_stub(&mut self, category: u32, id: impl Into<u32>) -> Result<u32> {
         let mut inner = self.inner.lock();
+        let id = id.into();
 
         if !inner.svc_handlers.contains_key(&category) {
             return Err(WieError::FatalError(format!("Unknown SVC handler category: {category}")));
@@ -621,8 +622,8 @@ mod tests {
         core.restore_context(&context);
 
         core.register_svc_handler(1, test_svc_handler, &None).unwrap();
-        let first = core.make_svc_stub(1, 0).unwrap();
-        let second = core.make_svc_stub(1, 1).unwrap();
+        let first = core.make_svc_stub(1, 0u32).unwrap();
+        let second = core.make_svc_stub(1, 1u32).unwrap();
         assert_eq!(first, FUNCTIONS_BASE + 1);
         assert_eq!(second, FUNCTIONS_BASE + SVC_STUB_SIZE + 1);
 

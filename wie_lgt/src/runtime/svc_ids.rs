@@ -41,6 +41,12 @@ impl TryFrom<SvcId> for InitSvcId {
     }
 }
 
+impl From<InitSvcId> for u32 {
+    fn from(value: InitSvcId) -> Self {
+        value as u32
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum WIPICSvcId {
@@ -212,6 +218,12 @@ impl TryFrom<SvcId> for WIPICSvcId {
     }
 }
 
+impl From<WIPICSvcId> for u32 {
+    fn from(value: WIPICSvcId) -> Self {
+        value as u32
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum StdlibSvcId {
@@ -228,4 +240,10 @@ pub enum StdlibSvcId {
     Memset = 0x418,
     Localtime = 0x420,
     Unk3 = 0x424,
+}
+
+impl From<StdlibSvcId> for u32 {
+    fn from(value: StdlibSvcId) -> Self {
+        value as u32
+    }
 }

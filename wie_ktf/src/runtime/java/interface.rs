@@ -46,18 +46,18 @@ async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId)
 pub fn get_wipi_jb_interface(core: &mut ArmCore) -> Result<u32> {
     let interface = WIPIJBInterface {
         unk1: 0,
-        fn_java_jump_1: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump1 as u32)?,
-        fn_java_jump_2: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump2 as u32)?,
-        fn_java_jump_3: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump3 as u32)?,
-        fn_get_java_method: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetJavaMethod as u32)?,
-        fn_get_field: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetField as u32)?,
-        fn_unk4: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk4 as u32)?,
-        fn_unk5: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk5 as u32)?,
-        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk7 as u32)?,
-        fn_unk8: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk8 as u32)?,
-        fn_register_class: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterClass as u32)?,
-        fn_register_java_string: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterJavaString as u32)?,
-        fn_call_native: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::CallNative as u32)?,
+        fn_java_jump_1: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump1)?,
+        fn_java_jump_2: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump2)?,
+        fn_java_jump_3: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JavaJump3)?,
+        fn_get_java_method: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetJavaMethod)?,
+        fn_get_field: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetField)?,
+        fn_unk4: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk4)?,
+        fn_unk5: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk5)?,
+        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk7)?,
+        fn_unk8: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk8)?,
+        fn_register_class: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterClass)?,
+        fn_register_java_string: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterJavaString)?,
+        fn_call_native: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::CallNative)?,
     };
 
     let address = Allocator::alloc(core, size_of::<WIPIJBInterface>() as u32)?;

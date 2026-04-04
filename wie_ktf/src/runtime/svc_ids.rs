@@ -29,6 +29,12 @@ impl TryFrom<SvcId> for InitSvcId {
     }
 }
 
+impl From<InitSvcId> for u32 {
+    fn from(value: InitSvcId) -> Self {
+        value as u32
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum JavaSvcId {
@@ -65,6 +71,12 @@ impl TryFrom<SvcId> for JavaSvcId {
             18 => Self::CallNative,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown KTF Java SVC id {}", value.0))),
         })
+    }
+}
+
+impl From<JavaSvcId> for u32 {
+    fn from(value: JavaSvcId) -> Self {
+        value as u32
     }
 }
 
