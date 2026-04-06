@@ -429,7 +429,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fa3bb77256dfe4fa65ecc2cead44955932c5ea2e"
+source = "git+https://github.com/dlunch/RustJava.git#28f715c5ff0ecf148bb07dd300bd14f2b9da2773"
 dependencies = [
  "java_constants",
  "nom",
@@ -1307,7 +1307,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fa3bb77256dfe4fa65ecc2cead44955932c5ea2e"
+source = "git+https://github.com/dlunch/RustJava.git#28f715c5ff0ecf148bb07dd300bd14f2b9da2773"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1318,7 +1318,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fa3bb77256dfe4fa65ecc2cead44955932c5ea2e"
+source = "git+https://github.com/dlunch/RustJava.git#28f715c5ff0ecf148bb07dd300bd14f2b9da2773"
 dependencies = [
  "bitflags 2.11.0",
 ]
@@ -1326,14 +1326,13 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fa3bb77256dfe4fa65ecc2cead44955932c5ea2e"
+source = "git+https://github.com/dlunch/RustJava.git#28f715c5ff0ecf148bb07dd300bd14f2b9da2773"
 dependencies = [
  "async-trait",
  "bytemuck",
  "chrono",
  "dyn-clone",
  "encoding_rs",
- "event-listener",
  "hashbrown 0.15.5",
  "java_class_proto",
  "java_constants",
@@ -1389,7 +1388,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fa3bb77256dfe4fa65ecc2cead44955932c5ea2e"
+source = "git+https://github.com/dlunch/RustJava.git#28f715c5ff0ecf148bb07dd300bd14f2b9da2773"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1397,6 +1396,7 @@ dependencies = [
  "bytemuck",
  "dyn-clone",
  "dyn-hash",
+ "event-listener",
  "hashbrown 0.15.5",
  "java_constants",
  "nom",
@@ -1407,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#fa3bb77256dfe4fa65ecc2cead44955932c5ea2e"
+source = "git+https://github.com/dlunch/RustJava.git#28f715c5ff0ecf148bb07dd300bd14f2b9da2773"
 dependencies = [
  "async-recursion",
  "async-trait",

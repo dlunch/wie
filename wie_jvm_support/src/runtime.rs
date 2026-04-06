@@ -1,9 +1,11 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 use core::time::Duration;
 
 use spin::Mutex;
 
-use java_runtime::{File, FileSize, FileStat, FileType, IOError, IOResult, RT_RUSTJAR, Runtime, SpawnCallback, get_runtime_class_proto};
+use java_runtime::{
+    File, FileDescriptorId, FileSize, FileStat, FileType, IOError, IOResult, RT_RUSTJAR, Runtime, SpawnCallback, get_runtime_class_proto,
+};
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
 use wie_backend::{AsyncCallable, System};
@@ -15,6 +17,98 @@ mod file;
 
 use file::FileImpl;
 
+const STDOUT_FD: u32 = 1;
+const STDERR_FD: u32 = 2;
+
+struct FileTableInner {
+    files: BTreeMap<u32, Box<dyn File>>,
+    next_id: u32,
+}
+
+impl FileTableInner {
+    fn new() -> Self {
+        Self {
+            files: BTreeMap::new(),
+            next_id: 3, // 0=stdin, 1=stdout, 2=stderr
+        }
+    }
+
+    fn add(&mut self, file: Box<dyn File>) -> FileDescriptorId {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.files.insert(id, file);
+        FileDescriptorId::new(id)
+    }
+}
+
+#[derive(Clone)]
+struct StdoutFile {
+    system: System,
+}
+
+#[async_trait::async_trait]
+impl File for StdoutFile {
+    async fn read(&mut self, _buf: &mut [u8]) -> IOResult<usize> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
+        self.system.platform().write_stdout(buf);
+
+        Ok(buf.len())
+    }
+
+    async fn seek(&mut self, _pos: FileSize) -> IOResult<()> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn tell(&self) -> IOResult<FileSize> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn metadata(&self) -> IOResult<FileStat> {
+        Err(IOError::Unsupported)
+    }
+}
+
+#[derive(Clone)]
+struct StderrFile {
+    system: System,
+}
+
+#[async_trait::async_trait]
+impl File for StderrFile {
+    async fn read(&mut self, _buf: &mut [u8]) -> IOResult<usize> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
+        self.system.platform().write_stderr(buf);
+
+        Ok(buf.len())
+    }
+
+    async fn seek(&mut self, _pos: FileSize) -> IOResult<()> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn tell(&self) -> IOResult<FileSize> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
+        Err(IOError::Unsupported)
+    }
+
+    async fn metadata(&self) -> IOResult<FileStat> {
+        Err(IOError::Unsupported)
+    }
+}
+
 #[derive(Clone)]
 pub struct JvmRuntime<T>
 where
@@ -23,6 +117,7 @@ where
     system: System,
     implementation: T,
     protos: Arc<Mutex<Vec<WieJavaClassProto>>>,
+    file_table: Arc<Mutex<FileTableInner>>,
 }
 
 impl<T> JvmRuntime<T>
@@ -30,10 +125,15 @@ where
     T: JvmImplementation + Sync + Send + 'static,
 {
     pub fn new(system: System, implementation: T, protos: Box<[Box<[WieJavaClassProto]>]>) -> Self {
+        let mut file_table = FileTableInner::new();
+        file_table.files.insert(STDOUT_FD, Box::new(StdoutFile { system: system.clone() }));
+        file_table.files.insert(STDERR_FD, Box::new(StderrFile { system: system.clone() }));
+
         Self {
             system,
             implementation,
             protos: Arc::new(Mutex::new(protos.into_vec().into_iter().flat_map(|x| x.into_vec()).collect())),
+            file_table: Arc::new(Mutex::new(file_table)),
         }
     }
 }
@@ -79,93 +179,34 @@ where
         self.system.current_task_id()
     }
 
-    fn stdin(&self) -> IOResult<Box<dyn File>> {
+    fn stdin(&self) -> IOResult<FileDescriptorId> {
         Err(IOError::Unsupported)
     }
 
-    fn stdout(&self) -> IOResult<Box<dyn File>> {
-        #[derive(Clone)]
-        struct StdoutFile {
-            system: System,
-        }
-
-        #[async_trait::async_trait]
-        impl File for StdoutFile {
-            async fn read(&mut self, _buf: &mut [u8]) -> IOResult<usize> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
-                self.system.platform().write_stdout(buf);
-
-                Ok(buf.len())
-            }
-
-            async fn seek(&mut self, _pos: FileSize) -> IOResult<()> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn tell(&self) -> IOResult<FileSize> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn metadata(&self) -> IOResult<FileStat> {
-                Err(IOError::Unsupported)
-            }
-        }
-
-        Ok(Box::new(StdoutFile { system: self.system.clone() }))
+    fn stdout(&self) -> IOResult<FileDescriptorId> {
+        Ok(FileDescriptorId::new(STDOUT_FD))
     }
 
-    fn stderr(&self) -> Result<Box<dyn File>, IOError> {
-        #[derive(Clone)]
-        struct StderrFile {
-            system: System,
-        }
-
-        #[async_trait::async_trait]
-        impl File for StderrFile {
-            async fn read(&mut self, _buf: &mut [u8]) -> IOResult<usize> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
-                self.system.platform().write_stderr(buf);
-
-                Ok(buf.len())
-            }
-
-            async fn seek(&mut self, _pos: FileSize) -> IOResult<()> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn tell(&self) -> IOResult<FileSize> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn set_len(&mut self, _len: FileSize) -> IOResult<()> {
-                Err(IOError::Unsupported)
-            }
-
-            async fn metadata(&self) -> IOResult<FileStat> {
-                Err(IOError::Unsupported)
-            }
-        }
-
-        Ok(Box::new(StderrFile { system: self.system.clone() }))
+    fn stderr(&self) -> IOResult<FileDescriptorId> {
+        Ok(FileDescriptorId::new(STDERR_FD))
     }
 
-    async fn open(&self, path: &str, write: bool) -> Result<Box<dyn File>, IOError> {
+    async fn open(&self, path: &str, write: bool) -> IOResult<FileDescriptorId> {
         tracing::debug!("open({path:?}, {write:?})");
 
-        Ok(Box::new(FileImpl::new(self.system.clone(), path, write)?))
+        let file = FileImpl::new(self.system.clone(), path, write)?;
+        Ok(self.file_table.lock().add(Box::new(file)))
     }
 
-    async fn unlink(&self, _path: &str) -> Result<(), IOError> {
+    fn get_file(&self, fd: FileDescriptorId) -> IOResult<Box<dyn File>> {
+        self.file_table.lock().files.get(&fd.id()).cloned().ok_or(IOError::NotFound)
+    }
+
+    fn close_file(&self, fd: FileDescriptorId) {
+        self.file_table.lock().files.remove(&fd.id());
+    }
+
+    async fn unlink(&self, _path: &str) -> IOResult<()> {
         Err(IOError::Unsupported)
     }
 
