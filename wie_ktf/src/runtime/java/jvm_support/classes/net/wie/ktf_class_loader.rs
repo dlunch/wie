@@ -109,11 +109,12 @@ impl KtfClassLoader {
         // find from client.bin
         let name = JavaLangString::to_rust_string(jvm, &name).await?;
 
-        let ptr_name = Allocator::alloc(&mut context.core, 50).unwrap(); // TODO size fix
+        let ptr_name_size = (name.len() + 1) as u32;
+        let ptr_name = Allocator::alloc(&mut context.core, ptr_name_size).unwrap();
         write_null_terminated_string_bytes(&mut context.core, ptr_name, name.as_bytes()).unwrap();
 
         let ptr_raw = context.core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
-        Allocator::free(&mut context.core, ptr_name, 50).unwrap();
+        Allocator::free(&mut context.core, ptr_name, ptr_name_size).unwrap();
 
         if ptr_raw != 0 {
             let class = JavaClassDefinition::from_raw(ptr_raw, &context.core);

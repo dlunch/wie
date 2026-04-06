@@ -3424,11 +3424,13 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytemuck",
+ "futures-test",
  "java_class_proto",
  "java_runtime",
  "jvm",
  "jvm_rust",
  "spin",
+ "test_utils",
  "tracing",
  "wie_backend",
  "wie_util",

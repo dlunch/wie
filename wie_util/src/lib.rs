@@ -1,15 +1,17 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use core::{
     any::Any,
     error::Error,
     fmt::{self, Display, Formatter},
+    mem::{MaybeUninit, size_of},
     result,
+    slice::from_raw_parts_mut,
 };
 
-use bytemuck::{AnyBitPattern, NoUninit, bytes_of, bytes_of_mut};
+use bytemuck::{AnyBitPattern, NoUninit, bytes_of};
 
 #[derive(Debug)]
 pub enum WieError {
@@ -62,14 +64,17 @@ where
         return Err(WieError::InvalidMemoryAccess(address));
     }
 
-    unsafe {
-        #[allow(clippy::uninit_assumed_init)] // XXX
-        let destination = &mut core::mem::MaybeUninit::<T>::uninit().assume_init();
-
-        reader.read_bytes(address, bytes_of_mut(destination))?;
-
-        Ok(*destination)
+    let mut destination = MaybeUninit::<T>::uninit();
+    let destination_bytes = unsafe { from_raw_parts_mut(destination.as_mut_ptr().cast::<u8>(), size_of::<T>()) };
+    let read = reader.read_bytes(address, destination_bytes)?;
+    if read != destination_bytes.len() {
+        return Err(WieError::FatalError(format!(
+            "Short read at {address:#x}: expected {}, got {read}",
+            destination_bytes.len()
+        )));
     }
+
+    Ok(unsafe { destination.assume_init() })
 }
 
 pub fn read_null_terminated_string_bytes<R>(reader: &R, address: u32) -> Result<Vec<u8>>
@@ -82,23 +87,19 @@ where
 
     let mut result = Vec::with_capacity(20);
     let mut cursor = address;
-    let mut buffer = [0; 4];
+    let mut byte = [0; 1];
     loop {
-        reader.read_bytes(cursor, &mut buffer)?;
-        cursor += 4;
-
-        // find zero in buffer
-        let word = bytemuck::from_bytes::<u32>(&buffer);
-        let has_zero_byte = word.overflowing_sub(0x01010101).0 & !(*word) & 0x80808080;
-
-        if has_zero_byte != 0 {
-            // zero byte location
-            let zero_byte = has_zero_byte.trailing_zeros() as usize / 8;
-            result.extend_from_slice(&buffer[..zero_byte]);
-            break;
-        } else {
-            result.extend_from_slice(&buffer);
+        let read = reader.read_bytes(cursor, &mut byte)?;
+        if read != 1 {
+            return Err(WieError::FatalError(format!("Short read at {cursor:#x}: expected 1, got {read}")));
         }
+
+        if byte[0] == 0 {
+            break;
+        }
+
+        result.push(byte[0]);
+        cursor += 1;
     }
 
     Ok(result)
@@ -188,5 +189,52 @@ where
     }
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use super::*;
+
+    struct StrictMemory {
+        memory: Vec<u8>,
+    }
+
+    impl ByteRead for StrictMemory {
+        fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
+            let address = address as usize;
+            let end = address + result.len();
+            if end > self.memory.len() {
+                return Err(WieError::InvalidMemoryAccess(address as u32));
+            }
+
+            result.copy_from_slice(&self.memory[address..end]);
+
+            Ok(result.len())
+        }
+    }
+
+    #[test]
+    fn read_generic_reads_into_initialized_storage() {
+        let memory = StrictMemory {
+            memory: vec![0, 0x78, 0x56, 0x34, 0x12],
+        };
+
+        let value: u32 = read_generic(&memory, 1).unwrap();
+
+        assert_eq!(value, 0x1234_5678);
+    }
+
+    #[test]
+    fn read_null_terminated_string_handles_four_byte_boundaries() {
+        let memory = StrictMemory {
+            memory: vec![0, b't', b'e', b's', b't', 0],
+        };
+
+        let value = read_null_terminated_string_bytes(&memory, 1).unwrap();
+
+        assert_eq!(value, b"test");
     }
 }

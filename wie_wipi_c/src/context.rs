@@ -50,7 +50,7 @@ impl ParamConverter<i32> for i32 {
 impl ResultConverter<u64> for u64 {
     fn convert(_: &mut dyn WIPICContext, result: u64) -> WIPICResult {
         WIPICResult {
-            results: vec![result as u32, (result << 32) as u32],
+            results: vec![result as u32, (result >> 32) as u32],
         }
     }
 }
@@ -169,5 +169,21 @@ pub mod test {
 
             Ok(result.len())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use super::{ResultConverter, test::TestContext};
+
+    #[test]
+    fn convert_u64_splits_low_and_high_words() {
+        let mut context = TestContext::new();
+
+        let result = <u64 as ResultConverter<u64>>::convert(&mut context, 0x1122_3344_5566_7788);
+
+        assert_eq!(result.results, vec![0x5566_7788, 0x1122_3344]);
     }
 }

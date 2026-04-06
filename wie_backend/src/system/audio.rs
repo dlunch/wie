@@ -43,25 +43,26 @@ impl Audio {
     }
 
     pub fn play(&mut self, system: &System, audio_handle: AudioHandle) -> Result<(), AudioError> {
-        match self.files.get(&audio_handle) {
-            Some(AudioFile::Smaf(data)) => {
-                let player = SmafPlayer::new(data);
-                let mut system_clone = system.clone();
-                let sink_clone = self.sink.clone();
-
-                let stop_flag = Arc::new(AtomicBool::new(false));
-                let stop_flag_clone = stop_flag.clone();
-                self.playing.insert(audio_handle, stop_flag);
-
-                // TODO use dedicated audio player task
-                system.spawn(async move || {
-                    player.play(&mut system_clone, &**sink_clone, &stop_flag_clone).await;
-
-                    Ok(())
-                });
-            }
+        let player = match self.files.get(&audio_handle) {
+            Some(AudioFile::Smaf(data)) => SmafPlayer::new(data),
             None => return Err(AudioError::InvalidHandle),
-        }
+        };
+
+        self.stop(audio_handle);
+
+        let mut system_clone = system.clone();
+        let sink_clone = self.sink.clone();
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let stop_flag_clone = stop_flag.clone();
+        self.playing.insert(audio_handle, stop_flag);
+
+        // TODO use dedicated audio player task
+        system.spawn(async move || {
+            player.play(&mut system_clone, &**sink_clone, &stop_flag_clone).await;
+
+            Ok(())
+        });
 
         Ok(())
     }
@@ -73,6 +74,8 @@ impl Audio {
     }
 
     pub fn close(&mut self, audio_handle: AudioHandle) -> Result<(), AudioError> {
+        self.stop(audio_handle);
+
         if self.files.remove(&audio_handle).is_none() {
             return Err(AudioError::InvalidHandle);
         }
@@ -102,6 +105,10 @@ impl SmafPlayer {
             let now = system.platform().now();
             if (*time as u64) > now - start_time {
                 system.sleep(((*time as u64) - (now - start_time)) as _).await;
+
+                if stop_flag.load(Ordering::Relaxed) {
+                    break;
+                }
             }
 
             match event {
