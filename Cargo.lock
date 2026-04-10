@@ -429,7 +429,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#d91a96e822bacff7f7ef62cebbaed7e3bd684888"
+source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
 dependencies = [
  "java_constants",
  "nom",
@@ -1307,7 +1307,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#d91a96e822bacff7f7ef62cebbaed7e3bd684888"
+source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1318,7 +1318,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#d91a96e822bacff7f7ef62cebbaed7e3bd684888"
+source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
 dependencies = [
  "bitflags 2.11.0",
 ]
@@ -1326,7 +1326,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#d91a96e822bacff7f7ef62cebbaed7e3bd684888"
+source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1388,7 +1388,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#d91a96e822bacff7f7ef62cebbaed7e3bd684888"
+source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1407,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#d91a96e822bacff7f7ef62cebbaed7e3bd684888"
+source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
 dependencies = [
  "async-recursion",
  "async-trait",
