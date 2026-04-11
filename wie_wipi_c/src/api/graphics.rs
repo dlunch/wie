@@ -8,7 +8,7 @@ use alloc::string::String;
 
 use wie_backend::{
     Event,
-    canvas::{Clip, Color, PixelType, Rgb8Pixel, Rgb565Pixel, TextAlignment},
+    canvas::{Clip, Color, PixelType, Rgb8Pixel, TextAlignment},
 };
 use wie_util::{Result, read_generic, write_generic};
 
@@ -105,7 +105,7 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.put_pixel(x as _, y as _, Rgb565Pixel::to_color(gctx.fgpxl));
+    canvas.put_pixel(x as _, y as _, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 
@@ -123,7 +123,7 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
         height: h as _,
     };
 
-    canvas.fill_rect(x as _, y as _, w as _, h as _, Rgb565Pixel::to_color(gctx.fgpxl), clip);
+    canvas.fill_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl), clip);
     Ok(())
 }
 
@@ -395,7 +395,7 @@ pub async fn draw_string(
     let string = String::from_utf8_lossy(&string_bytes);
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.draw_text(&string, x, y, TextAlignment::Left, Rgb565Pixel::to_color(gctx.fgpxl));
+    canvas.draw_text(&string, x, y, TextAlignment::Left, Rgb8Pixel::to_color(gctx.fgpxl));
 
     Ok(())
 }
@@ -439,7 +439,7 @@ pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x:
         height: h as _,
     };
 
-    canvas.draw_rect(x as _, y as _, w as _, h as _, Rgb565Pixel::to_color(gctx.fgpxl), clip);
+    canvas.draw_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl), clip);
     Ok(())
 }
 
@@ -450,7 +450,7 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb565Pixel::to_color(gctx.fgpxl));
+    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(gctx.fgpxl));
     Ok(())
 }
 
