@@ -218,9 +218,9 @@ pub fn get_database_interface(core: &mut ArmCore) -> Result<WIPICDatabaseInterfa
 pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {
     vec![
         uic::create_application_context.into_body(),
-        gen_stub(1, "MC_uicGetClass"),
-        gen_stub(2, "MC_uicCreate"),
-        gen_stub(3, "MC_uicDestroy"),
+        uic::get_class.into_body(),
+        uic::create.into_body(),
+        uic::destroy.into_body(),
         gen_stub(4, "MC_uicRepaint"),
         gen_stub(5, "MC_uicPaint"),
         gen_stub(6, "MC_uicGetClassName"),
@@ -243,7 +243,7 @@ pub fn get_uic_method_table() -> Vec<WIPICMethodBody> {
         gen_stub(23, "MC_uicSetTimeLong"),
         gen_stub(24, "MC_uicGetTime"),
         gen_stub(25, "MC_uicAddMenuItem"),
-        gen_stub(26, "MC_uicGetMenuItem"),
+        uic::get_menu_item.into_body(),
         gen_stub(27, "MC_uicRemoveMenuItem"),
         gen_stub(28, "MC_uicSetActiveMenuItem"),
         gen_stub(29, "MC_uicGetActiveMenuItem"),
