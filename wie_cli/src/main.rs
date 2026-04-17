@@ -133,6 +133,10 @@ impl Platform for WieCliPlatform {
     fn exit(&self) {
         self.window.send_quit_event();
     }
+
+    fn vibrate(&self, duration_ms: u64, intensity: u8) {
+        tracing::info!("vibrate({duration_ms}ms, {intensity}%) - not supported on this platform");
+    }
 }
 
 #[derive(Parser)]

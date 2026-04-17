@@ -10,4 +10,5 @@ pub trait Platform: Send + Sync {
     fn write_stdout(&self, buf: &[u8]);
     fn write_stderr(&self, buf: &[u8]);
     fn exit(&self);
+    fn vibrate(&self, duration_ms: u64, intensity: u8);
 }

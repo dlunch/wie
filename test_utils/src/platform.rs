@@ -67,6 +67,8 @@ impl Platform for TestPlatform {
             (event_handler)(TestPlatformEvent::Exit);
         }
     }
+
+    fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
 }
 
 pub struct TestAudioSink;

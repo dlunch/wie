@@ -205,8 +205,12 @@ pub async fn clip_free_player(_context: &mut dyn WIPICContext, clip: WIPICWord) 
     Ok(0)
 }
 
-pub async fn vibrator(_context: &mut dyn WIPICContext, level: i32, timeout: i32) -> Result<WIPICWord> {
-    tracing::warn!("stub MC_mdaVibrator({level}, {timeout})");
+pub async fn vibrator(context: &mut dyn WIPICContext, level: i32, timeout: i32) -> Result<WIPICWord> {
+    tracing::debug!("MC_mdaVibrator({level}, {timeout})");
+
+    let duration_ms = timeout.max(0) as u64;
+    let intensity = (level.clamp(0, 10) * 10) as u8;
+    context.system().platform().vibrate(duration_ms, intensity);
 
     Ok(0)
 }

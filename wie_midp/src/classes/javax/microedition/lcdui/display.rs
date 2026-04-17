@@ -193,10 +193,12 @@ impl Display {
         Ok(display)
     }
 
-    async fn vibrate(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, duration: i32) -> JvmResult<bool> {
-        tracing::warn!("stub javax.microedition.lcdui.Display::vibrate({this:?}, {duration})");
+    async fn vibrate(_jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, duration: i32) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Display::vibrate({this:?}, {duration})");
 
-        Ok(false)
+        context.system().platform().vibrate(duration.max(0) as u64, 100);
+
+        Ok(true)
     }
 
     async fn repaint(

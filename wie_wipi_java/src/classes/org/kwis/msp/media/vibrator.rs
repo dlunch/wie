@@ -26,8 +26,12 @@ impl Vibrator {
         }
     }
 
-    async fn on(_: &Jvm, _: &mut WieJvmContext, level: i32, duration: i32) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.media.Vibrator::on({level}, {duration})");
+    async fn on(_: &Jvm, context: &mut WieJvmContext, level: i32, duration: i32) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.media.Vibrator::on({level}, {duration})");
+
+        let duration_ms = duration.max(0) as u64;
+        let intensity = (level.clamp(0, 10) * 10) as u8;
+        context.system().platform().vibrate(duration_ms, intensity);
 
         Ok(())
     }
