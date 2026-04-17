@@ -177,7 +177,7 @@ pub async fn get_volume(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     Ok(0)
 }
 
-pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<()> {
+pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_mdaPlay({ptr_clip:#x}, {repeat})");
 
     let clip: MdaClip = read_generic(context, ptr_clip)?;
@@ -190,7 +190,7 @@ pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: W
         tracing::error!("Failed to load audio: {x:?}");
     }
 
-    Ok(())
+    Ok(0)
 }
 
 pub async fn clip_alloc_player(_context: &mut dyn WIPICContext, clip: WIPICWord, param: WIPICWord) -> Result<WIPICWord> {
