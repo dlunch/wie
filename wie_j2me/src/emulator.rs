@@ -52,7 +52,7 @@ impl J2MEEmulator {
         let system = System::new(platform, id, id, DefaultTaskRunner);
 
         for (path, data) in files {
-            system.filesystem().add(path, data.clone());
+            system.filesystem().add_virtual(path, data.clone());
         }
 
         let mut system_clone = system.clone();

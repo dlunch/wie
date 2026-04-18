@@ -211,8 +211,6 @@ where
     }
 
     async fn metadata(&self, path: &str) -> IOResult<FileStat> {
-        let filesystem = self.system.filesystem();
-
         if path.is_empty() || path.ends_with("/") {
             return Ok(FileStat {
                 size: 0,
@@ -220,15 +218,12 @@ where
             });
         }
 
-        let size = filesystem.size(path);
-        if let Some(size) = size {
-            Ok(FileStat {
-                size: size as _,
-                r#type: FileType::File,
-            })
-        } else {
-            Err(IOError::NotFound)
-        }
+        let size = self.system.filesystem().size(path).ok_or(IOError::NotFound)?;
+
+        Ok(FileStat {
+            size: size as _,
+            r#type: FileType::File,
+        })
     }
 
     async fn find_rustjar_class(&self, jvm: &Jvm, classpath: &str, class: &str) -> JvmResult<Option<Box<dyn ClassDefinition>>> {

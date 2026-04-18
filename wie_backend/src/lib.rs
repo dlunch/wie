@@ -16,9 +16,9 @@ pub use self::{
     audio_sink::AudioSink,
     database::{Database, DatabaseRepository, RecordId},
     executor::{AsyncCallable, AsyncCallableResult},
-    platform::Platform,
+    platform::{Filesystem, Platform},
     screen::Screen,
-    system::{Event, KeyCode, System},
+    system::{Event, FilesystemOverlay, KeyCode, System},
     task_runner::{DefaultTaskRunner, TaskRunner},
     time::Instant,
 };

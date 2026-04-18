@@ -6,6 +6,10 @@ license.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
+spin = { workspace = true }
+tracing = { workspace = true }
+
+hashbrown = { version = "^0.17", features = ["default-hasher"], default-features = false }
 
 java_class_proto = { workspace = true }
 java_runtime = { workspace = true }

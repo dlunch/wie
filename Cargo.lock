@@ -2826,10 +2826,13 @@ name = "test_utils"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "hashbrown 0.17.0",
  "java_class_proto",
  "java_runtime",
  "jvm",
  "jvm_rust",
+ "spin",
+ "tracing",
  "wie_backend",
  "wie_jvm_support",
  "wie_util",

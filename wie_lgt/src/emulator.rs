@@ -88,7 +88,7 @@ impl LgtEmulator {
         let system = System::new(platform, pid, aid, LgtTaskRunner { core: core.clone() });
 
         for (filename, data) in files {
-            system.filesystem().add(filename, data.clone())
+            system.filesystem().add_virtual(filename, data.clone())
         }
 
         Allocator::init(&mut core)?;

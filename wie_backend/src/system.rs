@@ -4,7 +4,7 @@ mod file_system;
 
 use alloc::{borrow::ToOwned, boxed::Box, string::String, sync::Arc};
 
-use spin::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
+use spin::{RwLock, RwLockWriteGuard};
 
 use wie_util::Result;
 
@@ -16,9 +16,12 @@ use crate::{
     task_runner::TaskRunner,
 };
 
-use self::{audio::Audio, event_queue::EventQueue, file_system::Filesystem};
+use self::{audio::Audio, event_queue::EventQueue};
 
-pub use self::event_queue::{Event, KeyCode};
+pub use self::{
+    event_queue::{Event, KeyCode},
+    file_system::FilesystemOverlay,
+};
 
 #[derive(Clone)]
 pub struct System {
@@ -26,7 +29,7 @@ pub struct System {
     aid: String,
     executor: Executor,
     platform: Arc<Box<dyn Platform>>,
-    filesystem: Arc<Mutex<Filesystem>>,
+    filesystem: FilesystemOverlay,
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Arc<RwLock<Audio>>,
     task_runner: Arc<dyn TaskRunner>,
@@ -38,13 +41,14 @@ impl System {
         T: TaskRunner + 'static,
     {
         let audio_sink = platform.audio_sink();
+        let platform = Arc::new(platform);
 
         Self {
             pid: pid.to_owned(),
             aid: aid.to_owned(), // TODO create metadata dictionary or something
             executor: Executor::new(),
-            platform: Arc::new(platform),
-            filesystem: Arc::new(Mutex::new(Filesystem::new())),
+            filesystem: FilesystemOverlay::new(platform.clone(), aid),
+            platform,
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
             task_runner: Arc::new(task_runner),
@@ -76,8 +80,11 @@ impl System {
         YieldFuture::new()
     }
 
-    pub fn filesystem(&self) -> MutexGuard<'_, Filesystem> {
-        self.filesystem.lock()
+    /// Unified filesystem view. Reads consult the persistent platform
+    /// backend first and fall back to the in-memory virtual layer loaded
+    /// from archives; writes always hit the platform backend.
+    pub fn filesystem(&self) -> &FilesystemOverlay {
+        &self.filesystem
     }
 
     pub fn pid(&self) -> &str {

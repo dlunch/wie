@@ -1,8 +1,10 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use wie_backend::{AudioSink, DatabaseRepository, Instant, Platform, Screen, canvas::Image};
+use wie_backend::{AudioSink, DatabaseRepository, Filesystem, Instant, Platform, Screen, canvas::Image};
 use wie_util::Result;
+
+use crate::filesystem::MemoryFilesystem;
 
 static TEST_EPOCH: AtomicU64 = AtomicU64::new(0);
 
@@ -11,10 +13,16 @@ pub enum TestPlatformEvent {
     Exit,
 }
 
-#[derive(Default)]
 pub struct TestPlatform {
     screen: TestScreen,
     event_handler: Option<Box<dyn Fn(TestPlatformEvent) + Sync + Send>>,
+    fs: Arc<MemoryFilesystem>,
+}
+
+impl Default for TestPlatform {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TestPlatform {
@@ -22,6 +30,7 @@ impl TestPlatform {
         Self {
             screen: TestScreen,
             event_handler: None,
+            fs: Arc::new(MemoryFilesystem::default()),
         }
     }
 
@@ -32,6 +41,7 @@ impl TestPlatform {
         Self {
             screen: TestScreen,
             event_handler: Some(Box::new(event_handler)),
+            fs: Arc::new(MemoryFilesystem::default()),
         }
     }
 }
@@ -48,6 +58,10 @@ impl Platform for TestPlatform {
 
     fn database_repository(&self) -> &dyn DatabaseRepository {
         todo!()
+    }
+
+    fn filesystem(&self) -> &dyn Filesystem {
+        self.fs.as_ref()
     }
 
     fn audio_sink(&self) -> Box<dyn AudioSink> {
