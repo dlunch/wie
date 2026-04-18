@@ -89,7 +89,7 @@ impl KtfEmulator {
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
-            system.filesystem().add(path, data.clone());
+            system.filesystem().add_virtual(path, data.clone());
         }
 
         Allocator::init(&mut core)?;

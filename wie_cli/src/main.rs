@@ -2,6 +2,7 @@ extern crate alloc;
 
 mod audio_sink;
 mod database;
+mod filesystem;
 mod window;
 
 use core::str;
@@ -21,7 +22,7 @@ use midir::MidiOutput;
 use rodio::{DeviceSinkBuilder, Player, buffer::SamplesBuffer, conversions::SampleTypeConverter};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{Emulator, Event, Instant, KeyCode, Options, Platform, Screen, extract_zip};
+use wie_backend::{Emulator, Event, Filesystem, Instant, KeyCode, Options, Platform, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
@@ -30,12 +31,14 @@ use wie_skt::SktEmulator;
 use self::{
     audio_sink::AudioSink,
     database::DatabaseRepository,
+    filesystem::CliFilesystem,
     window::{WindowCallbackEvent, WindowHandle, WindowImpl},
 };
 
 struct WieCliPlatform {
     audio_thread_tx: Sender<(u8, u32, Vec<i16>)>,
     database_repository: DatabaseRepository,
+    filesystem: CliFilesystem,
     window: WindowHandle,
 }
 
@@ -47,6 +50,7 @@ impl WieCliPlatform {
         Self {
             audio_thread_tx: tx,
             database_repository: DatabaseRepository::new(),
+            filesystem: CliFilesystem::new(),
             window,
         }
     }
@@ -103,6 +107,10 @@ impl Platform for WieCliPlatform {
 
     fn database_repository(&self) -> &dyn wie_backend::DatabaseRepository {
         &self.database_repository
+    }
+
+    fn filesystem(&self) -> &dyn Filesystem {
+        &self.filesystem
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {

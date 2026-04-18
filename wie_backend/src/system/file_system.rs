@@ -1,86 +1,281 @@
-use alloc::{string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, string::String, sync::Arc, vec::Vec};
 use core::cmp::min;
 
 use hashbrown::HashMap;
+use spin::Mutex;
 
-#[derive(Default)]
-pub struct Filesystem {
-    virtual_files: HashMap<String, Vec<u8>>,
-}
+use crate::platform::Platform;
 
-impl Filesystem {
-    pub fn new() -> Self {
-        Self {
-            virtual_files: HashMap::new(),
+/// Normalize a guest-supplied path so both overlay layers see the same key.
+///
+/// - Leading `/` are stripped (archive paths often carry them).
+/// - `.` segments are dropped.
+/// - `..` segments, trailing `/`, backslashes, and empty results all
+///   return `None`.
+fn normalize_guest_path(path: &str) -> Option<String> {
+    if path.contains('\\') {
+        return None;
+    }
+
+    let trimmed = path.trim_start_matches('/');
+    if trimmed.is_empty() || trimmed.ends_with('/') {
+        return None;
+    }
+
+    let mut out = String::new();
+    for seg in trimmed.split('/') {
+        match seg {
+            "" => continue,
+            "." => continue,
+            ".." => return None,
+            normal => {
+                if !out.is_empty() {
+                    out.push('/');
+                }
+                out.push_str(normal);
+            }
         }
     }
 
-    pub fn add(&mut self, path: &str, data: Vec<u8>) {
-        let normalized_path = Self::normalize_path(path);
+    if out.is_empty() { None } else { Some(out) }
+}
 
-        self.virtual_files.insert(normalized_path.into(), data);
+/// Unified filesystem view exposed by `System::filesystem()`.
+///
+/// Wraps the persistent `Platform::filesystem()` backend and an in-memory
+/// virtual layer holding archive resources. Writes always hit the platform
+/// backend; reads prefer the platform backend and fall back to the virtual
+/// layer. Paths are normalized internally so callers pass raw guest paths.
+#[derive(Clone)]
+pub struct FilesystemOverlay {
+    platform: Arc<Box<dyn Platform>>,
+    virtual_files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    aid: Arc<str>,
+}
+
+impl FilesystemOverlay {
+    pub fn new(platform: Arc<Box<dyn Platform>>, aid: &str) -> Self {
+        Self {
+            platform,
+            virtual_files: Arc::new(Mutex::new(HashMap::new())),
+            aid: Arc::from(aid),
+        }
+    }
+
+    pub fn add_virtual(&self, path: &str, data: Vec<u8>) {
+        let key = normalize_guest_path(path).unwrap_or_else(|| path.trim_start_matches('/').to_owned());
+        self.virtual_files.lock().insert(key, data);
     }
 
     pub fn exists(&self, path: &str) -> bool {
-        let normalized_path = Self::normalize_path(path);
+        let Some(normalized) = normalize_guest_path(path) else {
+            return false;
+        };
 
-        self.virtual_files.contains_key(normalized_path)
+        if self.platform.filesystem().exists(&self.aid, &normalized) {
+            return true;
+        }
+        self.virtual_files.lock().contains_key(&normalized)
     }
 
     pub fn size(&self, path: &str) -> Option<usize> {
-        let normalized_path = Self::normalize_path(path);
+        let normalized = normalize_guest_path(path)?;
 
-        if let Some(data) = self.virtual_files.get(normalized_path) {
-            return Some(data.len());
+        if let Some(size) = self.platform.filesystem().size(&self.aid, &normalized) {
+            return Some(size);
         }
-
-        None
+        self.virtual_files.lock().get(&normalized).map(|d| d.len())
     }
 
     pub fn read(&self, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
-        let normalized_path = Self::normalize_path(path);
+        let normalized = normalize_guest_path(path)?;
 
-        if let Some(data) = self.virtual_files.get(normalized_path) {
+        let plat_fs = self.platform.filesystem();
+        if plat_fs.exists(&self.aid, &normalized) {
+            return plat_fs.read(&self.aid, &normalized, offset, count, buf);
+        }
+
+        let files = self.virtual_files.lock();
+        let data = files.get(&normalized)?;
+        if offset >= data.len() {
+            return Some(0);
+        }
+        let n = min(count, data.len() - offset);
+        buf[..n].copy_from_slice(&data[offset..offset + n]);
+        Some(n)
+    }
+
+    pub fn write(&self, path: &str, offset: usize, data: &[u8]) -> usize {
+        let Some(normalized) = normalize_guest_path(path) else {
+            return 0;
+        };
+        self.platform.filesystem().write(&self.aid, &normalized, offset, data)
+    }
+
+    pub fn truncate(&self, path: &str, len: usize) {
+        let Some(normalized) = normalize_guest_path(path) else {
+            return;
+        };
+        self.platform.filesystem().truncate(&self.aid, &normalized, len);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{
+        boxed::Box,
+        string::{String, ToString},
+        sync::Arc,
+        vec,
+        vec::Vec,
+    };
+
+    use hashbrown::HashMap;
+    use spin::Mutex;
+
+    use crate::{
+        audio_sink::AudioSink,
+        database::DatabaseRepository,
+        platform::{Filesystem, Platform},
+        screen::Screen,
+        time::Instant,
+    };
+
+    use super::FilesystemOverlay;
+
+    #[derive(Default)]
+    struct StubFilesystem {
+        files: Mutex<HashMap<(String, String), Vec<u8>>>,
+    }
+    impl Filesystem for StubFilesystem {
+        fn exists(&self, aid: &str, path: &str) -> bool {
+            self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
+        }
+        fn size(&self, aid: &str, path: &str) -> Option<usize> {
+            self.files.lock().get(&(aid.to_string(), path.to_string())).map(|v| v.len())
+        }
+        fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+            let files = self.files.lock();
+            let data = files.get(&(aid.to_string(), path.to_string()))?;
             if offset >= data.len() {
                 return Some(0);
             }
-
-            let data_size = data.len();
-            let size_to_read = min(count, data_size - offset);
-
-            buf[..size_to_read].copy_from_slice(&data[offset..offset + size_to_read]);
-
-            return Some(size_to_read);
+            let n = core::cmp::min(count, data.len() - offset);
+            buf[..n].copy_from_slice(&data[offset..offset + n]);
+            Some(n)
         }
-
-        None
-    }
-
-    pub fn write(&mut self, path: &str, offset: usize, data: &[u8]) -> usize {
-        let normalized_path = Self::normalize_path(path);
-
-        let file = self.virtual_files.get_mut(normalized_path).unwrap();
-        if file.len() < offset + data.len() {
-            file.resize(offset + data.len(), 0);
+        fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+            let mut files = self.files.lock();
+            let file = files.entry((aid.to_string(), path.to_string())).or_default();
+            if file.len() < offset + data.len() {
+                file.resize(offset + data.len(), 0);
+            }
+            file[offset..offset + data.len()].copy_from_slice(data);
+            data.len()
         }
-        file[offset..offset + data.len()].copy_from_slice(data);
-
-        data.len()
-    }
-
-    pub fn truncate(&mut self, path: &str, len: usize) {
-        let normalized_path = Self::normalize_path(path);
-
-        if let Some(data) = self.virtual_files.get_mut(normalized_path) {
-            data.resize(len, 0);
+        fn truncate(&self, aid: &str, path: &str, len: usize) {
+            let mut files = self.files.lock();
+            let file = files.entry((aid.to_string(), path.to_string())).or_default();
+            file.resize(len, 0);
         }
     }
 
-    pub fn files(&self) -> impl Iterator<Item = (&str, &[u8])> {
-        self.virtual_files.iter().map(|(k, v)| (k.as_str(), v.as_slice()))
+    struct StubPlatform {
+        fs: StubFilesystem,
+    }
+    impl Platform for StubPlatform {
+        fn screen(&self) -> &dyn Screen {
+            unimplemented!()
+        }
+        fn now(&self) -> Instant {
+            Instant::from_epoch_millis(0)
+        }
+        fn database_repository(&self) -> &dyn DatabaseRepository {
+            unimplemented!()
+        }
+        fn filesystem(&self) -> &dyn Filesystem {
+            &self.fs
+        }
+        fn audio_sink(&self) -> Box<dyn AudioSink> {
+            unimplemented!()
+        }
+        fn write_stdout(&self, _buf: &[u8]) {}
+        fn write_stderr(&self, _buf: &[u8]) {}
+        fn exit(&self) {}
+        fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
     }
 
-    fn normalize_path(path: &str) -> &str {
-        path.trim_start_matches('/')
+    fn setup() -> FilesystemOverlay {
+        let platform: Arc<Box<dyn Platform>> = Arc::new(Box::new(StubPlatform {
+            fs: StubFilesystem::default(),
+        }));
+        FilesystemOverlay::new(platform, "test-aid")
+    }
+
+    #[test]
+    fn add_then_read_virtual() {
+        let fs = setup();
+        fs.add_virtual("a.bin", vec![1, 2, 3, 4]);
+
+        let mut buf = [0u8; 4];
+        assert_eq!(fs.read("a.bin", 0, 4, &mut buf), Some(4));
+        assert_eq!(buf, [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn size_falls_through_to_virtual() {
+        let fs = setup();
+        fs.add_virtual("x", vec![0; 17]);
+
+        assert_eq!(fs.size("x"), Some(17));
+        assert_eq!(fs.size("nope"), None);
+    }
+
+    #[test]
+    fn exists_checks_both_layers() {
+        let fs = setup();
+        fs.add_virtual("x", vec![1]);
+
+        assert!(fs.exists("x"));
+        assert!(!fs.exists("y"));
+
+        fs.write("written", 0, &[9]);
+        assert!(fs.exists("written"));
+    }
+
+    #[test]
+    fn leading_slash_normalized() {
+        let fs = setup();
+        fs.add_virtual("/a/b", vec![9]);
+
+        assert!(fs.exists("a/b"));
+        assert!(fs.exists("/a/b"));
+    }
+
+    #[test]
+    fn read_past_eof_virtual_returns_some_zero() {
+        let fs = setup();
+        fs.add_virtual("a", vec![1, 2, 3]);
+
+        let mut buf = [0u8; 4];
+        assert_eq!(fs.read("a", 10, 4, &mut buf), Some(0));
+    }
+
+    #[test]
+    fn read_missing_returns_none() {
+        let fs = setup();
+        let mut buf = [0u8; 4];
+        assert_eq!(fs.read("nope", 0, 4, &mut buf), None);
+    }
+
+    #[test]
+    fn platform_write_shadows_virtual() {
+        let fs = setup();
+        fs.add_virtual("cfg.dat", vec![0xAA, 0xBB, 0xCC]);
+        fs.write("cfg.dat", 0, &[1, 2, 3, 4]);
+
+        let mut buf = [0u8; 4];
+        assert_eq!(fs.read("cfg.dat", 0, 4, &mut buf), Some(4));
+        assert_eq!(buf, [1, 2, 3, 4]);
     }
 }

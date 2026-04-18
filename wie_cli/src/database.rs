@@ -18,7 +18,7 @@ impl DatabaseRepository {
     }
 
     fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
-        self.base_path.join(app_id).join(name)
+        self.base_path.join(app_id).join("db").join(name)
     }
 }
 
@@ -115,5 +115,21 @@ impl wie_backend::Database for Database {
             .filter(|x| x.as_ref().unwrap().path().is_file())
             .map(|x| x.unwrap().file_name().to_str().unwrap().parse().unwrap())
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::DatabaseRepository;
+
+    #[test]
+    fn database_path_includes_db_segment() {
+        let repo = DatabaseRepository {
+            base_path: PathBuf::from("/tmp/wie_test"),
+        };
+        let path = repo.get_path_for_database("records", "game123");
+        assert_eq!(path, PathBuf::from("/tmp/wie_test/game123/db/records"));
     }
 }

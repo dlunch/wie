@@ -55,7 +55,7 @@ impl SktEmulator {
         let system = System::new(platform, id, id, DefaultTaskRunner);
 
         for (filename, data) in files {
-            system.filesystem().add(filename, data.clone())
+            system.filesystem().add_virtual(filename, data.clone())
         }
 
         let mut system_clone = system.clone();
