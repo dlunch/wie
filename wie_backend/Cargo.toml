@@ -21,3 +21,6 @@ wie_util = { workspace = true }
 
 smaf = { git = "https://github.com/dlunch/smaf.git" }
 smaf_player = { git = "https://github.com/dlunch/smaf.git" }
+
+[dev-dependencies]
+futures-test = { workspace = true }

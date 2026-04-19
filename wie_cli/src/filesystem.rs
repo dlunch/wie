@@ -56,8 +56,9 @@ impl Default for CliFilesystem {
     }
 }
 
+#[async_trait::async_trait]
 impl Filesystem for CliFilesystem {
-    fn exists(&self, aid: &str, path: &str) -> bool {
+    async fn exists(&self, aid: &str, path: &str) -> bool {
         let Some(disk_path) = self.path_for(aid, path) else {
             return false;
         };
@@ -68,7 +69,7 @@ impl Filesystem for CliFilesystem {
         }
     }
 
-    fn size(&self, aid: &str, path: &str) -> Option<usize> {
+    async fn size(&self, aid: &str, path: &str) -> Option<usize> {
         let disk_path = self.path_for(aid, path)?;
         let md = disk_path.metadata().ok()?;
         if !md.is_file() {
@@ -77,7 +78,7 @@ impl Filesystem for CliFilesystem {
         Some(md.len() as usize)
     }
 
-    fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+    async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
         let disk_path = self.path_for(aid, path)?;
 
         let mut file = match OpenOptions::new().read(true).open(&disk_path) {
@@ -114,7 +115,7 @@ impl Filesystem for CliFilesystem {
         }
     }
 
-    fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+    async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
         let Some(disk_path) = self.path_for(aid, path) else {
             return 0;
         };
@@ -160,7 +161,7 @@ impl Filesystem for CliFilesystem {
         }
     }
 
-    fn truncate(&self, aid: &str, path: &str, len: usize) {
+    async fn truncate(&self, aid: &str, path: &str, len: usize) {
         let Some(disk_path) = self.path_for(aid, path) else {
             return;
         };

@@ -1,4 +1,5 @@
 use alloc::{
+    boxed::Box,
     string::{String, ToString},
     vec::Vec,
 };
@@ -21,16 +22,17 @@ impl MemoryFilesystem {
     }
 }
 
+#[async_trait::async_trait]
 impl Filesystem for MemoryFilesystem {
-    fn exists(&self, aid: &str, path: &str) -> bool {
+    async fn exists(&self, aid: &str, path: &str) -> bool {
         self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
     }
 
-    fn size(&self, aid: &str, path: &str) -> Option<usize> {
+    async fn size(&self, aid: &str, path: &str) -> Option<usize> {
         self.files.lock().get(&(aid.to_string(), path.to_string())).map(|v| v.len())
     }
 
-    fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+    async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
         let files = self.files.lock();
         let data = files.get(&(aid.to_string(), path.to_string()))?;
 
@@ -43,7 +45,7 @@ impl Filesystem for MemoryFilesystem {
         Some(size_to_read)
     }
 
-    fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+    async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
         let mut files = self.files.lock();
         let file = files.entry((aid.to_string(), path.to_string())).or_default();
         if file.len() < offset + data.len() {
@@ -54,7 +56,7 @@ impl Filesystem for MemoryFilesystem {
         data.len()
     }
 
-    fn truncate(&self, aid: &str, path: &str, len: usize) {
+    async fn truncate(&self, aid: &str, path: &str, len: usize) {
         let mut files = self.files.lock();
         let file = files.entry((aid.to_string(), path.to_string())).or_default();
         file.resize(len, 0);
