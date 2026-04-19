@@ -6,6 +6,8 @@ mod context;
 mod core;
 mod engine;
 mod function;
+pub mod native_hooks;
+pub mod stdlib;
 mod thread;
 mod thread_wrapper;
 

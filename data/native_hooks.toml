@@ -1,0 +1,65 @@
+# Game-specific native hooks consumed by `wie_core_arm::native_hooks`.
+#
+# Each `[[entry]]` is either:
+#   - hash-keyed: `hash` is the MD5 of the main guest binary (KTF
+#     `client.bin`, LGT `binary.mod`, etc.). Matched and installed on boot.
+#   - pattern-only (hash omitted): generic patterns that apply to any binary
+#     matching the bytes. Hash-keyed entries take priority.
+#
+# Hook `pc`/`exit_pc` MUST have the Thumb bit (LSB=1); ARM-mode hooks are
+# not supported. Stack offsets are signed and measured from R7 (Thumb
+# frame pointer).
+#
+# A hook is either pc-based (`pc = ...`) or pattern-based (`pattern = ...`),
+# never both. Pattern tokens are whitespace-separated and each token is one of:
+#   - `??`        — any byte (unnamed wildcard)
+#   - `xx`        — literal hex byte
+#   - `{dst}`     — 1 byte, Thumb1 `SUBS Rn, #imm8` imm8 → `-(b as i8) as i32`
+#   - `{src}`     — same, src offset
+#   - `{len}`     — same, len offset (omit capture + provide `len_offset` to pin)
+#   - `{exit_b}`  — TWO consecutive tokens, encoding a Thumb `B imm11` instruction
+#
+# `memcpy_inline` fixed fields:
+#   - `len_offset`   — R7-relative offset of the length variable. Required if
+#                      the pattern has no `{len}` capture; forbidden if it does.
+#   - `spill_back`   — after the copy, also write back `dst += len`, `src += len`,
+#                      `len = 0` into their stack slots. Set true when the code
+#                      after the loop re-reads those variables (i.e. the loop
+#                      body advances the pointers in memory rather than in
+#                      registers). Set false when the outer code is invariant
+#                      over those slots.
+
+[[entry]]
+name = "Generic compiler library / inline copy patterns"
+
+# Thumb -O0 inline byte copy. `{dst}` / `{src}` capture the SUBS/ADDS imm8
+# stack offsets; `{exit_b}` (two tokens) captures the Thumb `B` at the end of
+# the loop. `len_offset` is fixed because this compiler keeps the length
+# variable at a constant frame offset.
+[[entry.hook]]
+kind = "memcpy_inline"
+pattern = "?? 00 {dst} 3d 29 68 ?? 00 {src} 3c 22 68 08 00 13 00 1b 78 03 70 01 32 22 60 01 31 29 60 ?? ?? {exit_b} {exit_b}"
+len_offset = -12
+spill_back = true
+
+# RVCT __rt_memcpy / __rt_memset reached through a Thumb `BX PC` thunk.
+# Prefix `BX PC; NOP; STMFD SP!, {R0, LR}; CMP R2, #N` is specific to the
+# standard library helpers; the trailing `CMP R2` immediate is what
+# distinguishes them (`#3` for memcpy, `#4` for memset).
+[[entry.hook]]
+kind = "memcpy"
+pattern = "78 47 00 00 01 40 2d e9 03 00 52 e3"
+
+[[entry.hook]]
+kind = "memset"
+pattern = "78 47 00 00 01 40 2d e9 04 00 52 e3"
+
+# RVCT Thumb strcpy / strlen with Mycroft's NUL-byte detection
+# (`0xFEFEFEFF`/`0x80808080` magic words).
+[[entry.hook]]
+kind = "strcpy"
+pattern = "70 b5 0b 1c 03 43 03 22 13 40 04 1c"
+
+[[entry.hook]]
+kind = "strlen"
+pattern = "30 b5 03 23 03 40 04 1c 00 2b"

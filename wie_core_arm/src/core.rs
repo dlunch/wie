@@ -31,7 +31,7 @@ pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
+    pub(crate) svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
 }
 
@@ -260,6 +260,22 @@ impl ArmCore {
         inner
             .svc_handlers
             .insert(category, Arc::new(Box::new(RegisteredFunctionHolder::new(handler, context))));
+
+        Ok(())
+    }
+
+    /// Register a raw SVC handler that owns full control over the post-SVC
+    /// program counter. Unlike `register_svc_handler`, the standard
+    /// `ResultWriter::write(core, lr)` step is skipped — the callback must
+    /// set `PC` itself via `set_next_pc`.
+    pub(crate) fn register_raw_svc_handler(&mut self, category: u32, handler: Arc<Box<dyn RegisteredFunction>>) -> Result<()> {
+        let mut inner = self.inner.lock();
+
+        if inner.svc_handlers.contains_key(&category) {
+            return Err(WieError::FatalError(format!("SVC handler already registered for {category}")));
+        }
+
+        inner.svc_handlers.insert(category, handler);
 
         Ok(())
     }
