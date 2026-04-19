@@ -1,11 +1,9 @@
-use alloc::{format, string::String, vec};
+use alloc::{format, string::String};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
-use wie_util::{
-    ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
-};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId, stdlib};
+use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
 
@@ -37,8 +35,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
 async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {
     tracing::debug!("strcpy({dst:#x}, {ptr_src:#x})");
 
-    let src = read_null_terminated_string_bytes(core, ptr_src)?;
-    write_null_terminated_string_bytes(core, dst, &src)?;
+    stdlib::strcpy(core, dst, ptr_src)?;
 
     Ok(())
 }
@@ -80,9 +77,7 @@ async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) ->
 async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     tracing::debug!("strlen({ptr_str:#x})");
 
-    let string = read_null_terminated_string_bytes(core, ptr_str)?;
-
-    Ok(string.len() as u32)
+    stdlib::strlen(core, ptr_str)
 }
 
 async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
@@ -97,21 +92,13 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
 async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
     tracing::debug!("memcpy({dst:#x}, {src:#x}, {size:#x})");
 
-    let mut memory = vec![0u8; size as usize];
-
-    core.read_bytes(src, &mut memory)?;
-    core.write_bytes(dst, &memory)?;
-
-    Ok(())
+    stdlib::memcpy(core, dst, src, size)
 }
 
 async fn memset(core: &mut ArmCore, _: &mut (), dst: u32, value: u32, size: u32) -> Result<()> {
     tracing::debug!("memset({dst:#x}, {value:#x}, {size:#x})");
 
-    let memory = vec![value as u8; size as usize];
-    core.write_bytes(dst, &memory)?;
-
-    Ok(())
+    stdlib::memset(core, dst, value as u8, size)
 }
 
 // TODO is this method better suit on wie_backend?

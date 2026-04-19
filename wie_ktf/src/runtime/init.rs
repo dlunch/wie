@@ -50,6 +50,20 @@ pub async fn load_native(
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 
+    // Patterns target instruction encodings, which the guest self-rebase at
+    // IMAGE_BASE+1 doesn't rewrite — so installing here is sound and skips a
+    // re-scan after relocation. Hash-matched entries take priority over
+    // hash-less generic ones; only one entry is installed because each install
+    // claims fresh SVC categories from a fixed base and they would collide.
+    let binary_hash = wie_core_arm::native_hooks::md5(data);
+    let entry = wie_core_arm::native_hooks::NATIVE_HOOKS
+        .iter()
+        .find(|e| matches!(e.hash, Some(h) if h == binary_hash))
+        .or_else(|| wie_core_arm::native_hooks::NATIVE_HOOKS.iter().find(|e| e.hash.is_none()));
+    if let Some(entry) = entry {
+        wie_core_arm::native_hooks::install(core, entry, &[(IMAGE_BASE, data.len() as u32)])?;
+    }
+
     register_wipic_svc_handler(core, system, jvm)?;
     register_init_svc_handler(core, jvm)?;
 
