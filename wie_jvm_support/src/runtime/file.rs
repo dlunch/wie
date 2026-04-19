@@ -14,8 +14,8 @@ pub struct FileImpl {
 }
 
 impl FileImpl {
-    pub fn new(system: System, path: &str, write: bool) -> Result<Self, IOError> {
-        if !write && !system.filesystem().exists(path) {
+    pub async fn new(system: System, path: &str, write: bool) -> Result<Self, IOError> {
+        if !write && !system.filesystem().exists(path).await {
             return Err(IOError::NotFound);
         }
 
@@ -34,7 +34,7 @@ impl File for FileImpl {
         let cursor = self.cursor.load(Ordering::SeqCst) as usize;
         let fs = self.system.filesystem();
 
-        let read = fs.read(&self.path, cursor, buf.len(), buf).ok_or(IOError::NotFound)?;
+        let read = fs.read(&self.path, cursor, buf.len(), buf).await.ok_or(IOError::NotFound)?;
 
         self.cursor.fetch_add(read as u64, Ordering::SeqCst);
 
@@ -47,7 +47,7 @@ impl File for FileImpl {
         }
 
         let cursor = self.cursor.load(Ordering::SeqCst) as usize;
-        let written = self.system.filesystem().write(&self.path, cursor, buf);
+        let written = self.system.filesystem().write(&self.path, cursor, buf).await;
 
         self.cursor.fetch_add(written as u64, Ordering::SeqCst);
 
@@ -69,13 +69,13 @@ impl File for FileImpl {
             return Err(IOError::Unsupported);
         }
 
-        self.system.filesystem().truncate(&self.path, len as usize);
+        self.system.filesystem().truncate(&self.path, len as usize).await;
 
         Ok(())
     }
 
     async fn metadata(&self) -> IOResult<FileStat> {
-        let size = self.system.filesystem().size(&self.path).ok_or(IOError::NotFound)?;
+        let size = self.system.filesystem().size(&self.path).await.ok_or(IOError::NotFound)?;
 
         Ok(FileStat {
             size: size as _,
@@ -103,7 +103,7 @@ mod tests {
         let system = new_system();
         system.filesystem().add_virtual("res.png", vec![1, 2, 3]);
 
-        let mut file = FileImpl::new(system.clone(), "res.png", false).unwrap();
+        let mut file = FileImpl::new(system.clone(), "res.png", false).await.unwrap();
         let mut buf = [0u8; 3];
         assert_eq!(file.read(&mut buf).await.unwrap(), 3);
         assert_eq!(buf, [1, 2, 3]);
@@ -117,10 +117,10 @@ mod tests {
         let system = new_system();
         system.filesystem().add_virtual("cfg.dat", vec![0xAA, 0xBB, 0xCC]);
 
-        let mut file = FileImpl::new(system.clone(), "cfg.dat", true).unwrap();
+        let mut file = FileImpl::new(system.clone(), "cfg.dat", true).await.unwrap();
         assert_eq!(file.write(&[1, 2, 3, 4]).await.unwrap(), 4);
 
-        let mut reopened = FileImpl::new(system.clone(), "cfg.dat", false).unwrap();
+        let mut reopened = FileImpl::new(system.clone(), "cfg.dat", false).await.unwrap();
         let mut buf = [0u8; 4];
         assert_eq!(reopened.read(&mut buf).await.unwrap(), 4);
         assert_eq!(buf, [1, 2, 3, 4]);
@@ -131,7 +131,7 @@ mod tests {
         let system = new_system();
         system.filesystem().add_virtual("big.bin", vec![7u8; 10]);
 
-        let mut file = FileImpl::new(system.clone(), "big.bin", true).unwrap();
+        let mut file = FileImpl::new(system.clone(), "big.bin", true).await.unwrap();
         let mut buf = [0u8; 10];
         assert_eq!(file.read(&mut buf).await.unwrap(), 10);
         assert_eq!(buf, [7u8; 10]);
@@ -140,14 +140,14 @@ mod tests {
     #[futures_test::test]
     async fn writable_files_can_create_and_truncate() {
         let system = new_system();
-        let mut file = FileImpl::new(system.clone(), "writeable.bin", true).unwrap();
+        let mut file = FileImpl::new(system.clone(), "writeable.bin", true).await.unwrap();
 
         assert_eq!(file.write(&[1, 2, 3, 4]).await.unwrap(), 4);
         file.seek(2).await.unwrap();
         assert_eq!(file.write(&[9]).await.unwrap(), 1);
         file.set_len(3).await.unwrap();
 
-        let mut reopened = FileImpl::new(system.clone(), "writeable.bin", false).unwrap();
+        let mut reopened = FileImpl::new(system.clone(), "writeable.bin", false).await.unwrap();
         let mut buf = [0; 3];
         assert_eq!(reopened.read(&mut buf).await.unwrap(), 3);
         assert_eq!(buf, [1, 2, 9]);
@@ -156,7 +156,7 @@ mod tests {
     #[futures_test::test]
     async fn read_missing_file_returns_not_found() {
         let system = new_system();
-        let result = FileImpl::new(system, "nope.dat", false);
+        let result = FileImpl::new(system, "nope.dat", false).await;
         assert!(matches!(result, Err(IOError::NotFound)));
     }
 
@@ -166,11 +166,11 @@ mod tests {
         system.filesystem().add_virtual("f.bin", vec![0u8; 5]);
 
         {
-            let mut writer = FileImpl::new(system.clone(), "f.bin", true).unwrap();
+            let mut writer = FileImpl::new(system.clone(), "f.bin", true).await.unwrap();
             writer.write(&[1u8; 10]).await.unwrap();
         }
 
-        let file = FileImpl::new(system.clone(), "f.bin", false).unwrap();
+        let file = FileImpl::new(system.clone(), "f.bin", false).await.unwrap();
         let meta = file.metadata().await.unwrap();
         assert_eq!(meta.size, 10);
         assert!(matches!(meta.r#type, FileType::File));
@@ -181,7 +181,7 @@ mod tests {
         let system = new_system();
         system.filesystem().add_virtual("only_virtual.bin", vec![0u8; 7]);
 
-        let file = FileImpl::new(system, "only_virtual.bin", false).unwrap();
+        let file = FileImpl::new(system, "only_virtual.bin", false).await.unwrap();
         let meta = file.metadata().await.unwrap();
         assert_eq!(meta.size, 7);
     }
@@ -191,12 +191,12 @@ mod tests {
         let system = new_system();
         system.filesystem().add_virtual("/leading.bin", vec![1, 2, 3, 4]);
 
-        let mut f = FileImpl::new(system.clone(), "./leading.bin", false).unwrap();
+        let mut f = FileImpl::new(system.clone(), "./leading.bin", false).await.unwrap();
         let mut buf = [0u8; 4];
         assert_eq!(f.read(&mut buf).await.unwrap(), 4);
         assert_eq!(buf, [1, 2, 3, 4]);
 
-        let mut f2 = FileImpl::new(system, "/leading.bin", false).unwrap();
+        let mut f2 = FileImpl::new(system, "/leading.bin", false).await.unwrap();
         let mut buf2 = [0u8; 4];
         assert_eq!(f2.read(&mut buf2).await.unwrap(), 4);
         assert_eq!(buf2, [1, 2, 3, 4]);
@@ -205,7 +205,10 @@ mod tests {
     #[futures_test::test]
     async fn traversal_path_rejected_when_reading() {
         let system = new_system();
-        assert!(matches!(FileImpl::new(system.clone(), "../escape.dat", false), Err(IOError::NotFound)));
-        assert!(matches!(FileImpl::new(system, "", false), Err(IOError::NotFound)));
+        assert!(matches!(
+            FileImpl::new(system.clone(), "../escape.dat", false).await,
+            Err(IOError::NotFound)
+        ));
+        assert!(matches!(FileImpl::new(system, "", false).await, Err(IOError::NotFound)));
     }
 }

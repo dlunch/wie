@@ -67,32 +67,32 @@ impl FilesystemOverlay {
         self.virtual_files.lock().insert(key, data);
     }
 
-    pub fn exists(&self, path: &str) -> bool {
+    pub async fn exists(&self, path: &str) -> bool {
         let Some(normalized) = normalize_guest_path(path) else {
             return false;
         };
 
-        if self.platform.filesystem().exists(&self.aid, &normalized) {
+        if self.platform.filesystem().exists(&self.aid, &normalized).await {
             return true;
         }
         self.virtual_files.lock().contains_key(&normalized)
     }
 
-    pub fn size(&self, path: &str) -> Option<usize> {
+    pub async fn size(&self, path: &str) -> Option<usize> {
         let normalized = normalize_guest_path(path)?;
 
-        if let Some(size) = self.platform.filesystem().size(&self.aid, &normalized) {
+        if let Some(size) = self.platform.filesystem().size(&self.aid, &normalized).await {
             return Some(size);
         }
         self.virtual_files.lock().get(&normalized).map(|d| d.len())
     }
 
-    pub fn read(&self, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+    pub async fn read(&self, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
         let normalized = normalize_guest_path(path)?;
 
         let plat_fs = self.platform.filesystem();
-        if plat_fs.exists(&self.aid, &normalized) {
-            return plat_fs.read(&self.aid, &normalized, offset, count, buf);
+        if plat_fs.exists(&self.aid, &normalized).await {
+            return plat_fs.read(&self.aid, &normalized, offset, count, buf).await;
         }
 
         let files = self.virtual_files.lock();
@@ -105,18 +105,18 @@ impl FilesystemOverlay {
         Some(n)
     }
 
-    pub fn write(&self, path: &str, offset: usize, data: &[u8]) -> usize {
+    pub async fn write(&self, path: &str, offset: usize, data: &[u8]) -> usize {
         let Some(normalized) = normalize_guest_path(path) else {
             return 0;
         };
-        self.platform.filesystem().write(&self.aid, &normalized, offset, data)
+        self.platform.filesystem().write(&self.aid, &normalized, offset, data).await
     }
 
-    pub fn truncate(&self, path: &str, len: usize) {
+    pub async fn truncate(&self, path: &str, len: usize) {
         let Some(normalized) = normalize_guest_path(path) else {
             return;
         };
-        self.platform.filesystem().truncate(&self.aid, &normalized, len);
+        self.platform.filesystem().truncate(&self.aid, &normalized, len).await;
     }
 }
 
@@ -147,14 +147,15 @@ mod tests {
     struct StubFilesystem {
         files: Mutex<HashMap<(String, String), Vec<u8>>>,
     }
+    #[async_trait::async_trait]
     impl Filesystem for StubFilesystem {
-        fn exists(&self, aid: &str, path: &str) -> bool {
+        async fn exists(&self, aid: &str, path: &str) -> bool {
             self.files.lock().contains_key(&(aid.to_string(), path.to_string()))
         }
-        fn size(&self, aid: &str, path: &str) -> Option<usize> {
+        async fn size(&self, aid: &str, path: &str) -> Option<usize> {
             self.files.lock().get(&(aid.to_string(), path.to_string())).map(|v| v.len())
         }
-        fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
+        async fn read(&self, aid: &str, path: &str, offset: usize, count: usize, buf: &mut [u8]) -> Option<usize> {
             let files = self.files.lock();
             let data = files.get(&(aid.to_string(), path.to_string()))?;
             if offset >= data.len() {
@@ -164,7 +165,7 @@ mod tests {
             buf[..n].copy_from_slice(&data[offset..offset + n]);
             Some(n)
         }
-        fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+        async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
             let mut files = self.files.lock();
             let file = files.entry((aid.to_string(), path.to_string())).or_default();
             if file.len() < offset + data.len() {
@@ -173,7 +174,7 @@ mod tests {
             file[offset..offset + data.len()].copy_from_slice(data);
             data.len()
         }
-        fn truncate(&self, aid: &str, path: &str, len: usize) {
+        async fn truncate(&self, aid: &str, path: &str, len: usize) {
             let mut files = self.files.lock();
             let file = files.entry((aid.to_string(), path.to_string())).or_default();
             file.resize(len, 0);
@@ -212,70 +213,70 @@ mod tests {
         FilesystemOverlay::new(platform, "test-aid")
     }
 
-    #[test]
-    fn add_then_read_virtual() {
+    #[futures_test::test]
+    async fn add_then_read_virtual() {
         let fs = setup();
         fs.add_virtual("a.bin", vec![1, 2, 3, 4]);
 
         let mut buf = [0u8; 4];
-        assert_eq!(fs.read("a.bin", 0, 4, &mut buf), Some(4));
+        assert_eq!(fs.read("a.bin", 0, 4, &mut buf).await, Some(4));
         assert_eq!(buf, [1, 2, 3, 4]);
     }
 
-    #[test]
-    fn size_falls_through_to_virtual() {
+    #[futures_test::test]
+    async fn size_falls_through_to_virtual() {
         let fs = setup();
         fs.add_virtual("x", vec![0; 17]);
 
-        assert_eq!(fs.size("x"), Some(17));
-        assert_eq!(fs.size("nope"), None);
+        assert_eq!(fs.size("x").await, Some(17));
+        assert_eq!(fs.size("nope").await, None);
     }
 
-    #[test]
-    fn exists_checks_both_layers() {
+    #[futures_test::test]
+    async fn exists_checks_both_layers() {
         let fs = setup();
         fs.add_virtual("x", vec![1]);
 
-        assert!(fs.exists("x"));
-        assert!(!fs.exists("y"));
+        assert!(fs.exists("x").await);
+        assert!(!fs.exists("y").await);
 
-        fs.write("written", 0, &[9]);
-        assert!(fs.exists("written"));
+        fs.write("written", 0, &[9]).await;
+        assert!(fs.exists("written").await);
     }
 
-    #[test]
-    fn leading_slash_normalized() {
+    #[futures_test::test]
+    async fn leading_slash_normalized() {
         let fs = setup();
         fs.add_virtual("/a/b", vec![9]);
 
-        assert!(fs.exists("a/b"));
-        assert!(fs.exists("/a/b"));
+        assert!(fs.exists("a/b").await);
+        assert!(fs.exists("/a/b").await);
     }
 
-    #[test]
-    fn read_past_eof_virtual_returns_some_zero() {
+    #[futures_test::test]
+    async fn read_past_eof_virtual_returns_some_zero() {
         let fs = setup();
         fs.add_virtual("a", vec![1, 2, 3]);
 
         let mut buf = [0u8; 4];
-        assert_eq!(fs.read("a", 10, 4, &mut buf), Some(0));
+        assert_eq!(fs.read("a", 10, 4, &mut buf).await, Some(0));
     }
 
-    #[test]
-    fn read_missing_returns_none() {
+    #[futures_test::test]
+    async fn read_missing_returns_none() {
         let fs = setup();
         let mut buf = [0u8; 4];
-        assert_eq!(fs.read("nope", 0, 4, &mut buf), None);
+        assert_eq!(fs.read("nope", 0, 4, &mut buf).await, None);
     }
 
-    #[test]
-    fn platform_write_shadows_virtual() {
+    #[futures_test::test]
+    async fn platform_write_shadows_virtual() {
         let fs = setup();
         fs.add_virtual("cfg.dat", vec![0xAA, 0xBB, 0xCC]);
-        fs.write("cfg.dat", 0, &[1, 2, 3, 4]);
+        fs.write("cfg.dat", 0, &[1, 2, 3, 4]).await;
 
         let mut buf = [0u8; 4];
-        assert_eq!(fs.read("cfg.dat", 0, 4, &mut buf), Some(4));
+        assert_eq!(fs.read("cfg.dat", 0, 4, &mut buf).await, Some(4));
         assert_eq!(buf, [1, 2, 3, 4]);
     }
 }

@@ -3358,6 +3358,7 @@ dependencies = [
  "ab_glyph",
  "async-trait",
  "bytemuck",
+ "futures-test",
  "hashbrown 0.17.0",
  "image",
  "lazy_static",

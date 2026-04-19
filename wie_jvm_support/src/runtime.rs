@@ -194,7 +194,7 @@ where
     async fn open(&self, path: &str, write: bool) -> IOResult<FileDescriptorId> {
         tracing::debug!("open({path:?}, {write:?})");
 
-        let file = FileImpl::new(self.system.clone(), path, write)?;
+        let file = FileImpl::new(self.system.clone(), path, write).await?;
         Ok(self.file_table.lock().add(Box::new(file)))
     }
 
@@ -218,7 +218,7 @@ where
             });
         }
 
-        let size = self.system.filesystem().size(path).ok_or(IOError::NotFound)?;
+        let size = self.system.filesystem().size(path).await.ok_or(IOError::NotFound)?;
 
         Ok(FileStat {
             size: size as _,
