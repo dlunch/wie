@@ -1,4 +1,9 @@
-use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    vec::Vec,
+};
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use smaf_player::{SmafEvent, parse_smaf};
@@ -95,6 +100,7 @@ impl SmafPlayer {
 
     pub async fn play(&self, system: &mut System, sink: &dyn AudioSink, stop_flag: &AtomicBool) {
         let mut active_notes: Vec<(u8, u8)> = Vec::new();
+        let mut used_channels: BTreeSet<u8> = BTreeSet::new();
 
         let start_time = system.platform().now();
         for (time, event) in &self.events {
@@ -122,6 +128,7 @@ impl SmafPlayer {
                 SmafEvent::MidiNoteOn { channel, note, velocity } => {
                     sink.midi_note_on(*channel, *note, *velocity);
                     active_notes.push((*channel, *note));
+                    used_channels.insert(*channel);
                 }
                 SmafEvent::MidiNoteOff { channel, note, velocity } => {
                     sink.midi_note_off(*channel, *note, *velocity);
@@ -129,9 +136,11 @@ impl SmafPlayer {
                 }
                 SmafEvent::MidiProgramChange { channel, program } => {
                     sink.midi_program_change(*channel, *program);
+                    used_channels.insert(*channel);
                 }
                 SmafEvent::MidiControlChange { channel, control, value } => {
                     sink.midi_control_change(*channel, *control, *value);
+                    used_channels.insert(*channel);
                 }
                 SmafEvent::End => {}
             }
@@ -139,6 +148,16 @@ impl SmafPlayer {
 
         for (channel, note) in &active_notes {
             sink.midi_note_off(*channel, *note, 0);
+        }
+
+        // Release sustain and force any lingering voices off on every channel
+        // this track touched. Tracks that set sustain pedal (CC 64) or use
+        // long release envelopes (e.g. drum voices) otherwise keep ringing
+        // after note_off.
+        for channel in &used_channels {
+            sink.midi_control_change(*channel, 64, 0); // sustain off
+            sink.midi_control_change(*channel, 120, 0); // all sound off
+            sink.midi_control_change(*channel, 123, 0); // all notes off
         }
     }
 }
