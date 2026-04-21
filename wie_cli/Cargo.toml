@@ -13,7 +13,7 @@ clap = { version = "^4.6", features = ["derive"] }
 directories = { version = "^6.0" }
 fast_image_resize = "6.0.0"
 rodio = { version = "^0.22", features = ["playback"] }
-midir = { version = "^0.10" }
+midir = { version = "^0.11" }
 softbuffer = { version = "^0.4" }
 tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
 winit = { version = "^0.30", features = ["x11", "wayland"] }
