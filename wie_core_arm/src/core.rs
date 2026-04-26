@@ -31,7 +31,7 @@ pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
-    pub(crate) svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
+    svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
 }
 
@@ -268,7 +268,7 @@ impl ArmCore {
     /// program counter. Unlike `register_svc_handler`, the standard
     /// `ResultWriter::write(core, lr)` step is skipped — the callback must
     /// set `PC` itself via `set_next_pc`.
-    pub(crate) fn register_raw_svc_handler(&mut self, category: u32, handler: Arc<Box<dyn RegisteredFunction>>) -> Result<()> {
+    pub fn register_raw_svc_handler(&mut self, category: u32, handler: Arc<Box<dyn RegisteredFunction>>) -> Result<()> {
         let mut inner = self.inner.lock();
 
         if inner.svc_handlers.contains_key(&category) {

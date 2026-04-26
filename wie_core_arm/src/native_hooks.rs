@@ -103,15 +103,15 @@ pub const NATIVE_HOOK_MAX: usize = 0x80;
 
 /// Result of matching a `PatternHook` at a concrete address.
 #[derive(Debug, Clone)]
-pub(crate) struct PatternMatch {
-    pub addr: u32,
-    pub dst: Option<u8>,
-    pub src: Option<u8>,
-    pub len: Option<u8>,
+struct PatternMatch {
+    addr: u32,
+    dst: Option<u8>,
+    src: Option<u8>,
+    len: Option<u8>,
     /// Address of the first `{exit_b}` byte (needed to compute the branch target).
-    pub exit_b_site: Option<u32>,
+    exit_b_site: Option<u32>,
     /// Two-byte Thumb B encoding captured from the pattern.
-    pub exit_b_bytes: Option<[u8; 2]>,
+    exit_b_bytes: Option<[u8; 2]>,
 }
 
 /// A `RegisteredFunction` implementation dedicated to native hooks. Unlike the
@@ -139,9 +139,10 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
 /// `scan_ranges` are the (base, size) byte ranges searched for pattern-based
 /// hooks (typically the guest `.text` region).
 ///
-/// Returns an error if any hook PC targets ARM mode (LSB=0); the current
+/// Returns the number of hooks actually installed (duplicate-PC matches are
+/// skipped). Errors if any hook PC targets ARM mode (LSB=0); the current
 /// engine only services Thumb SVC exceptions.
-pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u32)]) -> Result<()> {
+pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
     let mut installed: Vec<Hook> = entry.hooks.to_vec();
 
     for pattern in entry.patterns {
@@ -227,10 +228,10 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
         tracing::info!("Native hook installed at {:#x}: {:?}", hook.pc, hook.kind);
     }
 
-    Ok(())
+    Ok(installed.len())
 }
 
-pub(crate) async fn dispatch(core: &mut ArmCore, hook: &Hook) -> Result<()> {
+async fn dispatch(core: &mut ArmCore, hook: &Hook) -> Result<()> {
     match hook.kind {
         HookKind::Memcpy => do_memcpy(core).await,
         HookKind::Memset => do_memset(core).await,
@@ -282,7 +283,7 @@ fn scan_pattern(core: &mut ArmCore, pattern: &PatternHook, scan_ranges: &[(u32, 
 
 /// Try to match `tokens` against `bytes` starting at logical offset 0.
 /// Returns a `PatternMatch` with captures populated (addr/site computed by caller).
-pub(crate) fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
+fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
     if bytes.len() < tokens.len() {
         return None;
     }
@@ -349,14 +350,14 @@ pub(crate) fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<Pattern
 /// Convert a captured Thumb1 `SUBS Rn, #imm8` byte to the signed stack offset
 /// used by `InlineCopy`. Typical frame pointers are below the slot, so the
 /// compiler emits a SUBS to reach them — we negate the immediate.
-pub(crate) fn capture_to_offset(byte: u8) -> i32 {
+fn capture_to_offset(byte: u8) -> i32 {
     -(byte as i8 as i32)
 }
 
 /// Decode a two-byte Thumb unconditional forward branch (`11100 imm11`).
 /// `b_site` is the byte address of the instruction. Returns the target PC
 /// with the Thumb bit set.
-pub(crate) fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
+fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
     let raw = u16::from_le_bytes(bytes);
     let imm11 = (raw & 0x07ff) as i32;
     let offset = if imm11 & 0x400 != 0 { imm11 - 0x800 } else { imm11 };
@@ -646,12 +647,12 @@ mod tests {
         };
         assert_eq!(category, NATIVE_HOOK_CATEGORY_BASE);
 
-        let handler = {
-            let inner = core.inner.lock();
-            inner.svc_handlers.get(&category).cloned().unwrap()
+        let hook = Hook {
+            pc: hook_pc,
+            kind: HookKind::Memcpy,
         };
         let mut core_clone = core.clone();
-        handler.call(&mut core_clone).await?;
+        dispatch(&mut core_clone, &hook).await?;
 
         let mut out = [0u8; 4];
         core.read_bytes(dst, &mut out)?;
@@ -848,16 +849,7 @@ mod tests {
                 },
             ],
         };
-        install(&mut core, &ENTRY, &[(0x60000, 0x100)])?;
-
-        let count = {
-            let inner = core.inner.lock();
-            inner
-                .svc_handlers
-                .keys()
-                .filter(|k| **k >= NATIVE_HOOK_CATEGORY_BASE && **k < NATIVE_HOOK_CATEGORY_BASE + NATIVE_HOOK_MAX as u32)
-                .count()
-        };
+        let count = install(&mut core, &ENTRY, &[(0x60000, 0x100)])?;
         assert_eq!(count, 1, "duplicate PC should be skipped");
         Ok(())
     }

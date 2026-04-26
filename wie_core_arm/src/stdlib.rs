@@ -2,8 +2,8 @@ use wie_util::{ByteRead, ByteWrite, Result};
 
 use crate::ArmCore;
 
-pub(crate) const COPY_CHUNK: usize = 4096;
-pub(crate) const STR_SCAN_CHUNK: usize = 256;
+const COPY_CHUNK: usize = 4096;
+const STR_SCAN_CHUNK: usize = 256;
 
 pub fn memcpy(core: &mut ArmCore, ptr_dst: u32, ptr_src: u32, len: u32) -> Result<()> {
     let mut buf = [0u8; COPY_CHUNK];
