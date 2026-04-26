@@ -19,26 +19,27 @@
 #   - `{len}`     — same, len offset (omit capture + provide `len_offset` to pin)
 #   - `{exit_b}`  — TWO consecutive tokens, encoding a Thumb `B imm11` instruction
 #
-# `memcpy_inline` fixed fields:
+# `inline_copy` fixed fields:
 #   - `len_offset`   — R7-relative offset of the length variable. Required if
 #                      the pattern has no `{len}` capture; forbidden if it does.
 #   - `spill_back`   — after the copy, also write back `dst += len`, `src += len`,
 #                      `len = 0` into their stack slots. Set true when the code
-#                      after the loop re-reads those variables (i.e. the loop
-#                      body advances the pointers in memory rather than in
-#                      registers). Set false when the outer code is invariant
-#                      over those slots.
+#                      after the loop re-reads those variables.
+#
+# `inline_copy` requires the loop to use a DOWN-counter (length stored on the
+# stack and decremented to 0 to exit). UP-counter loops are NOT compatible —
+# zeroing the slot just resets the index and the loop restarts.
 
 [[entry]]
 name = "Generic compiler library / inline copy patterns"
 
-# Thumb -O0 inline byte copy. `{dst}` / `{src}` capture the SUBS/ADDS imm8
-# stack offsets; `{exit_b}` (two tokens) captures the Thumb `B` at the end of
-# the loop. `len_offset` is fixed because this compiler keeps the length
-# variable at a constant frame offset.
+# Thumb -O0 byte copy: `*dst++ = *src++` with `dst`/`src`/`len` all on the
+# stack. Src is reached via single-instruction `SUBS R4, R7, #4` (`3c 1f`),
+# so `src_offset` is pinned.
 [[entry.hook]]
-kind = "memcpy_inline"
-pattern = "?? 00 {dst} 3d 29 68 ?? 00 {src} 3c 22 68 08 00 13 00 1b 78 03 70 01 32 22 60 01 31 29 60 ?? ?? {exit_b} {exit_b}"
+kind = "inline_copy"
+pattern = "3d 1c {dst} 3d 29 68 3c 1f 22 68 08 1c 13 1c 1b 78 03 70 01 32 22 60 01 31 29 60 {exit_b} {exit_b}"
+src_offset = -4
 len_offset = -12
 spill_back = true
 

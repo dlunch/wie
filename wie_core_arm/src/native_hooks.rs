@@ -37,10 +37,11 @@ pub enum HookKind {
     /// ARM ABI function entry: str=r0. Compute length up to (not including)
     /// the NUL terminator. Return length in r0, then return via LR.
     Strlen,
-    /// Inline memcpy loop. Arguments live on the current stack frame relative
-    /// to R7 (typical Thumb frame pointer). After the copy the dispatcher
-    /// jumps to `exit_pc` to resume normal execution past the loop.
-    MemcpyInline {
+    /// Inline byte-copy loop with `dst`/`src`/`len` on the current stack frame
+    /// relative to R7 (typical Thumb frame pointer). The loop must use a
+    /// down-counter (`len` decremented to 0 to exit). After the copy the
+    /// dispatcher jumps to `exit_pc` to resume execution past the loop.
+    InlineCopy {
         dst_offset: i32,
         src_offset: i32,
         len_offset: i32,
@@ -78,7 +79,7 @@ pub enum PatternHookKind {
     Memset,
     Strcpy,
     Strlen,
-    MemcpyInline {
+    InlineCopy {
         /// `None` => runtime captures the value from `{dst}` / `{src}` / `{len}`
         /// using the Thumb1 `SUBS Rn, #imm8` encoding convention:
         /// the captured byte `b` is reinterpreted as `-(b as i8) as i32`.
@@ -115,7 +116,7 @@ pub(crate) struct PatternMatch {
 
 /// A `RegisteredFunction` implementation dedicated to native hooks. Unlike the
 /// generic `RegisteredFunctionHolder`, it sets the post-SVC program counter
-/// itself — `Memcpy`/`Memset` return through LR, `MemcpyInline` jumps to the
+/// itself — `Memcpy`/`Memset` return through LR, `InlineCopy` jumps to the
 /// configured exit PC.
 struct NativeHookHandler {
     hook: Hook,
@@ -151,7 +152,7 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
                 PatternHookKind::Memset => HookKind::Memset,
                 PatternHookKind::Strcpy => HookKind::Strcpy,
                 PatternHookKind::Strlen => HookKind::Strlen,
-                PatternHookKind::MemcpyInline {
+                PatternHookKind::InlineCopy {
                     dst_offset,
                     src_offset,
                     len_offset,
@@ -178,7 +179,7 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
                             .ok_or_else(|| WieError::FatalError("pattern missing exit_b bytes".to_string()))?;
                         decode_exit_b(site, bytes)
                     };
-                    HookKind::MemcpyInline {
+                    HookKind::InlineCopy {
                         dst_offset: dst,
                         src_offset: src,
                         len_offset: len,
@@ -235,13 +236,13 @@ pub(crate) async fn dispatch(core: &mut ArmCore, hook: &Hook) -> Result<()> {
         HookKind::Memset => do_memset(core).await,
         HookKind::Strcpy => do_strcpy(core).await,
         HookKind::Strlen => do_strlen(core).await,
-        HookKind::MemcpyInline {
+        HookKind::InlineCopy {
             dst_offset,
             src_offset,
             len_offset,
             exit_pc,
             spill_back,
-        } => do_memcpy_inline(core, dst_offset, src_offset, len_offset, exit_pc, spill_back).await,
+        } => do_inline_copy(core, dst_offset, src_offset, len_offset, exit_pc, spill_back).await,
     }
 }
 
@@ -327,6 +328,15 @@ pub(crate) fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<Pattern
                     if !matches!(tokens[i + 1], PatternToken::Capture(CaptureName::ExitB)) {
                         return None;
                     }
+                    // Reject matches where the captured bytes aren't a Thumb
+                    // unconditional `B imm11` (`11100 iiiiiiiiiii`, encoded as
+                    // 0xE0xx-0xE7xx little-endian). Without this, a permissive
+                    // pattern can land on arbitrary instructions and decode
+                    // them as if they were branches, sending the dispatcher
+                    // to a garbage `exit_pc`.
+                    if hi & 0xf8 != 0xe0 {
+                        return None;
+                    }
                     m.exit_b_bytes = Some([b, hi]);
                     i += 2;
                 }
@@ -337,7 +347,7 @@ pub(crate) fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<Pattern
 }
 
 /// Convert a captured Thumb1 `SUBS Rn, #imm8` byte to the signed stack offset
-/// used by `MemcpyInline`. Typical frame pointers are below the slot, so the
+/// used by `InlineCopy`. Typical frame pointers are below the slot, so the
 /// compiler emits a SUBS to reach them — we negate the immediate.
 pub(crate) fn capture_to_offset(byte: u8) -> i32 {
     -(byte as i8 as i32)
@@ -355,7 +365,7 @@ pub(crate) fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
 }
 
 async fn do_memcpy(core: &mut ArmCore) -> Result<()> {
-    let (dst, src, len, lr) = {
+    let (ptr_dst, ptr_src, len, lr) = {
         let inner = core.inner.lock();
         (
             inner.engine.reg_read(ArmRegister::R0),
@@ -365,13 +375,13 @@ async fn do_memcpy(core: &mut ArmCore) -> Result<()> {
         )
     };
 
-    tracing::trace!("native hook memcpy(dst={dst:#x}, src={src:#x}, len={len:#x})");
-    stdlib::memcpy(core, dst, src, len)?;
+    tracing::trace!("native hook memcpy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x})");
+    stdlib::memcpy(core, ptr_dst, ptr_src, len)?;
     core.set_next_pc(lr)
 }
 
 async fn do_memset(core: &mut ArmCore) -> Result<()> {
-    let (dst, val, len, lr) = {
+    let (ptr_dst, val, len, lr) = {
         let inner = core.inner.lock();
         (
             inner.engine.reg_read(ArmRegister::R0),
@@ -381,13 +391,13 @@ async fn do_memset(core: &mut ArmCore) -> Result<()> {
         )
     };
 
-    tracing::trace!("native hook memset(dst={dst:#x}, val={:#x}, len={len:#x})", val as u8);
-    stdlib::memset(core, dst, val as u8, len)?;
+    tracing::trace!("native hook memset(ptr_dst={ptr_dst:#x}, val={:#x}, len={len:#x})", val as u8);
+    stdlib::memset(core, ptr_dst, val as u8, len)?;
     core.set_next_pc(lr)
 }
 
 async fn do_strcpy(core: &mut ArmCore) -> Result<()> {
-    let (dst, src, lr) = {
+    let (ptr_dst, ptr_src, lr) = {
         let inner = core.inner.lock();
         (
             inner.engine.reg_read(ArmRegister::R0),
@@ -396,19 +406,19 @@ async fn do_strcpy(core: &mut ArmCore) -> Result<()> {
         )
     };
 
-    tracing::trace!("native hook strcpy(dst={dst:#x}, src={src:#x})");
-    stdlib::strcpy(core, dst, src)?;
+    tracing::trace!("native hook strcpy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x})");
+    stdlib::strcpy(core, ptr_dst, ptr_src)?;
     core.set_next_pc(lr)
 }
 
 async fn do_strlen(core: &mut ArmCore) -> Result<()> {
-    let (str_ptr, lr) = {
+    let (ptr_str, lr) = {
         let inner = core.inner.lock();
         (inner.engine.reg_read(ArmRegister::R0), inner.engine.reg_read(ArmRegister::LR))
     };
 
-    let len = stdlib::strlen(core, str_ptr)?;
-    tracing::trace!("native hook strlen(str={str_ptr:#x}) -> {len:#x}");
+    let len = stdlib::strlen(core, ptr_str)?;
+    tracing::trace!("native hook strlen(ptr_str={ptr_str:#x}) -> {len:#x}");
 
     {
         let mut inner = core.inner.lock();
@@ -418,7 +428,7 @@ async fn do_strlen(core: &mut ArmCore) -> Result<()> {
     core.set_next_pc(lr)
 }
 
-async fn do_memcpy_inline(core: &mut ArmCore, dst_offset: i32, src_offset: i32, len_offset: i32, exit_pc: u32, spill_back: bool) -> Result<()> {
+async fn do_inline_copy(core: &mut ArmCore, dst_offset: i32, src_offset: i32, len_offset: i32, exit_pc: u32, spill_back: bool) -> Result<()> {
     let r7 = {
         let inner = core.inner.lock();
         inner.engine.reg_read(ArmRegister::R7)
@@ -428,18 +438,18 @@ async fn do_memcpy_inline(core: &mut ArmCore, dst_offset: i32, src_offset: i32, 
     let src_slot = r7.wrapping_add(src_offset as u32);
     let len_slot = r7.wrapping_add(len_offset as u32);
 
-    let dst: u32 = read_generic(core, dst_slot)?;
-    let src: u32 = read_generic(core, src_slot)?;
+    let ptr_dst: u32 = read_generic(core, dst_slot)?;
+    let ptr_src: u32 = read_generic(core, src_slot)?;
     let len: u32 = read_generic(core, len_slot)?;
 
-    tracing::trace!("native hook memcpy_inline(dst={dst:#x}, src={src:#x}, len={len:#x}, exit={exit_pc:#x})");
-    stdlib::memcpy(core, dst, src, len)?;
+    tracing::trace!("native hook inline_copy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x}, exit={exit_pc:#x})");
+    stdlib::memcpy(core, ptr_dst, ptr_src, len)?;
 
     if spill_back {
-        let new_dst = dst.wrapping_add(len);
-        let new_src = src.wrapping_add(len);
-        core.write_bytes(dst_slot, &new_dst.to_le_bytes())?;
-        core.write_bytes(src_slot, &new_src.to_le_bytes())?;
+        let new_ptr_dst = ptr_dst.wrapping_add(len);
+        let new_ptr_src = ptr_src.wrapping_add(len);
+        core.write_bytes(dst_slot, &new_ptr_dst.to_le_bytes())?;
+        core.write_bytes(src_slot, &new_ptr_src.to_le_bytes())?;
         core.write_bytes(len_slot, &0u32.to_le_bytes())?;
     }
 
@@ -529,7 +539,7 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn memcpy_inline_dispatch_reads_frame_copies_and_jumps_to_exit() -> Result<()> {
+    async fn inline_copy_dispatch_reads_frame_copies_and_jumps_to_exit() -> Result<()> {
         let mut core = ArmCore::new(false)?;
         core.map(0x10000, 0x2000)?;
 
@@ -550,7 +560,7 @@ mod tests {
 
         static HOOK: Hook = Hook {
             pc: 0x10201,
-            kind: HookKind::MemcpyInline {
+            kind: HookKind::InlineCopy {
                 dst_offset: 0,
                 src_offset: 4,
                 len_offset: 8,
@@ -806,6 +816,15 @@ mod tests {
 
         let neg = decode_exit_b(site, [0xfe, 0xe7]);
         assert_eq!(neg, site | 1);
+    }
+
+    #[test]
+    fn pattern_scan_rejects_exit_b_capture_when_bytes_are_not_thumb_b() {
+        let tokens = [PatternToken::Capture(CaptureName::ExitB), PatternToken::Capture(CaptureName::ExitB)];
+        // `0c 3a` is `SUBS R2, #0xC` — high byte 0x3a is not in 0xE0-0xE7.
+        assert!(try_match(&tokens, &[0x0c, 0x3a]).is_none());
+        // `e8 e7` is a valid back-branch (high byte 0xE7).
+        assert!(try_match(&tokens, &[0xe8, 0xe7]).is_some());
     }
 
     #[test]

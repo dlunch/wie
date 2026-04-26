@@ -44,7 +44,7 @@ enum RawHook {
         #[serde(default)]
         pattern: Option<String>,
     },
-    MemcpyInline {
+    InlineCopy {
         #[serde(default)]
         pc: Option<u32>,
         #[serde(default)]
@@ -172,7 +172,7 @@ fn emit_pc_hook(out: &mut String, hook: &RawHook, pc: u32) {
         RawHook::Strlen { .. } => {
             out.push_str(&format!("            Hook {{ pc: {pc:#x}, kind: HookKind::Strlen }},\n"));
         }
-        RawHook::MemcpyInline {
+        RawHook::InlineCopy {
             dst_offset,
             src_offset,
             len_offset,
@@ -180,12 +180,12 @@ fn emit_pc_hook(out: &mut String, hook: &RawHook, pc: u32) {
             spill_back,
             ..
         } => {
-            let dst = dst_offset.expect("pc-based memcpy_inline requires dst_offset");
-            let src = src_offset.expect("pc-based memcpy_inline requires src_offset");
-            let len = len_offset.expect("pc-based memcpy_inline requires len_offset");
-            let exit = exit_pc.expect("pc-based memcpy_inline requires exit_pc");
+            let dst = dst_offset.expect("pc-based inline_copy requires dst_offset");
+            let src = src_offset.expect("pc-based inline_copy requires src_offset");
+            let len = len_offset.expect("pc-based inline_copy requires len_offset");
+            let exit = exit_pc.expect("pc-based inline_copy requires exit_pc");
             out.push_str(&format!(
-                "            Hook {{ pc: {pc:#x}, kind: HookKind::MemcpyInline {{ dst_offset: {dst}, src_offset: {src}, len_offset: {len}, exit_pc: {exit:#x}, spill_back: {spill_back} }} }},\n"
+                "            Hook {{ pc: {pc:#x}, kind: HookKind::InlineCopy {{ dst_offset: {dst}, src_offset: {src}, len_offset: {len}, exit_pc: {exit:#x}, spill_back: {spill_back} }} }},\n"
             ));
         }
     }
@@ -214,7 +214,7 @@ fn emit_pattern_hook(out: &mut String, hook: &RawHook, tokens: &[Token], entry_n
                 "            PatternHook {{ tokens: {tokens_src}, kind_template: PatternHookKind::Strlen }},\n"
             ));
         }
-        RawHook::MemcpyInline {
+        RawHook::InlineCopy {
             dst_offset,
             src_offset,
             len_offset,
@@ -234,10 +234,10 @@ fn emit_pattern_hook(out: &mut String, hook: &RawHook, tokens: &[Token], entry_n
             let len_expr = encode_offset("len_offset", len_cap, *len_offset, entry_name);
 
             if !exit_cap && exit_pc.is_none() {
-                panic!("entry {entry_name}: memcpy_inline pattern needs either {{exit_b}} capture or exit_pc");
+                panic!("entry {entry_name}: inline_copy pattern needs either {{exit_b}} capture or exit_pc");
             }
             if exit_cap && exit_pc.is_some() {
-                panic!("entry {entry_name}: memcpy_inline pattern cannot specify both {{exit_b}} and exit_pc");
+                panic!("entry {entry_name}: inline_copy pattern cannot specify both {{exit_b}} and exit_pc");
             }
             let exit_expr = if exit_cap {
                 "None".to_string()
@@ -246,7 +246,7 @@ fn emit_pattern_hook(out: &mut String, hook: &RawHook, tokens: &[Token], entry_n
             };
 
             out.push_str(&format!(
-                "            PatternHook {{ tokens: {tokens_src}, kind_template: PatternHookKind::MemcpyInline {{ dst_offset: {dst_expr}, src_offset: {src_expr}, len_offset: {len_expr}, exit_pc: {exit_expr}, spill_back: {spill_back} }} }},\n"
+                "            PatternHook {{ tokens: {tokens_src}, kind_template: PatternHookKind::InlineCopy {{ dst_offset: {dst_expr}, src_offset: {src_expr}, len_offset: {len_expr}, exit_pc: {exit_expr}, spill_back: {spill_back} }} }},\n"
             ));
         }
     }
@@ -287,7 +287,7 @@ fn main() {
                 RawHook::Memset { pc, pattern } => (pc, pattern),
                 RawHook::Strcpy { pc, pattern } => (pc, pattern),
                 RawHook::Strlen { pc, pattern } => (pc, pattern),
-                RawHook::MemcpyInline { pc, pattern, .. } => (pc, pattern),
+                RawHook::InlineCopy { pc, pattern, .. } => (pc, pattern),
             };
             match (pc.is_some(), pattern.is_some()) {
                 (true, false) => pc_hooks.push(hook),
@@ -322,7 +322,7 @@ fn main() {
                 RawHook::Memset { pc, .. } => pc.unwrap(),
                 RawHook::Strcpy { pc, .. } => pc.unwrap(),
                 RawHook::Strlen { pc, .. } => pc.unwrap(),
-                RawHook::MemcpyInline { pc, .. } => pc.unwrap(),
+                RawHook::InlineCopy { pc, .. } => pc.unwrap(),
             };
             emit_pc_hook(&mut out, hook, pc);
         }
