@@ -32,23 +32,23 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
     core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, &())
 }
 
-async fn strcpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32) -> Result<()> {
-    tracing::debug!("strcpy({dst:#x}, {ptr_src:#x})");
+async fn strcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
+    tracing::debug!("strcpy({ptr_dst:#x}, {ptr_src:#x})");
 
-    stdlib::strcpy(core, dst, ptr_src)?;
+    stdlib::strcpy(core, ptr_dst, ptr_src)?;
 
     Ok(())
 }
 
-async fn strncpy(core: &mut ArmCore, _: &mut (), dst: u32, ptr_src: u32, size: u32) -> Result<()> {
-    tracing::debug!("strncpy({dst:#x}, {ptr_src:#x}, {size:#x})");
+async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
+    tracing::debug!("strncpy({ptr_dst:#x}, {ptr_src:#x}, {size:#x})");
 
     let src = read_null_terminated_string_bytes(core, ptr_src)?;
 
     let size_to_copy = min(size, src.len() as u32);
     let bytes = &src[..size_to_copy as usize];
 
-    core.write_bytes(dst, bytes)?;
+    core.write_bytes(ptr_dst, bytes)?;
 
     Ok(())
 }
@@ -89,16 +89,16 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     Ok(string.parse().unwrap_or(0))
 }
 
-async fn memcpy(core: &mut ArmCore, _: &mut (), dst: u32, src: u32, size: u32) -> Result<()> {
-    tracing::debug!("memcpy({dst:#x}, {src:#x}, {size:#x})");
+async fn memcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
+    tracing::debug!("memcpy({ptr_dst:#x}, {ptr_src:#x}, {size:#x})");
 
-    stdlib::memcpy(core, dst, src, size)
+    stdlib::memcpy(core, ptr_dst, ptr_src, size)
 }
 
-async fn memset(core: &mut ArmCore, _: &mut (), dst: u32, value: u32, size: u32) -> Result<()> {
-    tracing::debug!("memset({dst:#x}, {value:#x}, {size:#x})");
+async fn memset(core: &mut ArmCore, _: &mut (), ptr_dst: u32, value: u32, size: u32) -> Result<()> {
+    tracing::debug!("memset({ptr_dst:#x}, {value:#x}, {size:#x})");
 
-    stdlib::memset(core, dst, value as u8, size)
+    stdlib::memset(core, ptr_dst, value as u8, size)
 }
 
 // TODO is this method better suit on wie_backend?
