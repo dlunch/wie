@@ -891,6 +891,33 @@ mod tests {
     }
 
     #[test]
+    fn pattern_bit_match_captures_register_at_correct_shift() {
+        // `0b00sss011` matches `(src << 3) | 0b011`. Cross-byte consistency
+        // forces the same `s` capture to agree across positions.
+        let tokens = [
+            PatternToken::BitMatch {
+                mask: 0b1100_0111,
+                fixed: 0b0000_0011,
+                capture: Some((CaptureName::SrcReg, 3)),
+            },
+            PatternToken::BitMatch {
+                mask: 0b1111_1000,
+                fixed: 0b0011_0000,
+                capture: Some((CaptureName::SrcReg, 0)),
+            },
+        ];
+        // 0x0B = 0b00001011 → src bits 5..3 = 001 → R1
+        // 0x31 = 0b00110001 → src bits 2..0 = 001 → R1 (consistent)
+        let m = try_match(&tokens, &[0x0b, 0x31]).expect("match");
+        assert_eq!(m.src_reg, Some(1));
+
+        // Inconsistent capture must fail: first byte says R1, second says R2.
+        assert!(try_match(&tokens, &[0x0b, 0x32]).is_none());
+        // First byte's literal bits don't match (low nibble != 0b011).
+        assert!(try_match(&tokens, &[0x0a, 0x31]).is_none());
+    }
+
+    #[test]
     fn pattern_scan_rejects_exit_b_capture_when_bytes_are_not_thumb_b() {
         let tokens = [PatternToken::Capture(CaptureName::ExitB), PatternToken::Capture(CaptureName::ExitB)];
         // `0c 3a` is `SUBS R2, #0xC` — high byte 0x3a is not in 0xE0-0xE7.

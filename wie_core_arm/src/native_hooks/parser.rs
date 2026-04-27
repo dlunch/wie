@@ -223,7 +223,8 @@ fn parse_bit_match(bits: &str, entry_name: &str) -> PatternToken {
                     _ => CaptureName::CountReg,
                 };
                 match &mut capture {
-                    Some((n, _lowest, count)) if *n == name => {
+                    Some((n, lowest, count)) if *n == name => {
+                        *lowest = bit; // iterating high→low, so the latest write is the lowest bit
                         *count += 1;
                     }
                     Some(_) => panic!("entry {entry_name}: bit pattern `0b{bits}` mixes multiple register placeholders"),
