@@ -55,6 +55,12 @@ pub async fn load_native(
     // re-scan after relocation. Hash-matched entries take priority over
     // hash-less generic ones; only one entry is installed because each install
     // claims fresh SVC categories from a fixed base and they would collide.
+    //
+    // The scan range covers the whole loaded image because KTF binaries don't
+    // expose a code/metadata boundary at this point. Safety relies on the
+    // patterns being long enough (and `{exit_b}` strict enough) that a
+    // metadata-region collision is implausible; tighten patterns rather than
+    // narrow the range if that ever becomes false.
     let binary_hash = wie_core_arm::native_hooks::md5(data);
     let entry = wie_core_arm::native_hooks::NATIVE_HOOKS
         .iter()
