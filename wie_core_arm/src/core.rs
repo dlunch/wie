@@ -264,22 +264,6 @@ impl ArmCore {
         Ok(())
     }
 
-    /// Register a raw SVC handler that owns full control over the post-SVC
-    /// program counter. Unlike `register_svc_handler`, the standard
-    /// `ResultWriter::write(core, lr)` step is skipped — the callback must
-    /// set `PC` itself via `set_next_pc`.
-    pub fn register_raw_svc_handler(&mut self, category: u32, handler: Arc<Box<dyn RegisteredFunction>>) -> Result<()> {
-        let mut inner = self.inner.lock();
-
-        if inner.svc_handlers.contains_key(&category) {
-            return Err(WieError::FatalError(format!("SVC handler already registered for {category}")));
-        }
-
-        inner.svc_handlers.insert(category, handler);
-
-        Ok(())
-    }
-
     pub fn make_svc_stub(&mut self, category: u32, id: impl Into<u32>) -> Result<u32> {
         let mut inner = self.inner.lock();
         let id = id.into();

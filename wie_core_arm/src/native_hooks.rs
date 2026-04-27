@@ -1,8 +1,8 @@
-use alloc::{boxed::Box, format, string::ToString, sync::Arc, vec, vec::Vec};
+use alloc::{format, string::ToString, vec, vec::Vec};
 
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
-use crate::{ArmCore, engine::ArmRegister, function::RegisteredFunction, stdlib};
+use crate::{ArmCore, engine::ArmRegister, function::JumpTo, stdlib};
 
 /// Entry for a single game binary. When `hash` is set it must equal the MD5
 /// of the on-disk binary payload (pre-relocation/self-patching) for the entry
@@ -114,19 +114,15 @@ struct PatternMatch {
     exit_b_bytes: Option<[u8; 2]>,
 }
 
-/// A `RegisteredFunction` implementation dedicated to native hooks. Unlike the
-/// generic `RegisteredFunctionHolder`, it sets the post-SVC program counter
-/// itself — `Memcpy`/`Memset` return through LR, `InlineCopy` jumps to the
-/// configured exit PC.
-struct NativeHookHandler {
-    hook: Hook,
-}
-
-#[async_trait::async_trait]
-impl RegisteredFunction for NativeHookHandler {
-    async fn call(&self, core: &mut ArmCore) -> Result<()> {
-        dispatch(core, &self.hook).await
-    }
+/// Per-hook context passed to `handle_inline_copy`. Carries the stack-frame
+/// offsets and the exit PC the dispatcher must resume at after the copy.
+#[derive(Clone)]
+struct InlineCopyCtx {
+    dst_offset: i32,
+    src_offset: i32,
+    len_offset: i32,
+    exit_pc: u32,
+    spill_back: bool,
 }
 
 pub fn md5(data: &[u8]) -> [u8; 16] {
@@ -218,8 +214,28 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
         }
 
         let category = NATIVE_HOOK_CATEGORY_BASE + i as u32;
-        let handler: Arc<Box<dyn RegisteredFunction>> = Arc::new(Box::new(NativeHookHandler { hook: *hook }));
-        core.register_raw_svc_handler(category, handler)?;
+        match hook.kind {
+            HookKind::Memcpy => core.register_svc_handler(category, handle_memcpy, &())?,
+            HookKind::Memset => core.register_svc_handler(category, handle_memset, &())?,
+            HookKind::Strcpy => core.register_svc_handler(category, handle_strcpy, &())?,
+            HookKind::Strlen => core.register_svc_handler(category, handle_strlen, &())?,
+            HookKind::InlineCopy {
+                dst_offset,
+                src_offset,
+                len_offset,
+                exit_pc,
+                spill_back,
+            } => {
+                let ctx = InlineCopyCtx {
+                    dst_offset,
+                    src_offset,
+                    len_offset,
+                    exit_pc,
+                    spill_back,
+                };
+                core.register_svc_handler(category, handle_inline_copy, &ctx)?;
+            }
+        }
 
         let patch_addr = hook.pc & !1;
         let instruction: u16 = 0xdf00 | (category as u16 & 0xff);
@@ -229,22 +245,6 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
     }
 
     Ok(installed.len())
-}
-
-async fn dispatch(core: &mut ArmCore, hook: &Hook) -> Result<()> {
-    match hook.kind {
-        HookKind::Memcpy => do_memcpy(core).await,
-        HookKind::Memset => do_memset(core).await,
-        HookKind::Strcpy => do_strcpy(core).await,
-        HookKind::Strlen => do_strlen(core).await,
-        HookKind::InlineCopy {
-            dst_offset,
-            src_offset,
-            len_offset,
-            exit_pc,
-            spill_back,
-        } => do_inline_copy(core, dst_offset, src_offset, len_offset, exit_pc, spill_back).await,
-    }
 }
 
 /// Scan the configured ranges for `pattern`. Matches are checked on 2-byte
@@ -365,88 +365,49 @@ fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
     target | 1
 }
 
-async fn do_memcpy(core: &mut ArmCore) -> Result<()> {
-    let (ptr_dst, ptr_src, len, lr) = {
-        let inner = core.inner.lock();
-        (
-            inner.engine.reg_read(ArmRegister::R0),
-            inner.engine.reg_read(ArmRegister::R1),
-            inner.engine.reg_read(ArmRegister::R2),
-            inner.engine.reg_read(ArmRegister::LR),
-        )
-    };
-
+async fn handle_memcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, len: u32) -> Result<()> {
     tracing::trace!("native hook memcpy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x})");
-    stdlib::memcpy(core, ptr_dst, ptr_src, len)?;
-    core.set_next_pc(lr)
+    stdlib::memcpy(core, ptr_dst, ptr_src, len)
 }
 
-async fn do_memset(core: &mut ArmCore) -> Result<()> {
-    let (ptr_dst, val, len, lr) = {
-        let inner = core.inner.lock();
-        (
-            inner.engine.reg_read(ArmRegister::R0),
-            inner.engine.reg_read(ArmRegister::R1),
-            inner.engine.reg_read(ArmRegister::R2),
-            inner.engine.reg_read(ArmRegister::LR),
-        )
-    };
-
+async fn handle_memset(core: &mut ArmCore, _: &mut (), ptr_dst: u32, val: u32, len: u32) -> Result<()> {
     tracing::trace!("native hook memset(ptr_dst={ptr_dst:#x}, val={:#x}, len={len:#x})", val as u8);
-    stdlib::memset(core, ptr_dst, val as u8, len)?;
-    core.set_next_pc(lr)
+    stdlib::memset(core, ptr_dst, val as u8, len)
 }
 
-async fn do_strcpy(core: &mut ArmCore) -> Result<()> {
-    let (ptr_dst, ptr_src, lr) = {
-        let inner = core.inner.lock();
-        (
-            inner.engine.reg_read(ArmRegister::R0),
-            inner.engine.reg_read(ArmRegister::R1),
-            inner.engine.reg_read(ArmRegister::LR),
-        )
-    };
-
+async fn handle_strcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
     tracing::trace!("native hook strcpy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x})");
     stdlib::strcpy(core, ptr_dst, ptr_src)?;
-    core.set_next_pc(lr)
+    Ok(())
 }
 
-async fn do_strlen(core: &mut ArmCore) -> Result<()> {
-    let (ptr_str, lr) = {
-        let inner = core.inner.lock();
-        (inner.engine.reg_read(ArmRegister::R0), inner.engine.reg_read(ArmRegister::LR))
-    };
-
+async fn handle_strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     let len = stdlib::strlen(core, ptr_str)?;
     tracing::trace!("native hook strlen(ptr_str={ptr_str:#x}) -> {len:#x}");
-
-    {
-        let mut inner = core.inner.lock();
-        inner.engine.reg_write(ArmRegister::R0, len);
-    }
-
-    core.set_next_pc(lr)
+    Ok(len)
 }
 
-async fn do_inline_copy(core: &mut ArmCore, dst_offset: i32, src_offset: i32, len_offset: i32, exit_pc: u32, spill_back: bool) -> Result<()> {
+async fn handle_inline_copy(core: &mut ArmCore, ctx: &mut InlineCopyCtx) -> Result<JumpTo> {
     let r7 = {
         let inner = core.inner.lock();
         inner.engine.reg_read(ArmRegister::R7)
     };
 
-    let dst_slot = r7.wrapping_add(dst_offset as u32);
-    let src_slot = r7.wrapping_add(src_offset as u32);
-    let len_slot = r7.wrapping_add(len_offset as u32);
+    let dst_slot = r7.wrapping_add(ctx.dst_offset as u32);
+    let src_slot = r7.wrapping_add(ctx.src_offset as u32);
+    let len_slot = r7.wrapping_add(ctx.len_offset as u32);
 
     let ptr_dst: u32 = read_generic(core, dst_slot)?;
     let ptr_src: u32 = read_generic(core, src_slot)?;
     let len: u32 = read_generic(core, len_slot)?;
 
-    tracing::trace!("native hook inline_copy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x}, exit={exit_pc:#x})");
+    tracing::trace!(
+        "native hook inline_copy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x}, exit={:#x})",
+        ctx.exit_pc
+    );
     stdlib::memcpy(core, ptr_dst, ptr_src, len)?;
 
-    if spill_back {
+    if ctx.spill_back {
         let new_ptr_dst = ptr_dst.wrapping_add(len);
         let new_ptr_src = ptr_src.wrapping_add(len);
         core.write_bytes(dst_slot, &new_ptr_dst.to_le_bytes())?;
@@ -454,12 +415,13 @@ async fn do_inline_copy(core: &mut ArmCore, dst_offset: i32, src_offset: i32, le
         core.write_bytes(len_slot, &0u32.to_le_bytes())?;
     }
 
-    core.set_next_pc(exit_pc)
+    Ok(JumpTo(ctx.exit_pc))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
 
     #[test]
     fn install_rejects_arm_mode_pc() -> Result<()> {
@@ -524,11 +486,7 @@ mod tests {
             inner.engine.reg_write(ArmRegister::PC, 0);
         }
 
-        static HOOK: Hook = Hook {
-            pc: 0x10001,
-            kind: HookKind::Memcpy,
-        };
-        dispatch(&mut core, &HOOK).await?;
+        RegisteredFunctionHolder::new(handle_memcpy, &()).call(&mut core).await?;
 
         let mut out = [0u8; 8];
         core.read_bytes(dst, &mut out)?;
@@ -559,18 +517,14 @@ mod tests {
             inner.engine.reg_write(ArmRegister::R7, frame);
         }
 
-        static HOOK: Hook = Hook {
-            pc: 0x10201,
-            kind: HookKind::InlineCopy {
-                dst_offset: 0,
-                src_offset: 4,
-                len_offset: 8,
-                exit_pc: 0x10401,
-                spill_back: true,
-            },
+        let ctx = InlineCopyCtx {
+            dst_offset: 0,
+            src_offset: 4,
+            len_offset: 8,
+            exit_pc: 0x10401,
+            spill_back: true,
         };
-
-        dispatch(&mut core, &HOOK).await?;
+        RegisteredFunctionHolder::new(handle_inline_copy, &ctx).call(&mut core).await?;
 
         let mut out = [0u8; 4];
         core.read_bytes(dst, &mut out)?;
@@ -647,12 +601,8 @@ mod tests {
         };
         assert_eq!(category, NATIVE_HOOK_CATEGORY_BASE);
 
-        let hook = Hook {
-            pc: hook_pc,
-            kind: HookKind::Memcpy,
-        };
         let mut core_clone = core.clone();
-        dispatch(&mut core_clone, &hook).await?;
+        RegisteredFunctionHolder::new(handle_memcpy, &()).call(&mut core_clone).await?;
 
         let mut out = [0u8; 4];
         core.read_bytes(dst, &mut out)?;
@@ -678,11 +628,7 @@ mod tests {
             inner.engine.reg_write(ArmRegister::LR, 0x3000);
         }
 
-        static HOOK: Hook = Hook {
-            pc: 0x10001,
-            kind: HookKind::Memset,
-        };
-        dispatch(&mut core, &HOOK).await?;
+        RegisteredFunctionHolder::new(handle_memset, &()).call(&mut core).await?;
 
         let mut out = [0u8; 16];
         core.read_bytes(dst, &mut out)?;
@@ -710,11 +656,7 @@ mod tests {
             inner.engine.reg_write(ArmRegister::PC, 0);
         }
 
-        static HOOK: Hook = Hook {
-            pc: 0x10001,
-            kind: HookKind::Strcpy,
-        };
-        dispatch(&mut core, &HOOK).await?;
+        RegisteredFunctionHolder::new(handle_strcpy, &()).call(&mut core).await?;
 
         let mut out = [0u8; 14];
         core.read_bytes(dst, &mut out)?;
@@ -746,11 +688,7 @@ mod tests {
             inner.engine.reg_write(ArmRegister::PC, 0);
         }
 
-        static HOOK: Hook = Hook {
-            pc: 0x10001,
-            kind: HookKind::Strlen,
-        };
-        dispatch(&mut core, &HOOK).await?;
+        RegisteredFunctionHolder::new(handle_strlen, &()).call(&mut core).await?;
 
         let inner = core.inner.lock();
         assert_eq!(inner.engine.reg_read(ArmRegister::R0), 6);
