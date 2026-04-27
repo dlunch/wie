@@ -62,10 +62,11 @@ pub async fn load_native(
     // metadata-region collision is implausible; tighten patterns rather than
     // narrow the range if that ever becomes false.
     let binary_hash = wie_core_arm::native_hooks::md5(data);
-    let entry = wie_core_arm::native_hooks::NATIVE_HOOKS
+    let hooks = wie_core_arm::native_hooks::native_hooks();
+    let entry = hooks
         .iter()
         .find(|e| matches!(e.hash, Some(h) if h == binary_hash))
-        .or_else(|| wie_core_arm::native_hooks::NATIVE_HOOKS.iter().find(|e| e.hash.is_none()));
+        .or_else(|| hooks.iter().find(|e| e.hash.is_none()));
     if let Some(entry) = entry {
         wie_core_arm::native_hooks::install(core, entry, &[(IMAGE_BASE, data.len() as u32)])?;
     }
