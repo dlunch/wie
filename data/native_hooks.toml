@@ -33,6 +33,20 @@
 [[entry]]
 name = "Generic compiler library / inline copy patterns"
 
+# Per-frame byte-by-byte memcpy with `src/dst/count` in registers.
+# Loop:
+#   LDRB R3, [Rsrc];   STRB R3, [Rdst]
+#   MOV  R3, Rcount;   ADDS Rsrc, #1; ADDS Rdst, #1; SUBS Rcount, #1
+#   CMP  R3, #0;       BGT loop
+# `Rcount` holds `remaining - 1`, so actual byte count is `Rcount + 1`.
+# Seen as the dominant per-frame hot path in mgh2's `copy_offscreen_to_screen`.
+# Bit-pattern tokens use `s`/`d`/`c` to capture src/dst/count register fields;
+# `exit_pc` is auto-derived as `match_end | 1` (right past the BGT).
+[[entry.hook]]
+kind = "reg_inline_copy"
+pattern = "0b00sss011 78 0b00ddd011 70 0b00ccc011 1c 01 0b00110sss 01 0b00110ddd 01 0b00111ccc 00 2b f7 dc"
+count_offset = 1
+
 # Thumb -O0 byte copy: `*dst++ = *src++` with `dst`/`src`/`len` all on the
 # stack. Src is reached via single-instruction `SUBS R4, R7, #4` (`3c 1f`),
 # so `src_offset` is pinned.

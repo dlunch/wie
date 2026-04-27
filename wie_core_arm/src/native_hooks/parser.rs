@@ -33,6 +33,7 @@ struct RawHook {
     len_offset: Option<i32>,
     exit_pc: Option<u32>,
     spill_back: Option<bool>,
+    count_offset: Option<i32>,
 }
 
 #[derive(Deserialize, Clone, Copy)]
@@ -43,6 +44,7 @@ enum KindTag {
     Strcpy,
     Strlen,
     InlineCopy,
+    RegInlineCopy,
 }
 
 impl RawEntry {
@@ -96,6 +98,7 @@ fn pc_kind(raw: &RawHook, entry_name: &str) -> HookKind {
                 .spill_back
                 .unwrap_or_else(|| panic!("entry {entry_name}: inline_copy requires spill_back")),
         }),
+        KindTag::RegInlineCopy => panic!("entry {entry_name}: reg_inline_copy must be pattern-based, not pc-based"),
     }
 }
 
@@ -105,6 +108,24 @@ fn pattern_template(raw: &RawHook, tokens: &[PatternToken], entry_name: &str) ->
         KindTag::Memset => PatternHookKind::Memset,
         KindTag::Strcpy => PatternHookKind::Strcpy,
         KindTag::Strlen => PatternHookKind::Strlen,
+        KindTag::RegInlineCopy => {
+            let need = |cap: CaptureName, label: &str| {
+                if !tokens.iter().any(|t| match t {
+                    PatternToken::BitMatch { capture: Some((c, _)), .. } => *c == cap,
+                    _ => false,
+                }) {
+                    panic!("entry {entry_name}: reg_inline_copy pattern must capture {label} register");
+                }
+            };
+            need(CaptureName::SrcReg, "src");
+            need(CaptureName::DstReg, "dst");
+            need(CaptureName::CountReg, "count");
+            PatternHookKind::RegInlineCopy {
+                count_offset: raw
+                    .count_offset
+                    .unwrap_or_else(|| panic!("entry {entry_name}: reg_inline_copy requires count_offset")),
+            }
+        }
         KindTag::InlineCopy => {
             let exit_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(CaptureName::ExitB)));
             if !exit_cap && raw.exit_pc.is_none() {
@@ -150,6 +171,10 @@ fn parse_pattern(pattern: &str, entry_name: &str) -> Vec<PatternToken> {
     for raw in pattern.split_whitespace() {
         let token = if raw == "??" {
             PatternToken::AnyByte
+        } else if raw.len() == 10
+            && let Some(bits) = raw.strip_prefix("0b")
+        {
+            parse_bit_match(bits, entry_name)
         } else if let Some(rest) = raw.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
             let cap = match rest {
                 "dst" => CaptureName::Dst,
@@ -168,6 +193,53 @@ fn parse_pattern(pattern: &str, entry_name: &str) -> Vec<PatternToken> {
     }
     validate_exit_b(&tokens, entry_name);
     tokens
+}
+
+/// Parse an 8-character byte specification of `0`/`1` literals, `?` wildcards,
+/// and `s`/`d`/`c` register placeholders (3 consecutive of the same letter).
+/// e.g. `00sss011` → mask=0b11000111, fixed=0b00000011, capture (src @ shift 3).
+fn parse_bit_match(bits: &str, entry_name: &str) -> PatternToken {
+    if bits.len() != 8 {
+        panic!("entry {entry_name}: bit pattern `0b{bits}` must be 8 characters");
+    }
+    let mut mask: u8 = 0;
+    let mut fixed: u8 = 0;
+    let mut capture: Option<(CaptureName, u8, u8)> = None; // (name, lowest bit, count seen)
+    for (i, ch) in bits.chars().enumerate() {
+        let bit = 7 - i as u8;
+        match ch {
+            '0' => {
+                mask |= 1 << bit;
+            }
+            '1' => {
+                mask |= 1 << bit;
+                fixed |= 1 << bit;
+            }
+            '?' => {}
+            's' | 'd' | 'c' => {
+                let name = match ch {
+                    's' => CaptureName::SrcReg,
+                    'd' => CaptureName::DstReg,
+                    _ => CaptureName::CountReg,
+                };
+                match &mut capture {
+                    Some((n, _lowest, count)) if *n == name => {
+                        *count += 1;
+                    }
+                    Some(_) => panic!("entry {entry_name}: bit pattern `0b{bits}` mixes multiple register placeholders"),
+                    None => capture = Some((name, bit, 1)),
+                }
+            }
+            _ => panic!("entry {entry_name}: invalid char {ch:?} in bit pattern `0b{bits}` (allowed: 0,1,?,s,d,c)"),
+        }
+    }
+    let capture = capture.map(|(name, lowest, count)| {
+        if count != 3 {
+            panic!("entry {entry_name}: bit pattern `0b{bits}` register placeholder must span exactly 3 bits");
+        }
+        (name, lowest)
+    });
+    PatternToken::BitMatch { mask, fixed, capture }
 }
 
 fn validate_exit_b(tokens: &[PatternToken], entry_name: &str) {
