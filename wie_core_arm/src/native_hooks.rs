@@ -107,16 +107,13 @@ pub fn native_hooks() -> Vec<Entry> {
 
 #[derive(Deserialize)]
 struct RawDoc {
-    #[serde(default)]
     entry: Vec<RawEntry>,
 }
 
 #[derive(Deserialize)]
 struct RawEntry {
-    #[serde(default)]
     hash: Option<String>,
     name: String,
-    #[serde(default)]
     hook: Vec<RawHook>,
 }
 
@@ -124,41 +121,27 @@ struct RawEntry {
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum RawHook {
     Memcpy {
-        #[serde(default)]
         pc: Option<u32>,
-        #[serde(default)]
         pattern: Option<String>,
     },
     Memset {
-        #[serde(default)]
         pc: Option<u32>,
-        #[serde(default)]
         pattern: Option<String>,
     },
     Strcpy {
-        #[serde(default)]
         pc: Option<u32>,
-        #[serde(default)]
         pattern: Option<String>,
     },
     Strlen {
-        #[serde(default)]
         pc: Option<u32>,
-        #[serde(default)]
         pattern: Option<String>,
     },
     InlineCopy {
-        #[serde(default)]
         pc: Option<u32>,
-        #[serde(default)]
         pattern: Option<String>,
-        #[serde(default)]
         dst_offset: Option<i32>,
-        #[serde(default)]
         src_offset: Option<i32>,
-        #[serde(default)]
         len_offset: Option<i32>,
-        #[serde(default)]
         exit_pc: Option<u32>,
         spill_back: bool,
     },
@@ -167,58 +150,39 @@ enum RawHook {
 impl RawEntry {
     fn into_entry(self) -> Entry {
         let hash = self.hash.as_deref().map(parse_hash);
+        let name = self.name;
         let mut hooks = Vec::new();
         let mut patterns = Vec::new();
         for raw in self.hook {
-            match raw.split(&self.name) {
-                Either::Left(hook) => hooks.push(hook),
-                Either::Right(pattern) => patterns.push(pattern),
+            let (pc, pattern) = match &raw {
+                RawHook::Memcpy { pc, pattern }
+                | RawHook::Memset { pc, pattern }
+                | RawHook::Strcpy { pc, pattern }
+                | RawHook::Strlen { pc, pattern }
+                | RawHook::InlineCopy { pc, pattern, .. } => (*pc, pattern.clone()),
+            };
+            match (pc, pattern) {
+                (Some(pc), None) => hooks.push(Hook {
+                    pc,
+                    kind: raw.into_pc_kind(&name),
+                }),
+                (None, Some(pat)) => {
+                    let tokens = parse_pattern(&pat, &name);
+                    let kind_template = raw.into_pattern_template(&tokens, &name);
+                    patterns.push(PatternHook { tokens, kind_template });
+                }
+                (Some(_), Some(_)) => panic!("entry {name}: hook cannot specify both `pc` and `pattern`"),
+                (None, None) => panic!("entry {name}: hook must specify either `pc` or `pattern`"),
             }
         }
         if hash.is_none() && !hooks.is_empty() {
-            panic!(
-                "entry {}: hash is required when pc-based hooks are present (a pc only makes sense for a specific binary)",
-                self.name
-            );
+            panic!("entry {name}: hash is required when pc-based hooks are present (a pc only makes sense for a specific binary)");
         }
-        Entry {
-            hash,
-            name: self.name,
-            hooks,
-            patterns,
-        }
+        Entry { hash, name, hooks, patterns }
     }
-}
-
-enum Either<L, R> {
-    Left(L),
-    Right(R),
 }
 
 impl RawHook {
-    fn split(self, entry_name: &str) -> Either<Hook, PatternHook> {
-        let (pc, pattern) = match &self {
-            RawHook::Memcpy { pc, pattern }
-            | RawHook::Memset { pc, pattern }
-            | RawHook::Strcpy { pc, pattern }
-            | RawHook::Strlen { pc, pattern }
-            | RawHook::InlineCopy { pc, pattern, .. } => (*pc, pattern.clone()),
-        };
-        match (pc, pattern) {
-            (Some(pc), None) => Either::Left(Hook {
-                pc,
-                kind: self.into_pc_kind(entry_name),
-            }),
-            (None, Some(pat)) => {
-                let tokens = parse_pattern(&pat, entry_name);
-                let kind_template = self.into_pattern_template(&tokens, entry_name);
-                Either::Right(PatternHook { tokens, kind_template })
-            }
-            (Some(_), Some(_)) => panic!("entry {entry_name}: hook cannot specify both `pc` and `pattern`"),
-            (None, None) => panic!("entry {entry_name}: hook must specify either `pc` or `pattern`"),
-        }
-    }
-
     fn into_pc_kind(self, entry_name: &str) -> HookKind {
         match self {
             RawHook::Memcpy { .. } => HookKind::Memcpy,
