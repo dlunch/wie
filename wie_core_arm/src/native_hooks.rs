@@ -326,9 +326,9 @@ fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
 
 /// Convert a captured Thumb1 `SUBS Rn, #imm8` byte to the signed stack offset
 /// used by `InlineCopy`. Typical frame pointers are below the slot, so the
-/// compiler emits a SUBS to reach them — we negate the immediate.
+/// compiler emits a SUBS to reach them — we negate the unsigned immediate.
 fn capture_to_offset(byte: u8) -> i32 {
-    -(byte as i8 as i32)
+    -(byte as i32)
 }
 
 /// Decode a two-byte Thumb unconditional forward branch (`11100 imm11`).
@@ -721,6 +721,10 @@ mod tests {
         assert_eq!(m.src, Some(0x0c));
         assert_eq!(capture_to_offset(0x08), -8);
         assert_eq!(capture_to_offset(0x0c), -12);
+        // imm8 in `SUBS Rn, #imm8` is unsigned 0..=255, so high values must
+        // negate to large negative offsets, not wrap through `i8`.
+        assert_eq!(capture_to_offset(0x80), -128);
+        assert_eq!(capture_to_offset(0xfc), -252);
     }
 
     #[test]
