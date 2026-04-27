@@ -1,35 +1,54 @@
 use alloc::{
+    collections::BTreeMap,
     format,
     string::{String, ToString},
+    sync::Arc,
     vec,
     vec::Vec,
 };
-
-use serde::Deserialize;
 
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{ArmCore, engine::ArmRegister, function::JumpTo, stdlib};
 
-/// `hash` (when set) must equal the MD5 of the on-disk binary payload
-/// (pre-relocation). `hash = None` installs unconditionally and is only valid
-/// when every hook is pattern-based.
-pub struct Entry {
-    pub hash: Option<[u8; 16]>,
-    pub name: String,
-    pub hooks: Vec<Hook>,
-    pub patterns: Vec<PatternHook>,
+mod parser;
+
+const NATIVE_HOOK_SVC: u32 = 0x80;
+
+/// Match the binary against the embedded hook table and patch in any matching
+/// hooks. The on-disk MD5 selects a hash-keyed entry first, falling back to a
+/// hash-less generic entry. `scan_ranges` are the `(base, size)` byte ranges
+/// searched for pattern hooks (typically the guest `.text` region). Returns
+/// the number of hooks installed.
+pub fn install(core: &mut ArmCore, data: &[u8], scan_ranges: &[(u32, u32)]) -> Result<usize> {
+    let hash = md5::compute(data).0;
+    let entries = parser::native_hooks();
+    let entry = entries
+        .iter()
+        .find(|e| matches!(e.hash, Some(h) if h == hash))
+        .or_else(|| entries.iter().find(|e| e.hash.is_none()));
+    match entry {
+        Some(entry) => install_entry(core, entry, scan_ranges),
+        None => Ok(0),
+    }
+}
+
+struct Entry {
+    hash: Option<[u8; 16]>,
+    name: String,
+    hooks: Vec<Hook>,
+    patterns: Vec<PatternHook>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Hook {
+struct Hook {
     /// LSB=1 (Thumb) is required; the engine doesn't service ARM-mode SVCs.
-    pub pc: u32,
-    pub kind: HookKind,
+    pc: u32,
+    kind: HookKind,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum HookKind {
+enum HookKind {
     /// ABI: dst=r0, src=r1, len=r2; returns via LR.
     Memcpy,
     /// ABI: dst=r0, val=r1 (low byte), len=r2; returns via LR.
@@ -45,37 +64,37 @@ pub enum HookKind {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct InlineCopy {
-    pub dst_offset: i32,
-    pub src_offset: i32,
-    pub len_offset: i32,
-    pub exit_pc: u32,
+struct InlineCopy {
+    dst_offset: i32,
+    src_offset: i32,
+    len_offset: i32,
+    exit_pc: u32,
     /// Set when the loop's outer code re-reads the stack slots after the body;
     /// the dispatcher then writes back `dst+len`, `src+len`, `len=0`.
-    pub spill_back: bool,
+    spill_back: bool,
 }
 
 /// Scanned across the install-time memory range; each match becomes a `Hook`.
-pub struct PatternHook {
-    pub tokens: Vec<PatternToken>,
-    pub kind_template: PatternHookKind,
+struct PatternHook {
+    tokens: Vec<PatternToken>,
+    kind_template: PatternHookKind,
 }
 
-pub enum PatternToken {
+enum PatternToken {
     Literal(u8),
     AnyByte,
     Capture(CaptureName),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum CaptureName {
+enum CaptureName {
     Dst,
     Src,
     Len,
     ExitB,
 }
 
-pub enum PatternHookKind {
+enum PatternHookKind {
     Memcpy,
     Memset,
     Strcpy,
@@ -93,219 +112,6 @@ pub enum PatternHookKind {
     },
 }
 
-/// 0x80..0xFF sits above every category used by KTF/LGT/SKT (<=18) and still
-/// fits in the 8-bit Thumb SVC immediate.
-pub const NATIVE_HOOK_CATEGORY_BASE: u32 = 0x80;
-pub const NATIVE_HOOK_MAX: usize = 0x80;
-
-const NATIVE_HOOKS_TOML: &str = include_str!("../../data/native_hooks.toml");
-
-pub fn native_hooks() -> Vec<Entry> {
-    let doc: RawDoc = toml::from_str(NATIVE_HOOKS_TOML).expect("parse data/native_hooks.toml");
-    doc.entry.into_iter().map(RawEntry::into_entry).collect()
-}
-
-#[derive(Deserialize)]
-struct RawDoc {
-    entry: Vec<RawEntry>,
-}
-
-#[derive(Deserialize)]
-struct RawEntry {
-    hash: Option<String>,
-    name: String,
-    hook: Vec<RawHook>,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum RawHook {
-    Memcpy {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    Memset {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    Strcpy {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    Strlen {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    InlineCopy {
-        pc: Option<u32>,
-        pattern: Option<String>,
-        dst_offset: Option<i32>,
-        src_offset: Option<i32>,
-        len_offset: Option<i32>,
-        exit_pc: Option<u32>,
-        spill_back: bool,
-    },
-}
-
-impl RawEntry {
-    fn into_entry(self) -> Entry {
-        let hash = self.hash.as_deref().map(parse_hash);
-        let name = self.name;
-        let mut hooks = Vec::new();
-        let mut patterns = Vec::new();
-        for raw in self.hook {
-            let (pc, pattern) = match &raw {
-                RawHook::Memcpy { pc, pattern }
-                | RawHook::Memset { pc, pattern }
-                | RawHook::Strcpy { pc, pattern }
-                | RawHook::Strlen { pc, pattern }
-                | RawHook::InlineCopy { pc, pattern, .. } => (*pc, pattern.clone()),
-            };
-            match (pc, pattern) {
-                (Some(pc), None) => hooks.push(Hook {
-                    pc,
-                    kind: raw.into_pc_kind(&name),
-                }),
-                (None, Some(pat)) => {
-                    let tokens = parse_pattern(&pat, &name);
-                    let kind_template = raw.into_pattern_template(&tokens, &name);
-                    patterns.push(PatternHook { tokens, kind_template });
-                }
-                (Some(_), Some(_)) => panic!("entry {name}: hook cannot specify both `pc` and `pattern`"),
-                (None, None) => panic!("entry {name}: hook must specify either `pc` or `pattern`"),
-            }
-        }
-        if hash.is_none() && !hooks.is_empty() {
-            panic!("entry {name}: hash is required when pc-based hooks are present (a pc only makes sense for a specific binary)");
-        }
-        Entry { hash, name, hooks, patterns }
-    }
-}
-
-impl RawHook {
-    fn into_pc_kind(self, entry_name: &str) -> HookKind {
-        match self {
-            RawHook::Memcpy { .. } => HookKind::Memcpy,
-            RawHook::Memset { .. } => HookKind::Memset,
-            RawHook::Strcpy { .. } => HookKind::Strcpy,
-            RawHook::Strlen { .. } => HookKind::Strlen,
-            RawHook::InlineCopy {
-                dst_offset,
-                src_offset,
-                len_offset,
-                exit_pc,
-                spill_back,
-                ..
-            } => HookKind::InlineCopy(InlineCopy {
-                dst_offset: dst_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires dst_offset")),
-                src_offset: src_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires src_offset")),
-                len_offset: len_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires len_offset")),
-                exit_pc: exit_pc.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires exit_pc")),
-                spill_back,
-            }),
-        }
-    }
-
-    fn into_pattern_template(self, tokens: &[PatternToken], entry_name: &str) -> PatternHookKind {
-        match self {
-            RawHook::Memcpy { .. } => PatternHookKind::Memcpy,
-            RawHook::Memset { .. } => PatternHookKind::Memset,
-            RawHook::Strcpy { .. } => PatternHookKind::Strcpy,
-            RawHook::Strlen { .. } => PatternHookKind::Strlen,
-            RawHook::InlineCopy {
-                dst_offset,
-                src_offset,
-                len_offset,
-                exit_pc,
-                spill_back,
-                ..
-            } => {
-                let exit_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(CaptureName::ExitB)));
-                if !exit_cap && exit_pc.is_none() {
-                    panic!("entry {entry_name}: inline_copy pattern needs either {{exit_b}} capture or exit_pc");
-                }
-                if exit_cap && exit_pc.is_some() {
-                    panic!("entry {entry_name}: inline_copy pattern cannot specify both {{exit_b}} and exit_pc");
-                }
-                PatternHookKind::InlineCopy {
-                    dst_offset: resolve_offset("dst_offset", tokens, CaptureName::Dst, dst_offset, entry_name),
-                    src_offset: resolve_offset("src_offset", tokens, CaptureName::Src, src_offset, entry_name),
-                    len_offset: resolve_offset("len_offset", tokens, CaptureName::Len, len_offset, entry_name),
-                    exit_pc,
-                    spill_back,
-                }
-            }
-        }
-    }
-}
-
-fn resolve_offset(field: &str, tokens: &[PatternToken], cap: CaptureName, fixed: Option<i32>, entry_name: &str) -> Option<i32> {
-    let has_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(c) if *c == cap));
-    match (has_cap, fixed) {
-        (true, None) => None,
-        (false, Some(_)) => fixed,
-        (true, Some(_)) => panic!("entry {entry_name}: {field} cannot be set when a corresponding capture is in the pattern"),
-        (false, None) => panic!("entry {entry_name}: {field} required when no matching capture is in the pattern"),
-    }
-}
-
-fn parse_hash(s: &str) -> [u8; 16] {
-    assert_eq!(s.len(), 32, "hash must be 32 hex chars: {s}");
-    let mut out = [0u8; 16];
-    for i in 0..16 {
-        out[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).unwrap_or_else(|_| panic!("invalid hex in hash: {s}"));
-    }
-    out
-}
-
-fn parse_pattern(pattern: &str, entry_name: &str) -> Vec<PatternToken> {
-    let mut tokens = Vec::new();
-    for raw in pattern.split_whitespace() {
-        let token = if raw == "??" {
-            PatternToken::AnyByte
-        } else if let Some(rest) = raw.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-            let cap = match rest {
-                "dst" => CaptureName::Dst,
-                "src" => CaptureName::Src,
-                "len" => CaptureName::Len,
-                "exit_b" => CaptureName::ExitB,
-                _ => panic!("entry {entry_name}: unknown capture name {{{rest}}} (allowed: dst, src, len, exit_b)"),
-            };
-            PatternToken::Capture(cap)
-        } else if raw.len() == 2 && raw.chars().all(|c| c.is_ascii_hexdigit()) {
-            PatternToken::Literal(u8::from_str_radix(raw, 16).unwrap())
-        } else {
-            panic!("entry {entry_name}: invalid pattern token `{raw}`");
-        };
-        tokens.push(token);
-    }
-    validate_exit_b(&tokens, entry_name);
-    tokens
-}
-
-fn validate_exit_b(tokens: &[PatternToken], entry_name: &str) {
-    let mut pair_seen = false;
-    let mut i = 0;
-    while i < tokens.len() {
-        if matches!(tokens[i], PatternToken::Capture(CaptureName::ExitB)) {
-            let next_is_exit = matches!(tokens.get(i + 1), Some(PatternToken::Capture(CaptureName::ExitB)));
-            if !next_is_exit {
-                panic!("entry {entry_name}: {{exit_b}} must appear as two consecutive tokens");
-            }
-            if matches!(tokens.get(i + 2), Some(PatternToken::Capture(CaptureName::ExitB))) {
-                panic!("entry {entry_name}: {{exit_b}} appears more than twice consecutively");
-            }
-            if pair_seen {
-                panic!("entry {entry_name}: pattern may contain at most one {{exit_b}} pair");
-            }
-            pair_seen = true;
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 struct PatternMatch {
     addr: u32,
@@ -318,15 +124,7 @@ struct PatternMatch {
     exit_b_bytes: Option<[u8; 2]>,
 }
 
-pub fn md5(data: &[u8]) -> [u8; 16] {
-    md5::compute(data).0
-}
-
-/// Patches each hook site with an SVC and registers a per-id dispatcher.
-/// `scan_ranges` are `(base, size)` byte ranges searched for pattern hooks
-/// (typically the guest `.text` region). Returns the number of hooks
-/// installed (duplicate-PC matches are skipped). Errors on ARM-mode PCs.
-pub fn install(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
+fn install_entry(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
     let mut installed: Vec<Hook> = entry.hooks.clone();
 
     for pattern in &entry.patterns {
@@ -382,41 +180,24 @@ pub fn install(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) ->
         }
     }
 
-    if installed.len() > NATIVE_HOOK_MAX {
-        return Err(WieError::FatalError(format!(
-            "Native hook table for {} has {} entries, max {}",
-            entry.name,
-            installed.len(),
-            NATIVE_HOOK_MAX
-        )));
-    }
-
     tracing::info!("Installing {} native hooks for {}", installed.len(), entry.name);
 
-    for (i, hook) in installed.iter().enumerate() {
+    let mut registry = BTreeMap::new();
+    for hook in &installed {
         if hook.pc & 1 == 0 {
             return Err(WieError::FatalError(format!(
                 "Native hook PC {:#x} targets ARM mode; only Thumb (LSB=1) is supported",
                 hook.pc
             )));
         }
-
-        let category = NATIVE_HOOK_CATEGORY_BASE + i as u32;
-        match hook.kind {
-            HookKind::Memcpy => core.register_svc_handler(category, handle_memcpy, &())?,
-            HookKind::Memset => core.register_svc_handler(category, handle_memset, &())?,
-            HookKind::Strcpy => core.register_svc_handler(category, handle_strcpy, &())?,
-            HookKind::Strlen => core.register_svc_handler(category, handle_strlen, &())?,
-            HookKind::InlineCopy(spec) => core.register_svc_handler(category, handle_inline_copy, &spec)?,
-        }
-
+        registry.insert(hook.pc, hook.kind);
         let patch_addr = hook.pc & !1;
-        let instruction: u16 = 0xdf00 | (category as u16 & 0xff);
+        let instruction: u16 = 0xdf00 | (NATIVE_HOOK_SVC as u16 & 0xff);
         core.write_bytes(patch_addr, &instruction.to_le_bytes())?;
-
         tracing::info!("Native hook installed at {:#x}: {:?}", hook.pc, hook.kind);
     }
 
+    core.register_svc_handler(NATIVE_HOOK_SVC, handle_native_hook, &Arc::new(registry))?;
     Ok(installed.len())
 }
 
@@ -535,67 +316,92 @@ fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
     target | 1
 }
 
-async fn handle_memcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, len: u32) -> Result<()> {
-    tracing::trace!("native hook memcpy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x})");
-    stdlib::memcpy(core, ptr_dst, ptr_src, len)
-}
+type Registry = Arc<BTreeMap<u32, HookKind>>;
 
-async fn handle_memset(core: &mut ArmCore, _: &mut (), ptr_dst: u32, val: u32, len: u32) -> Result<()> {
-    tracing::trace!("native hook memset(ptr_dst={ptr_dst:#x}, val={:#x}, len={len:#x})", val as u8);
-    stdlib::memset(core, ptr_dst, val as u8, len)
-}
+async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Result<JumpTo> {
+    let (pc, lr) = core.read_pc_lr()?;
+    // PC on entry is the address right after the patched 2-byte SVC. Drop any
+    // Thumb bit, step back over the SVC, then re-set the Thumb bit because
+    // hook PCs are stored that way.
+    let hook_pc = (pc.wrapping_sub(2)) | 1;
+    let kind = registry
+        .get(&hook_pc)
+        .copied()
+        .ok_or_else(|| WieError::FatalError(format!("native hook fired at unregistered PC {hook_pc:#x}")))?;
 
-async fn handle_strcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
-    tracing::trace!("native hook strcpy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x})");
-    stdlib::strcpy(core, ptr_dst, ptr_src)?;
-    Ok(())
-}
-
-async fn handle_strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
-    let len = stdlib::strlen(core, ptr_str)?;
-    tracing::trace!("native hook strlen(ptr_str={ptr_str:#x}) -> {len:#x}");
-    Ok(len)
-}
-
-async fn handle_inline_copy(core: &mut ArmCore, ctx: &mut InlineCopy) -> Result<JumpTo> {
-    let r7 = {
-        let inner = core.inner.lock();
-        inner.engine.reg_read(ArmRegister::R7)
-    };
-
-    let dst_slot = r7.wrapping_add(ctx.dst_offset as u32);
-    let src_slot = r7.wrapping_add(ctx.src_offset as u32);
-    let len_slot = r7.wrapping_add(ctx.len_offset as u32);
-
-    let ptr_dst: u32 = read_generic(core, dst_slot)?;
-    let ptr_src: u32 = read_generic(core, src_slot)?;
-    let len: u32 = read_generic(core, len_slot)?;
-
-    tracing::trace!(
-        "native hook inline_copy(ptr_dst={ptr_dst:#x}, ptr_src={ptr_src:#x}, len={len:#x}, exit={:#x})",
-        ctx.exit_pc
-    );
-    stdlib::memcpy(core, ptr_dst, ptr_src, len)?;
-
-    if ctx.spill_back {
-        let new_ptr_dst = ptr_dst.wrapping_add(len);
-        let new_ptr_src = ptr_src.wrapping_add(len);
-        core.write_bytes(dst_slot, &new_ptr_dst.to_le_bytes())?;
-        core.write_bytes(src_slot, &new_ptr_src.to_le_bytes())?;
-        core.write_bytes(len_slot, &0u32.to_le_bytes())?;
+    match kind {
+        HookKind::Memcpy => {
+            let (dst, src, len) = {
+                let inner = core.inner.lock();
+                (
+                    inner.engine.reg_read(ArmRegister::R0),
+                    inner.engine.reg_read(ArmRegister::R1),
+                    inner.engine.reg_read(ArmRegister::R2),
+                )
+            };
+            tracing::trace!("native hook memcpy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x})");
+            stdlib::memcpy(core, dst, src, len)?;
+            Ok(JumpTo(lr))
+        }
+        HookKind::Memset => {
+            let (dst, val, len) = {
+                let inner = core.inner.lock();
+                (
+                    inner.engine.reg_read(ArmRegister::R0),
+                    inner.engine.reg_read(ArmRegister::R1),
+                    inner.engine.reg_read(ArmRegister::R2),
+                )
+            };
+            tracing::trace!("native hook memset(ptr_dst={dst:#x}, val={:#x}, len={len:#x})", val as u8);
+            stdlib::memset(core, dst, val as u8, len)?;
+            Ok(JumpTo(lr))
+        }
+        HookKind::Strcpy => {
+            let (dst, src) = {
+                let inner = core.inner.lock();
+                (inner.engine.reg_read(ArmRegister::R0), inner.engine.reg_read(ArmRegister::R1))
+            };
+            tracing::trace!("native hook strcpy(ptr_dst={dst:#x}, ptr_src={src:#x})");
+            stdlib::strcpy(core, dst, src)?;
+            Ok(JumpTo(lr))
+        }
+        HookKind::Strlen => {
+            let s = core.inner.lock().engine.reg_read(ArmRegister::R0);
+            let len = stdlib::strlen(core, s)?;
+            tracing::trace!("native hook strlen(ptr_str={s:#x}) -> {len:#x}");
+            core.inner.lock().engine.reg_write(ArmRegister::R0, len);
+            Ok(JumpTo(lr))
+        }
+        HookKind::InlineCopy(spec) => {
+            let r7 = core.inner.lock().engine.reg_read(ArmRegister::R7);
+            let dst_slot = r7.wrapping_add(spec.dst_offset as u32);
+            let src_slot = r7.wrapping_add(spec.src_offset as u32);
+            let len_slot = r7.wrapping_add(spec.len_offset as u32);
+            let dst: u32 = read_generic(core, dst_slot)?;
+            let src: u32 = read_generic(core, src_slot)?;
+            let len: u32 = read_generic(core, len_slot)?;
+            tracing::trace!(
+                "native hook inline_copy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x}, exit={:#x})",
+                spec.exit_pc
+            );
+            stdlib::memcpy(core, dst, src, len)?;
+            if spec.spill_back {
+                core.write_bytes(dst_slot, &dst.wrapping_add(len).to_le_bytes())?;
+                core.write_bytes(src_slot, &src.wrapping_add(len).to_le_bytes())?;
+                core.write_bytes(len_slot, &0u32.to_le_bytes())?;
+            }
+            Ok(JumpTo(spec.exit_pc))
+        }
     }
-
-    Ok(JumpTo(ctx.exit_pc))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
 
     #[test]
     fn embedded_toml_parses() {
-        let entries = native_hooks();
+        let entries = parser::native_hooks();
         assert!(!entries.is_empty(), "embedded TOML produced no entries");
         for entry in &entries {
             assert!(!entry.name.is_empty(), "entry missing name");
@@ -616,7 +422,7 @@ mod tests {
         let mut core = ArmCore::new(false)?;
         core.map(0x2000, 0x1000)?;
 
-        let err = install(&mut core, &entry, &[]).unwrap_err();
+        let err = install_entry(&mut core, &entry, &[]).unwrap_err();
         let msg = alloc::format!("{err}");
         assert!(msg.contains("ARM mode"), "unexpected error: {msg}");
         Ok(())
@@ -638,93 +444,18 @@ mod tests {
 
         core.write_bytes(0x2000, &[0xaa, 0xbb])?;
 
-        install(&mut core, &entry, &[])?;
+        install_entry(&mut core, &entry, &[])?;
 
         let mut buf = [0u8; 2];
         core.read_bytes(0x2000, &mut buf)?;
-        assert_eq!(buf, [NATIVE_HOOK_CATEGORY_BASE as u8, 0xdf]);
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn memcpy_dispatch_copies_bytes_and_returns_via_lr() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
-        core.map(0x10000, 0x1000)?;
-
-        let src = 0x10000u32;
-        let dst = 0x10400u32;
-        let data = [1u8, 2, 3, 4, 5, 6, 7, 8];
-        core.write_bytes(src, &data)?;
-
-        {
-            let mut inner = core.inner.lock();
-            inner.engine.reg_write(ArmRegister::R0, dst);
-            inner.engine.reg_write(ArmRegister::R1, src);
-            inner.engine.reg_write(ArmRegister::R2, data.len() as u32);
-            inner.engine.reg_write(ArmRegister::LR, 0xdead_beef);
-            inner.engine.reg_write(ArmRegister::PC, 0);
-        }
-
-        RegisteredFunctionHolder::new(handle_memcpy, &()).call(&mut core).await?;
-
-        let mut out = [0u8; 8];
-        core.read_bytes(dst, &mut out)?;
-        assert_eq!(out, data);
-
-        let inner = core.inner.lock();
-        assert_eq!(inner.engine.reg_read(ArmRegister::PC), 0xdead_beef & !1);
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn inline_copy_dispatch_reads_frame_copies_and_jumps_to_exit() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
-        core.map(0x10000, 0x2000)?;
-
-        let src = 0x10000u32;
-        let dst = 0x10800u32;
-        let payload = [0xaa, 0xbb, 0xcc, 0xdd];
-        core.write_bytes(src, &payload)?;
-
-        let frame = 0x11000u32;
-        core.write_bytes(frame, &dst.to_le_bytes())?;
-        core.write_bytes(frame + 4, &src.to_le_bytes())?;
-        core.write_bytes(frame + 8, &(payload.len() as u32).to_le_bytes())?;
-
-        {
-            let mut inner = core.inner.lock();
-            inner.engine.reg_write(ArmRegister::R7, frame);
-        }
-
-        let ctx = InlineCopy {
-            dst_offset: 0,
-            src_offset: 4,
-            len_offset: 8,
-            exit_pc: 0x10401,
-            spill_back: true,
-        };
-        RegisteredFunctionHolder::new(handle_inline_copy, &ctx).call(&mut core).await?;
-
-        let mut out = [0u8; 4];
-        core.read_bytes(dst, &mut out)?;
-        assert_eq!(out, payload);
-
-        let mut slot = [0u8; 4];
-        core.read_bytes(frame, &mut slot)?;
-        assert_eq!(u32::from_le_bytes(slot), dst + payload.len() as u32);
-        core.read_bytes(frame + 4, &mut slot)?;
-        assert_eq!(u32::from_le_bytes(slot), src + payload.len() as u32);
-        core.read_bytes(frame + 8, &mut slot)?;
-        assert_eq!(u32::from_le_bytes(slot), 0);
-
-        let inner = core.inner.lock();
-        assert_eq!(inner.engine.reg_read(ArmRegister::PC), 0x10400);
-        assert_ne!(inner.engine.reg_read(ArmRegister::Cpsr) & 0x20, 0);
+        assert_eq!(buf, [NATIVE_HOOK_SVC as u8, 0xdf]);
         Ok(())
     }
 
     #[futures_test::test]
     async fn install_then_execute_hits_dispatcher_end_to_end() -> Result<()> {
+        use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
+
         let mut core = ArmCore::new(false)?;
         core.map(0x20000, 0x2000)?;
         core.map(0x30000, 0x1000)?;
@@ -739,17 +470,17 @@ mod tests {
             hash: Some([0u8; 16]),
             name: "e2e".into(),
             hooks: vec![Hook {
-                pc: 0x20001,
+                pc: hook_pc,
                 kind: HookKind::Memcpy,
             }],
             patterns: vec![],
         };
-        install(&mut core, &entry, &[])?;
+        install_entry(&mut core, &entry, &[])?;
 
         let mut opcode = [0u8; 2];
         core.read_bytes(0x20000, &mut opcode)?;
         assert_eq!(opcode[1], 0xdf);
-        assert_eq!(opcode[0] as u32, NATIVE_HOOK_CATEGORY_BASE);
+        assert_eq!(opcode[0] as u32, NATIVE_HOOK_SVC);
 
         let return_addr = 0x40000u32 | 1;
         {
@@ -778,10 +509,15 @@ mod tests {
             }
             _ => panic!("expected Svc"),
         };
-        assert_eq!(category, NATIVE_HOOK_CATEGORY_BASE);
+        assert_eq!(category, NATIVE_HOOK_SVC);
 
+        let registry = {
+            let mut map = BTreeMap::new();
+            map.insert(hook_pc, HookKind::Memcpy);
+            Arc::new(map)
+        };
         let mut core_clone = core.clone();
-        RegisteredFunctionHolder::new(handle_memcpy, &()).call(&mut core_clone).await?;
+        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core_clone).await?;
 
         let mut out = [0u8; 4];
         core.read_bytes(dst, &mut out)?;
@@ -789,89 +525,6 @@ mod tests {
 
         let inner = core.inner.lock();
         assert_eq!(inner.engine.reg_read(ArmRegister::PC), return_addr & !1);
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn memset_dispatch_fills_bytes() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
-        core.map(0x10000, 0x1000)?;
-
-        let dst = 0x10000u32;
-        let len = 16u32;
-        {
-            let mut inner = core.inner.lock();
-            inner.engine.reg_write(ArmRegister::R0, dst);
-            inner.engine.reg_write(ArmRegister::R1, 0xAB);
-            inner.engine.reg_write(ArmRegister::R2, len);
-            inner.engine.reg_write(ArmRegister::LR, 0x3000);
-        }
-
-        RegisteredFunctionHolder::new(handle_memset, &()).call(&mut core).await?;
-
-        let mut out = [0u8; 16];
-        core.read_bytes(dst, &mut out)?;
-        assert_eq!(out, [0xabu8; 16]);
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn strcpy_dispatch_copies_null_terminated_string_and_returns_via_lr() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
-        core.map(0x10000, 0x1000)?;
-
-        let src = 0x10000u32;
-        let dst = 0x10400u32;
-        let s = b"hello, world!\0";
-        core.write_bytes(src, s)?;
-
-        core.write_bytes(dst, &[0xff; 32])?;
-
-        {
-            let mut inner = core.inner.lock();
-            inner.engine.reg_write(ArmRegister::R0, dst);
-            inner.engine.reg_write(ArmRegister::R1, src);
-            inner.engine.reg_write(ArmRegister::LR, 0xcafe_babe);
-            inner.engine.reg_write(ArmRegister::PC, 0);
-        }
-
-        RegisteredFunctionHolder::new(handle_strcpy, &()).call(&mut core).await?;
-
-        let mut out = [0u8; 14];
-        core.read_bytes(dst, &mut out)?;
-        assert_eq!(&out, s);
-
-        let mut sentinel = [0u8; 1];
-        core.read_bytes(dst + s.len() as u32, &mut sentinel)?;
-        assert_eq!(sentinel, [0xff]);
-
-        let inner = core.inner.lock();
-        assert_eq!(inner.engine.reg_read(ArmRegister::R0), dst);
-        assert_eq!(inner.engine.reg_read(ArmRegister::PC), 0xcafe_babe & !1);
-        Ok(())
-    }
-
-    #[futures_test::test]
-    async fn strlen_dispatch_returns_length_in_r0() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
-        core.map(0x10000, 0x1000)?;
-
-        let str_ptr = 0x10100u32;
-        let s = b"abcdef\0";
-        core.write_bytes(str_ptr, s)?;
-
-        {
-            let mut inner = core.inner.lock();
-            inner.engine.reg_write(ArmRegister::R0, str_ptr);
-            inner.engine.reg_write(ArmRegister::LR, 0x1234_5678);
-            inner.engine.reg_write(ArmRegister::PC, 0);
-        }
-
-        RegisteredFunctionHolder::new(handle_strlen, &()).call(&mut core).await?;
-
-        let inner = core.inner.lock();
-        assert_eq!(inner.engine.reg_read(ArmRegister::R0), 6);
-        assert_eq!(inner.engine.reg_read(ArmRegister::PC), 0x1234_5678 & !1);
         Ok(())
     }
 
@@ -899,12 +552,12 @@ mod tests {
             }],
         };
 
-        install(&mut core, &entry, &[(0x50000, 0x200)])?;
+        install_entry(&mut core, &entry, &[(0x50000, 0x200)])?;
 
         let mut out = [0u8; 2];
         core.read_bytes(match_addr, &mut out)?;
         assert_eq!(out[1], 0xdf);
-        assert_eq!(out[0] as u32, NATIVE_HOOK_CATEGORY_BASE);
+        assert_eq!(out[0] as u32, NATIVE_HOOK_SVC);
         Ok(())
     }
 
@@ -970,7 +623,7 @@ mod tests {
                 },
             ],
         };
-        let count = install(&mut core, &entry, &[(0x60000, 0x100)])?;
+        let count = install_entry(&mut core, &entry, &[(0x60000, 0x100)])?;
         assert_eq!(count, 1, "duplicate PC should be skipped");
         Ok(())
     }

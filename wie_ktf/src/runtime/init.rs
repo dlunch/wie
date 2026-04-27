@@ -61,15 +61,7 @@ pub async fn load_native(
     // patterns being long enough (and `{exit_b}` strict enough) that a
     // metadata-region collision is implausible; tighten patterns rather than
     // narrow the range if that ever becomes false.
-    let binary_hash = wie_core_arm::native_hooks::md5(data);
-    let hooks = wie_core_arm::native_hooks::native_hooks();
-    let entry = hooks
-        .iter()
-        .find(|e| matches!(e.hash, Some(h) if h == binary_hash))
-        .or_else(|| hooks.iter().find(|e| e.hash.is_none()));
-    if let Some(entry) = entry {
-        wie_core_arm::native_hooks::install(core, entry, &[(IMAGE_BASE, data.len() as u32)])?;
-    }
+    wie_core_arm::native_hooks::install(core, data, &[(IMAGE_BASE, data.len() as u32)])?;
 
     register_wipic_svc_handler(core, system, jvm)?;
     register_init_svc_handler(core, jvm)?;
