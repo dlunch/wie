@@ -433,7 +433,7 @@ mod tests {
             }],
             patterns: vec![],
         };
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
 
         let err = install_entry(&mut core, &entry, &[]).unwrap_err();
@@ -453,7 +453,7 @@ mod tests {
             }],
             patterns: vec![],
         };
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
 
         core.write_bytes(0x2000, &[0xaa, 0xbb])?;
@@ -468,7 +468,7 @@ mod tests {
 
     #[futures_test::test]
     async fn memcpy_dispatch_copies_bytes_and_returns_via_lr() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let src = 0x10000u32;
@@ -498,7 +498,7 @@ mod tests {
 
     #[futures_test::test]
     async fn memset_dispatch_fills_bytes() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let dst = 0x10000u32;
@@ -524,7 +524,7 @@ mod tests {
 
     #[futures_test::test]
     async fn strcpy_dispatch_copies_null_terminated_string_and_returns_via_lr() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let src = 0x10000u32;
@@ -560,7 +560,7 @@ mod tests {
 
     #[futures_test::test]
     async fn strlen_dispatch_returns_length_in_r0() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let str_ptr = 0x10100u32;
@@ -586,7 +586,7 @@ mod tests {
 
     #[futures_test::test]
     async fn inline_copy_dispatch_reads_frame_copies_and_jumps_to_exit() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x2000)?;
 
         let src = 0x10000u32;
@@ -634,7 +634,7 @@ mod tests {
 
     #[futures_test::test]
     async fn install_then_execute_hits_dispatcher_end_to_end() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x20000, 0x2000)?;
         core.map(0x30000, 0x1000)?;
 
@@ -704,7 +704,7 @@ mod tests {
 
     #[test]
     fn pattern_scan_matches_single_hit() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x50000, 0x200)?;
 
         let pat_bytes = [0xaa, 0xbb, 0xcc, 0xdd];
@@ -778,7 +778,7 @@ mod tests {
 
     #[test]
     fn pattern_duplicate_pc_warns_once_and_skips() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x60000, 0x100)?;
         core.write_bytes(0x60010, &[0x11, 0x22, 0x33, 0x44])?;
 

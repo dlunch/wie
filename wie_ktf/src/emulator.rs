@@ -82,9 +82,9 @@ impl KtfEmulator {
         aid: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-        options: Options,
+        mut options: Options,
     ) -> Result<Self> {
-        let mut core = ArmCore::new(options.enable_gdbserver)?;
+        let mut core = ArmCore::new(options.enable_gdbserver, options.profile.take())?;
         let system = System::new(platform, pid, aid, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {
