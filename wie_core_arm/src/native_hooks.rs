@@ -41,16 +41,19 @@ pub enum HookKind {
     /// relative to R7 (typical Thumb frame pointer). The loop must use a
     /// down-counter (`len` decremented to 0 to exit). After the copy the
     /// dispatcher jumps to `exit_pc` to resume execution past the loop.
-    InlineCopy {
-        dst_offset: i32,
-        src_offset: i32,
-        len_offset: i32,
-        exit_pc: u32,
-        /// If true, write back dst+len, src+len, len=0 into the spill slots.
-        /// Needed when the compiler emits code after the loop that re-reads
-        /// those variables.
-        spill_back: bool,
-    },
+    InlineCopy(InlineCopy),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct InlineCopy {
+    pub dst_offset: i32,
+    pub src_offset: i32,
+    pub len_offset: i32,
+    pub exit_pc: u32,
+    /// If true, write back dst+len, src+len, len=0 into the spill slots.
+    /// Needed when the compiler emits code after the loop that re-reads those
+    /// variables.
+    pub spill_back: bool,
 }
 
 /// Pattern-based hook: scanned across a memory range at install time to
@@ -114,17 +117,6 @@ struct PatternMatch {
     exit_b_bytes: Option<[u8; 2]>,
 }
 
-/// Per-hook context passed to `handle_inline_copy`. Carries the stack-frame
-/// offsets and the exit PC the dispatcher must resume at after the copy.
-#[derive(Clone)]
-struct InlineCopyCtx {
-    dst_offset: i32,
-    src_offset: i32,
-    len_offset: i32,
-    exit_pc: u32,
-    spill_back: bool,
-}
-
 pub fn md5(data: &[u8]) -> [u8; 16] {
     md5::compute(data).0
 }
@@ -176,13 +168,13 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
                             .ok_or_else(|| WieError::FatalError("pattern missing exit_b bytes".to_string()))?;
                         decode_exit_b(site, bytes)
                     };
-                    HookKind::InlineCopy {
+                    HookKind::InlineCopy(InlineCopy {
                         dst_offset: dst,
                         src_offset: src,
                         len_offset: len,
                         exit_pc: exit,
                         spill_back: *spill_back,
-                    }
+                    })
                 }
             };
             let pc = match_addr | 1;
@@ -219,22 +211,7 @@ pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u
             HookKind::Memset => core.register_svc_handler(category, handle_memset, &())?,
             HookKind::Strcpy => core.register_svc_handler(category, handle_strcpy, &())?,
             HookKind::Strlen => core.register_svc_handler(category, handle_strlen, &())?,
-            HookKind::InlineCopy {
-                dst_offset,
-                src_offset,
-                len_offset,
-                exit_pc,
-                spill_back,
-            } => {
-                let ctx = InlineCopyCtx {
-                    dst_offset,
-                    src_offset,
-                    len_offset,
-                    exit_pc,
-                    spill_back,
-                };
-                core.register_svc_handler(category, handle_inline_copy, &ctx)?;
-            }
+            HookKind::InlineCopy(spec) => core.register_svc_handler(category, handle_inline_copy, &spec)?,
         }
 
         let patch_addr = hook.pc & !1;
@@ -387,7 +364,7 @@ async fn handle_strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u
     Ok(len)
 }
 
-async fn handle_inline_copy(core: &mut ArmCore, ctx: &mut InlineCopyCtx) -> Result<JumpTo> {
+async fn handle_inline_copy(core: &mut ArmCore, ctx: &mut InlineCopy) -> Result<JumpTo> {
     let r7 = {
         let inner = core.inner.lock();
         inner.engine.reg_read(ArmRegister::R7)
@@ -517,7 +494,7 @@ mod tests {
             inner.engine.reg_write(ArmRegister::R7, frame);
         }
 
-        let ctx = InlineCopyCtx {
+        let ctx = InlineCopy {
             dst_offset: 0,
             src_offset: 4,
             len_offset: 8,

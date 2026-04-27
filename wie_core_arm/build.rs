@@ -185,7 +185,7 @@ fn emit_pc_hook(out: &mut String, hook: &RawHook, pc: u32) {
             let len = len_offset.expect("pc-based inline_copy requires len_offset");
             let exit = exit_pc.expect("pc-based inline_copy requires exit_pc");
             out.push_str(&format!(
-                "            Hook {{ pc: {pc:#x}, kind: HookKind::InlineCopy {{ dst_offset: {dst}, src_offset: {src}, len_offset: {len}, exit_pc: {exit:#x}, spill_back: {spill_back} }} }},\n"
+                "            Hook {{ pc: {pc:#x}, kind: HookKind::InlineCopy(InlineCopy {{ dst_offset: {dst}, src_offset: {src}, len_offset: {len}, exit_pc: {exit:#x}, spill_back: {spill_back} }}) }},\n"
             ));
         }
     }
