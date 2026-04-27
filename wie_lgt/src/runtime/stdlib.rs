@@ -14,15 +14,15 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
         match id.0 {
             x if x == StdlibSvcId::Unk2 as u32 => EmulatedFunction::call(&unk2, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Atoi as u32 => EmulatedFunction::call(&atoi, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&strcpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&stdlib::strcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strncpy as u32 => EmulatedFunction::call(&strncpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strcat as u32 => EmulatedFunction::call(&strcat, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strcmp as u32 => EmulatedFunction::call(&strcmp, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk4 as u32 => EmulatedFunction::call(&unk4, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk5 as u32 => EmulatedFunction::call(&unk5, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&strlen, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&memcpy, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&memset, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&stdlib::strlen, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&stdlib::memcpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&stdlib::memset, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk3 as u32 => EmulatedFunction::call(&unk3, core, &mut ()).await?.write(core, lr),
             _ => Err(WieError::FatalError(format!("Unknown lgt stdlib import: {:#x}", id.0))),
@@ -30,14 +30,6 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
     }
 
     core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, &())
-}
-
-async fn strcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
-    tracing::debug!("strcpy({ptr_dst:#x}, {ptr_src:#x})");
-
-    stdlib::strcpy(core, ptr_dst, ptr_src)?;
-
-    Ok(())
 }
 
 async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
@@ -74,12 +66,6 @@ async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) ->
     Ok(str1.cmp(&str2) as u32)
 }
 
-async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
-    tracing::debug!("strlen({ptr_str:#x})");
-
-    stdlib::strlen(core, ptr_str)
-}
-
 async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     tracing::debug!("atoi({ptr_str:#x})");
 
@@ -87,18 +73,6 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     let string = String::from_utf8(string).unwrap();
 
     Ok(string.parse().unwrap_or(0))
-}
-
-async fn memcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
-    tracing::debug!("memcpy({ptr_dst:#x}, {ptr_src:#x}, {size:#x})");
-
-    stdlib::memcpy(core, ptr_dst, ptr_src, size)
-}
-
-async fn memset(core: &mut ArmCore, _: &mut (), ptr_dst: u32, value: u32, size: u32) -> Result<()> {
-    tracing::debug!("memset({ptr_dst:#x}, {value:#x}, {size:#x})");
-
-    stdlib::memset(core, ptr_dst, value as u8, size)
 }
 
 // TODO is this method better suit on wie_backend?

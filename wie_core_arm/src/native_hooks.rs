@@ -20,7 +20,7 @@ const NATIVE_HOOK_SVC: u32 = 0x80;
 /// hash-less generic entry. `scan_ranges` are the `(base, size)` byte ranges
 /// searched for pattern hooks (typically the guest `.text` region). Returns
 /// the number of hooks installed.
-pub fn install(core: &mut ArmCore, data: &[u8], scan_ranges: &[(u32, u32)]) -> Result<usize> {
+pub fn install_native_hooks(core: &mut ArmCore, data: &[u8], scan_ranges: &[(u32, u32)]) -> Result<usize> {
     let hash = md5::compute(data).0;
     let entries = parser::native_hooks();
     let entry = entries
@@ -340,7 +340,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                 )
             };
             tracing::trace!("native hook memcpy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x})");
-            stdlib::memcpy(core, dst, src, len)?;
+            stdlib::memcpy(core, &mut (), dst, src, len).await?;
             Ok(JumpTo(lr))
         }
         HookKind::Memset => {
@@ -353,7 +353,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                 )
             };
             tracing::trace!("native hook memset(ptr_dst={dst:#x}, val={:#x}, len={len:#x})", val as u8);
-            stdlib::memset(core, dst, val as u8, len)?;
+            stdlib::memset(core, &mut (), dst, val, len).await?;
             Ok(JumpTo(lr))
         }
         HookKind::Strcpy => {
@@ -362,12 +362,12 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                 (inner.engine.reg_read(ArmRegister::R0), inner.engine.reg_read(ArmRegister::R1))
             };
             tracing::trace!("native hook strcpy(ptr_dst={dst:#x}, ptr_src={src:#x})");
-            stdlib::strcpy(core, dst, src)?;
+            stdlib::strcpy(core, &mut (), dst, src).await?;
             Ok(JumpTo(lr))
         }
         HookKind::Strlen => {
             let s = core.inner.lock().engine.reg_read(ArmRegister::R0);
-            let len = stdlib::strlen(core, s)?;
+            let len = stdlib::strlen(core, &mut (), s).await?;
             tracing::trace!("native hook strlen(ptr_str={s:#x}) -> {len:#x}");
             core.inner.lock().engine.reg_write(ArmRegister::R0, len);
             Ok(JumpTo(lr))
@@ -384,7 +384,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                 "native hook inline_copy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x}, exit={:#x})",
                 spec.exit_pc
             );
-            stdlib::memcpy(core, dst, src, len)?;
+            stdlib::memcpy(core, &mut (), dst, src, len).await?;
             if spec.spill_back {
                 core.write_bytes(dst_slot, &dst.wrapping_add(len).to_le_bytes())?;
                 core.write_bytes(src_slot, &src.wrapping_add(len).to_le_bytes())?;
