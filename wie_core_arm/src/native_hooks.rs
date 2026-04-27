@@ -398,6 +398,20 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
+
+    fn registry_with(pc: u32, kind: HookKind) -> Registry {
+        let mut map = BTreeMap::new();
+        map.insert(pc, kind);
+        Arc::new(map)
+    }
+
+    /// Set PC to where it would be on entry to the SVC handler for a hook at
+    /// `hook_pc` (svc_addr + 2, i.e. just past the patched 2-byte SVC).
+    fn set_post_svc_pc(core: &mut ArmCore, hook_pc: u32) {
+        let mut inner = core.inner.lock();
+        inner.engine.reg_write(ArmRegister::PC, (hook_pc & !1).wrapping_add(2));
+    }
 
     #[test]
     fn embedded_toml_parses() {
@@ -453,9 +467,173 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn install_then_execute_hits_dispatcher_end_to_end() -> Result<()> {
-        use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
+    async fn memcpy_dispatch_copies_bytes_and_returns_via_lr() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        core.map(0x10000, 0x1000)?;
 
+        let src = 0x10000u32;
+        let dst = 0x10400u32;
+        let data = [1u8, 2, 3, 4, 5, 6, 7, 8];
+        core.write_bytes(src, &data)?;
+
+        let hook_pc = 0x10001u32;
+        {
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(ArmRegister::R0, dst);
+            inner.engine.reg_write(ArmRegister::R1, src);
+            inner.engine.reg_write(ArmRegister::R2, data.len() as u32);
+            inner.engine.reg_write(ArmRegister::LR, 0xdead_beef);
+        }
+        set_post_svc_pc(&mut core, hook_pc);
+
+        let registry = registry_with(hook_pc, HookKind::Memcpy);
+        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+
+        let mut out = [0u8; 8];
+        core.read_bytes(dst, &mut out)?;
+        assert_eq!(out, data);
+        assert_eq!(core.inner.lock().engine.reg_read(ArmRegister::PC), 0xdead_beef & !1);
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn memset_dispatch_fills_bytes() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        core.map(0x10000, 0x1000)?;
+
+        let dst = 0x10000u32;
+        let len = 16u32;
+        let hook_pc = 0x10401u32;
+        {
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(ArmRegister::R0, dst);
+            inner.engine.reg_write(ArmRegister::R1, 0xab);
+            inner.engine.reg_write(ArmRegister::R2, len);
+            inner.engine.reg_write(ArmRegister::LR, 0x3000);
+        }
+        set_post_svc_pc(&mut core, hook_pc);
+
+        let registry = registry_with(hook_pc, HookKind::Memset);
+        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+
+        let mut out = [0u8; 16];
+        core.read_bytes(dst, &mut out)?;
+        assert_eq!(out, [0xab; 16]);
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn strcpy_dispatch_copies_null_terminated_string_and_returns_via_lr() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        core.map(0x10000, 0x1000)?;
+
+        let src = 0x10000u32;
+        let dst = 0x10400u32;
+        let s = b"hello, world!\0";
+        core.write_bytes(src, s)?;
+        core.write_bytes(dst, &[0xff; 32])?;
+
+        let hook_pc = 0x10801u32;
+        {
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(ArmRegister::R0, dst);
+            inner.engine.reg_write(ArmRegister::R1, src);
+            inner.engine.reg_write(ArmRegister::LR, 0xcafe_babe);
+        }
+        set_post_svc_pc(&mut core, hook_pc);
+
+        let registry = registry_with(hook_pc, HookKind::Strcpy);
+        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+
+        let mut out = [0u8; 14];
+        core.read_bytes(dst, &mut out)?;
+        assert_eq!(&out, s);
+        let mut sentinel = [0u8; 1];
+        core.read_bytes(dst + s.len() as u32, &mut sentinel)?;
+        assert_eq!(sentinel, [0xff]);
+
+        let inner = core.inner.lock();
+        assert_eq!(inner.engine.reg_read(ArmRegister::R0), dst);
+        assert_eq!(inner.engine.reg_read(ArmRegister::PC), 0xcafe_babe & !1);
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn strlen_dispatch_returns_length_in_r0() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        core.map(0x10000, 0x1000)?;
+
+        let str_ptr = 0x10100u32;
+        let s = b"abcdef\0";
+        core.write_bytes(str_ptr, s)?;
+
+        let hook_pc = 0x10c01u32;
+        {
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(ArmRegister::R0, str_ptr);
+            inner.engine.reg_write(ArmRegister::LR, 0x1234_5678);
+        }
+        set_post_svc_pc(&mut core, hook_pc);
+
+        let registry = registry_with(hook_pc, HookKind::Strlen);
+        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+
+        let inner = core.inner.lock();
+        assert_eq!(inner.engine.reg_read(ArmRegister::R0), 6);
+        assert_eq!(inner.engine.reg_read(ArmRegister::PC), 0x1234_5678 & !1);
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn inline_copy_dispatch_reads_frame_copies_and_jumps_to_exit() -> Result<()> {
+        let mut core = ArmCore::new(false)?;
+        core.map(0x10000, 0x2000)?;
+
+        let src = 0x10000u32;
+        let dst = 0x10800u32;
+        let payload = [0xaa, 0xbb, 0xcc, 0xdd];
+        core.write_bytes(src, &payload)?;
+
+        let frame = 0x11000u32;
+        core.write_bytes(frame, &dst.to_le_bytes())?;
+        core.write_bytes(frame + 4, &src.to_le_bytes())?;
+        core.write_bytes(frame + 8, &(payload.len() as u32).to_le_bytes())?;
+
+        let hook_pc = 0x10201u32;
+        {
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(ArmRegister::R7, frame);
+        }
+        set_post_svc_pc(&mut core, hook_pc);
+
+        let spec = InlineCopy {
+            dst_offset: 0,
+            src_offset: 4,
+            len_offset: 8,
+            exit_pc: 0x10401,
+            spill_back: true,
+        };
+        let registry = registry_with(hook_pc, HookKind::InlineCopy(spec));
+        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+
+        let mut out = [0u8; 4];
+        core.read_bytes(dst, &mut out)?;
+        assert_eq!(out, payload);
+
+        let mut slot = [0u8; 4];
+        core.read_bytes(frame, &mut slot)?;
+        assert_eq!(u32::from_le_bytes(slot), dst + payload.len() as u32);
+        core.read_bytes(frame + 4, &mut slot)?;
+        assert_eq!(u32::from_le_bytes(slot), src + payload.len() as u32);
+        core.read_bytes(frame + 8, &mut slot)?;
+        assert_eq!(u32::from_le_bytes(slot), 0);
+
+        assert_eq!(core.inner.lock().engine.reg_read(ArmRegister::PC), 0x10400);
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn install_then_execute_hits_dispatcher_end_to_end() -> Result<()> {
         let mut core = ArmCore::new(false)?;
         core.map(0x20000, 0x2000)?;
         core.map(0x30000, 0x1000)?;
@@ -511,11 +689,7 @@ mod tests {
         };
         assert_eq!(category, NATIVE_HOOK_SVC);
 
-        let registry = {
-            let mut map = BTreeMap::new();
-            map.insert(hook_pc, HookKind::Memcpy);
-            Arc::new(map)
-        };
+        let registry = registry_with(hook_pc, HookKind::Memcpy);
         let mut core_clone = core.clone();
         RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core_clone).await?;
 
