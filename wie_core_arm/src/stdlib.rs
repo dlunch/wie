@@ -4,7 +4,7 @@ use crate::ArmCore;
 
 const COPY_CHUNK: usize = 4096;
 
-pub fn memcpy(core: &mut ArmCore, ptr_dst: u32, ptr_src: u32, len: u32) -> Result<()> {
+pub async fn memcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, len: u32) -> Result<()> {
     let mut buf = [0u8; COPY_CHUNK];
     let mut offset: u32 = 0;
     while offset < len {
@@ -16,8 +16,8 @@ pub fn memcpy(core: &mut ArmCore, ptr_dst: u32, ptr_src: u32, len: u32) -> Resul
     Ok(())
 }
 
-pub fn memset(core: &mut ArmCore, ptr_dst: u32, value: u8, len: u32) -> Result<()> {
-    let buf = [value; COPY_CHUNK];
+pub async fn memset(core: &mut ArmCore, _: &mut (), ptr_dst: u32, value: u32, len: u32) -> Result<()> {
+    let buf = [value as u8; COPY_CHUNK];
     let mut offset: u32 = 0;
     while offset < len {
         let chunk = ((len - offset) as usize).min(COPY_CHUNK);
@@ -27,11 +27,10 @@ pub fn memset(core: &mut ArmCore, ptr_dst: u32, value: u8, len: u32) -> Result<(
     Ok(())
 }
 
-/// Returns the original `ptr_dst` so call sites that mirror the C ABI can write
-/// it back to r0 without bookkeeping the input separately. Reads byte-by-byte
-/// to avoid faulting past a mapped page when the NUL terminator is still
-/// within range.
-pub fn strcpy(core: &mut ArmCore, ptr_dst: u32, ptr_src: u32) -> Result<u32> {
+/// Reads byte-by-byte to avoid faulting past a mapped page when the NUL
+/// terminator is still within range. R0 already holds the original `ptr_dst`
+/// for ARM ABI return, so the function returns `()` and leaves R0 untouched.
+pub async fn strcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
     let mut offset: u32 = 0;
     let mut byte = [0u8; 1];
     loop {
@@ -42,10 +41,10 @@ pub fn strcpy(core: &mut ArmCore, ptr_dst: u32, ptr_src: u32) -> Result<u32> {
         }
         offset = offset.wrapping_add(1);
     }
-    Ok(ptr_dst)
+    Ok(())
 }
 
-pub fn strlen(core: &mut ArmCore, ptr_str: u32) -> Result<u32> {
+pub async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     let mut len: u32 = 0;
     let mut byte = [0u8; 1];
     loop {
