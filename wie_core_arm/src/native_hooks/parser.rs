@@ -24,33 +24,25 @@ struct RawEntry {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum RawHook {
-    Memcpy {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    Memset {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    Strcpy {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    Strlen {
-        pc: Option<u32>,
-        pattern: Option<String>,
-    },
-    InlineCopy {
-        pc: Option<u32>,
-        pattern: Option<String>,
-        dst_offset: Option<i32>,
-        src_offset: Option<i32>,
-        len_offset: Option<i32>,
-        exit_pc: Option<u32>,
-        spill_back: bool,
-    },
+struct RawHook {
+    kind: KindTag,
+    pc: Option<u32>,
+    pattern: Option<String>,
+    dst_offset: Option<i32>,
+    src_offset: Option<i32>,
+    len_offset: Option<i32>,
+    exit_pc: Option<u32>,
+    spill_back: Option<bool>,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+enum KindTag {
+    Memcpy,
+    Memset,
+    Strcpy,
+    Strlen,
+    InlineCopy,
 }
 
 impl RawEntry {
@@ -60,21 +52,14 @@ impl RawEntry {
         let mut hooks = Vec::new();
         let mut patterns = Vec::new();
         for raw in self.hook {
-            let (pc, pattern) = match &raw {
-                RawHook::Memcpy { pc, pattern }
-                | RawHook::Memset { pc, pattern }
-                | RawHook::Strcpy { pc, pattern }
-                | RawHook::Strlen { pc, pattern }
-                | RawHook::InlineCopy { pc, pattern, .. } => (*pc, pattern.clone()),
-            };
-            match (pc, pattern) {
+            match (raw.pc, raw.pattern.as_deref()) {
                 (Some(pc), None) => hooks.push(Hook {
                     pc,
-                    kind: raw.into_pc_kind(&name),
+                    kind: pc_kind(&raw, &name),
                 }),
                 (None, Some(pat)) => {
-                    let tokens = parse_pattern(&pat, &name);
-                    let kind_template = raw.into_pattern_template(&tokens, &name);
+                    let tokens = parse_pattern(pat, &name);
+                    let kind_template = pattern_template(&raw, &tokens, &name);
                     patterns.push(PatternHook { tokens, kind_template });
                 }
                 (Some(_), Some(_)) => panic!("entry {name}: hook cannot specify both `pc` and `pattern`"),
@@ -88,58 +73,54 @@ impl RawEntry {
     }
 }
 
-impl RawHook {
-    fn into_pc_kind(self, entry_name: &str) -> HookKind {
-        match self {
-            RawHook::Memcpy { .. } => HookKind::Memcpy,
-            RawHook::Memset { .. } => HookKind::Memset,
-            RawHook::Strcpy { .. } => HookKind::Strcpy,
-            RawHook::Strlen { .. } => HookKind::Strlen,
-            RawHook::InlineCopy {
-                dst_offset,
-                src_offset,
-                len_offset,
-                exit_pc,
-                spill_back,
-                ..
-            } => HookKind::InlineCopy(InlineCopy {
-                dst_offset: dst_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires dst_offset")),
-                src_offset: src_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires src_offset")),
-                len_offset: len_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires len_offset")),
-                exit_pc: exit_pc.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires exit_pc")),
-                spill_back,
-            }),
-        }
+fn pc_kind(raw: &RawHook, entry_name: &str) -> HookKind {
+    match raw.kind {
+        KindTag::Memcpy => HookKind::Memcpy,
+        KindTag::Memset => HookKind::Memset,
+        KindTag::Strcpy => HookKind::Strcpy,
+        KindTag::Strlen => HookKind::Strlen,
+        KindTag::InlineCopy => HookKind::InlineCopy(InlineCopy {
+            dst_offset: raw
+                .dst_offset
+                .unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires dst_offset")),
+            src_offset: raw
+                .src_offset
+                .unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires src_offset")),
+            len_offset: raw
+                .len_offset
+                .unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires len_offset")),
+            exit_pc: raw
+                .exit_pc
+                .unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires exit_pc")),
+            spill_back: raw
+                .spill_back
+                .unwrap_or_else(|| panic!("entry {entry_name}: inline_copy requires spill_back")),
+        }),
     }
+}
 
-    fn into_pattern_template(self, tokens: &[PatternToken], entry_name: &str) -> PatternHookKind {
-        match self {
-            RawHook::Memcpy { .. } => PatternHookKind::Memcpy,
-            RawHook::Memset { .. } => PatternHookKind::Memset,
-            RawHook::Strcpy { .. } => PatternHookKind::Strcpy,
-            RawHook::Strlen { .. } => PatternHookKind::Strlen,
-            RawHook::InlineCopy {
-                dst_offset,
-                src_offset,
-                len_offset,
-                exit_pc,
-                spill_back,
-                ..
-            } => {
-                let exit_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(CaptureName::ExitB)));
-                if !exit_cap && exit_pc.is_none() {
-                    panic!("entry {entry_name}: inline_copy pattern needs either {{exit_b}} capture or exit_pc");
-                }
-                if exit_cap && exit_pc.is_some() {
-                    panic!("entry {entry_name}: inline_copy pattern cannot specify both {{exit_b}} and exit_pc");
-                }
-                PatternHookKind::InlineCopy {
-                    dst_offset: resolve_offset("dst_offset", tokens, CaptureName::Dst, dst_offset, entry_name),
-                    src_offset: resolve_offset("src_offset", tokens, CaptureName::Src, src_offset, entry_name),
-                    len_offset: resolve_offset("len_offset", tokens, CaptureName::Len, len_offset, entry_name),
-                    exit_pc,
-                    spill_back,
-                }
+fn pattern_template(raw: &RawHook, tokens: &[PatternToken], entry_name: &str) -> PatternHookKind {
+    match raw.kind {
+        KindTag::Memcpy => PatternHookKind::Memcpy,
+        KindTag::Memset => PatternHookKind::Memset,
+        KindTag::Strcpy => PatternHookKind::Strcpy,
+        KindTag::Strlen => PatternHookKind::Strlen,
+        KindTag::InlineCopy => {
+            let exit_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(CaptureName::ExitB)));
+            if !exit_cap && raw.exit_pc.is_none() {
+                panic!("entry {entry_name}: inline_copy pattern needs either {{exit_b}} capture or exit_pc");
+            }
+            if exit_cap && raw.exit_pc.is_some() {
+                panic!("entry {entry_name}: inline_copy pattern cannot specify both {{exit_b}} and exit_pc");
+            }
+            PatternHookKind::InlineCopy {
+                dst_offset: resolve_offset("dst_offset", tokens, CaptureName::Dst, raw.dst_offset, entry_name),
+                src_offset: resolve_offset("src_offset", tokens, CaptureName::Src, raw.src_offset, entry_name),
+                len_offset: resolve_offset("len_offset", tokens, CaptureName::Len, raw.len_offset, entry_name),
+                exit_pc: raw.exit_pc,
+                spill_back: raw
+                    .spill_back
+                    .unwrap_or_else(|| panic!("entry {entry_name}: inline_copy requires spill_back")),
             }
         }
     }
