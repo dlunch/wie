@@ -1,4 +1,11 @@
-use alloc::{format, string::ToString, vec, vec::Vec};
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+
+use serde::Deserialize;
 
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
@@ -11,9 +18,9 @@ use crate::{ArmCore, engine::ArmRegister, function::JumpTo, stdlib};
 /// self-validating.
 pub struct Entry {
     pub hash: Option<[u8; 16]>,
-    pub name: &'static str,
-    pub hooks: &'static [Hook],
-    pub patterns: &'static [PatternHook],
+    pub name: String,
+    pub hooks: Vec<Hook>,
+    pub patterns: Vec<PatternHook>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,7 +66,7 @@ pub struct InlineCopy {
 /// Pattern-based hook: scanned across a memory range at install time to
 /// discover one or more concrete sites, each materialized as a `Hook`.
 pub struct PatternHook {
-    pub tokens: &'static [PatternToken],
+    pub tokens: Vec<PatternToken>,
     pub kind_template: PatternHookKind,
 }
 
@@ -96,13 +103,257 @@ pub enum PatternHookKind {
     },
 }
 
-pub const NATIVE_HOOKS: &[Entry] = include!(concat!(env!("OUT_DIR"), "/native_hooks_data.rs"));
-
 /// Reserved SVC category range for native hooks. `NATIVE_HOOK_CATEGORY_BASE +
 /// hook_id` is registered per hook. 0x80..0xFF is above every category used
 /// by KTF/LGT/SKT (<=18), yet still fits in the 8-bit Thumb SVC immediate.
 pub const NATIVE_HOOK_CATEGORY_BASE: u32 = 0x80;
 pub const NATIVE_HOOK_MAX: usize = 0x80;
+
+const NATIVE_HOOKS_TOML: &str = include_str!("../../data/native_hooks.toml");
+
+/// Parse `data/native_hooks.toml` into the runtime entry table. Cheap enough
+/// to call once per binary load — embedded at compile time, parsed lazily.
+pub fn native_hooks() -> Vec<Entry> {
+    let doc: RawDoc = toml::from_str(NATIVE_HOOKS_TOML).expect("parse data/native_hooks.toml");
+    doc.entry.into_iter().map(RawEntry::into_entry).collect()
+}
+
+#[derive(Deserialize)]
+struct RawDoc {
+    #[serde(default)]
+    entry: Vec<RawEntry>,
+}
+
+#[derive(Deserialize)]
+struct RawEntry {
+    #[serde(default)]
+    hash: Option<String>,
+    name: String,
+    #[serde(default)]
+    hook: Vec<RawHook>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum RawHook {
+    Memcpy {
+        #[serde(default)]
+        pc: Option<u32>,
+        #[serde(default)]
+        pattern: Option<String>,
+    },
+    Memset {
+        #[serde(default)]
+        pc: Option<u32>,
+        #[serde(default)]
+        pattern: Option<String>,
+    },
+    Strcpy {
+        #[serde(default)]
+        pc: Option<u32>,
+        #[serde(default)]
+        pattern: Option<String>,
+    },
+    Strlen {
+        #[serde(default)]
+        pc: Option<u32>,
+        #[serde(default)]
+        pattern: Option<String>,
+    },
+    InlineCopy {
+        #[serde(default)]
+        pc: Option<u32>,
+        #[serde(default)]
+        pattern: Option<String>,
+        #[serde(default)]
+        dst_offset: Option<i32>,
+        #[serde(default)]
+        src_offset: Option<i32>,
+        #[serde(default)]
+        len_offset: Option<i32>,
+        #[serde(default)]
+        exit_pc: Option<u32>,
+        spill_back: bool,
+    },
+}
+
+impl RawEntry {
+    fn into_entry(self) -> Entry {
+        let hash = self.hash.as_deref().map(parse_hash);
+        let mut hooks = Vec::new();
+        let mut patterns = Vec::new();
+        for raw in self.hook {
+            match raw.split(&self.name) {
+                Either::Left(hook) => hooks.push(hook),
+                Either::Right(pattern) => patterns.push(pattern),
+            }
+        }
+        if hash.is_none() && !hooks.is_empty() {
+            panic!(
+                "entry {}: hash is required when pc-based hooks are present (a pc only makes sense for a specific binary)",
+                self.name
+            );
+        }
+        Entry {
+            hash,
+            name: self.name,
+            hooks,
+            patterns,
+        }
+    }
+}
+
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl RawHook {
+    fn split(self, entry_name: &str) -> Either<Hook, PatternHook> {
+        let (pc, pattern) = match &self {
+            RawHook::Memcpy { pc, pattern }
+            | RawHook::Memset { pc, pattern }
+            | RawHook::Strcpy { pc, pattern }
+            | RawHook::Strlen { pc, pattern }
+            | RawHook::InlineCopy { pc, pattern, .. } => (*pc, pattern.clone()),
+        };
+        match (pc, pattern) {
+            (Some(pc), None) => Either::Left(Hook {
+                pc,
+                kind: self.into_pc_kind(entry_name),
+            }),
+            (None, Some(pat)) => {
+                let tokens = parse_pattern(&pat, entry_name);
+                let kind_template = self.into_pattern_template(&tokens, entry_name);
+                Either::Right(PatternHook { tokens, kind_template })
+            }
+            (Some(_), Some(_)) => panic!("entry {entry_name}: hook cannot specify both `pc` and `pattern`"),
+            (None, None) => panic!("entry {entry_name}: hook must specify either `pc` or `pattern`"),
+        }
+    }
+
+    fn into_pc_kind(self, entry_name: &str) -> HookKind {
+        match self {
+            RawHook::Memcpy { .. } => HookKind::Memcpy,
+            RawHook::Memset { .. } => HookKind::Memset,
+            RawHook::Strcpy { .. } => HookKind::Strcpy,
+            RawHook::Strlen { .. } => HookKind::Strlen,
+            RawHook::InlineCopy {
+                dst_offset,
+                src_offset,
+                len_offset,
+                exit_pc,
+                spill_back,
+                ..
+            } => HookKind::InlineCopy(InlineCopy {
+                dst_offset: dst_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires dst_offset")),
+                src_offset: src_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires src_offset")),
+                len_offset: len_offset.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires len_offset")),
+                exit_pc: exit_pc.unwrap_or_else(|| panic!("entry {entry_name}: pc-based inline_copy requires exit_pc")),
+                spill_back,
+            }),
+        }
+    }
+
+    fn into_pattern_template(self, tokens: &[PatternToken], entry_name: &str) -> PatternHookKind {
+        match self {
+            RawHook::Memcpy { .. } => PatternHookKind::Memcpy,
+            RawHook::Memset { .. } => PatternHookKind::Memset,
+            RawHook::Strcpy { .. } => PatternHookKind::Strcpy,
+            RawHook::Strlen { .. } => PatternHookKind::Strlen,
+            RawHook::InlineCopy {
+                dst_offset,
+                src_offset,
+                len_offset,
+                exit_pc,
+                spill_back,
+                ..
+            } => {
+                let exit_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(CaptureName::ExitB)));
+                if !exit_cap && exit_pc.is_none() {
+                    panic!("entry {entry_name}: inline_copy pattern needs either {{exit_b}} capture or exit_pc");
+                }
+                if exit_cap && exit_pc.is_some() {
+                    panic!("entry {entry_name}: inline_copy pattern cannot specify both {{exit_b}} and exit_pc");
+                }
+                PatternHookKind::InlineCopy {
+                    dst_offset: resolve_offset("dst_offset", tokens, CaptureName::Dst, dst_offset, entry_name),
+                    src_offset: resolve_offset("src_offset", tokens, CaptureName::Src, src_offset, entry_name),
+                    len_offset: resolve_offset("len_offset", tokens, CaptureName::Len, len_offset, entry_name),
+                    exit_pc,
+                    spill_back,
+                }
+            }
+        }
+    }
+}
+
+fn resolve_offset(field: &str, tokens: &[PatternToken], cap: CaptureName, fixed: Option<i32>, entry_name: &str) -> Option<i32> {
+    let has_cap = tokens.iter().any(|t| matches!(t, PatternToken::Capture(c) if *c == cap));
+    match (has_cap, fixed) {
+        (true, None) => None,
+        (false, Some(_)) => fixed,
+        (true, Some(_)) => panic!("entry {entry_name}: {field} cannot be set when a corresponding capture is in the pattern"),
+        (false, None) => panic!("entry {entry_name}: {field} required when no matching capture is in the pattern"),
+    }
+}
+
+fn parse_hash(s: &str) -> [u8; 16] {
+    assert_eq!(s.len(), 32, "hash must be 32 hex chars: {s}");
+    let mut out = [0u8; 16];
+    for i in 0..16 {
+        out[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).unwrap_or_else(|_| panic!("invalid hex in hash: {s}"));
+    }
+    out
+}
+
+fn parse_pattern(pattern: &str, entry_name: &str) -> Vec<PatternToken> {
+    let mut tokens = Vec::new();
+    for raw in pattern.split_whitespace() {
+        let token = if raw == "??" {
+            PatternToken::AnyByte
+        } else if let Some(rest) = raw.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+            let cap = match rest {
+                "dst" => CaptureName::Dst,
+                "src" => CaptureName::Src,
+                "len" => CaptureName::Len,
+                "exit_b" => CaptureName::ExitB,
+                _ => panic!("entry {entry_name}: unknown capture name {{{rest}}} (allowed: dst, src, len, exit_b)"),
+            };
+            PatternToken::Capture(cap)
+        } else if raw.len() == 2 && raw.chars().all(|c| c.is_ascii_hexdigit()) {
+            PatternToken::Literal(u8::from_str_radix(raw, 16).unwrap())
+        } else {
+            panic!("entry {entry_name}: invalid pattern token `{raw}`");
+        };
+        tokens.push(token);
+    }
+    validate_exit_b(&tokens, entry_name);
+    tokens
+}
+
+fn validate_exit_b(tokens: &[PatternToken], entry_name: &str) {
+    let mut pair_seen = false;
+    let mut i = 0;
+    while i < tokens.len() {
+        if matches!(tokens[i], PatternToken::Capture(CaptureName::ExitB)) {
+            let next_is_exit = matches!(tokens.get(i + 1), Some(PatternToken::Capture(CaptureName::ExitB)));
+            if !next_is_exit {
+                panic!("entry {entry_name}: {{exit_b}} must appear as two consecutive tokens");
+            }
+            if matches!(tokens.get(i + 2), Some(PatternToken::Capture(CaptureName::ExitB))) {
+                panic!("entry {entry_name}: {{exit_b}} appears more than twice consecutively");
+            }
+            if pair_seen {
+                panic!("entry {entry_name}: pattern may contain at most one {{exit_b}} pair");
+            }
+            pair_seen = true;
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+}
 
 /// Result of matching a `PatternHook` at a concrete address.
 #[derive(Debug, Clone)]
@@ -130,10 +381,10 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
 /// Returns the number of hooks actually installed (duplicate-PC matches are
 /// skipped). Errors if any hook PC targets ARM mode (LSB=0); the current
 /// engine only services Thumb SVC exceptions.
-pub fn install(core: &mut ArmCore, entry: &'static Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
-    let mut installed: Vec<Hook> = entry.hooks.to_vec();
+pub fn install(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
+    let mut installed: Vec<Hook> = entry.hooks.clone();
 
-    for pattern in entry.patterns {
+    for pattern in &entry.patterns {
         let matches = scan_pattern(core, pattern, scan_ranges)?;
         for (match_addr, pm) in matches {
             let kind = match &pattern.kind_template {
@@ -239,7 +490,7 @@ fn scan_pattern(core: &mut ArmCore, pattern: &PatternHook, scan_ranges: &[(u32, 
 
         let mut off = 0usize;
         while off + pat_len <= buf.len() {
-            if let Some(mut pm) = try_match(pattern.tokens, &buf[off..off + pat_len]) {
+            if let Some(mut pm) = try_match(&pattern.tokens, &buf[off..off + pat_len]) {
                 pm.addr = base + off as u32;
                 if pm.exit_b_bytes.is_some() {
                     for (ti, t) in pattern.tokens.iter().enumerate() {
@@ -401,20 +652,29 @@ mod tests {
     use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
 
     #[test]
+    fn embedded_toml_parses() {
+        let entries = native_hooks();
+        assert!(!entries.is_empty(), "embedded TOML produced no entries");
+        for entry in &entries {
+            assert!(!entry.name.is_empty(), "entry missing name");
+        }
+    }
+
+    #[test]
     fn install_rejects_arm_mode_pc() -> Result<()> {
-        static ENTRY: Entry = Entry {
+        let entry = Entry {
             hash: Some([0u8; 16]),
-            name: "arm-mode",
-            hooks: &[Hook {
+            name: "arm-mode".into(),
+            hooks: vec![Hook {
                 pc: 0x2000, // LSB=0 => ARM mode
                 kind: HookKind::Memcpy,
             }],
-            patterns: &[],
+            patterns: vec![],
         };
         let mut core = ArmCore::new(false)?;
         core.map(0x2000, 0x1000)?;
 
-        let err = install(&mut core, &ENTRY, &[]).unwrap_err();
+        let err = install(&mut core, &entry, &[]).unwrap_err();
         let msg = alloc::format!("{err}");
         assert!(msg.contains("ARM mode"), "unexpected error: {msg}");
         Ok(())
@@ -422,21 +682,21 @@ mod tests {
 
     #[test]
     fn install_patches_thumb_svc_instruction() -> Result<()> {
-        static ENTRY: Entry = Entry {
+        let entry = Entry {
             hash: Some([0u8; 16]),
-            name: "patch",
-            hooks: &[Hook {
+            name: "patch".into(),
+            hooks: vec![Hook {
                 pc: 0x2001, // Thumb
                 kind: HookKind::Memcpy,
             }],
-            patterns: &[],
+            patterns: vec![],
         };
         let mut core = ArmCore::new(false)?;
         core.map(0x2000, 0x1000)?;
 
         core.write_bytes(0x2000, &[0xaa, 0xbb])?;
 
-        install(&mut core, &ENTRY, &[])?;
+        install(&mut core, &entry, &[])?;
 
         let mut buf = [0u8; 2];
         core.read_bytes(0x2000, &mut buf)?;
@@ -533,16 +793,16 @@ mod tests {
         core.write_bytes(src, &payload)?;
 
         let hook_pc = 0x20001u32;
-        static ENTRY: Entry = Entry {
+        let entry = Entry {
             hash: Some([0u8; 16]),
-            name: "e2e",
-            hooks: &[Hook {
+            name: "e2e".into(),
+            hooks: vec![Hook {
                 pc: 0x20001,
                 kind: HookKind::Memcpy,
             }],
-            patterns: &[],
+            patterns: vec![],
         };
-        install(&mut core, &ENTRY, &[])?;
+        install(&mut core, &entry, &[])?;
 
         let mut opcode = [0u8; 2];
         core.read_bytes(0x20000, &mut opcode)?;
@@ -682,12 +942,12 @@ mod tests {
         let match_addr = 0x50020u32;
         core.write_bytes(match_addr, &pat_bytes)?;
 
-        static ENTRY: Entry = Entry {
+        let entry = Entry {
             hash: None,
-            name: "scan-single",
-            hooks: &[],
-            patterns: &[PatternHook {
-                tokens: &[
+            name: "scan-single".into(),
+            hooks: vec![],
+            patterns: vec![PatternHook {
+                tokens: vec![
                     PatternToken::Literal(0xaa),
                     PatternToken::Literal(0xbb),
                     PatternToken::Literal(0xcc),
@@ -697,7 +957,7 @@ mod tests {
             }],
         };
 
-        install(&mut core, &ENTRY, &[(0x50000, 0x200)])?;
+        install(&mut core, &entry, &[(0x50000, 0x200)])?;
 
         let mut out = [0u8; 2];
         core.read_bytes(match_addr, &mut out)?;
@@ -753,22 +1013,22 @@ mod tests {
         core.map(0x60000, 0x100)?;
         core.write_bytes(0x60010, &[0x11, 0x22, 0x33, 0x44])?;
 
-        static ENTRY: Entry = Entry {
+        let entry = Entry {
             hash: None,
-            name: "dup",
-            hooks: &[],
-            patterns: &[
+            name: "dup".into(),
+            hooks: vec![],
+            patterns: vec![
                 PatternHook {
-                    tokens: &[PatternToken::Literal(0x11), PatternToken::Literal(0x22)],
+                    tokens: vec![PatternToken::Literal(0x11), PatternToken::Literal(0x22)],
                     kind_template: PatternHookKind::Memcpy,
                 },
                 PatternHook {
-                    tokens: &[PatternToken::Literal(0x11), PatternToken::Literal(0x22)],
+                    tokens: vec![PatternToken::Literal(0x11), PatternToken::Literal(0x22)],
                     kind_template: PatternHookKind::Memcpy,
                 },
             ],
         };
-        let count = install(&mut core, &ENTRY, &[(0x60000, 0x100)])?;
+        let count = install(&mut core, &entry, &[(0x60000, 0x100)])?;
         assert_eq!(count, 1, "duplicate PC should be skipped");
         Ok(())
     }

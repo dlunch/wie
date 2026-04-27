@@ -8,7 +8,9 @@ license.workspace = true
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
 md5 = { workspace = true }
+serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
 spin = { workspace = true }
+toml = { version = "^0.8", default-features = false, features = ["parse"] }
 tracing = { workspace = true }
 
 arm32_cpu = { git = "https://github.com/dlunch/arm32_cpu.git" }
@@ -25,8 +27,3 @@ crossbeam = { version = "^0.8" }
 futures = { workspace = true, features = ["executor"] }
 futures-test = { workspace = true }
 test_utils = { workspace = true }
-
-[build-dependencies]
-hex = "^0.4"
-serde = { version = "^1", features = ["derive"] }
-toml = "^0.8"
