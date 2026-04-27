@@ -179,3 +179,14 @@ impl ResultWriter<()> for () {
         Ok(())
     }
 }
+
+/// `ResultWriter` that ignores the caller-provided LR and jumps to its own
+/// destination. Used by handlers that replace inline code (no real return
+/// address) and need to resume execution at a custom PC.
+pub struct JumpTo(pub u32);
+
+impl ResultWriter<JumpTo> for JumpTo {
+    fn write(self, core: &mut ArmCore, _next_pc: u32) -> Result<()> {
+        core.set_next_pc(self.0)
+    }
+}
