@@ -11,11 +11,9 @@ use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{ArmCore, engine::ArmRegister, function::JumpTo, stdlib};
 
-/// Entry for a single game binary. When `hash` is set it must equal the MD5
-/// of the on-disk binary payload (pre-relocation/self-patching) for the entry
-/// to install. Entries with `hash = None` install unconditionally — only
-/// valid when every hook is pattern-based, since pattern matches are
-/// self-validating.
+/// `hash` (when set) must equal the MD5 of the on-disk binary payload
+/// (pre-relocation). `hash = None` installs unconditionally and is only valid
+/// when every hook is pattern-based.
 pub struct Entry {
     pub hash: Option<[u8; 16]>,
     pub name: String,
@@ -25,29 +23,24 @@ pub struct Entry {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Hook {
-    /// Target PC. LSB=1 denotes Thumb mode (required for now; ARM SVC is not
-    /// supported by the underlying engine).
+    /// LSB=1 (Thumb) is required; the engine doesn't service ARM-mode SVCs.
     pub pc: u32,
     pub kind: HookKind,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum HookKind {
-    /// ARM ABI function entry: dst=r0, src=r1, len=r2. After the copy, return
-    /// to the caller via LR.
+    /// ABI: dst=r0, src=r1, len=r2; returns via LR.
     Memcpy,
-    /// ARM ABI function entry: dst=r0, val=r1 (low byte), len=r2. Return via LR.
+    /// ABI: dst=r0, val=r1 (low byte), len=r2; returns via LR.
     Memset,
-    /// ARM ABI function entry: dst=r0, src=r1. Copy NUL-terminated string
-    /// (including the NUL). Return original `dst` via r0, then return via LR.
+    /// ABI: dst=r0, src=r1; copies NUL-inclusive; returns via LR (R0 unchanged).
     Strcpy,
-    /// ARM ABI function entry: str=r0. Compute length up to (not including)
-    /// the NUL terminator. Return length in r0, then return via LR.
+    /// ABI: str=r0; returns length in R0 via LR.
     Strlen,
-    /// Inline byte-copy loop with `dst`/`src`/`len` on the current stack frame
-    /// relative to R7 (typical Thumb frame pointer). The loop must use a
-    /// down-counter (`len` decremented to 0 to exit). After the copy the
-    /// dispatcher jumps to `exit_pc` to resume execution past the loop.
+    /// Replaces an inline byte-copy loop. Requires a down-counter `len` on the
+    /// stack — zeroing it has to terminate the loop, so up-counter (`for i = 0;
+    /// i < N`) shapes are not compatible.
     InlineCopy(InlineCopy),
 }
 
@@ -57,14 +50,12 @@ pub struct InlineCopy {
     pub src_offset: i32,
     pub len_offset: i32,
     pub exit_pc: u32,
-    /// If true, write back dst+len, src+len, len=0 into the spill slots.
-    /// Needed when the compiler emits code after the loop that re-reads those
-    /// variables.
+    /// Set when the loop's outer code re-reads the stack slots after the body;
+    /// the dispatcher then writes back `dst+len`, `src+len`, `len=0`.
     pub spill_back: bool,
 }
 
-/// Pattern-based hook: scanned across a memory range at install time to
-/// discover one or more concrete sites, each materialized as a `Hook`.
+/// Scanned across the install-time memory range; each match becomes a `Hook`.
 pub struct PatternHook {
     pub tokens: Vec<PatternToken>,
     pub kind_template: PatternHookKind,
@@ -90,29 +81,25 @@ pub enum PatternHookKind {
     Strcpy,
     Strlen,
     InlineCopy {
-        /// `None` => runtime captures the value from `{dst}` / `{src}` / `{len}`
-        /// using the Thumb1 `SUBS Rn, #imm8` encoding convention:
-        /// the captured byte `b` is reinterpreted as `-(b as i8) as i32`.
-        /// `Some(v)` => fixed offset from TOML (used when pattern omits the capture).
+        /// `None` => filled from the matching `{dst}` / `{src}` / `{len}`
+        /// capture (Thumb1 `SUBS Rn, #imm8` byte, negated to a stack offset).
+        /// `Some(v)` => pinned by TOML when the pattern omits the capture.
         dst_offset: Option<i32>,
         src_offset: Option<i32>,
         len_offset: Option<i32>,
-        /// `None` => `{exit_b}` capture fills this at runtime.
+        /// `None` => filled from the `{exit_b}` capture's decoded branch target.
         exit_pc: Option<u32>,
         spill_back: bool,
     },
 }
 
-/// Reserved SVC category range for native hooks. `NATIVE_HOOK_CATEGORY_BASE +
-/// hook_id` is registered per hook. 0x80..0xFF is above every category used
-/// by KTF/LGT/SKT (<=18), yet still fits in the 8-bit Thumb SVC immediate.
+/// 0x80..0xFF sits above every category used by KTF/LGT/SKT (<=18) and still
+/// fits in the 8-bit Thumb SVC immediate.
 pub const NATIVE_HOOK_CATEGORY_BASE: u32 = 0x80;
 pub const NATIVE_HOOK_MAX: usize = 0x80;
 
 const NATIVE_HOOKS_TOML: &str = include_str!("../../data/native_hooks.toml");
 
-/// Parse `data/native_hooks.toml` into the runtime entry table. Cheap enough
-/// to call once per binary load — embedded at compile time, parsed lazily.
 pub fn native_hooks() -> Vec<Entry> {
     let doc: RawDoc = toml::from_str(NATIVE_HOOKS_TOML).expect("parse data/native_hooks.toml");
     doc.entry.into_iter().map(RawEntry::into_entry).collect()
@@ -355,16 +342,15 @@ fn validate_exit_b(tokens: &[PatternToken], entry_name: &str) {
     }
 }
 
-/// Result of matching a `PatternHook` at a concrete address.
 #[derive(Debug, Clone)]
 struct PatternMatch {
     addr: u32,
     dst: Option<u8>,
     src: Option<u8>,
     len: Option<u8>,
-    /// Address of the first `{exit_b}` byte (needed to compute the branch target).
+    /// Address of the first `{exit_b}` byte — combined with `exit_b_bytes` to
+    /// compute the branch target.
     exit_b_site: Option<u32>,
-    /// Two-byte Thumb B encoding captured from the pattern.
     exit_b_bytes: Option<[u8; 2]>,
 }
 
@@ -372,15 +358,10 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
     md5::compute(data).0
 }
 
-/// Install the native hooks described by `entry`. Patches each hook site
-/// with an `svc` instruction and registers a dispatcher per hook id.
-///
-/// `scan_ranges` are the (base, size) byte ranges searched for pattern-based
-/// hooks (typically the guest `.text` region).
-///
-/// Returns the number of hooks actually installed (duplicate-PC matches are
-/// skipped). Errors if any hook PC targets ARM mode (LSB=0); the current
-/// engine only services Thumb SVC exceptions.
+/// Patches each hook site with an SVC and registers a per-id dispatcher.
+/// `scan_ranges` are `(base, size)` byte ranges searched for pattern hooks
+/// (typically the guest `.text` region). Returns the number of hooks
+/// installed (duplicate-PC matches are skipped). Errors on ARM-mode PCs.
 pub fn install(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
     let mut installed: Vec<Hook> = entry.hooks.clone();
 
@@ -475,8 +456,7 @@ pub fn install(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) ->
     Ok(installed.len())
 }
 
-/// Scan the configured ranges for `pattern`. Matches are checked on 2-byte
-/// (halfword) boundaries — all Thumb instructions are halfword-aligned.
+/// Scans on 2-byte boundaries since all Thumb instructions are halfword-aligned.
 fn scan_pattern(core: &mut ArmCore, pattern: &PatternHook, scan_ranges: &[(u32, u32)]) -> Result<Vec<(u32, PatternMatch)>> {
     let mut results = Vec::new();
     let pat_len = pattern.tokens.len();
@@ -509,8 +489,8 @@ fn scan_pattern(core: &mut ArmCore, pattern: &PatternHook, scan_ranges: &[(u32, 
     Ok(results)
 }
 
-/// Try to match `tokens` against `bytes` starting at logical offset 0.
-/// Returns a `PatternMatch` with captures populated (addr/site computed by caller).
+/// Returns a `PatternMatch` with captures populated; `addr` and `exit_b_site`
+/// are filled in by the caller from the actual scan position.
 fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
     if bytes.len() < tokens.len() {
         return None;
@@ -575,16 +555,14 @@ fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
     Some(m)
 }
 
-/// Convert a captured Thumb1 `SUBS Rn, #imm8` byte to the signed stack offset
-/// used by `InlineCopy`. Typical frame pointers are below the slot, so the
-/// compiler emits a SUBS to reach them — we negate the unsigned immediate.
+/// Negate the unsigned `SUBS Rn, #imm8` immediate: the captured byte is the
+/// distance below R7, so the resulting offset is `-imm8`.
 fn capture_to_offset(byte: u8) -> i32 {
     -(byte as i32)
 }
 
-/// Decode a two-byte Thumb unconditional forward branch (`11100 imm11`).
-/// `b_site` is the byte address of the instruction. Returns the target PC
-/// with the Thumb bit set.
+/// Decode a Thumb `B imm11` (`11100 iiiiiiiiiii`) at `b_site`. Returns the
+/// target PC with the Thumb bit set.
 fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
     let raw = u16::from_le_bytes(bytes);
     let imm11 = (raw & 0x07ff) as i32;
