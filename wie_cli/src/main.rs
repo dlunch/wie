@@ -9,10 +9,14 @@ use core::str;
 use std::{
     collections::{HashMap, hash_map::Entry},
     error::Error,
-    fs,
-    io::stderr,
+    fs::{self, File},
+    io::{LineWriter, Write, stderr},
     num::NonZero,
-    sync::mpsc::{Receiver, Sender, channel},
+    path::PathBuf,
+    sync::{
+        Mutex,
+        mpsc::{Receiver, Sender, channel},
+    },
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -22,7 +26,7 @@ use midir::MidiOutput;
 use rodio::{DeviceSinkBuilder, Player, buffer::SamplesBuffer, conversions::SampleTypeConverter};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{Emulator, Event, Filesystem, Instant, KeyCode, Options, Platform, Screen, extract_zip};
+use wie_backend::{Emulator, Event, Filesystem, Instant, KeyCode, Options, Platform, ProfileSample, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
@@ -152,6 +156,10 @@ struct Args {
     filename: String,
     #[arg(long, default_value_t = false)]
     debug: bool,
+    /// Write a flamegraph-folded sampling profile to this path (one line per
+    /// flushed batch; `flamegraph.pl` aggregates duplicates).
+    #[arg(long)]
+    profile_out: Option<PathBuf>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -162,11 +170,24 @@ fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
+    let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let options = Options {
         enable_gdbserver: args.debug,
+        profile,
     };
 
     start(&args.filename, options)
+}
+
+fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallback> {
+    let writer = Mutex::new(LineWriter::new(File::create(path)?));
+    Ok(Box::new(move |batch: Vec<ProfileSample>| {
+        let mut writer = writer.lock().unwrap();
+        for sample in batch {
+            let folded: Vec<String> = sample.stack.iter().rev().map(|pc| format!("0x{pc:x}")).collect();
+            let _ = writeln!(writer, "{} {}", folded.join(";"), sample.count);
+        }
+    }))
 }
 
 pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {

@@ -1,8 +1,9 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
 use core::mem::size_of;
 
 use spin::Mutex;
 
+use wie_backend::{ProfileCallback, ProfileSample};
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{
@@ -27,12 +28,43 @@ pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
 
+/// Limit on stack frames recorded per sample. Bounds memory and protects
+/// against runaway loops if the R7 chain forms a cycle.
+const PROFILE_MAX_STACK: usize = 32;
+/// Flush the per-stack counter map every this many samples taken.
+const PROFILE_FLUSH_INTERVAL: u32 = 1000;
+
+struct ProfileState {
+    samples: BTreeMap<Vec<u32>, u64>,
+    counter: u32,
+    callback: ProfileCallback,
+}
+
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     last_thread_id: ThreadId,
     threads: BTreeMap<ThreadId, ThreadState>,
     svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
+    profile: Option<ProfileState>,
+}
+
+impl Drop for ArmCoreInner {
+    fn drop(&mut self) {
+        if let Some(mut profile) = self.profile.take() {
+            let batch = drain_samples(&mut profile.samples);
+            if !batch.is_empty() {
+                (profile.callback)(batch);
+            }
+        }
+    }
+}
+
+fn drain_samples(samples: &mut BTreeMap<Vec<u32>, u64>) -> Vec<ProfileSample> {
+    core::mem::take(samples)
+        .into_iter()
+        .map(|(stack, count)| ProfileSample { stack, count })
+        .collect()
 }
 
 #[derive(Clone)]
@@ -41,7 +73,7 @@ pub struct ArmCore {
 }
 
 impl ArmCore {
-    pub fn new(enable_gdbserver: bool) -> Result<Self> {
+    pub fn new(enable_gdbserver: bool, profile: Option<ProfileCallback>) -> Result<Self> {
         let mut engine = if enable_gdbserver {
             #[cfg(not(target_arch = "wasm32"))]
             let engine = Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>;
@@ -56,12 +88,19 @@ impl ArmCore {
         engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
 
+        let profile = profile.map(|callback| ProfileState {
+            samples: BTreeMap::new(),
+            counter: 0,
+            callback,
+        });
+
         let inner = ArmCoreInner {
             engine,
             last_thread_id: 0,
             threads: BTreeMap::new(),
             svc_handlers: BTreeMap::new(),
             next_stub_address: FUNCTIONS_BASE,
+            profile,
         };
 
         let result = Self {
@@ -168,6 +207,44 @@ impl ArmCore {
         inner.threads.keys().cloned().collect()
     }
 
+    fn sample_profile(&self) {
+        let mut inner = self.inner.lock();
+        if inner.profile.is_none() {
+            return;
+        }
+        let pc = inner.engine.reg_read(ArmRegister::PC);
+        let mut stack = vec![pc];
+        let mut r7 = inner.engine.reg_read(ArmRegister::R7);
+        for _ in 0..PROFILE_MAX_STACK {
+            // Thumb frame: [saved R7 | saved LR] at [r7].
+            let mut buf = [0u8; 8];
+            if inner.engine.mem_read(r7, 8, &mut buf).is_err() {
+                break;
+            }
+            let prev_r7 = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+            let lr = u32::from_le_bytes(buf[4..8].try_into().unwrap());
+            // Heuristic stop: zero/null frame or non-Thumb LR (we only ever
+            // call into Thumb code from the guest).
+            if prev_r7 == 0 || lr == 0 || lr & 1 == 0 {
+                break;
+            }
+            stack.push(lr);
+            if prev_r7 <= r7 {
+                // R7 chain must walk upward; bail on any inversion to avoid loops.
+                break;
+            }
+            r7 = prev_r7;
+        }
+        let profile = inner.profile.as_mut().unwrap();
+        *profile.samples.entry(stack).or_insert(0) += 1;
+        profile.counter = profile.counter.wrapping_add(1);
+        if profile.counter >= PROFILE_FLUSH_INTERVAL {
+            profile.counter = 0;
+            let batch = drain_samples(&mut profile.samples);
+            (profile.callback)(batch);
+        }
+    }
+
     pub async fn run_function<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
     where
         R: RunFunctionResult<R>,
@@ -211,6 +288,8 @@ impl ArmCore {
                 let mut inner = self.inner.lock();
                 inner.engine.run(RUN_FUNCTION_LR, 1000)?
             };
+
+            self.sample_profile();
 
             match result {
                 EngineRunResult::End => break,
@@ -614,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_thumb_svc_stub_dispatch() {
-        let mut core = ArmCore::new(false).unwrap();
+        let mut core = ArmCore::new(false, None).unwrap();
         core.map(0x1000, 0x1000).unwrap();
 
         let mut context = core.save_context();
