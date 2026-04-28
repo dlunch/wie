@@ -8,7 +8,7 @@ use alloc::string::String;
 
 use wie_backend::{
     Event,
-    canvas::{Clip, Color, PixelType, Rgb8Pixel, TextAlignment},
+    canvas::{ArgbPixel, Clip, Color, PixelType, Rgb8Pixel, TextAlignment},
 };
 use wie_util::{Result, read_generic, write_generic};
 
@@ -367,13 +367,33 @@ pub async fn get_font(_: &mut dyn WIPICContext, face: i32, size: i32, style: i32
 pub async fn get_font_height(_: &mut dyn WIPICContext, font: i32) -> Result<i32> {
     tracing::warn!("stub MC_grpGetFontHeight({font})");
 
+    Ok(12)
+}
+
+pub async fn get_font_ascent(_: &mut dyn WIPICContext, font: i32) -> Result<i32> {
+    tracing::warn!("stub MC_grpGetFontAscent({font})");
+
     Ok(10)
 }
 
-pub async fn get_string_width(_: &mut dyn WIPICContext, font: i32, ptr_string: WIPICWord, length: i32) -> Result<i32> {
-    tracing::warn!("stub MC_grpGetStringWidth({font}, {ptr_string:#x}, {length})");
+pub async fn get_font_descent(_: &mut dyn WIPICContext, font: i32) -> Result<i32> {
+    tracing::warn!("stub MC_grpGetFontDescent({font})");
 
-    Ok(10)
+    Ok(2)
+}
+
+pub async fn get_string_width(context: &mut dyn WIPICContext, font: i32, ptr_string: WIPICWord, length: i32) -> Result<i32> {
+    tracing::debug!("MC_grpGetStringWidth({font}, {ptr_string:#x}, {length})");
+
+    if length <= 0 {
+        return Ok(0);
+    }
+
+    let mut bytes = alloc::vec![0u8; length as usize];
+    context.read_bytes(ptr_string, &mut bytes)?;
+    let s = alloc::string::String::from_utf8_lossy(&bytes);
+
+    Ok(wie_backend::canvas::string_width(&s, 10.0) as i32)
 }
 
 pub async fn draw_string(
@@ -386,6 +406,10 @@ pub async fn draw_string(
     pgc: WIPICWord,
 ) -> Result<()> {
     tracing::debug!("MC_grpDrawString({:#x}, {x}, {y}, {ptr_string:#x}, {length}, {pgc:#x})", dst.0);
+
+    if length <= 0 {
+        return Ok(());
+    }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
@@ -408,6 +432,92 @@ pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, w
     screen.request_redraw().unwrap();
 
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn get_rgb_pixels(
+    context: &mut dyn WIPICContext,
+    src: WIPICIndirectPtr,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    pd: WIPICWord,
+    ipl: i32,
+) -> Result<()> {
+    tracing::debug!("MC_grpGetRGBPixels({:#x}, {x}, {y}, {w}, {h}, {pd:#x}, {ipl})", src.0);
+
+    if w <= 0 || h <= 0 {
+        return Ok(());
+    }
+
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(src)?)?);
+    let image = framebuffer.image(context)?;
+
+    let mut row = alloc::vec![0u8; (w as usize) * 4];
+    for dy in 0..h {
+        for dx in 0..w {
+            let sx = x + dx;
+            let sy = y + dy;
+            let color = if sx < 0 || sy < 0 || sx >= image.width() as i32 || sy >= image.height() as i32 {
+                Color { a: 0, r: 0, g: 0, b: 0 }
+            } else {
+                image.get_pixel(sx, sy)
+            };
+            let argb = ArgbPixel::from_color(color);
+            let off = (dx as usize) * 4;
+            row[off..off + 4].copy_from_slice(&argb.to_le_bytes());
+        }
+        context.write_bytes(pd + (dy as u32) * (ipl as u32), &row)?;
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn set_rgb_pixels(
+    context: &mut dyn WIPICContext,
+    dst: WIPICIndirectPtr,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    psrc: WIPICWord,
+    ibpl: i32,
+    _pgc: WIPICWord,
+) -> Result<()> {
+    tracing::debug!("MC_grpSetRGBPixels({:#x}, {x}, {y}, {w}, {h}, {psrc:#x}, {ibpl})", dst.0);
+
+    if w <= 0 || h <= 0 {
+        return Ok(());
+    }
+
+    let mut buf = alloc::vec![0u8; (w as usize) * (h as usize) * 4];
+    for dy in 0..h {
+        let off = (dy as usize) * (w as usize) * 4;
+        context.read_bytes(psrc + (dy as u32) * (ibpl as u32), &mut buf[off..off + (w as usize) * 4])?;
+    }
+
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
+    let mut canvas = framebuffer.canvas(context)?;
+    for dy in 0..h {
+        for dx in 0..w {
+            let off = ((dy as usize) * (w as usize) + dx as usize) * 4;
+            let argb = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
+            let color = ArgbPixel::to_color(argb);
+            canvas.put_pixel(x + dx, y + dy, color);
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn get_image_framebuffer(_context: &mut dyn WIPICContext, image: WIPICIndirectPtr) -> Result<WIPICIndirectPtr> {
+    tracing::debug!("MC_grpGetImageFrameBuffer({:#x})", image.0);
+
+    // WIPICImage starts with `img: WIPICFramebuffer` at offset 0,
+    // so the image handle doubles as a framebuffer handle.
+    Ok(image)
 }
 
 pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICIndirectPtr, property: i32) -> Result<i32> {
