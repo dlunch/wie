@@ -10,7 +10,7 @@ use wie_backend::{
     Event,
     canvas::{Clip, Color, PixelType, Rgb8Pixel, TextAlignment, string_width},
 };
-use wie_util::{Result, read_generic, write_generic};
+use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICGraphicsContext, WIPICImage, WIPICIndirectPtr, WIPICWord};
 
@@ -20,34 +20,19 @@ use self::{framebuffer::FrameBuffer, grp_context::WIPICGraphicsContextIdx, image
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
-const MAX_NUL_TERMINATED_STRING: usize = 4096;
-
-/// Read a WIPI-C string. `length == -1` means NUL-terminated (capped at
-/// `MAX_NUL_TERMINATED_STRING`); `length > 0` reads exactly that many bytes;
-/// `length == 0` and other negatives yield an empty string.
+/// Read a WIPI-C string. `length == -1` means NUL-terminated; `length > 0`
+/// reads exactly that many bytes; `length == 0` and other negatives yield
+/// an empty string.
 fn read_wipi_string(context: &mut dyn WIPICContext, ptr: WIPICWord, length: i32) -> Result<Vec<u8>> {
     if length > 0 {
         let mut buf = vec![0u8; length as usize];
         context.read_bytes(ptr, &mut buf)?;
         return Ok(buf);
     }
-    if length != -1 {
-        return Ok(Vec::new());
+    if length == -1 {
+        return read_null_terminated_string_bytes(context, ptr);
     }
-
-    const CHUNK: usize = 64;
-    let mut out: Vec<u8> = Vec::new();
-    let mut chunk = [0u8; CHUNK];
-    while out.len() < MAX_NUL_TERMINATED_STRING {
-        let want = (MAX_NUL_TERMINATED_STRING - out.len()).min(CHUNK);
-        context.read_bytes(ptr + out.len() as u32, &mut chunk[..want])?;
-        if let Some(nul) = chunk[..want].iter().position(|&b| b == 0) {
-            out.extend_from_slice(&chunk[..nul]);
-            return Ok(out);
-        }
-        out.extend_from_slice(&chunk[..want]);
-    }
-    Ok(out)
+    Ok(Vec::new())
 }
 
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICIndirectPtr> {
