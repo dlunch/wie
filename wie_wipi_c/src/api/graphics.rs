@@ -4,11 +4,11 @@ mod image;
 
 use core::mem::size_of;
 
-use alloc::string::String;
+use alloc::{string::String, vec, vec::Vec};
 
 use wie_backend::{
     Event,
-    canvas::{ArgbPixel, Clip, Color, PixelType, Rgb8Pixel, TextAlignment},
+    canvas::{Clip, Color, PixelType, Rgb8Pixel, TextAlignment, string_width},
 };
 use wie_util::{Result, read_generic, write_generic};
 
@@ -20,6 +20,35 @@ use self::{framebuffer::FrameBuffer, grp_context::WIPICGraphicsContextIdx, image
 
 const FRAMEBUFFER_DEPTH: u32 = 16; // XXX hardcode to 16bpp as some game requires 16bpp framebuffer
 const SCREEN_FRAMEBUFFER_PTR: u32 = 0x7fff1000;
+const MAX_NUL_TERMINATED_STRING: usize = 4096;
+
+/// Read a WIPI-C string. `length == -1` means NUL-terminated (capped at
+/// `MAX_NUL_TERMINATED_STRING`); `length > 0` reads exactly that many bytes;
+/// `length == 0` and other negatives yield an empty string.
+fn read_wipi_string(context: &mut dyn WIPICContext, ptr: WIPICWord, length: i32) -> Result<Vec<u8>> {
+    if length > 0 {
+        let mut buf = vec![0u8; length as usize];
+        context.read_bytes(ptr, &mut buf)?;
+        return Ok(buf);
+    }
+    if length != -1 {
+        return Ok(Vec::new());
+    }
+
+    const CHUNK: usize = 64;
+    let mut out: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; CHUNK];
+    while out.len() < MAX_NUL_TERMINATED_STRING {
+        let want = (MAX_NUL_TERMINATED_STRING - out.len()).min(CHUNK);
+        context.read_bytes(ptr + out.len() as u32, &mut chunk[..want])?;
+        if let Some(nul) = chunk[..want].iter().position(|&b| b == 0) {
+            out.extend_from_slice(&chunk[..nul]);
+            return Ok(out);
+        }
+        out.extend_from_slice(&chunk[..want]);
+    }
+    Ok(out)
+}
 
 pub async fn get_screen_framebuffer(context: &mut dyn WIPICContext, a0: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_grpGetScreenFrameBuffer({a0:#x})");
@@ -385,16 +414,10 @@ pub async fn get_font_descent(_: &mut dyn WIPICContext, font: i32) -> Result<i32
 pub async fn get_string_width(context: &mut dyn WIPICContext, font: i32, ptr_string: WIPICWord, length: i32) -> Result<i32> {
     tracing::debug!("MC_grpGetStringWidth({font}, {ptr_string:#x}, {length})");
 
-    if length <= 0 {
+    let bytes = read_wipi_string(context, ptr_string, length)?;
+    if bytes.is_empty() {
         return Ok(0);
     }
-
-use alloc::{vec, string::String};
-use wie_backend::canvas::string_width;
-
-
-    let mut bytes = vec![0u8; length as usize];
-    context.read_bytes(ptr_string, &mut bytes)?;
     let s = String::from_utf8_lossy(&bytes);
 
     Ok(string_width(&s, 10.0) as i32)
@@ -411,15 +434,14 @@ pub async fn draw_string(
 ) -> Result<()> {
     tracing::debug!("MC_grpDrawString({:#x}, {x}, {y}, {ptr_string:#x}, {length}, {pgc:#x})", dst.0);
 
-    if length <= 0 {
+    let string_bytes = read_wipi_string(context, ptr_string, length)?;
+    if string_bytes.is_empty() {
         return Ok(());
     }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
 
-    let mut string_bytes = alloc::vec![0u8; length as usize];
-    context.read_bytes(ptr_string, &mut string_bytes)?;
     let string = String::from_utf8_lossy(&string_bytes);
 
     let mut canvas = framebuffer.canvas(context)?;
@@ -451,14 +473,19 @@ pub async fn get_rgb_pixels(
 ) -> Result<()> {
     tracing::debug!("MC_grpGetRGBPixels({:#x}, {x}, {y}, {w}, {h}, {pd:#x}, {ipl})", src.0);
 
-    if w <= 0 || h <= 0 {
+    let row_bytes = match (w as i64).checked_mul(4) {
+        Some(n) if w > 0 && h > 0 => n as i32,
+        _ => return Ok(()),
+    };
+    if ipl < row_bytes {
+        tracing::warn!("MC_grpGetRGBPixels: invalid ipl {ipl} (need >= {row_bytes})");
         return Ok(());
     }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(src)?)?);
     let image = framebuffer.image(context)?;
 
-    let mut row = alloc::vec![0u8; (w as usize) * 4];
+    let mut row = vec![0u8; row_bytes as usize];
     for dy in 0..h {
         for dx in 0..w {
             let sx = x + dx;
@@ -468,9 +495,10 @@ pub async fn get_rgb_pixels(
             } else {
                 image.get_pixel(sx, sy)
             };
-            let argb = ArgbPixel::from_color(color);
+            // WIPI spec: pixels are 0x00RRGGBB (top byte zero).
+            let rgb = Rgb8Pixel::from_color(color);
             let off = (dx as usize) * 4;
-            row[off..off + 4].copy_from_slice(&argb.to_le_bytes());
+            row[off..off + 4].copy_from_slice(&rgb.to_le_bytes());
         }
         context.write_bytes(pd + (dy as u32) * (ipl as u32), &row)?;
     }
@@ -495,11 +523,29 @@ pub async fn set_rgb_pixels(
     if w <= 0 || h <= 0 {
         return Ok(());
     }
+    let row_bytes = match (w as usize).checked_mul(4) {
+        Some(n) => n,
+        None => {
+            tracing::warn!("MC_grpSetRGBPixels: row size overflow (w={w})");
+            return Ok(());
+        }
+    };
+    if ibpl < row_bytes as i32 {
+        tracing::warn!("MC_grpSetRGBPixels: invalid ibpl {ibpl} (need >= {row_bytes})");
+        return Ok(());
+    }
+    let total_bytes = match row_bytes.checked_mul(h as usize) {
+        Some(n) => n,
+        None => {
+            tracing::warn!("MC_grpSetRGBPixels: total size overflow (w={w}, h={h})");
+            return Ok(());
+        }
+    };
 
-    let mut buf = vec![0u8; (w as usize) * (h as usize) * 4];
+    let mut buf = vec![0u8; total_bytes];
     for dy in 0..h {
-        let off = (dy as usize) * (w as usize) * 4;
-        context.read_bytes(psrc + (dy as u32) * (ibpl as u32), &mut buf[off..off + (w as usize) * 4])?;
+        let off = (dy as usize) * row_bytes;
+        context.read_bytes(psrc + (dy as u32) * (ibpl as u32), &mut buf[off..off + row_bytes])?;
     }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
@@ -507,8 +553,9 @@ pub async fn set_rgb_pixels(
     for dy in 0..h {
         for dx in 0..w {
             let off = ((dy as usize) * (w as usize) + dx as usize) * 4;
-            let argb = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
-            let color = ArgbPixel::to_color(argb);
+            // WIPI spec: pixels are 0x00RRGGBB.
+            let rgb = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
+            let color = Rgb8Pixel::to_color(rgb);
             canvas.put_pixel(x + dx, y + dy, color);
         }
     }
