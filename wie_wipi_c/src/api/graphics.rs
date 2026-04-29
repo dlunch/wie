@@ -485,7 +485,21 @@ pub async fn get_rgb_pixels(
             let off = (dx as usize) * 4;
             row[off..off + 4].copy_from_slice(&rgb.to_le_bytes());
         }
-        context.write_bytes(pd + (dy as u32) * (ipl as u32), &row)?;
+        let row_offset = match (dy as u32).checked_mul(ipl as u32) {
+            Some(n) => n,
+            None => {
+                tracing::warn!("MC_grpGetRGBPixels: row offset overflow (dy={dy}, ipl={ipl})");
+                return Ok(());
+            }
+        };
+        let dst_addr = match pd.checked_add(row_offset) {
+            Some(n) => n,
+            None => {
+                tracing::warn!("MC_grpGetRGBPixels: destination address overflow (pd={pd:#x}, row_offset={row_offset})");
+                return Ok(());
+            }
+        };
+        context.write_bytes(dst_addr, &row)?;
     }
 
     Ok(())
@@ -530,7 +544,21 @@ pub async fn set_rgb_pixels(
     let mut buf = vec![0u8; total_bytes];
     for dy in 0..h {
         let off = (dy as usize) * row_bytes;
-        context.read_bytes(psrc + (dy as u32) * (ibpl as u32), &mut buf[off..off + row_bytes])?;
+        let row_offset = match (dy as u32).checked_mul(ibpl as u32) {
+            Some(n) => n,
+            None => {
+                tracing::warn!("MC_grpSetRGBPixels: row offset overflow (dy={dy}, ibpl={ibpl})");
+                return Ok(());
+            }
+        };
+        let src_addr = match psrc.checked_add(row_offset) {
+            Some(n) => n,
+            None => {
+                tracing::warn!("MC_grpSetRGBPixels: source address overflow (psrc={psrc:#x}, row_offset={row_offset})");
+                return Ok(());
+            }
+        };
+        context.read_bytes(src_addr, &mut buf[off..off + row_bytes])?;
     }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
