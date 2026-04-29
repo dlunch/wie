@@ -496,7 +496,7 @@ pub async fn set_rgb_pixels(
         return Ok(());
     }
 
-    let mut buf = alloc::vec![0u8; (w as usize) * (h as usize) * 4];
+    let mut buf = vec![0u8; (w as usize) * (h as usize) * 4];
     for dy in 0..h {
         let off = (dy as usize) * (w as usize) * 4;
         context.read_bytes(psrc + (dy as u32) * (ibpl as u32), &mut buf[off..off + (w as usize) * 4])?;
