@@ -389,11 +389,15 @@ pub async fn get_string_width(context: &mut dyn WIPICContext, font: i32, ptr_str
         return Ok(0);
     }
 
-    let mut bytes = alloc::vec![0u8; length as usize];
-    context.read_bytes(ptr_string, &mut bytes)?;
-    let s = alloc::string::String::from_utf8_lossy(&bytes);
+use alloc::{vec, string::String};
+use wie_backend::canvas::string_width;
 
-    Ok(wie_backend::canvas::string_width(&s, 10.0) as i32)
+
+    let mut bytes = vec![0u8; length as usize];
+    context.read_bytes(ptr_string, &mut bytes)?;
+    let s = String::from_utf8_lossy(&bytes);
+
+    Ok(string_width(&s, 10.0) as i32)
 }
 
 pub async fn draw_string(
