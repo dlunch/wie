@@ -8,7 +8,7 @@ use alloc::{string::String, vec, vec::Vec};
 
 use wie_backend::{
     Event,
-    canvas::{Clip, Color, PixelType, Rgb8Pixel, TextAlignment, string_width},
+    canvas::{Clip, Color, PixelType, Rgb8Pixel, Rgb565Pixel, TextAlignment, string_width},
 };
 use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic};
 
@@ -119,7 +119,8 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.put_pixel(x as _, y as _, Rgb8Pixel::to_color(gctx.fgpxl));
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.put_pixel(x as _, y as _, color);
     Ok(())
 }
 
@@ -137,7 +138,8 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
         height: h as _,
     };
 
-    canvas.fill_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl), clip);
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.fill_rect(x as _, y as _, w as _, h as _, color, clip);
     Ok(())
 }
 
@@ -233,20 +235,20 @@ pub async fn get_pixel_from_rgb(_context: &mut dyn WIPICContext, r: i32, g: i32,
         tracing::debug!("MC_grpGetPixelFromRGB({r:#x}, {g:#x}, {b:#x}): value clipped to 8 bits");
     }
 
-    let color = Rgb8Pixel::from_color(Color {
+    let color = Rgb565Pixel::from_color(Color {
         a: 0xff,
         r: r as u8,
         g: g as u8,
         b: b as u8,
-    }); // TODO do we need to return in screen format?
+    });
 
-    Ok(color)
+    Ok(color as WIPICWord)
 }
 
 pub async fn get_rgb_from_pixel(context: &mut dyn WIPICContext, pixel: i32, r: WIPICWord, g: WIPICWord, b: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_grpGetRGBFromPixel({pixel}, {r:#x}, {g:#x}, {b:#x})");
 
-    let color = Rgb8Pixel::to_color(pixel as _);
+    let color = Rgb565Pixel::to_color(pixel as u16);
 
     write_generic(context, r, color.r as i32)?;
     write_generic(context, g, color.g as i32)?;
@@ -430,7 +432,8 @@ pub async fn draw_string(
     let string = String::from_utf8_lossy(&string_bytes);
 
     let mut canvas = framebuffer.canvas(context)?;
-    canvas.draw_text(&string, x, y, TextAlignment::Left, Rgb8Pixel::to_color(gctx.fgpxl));
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.draw_text(&string, x, y, TextAlignment::Left, color);
 
     Ok(())
 }
@@ -613,7 +616,8 @@ pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x:
         height: h as _,
     };
 
-    canvas.draw_rect(x as _, y as _, w as _, h as _, Rgb8Pixel::to_color(gctx.fgpxl), clip);
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.draw_rect(x as _, y as _, w as _, h as _, color, clip);
     Ok(())
 }
 
@@ -624,7 +628,8 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
     let mut canvas = framebuffer.canvas(context)?;
 
-    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(gctx.fgpxl));
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, color);
     Ok(())
 }
 
