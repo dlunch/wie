@@ -76,6 +76,7 @@ impl BucketAllocator {
 
     #[inline]
     fn find_bucket_index(size: u32) -> usize {
+        let size = size.max(BUCKETS[0] as u32);
         (size.ilog2() + if size.is_power_of_two() { 0 } else { 1 } - 2) as _
     }
 }
@@ -120,6 +121,31 @@ mod tests {
 
         let address8 = BucketAllocator::alloc(&mut core, 0x40000000, 8)?;
         assert_eq!(address8, 0x40104018);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_allocator_small_sizes() -> Result<()> {
+        let mut core = ArmCore::new(false).unwrap();
+        core.map(0x40000000, 0x1000000)?;
+
+        BucketAllocator::init(&mut core, 0x40000000, 0x1000000)?;
+
+        // sizes 0..=3 must all land in the smallest (4-byte) bucket
+        let a0 = BucketAllocator::alloc(&mut core, 0x40000000, 0)?;
+        assert_eq!(a0, 0x40008000);
+        let a1 = BucketAllocator::alloc(&mut core, 0x40000000, 1)?;
+        assert_eq!(a1, 0x40008004);
+        let a2 = BucketAllocator::alloc(&mut core, 0x40000000, 2)?;
+        assert_eq!(a2, 0x40008008);
+        let a3 = BucketAllocator::alloc(&mut core, 0x40000000, 3)?;
+        assert_eq!(a3, 0x4000800c);
+
+        // free with the same (small) size must round-trip without panicking
+        BucketAllocator::free(&mut core, 0x40000000, a1, 1)?;
+        let a1b = BucketAllocator::alloc(&mut core, 0x40000000, 1)?;
+        assert_eq!(a1b, 0x40008004);
 
         Ok(())
     }
