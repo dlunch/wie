@@ -150,6 +150,27 @@ impl JavaMethod {
 
         let access_flags = MethodAccessFlags::from_bits_truncate(raw.access_flags);
 
+        // Re-enters `run_function` if a Java catch handler matches the current ARM frame —
+        // mirrors the trampoline path in `interface.rs::map_jump_result`, but for the
+        // outermost frame whose caller is the Rust JVM rather than another ARM trampoline.
+        async fn run_with_unwind(core: &mut ArmCore, mut pc: u32, mut args: Vec<u32>) -> Result<JavaMethodRunResult> {
+            loop {
+                match core.run_function::<JavaMethodRunResult>(pc, &args).await {
+                    Ok(r) => return Ok(r),
+                    Err(WieError::JavaExceptionUnwind {
+                        context_base,
+                        target,
+                        next_pc,
+                    }) => {
+                        tracing::debug!("Resuming via exception restore: pc={next_pc:#x}, context_base={context_base:#x}, target={target:#x}");
+                        pc = next_pc;
+                        args = vec![context_base, target];
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
         let result: JavaMethodRunResult = if access_flags.contains(MethodAccessFlags::NATIVE) {
             let arg_container = Allocator::alloc(&mut core, (raw_args.len() as u32) * 4)?;
             for (i, arg) in raw_args.iter().enumerate() {
@@ -157,7 +178,7 @@ impl JavaMethod {
             }
 
             tracing::trace!("Calling native method: {:#x}", raw.fn_body_native_or_exception_table);
-            let result = core.run_function(raw.fn_body_native_or_exception_table, &[0, arg_container]).await;
+            let result = run_with_unwind(&mut core, raw.fn_body_native_or_exception_table, vec![0, arg_container]).await;
 
             Allocator::free(&mut core, arg_container, (raw_args.len() as u32) * 4)?;
 
@@ -167,7 +188,7 @@ impl JavaMethod {
             params.extend(raw_args);
 
             tracing::trace!("Calling method: {:#x}", raw.fn_body);
-            core.run_function(raw.fn_body, &params).await?
+            run_with_unwind(&mut core, raw.fn_body, params).await?
         };
 
         if matches!(return_type, JavaType::Double | JavaType::Long) {
