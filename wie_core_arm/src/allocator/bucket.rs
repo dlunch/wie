@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_allocator_small_sizes() -> Result<()> {
-        let mut core = ArmCore::new(false).unwrap();
+        let mut core = ArmCore::new(false, None).unwrap();
         core.map(0x40000000, 0x1000000)?;
 
         BucketAllocator::init(&mut core, 0x40000000, 0x1000000)?;
