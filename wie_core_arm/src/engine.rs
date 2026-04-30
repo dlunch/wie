@@ -33,7 +33,7 @@ pub enum MemoryPermission {
     ReadWriteExecute = 7,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ArmRegister {
     R0,
     R1,

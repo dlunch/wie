@@ -61,6 +61,12 @@ enum HookKind {
     /// stack — zeroing it has to terminate the loop, so up-counter (`for i = 0;
     /// i < N`) shapes are not compatible.
     InlineCopy(InlineCopy),
+    /// Replaces an inline byte-copy loop whose src/dst/count live in registers
+    /// instead of on the stack. Bytes copied = `read(count) + count_offset`.
+    /// After the copy, `src`/`dst` are advanced by that count and `count` is
+    /// rewritten so it equals what the loop would have left there (i.e.,
+    /// `original - bytes`), then the dispatcher jumps to `exit_pc`.
+    RegInlineCopy(RegInlineCopy),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -74,6 +80,15 @@ struct InlineCopy {
     spill_back: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RegInlineCopy {
+    src: ArmRegister,
+    dst: ArmRegister,
+    count: ArmRegister,
+    count_offset: i32,
+    exit_pc: u32,
+}
+
 /// Scanned across the install-time memory range; each match becomes a `Hook`.
 struct PatternHook {
     tokens: Vec<PatternToken>,
@@ -84,6 +99,16 @@ enum PatternToken {
     Literal(u8),
     AnyByte,
     Capture(CaptureName),
+    /// Bit-level match for a byte that mixes a fixed opcode with a 3-bit
+    /// register field (Thumb1 low-register encoding). `(byte & mask) == fixed`
+    /// is the literal check; if `capture` is set, `(byte >> shift) & 0b111`
+    /// is read into the named register slot, with cross-byte consistency
+    /// enforced at match time.
+    BitMatch {
+        mask: u8,
+        fixed: u8,
+        capture: Option<(CaptureName, u8)>,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -92,6 +117,9 @@ enum CaptureName {
     Src,
     Len,
     ExitB,
+    SrcReg,
+    DstReg,
+    CountReg,
 }
 
 enum PatternHookKind {
@@ -110,6 +138,13 @@ enum PatternHookKind {
         exit_pc: Option<u32>,
         spill_back: bool,
     },
+    /// Pattern-matched register-resident copy loop. The `src`/`dst`/`count`
+    /// registers are read from the pattern's bit-level captures and `exit_pc`
+    /// is derived at install time from `match_addr + pattern.len()` (Thumb bit
+    /// set).
+    RegInlineCopy {
+        count_offset: i32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +153,9 @@ struct PatternMatch {
     dst: Option<u8>,
     src: Option<u8>,
     len: Option<u8>,
+    src_reg: Option<u8>,
+    dst_reg: Option<u8>,
+    count_reg: Option<u8>,
     /// Address of the first `{exit_b}` byte — combined with `exit_b_bytes` to
     /// compute the branch target.
     exit_b_site: Option<u32>,
@@ -168,6 +206,28 @@ fn install_entry(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) 
                         len_offset: len,
                         exit_pc: exit,
                         spill_back: *spill_back,
+                    })
+                }
+                PatternHookKind::RegInlineCopy { count_offset } => {
+                    let src = arm_register_from_index(
+                        pm.src_reg
+                            .ok_or_else(|| WieError::FatalError(format!("pattern match at {match_addr:#x} missing src register capture")))?,
+                    );
+                    let dst = arm_register_from_index(
+                        pm.dst_reg
+                            .ok_or_else(|| WieError::FatalError(format!("pattern match at {match_addr:#x} missing dst register capture")))?,
+                    );
+                    let count = arm_register_from_index(
+                        pm.count_reg
+                            .ok_or_else(|| WieError::FatalError(format!("pattern match at {match_addr:#x} missing count register capture")))?,
+                    );
+                    let exit_pc = match_addr.wrapping_add(pattern.tokens.len() as u32) | 1;
+                    HookKind::RegInlineCopy(RegInlineCopy {
+                        src,
+                        dst,
+                        count,
+                        count_offset: *count_offset,
+                        exit_pc,
                     })
                 }
             };
@@ -245,6 +305,9 @@ fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
         dst: None,
         src: None,
         len: None,
+        src_reg: None,
+        dst_reg: None,
+        count_reg: None,
         exit_b_site: None,
         exit_b_bytes: None,
     };
@@ -259,6 +322,27 @@ fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
                 i += 1;
             }
             PatternToken::AnyByte => {
+                i += 1;
+            }
+            PatternToken::BitMatch { mask, fixed, capture } => {
+                if b & mask != *fixed {
+                    return None;
+                }
+                if let Some((name, shift)) = capture {
+                    let value = (b >> shift) & 0b111;
+                    let slot = match name {
+                        CaptureName::SrcReg => &mut m.src_reg,
+                        CaptureName::DstReg => &mut m.dst_reg,
+                        CaptureName::CountReg => &mut m.count_reg,
+                        _ => return None,
+                    };
+                    if let Some(prev) = *slot
+                        && prev != value
+                    {
+                        return None;
+                    }
+                    *slot = Some(value);
+                }
                 i += 1;
             }
             PatternToken::Capture(name) => match name {
@@ -294,6 +378,10 @@ fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
                     m.exit_b_bytes = Some([b, hi]);
                     i += 2;
                 }
+                CaptureName::SrcReg | CaptureName::DstReg | CaptureName::CountReg => {
+                    // Register captures only land in `BitMatch`, not whole-byte `Capture`.
+                    return None;
+                }
             },
         }
     }
@@ -304,6 +392,20 @@ fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
 /// distance below R7, so the resulting offset is `-imm8`.
 fn capture_to_offset(byte: u8) -> i32 {
     -(byte as i32)
+}
+
+fn arm_register_from_index(index: u8) -> ArmRegister {
+    match index {
+        0 => ArmRegister::R0,
+        1 => ArmRegister::R1,
+        2 => ArmRegister::R2,
+        3 => ArmRegister::R3,
+        4 => ArmRegister::R4,
+        5 => ArmRegister::R5,
+        6 => ArmRegister::R6,
+        7 => ArmRegister::R7,
+        _ => unreachable!("BitMatch only captures 3 bits, value must be 0..=7"),
+    }
 }
 
 /// Decode a Thumb `B imm11` (`11100 iiiiiiiiiii`) at `b_site`. Returns the
@@ -392,6 +494,27 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
             }
             Ok(JumpTo(spec.exit_pc))
         }
+        HookKind::RegInlineCopy(spec) => {
+            let (src, dst, count_initial) = {
+                let inner = core.inner.lock();
+                (
+                    inner.engine.reg_read(spec.src),
+                    inner.engine.reg_read(spec.dst),
+                    inner.engine.reg_read(spec.count),
+                )
+            };
+            let count = count_initial.wrapping_add(spec.count_offset as u32);
+            tracing::trace!(
+                "native hook reg_inline_copy(src={src:#x}, dst={dst:#x}, count={count:#x}, exit={:#x})",
+                spec.exit_pc
+            );
+            stdlib::memcpy(core, &mut (), dst, src, count).await?;
+            let mut inner = core.inner.lock();
+            inner.engine.reg_write(spec.src, src.wrapping_add(count));
+            inner.engine.reg_write(spec.dst, dst.wrapping_add(count));
+            inner.engine.reg_write(spec.count, count_initial.wrapping_sub(count));
+            Ok(JumpTo(spec.exit_pc))
+        }
     }
 }
 
@@ -433,7 +556,7 @@ mod tests {
             }],
             patterns: vec![],
         };
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
 
         let err = install_entry(&mut core, &entry, &[]).unwrap_err();
@@ -453,7 +576,7 @@ mod tests {
             }],
             patterns: vec![],
         };
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
 
         core.write_bytes(0x2000, &[0xaa, 0xbb])?;
@@ -468,7 +591,7 @@ mod tests {
 
     #[futures_test::test]
     async fn memcpy_dispatch_copies_bytes_and_returns_via_lr() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let src = 0x10000u32;
@@ -498,7 +621,7 @@ mod tests {
 
     #[futures_test::test]
     async fn memset_dispatch_fills_bytes() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let dst = 0x10000u32;
@@ -524,7 +647,7 @@ mod tests {
 
     #[futures_test::test]
     async fn strcpy_dispatch_copies_null_terminated_string_and_returns_via_lr() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let src = 0x10000u32;
@@ -560,7 +683,7 @@ mod tests {
 
     #[futures_test::test]
     async fn strlen_dispatch_returns_length_in_r0() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x1000)?;
 
         let str_ptr = 0x10100u32;
@@ -586,7 +709,7 @@ mod tests {
 
     #[futures_test::test]
     async fn inline_copy_dispatch_reads_frame_copies_and_jumps_to_exit() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x10000, 0x2000)?;
 
         let src = 0x10000u32;
@@ -634,7 +757,7 @@ mod tests {
 
     #[futures_test::test]
     async fn install_then_execute_hits_dispatcher_end_to_end() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x20000, 0x2000)?;
         core.map(0x30000, 0x1000)?;
 
@@ -704,7 +827,7 @@ mod tests {
 
     #[test]
     fn pattern_scan_matches_single_hit() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x50000, 0x200)?;
 
         let pat_bytes = [0xaa, 0xbb, 0xcc, 0xdd];
@@ -768,6 +891,33 @@ mod tests {
     }
 
     #[test]
+    fn pattern_bit_match_captures_register_at_correct_shift() {
+        // `0b00sss011` matches `(src << 3) | 0b011`. Cross-byte consistency
+        // forces the same `s` capture to agree across positions.
+        let tokens = [
+            PatternToken::BitMatch {
+                mask: 0b1100_0111,
+                fixed: 0b0000_0011,
+                capture: Some((CaptureName::SrcReg, 3)),
+            },
+            PatternToken::BitMatch {
+                mask: 0b1111_1000,
+                fixed: 0b0011_0000,
+                capture: Some((CaptureName::SrcReg, 0)),
+            },
+        ];
+        // 0x0B = 0b00001011 → src bits 5..3 = 001 → R1
+        // 0x31 = 0b00110001 → src bits 2..0 = 001 → R1 (consistent)
+        let m = try_match(&tokens, &[0x0b, 0x31]).expect("match");
+        assert_eq!(m.src_reg, Some(1));
+
+        // Inconsistent capture must fail: first byte says R1, second says R2.
+        assert!(try_match(&tokens, &[0x0b, 0x32]).is_none());
+        // First byte's literal bits don't match (low nibble != 0b011).
+        assert!(try_match(&tokens, &[0x0a, 0x31]).is_none());
+    }
+
+    #[test]
     fn pattern_scan_rejects_exit_b_capture_when_bytes_are_not_thumb_b() {
         let tokens = [PatternToken::Capture(CaptureName::ExitB), PatternToken::Capture(CaptureName::ExitB)];
         // `0c 3a` is `SUBS R2, #0xC` — high byte 0x3a is not in 0xE0-0xE7.
@@ -778,7 +928,7 @@ mod tests {
 
     #[test]
     fn pattern_duplicate_pc_warns_once_and_skips() -> Result<()> {
-        let mut core = ArmCore::new(false)?;
+        let mut core = ArmCore::new(false, None)?;
         core.map(0x60000, 0x100)?;
         core.write_bytes(0x60010, &[0x11, 0x22, 0x33, 0x44])?;
 

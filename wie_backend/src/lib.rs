@@ -24,6 +24,7 @@ pub use self::{
 };
 
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
     format,
     string::{String, ToString},
@@ -37,8 +38,20 @@ pub trait Emulator {
     fn tick(&mut self) -> Result<()>;
 }
 
+pub struct ProfileSample {
+    /// Leaf-first call stack: [pc, lr, lr_prev, ...].
+    pub stack: Vec<u32>,
+    pub count: u64,
+}
+
+/// Called periodically during execution with a batch of samples that the
+/// profiler accumulated since the previous flush. The callback also fires once
+/// more when the runtime shuts down to drain anything still in the buffer.
+pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
+
 pub struct Options {
     pub enable_gdbserver: bool,
+    pub profile: Option<ProfileCallback>,
 }
 
 pub fn extract_zip(zip: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
