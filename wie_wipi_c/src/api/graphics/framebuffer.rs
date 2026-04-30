@@ -5,7 +5,7 @@ use bytemuck::pod_collect_to_vec;
 
 use wipi_types::wipic::{WIPICFramebuffer, WIPICIndirectPtr, WIPICWord};
 
-use wie_backend::canvas::{ArgbPixel, Canvas, Image, ImageBufferCanvas, Rgb565Pixel, VecImageBuffer};
+use wie_backend::canvas::{ArgbPixel, Canvas, Color, Image, ImageBufferCanvas, PixelType, Rgb8Pixel, Rgb565Pixel, VecImageBuffer};
 use wie_util::Result;
 
 use crate::context::WIPICContext;
@@ -103,6 +103,13 @@ impl FrameBuffer {
 
     pub fn write(&self, context: &mut dyn WIPICContext, data: &[u8]) -> Result<()> {
         context.write_bytes(context.data_ptr(self.0.buf)?, data)
+    }
+
+    pub fn pixel_to_color(&self, pixel: WIPICWord) -> Color {
+        match self.0.bpp {
+            16 => Rgb565Pixel::to_color(pixel as u16),
+            _ => Rgb8Pixel::to_color(pixel),
+        }
     }
 }
 
