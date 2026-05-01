@@ -61,7 +61,7 @@ pub async fn load_native(
     // patterns being long enough (and `{exit_b}` strict enough) that a
     // metadata-region collision is implausible; tighten patterns rather than
     // narrow the range if that ever becomes false.
-    wie_core_arm::install_native_hooks(core, data, &[(IMAGE_BASE, data.len() as u32)])?;
+    wie_core_arm::install_binary_patches(core, data, &[(IMAGE_BASE, data.len() as u32)])?;
 
     register_wipic_svc_handler(core, system, jvm)?;
     register_init_svc_handler(core, jvm)?;
