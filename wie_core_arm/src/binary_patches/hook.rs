@@ -1,54 +1,21 @@
-use alloc::{
-    collections::BTreeMap,
-    format,
-    string::{String, ToString},
-    sync::Arc,
-    vec,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, format, string::ToString, sync::Arc, vec::Vec};
 
-use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
+use wie_util::{ByteWrite, Result, WieError, read_generic};
 
+use super::{Entry, PatternToken, scan_pattern};
 use crate::{ArmCore, engine::ArmRegister, function::JumpTo, stdlib};
 
-mod parser;
-
-const NATIVE_HOOK_SVC: u32 = 0x80;
-
-/// Match the binary against the embedded hook table and patch in any matching
-/// hooks. The on-disk MD5 selects a hash-keyed entry first, falling back to a
-/// hash-less generic entry. `scan_ranges` are the `(base, size)` byte ranges
-/// searched for pattern hooks (typically the guest `.text` region). Returns
-/// the number of hooks installed.
-pub fn install_native_hooks(core: &mut ArmCore, data: &[u8], scan_ranges: &[(u32, u32)]) -> Result<usize> {
-    let hash = md5::compute(data).0;
-    let entries = parser::native_hooks();
-    let entry = entries
-        .iter()
-        .find(|e| matches!(e.hash, Some(h) if h == hash))
-        .or_else(|| entries.iter().find(|e| e.hash.is_none()));
-    match entry {
-        Some(entry) => install_entry(core, entry, scan_ranges),
-        None => Ok(0),
-    }
-}
-
-struct Entry {
-    hash: Option<[u8; 16]>,
-    name: String,
-    hooks: Vec<Hook>,
-    patterns: Vec<PatternHook>,
-}
+pub(super) const BINARY_PATCH_SVC: u32 = 0x80;
 
 #[derive(Debug, Clone, Copy)]
-struct Hook {
+pub(super) struct Hook {
     /// LSB=1 (Thumb) is required; the engine doesn't service ARM-mode SVCs.
-    pc: u32,
-    kind: HookKind,
+    pub pc: u32,
+    pub kind: HookKind,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum HookKind {
+pub(super) enum HookKind {
     /// ABI: dst=r0, src=r1, len=r2; returns via LR.
     Memcpy,
     /// ABI: dst=r0, val=r1 (low byte), len=r2; returns via LR.
@@ -70,59 +37,32 @@ enum HookKind {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct InlineCopy {
-    dst_offset: i32,
-    src_offset: i32,
-    len_offset: i32,
-    exit_pc: u32,
+pub(super) struct InlineCopy {
+    pub dst_offset: i32,
+    pub src_offset: i32,
+    pub len_offset: i32,
+    pub exit_pc: u32,
     /// Set when the loop's outer code re-reads the stack slots after the body;
     /// the dispatcher then writes back `dst+len`, `src+len`, `len=0`.
-    spill_back: bool,
+    pub spill_back: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct RegInlineCopy {
-    src: ArmRegister,
-    dst: ArmRegister,
-    count: ArmRegister,
-    count_offset: i32,
-    exit_pc: u32,
+pub(super) struct RegInlineCopy {
+    pub src: ArmRegister,
+    pub dst: ArmRegister,
+    pub count: ArmRegister,
+    pub count_offset: i32,
+    pub exit_pc: u32,
 }
 
 /// Scanned across the install-time memory range; each match becomes a `Hook`.
-struct PatternHook {
-    tokens: Vec<PatternToken>,
-    kind_template: PatternHookKind,
+pub(super) struct PatternHook {
+    pub tokens: Vec<PatternToken>,
+    pub kind_template: PatternHookKind,
 }
 
-enum PatternToken {
-    Literal(u8),
-    AnyByte,
-    Capture(CaptureName),
-    /// Bit-level match for a byte that mixes a fixed opcode with a 3-bit
-    /// register field (Thumb1 low-register encoding). `(byte & mask) == fixed`
-    /// is the literal check; if `capture` is set, `(byte >> shift) & 0b111`
-    /// is read into the named register slot, with cross-byte consistency
-    /// enforced at match time.
-    BitMatch {
-        mask: u8,
-        fixed: u8,
-        capture: Option<(CaptureName, u8)>,
-    },
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CaptureName {
-    Dst,
-    Src,
-    Len,
-    ExitB,
-    SrcReg,
-    DstReg,
-    CountReg,
-}
-
-enum PatternHookKind {
+pub(super) enum PatternHookKind {
     Memcpy,
     Memset,
     Strcpy,
@@ -147,26 +87,14 @@ enum PatternHookKind {
     },
 }
 
-#[derive(Debug, Clone)]
-struct PatternMatch {
-    addr: u32,
-    dst: Option<u8>,
-    src: Option<u8>,
-    len: Option<u8>,
-    src_reg: Option<u8>,
-    dst_reg: Option<u8>,
-    count_reg: Option<u8>,
-    /// Address of the first `{exit_b}` byte — combined with `exit_b_bytes` to
-    /// compute the branch target.
-    exit_b_site: Option<u32>,
-    exit_b_bytes: Option<[u8; 2]>,
-}
-
-fn install_entry(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<usize> {
+/// Expand static + pattern hooks into a single `Vec<Hook>` whose PCs are final.
+/// All pattern matching happens here; downstream consumers (overlap check,
+/// `apply_hooks`) only see PC + kind, never raw tokens.
+pub(super) fn resolve_hooks(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<Vec<Hook>> {
     let mut installed: Vec<Hook> = entry.hooks.clone();
 
-    for pattern in &entry.patterns {
-        let matches = scan_pattern(core, pattern, scan_ranges)?;
+    for pattern in &entry.hook_patterns {
+        let matches = scan_pattern(core, &pattern.tokens, scan_ranges)?;
         for (match_addr, pm) in matches {
             let kind = match &pattern.kind_template {
                 PatternHookKind::Memcpy => HookKind::Memcpy,
@@ -233,159 +161,41 @@ fn install_entry(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) 
             };
             let pc = match_addr | 1;
             if installed.iter().any(|h| h.pc == pc) {
-                tracing::warn!("Native hook at {pc:#x} already registered; skipping duplicate match");
+                tracing::warn!("Hook at {pc:#x} already registered; skipping duplicate match");
                 continue;
             }
             installed.push(Hook { pc, kind });
         }
     }
 
-    tracing::info!("Installing {} native hooks for {}", installed.len(), entry.name);
+    Ok(installed)
+}
 
+/// Patch the SVC instruction at every hook PC and register the dispatcher.
+/// `hooks` must already be the fully expanded list from `resolve_hooks`. The
+/// dispatcher is registered even when `hooks` is empty so that any later SVC
+/// #0x80 (e.g., from guest code that happens to encode the same bytes) routes
+/// to a single, named diagnostic instead of falling out of the engine.
+pub(super) fn apply_hooks(core: &mut ArmCore, entry_name: &str, hooks: &[Hook]) -> Result<()> {
     let mut registry = BTreeMap::new();
-    for hook in &installed {
+    for hook in hooks {
         if hook.pc & 1 == 0 {
             return Err(WieError::FatalError(format!(
-                "Native hook PC {:#x} targets ARM mode; only Thumb (LSB=1) is supported",
+                "Hook PC {:#x} targets ARM mode; only Thumb (LSB=1) is supported",
                 hook.pc
             )));
         }
         registry.insert(hook.pc, hook.kind);
         let patch_addr = hook.pc & !1;
-        let instruction: u16 = 0xdf00 | (NATIVE_HOOK_SVC as u16 & 0xff);
+        let instruction: u16 = 0xdf00 | (BINARY_PATCH_SVC as u16 & 0xff);
         core.write_bytes(patch_addr, &instruction.to_le_bytes())?;
-        tracing::info!("Native hook installed at {:#x}: {:?}", hook.pc, hook.kind);
+        tracing::info!("Hook installed at {:#x}: {:?}", hook.pc, hook.kind);
     }
-
-    core.register_svc_handler(NATIVE_HOOK_SVC, handle_native_hook, &Arc::new(registry))?;
-    Ok(installed.len())
-}
-
-/// Scans on 2-byte boundaries since all Thumb instructions are halfword-aligned.
-fn scan_pattern(core: &mut ArmCore, pattern: &PatternHook, scan_ranges: &[(u32, u32)]) -> Result<Vec<(u32, PatternMatch)>> {
-    let mut results = Vec::new();
-    let pat_len = pattern.tokens.len();
-    if pat_len == 0 {
-        return Ok(results);
+    if !hooks.is_empty() {
+        tracing::info!("Installed {} hooks for {}", hooks.len(), entry_name);
     }
-
-    for (base, size) in scan_ranges {
-        let mut buf = vec![0u8; *size as usize];
-        core.read_bytes(*base, &mut buf)?;
-
-        let mut off = 0usize;
-        while off + pat_len <= buf.len() {
-            if let Some(mut pm) = try_match(&pattern.tokens, &buf[off..off + pat_len]) {
-                pm.addr = base + off as u32;
-                if pm.exit_b_bytes.is_some() {
-                    for (ti, t) in pattern.tokens.iter().enumerate() {
-                        if matches!(t, PatternToken::Capture(CaptureName::ExitB)) {
-                            pm.exit_b_site = Some(base + (off + ti) as u32);
-                            break;
-                        }
-                    }
-                }
-                results.push((pm.addr, pm));
-            }
-            off += 2;
-        }
-    }
-
-    Ok(results)
-}
-
-/// Returns a `PatternMatch` with captures populated; `addr` and `exit_b_site`
-/// are filled in by the caller from the actual scan position.
-fn try_match(tokens: &[PatternToken], bytes: &[u8]) -> Option<PatternMatch> {
-    if bytes.len() < tokens.len() {
-        return None;
-    }
-    let mut m = PatternMatch {
-        addr: 0,
-        dst: None,
-        src: None,
-        len: None,
-        src_reg: None,
-        dst_reg: None,
-        count_reg: None,
-        exit_b_site: None,
-        exit_b_bytes: None,
-    };
-    let mut i = 0;
-    while i < tokens.len() {
-        let b = bytes[i];
-        match &tokens[i] {
-            PatternToken::Literal(v) => {
-                if b != *v {
-                    return None;
-                }
-                i += 1;
-            }
-            PatternToken::AnyByte => {
-                i += 1;
-            }
-            PatternToken::BitMatch { mask, fixed, capture } => {
-                if b & mask != *fixed {
-                    return None;
-                }
-                if let Some((name, shift)) = capture {
-                    let value = (b >> shift) & 0b111;
-                    let slot = match name {
-                        CaptureName::SrcReg => &mut m.src_reg,
-                        CaptureName::DstReg => &mut m.dst_reg,
-                        CaptureName::CountReg => &mut m.count_reg,
-                        _ => return None,
-                    };
-                    if let Some(prev) = *slot
-                        && prev != value
-                    {
-                        return None;
-                    }
-                    *slot = Some(value);
-                }
-                i += 1;
-            }
-            PatternToken::Capture(name) => match name {
-                CaptureName::Dst => {
-                    m.dst = Some(b);
-                    i += 1;
-                }
-                CaptureName::Src => {
-                    m.src = Some(b);
-                    i += 1;
-                }
-                CaptureName::Len => {
-                    m.len = Some(b);
-                    i += 1;
-                }
-                CaptureName::ExitB => {
-                    if i + 1 >= bytes.len() || i + 1 >= tokens.len() {
-                        return None;
-                    }
-                    let hi = bytes[i + 1];
-                    if !matches!(tokens[i + 1], PatternToken::Capture(CaptureName::ExitB)) {
-                        return None;
-                    }
-                    // Reject matches where the captured bytes aren't a Thumb
-                    // unconditional `B imm11` (`11100 iiiiiiiiiii`, encoded as
-                    // 0xE0xx-0xE7xx little-endian). Without this, a permissive
-                    // pattern can land on arbitrary instructions and decode
-                    // them as if they were branches, sending the dispatcher
-                    // to a garbage `exit_pc`.
-                    if hi & 0xf8 != 0xe0 {
-                        return None;
-                    }
-                    m.exit_b_bytes = Some([b, hi]);
-                    i += 2;
-                }
-                CaptureName::SrcReg | CaptureName::DstReg | CaptureName::CountReg => {
-                    // Register captures only land in `BitMatch`, not whole-byte `Capture`.
-                    return None;
-                }
-            },
-        }
-    }
-    Some(m)
+    core.register_svc_handler(BINARY_PATCH_SVC, handle_binary_patch_svc, &Arc::new(registry))?;
+    Ok(())
 }
 
 /// Negate the unsigned `SUBS Rn, #imm8` immediate: the captured byte is the
@@ -420,7 +230,7 @@ fn decode_exit_b(b_site: u32, bytes: [u8; 2]) -> u32 {
 
 type Registry = Arc<BTreeMap<u32, HookKind>>;
 
-async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Result<JumpTo> {
+async fn handle_binary_patch_svc(core: &mut ArmCore, registry: &mut Registry) -> Result<JumpTo> {
     let (pc, lr) = core.read_pc_lr()?;
     // PC on entry is the address right after the patched 2-byte SVC. Drop any
     // Thumb bit, step back over the SVC, then re-set the Thumb bit because
@@ -429,7 +239,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
     let kind = registry
         .get(&hook_pc)
         .copied()
-        .ok_or_else(|| WieError::FatalError(format!("native hook fired at unregistered PC {hook_pc:#x}")))?;
+        .ok_or_else(|| WieError::FatalError(format!("binary-patch hook fired at unregistered PC {hook_pc:#x}")))?;
 
     match kind {
         HookKind::Memcpy => {
@@ -441,7 +251,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                     inner.engine.reg_read(ArmRegister::R2),
                 )
             };
-            tracing::trace!("native hook memcpy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x})");
+            tracing::trace!("hook memcpy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x})");
             stdlib::memcpy(core, &mut (), dst, src, len).await?;
             Ok(JumpTo(lr))
         }
@@ -454,7 +264,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                     inner.engine.reg_read(ArmRegister::R2),
                 )
             };
-            tracing::trace!("native hook memset(ptr_dst={dst:#x}, val={:#x}, len={len:#x})", val as u8);
+            tracing::trace!("hook memset(ptr_dst={dst:#x}, val={:#x}, len={len:#x})", val as u8);
             stdlib::memset(core, &mut (), dst, val, len).await?;
             Ok(JumpTo(lr))
         }
@@ -463,14 +273,14 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
                 let inner = core.inner.lock();
                 (inner.engine.reg_read(ArmRegister::R0), inner.engine.reg_read(ArmRegister::R1))
             };
-            tracing::trace!("native hook strcpy(ptr_dst={dst:#x}, ptr_src={src:#x})");
+            tracing::trace!("hook strcpy(ptr_dst={dst:#x}, ptr_src={src:#x})");
             stdlib::strcpy(core, &mut (), dst, src).await?;
             Ok(JumpTo(lr))
         }
         HookKind::Strlen => {
             let s = core.inner.lock().engine.reg_read(ArmRegister::R0);
             let len = stdlib::strlen(core, &mut (), s).await?;
-            tracing::trace!("native hook strlen(ptr_str={s:#x}) -> {len:#x}");
+            tracing::trace!("hook strlen(ptr_str={s:#x}) -> {len:#x}");
             core.inner.lock().engine.reg_write(ArmRegister::R0, len);
             Ok(JumpTo(lr))
         }
@@ -483,7 +293,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
             let src: u32 = read_generic(core, src_slot)?;
             let len: u32 = read_generic(core, len_slot)?;
             tracing::trace!(
-                "native hook inline_copy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x}, exit={:#x})",
+                "hook inline_copy(ptr_dst={dst:#x}, ptr_src={src:#x}, len={len:#x}, exit={:#x})",
                 spec.exit_pc
             );
             stdlib::memcpy(core, &mut (), dst, src, len).await?;
@@ -505,7 +315,7 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
             };
             let count = count_initial.wrapping_add(spec.count_offset as u32);
             tracing::trace!(
-                "native hook reg_inline_copy(src={src:#x}, dst={dst:#x}, count={count:#x}, exit={:#x})",
+                "hook reg_inline_copy(src={src:#x}, dst={dst:#x}, count={count:#x}, exit={:#x})",
                 spec.exit_pc
             );
             stdlib::memcpy(core, &mut (), dst, src, count).await?;
@@ -520,6 +330,10 @@ async fn handle_native_hook(core: &mut ArmCore, registry: &mut Registry) -> Resu
 
 #[cfg(test)]
 mod tests {
+    use alloc::{vec, vec::Vec};
+
+    use wie_util::ByteRead;
+
     use super::*;
     use crate::function::{RegisteredFunction, RegisteredFunctionHolder};
 
@@ -536,56 +350,55 @@ mod tests {
         inner.engine.reg_write(ArmRegister::PC, (hook_pc & !1).wrapping_add(2));
     }
 
-    #[test]
-    fn embedded_toml_parses() {
-        let entries = parser::native_hooks();
-        assert!(!entries.is_empty(), "embedded TOML produced no entries");
-        for entry in &entries {
-            assert!(!entry.name.is_empty(), "entry missing name");
+    fn entry_with_static(name: &str, hooks: Vec<Hook>) -> Entry {
+        Entry {
+            hash: Some([0u8; 16]),
+            name: name.into(),
+            hooks,
+            hook_patterns: vec![],
+            patches: vec![],
+            patch_patterns: vec![],
         }
     }
 
     #[test]
-    fn install_rejects_arm_mode_pc() -> Result<()> {
-        let entry = Entry {
-            hash: Some([0u8; 16]),
-            name: "arm-mode".into(),
-            hooks: vec![Hook {
+    fn apply_hooks_rejects_arm_mode_pc() -> Result<()> {
+        let entry = entry_with_static(
+            "arm-mode",
+            vec![Hook {
                 pc: 0x2000, // LSB=0 => ARM mode
                 kind: HookKind::Memcpy,
             }],
-            patterns: vec![],
-        };
+        );
         let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
 
-        let err = install_entry(&mut core, &entry, &[]).unwrap_err();
+        let hooks = resolve_hooks(&mut core, &entry, &[])?;
+        let err = apply_hooks(&mut core, &entry.name, &hooks).unwrap_err();
         let msg = alloc::format!("{err}");
         assert!(msg.contains("ARM mode"), "unexpected error: {msg}");
         Ok(())
     }
 
     #[test]
-    fn install_patches_thumb_svc_instruction() -> Result<()> {
-        let entry = Entry {
-            hash: Some([0u8; 16]),
-            name: "patch".into(),
-            hooks: vec![Hook {
+    fn apply_hooks_writes_thumb_svc_instruction() -> Result<()> {
+        let entry = entry_with_static(
+            "patch",
+            vec![Hook {
                 pc: 0x2001, // Thumb
                 kind: HookKind::Memcpy,
             }],
-            patterns: vec![],
-        };
+        );
         let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
-
         core.write_bytes(0x2000, &[0xaa, 0xbb])?;
 
-        install_entry(&mut core, &entry, &[])?;
+        let hooks = resolve_hooks(&mut core, &entry, &[])?;
+        apply_hooks(&mut core, &entry.name, &hooks)?;
 
         let mut buf = [0u8; 2];
         core.read_bytes(0x2000, &mut buf)?;
-        assert_eq!(buf, [NATIVE_HOOK_SVC as u8, 0xdf]);
+        assert_eq!(buf, [BINARY_PATCH_SVC as u8, 0xdf]);
         Ok(())
     }
 
@@ -610,7 +423,7 @@ mod tests {
         set_post_svc_pc(&mut core, hook_pc);
 
         let registry = registry_with(hook_pc, HookKind::Memcpy);
-        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+        RegisteredFunctionHolder::new(handle_binary_patch_svc, &registry).call(&mut core).await?;
 
         let mut out = [0u8; 8];
         core.read_bytes(dst, &mut out)?;
@@ -637,7 +450,7 @@ mod tests {
         set_post_svc_pc(&mut core, hook_pc);
 
         let registry = registry_with(hook_pc, HookKind::Memset);
-        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+        RegisteredFunctionHolder::new(handle_binary_patch_svc, &registry).call(&mut core).await?;
 
         let mut out = [0u8; 16];
         core.read_bytes(dst, &mut out)?;
@@ -666,7 +479,7 @@ mod tests {
         set_post_svc_pc(&mut core, hook_pc);
 
         let registry = registry_with(hook_pc, HookKind::Strcpy);
-        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+        RegisteredFunctionHolder::new(handle_binary_patch_svc, &registry).call(&mut core).await?;
 
         let mut out = [0u8; 14];
         core.read_bytes(dst, &mut out)?;
@@ -699,7 +512,7 @@ mod tests {
         set_post_svc_pc(&mut core, hook_pc);
 
         let registry = registry_with(hook_pc, HookKind::Strlen);
-        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+        RegisteredFunctionHolder::new(handle_binary_patch_svc, &registry).call(&mut core).await?;
 
         let inner = core.inner.lock();
         assert_eq!(inner.engine.reg_read(ArmRegister::R0), 6);
@@ -737,7 +550,7 @@ mod tests {
             spill_back: true,
         };
         let registry = registry_with(hook_pc, HookKind::InlineCopy(spec));
-        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core).await?;
+        RegisteredFunctionHolder::new(handle_binary_patch_svc, &registry).call(&mut core).await?;
 
         let mut out = [0u8; 4];
         core.read_bytes(dst, &mut out)?;
@@ -767,21 +580,20 @@ mod tests {
         core.write_bytes(src, &payload)?;
 
         let hook_pc = 0x20001u32;
-        let entry = Entry {
-            hash: Some([0u8; 16]),
-            name: "e2e".into(),
-            hooks: vec![Hook {
+        let entry = entry_with_static(
+            "e2e",
+            vec![Hook {
                 pc: hook_pc,
                 kind: HookKind::Memcpy,
             }],
-            patterns: vec![],
-        };
-        install_entry(&mut core, &entry, &[])?;
+        );
+        let hooks = resolve_hooks(&mut core, &entry, &[])?;
+        apply_hooks(&mut core, &entry.name, &hooks)?;
 
         let mut opcode = [0u8; 2];
         core.read_bytes(0x20000, &mut opcode)?;
         assert_eq!(opcode[1], 0xdf);
-        assert_eq!(opcode[0] as u32, NATIVE_HOOK_SVC);
+        assert_eq!(opcode[0] as u32, BINARY_PATCH_SVC);
 
         let return_addr = 0x40000u32 | 1;
         {
@@ -810,11 +622,13 @@ mod tests {
             }
             _ => panic!("expected Svc"),
         };
-        assert_eq!(category, NATIVE_HOOK_SVC);
+        assert_eq!(category, BINARY_PATCH_SVC);
 
         let registry = registry_with(hook_pc, HookKind::Memcpy);
         let mut core_clone = core.clone();
-        RegisteredFunctionHolder::new(handle_native_hook, &registry).call(&mut core_clone).await?;
+        RegisteredFunctionHolder::new(handle_binary_patch_svc, &registry)
+            .call(&mut core_clone)
+            .await?;
 
         let mut out = [0u8; 4];
         core.read_bytes(dst, &mut out)?;
@@ -838,7 +652,7 @@ mod tests {
             hash: None,
             name: "scan-single".into(),
             hooks: vec![],
-            patterns: vec![PatternHook {
+            hook_patterns: vec![PatternHook {
                 tokens: vec![
                     PatternToken::Literal(0xaa),
                     PatternToken::Literal(0xbb),
@@ -847,30 +661,22 @@ mod tests {
                 ],
                 kind_template: PatternHookKind::Memcpy,
             }],
+            patches: vec![],
+            patch_patterns: vec![],
         };
 
-        install_entry(&mut core, &entry, &[(0x50000, 0x200)])?;
+        let hooks = resolve_hooks(&mut core, &entry, &[(0x50000, 0x200)])?;
+        apply_hooks(&mut core, &entry.name, &hooks)?;
 
         let mut out = [0u8; 2];
         core.read_bytes(match_addr, &mut out)?;
         assert_eq!(out[1], 0xdf);
-        assert_eq!(out[0] as u32, NATIVE_HOOK_SVC);
+        assert_eq!(out[0] as u32, BINARY_PATCH_SVC);
         Ok(())
     }
 
     #[test]
-    fn pattern_scan_capture_extracts_dst_src() {
-        let tokens = [
-            PatternToken::Literal(0x00),
-            PatternToken::Capture(CaptureName::Dst),
-            PatternToken::Literal(0x3d),
-            PatternToken::Capture(CaptureName::Src),
-        ];
-        let bytes = [0x00, 0x08, 0x3d, 0x0c];
-
-        let m = try_match(&tokens, &bytes).expect("match");
-        assert_eq!(m.dst, Some(0x08));
-        assert_eq!(m.src, Some(0x0c));
+    fn pattern_scan_capture_to_offset_negates_imm8() {
         assert_eq!(capture_to_offset(0x08), -8);
         assert_eq!(capture_to_offset(0x0c), -12);
         // imm8 in `SUBS Rn, #imm8` is unsigned 0..=255, so high values must
@@ -891,42 +697,6 @@ mod tests {
     }
 
     #[test]
-    fn pattern_bit_match_captures_register_at_correct_shift() {
-        // `0b00sss011` matches `(src << 3) | 0b011`. Cross-byte consistency
-        // forces the same `s` capture to agree across positions.
-        let tokens = [
-            PatternToken::BitMatch {
-                mask: 0b1100_0111,
-                fixed: 0b0000_0011,
-                capture: Some((CaptureName::SrcReg, 3)),
-            },
-            PatternToken::BitMatch {
-                mask: 0b1111_1000,
-                fixed: 0b0011_0000,
-                capture: Some((CaptureName::SrcReg, 0)),
-            },
-        ];
-        // 0x0B = 0b00001011 → src bits 5..3 = 001 → R1
-        // 0x31 = 0b00110001 → src bits 2..0 = 001 → R1 (consistent)
-        let m = try_match(&tokens, &[0x0b, 0x31]).expect("match");
-        assert_eq!(m.src_reg, Some(1));
-
-        // Inconsistent capture must fail: first byte says R1, second says R2.
-        assert!(try_match(&tokens, &[0x0b, 0x32]).is_none());
-        // First byte's literal bits don't match (low nibble != 0b011).
-        assert!(try_match(&tokens, &[0x0a, 0x31]).is_none());
-    }
-
-    #[test]
-    fn pattern_scan_rejects_exit_b_capture_when_bytes_are_not_thumb_b() {
-        let tokens = [PatternToken::Capture(CaptureName::ExitB), PatternToken::Capture(CaptureName::ExitB)];
-        // `0c 3a` is `SUBS R2, #0xC` — high byte 0x3a is not in 0xE0-0xE7.
-        assert!(try_match(&tokens, &[0x0c, 0x3a]).is_none());
-        // `e8 e7` is a valid back-branch (high byte 0xE7).
-        assert!(try_match(&tokens, &[0xe8, 0xe7]).is_some());
-    }
-
-    #[test]
     fn pattern_duplicate_pc_warns_once_and_skips() -> Result<()> {
         let mut core = ArmCore::new(false, None)?;
         core.map(0x60000, 0x100)?;
@@ -936,7 +706,7 @@ mod tests {
             hash: None,
             name: "dup".into(),
             hooks: vec![],
-            patterns: vec![
+            hook_patterns: vec![
                 PatternHook {
                     tokens: vec![PatternToken::Literal(0x11), PatternToken::Literal(0x22)],
                     kind_template: PatternHookKind::Memcpy,
@@ -946,9 +716,11 @@ mod tests {
                     kind_template: PatternHookKind::Memcpy,
                 },
             ],
+            patches: vec![],
+            patch_patterns: vec![],
         };
-        let count = install_entry(&mut core, &entry, &[(0x60000, 0x100)])?;
-        assert_eq!(count, 1, "duplicate PC should be skipped");
+        let hooks = resolve_hooks(&mut core, &entry, &[(0x60000, 0x100)])?;
+        assert_eq!(hooks.len(), 1, "duplicate PC should be skipped");
         Ok(())
     }
 }

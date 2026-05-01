@@ -1,4 +1,4 @@
-# Game-specific native hooks consumed by `wie_core_arm::native_hooks`.
+# Game-specific binary patches consumed by `wie_core_arm::binary_patches`.
 #
 # Each `[[entry]]` is either:
 #   - hash-keyed: `hash` is the MD5 of the main guest binary (KTF
@@ -29,6 +29,26 @@
 # `inline_copy` requires the loop to use a DOWN-counter (length stored on the
 # stack and decremented to 0 to exit). UP-counter loops are NOT compatible —
 # zeroing the slot just resets the index and the loop restarts.
+#
+# In addition to hooks, an entry may contain `[[entry.patch]]` items that
+# rewrite raw bytes at install time (no SVC, no runtime dispatch). A patch is
+# either pc-based (`pc = 0x...`, requires the entry's `hash`) or pattern-based
+# (`pattern = "..."`, applied at every match).
+#   - `bytes`  : whitespace-separated hex literals. Length >= 1. May not
+#                contain the SVC #0x80 instruction (`80 df` LE).
+#   - `expect` : optional original bytes; same length as `bytes`. Strongly
+#                recommended — install fails fast on a build mismatch.
+#   - `offset` : pattern-only. Bytes are written at `match_addr + offset`.
+#                Default 0. Range `0 ..= pattern_len - bytes_len`.
+# Patch patterns may use `??`, hex literals, and `0b<bits>` BitMatch with no
+# register placeholders. They may NOT use `{dst}`/`{src}`/`{len}`/`{exit_b}`
+# captures or `s`/`d`/`c` BitMatch placeholders — patches have no captures to
+# consume.
+#
+# Install order: patches first, hooks second. Patch ↔ patch and patch ↔ hook
+# SVC overlap fails the install. A hash-keyed entry that produces zero
+# patches/hooks is fatal (likely a stale entry against an updated binary);
+# generic (hash-less) entries warn and continue.
 
 [[entry]]
 name = "Generic compiler library / inline copy patterns"
