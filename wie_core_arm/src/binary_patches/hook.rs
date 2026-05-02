@@ -5,17 +5,17 @@ use wie_util::{ByteWrite, Result, WieError, read_generic};
 use super::{Entry, PatternToken, scan_pattern};
 use crate::{ArmCore, engine::ArmRegister, function::JumpTo, stdlib};
 
-pub(super) const BINARY_PATCH_SVC: u32 = 0x80;
+const BINARY_PATCH_SVC: u32 = 0x80;
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct Hook {
+pub struct Hook {
     /// LSB=1 (Thumb) is required; the engine doesn't service ARM-mode SVCs.
     pub pc: u32,
     pub kind: HookKind,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) enum HookKind {
+pub enum HookKind {
     /// ABI: dst=r0, src=r1, len=r2; returns via LR.
     Memcpy,
     /// ABI: dst=r0, val=r1 (low byte), len=r2; returns via LR.
@@ -37,7 +37,7 @@ pub(super) enum HookKind {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct InlineCopy {
+pub struct InlineCopy {
     pub dst_offset: i32,
     pub src_offset: i32,
     pub len_offset: i32,
@@ -48,7 +48,7 @@ pub(super) struct InlineCopy {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct RegInlineCopy {
+pub struct RegInlineCopy {
     pub src: ArmRegister,
     pub dst: ArmRegister,
     pub count: ArmRegister,
@@ -57,12 +57,12 @@ pub(super) struct RegInlineCopy {
 }
 
 /// Scanned across the install-time memory range; each match becomes a `Hook`.
-pub(super) struct PatternHook {
+pub struct PatternHook {
     pub tokens: Vec<PatternToken>,
     pub kind_template: PatternHookKind,
 }
 
-pub(super) enum PatternHookKind {
+pub enum PatternHookKind {
     Memcpy,
     Memset,
     Strcpy,
@@ -90,7 +90,7 @@ pub(super) enum PatternHookKind {
 /// Expand static + pattern hooks into a single `Vec<Hook>` whose PCs are final.
 /// All pattern matching happens here; downstream consumers (overlap check,
 /// `apply_hooks`) only see PC + kind, never raw tokens.
-pub(super) fn resolve_hooks(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<Vec<Hook>> {
+pub fn resolve_hooks(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<Vec<Hook>> {
     let mut installed: Vec<Hook> = entry.hooks.clone();
 
     for pattern in &entry.hook_patterns {
@@ -176,7 +176,7 @@ pub(super) fn resolve_hooks(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u
 /// dispatcher is registered even when `hooks` is empty so that any later SVC
 /// #0x80 (e.g., from guest code that happens to encode the same bytes) routes
 /// to a single, named diagnostic instead of falling out of the engine.
-pub(super) fn apply_hooks(core: &mut ArmCore, entry_name: &str, hooks: &[Hook]) -> Result<()> {
+pub fn apply_hooks(core: &mut ArmCore, entry_name: &str, hooks: &[Hook]) -> Result<()> {
     let mut registry = BTreeMap::new();
     for hook in hooks {
         if hook.pc & 1 == 0 {

@@ -2,29 +2,40 @@ use alloc::{format, string::String, vec::Vec};
 
 use wie_util::{ByteRead, ByteWrite, Result, WieError};
 
-use super::{Entry, PatternToken, scan_pattern};
+use super::{Entry, PatternToken, hook::Hook, scan_pattern};
 use crate::ArmCore;
 
-pub(super) struct PatchSpec {
+pub struct PatchSpec {
     pub pc: u32,
     pub bytes: Vec<u8>,
     pub expect: Option<Vec<u8>>,
 }
 
-pub(super) struct PatternPatchSpec {
+pub struct PatternPatchSpec {
     pub tokens: Vec<PatternToken>,
     pub bytes: Vec<u8>,
     pub expect: Option<Vec<u8>>,
     pub offset: u32,
 }
 
-pub(super) struct Patch {
-    pub addr: u32,
-    pub bytes: Vec<u8>,
-    pub expect: Option<Vec<u8>>,
+struct Patch {
+    addr: u32,
+    bytes: Vec<u8>,
+    expect: Option<Vec<u8>>,
 }
 
-pub(super) fn resolve_patches(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<Vec<Patch>> {
+/// Resolve every patch site, reject any overlap with `hooks` (their SVC
+/// regions), and apply. Returns the count actually applied. Two-phase apply
+/// (verify-all-then-write-all) keeps multi-patch atomicity: if any expect
+/// fails, no patch is written.
+pub fn install_patches(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)], hooks: &[Hook]) -> Result<usize> {
+    let patches = resolve_patches(core, entry, scan_ranges)?;
+    validate_overlap(&patches, hooks, &entry.name)?;
+    apply_patches(core, &entry.name, &patches)?;
+    Ok(patches.len())
+}
+
+fn resolve_patches(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<Vec<Patch>> {
     let mut out: Vec<Patch> = entry
         .patches
         .iter()
@@ -57,7 +68,7 @@ pub(super) fn resolve_patches(core: &mut ArmCore, entry: &Entry, scan_ranges: &[
 /// then write all bytes. The first phase observes guest memory but never
 /// mutates it, so any mismatch fatal leaves memory untouched even when later
 /// patches in the list would have succeeded.
-pub(super) fn apply_patches(core: &mut ArmCore, entry_name: &str, patches: &[Patch]) -> Result<()> {
+fn apply_patches(core: &mut ArmCore, entry_name: &str, patches: &[Patch]) -> Result<()> {
     for patch in patches {
         let mut current = alloc::vec![0u8; patch.bytes.len()];
         core.read_bytes(patch.addr, &mut current)?;
@@ -108,15 +119,15 @@ impl Region {
 /// Reject any byte-region collision between patches and hook SVC sites before
 /// we write anything. Patches are `[addr, addr + bytes.len())`; hook SVC sites
 /// are the 2 bytes at `pc & !1`.
-pub(super) fn validate_overlap(patches: &[Patch], hook_pcs: &[u32], entry_name: &str) -> Result<()> {
+fn validate_overlap(patches: &[Patch], hooks: &[Hook], entry_name: &str) -> Result<()> {
     let mut regions: Vec<(u32, u32, Region)> = Vec::new();
     for p in patches {
         debug_assert!(!p.bytes.is_empty(), "parser must reject empty `bytes`");
         regions.push((p.addr, p.addr.saturating_add(p.bytes.len() as u32), Region::Patch(p.addr)));
     }
-    for &pc in hook_pcs {
-        let base = pc & !1;
-        regions.push((base, base.saturating_add(2), Region::Hook(pc)));
+    for h in hooks {
+        let base = h.pc & !1;
+        regions.push((base, base.saturating_add(2), Region::Hook(h.pc)));
     }
     regions.sort_by_key(|r| r.0);
     for w in regions.windows(2) {
@@ -149,7 +160,10 @@ mod tests {
     use alloc::{vec, vec::Vec};
 
     use super::*;
-    use crate::binary_patches::PatternToken;
+    use crate::binary_patches::{
+        PatternToken,
+        hook::{Hook, HookKind},
+    };
 
     fn empty_entry(name: &str) -> Entry {
         Entry {
@@ -313,6 +327,10 @@ mod tests {
         Ok(())
     }
 
+    fn hook_at(pc: u32) -> Hook {
+        Hook { pc, kind: HookKind::Memcpy }
+    }
+
     #[test]
     fn validate_overlap_patch_patch_overlap_is_fatal() {
         let patches = vec![
@@ -338,7 +356,7 @@ mod tests {
             bytes: vec![1, 2],
             expect: None,
         }];
-        let err = validate_overlap(&patches, &[0x2001], "ph").unwrap_err();
+        let err = validate_overlap(&patches, &[hook_at(0x2001)], "ph").unwrap_err();
         assert!(format!("{err}").contains("overlap"));
     }
 
@@ -350,7 +368,7 @@ mod tests {
             bytes: vec![1, 2],
             expect: None,
         }];
-        let err = validate_overlap(&patches, &[0x3001], "pat-hook").unwrap_err();
+        let err = validate_overlap(&patches, &[hook_at(0x3001)], "pat-hook").unwrap_err();
         assert!(format!("{err}").contains("overlap"));
     }
 
@@ -362,6 +380,6 @@ mod tests {
             bytes: vec![1, 2],
             expect: None,
         }];
-        validate_overlap(&patches, &[0x2003], "adjacent").expect("adjacent should be ok");
+        validate_overlap(&patches, &[hook_at(0x2003)], "adjacent").expect("adjacent should be ok");
     }
 }
