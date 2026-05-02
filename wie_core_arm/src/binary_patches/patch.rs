@@ -70,10 +70,10 @@ fn resolve_patches(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]
     Ok(out)
 }
 
-/// Two-phase apply: verify every patch's `expect` (or warn on missing) first,
-/// then write all bytes. The first phase observes guest memory but never
-/// mutates it, so any mismatch fatal leaves memory untouched even when later
-/// patches in the list would have succeeded.
+/// Two-phase apply: verify every patch's `expect` and simulate the post-patch
+/// neighborhood for SVC #0x80 emergence first, then write all bytes. Both
+/// pre-write phases observe guest memory but never mutate it, so any failure
+/// leaves memory untouched even when other patches would have succeeded.
 fn apply_patches(core: &mut ArmCore, entry_name: &str, patches: &[Patch]) -> Result<()> {
     for patch in patches {
         let mut current = alloc::vec![0u8; patch.bytes.len()];
@@ -97,6 +97,7 @@ fn apply_patches(core: &mut ArmCore, entry_name: &str, patches: &[Patch]) -> Res
                 );
             }
         }
+        reject_emergent_svc(core, entry_name, patch)?;
     }
     for patch in patches {
         core.write_bytes(patch.addr, &patch.bytes)?;
@@ -104,6 +105,29 @@ fn apply_patches(core: &mut ArmCore, entry_name: &str, patches: &[Patch]) -> Res
     }
     if !patches.is_empty() {
         tracing::info!("Applied {} patches for {entry_name}", patches.len());
+    }
+    Ok(())
+}
+
+/// Read the `[addr - 1, addr + bytes.len() + 1)` window, splice in the patch
+/// bytes, and reject if the resulting halfwords would form `SVC #0x80`. This
+/// catches cases where the patch boundary plus an unmodified neighbor synthesizes
+/// the dispatcher opcode, which `reject_svc_pattern` (parser-side, payload-only)
+/// can't see.
+fn reject_emergent_svc(core: &mut ArmCore, entry_name: &str, patch: &Patch) -> Result<()> {
+    let pad_start = patch.addr.saturating_sub(1);
+    let body_offset = (patch.addr - pad_start) as usize;
+    let window_len = body_offset + patch.bytes.len() + 1;
+    let mut window = alloc::vec![0u8; window_len];
+    core.read_bytes(pad_start, &mut window)?;
+    window[body_offset..body_offset + patch.bytes.len()].copy_from_slice(&patch.bytes);
+    for w in window.windows(2) {
+        if w == [0x80, 0xdf] {
+            return Err(WieError::FatalError(format!(
+                "entry {entry_name}: patch at {:#x} would synthesize SVC #0x80 with a neighboring byte",
+                patch.addr
+            )));
+        }
     }
     Ok(())
 }
@@ -333,6 +357,47 @@ mod tests {
         assert_eq!(buf, [0xaa, 0xbb], "first patch must not be applied if any later patch fails");
         core.read_bytes(0x2010, &mut buf)?;
         assert_eq!(buf, [0x99, 0x88]);
+        Ok(())
+    }
+
+    #[test]
+    fn apply_patches_rejects_emergent_svc_after_patch() -> Result<()> {
+        // Guest byte at addr+1 is 0xdf; a 1-byte patch writing 0x80 at addr
+        // would synthesize SVC #0x80 (`80 df` LE) with the unmodified neighbor.
+        let mut core = ArmCore::new(false, None)?;
+        core.map(0x2000, 0x100)?;
+        core.write_bytes(0x2000, &[0x00, 0xdf])?;
+
+        let patches = vec![Patch {
+            addr: 0x2000,
+            bytes: vec![0x80],
+            expect: None,
+        }];
+        let err = apply_patches(&mut core, "emergent", &patches).unwrap_err();
+        assert!(format!("{err}").contains("synthesize SVC"), "{err}");
+
+        // Memory must not have been written.
+        let mut buf = [0u8; 2];
+        core.read_bytes(0x2000, &mut buf)?;
+        assert_eq!(buf, [0x00, 0xdf]);
+        Ok(())
+    }
+
+    #[test]
+    fn apply_patches_rejects_emergent_svc_before_patch() -> Result<()> {
+        // Guest byte at addr-1 is 0x80; a patch writing 0xdf as its first byte
+        // synthesizes SVC #0x80 with the unmodified preceding byte.
+        let mut core = ArmCore::new(false, None)?;
+        core.map(0x2000, 0x100)?;
+        core.write_bytes(0x2000, &[0x80, 0x00, 0x00])?;
+
+        let patches = vec![Patch {
+            addr: 0x2001,
+            bytes: vec![0xdf, 0xff],
+            expect: None,
+        }];
+        let err = apply_patches(&mut core, "emergent-pre", &patches).unwrap_err();
+        assert!(format!("{err}").contains("synthesize SVC"), "{err}");
         Ok(())
     }
 
