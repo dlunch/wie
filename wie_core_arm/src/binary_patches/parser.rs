@@ -329,9 +329,6 @@ fn parse_pattern(pattern: &str, entry_name: &str) -> Vec<PatternToken> {
     tokens
 }
 
-/// Parse an 8-character byte specification of `0`/`1` literals, `?` wildcards,
-/// and `s`/`d`/`c` register placeholders (3 consecutive of the same letter).
-/// e.g. `00sss011` → mask=0b11000111, fixed=0b00000011, capture (src @ shift 3).
 fn validate_exit_b(tokens: &[PatternToken], entry_name: &str) {
     let mut pair_seen = false;
     let mut i = 0;
@@ -355,6 +352,9 @@ fn validate_exit_b(tokens: &[PatternToken], entry_name: &str) {
     }
 }
 
+/// Parse an 8-character byte specification of `0`/`1` literals, `?` wildcards,
+/// and `s`/`d`/`c` register placeholders (3 consecutive of the same letter).
+/// e.g. `00sss011` → mask=0b11000111, fixed=0b00000011, capture (src @ shift 3).
 fn parse_bit_match(bits: &str, entry_name: &str) -> PatternToken {
     if bits.len() != 8 {
         panic!("entry {entry_name}: bit pattern `0b{bits}` must be 8 characters");

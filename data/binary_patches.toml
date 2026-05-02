@@ -1,4 +1,4 @@
-# Game-specific binary patches consumed by `wie_core_arm::binary_patches`.
+# Game-specific binary patches consumed by `wie_core_arm::install_binary_patches`.
 #
 # Each `[[entry]]` is either:
 #   - hash-keyed: `hash` is the MD5 of the main guest binary (KTF

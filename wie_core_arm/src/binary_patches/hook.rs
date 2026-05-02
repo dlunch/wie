@@ -87,10 +87,22 @@ pub enum PatternHookKind {
     },
 }
 
-/// Expand static + pattern hooks into a single `Vec<Hook>` whose PCs are final.
-/// All pattern matching happens here; downstream consumers (overlap check,
-/// `apply_hooks`) only see PC + kind, never raw tokens.
+/// Expand static + pattern hooks into a single `Vec<Hook>` whose PCs are final
+/// and Thumb-valid. All pattern matching happens here; downstream consumers
+/// (overlap check, `apply_hooks`) only see PC + kind, never raw tokens.
+///
+/// Static hook PCs come from TOML, so we validate the Thumb bit up front —
+/// `install_entry` runs `apply_patches` between resolve and apply, and a
+/// fatal-after-write would leave guest memory partially modified.
 pub fn resolve_hooks(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]) -> Result<Vec<Hook>> {
+    for hook in &entry.hooks {
+        if hook.pc & 1 == 0 {
+            return Err(WieError::FatalError(format!(
+                "entry {}: hook PC {:#x} targets ARM mode; only Thumb (LSB=1) is supported",
+                entry.name, hook.pc
+            )));
+        }
+    }
     let mut installed: Vec<Hook> = entry.hooks.clone();
 
     for pattern in &entry.hook_patterns {
@@ -179,12 +191,7 @@ pub fn resolve_hooks(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32
 pub fn apply_hooks(core: &mut ArmCore, entry_name: &str, hooks: &[Hook]) -> Result<()> {
     let mut registry = BTreeMap::new();
     for hook in hooks {
-        if hook.pc & 1 == 0 {
-            return Err(WieError::FatalError(format!(
-                "Hook PC {:#x} targets ARM mode; only Thumb (LSB=1) is supported",
-                hook.pc
-            )));
-        }
+        debug_assert!(hook.pc & 1 == 1, "resolve_hooks must reject ARM-mode PCs");
         registry.insert(hook.pc, hook.kind);
         let patch_addr = hook.pc & !1;
         let instruction: u16 = 0xdf00 | (BINARY_PATCH_SVC as u16 & 0xff);
@@ -362,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_hooks_rejects_arm_mode_pc() -> Result<()> {
+    fn resolve_hooks_rejects_arm_mode_pc() -> Result<()> {
         let entry = entry_with_static(
             "arm-mode",
             vec![Hook {
@@ -373,8 +380,7 @@ mod tests {
         let mut core = ArmCore::new(false, None)?;
         core.map(0x2000, 0x1000)?;
 
-        let hooks = resolve_hooks(&mut core, &entry, &[])?;
-        let err = apply_hooks(&mut core, &entry.name, &hooks).unwrap_err();
+        let err = resolve_hooks(&mut core, &entry, &[]).unwrap_err();
         let msg = alloc::format!("{err}");
         assert!(msg.contains("ARM mode"), "unexpected error: {msg}");
         Ok(())
