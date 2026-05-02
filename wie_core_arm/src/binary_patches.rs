@@ -90,11 +90,14 @@ fn install_entry(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)], 
     // (hash-less) entries have no such guarantee. We trust the caller's
     // `is_specific` rather than `entry.hash.is_some()` so that a placeholder
     // all-zero hash in a fixture doesn't accidentally trigger this.
-    if is_specific && n_patches == 0 && hooks.is_empty() {
-        return Err(WieError::FatalError(format!(
-            "entry {}: hash matched but produced 0 patches/hooks (table likely out of date)",
-            entry.name
-        )));
+    if n_patches == 0 && hooks.is_empty() {
+        if is_specific {
+            return Err(WieError::FatalError(format!(
+                "entry {}: hash matched but produced 0 patches/hooks (table likely out of date)",
+                entry.name
+            )));
+        }
+        tracing::warn!("entry {}: generic entry produced 0 patches/hooks", entry.name);
     }
 
     hook::apply_hooks(core, &entry.name, &hooks)?;

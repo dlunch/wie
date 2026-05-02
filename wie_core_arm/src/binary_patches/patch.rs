@@ -53,8 +53,14 @@ fn resolve_patches(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)]
             continue;
         }
         for (match_addr, _) in matches {
+            let addr = match_addr.checked_add(pp.offset).ok_or_else(|| {
+                WieError::FatalError(format!(
+                    "entry {}: patch pattern #{idx} address overflow: match {match_addr:#x} + offset {:#x}",
+                    entry.name, pp.offset
+                ))
+            })?;
             out.push(Patch {
-                addr: match_addr.wrapping_add(pp.offset),
+                addr,
                 bytes: pp.bytes.clone(),
                 expect: pp.expect.clone(),
             });
@@ -216,6 +222,27 @@ mod tests {
         let resolved = resolve_patches(&mut core, &entry, &[(0x40000, 0x100)])?;
         let addrs: Vec<u32> = resolved.iter().map(|p| p.addr).collect();
         assert_eq!(addrs, vec![0x40001, 0x40021]);
+        Ok(())
+    }
+
+    #[test]
+    fn resolve_patches_pattern_offset_overflow_is_fatal() -> Result<()> {
+        let mut core = ArmCore::new(false, None)?;
+        // match_addr (0x1000_0000) + offset (0xffff_ffff) overflows u32.
+        core.map(0x1000_0000, 0x10)?;
+        core.write_bytes(0x1000_0000, &[0xaa, 0xbb])?;
+
+        let mut entry = empty_entry("overflow");
+        entry.patch_patterns.push(PatternPatchSpec {
+            tokens: vec![PatternToken::Literal(0xaa), PatternToken::Literal(0xbb)],
+            bytes: vec![0x11, 0x22],
+            expect: None,
+            offset: 0xffff_ffff,
+        });
+        match resolve_patches(&mut core, &entry, &[(0x1000_0000, 0x10)]) {
+            Ok(_) => panic!("expected overflow fatal"),
+            Err(e) => assert!(format!("{e}").contains("overflow"), "{e}"),
+        }
         Ok(())
     }
 
