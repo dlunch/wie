@@ -82,27 +82,23 @@ struct PatternMatch {
 }
 
 fn install_entry(core: &mut ArmCore, entry: &Entry, scan_ranges: &[(u32, u32)], is_specific: bool) -> Result<usize> {
-    let patches = patch::resolve_patches(core, entry, scan_ranges)?;
     let hooks = hook::resolve_hooks(core, entry, scan_ranges)?;
+    let n_patches = patch::install_patches(core, entry, scan_ranges, &hooks)?;
 
     // A hash-keyed entry that produces zero installations is a strong signal
     // that the binary drifted from what the patch table targets. Generic
     // (hash-less) entries have no such guarantee. We trust the caller's
     // `is_specific` rather than `entry.hash.is_some()` so that a placeholder
     // all-zero hash in a fixture doesn't accidentally trigger this.
-    if is_specific && patches.is_empty() && hooks.is_empty() {
+    if is_specific && n_patches == 0 && hooks.is_empty() {
         return Err(WieError::FatalError(format!(
             "entry {}: hash matched but produced 0 patches/hooks (table likely out of date)",
             entry.name
         )));
     }
 
-    let hook_pcs: Vec<u32> = hooks.iter().map(|h| h.pc).collect();
-    patch::validate_overlap(&patches, &hook_pcs, &entry.name)?;
-
-    patch::apply_patches(core, &entry.name, &patches)?;
     hook::apply_hooks(core, &entry.name, &hooks)?;
-    Ok(patches.len() + hooks.len())
+    Ok(n_patches + hooks.len())
 }
 
 /// Scans on 2-byte boundaries since all Thumb instructions are halfword-aligned.
