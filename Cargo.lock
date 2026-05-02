@@ -3649,6 +3649,7 @@ dependencies = [
  "bytemuck",
  "encoding_rs",
  "futures-test",
+ "spin",
  "test_utils",
  "tracing",
  "wie_backend",
