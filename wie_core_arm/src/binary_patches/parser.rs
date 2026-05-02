@@ -151,7 +151,10 @@ fn into_patch_kind(raw: RawPatch, has_hash: bool, entry_name: &str) -> ParsedPat
             let offset = raw.offset.unwrap_or(0);
             let pat_len = tokens.len() as u32;
             let bytes_len = bytes.len() as u32;
-            if offset + bytes_len > pat_len {
+            let end = offset
+                .checked_add(bytes_len)
+                .unwrap_or_else(|| panic!("entry {entry_name}: patch `offset` ({offset}) + `bytes` length ({bytes_len}) overflows u32"));
+            if end > pat_len {
                 panic!("entry {entry_name}: patch `offset` ({offset}) + `bytes` length ({bytes_len}) exceeds pattern length ({pat_len})");
             }
             ParsedPatch::Pattern(PatternPatchSpec {
@@ -562,6 +565,22 @@ mod tests {
             [[entry.patch]]
             pc = 0x100
             bytes = "11 22"
+            "#,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "overflows u32")]
+    fn offset_plus_bytes_u32_overflow_panics() {
+        // offset 0xffff_ffff + bytes_len 2 wraps before the > pat_len check.
+        parse_doc(
+            r#"
+            [[entry]]
+            name = "x"
+            [[entry.patch]]
+            pattern = "aa bb"
+            bytes = "11 22"
+            offset = 4294967295
             "#,
         );
     }
