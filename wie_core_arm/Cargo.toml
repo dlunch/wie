@@ -10,7 +10,7 @@ bytemuck = { workspace = true }
 md5 = { workspace = true }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
 spin = { workspace = true }
-toml = { version = "^0.8", default-features = false, features = ["parse"] }
+toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { workspace = true }
 
 arm32_cpu = { git = "https://github.com/dlunch/arm32_cpu.git" }
