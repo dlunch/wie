@@ -49,11 +49,11 @@ pub struct InlineCopy {
 
 #[derive(Debug, Clone, Copy)]
 pub struct RegInlineCopy {
-    pub src: ArmRegister,
-    pub dst: ArmRegister,
-    pub count: ArmRegister,
-    pub count_offset: i32,
-    pub exit_pc: u32,
+    src: ArmRegister,
+    dst: ArmRegister,
+    count: ArmRegister,
+    count_offset: i32,
+    exit_pc: u32,
 }
 
 /// Scanned across the install-time memory range; each match becomes a `Hook`.
