@@ -9,7 +9,6 @@ encoding_rs = { version = "^0.8", default-features = false }
 
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
-spin = { workspace = true }
 tracing = { workspace = true }
 
 wipi_types = { workspace = true }
