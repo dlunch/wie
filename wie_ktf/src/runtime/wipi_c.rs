@@ -65,16 +65,6 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
             .write(core, lr);
     }
 
-    if table_id == WIPICTableId::Database {
-        let a0 = u32::get(core, 0);
-        let a1 = u32::get(core, 1);
-        let a2 = u32::get(core, 2);
-        let a3 = u32::get(core, 3);
-        let a4 = u32::get(core, 4);
-        let a5 = u32::get(core, 5);
-        tracing::debug!("DB_RAW slot={function_id} lr={lr:#x} a0={a0:#x} a1={a1:#x} a2={a2:#x} a3={a3:#x} a4={a4:#x} a5={a5:#x}");
-    }
-
     let body = method_table::get_method_body(table_id, function_id)
         .ok_or_else(|| WieError::FatalError(alloc::format!("Unknown KTF WIPIC SVC id {:#x}", id.0)))?;
 
