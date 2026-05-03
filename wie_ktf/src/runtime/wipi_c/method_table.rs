@@ -346,7 +346,7 @@ fn gen_unk_stub(id: u32, index: u32) -> WIPICMethodBody {
 /// invocations, instead of trapping fatal on the first unimplemented call.
 fn gen_db_survey_stub(id: u32, name: &'static str) -> WIPICMethodBody {
     let body = move |_: &mut dyn WIPICContext| async move {
-        tracing::warn!("DB_SURVEY slot={id} name={name} -> -1");
+        tracing::debug!("DB_SURVEY slot={id} name={name} -> -1");
         Ok::<i32, _>(-1)
     };
 

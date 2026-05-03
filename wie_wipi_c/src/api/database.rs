@@ -190,6 +190,12 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     if db_id < 0x10000 {
         return Ok(-25); // M_E_INVALIDHANDLE
     }
+    if !WRITE_STATES.lock().contains_key(&(db_id as u32)) {
+        // Range-valid pointer but no live session — the handle is either
+        // stale (already closed) or never came from `open_database`. Don't
+        // pretend the bytes landed on disk.
+        return Ok(-25); // M_E_INVALIDHANDLE
+    }
 
     let mut buf = vec![0; buf_len as _];
     context.read_bytes(buf_ptr, &mut buf)?;
