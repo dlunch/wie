@@ -341,18 +341,6 @@ fn gen_unk_stub(id: u32, index: u32) -> WIPICMethodBody {
     body.into_body()
 }
 
-/// Survey-mode DB stub: returns `-1` (M_E_ERROR) without panicking. Lets us
-/// keep the game running so we can capture the full sequence of DB slot
-/// invocations, instead of trapping fatal on the first unimplemented call.
-fn gen_db_survey_stub(id: u32, name: &'static str) -> WIPICMethodBody {
-    let body = move |_: &mut dyn WIPICContext| async move {
-        tracing::debug!("DB_SURVEY slot={id} name={name} -> -1");
-        Ok::<i32, _>(-1)
-    };
-
-    body.into_body()
-}
-
 pub fn get_unk3_method_table() -> Vec<WIPICMethodBody> {
     vec![
         gen_unk_stub(3, 0),
@@ -528,14 +516,14 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICDatabaseMethodId::UpdateRecord => Some(database::stat_by_name.into_body()),
             WIPICDatabaseMethodId::DeleteRecord => Some(database::delete_record.into_body()),
             WIPICDatabaseMethodId::ListRecord => Some(database::list_record.into_body()),
-            WIPICDatabaseMethodId::SortRecords => Some(gen_db_survey_stub(8, "slot8")),
-            WIPICDatabaseMethodId::GetAccessMode => Some(gen_db_survey_stub(9, "slot9")),
-            WIPICDatabaseMethodId::GetNumberOfRecords => Some(gen_db_survey_stub(10, "slot10")),
-            WIPICDatabaseMethodId::GetRecordSize => Some(gen_db_survey_stub(11, "slot11")),
-            WIPICDatabaseMethodId::ListDatabases => Some(gen_db_survey_stub(12, "slot12")),
-            WIPICDatabaseMethodId::Unk13 => Some(gen_db_survey_stub(13, "slot13")),
-            WIPICDatabaseMethodId::Unk14 => Some(gen_db_survey_stub(14, "slot14")),
-            WIPICDatabaseMethodId::Unk15 => Some(gen_db_survey_stub(15, "slot15")),
+            WIPICDatabaseMethodId::SortRecords => Some(gen_stub(2, "MC_dbSortRecords")),
+            WIPICDatabaseMethodId::GetAccessMode => Some(gen_stub(2, "MC_dbGetAccessMode")),
+            WIPICDatabaseMethodId::GetNumberOfRecords => Some(gen_stub(2, "MC_dbGetNumberOfRecords")),
+            WIPICDatabaseMethodId::GetRecordSize => Some(gen_stub(2, "MC_dbGetRecordSize")),
+            WIPICDatabaseMethodId::ListDatabases => Some(gen_stub(2, "MC_dbListDataBase")),
+            WIPICDatabaseMethodId::Unk13 => Some(gen_stub(2, "MC_dbUnk13")),
+            WIPICDatabaseMethodId::Unk14 => Some(gen_stub(2, "MC_dbUnk14")),
+            WIPICDatabaseMethodId::Unk15 => Some(gen_stub(2, "MC_dbUnk15")),
             WIPICDatabaseMethodId::Unk16 => Some(database::unk16.into_body()),
         },
         WIPICTableId::Interface7 => {

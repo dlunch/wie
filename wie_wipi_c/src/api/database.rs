@@ -1,9 +1,7 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, str, string::String, vec};
+use alloc::{borrow::ToOwned, boxed::Box, str, string::String, vec, vec::Vec};
 use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
-
-use spin::Mutex;
 
 use wipi_types::wipic::WIPICWord;
 
@@ -12,96 +10,37 @@ use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_ge
 
 use crate::context::WIPICContext;
 
-/// Per-handle byte cursor for `db.stream_read`. Each open starts at zero
-/// and the offset advances with every read; the entry is dropped on
-/// `db.close`.
+/// Per-handle state for KTF's stream-style database API.
 ///
 /// KTF's `stream_read` / `stream_write` slots behave like a record-scoped
 /// `fread` / `fwrite` pair rather than the standard WIPI record-by-id API
-/// — the same record id 1 is walked sequentially with an implicit cursor.
+/// — the same record id 1 is walked sequentially with implicit cursors.
 /// The original interface field names (`read_record_single`,
 /// `write_record_single`) were a pre-disassembly guess; the impl-side names
 /// `stream_read` / `stream_write` reflect the verified semantics.
 ///
-/// Without the cursor the game keeps getting the whole record back,
-/// `buf_len < record_len` returns `M_E_SHORTBUF`, the game ignores the
-/// negative return code, and downstream code corrupts its own allocator
-/// using the leftover stack contents as a record count.
-static READ_CURSORS: Mutex<BTreeMap<u32, u32>> = Mutex::new(BTreeMap::new());
-
-/// Per-handle in-memory mirror of record 1, plus a seek cursor.
+/// The handle, including its read/write cursors and the in-memory mirror
+/// of record 1, lives entirely in emulated memory: the `DatabaseHandle`
+/// struct sits at the pointer returned from `open_database`, and the
+/// mirror itself is a separate guest-heap allocation referenced by
+/// `buffer_ptr`. Every op reads the struct, mutates it, writes it back —
+/// no host-side global state.
 ///
-/// `stream_write` writes through this buffer (and to disk, see
-/// `stream_write` for why); `close_database` flushes a final time if dirty.
-///
-/// On `open_database`:
-///   - mode 4 (`MC_DB_CREATE`)        — start empty
-///   - other modes (1, 2, 8, ...)     — pre-load existing record 1
-///
-/// `select_record` with a non-zero recid is treated as a seek — KTF apps
+/// `select_record` with a non-zero recid is treated as a seek: KTF apps
 /// use slot 4 to position the cursor at known byte offsets within the
 /// single backing record, e.g. for multi-slot save files.
-struct WriteState {
-    buffer: alloc::vec::Vec<u8>,
-    cursor: u32,
-    dirty: bool,
-}
-
-static WRITE_STATES: Mutex<BTreeMap<u32, WriteState>> = Mutex::new(BTreeMap::new());
-
-fn read_cursor(db_id: u32) -> u32 {
-    *READ_CURSORS.lock().get(&db_id).unwrap_or(&0)
-}
-
-fn set_read_cursor(db_id: u32, value: u32) {
-    READ_CURSORS.lock().insert(db_id, value);
-}
-
-fn clear_read_cursor(db_id: u32) {
-    READ_CURSORS.lock().remove(&db_id);
-}
-
-fn init_write_state(db_id: u32, initial: alloc::vec::Vec<u8>) {
-    WRITE_STATES.lock().insert(
-        db_id,
-        WriteState {
-            buffer: initial,
-            cursor: 0,
-            dirty: false,
-        },
-    );
-}
-
-fn write_at_cursor(db_id: u32, data: &[u8]) {
-    let mut map = WRITE_STATES.lock();
-    let Some(state) = map.get_mut(&db_id) else {
-        return;
-    };
-    let off = state.cursor as usize;
-    let end = off + data.len();
-    if end > state.buffer.len() {
-        state.buffer.resize(end, 0);
-    }
-    state.buffer[off..end].copy_from_slice(data);
-    state.cursor = end as u32;
-    state.dirty = true;
-}
-
-fn seek_write_cursor(db_id: u32, offset: u32) {
-    if let Some(state) = WRITE_STATES.lock().get_mut(&db_id) {
-        state.cursor = offset;
-    }
-}
-
-fn take_write_state(db_id: u32) -> Option<WriteState> {
-    WRITE_STATES.lock().remove(&db_id)
-}
-
 #[derive(Pod, Zeroable, Copy, Clone)]
 #[repr(C)]
 struct DatabaseHandle {
     name: [u8; 32], // TODO hardcoded max size
+    read_cursor: u32,
+    write_cursor: u32,
+    buffer_ptr: u32,
+    buffer_len: u32,
+    buffer_capacity: u32,
 }
+
+const MIN_BUFFER_CAPACITY: u32 = 64;
 
 pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, mode: i32, r#type: i32) -> Result<i32> {
     tracing::debug!("MC_dbOpenDataBase({ptr_name:#x}, {mode}, {type})");
@@ -120,25 +59,38 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     // Mode 4 (`MC_DB_CREATE`) wipes any prior contents up front so the new
     // session writes a fresh blob. Other modes seed the per-handle buffer
     // with the existing record so seek+overlay writes preserve unrelated
-    // bytes.
-    let initial: alloc::vec::Vec<u8> = if mode == 4 {
+    // bytes (multi-slot saves at fixed byte offsets within record 1).
+    let initial: Vec<u8> = if mode == 4 {
         let mut db = system.platform().database_repository().open(system, &name, &pid).await;
         db.delete(1).await;
-        alloc::vec::Vec::new()
+        Vec::new()
     } else {
         let db = system.platform().database_repository().open(system, &name, &pid).await;
         db.get(1).await.unwrap_or_default()
     };
 
+    let mut handle = DatabaseHandle {
+        name: [0; 32],
+        read_cursor: 0,
+        write_cursor: 0,
+        buffer_ptr: 0,
+        buffer_len: 0,
+        buffer_capacity: 0,
+    };
     let name_bytes = name.as_bytes();
-    let mut handle = DatabaseHandle { name: [0; 32] };
-
     handle.name[..name_bytes.len()].copy_from_slice(name_bytes);
+
+    if !initial.is_empty() {
+        let cap = (initial.len() as u32).max(MIN_BUFFER_CAPACITY);
+        let buf_ptr = context.alloc_raw(cap)?;
+        context.write_bytes(buf_ptr, &initial)?;
+        handle.buffer_ptr = buf_ptr;
+        handle.buffer_len = initial.len() as u32;
+        handle.buffer_capacity = cap;
+    }
 
     let ptr_handle = context.alloc_raw(size_of::<DatabaseHandle>() as _)?;
     write_generic(context, ptr_handle, handle)?;
-
-    init_write_state(ptr_handle, initial);
 
     tracing::debug!("Created database handle {ptr_handle:#x} for {name}");
 
@@ -152,18 +104,12 @@ pub async fn close_database(context: &mut dyn WIPICContext, db_id: i32) -> Resul
         return Ok(-25); // M_E_INVALIDHANDLE
     }
 
-    // Flush per-handle write state if it was modified during the session.
-    // Read-only sessions leave dirty=false and skip the write. Note that
-    // `stream_write` already does write-through, so this flush is mainly a
-    // belt-and-suspenders for cases that bypass it.
-    if let Some(state) = take_write_state(db_id as _)
-        && state.dirty
-    {
-        let mut db = get_database_from_db_id(context, db_id).await;
-        db.set(1, &state.buffer).await;
+    // The buffer was kept in sync with disk via write-through on every
+    // `stream_write`, so close just frees the guest-heap allocations.
+    let handle: DatabaseHandle = read_generic(context, db_id as _)?;
+    if handle.buffer_ptr != 0 && handle.buffer_capacity > 0 {
+        context.free_raw(handle.buffer_ptr, handle.buffer_capacity)?;
     }
-
-    clear_read_cursor(db_id as _);
     context.free_raw(db_id as _, size_of::<DatabaseHandle>() as _)?;
 
     Ok(0) // success
@@ -190,20 +136,38 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     if db_id < 0x10000 {
         return Ok(-25); // M_E_INVALIDHANDLE
     }
-    if !WRITE_STATES.lock().contains_key(&(db_id as u32)) {
-        // Range-valid pointer but no live session — the handle is either
-        // stale (already closed) or never came from `open_database`. Don't
-        // pretend the bytes landed on disk.
-        return Ok(-25); // M_E_INVALIDHANDLE
+
+    let mut handle: DatabaseHandle = read_generic(context, db_id as _)?;
+
+    // Grow the guest-heap buffer if the next write would land past its
+    // end. Doubling-on-demand starting from MIN_BUFFER_CAPACITY keeps the
+    // realloc count amortized; alloc/free is a guest-side `WIPICContext`
+    // primitive so we copy old bytes via host-side scratch.
+    let new_end = handle.write_cursor + buf_len;
+    if new_end > handle.buffer_capacity {
+        let new_cap = (new_end).next_power_of_two().max(MIN_BUFFER_CAPACITY);
+        let new_ptr = context.alloc_raw(new_cap)?;
+        if handle.buffer_len > 0 && handle.buffer_ptr != 0 {
+            let mut old_data = vec![0u8; handle.buffer_len as usize];
+            context.read_bytes(handle.buffer_ptr, &mut old_data)?;
+            context.write_bytes(new_ptr, &old_data)?;
+        }
+        if handle.buffer_ptr != 0 && handle.buffer_capacity > 0 {
+            context.free_raw(handle.buffer_ptr, handle.buffer_capacity)?;
+        }
+        handle.buffer_ptr = new_ptr;
+        handle.buffer_capacity = new_cap;
     }
 
-    let mut buf = vec![0; buf_len as _];
+    let mut buf = vec![0u8; buf_len as usize];
     context.read_bytes(buf_ptr, &mut buf)?;
+    context.write_bytes(handle.buffer_ptr + handle.write_cursor, &buf)?;
 
-    // Overlay-write at the per-handle cursor. Default cursor is 0 on open;
-    // `select_record(_, recid, ...)` with a non-zero recid moves it before
-    // the next write.
-    write_at_cursor(db_id as _, &buf);
+    handle.write_cursor = new_end;
+    if new_end > handle.buffer_len {
+        handle.buffer_len = new_end;
+    }
+    write_generic(context, db_id as _, handle)?;
 
     // Write-through to disk on every stream_write. Some titles tear down
     // the game without making a final `close_database` call after their
@@ -211,39 +175,23 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     // the writes that landed since the session opened. Flushing eagerly
     // costs an extra small file write per call but keeps the on-disk state
     // consistent if the process exits or the title forgets to close.
-    let snapshot = WRITE_STATES.lock().get(&(db_id as u32)).map(|s| s.buffer.clone());
-    if let Some(buffer) = snapshot {
-        let mut db = get_database_from_db_id(context, db_id).await;
-        db.set(1, &buffer).await;
-    }
+    let mut snapshot = vec![0u8; handle.buffer_len as usize];
+    context.read_bytes(handle.buffer_ptr, &mut snapshot)?;
+    let mut db = get_database_from_db_id(context, db_id).await;
+    db.set(1, &snapshot).await;
 
     Ok(buf_len as _)
 }
 
-pub async fn delete_record(context: &mut dyn WIPICContext, a0: i32, a1: i32) -> Result<i32> {
-    tracing::debug!("MC_dbDeleteRecord({a0:#x}, {a1})");
-
-    // KTF reuses slot 6 with a name-keyed signature `(name_ptr, type)`,
-    // separate from the standard `delete_record(handle, rec_id)`. They are
-    // told apart by whether `a0` matches a currently-open handle: only the
-    // standard form has a live `WriteState` entry. The KTF form is treated
-    // as a no-op so a just-flushed record isn't destroyed by being
-    // misinterpreted as a live handle (the bytes of a name string read as
-    // a `DatabaseHandle` happen to round-trip through `db.delete(1)`).
-    let is_open_handle = WRITE_STATES.lock().contains_key(&(a0 as u32));
-    if !is_open_handle {
-        tracing::debug!("delete_record: a0={a0:#x} not an open handle (KTF name-keyed call) — no-op");
-        return Ok(0);
-    }
-
-    let mut db = get_database_from_db_id(context, a0).await;
-    let result = db.delete(a1 as _).await;
-
-    if result {
-        Ok(0) // success
-    } else {
-        Ok(-22) // M_E_BADRECID
-    }
+/// Slot 6 — observed only as KTF's name-keyed `(name_ptr, type)` form, never
+/// as the standard `delete_record(handle, rec_id)`. Treating any call as a
+/// no-op avoids a destructive misinterpretation: the bytes of a name string
+/// happen to round-trip through `get_database_from_db_id` (it reads the
+/// first 32 bytes as the handle's `name` field) and would silently delete
+/// record 1 of the just-saved DB.
+pub async fn delete_record(_context: &mut dyn WIPICContext, a0: i32, a1: i32) -> Result<i32> {
+    tracing::debug!("MC_dbDeleteRecord({a0:#x}, {a1}) — no-op");
+    Ok(0)
 }
 
 pub async fn stream_read(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
@@ -253,44 +201,32 @@ pub async fn stream_read(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
         return Ok(-25); // M_E_INVALIDHANDLE
     }
 
-    // Prefer the in-memory write buffer when it has been touched this
-    // session. Some titles write a header, rewind via slot 4, then read it
-    // back to validate before continuing — going to disk would miss the
-    // write between the stream_write call and the next flush.
-    let buffer_snapshot = {
-        let map = WRITE_STATES.lock();
-        map.get(&(db_id as u32)).filter(|s| s.dirty).map(|s| s.buffer.clone())
-    };
+    let mut handle: DatabaseHandle = read_generic(context, db_id as _)?;
 
-    let record = if let Some(b) = buffer_snapshot {
-        b
-    } else {
-        let db = get_database_from_db_id(context, db_id).await;
-        match db.get(1).await {
-            Some(r) => r,
-            None => return Ok(-22), // M_E_BADRECID
-        }
-    };
-
-    let cursor = read_cursor(db_id as _) as usize;
-    let total = record.len();
-    if cursor >= total {
+    if handle.read_cursor >= handle.buffer_len {
         // Don't touch buf — caller may have passed a sentinel (NULL) that
         // we shouldn't write to. Some titles do this past EOF.
         return Ok(-23); // M_E_EOF
     }
 
-    let take = core::cmp::min(buf_len as usize, total - cursor);
+    let take = core::cmp::min(buf_len, handle.buffer_len - handle.read_cursor);
     if take == 0 {
         return Ok(0);
     }
-    context.write_bytes(buf_ptr, &record[cursor..cursor + take])?;
-    set_read_cursor(db_id as _, (cursor + take) as _);
+
+    // Copy from the guest-heap buffer into the caller's destination via
+    // host-side scratch; `WIPICContext` doesn't expose an in-guest memmove.
+    let mut data = vec![0u8; take as usize];
+    context.read_bytes(handle.buffer_ptr + handle.read_cursor, &mut data)?;
+    context.write_bytes(buf_ptr, &data)?;
+
+    handle.read_cursor += take;
+    write_generic(context, db_id as _, handle)?;
 
     Ok(take as _)
 }
 
-pub async fn select_record(_context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, mode: WIPICWord, _buf_len: WIPICWord) -> Result<i32> {
+pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, mode: WIPICWord, _buf_len: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbSelectRecord({db_id:#x}, {rec_id}, mode={mode:#x}, {_buf_len})");
 
     if db_id < 0x10000 {
@@ -311,8 +247,10 @@ pub async fn select_record(_context: &mut dyn WIPICContext, db_id: i32, rec_id: 
     //     as plain seek-and-rewind.
     if rec_id >= 0 {
         let offset = rec_id as u32;
-        seek_write_cursor(db_id as _, offset);
-        set_read_cursor(db_id as _, offset);
+        let mut handle: DatabaseHandle = read_generic(context, db_id as _)?;
+        handle.read_cursor = offset;
+        handle.write_cursor = offset;
+        write_generic(context, db_id as _, handle)?;
         return Ok(0);
     }
 
