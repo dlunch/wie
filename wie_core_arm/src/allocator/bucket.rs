@@ -6,7 +6,9 @@ use crate::core::ArmCore;
 
 pub const BUCKET_MAX: usize = 512;
 const BUCKETS: [usize; 8] = [4, 8, 16, 32, 64, 128, 256, 512];
-const BUCKET_SIZE: usize = 0x100000;
+// Each bucket gets one BUCKET_SIZE region; 8 buckets * 0x1000000 = 0x8000000
+// (128 MB), exactly matching the BucketAllocator half of the heap.
+const BUCKET_SIZE: usize = 0x1000000;
 
 pub struct BucketAllocator;
 
@@ -14,14 +16,31 @@ impl BucketAllocator {
     pub fn init(core: &mut ArmCore, base_address: u32, _base_size: u32) -> Result<()> {
         // initialize each bucket header with ones
         // header contains bitset of allocation, 1 is unallocated, 0 is allocated
+        //
+        // Slots beyond `(BUCKET_SIZE - header_length) / bucket` would extend past
+        // this bucket's region into the next bucket's slot area; mark those bits
+        // as allocated so they're never handed out (otherwise two different
+        // bucket sizes can hand out overlapping addresses).
 
         for (i, bucket) in BUCKETS.into_iter().enumerate() {
             let header_length = BUCKET_SIZE / bucket / 8;
             let header_address = base_address + i as u32 * BUCKET_SIZE as u32;
 
-            tracing::info!("Bucket {bucket} header size {}", BUCKET_SIZE / bucket / 8);
+            let usable_slots = (BUCKET_SIZE - header_length) / bucket;
+            let full_bytes = usable_slots / 8;
+            let remaining_bits = usable_slots % 8;
 
-            core.write_bytes(header_address, &vec![0xff; header_length])?;
+            tracing::info!("Bucket {bucket} header size {header_length} usable_slots {usable_slots}");
+
+            let mut header = vec![0u8; header_length];
+            for byte in header.iter_mut().take(full_bytes) {
+                *byte = 0xff;
+            }
+            if full_bytes < header_length && remaining_bits > 0 {
+                header[full_bytes] = (1u8 << remaining_bits) - 1;
+            }
+
+            core.write_bytes(header_address, &header)?;
         }
 
         Ok(())
@@ -89,38 +108,43 @@ mod tests {
 
     use super::BucketAllocator;
 
+    // Bucket 0 (4-byte) header_length = BUCKET_SIZE / 4 / 8 = 0x80000.
+    // First 4-byte slot starts at base + 0x80000 = 0x40080000.
+    // Bucket 1 (8-byte) lives at base + BUCKET_SIZE = 0x41000000;
+    // header_length = BUCKET_SIZE / 8 / 8 = 0x40000, so first slot = 0x41040000.
+
     #[test]
     fn test_allocator() -> Result<()> {
         let mut core = ArmCore::new(false, None).unwrap();
-        core.map(0x40000000, 0x1000000)?;
+        core.map(0x40000000, 0x8000000)?;
 
-        BucketAllocator::init(&mut core, 0x40000000, 0x1000000)?;
+        BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 
         let address1 = BucketAllocator::alloc(&mut core, 0x40000000, 4)?;
-        assert_eq!(address1, 0x40008000);
+        assert_eq!(address1, 0x40080000);
 
         let address2 = BucketAllocator::alloc(&mut core, 0x40000000, 4)?;
-        assert_eq!(address2, 0x40008004);
+        assert_eq!(address2, 0x40080004);
 
         let address3 = BucketAllocator::alloc(&mut core, 0x40000000, 4)?;
-        assert_eq!(address3, 0x40008008);
+        assert_eq!(address3, 0x40080008);
 
         BucketAllocator::free(&mut core, 0x40000000, address2, 4)?;
 
         let address4 = BucketAllocator::alloc(&mut core, 0x40000000, 4)?;
-        assert_eq!(address4, 0x40008004);
+        assert_eq!(address4, 0x40080004);
 
         let address5 = BucketAllocator::alloc(&mut core, 0x40000000, 5)?;
-        assert_eq!(address5, 0x40104000);
+        assert_eq!(address5, 0x41040000);
 
         let address6 = BucketAllocator::alloc(&mut core, 0x40000000, 6)?;
-        assert_eq!(address6, 0x40104008);
+        assert_eq!(address6, 0x41040008);
 
         let address7 = BucketAllocator::alloc(&mut core, 0x40000000, 7)?;
-        assert_eq!(address7, 0x40104010);
+        assert_eq!(address7, 0x41040010);
 
         let address8 = BucketAllocator::alloc(&mut core, 0x40000000, 8)?;
-        assert_eq!(address8, 0x40104018);
+        assert_eq!(address8, 0x41040018);
 
         Ok(())
     }
@@ -128,24 +152,24 @@ mod tests {
     #[test]
     fn test_allocator_small_sizes() -> Result<()> {
         let mut core = ArmCore::new(false, None).unwrap();
-        core.map(0x40000000, 0x1000000)?;
+        core.map(0x40000000, 0x8000000)?;
 
-        BucketAllocator::init(&mut core, 0x40000000, 0x1000000)?;
+        BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
 
         // sizes 0..=3 must all land in the smallest (4-byte) bucket
         let a0 = BucketAllocator::alloc(&mut core, 0x40000000, 0)?;
-        assert_eq!(a0, 0x40008000);
+        assert_eq!(a0, 0x40080000);
         let a1 = BucketAllocator::alloc(&mut core, 0x40000000, 1)?;
-        assert_eq!(a1, 0x40008004);
+        assert_eq!(a1, 0x40080004);
         let a2 = BucketAllocator::alloc(&mut core, 0x40000000, 2)?;
-        assert_eq!(a2, 0x40008008);
+        assert_eq!(a2, 0x40080008);
         let a3 = BucketAllocator::alloc(&mut core, 0x40000000, 3)?;
-        assert_eq!(a3, 0x4000800c);
+        assert_eq!(a3, 0x4008000c);
 
         // free with the same (small) size must round-trip without panicking
         BucketAllocator::free(&mut core, 0x40000000, a1, 1)?;
         let a1b = BucketAllocator::alloc(&mut core, 0x40000000, 1)?;
-        assert_eq!(a1b, 0x40008004);
+        assert_eq!(a1b, 0x40080004);
 
         Ok(())
     }
