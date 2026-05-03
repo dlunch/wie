@@ -385,12 +385,10 @@ impl TryFrom<u16> for WIPICGraphicsMethodId {
 pub enum WIPICDatabaseMethodId {
     OpenDatabase = 0,
     /// KTF extension. Reads from the open record using a per-handle byte
-    /// cursor; signature `(fd, buf, len)`. Verified against rhythm.zip's
-    /// load loop in `sub_D52C` of the ARM client.bin.
+    /// cursor; signature `(fd, buf, len)`.
     StreamRead = 1,
-    /// KTF extension. Appends to the open record (no recid argument);
-    /// signature `(fd, buf, len)`. Verified against rhythm.zip's save
-    /// path in `sub_DCE4`.
+    /// KTF extension. Writes to the open record at the per-handle cursor
+    /// (no recid argument); signature `(fd, buf, len)`.
     StreamWrite = 2,
     CloseDatabase = 3,
     SelectRecord = 4,
