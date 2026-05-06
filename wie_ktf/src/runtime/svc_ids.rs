@@ -384,8 +384,12 @@ impl TryFrom<u16> for WIPICGraphicsMethodId {
 #[repr(u16)]
 pub enum WIPICDatabaseMethodId {
     OpenDatabase = 0,
-    ReadRecordSingle = 1,
-    WriteRecordSingle = 2,
+    /// KTF extension. Reads from the open record using a per-handle byte
+    /// cursor; signature `(fd, buf, len)`.
+    StreamRead = 1,
+    /// KTF extension. Writes to the open record at the per-handle cursor
+    /// (no recid argument); signature `(fd, buf, len)`.
+    StreamWrite = 2,
     CloseDatabase = 3,
     SelectRecord = 4,
     UpdateRecord = 5,
@@ -414,8 +418,8 @@ impl TryFrom<u16> for WIPICDatabaseMethodId {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         Ok(match value {
             0 => Self::OpenDatabase,
-            1 => Self::ReadRecordSingle,
-            2 => Self::WriteRecordSingle,
+            1 => Self::StreamRead,
+            2 => Self::StreamWrite,
             3 => Self::CloseDatabase,
             4 => Self::SelectRecord,
             5 => Self::UpdateRecord,
