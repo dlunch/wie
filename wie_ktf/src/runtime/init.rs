@@ -9,6 +9,7 @@ use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes
 use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam1, InitParam3, InitParam4, WipiExe};
 
 use crate::{
+    adf::parse_bss_size,
     emulator::IMAGE_BASE,
     runtime::{
         SVC_CATEGORY_INIT,
@@ -45,8 +46,7 @@ pub async fn load_native(
     ptr_jvm_context: u32,
     ptr_jvm_exception_context: u32,
 ) -> Result<ExeInterfaceFunctions> {
-    let bss_start = filename.find("client.bin").unwrap() + 10;
-    let bss_size = filename[bss_start..].parse::<u32>().unwrap();
+    let bss_size = parse_bss_size(filename)?;
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
 

@@ -4,12 +4,15 @@ use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::
 
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
+use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
 
-use crate::runtime::KtfJvmSupport;
+use crate::{
+    adf::{KtfAdf, find_client_bin},
+    runtime::KtfJvmSupport,
+};
 
 pub const IMAGE_BASE: u32 = 0x100000;
 
@@ -62,17 +65,7 @@ impl KtfEmulator {
     }
 
     pub fn loadable_jar(jar: &[u8]) -> bool {
-        let Ok(files) = extract_zip(jar) else {
-            return false;
-        };
-
-        for name in files.keys() {
-            if name.starts_with("client.bin") {
-                return true;
-            }
-        }
-
-        false
+        find_client_bin(jar).is_ok()
     }
 
     fn load(
@@ -153,34 +146,5 @@ impl Emulator for KtfEmulator {
                 _ => WieError::FatalError(format!("{x}\n{reg_stack}")),
             }
         })
-    }
-}
-
-struct KtfAdf {
-    aid: String,
-    pid: String,
-    mclass: String,
-}
-
-impl KtfAdf {
-    pub fn parse(data: &[u8]) -> Self {
-        let mut aid = String::new();
-        let mut pid = String::new();
-        let mut mclass = String::new();
-
-        let mut lines = data.split(|x| *x == b'\n');
-
-        for line in &mut lines {
-            if line.starts_with(b"AID:") {
-                aid = String::from_utf8_lossy(&line[4..]).into();
-            } else if line.starts_with(b"PID:") {
-                pid = String::from_utf8_lossy(&line[4..]).into();
-            } else if line.starts_with(b"MClass:") {
-                mclass = String::from_utf8_lossy(&line[7..]).into();
-            }
-            // TODO load name, it's in euc-kr..
-        }
-
-        Self { aid, pid, mclass }
     }
 }

@@ -3559,6 +3559,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wie_ktf_dump"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "wie_ktf",
+]
+
+[[package]]
 name = "wie_lgt"
 version = "0.0.1"
 dependencies = [
