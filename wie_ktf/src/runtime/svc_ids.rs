@@ -403,7 +403,7 @@ pub enum WIPICDatabaseMethodId {
     Unk13 = 13,
     Unk14 = 14,
     Unk15 = 15,
-    Unk16 = 16,
+    Exists = 16,
 }
 
 impl From<WIPICDatabaseMethodId> for u16 {
@@ -433,7 +433,7 @@ impl TryFrom<u16> for WIPICDatabaseMethodId {
             13 => Self::Unk13,
             14 => Self::Unk14,
             15 => Self::Unk15,
-            16 => Self::Unk16,
+            16 => Self::Exists,
             _ => {
                 return Err(wie_util::WieError::FatalError(alloc::format!(
                     "Unknown KTF WIPIC database method id {value}"

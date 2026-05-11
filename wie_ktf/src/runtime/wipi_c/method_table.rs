@@ -211,7 +211,7 @@ pub fn get_database_interface(core: &mut ArmCore) -> Result<WIPICDatabaseInterfa
         unk13: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk13))?,
         unk14: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk14))?,
         unk15: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk15))?,
-        unk16: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Unk16))?,
+        unk16: core.make_svc_stub(SVC_CATEGORY_WIPIC, table_id.function_id(WIPICDatabaseMethodId::Exists))?,
     })
 }
 
@@ -512,9 +512,9 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICDatabaseMethodId::StreamRead => Some(database::stream_read.into_body()),
             WIPICDatabaseMethodId::StreamWrite => Some(database::stream_write.into_body()),
             WIPICDatabaseMethodId::CloseDatabase => Some(database::close_database.into_body()),
-            WIPICDatabaseMethodId::SelectRecord => Some(database::select_record.into_body()),
-            WIPICDatabaseMethodId::UpdateRecord => Some(database::stat_by_name.into_body()),
-            WIPICDatabaseMethodId::DeleteRecord => Some(database::delete_record.into_body()),
+            WIPICDatabaseMethodId::SelectRecord => Some(database::select_record_ktf.into_body()),
+            WIPICDatabaseMethodId::UpdateRecord => Some(database::stat_by_name_ktf.into_body()),
+            WIPICDatabaseMethodId::DeleteRecord => Some(database::delete_record_ktf.into_body()),
             WIPICDatabaseMethodId::ListRecord => Some(database::list_record.into_body()),
             WIPICDatabaseMethodId::SortRecords => Some(gen_stub(2, "MC_dbSortRecords")),
             WIPICDatabaseMethodId::GetAccessMode => Some(gen_stub(2, "MC_dbGetAccessMode")),
@@ -524,7 +524,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICDatabaseMethodId::Unk13 => Some(gen_stub(2, "MC_dbUnk13")),
             WIPICDatabaseMethodId::Unk14 => Some(gen_stub(2, "MC_dbUnk14")),
             WIPICDatabaseMethodId::Unk15 => Some(gen_stub(2, "MC_dbUnk15")),
-            WIPICDatabaseMethodId::Unk16 => Some(database::unk16.into_body()),
+            WIPICDatabaseMethodId::Exists => Some(database::exists_database_ktf.into_body()),
         },
         WIPICTableId::Interface7 => {
             if function_id < 64 {
