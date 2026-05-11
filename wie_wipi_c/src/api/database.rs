@@ -51,7 +51,14 @@ const MAX_NAME_LEN: usize = 31; // leave a byte for null terminator inside the 3
 pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, mode: i32, r#type: i32) -> Result<i32> {
     tracing::debug!("MC_dbOpenDataBase({ptr_name:#x}, {mode}, {type})");
 
-    let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
+    // Guest-provided C string — invalid UTF-8 must not bring down the
+    // emulator. Treat it as a bad parameter and return -22, matching the
+    // fail-soft behaviour of the other name-keyed entry points in this
+    // file (`stat_by_name_ktf`, `exists_database_ktf`).
+    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+        tracing::warn!("MC_dbOpenDataBase: invalid utf8 name @ {ptr_name:#x}");
+        return Ok(-22);
+    };
 
     // Validate before any repository side effects. Mode 4 deletes record 1
     // up front, so a too-long name reaching that path would wipe data we
@@ -189,8 +196,10 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     // multi-slot save), the bytes between the old end and the cursor were
     // never initialised. `alloc_raw` doesn't guarantee zeroed memory and
     // the snapshot below is flushed straight to disk, so explicitly zero
-    // the gap to avoid leaking heap residue into the save file.
-    if buf_len > 0 && handle.write_cursor > old_len {
+    // the gap to avoid leaking heap residue into the save file. This must
+    // run for `buf_len == 0` too: `new_end == write_cursor` still extends
+    // `buffer_len`, so the gap would otherwise be snapshotted uninitialised.
+    if handle.write_cursor > old_len {
         let gap_size = (handle.write_cursor - old_len) as usize;
         let zeros = vec![0u8; gap_size];
         context.write_bytes(handle.buffer_ptr + old_len, &zeros)?;
