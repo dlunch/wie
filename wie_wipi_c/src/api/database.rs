@@ -225,28 +225,38 @@ pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: W
     Ok(buf_len as _)
 }
 
-/// Slot 6 has two observed call shapes that share an SVC signature:
+/// Standard WIPI `MC_dbDeleteRecord(handle, rec_id)` — delete a single
+/// record by id from an open DB handle.
+pub async fn delete_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32) -> Result<i32> {
+    tracing::debug!("MC_dbDeleteRecord({db_id:#x}, {rec_id})");
+
+    let Some(handle) = load_handle(context, db_id)? else {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    };
+    let Some(mut db) = open_db_for_handle(context, &handle).await else {
+        return Ok(-25);
+    };
+    let ok = db.delete(rec_id as u32).await;
+    Ok(if ok { 0 } else { -22 })
+}
+
+/// KTF reuses slot 6 with two call shapes that share the same SVC signature:
 ///
 ///  - standard WIPI: `delete_record(handle, rec_id)`
 ///  - KTF custom:    `(name_ptr, type)` — used as a name-keyed cleanup
 ///
 /// Both pass two ints, so we disambiguate by reading the magic field at
 /// `a0`. A real handle starts with `DATABASE_HANDLE_MAGIC`; a name pointer
-/// (or anything else) does not, and we fall back to the KTF no-op.
-pub async fn delete_record(context: &mut dyn WIPICContext, a0: i32, a1: i32) -> Result<i32> {
-    tracing::debug!("MC_dbDeleteRecord({a0:#x}, {a1})");
-
-    if let Some(handle) = load_handle(context, a0)? {
-        if let Some(mut db) = open_db_for_handle(context, &handle).await {
-            let ok = db.delete(a1 as u32).await;
-            return Ok(if ok { 0 } else { -22 });
-        }
-        return Ok(-25);
+/// (or anything else) does not, and we fall back to a no-op.
+pub async fn delete_record_ktf(context: &mut dyn WIPICContext, a0: i32, a1: i32) -> Result<i32> {
+    if load_handle(context, a0)?.is_some() {
+        return delete_record(context, a0, a1).await;
     }
 
     // Not a real handle — KTF name-keyed form. No-op preserves saves; the
     // bytes of a name string would otherwise round-trip into the standard
     // path and silently delete record 1 of the just-saved DB.
+    tracing::debug!("MC_dbDeleteRecord(name-keyed @ {a0:#x}, {a1}) -> 0 (no-op)");
     Ok(0)
 }
 
@@ -280,7 +290,11 @@ pub async fn stream_read(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
     Ok(take as _)
 }
 
-pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, mode: WIPICWord, _buf_len: WIPICWord) -> Result<i32> {
+/// KTF custom slot 4 — repurposed from standard `MC_dbSelectRecord` into a
+/// stream-control op `(handle, offset, mode)` that seeks both read/write
+/// cursors. The standard WIPI signature `(db_id, rec_id, buf_ptr, buf_len)`
+/// is not implemented; LGT routes do not use this slot.
+pub async fn select_record_ktf(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, mode: WIPICWord, _buf_len: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbSelectRecord({db_id:#x}, {rec_id}, mode={mode:#x}, {_buf_len})");
 
     let Some(mut handle) = load_handle(context, db_id)? else {
@@ -322,7 +336,7 @@ pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i
 /// the DB exists with a non-trivial payload. The third int is treated as a
 /// size threshold (must exceed 199 bytes). We fill the struct with
 /// `{0, 0, record_size}` and return 0 on hit, -22 on miss.
-pub async fn stat_by_name(context: &mut dyn WIPICContext, name_ptr: WIPICWord, out_buf: WIPICWord, mode: i32, _arg3: i32) -> Result<i32> {
+pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWord, out_buf: WIPICWord, mode: i32, _arg3: i32) -> Result<i32> {
     let name = match read_null_terminated_string_bytes(context, name_ptr) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => s,
@@ -354,23 +368,23 @@ pub async fn stat_by_name(context: &mut dyn WIPICContext, name_ptr: WIPICWord, o
     Ok(0)
 }
 
-/// Slot 16 — KTF custom. Observed call shape across multiple titles is
-/// `(name_ptr, 1, size_hint_or_zero, callback_garbage)`. Best fit is
-/// "does this DB exist?": titles call it before deciding whether to take
-/// the load or fresh-init path. Returning 1 unconditionally makes them try
-/// to load nonexistent state on first run and trip later, so we read the
-/// C string at `a0` and answer based on the real persisted state.
-pub async fn unk16(context: &mut dyn WIPICContext, name_ptr: WIPICWord, _arg1: i32, _arg2: i32) -> Result<i32> {
+/// KTF custom slot 16 — `MC_dbExists(name)`. Observed call shape across
+/// multiple titles is `(name_ptr, 1, size_hint_or_zero, callback_garbage)`.
+/// Titles call it before deciding whether to take the load or fresh-init
+/// path. Returning 1 unconditionally makes them try to load nonexistent
+/// state on first run and trip later, so we read the C string at `a0` and
+/// answer based on the real persisted state.
+pub async fn exists_database_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWord, _arg1: i32, _arg2: i32) -> Result<i32> {
     let name = match read_null_terminated_string_bytes(context, name_ptr) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(_) => {
-                tracing::warn!("MC_dbUnk16 invalid utf8 name @ {name_ptr:#x}, defaulting to 0");
+                tracing::warn!("MC_dbExists invalid utf8 name @ {name_ptr:#x}, defaulting to 0");
                 return Ok(0);
             }
         },
         Err(_) => {
-            tracing::warn!("MC_dbUnk16 unreadable name @ {name_ptr:#x}, defaulting to 0");
+            tracing::warn!("MC_dbExists unreadable name @ {name_ptr:#x}, defaulting to 0");
             return Ok(0);
         }
     };
@@ -380,7 +394,7 @@ pub async fn unk16(context: &mut dyn WIPICContext, name_ptr: WIPICWord, _arg1: i
     let exists = system.platform().database_repository().exists(system, &name, &pid).await;
 
     let result = if exists { 1 } else { 0 };
-    tracing::debug!("MC_dbUnk16({name:?}) -> {result}");
+    tracing::debug!("MC_dbExists({name:?}) -> {result}");
     Ok(result)
 }
 
