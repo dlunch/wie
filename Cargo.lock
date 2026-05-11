@@ -165,15 +165,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
-name = "arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
-dependencies = [
- "derive_arbitrary",
-]
-
-[[package]]
 name = "arm32_cpu"
 version = "0.1.0"
 source = "git+https://github.com/dlunch/arm32_cpu.git#a98b447314de8abd28a59996f497eb72aaeaa89b"
@@ -426,7 +417,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
+source = "git+https://github.com/dlunch/RustJava.git#0b50af14860d3686df5a80b6dd43a768e0ac49a5"
 dependencies = [
  "java_constants",
  "nom",
@@ -673,17 +664,6 @@ name = "dasp_sample"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
-
-[[package]]
-name = "derive_arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
 
 [[package]]
 name = "directories"
@@ -1337,7 +1317,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
+source = "git+https://github.com/dlunch/RustJava.git#0b50af14860d3686df5a80b6dd43a768e0ac49a5"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1348,7 +1328,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
+source = "git+https://github.com/dlunch/RustJava.git#0b50af14860d3686df5a80b6dd43a768e0ac49a5"
 dependencies = [
  "bitflags 2.11.1",
 ]
@@ -1356,21 +1336,21 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
+source = "git+https://github.com/dlunch/RustJava.git#0b50af14860d3686df5a80b6dd43a768e0ac49a5"
 dependencies = [
  "async-trait",
  "bytemuck",
  "chrono",
  "dyn-clone",
  "encoding_rs",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.0",
  "java_class_proto",
  "java_constants",
  "jvm",
  "parking_lot",
  "tracing",
  "url",
- "zip 6.0.0",
+ "zip",
 ]
 
 [[package]]
@@ -1432,7 +1412,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
+source = "git+https://github.com/dlunch/RustJava.git#0b50af14860d3686df5a80b6dd43a768e0ac49a5"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1441,7 +1421,7 @@ dependencies = [
  "dyn-clone",
  "dyn-hash",
  "event-listener",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.0",
  "java_constants",
  "nom",
  "parking_lot",
@@ -1451,7 +1431,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#0632f0c4574298cb48b6570ee5beed604888f76a"
+source = "git+https://github.com/dlunch/RustJava.git#0b50af14860d3686df5a80b6dd43a768e0ac49a5"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -3449,7 +3429,7 @@ dependencies = [
  "spin",
  "tracing",
  "wie_util",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
@@ -4310,20 +4290,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "zip"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb2a05c7c36fde6c09b08576c9f7fb4cda705990f73b58fe011abf7dfb24168b"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "flate2",
- "indexmap",
- "memchr",
- "zopfli",
 ]
 
 [[package]]
