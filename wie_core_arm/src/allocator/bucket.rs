@@ -7,8 +7,9 @@ use crate::core::ArmCore;
 pub const BUCKET_MAX: usize = 512;
 
 // (slot_size, slot_count). slot_count is a multiple of 8 so the header has no
-// trailing partial byte to mask. Sizes chosen generously per slot class so the
-// whole BucketAllocator half of the heap (128 MB) is used without overlap.
+// trailing partial byte to mask. Sizes chosen generously per slot class to fit
+// inside the 128 MB BucketAllocator half of the heap; total layout is
+// ~0x785A000 (~120 MB), leaving ~8 MB of intentional slack.
 const BUCKETS: [(usize, usize); 8] = [
     (4, 0x100000),
     (8, 0x80000),
