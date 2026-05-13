@@ -35,10 +35,16 @@ impl Font {
             ],
             fields: vec![
                 JavaFieldProto::new("midpFont", "Ljavax/microedition/lcdui/Font;", Default::default()),
-                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("FACE_PROPORTIONAL", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_BOLD", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_ITALIC", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_UNDERLINED", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_MEDIUM", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_LARGE", "I", FieldAccessFlags::STATIC),
             ],
             access_flags: Default::default(),
         }
@@ -47,16 +53,30 @@ impl Font {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Font::<clinit>");
 
-        let face_monospace: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "FACE_MONOSPACE", "I").await?;
         let face_system: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "FACE_SYSTEM", "I").await?;
+        let face_monospace: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "FACE_MONOSPACE", "I").await?;
+        let face_proportional: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "FACE_PROPORTIONAL", "I").await?;
         let style_plain: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "STYLE_PLAIN", "I").await?;
+        let style_bold: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "STYLE_BOLD", "I").await?;
+        let style_italic: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "STYLE_ITALIC", "I").await?;
+        let style_underlined: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "STYLE_UNDERLINED", "I").await?;
         let size_small: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "SIZE_SMALL", "I").await?;
+        let size_medium: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "SIZE_MEDIUM", "I").await?;
+        let size_large: i32 = jvm.get_static_field("javax/microedition/lcdui/Font", "SIZE_LARGE", "I").await?;
 
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", face_system).await?;
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_MONOSPACE", "I", face_monospace)
             .await?;
-        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_SYSTEM", "I", face_system).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "FACE_PROPORTIONAL", "I", face_proportional)
+            .await?;
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_PLAIN", "I", style_plain).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_BOLD", "I", style_bold).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_ITALIC", "I", style_italic).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "STYLE_UNDERLINED", "I", style_underlined)
+            .await?;
         jvm.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_SMALL", "I", size_small).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_MEDIUM", "I", size_medium).await?;
+        jvm.put_static_field("org/kwis/msp/lcdui/Font", "SIZE_LARGE", "I", size_large).await?;
 
         Ok(())
     }
