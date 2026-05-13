@@ -45,6 +45,7 @@ md5 = { version = "^0.8", default-features = false }
 spin = { version = "^0.10", features = ["spin_mutex", "rwlock"], default-features = false }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 
+classfile = { git = "https://github.com/dlunch/RustJava.git" }
 java_class_proto = { git = "https://github.com/dlunch/RustJava.git" }
 java_constants = { git = "https://github.com/dlunch/RustJava.git" }
 java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
