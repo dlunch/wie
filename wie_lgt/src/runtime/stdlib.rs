@@ -2,13 +2,14 @@ use alloc::{format, string::String};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
+use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId, stdlib};
 use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
 
-pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
-    async fn handle_stdlib_svc(core: &mut ArmCore, _: &mut (), id: SvcId) -> Result<()> {
+pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Result<()> {
+    async fn handle_stdlib_svc(core: &mut ArmCore, system: &mut System, id: SvcId) -> Result<()> {
         let (_, lr) = core.read_pc_lr()?;
 
         match id.0 {
@@ -23,13 +24,14 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore) -> Result<()> {
             x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&stdlib::strlen, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&stdlib::memcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&stdlib::memset, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Time as u32 => EmulatedFunction::call(&time, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk3 as u32 => EmulatedFunction::call(&unk3, core, &mut ()).await?.write(core, lr),
             _ => Err(WieError::FatalError(format!("Unknown lgt stdlib import: {:#x}", id.0))),
         }
     }
 
-    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, &())
+    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, system)
 }
 
 async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
@@ -73,6 +75,17 @@ async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     let string = String::from_utf8(string).unwrap();
 
     Ok(string.parse().unwrap_or(0))
+}
+
+async fn time(core: &mut ArmCore, system: &mut System, ptr_time: u32) -> Result<u32> {
+    let epoch_seconds = (system.platform().now().raw() / 1000) as u32;
+    tracing::debug!("time({ptr_time:#x}) -> {epoch_seconds}");
+
+    if ptr_time != 0 {
+        write_generic(core, ptr_time, epoch_seconds)?;
+    }
+
+    Ok(epoch_seconds)
 }
 
 // TODO is this method better suit on wie_backend?
