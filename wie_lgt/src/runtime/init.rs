@@ -50,7 +50,7 @@ async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): 
 pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
     register_wipic_svc_handler(core, system, jvm)?;
-    register_stdlib_svc_handler(core)?;
+    register_stdlib_svc_handler(core, system)?;
     register_init_svc_handler(core)?;
 
     let ptr_init_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
