@@ -4,7 +4,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::{iter, mem::size_of};
+use core::iter;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -18,12 +18,6 @@ use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WIPICTimer {
     fn_callback: WIPICWord,
-}
-
-#[derive(Pod, Zeroable, Copy, Clone)]
-#[repr(C)]
-struct ResourceHandle {
-    name: [u8; 32], // TODO hardcoded max size
 }
 
 pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
@@ -42,12 +36,16 @@ pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWo
         "BATTERYLEVEL" => "100",
         "PHONEMODEL" => "Emulator",
         "PHONENUMBER" => "", // putting this cause some game to fail authentication
+        "MIN" => "01000000000",
         "ANNUN_CALL" => "0",
         "ANNUN_SMS" => "0",
         "ANNUN_SILENT" => "0",
         "ANNUN_ALARM" => "0",
         "ANNUN_SECURITY" => "0",
         "CURRENTCH" => "0",
+        "AIRPLANE_MODE" => "0",
+        "ROAMING_AREA" => "0",
+        "DS_LOCK" => "0",
         _ => {
             tracing::warn!("unknown system property id: {id}");
             return Ok(-9); // M_E_INVALID
@@ -130,11 +128,19 @@ pub async fn unset_timer(_: &mut dyn WIPICContext, a0: WIPICWord) -> Result<()> 
 pub async fn alloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlAlloc({size:#x})");
 
+    if size == 0 {
+        return Ok(WIPICIndirectPtr(0));
+    }
+
     context.alloc(size)
 }
 
 pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlCalloc({size:#x})");
+
+    if size == 0 {
+        return Ok(WIPICIndirectPtr(0));
+    }
 
     let memory = context.alloc(size)?;
 
@@ -146,6 +152,10 @@ pub async fn calloc(context: &mut dyn WIPICContext, size: WIPICWord) -> Result<W
 
 pub async fn free(context: &mut dyn WIPICContext, memory: WIPICIndirectPtr) -> Result<WIPICIndirectPtr> {
     tracing::debug!("MC_knlFree({:#x})", memory.0);
+
+    if memory.0 == 0 {
+        return Ok(memory);
+    }
 
     context.free(memory)?;
 
@@ -161,18 +171,21 @@ pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord
     let size = context.get_resource_size(&name).await?;
 
     if size.is_none() {
+        if ptr_size != 0 {
+            write_generic(context, ptr_size, 0u32)?;
+        }
         return Ok(-12); // M_E_NOENT
     }
 
     let size = size.unwrap();
 
-    // TODO it leaks handle every time.. should we assign id for every file?
     let name_bytes = name.as_bytes();
-    let mut handle = ResourceHandle { name: [0; 32] };
-    handle.name[..name_bytes.len()].copy_from_slice(name_bytes);
-
-    let ptr_handle = context.alloc_raw(size_of::<ResourceHandle>() as _)?;
-    write_generic(context, ptr_handle, handle)?;
+    let handle_size = name_bytes
+        .len()
+        .checked_add(1)
+        .ok_or_else(|| WieError::FatalError("Resource name too long".to_string()))?;
+    let ptr_handle = context.alloc_raw(handle_size as _)?;
+    write_null_terminated_string_bytes(context, ptr_handle, name_bytes)?;
     write_generic(context, ptr_size, size as u32)?;
 
     Ok(ptr_handle as _)
@@ -185,9 +198,8 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICInd
         return Ok(-9); // M_E_INVALID
     }
 
-    let handle: ResourceHandle = read_generic(context, id as _)?;
-    let name_length = handle.name.iter().position(|&c| c == 0).unwrap_or(handle.name.len());
-    let name = str::from_utf8(&handle.name[..name_length]).unwrap();
+    let name_bytes = read_null_terminated_string_bytes(context, id as _)?;
+    let name = str::from_utf8(&name_bytes).unwrap();
 
     let data = context.read_resource(name).await?;
 
@@ -359,11 +371,11 @@ pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWor
 mod test {
     use alloc::{boxed::Box, string::String};
 
-    use wie_util::{Result, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
+    use wie_util::{ByteRead, ByteWrite, Result, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
 
     use crate::{WIPICContext, context::test::TestContext, method::MethodImpl};
 
-    use super::sprintk;
+    use super::{alloc, calloc, free, get_resource_id, get_system_property, sprintk};
 
     #[futures_test::test]
     async fn test_sprintk() -> Result<()> {
@@ -389,6 +401,49 @@ mod test {
             .unwrap();
         let result = read_null_terminated_string_bytes(&context, dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "test 01");
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_get_system_property_min() -> Result<()> {
+        let mut context = TestContext::new();
+        let id = context.alloc_raw(16).unwrap();
+        let out = context.alloc_raw(16).unwrap();
+
+        write_null_terminated_string_bytes(&mut context, id, b"MIN").unwrap();
+
+        assert_eq!(get_system_property(&mut context, id, out, 16).await.unwrap(), 0);
+        let result = read_null_terminated_string_bytes(&context, out).unwrap();
+        assert_eq!(String::from_utf8(result).unwrap(), "01000000000");
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_zero_size_memory_returns_null() -> Result<()> {
+        let mut context = TestContext::new();
+
+        assert_eq!(alloc(&mut context, 0).await.unwrap().0, 0);
+        assert_eq!(calloc(&mut context, 0).await.unwrap().0, 0);
+        assert_eq!(free(&mut context, wipi_types::wipic::WIPICIndirectPtr(0)).await.unwrap().0, 0);
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_missing_resource_clears_size() -> Result<()> {
+        let mut context = TestContext::new();
+        let name = context.alloc_raw(16).unwrap();
+        let size = context.alloc_raw(4).unwrap();
+
+        write_null_terminated_string_bytes(&mut context, name, b"missing").unwrap();
+        context.write_bytes(size, &[0xff; 4]).unwrap();
+
+        assert_eq!(get_resource_id(&mut context, name, size).await.unwrap(), -12);
+        let mut result = [0; 4];
+        context.read_bytes(size, &mut result).unwrap();
+        assert_eq!(u32::from_le_bytes(result), 0);
 
         Ok(())
     }

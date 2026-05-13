@@ -180,6 +180,10 @@ pub async fn get_volume(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
 pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_mdaPlay({ptr_clip:#x}, {repeat})");
 
+    if ptr_clip == 0 {
+        return Ok(0);
+    }
+
     let clip: MdaClip = read_generic(context, ptr_clip)?;
 
     let system = context.system();
@@ -235,6 +239,10 @@ pub async fn resume(_context: &mut dyn WIPICContext, clip: WIPICWord) -> Result<
 
 pub async fn stop(context: &mut dyn WIPICContext, ptr_clip: WIPICWord) -> Result<WIPICWord> {
     tracing::debug!("MC_mdaStop({ptr_clip:#x})");
+
+    if ptr_clip == 0 {
+        return Ok(0);
+    }
 
     let clip: MdaClip = read_generic(context, ptr_clip)?;
 
