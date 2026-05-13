@@ -39,10 +39,16 @@ impl Font {
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("FACE_PROPORTIONAL", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_BOLD", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_ITALIC", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_UNDERLINED", "I", FieldAccessFlags::STATIC),
                 JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_MEDIUM", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_LARGE", "I", FieldAccessFlags::STATIC),
             ],
             access_flags: Default::default(),
         }
@@ -51,10 +57,17 @@ impl Font {
     async fn cl_init(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.msp.lcdui.Font::<clinit>");
 
-        jvm.put_static_field("javax/microedition/lcdui/Font", "FACE_MONOSPACE", "I", 32).await?;
         jvm.put_static_field("javax/microedition/lcdui/Font", "FACE_SYSTEM", "I", 0).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "FACE_MONOSPACE", "I", 32).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "FACE_PROPORTIONAL", "I", 64)
+            .await?;
         jvm.put_static_field("javax/microedition/lcdui/Font", "STYLE_PLAIN", "I", 0).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "STYLE_BOLD", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "STYLE_ITALIC", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "STYLE_UNDERLINED", "I", 4).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "SIZE_MEDIUM", "I", 0).await?;
         jvm.put_static_field("javax/microedition/lcdui/Font", "SIZE_SMALL", "I", 8).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Font", "SIZE_LARGE", "I", 16).await?;
 
         Ok(())
     }
