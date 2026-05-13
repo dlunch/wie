@@ -1,7 +1,14 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use wie_backend::{AudioSink, DatabaseRepository, Filesystem, Instant, Platform, Screen, canvas::Image};
+use hashbrown::HashMap;
+use spin::Mutex;
+use wie_backend::{AudioSink, Database, DatabaseRepository, Filesystem, Instant, Platform, RecordId, Screen, canvas::Image};
 use wie_util::Result;
 
 use crate::filesystem::MemoryFilesystem;
@@ -17,6 +24,7 @@ pub struct TestPlatform {
     screen: TestScreen,
     event_handler: Option<Box<dyn Fn(TestPlatformEvent) + Sync + Send>>,
     fs: Arc<MemoryFilesystem>,
+    db: Arc<MemoryDatabaseRepository>,
 }
 
 impl Default for TestPlatform {
@@ -31,6 +39,7 @@ impl TestPlatform {
             screen: TestScreen,
             event_handler: None,
             fs: Arc::new(MemoryFilesystem::default()),
+            db: Arc::new(MemoryDatabaseRepository::default()),
         }
     }
 
@@ -42,6 +51,7 @@ impl TestPlatform {
             screen: TestScreen,
             event_handler: Some(Box::new(event_handler)),
             fs: Arc::new(MemoryFilesystem::default()),
+            db: Arc::new(MemoryDatabaseRepository::default()),
         }
     }
 }
@@ -57,7 +67,7 @@ impl Platform for TestPlatform {
     }
 
     fn database_repository(&self) -> &dyn DatabaseRepository {
-        todo!()
+        self.db.as_ref()
     }
 
     fn filesystem(&self) -> &dyn Filesystem {
@@ -83,6 +93,80 @@ impl Platform for TestPlatform {
     }
 
     fn vibrate(&self, _duration_ms: u64, _intensity: u8) {}
+}
+
+type DatabaseKey = (String, String);
+type DatabaseStore = HashMap<DatabaseKey, HashMap<RecordId, Vec<u8>>>;
+
+#[derive(Default)]
+struct MemoryDatabaseRepository {
+    store: Arc<Mutex<DatabaseStore>>,
+}
+
+#[async_trait::async_trait]
+impl DatabaseRepository for MemoryDatabaseRepository {
+    async fn open(&self, _system: &wie_backend::System, name: &str, app_id: &str) -> Box<dyn Database> {
+        let key = (app_id.to_string(), name.to_string());
+        self.store.lock().entry(key.clone()).or_default();
+        Box::new(MemoryDatabase {
+            store: self.store.clone(),
+            key,
+        })
+    }
+
+    async fn exists(&self, _system: &wie_backend::System, name: &str, app_id: &str) -> bool {
+        self.store.lock().contains_key(&(app_id.to_string(), name.to_string()))
+    }
+
+    async fn delete(&self, _system: &wie_backend::System, name: &str, app_id: &str) -> bool {
+        self.store.lock().remove(&(app_id.to_string(), name.to_string())).is_some()
+    }
+}
+
+struct MemoryDatabase {
+    store: Arc<Mutex<DatabaseStore>>,
+    key: DatabaseKey,
+}
+
+#[async_trait::async_trait]
+impl Database for MemoryDatabase {
+    async fn next_id(&self) -> RecordId {
+        let store = self.store.lock();
+        let records = store.get(&self.key);
+        let mut id = 1;
+        while records.is_some_and(|records| records.contains_key(&id)) {
+            id += 1;
+        }
+        id
+    }
+
+    async fn add(&mut self, data: &[u8]) -> RecordId {
+        let id = self.next_id().await;
+        self.set(id, data).await;
+        id
+    }
+
+    async fn get(&self, id: RecordId) -> Option<Vec<u8>> {
+        self.store.lock().get(&self.key)?.get(&id).cloned()
+    }
+
+    async fn set(&mut self, id: RecordId, data: &[u8]) -> bool {
+        let mut store = self.store.lock();
+        store.entry(self.key.clone()).or_default().insert(id, data.to_vec());
+        true
+    }
+
+    async fn delete(&mut self, id: RecordId) -> bool {
+        self.store.lock().get_mut(&self.key).is_some_and(|records| records.remove(&id).is_some())
+    }
+
+    async fn get_record_ids(&self) -> Vec<RecordId> {
+        self.store
+            .lock()
+            .get(&self.key)
+            .map(|records| records.keys().copied().collect())
+            .unwrap_or_default()
+    }
 }
 
 pub struct TestAudioSink;

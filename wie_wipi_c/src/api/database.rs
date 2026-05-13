@@ -68,26 +68,42 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
         return Ok(-22); // M_E_BADRECID — closest WIPI parameter-error idiom in this file
     }
 
+    let packaged = read_packaged_database(context, &name).await?;
+
     let system = context.system();
     let pid = system.pid().to_owned();
-
     let exists = system.platform().database_repository().exists(system, &name, &pid).await;
 
-    if !exists && mode == 1 {
+    if !exists && packaged.is_none() && mode == 1 {
         return Ok(-12); // M_E_NOENT
     }
 
-    // Mode 4 (`MC_DB_CREATE`) wipes any prior contents up front so the new
-    // session writes a fresh blob. Other modes seed the per-handle buffer
-    // with the existing record so seek+overlay writes preserve unrelated
-    // bytes (multi-slot saves at fixed byte offsets within record 1).
-    let initial: Vec<u8> = if mode == 4 {
+    // Mode 4 (`MC_DB_CREATE`) wipes any prior contents up front unless the
+    // DB is backed by a packaged resource. Other modes seed the per-handle
+    // buffer with the existing record or packaged data so seek+overlay writes
+    // preserve unrelated bytes (multi-slot saves at fixed byte offsets).
+    let initial: Vec<u8> = if exists {
         let mut db = system.platform().database_repository().open(system, &name, &pid).await;
-        db.delete(1).await;
+        if mode == 4 && packaged.is_none() {
+            db.delete(1).await;
+            Vec::new()
+        } else if let Some(data) = db.get(1).await {
+            data
+        } else if let Some(data) = packaged {
+            db.set(1, &data).await;
+            data
+        } else {
+            Vec::new()
+        }
+    } else if let Some(data) = packaged {
+        let mut db = system.platform().database_repository().open(system, &name, &pid).await;
+        db.set(1, &data).await;
+        data
+    } else if mode == 4 {
+        system.platform().database_repository().open(system, &name, &pid).await;
         Vec::new()
     } else {
-        let db = system.platform().database_repository().open(system, &name, &pid).await;
-        db.get(1).await.unwrap_or_default()
+        Vec::new()
     };
 
     let name_bytes = name.as_bytes();
@@ -152,6 +168,90 @@ pub async fn list_record(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WI
     }
 
     Ok(ids.len() as _)
+}
+
+pub async fn seek_record_single(context: &mut dyn WIPICContext, db_id: i32, offset: i32, origin: i32) -> Result<i32> {
+    tracing::debug!("MC_dbSeekRecordSingle({db_id:#x}, {offset}, {origin})");
+
+    let Some(mut handle) = load_handle(context, db_id)? else {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    };
+
+    let base = match origin {
+        0 => 0,
+        1 => handle.read_cursor as i64,
+        2 => handle.buffer_len as i64,
+        _ => return Ok(-1),
+    };
+    let position = (base + offset as i64).clamp(0, handle.buffer_len as i64) as u32;
+    handle.read_cursor = position;
+    handle.write_cursor = position;
+    write_generic(context, db_id as _, handle)?;
+
+    Ok(position as i32)
+}
+
+pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWord, buf_ptr: WIPICWord, capacity: WIPICWord) -> Result<i32> {
+    tracing::debug!("MC_dbListRecordInfo({ptr_name:#x}, {buf_ptr:#x}, {capacity})");
+
+    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+        return Ok(-22);
+    };
+    let system = context.system();
+    let pid = system.pid().to_owned();
+
+    if !system.platform().database_repository().exists(system, &name, &pid).await {
+        if let Some(data) = read_packaged_database(context, &name).await? {
+            if capacity > 0 {
+                write_generic(context, buf_ptr, 1u32)?;
+                write_generic(context, buf_ptr + 4, 0u32)?;
+                write_generic(context, buf_ptr + 8, data.len() as u32)?;
+            }
+            return Ok(0);
+        }
+        return Ok(-12); // M_E_NOENT
+    }
+
+    let db = system.platform().database_repository().open(system, &name, &pid).await;
+    let ids = db.get_record_ids().await;
+
+    let mut written = 0;
+    for id in ids {
+        if written >= capacity {
+            break;
+        }
+
+        let Some(data) = db.get(id).await else {
+            continue;
+        };
+
+        let entry_ptr = buf_ptr + written * 12;
+        write_generic(context, entry_ptr, id)?;
+        write_generic(context, entry_ptr + 4, 0u32)?;
+        write_generic(context, entry_ptr + 8, data.len() as u32)?;
+        written += 1;
+    }
+
+    Ok(0)
+}
+
+pub async fn exists_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, r#type: i32) -> Result<i32> {
+    tracing::debug!("MC_dbExistsDataBase({ptr_name:#x}, {type})");
+
+    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+        return Ok(-22);
+    };
+    if read_packaged_database(context, &name).await?.is_some() {
+        return Ok(0);
+    }
+
+    let system = context.system();
+    let pid = system.pid().to_owned();
+    if system.platform().database_repository().exists(system, &name, &pid).await {
+        Ok(0)
+    } else {
+        Ok(-12) // M_E_NOENT
+    }
 }
 
 pub async fn stream_write(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
@@ -267,6 +367,70 @@ pub async fn delete_record_ktf(context: &mut dyn WIPICContext, a0: i32, a1: i32)
     // path and silently delete record 1 of the just-saved DB.
     tracing::debug!("MC_dbDeleteRecord(name-keyed @ {a0:#x}, {a1}) -> 0 (no-op)");
     Ok(0)
+}
+
+pub async fn delete_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, flags: i32) -> Result<i32> {
+    tracing::debug!("MC_dbDeleteDataBase({ptr_name:#x}, {flags})");
+
+    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+        return Ok(-22);
+    };
+    let system = context.system();
+    let pid = system.pid().to_owned();
+
+    let deleted = system.platform().database_repository().delete(system, &name, &pid).await;
+    if deleted || !system.platform().database_repository().exists(system, &name, &pid).await {
+        Ok(0)
+    } else {
+        Ok(-12) // M_E_NOENT
+    }
+}
+
+pub async fn update_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
+    tracing::debug!("MC_dbUpdateRecord({db_id:#x}, {rec_id}, {buf_ptr:#x}, {buf_len})");
+
+    let Some(handle) = load_handle(context, db_id)? else {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    };
+    let Some(mut db) = open_db_for_handle(context, &handle).await else {
+        return Ok(-25);
+    };
+    if rec_id < 0 {
+        return Ok(-22);
+    }
+    let rec_id = rec_id as u32;
+    if db.get(rec_id).await.is_none() {
+        return Ok(-22);
+    }
+
+    let mut buf = vec![0; buf_len as usize];
+    context.read_bytes(buf_ptr, &mut buf)?;
+
+    if db.set(rec_id, &buf).await { Ok(0) } else { Ok(-22) }
+}
+
+pub async fn select_record(context: &mut dyn WIPICContext, db_id: i32, rec_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
+    tracing::debug!("MC_dbSelectRecord({db_id:#x}, {rec_id}, {buf_ptr:#x}, {buf_len})");
+
+    let Some(handle) = load_handle(context, db_id)? else {
+        return Ok(-25); // M_E_INVALIDHANDLE
+    };
+    let Some(db) = open_db_for_handle(context, &handle).await else {
+        return Ok(-25);
+    };
+    if rec_id < 0 {
+        return Ok(-22);
+    }
+
+    if let Some(data) = db.get(rec_id as u32).await {
+        if buf_len < data.len() as u32 {
+            return Ok(-18); // M_E_SHORTBUF
+        }
+        context.write_bytes(buf_ptr, &data)?;
+        Ok(0)
+    } else {
+        Ok(-22)
+    }
 }
 
 pub async fn stream_read(context: &mut dyn WIPICContext, db_id: i32, buf_ptr: WIPICWord, buf_len: WIPICWord) -> Result<i32> {
@@ -438,4 +602,106 @@ async fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> 
         return Ok(None);
     };
     Ok(open_db_for_handle(context, &handle).await)
+}
+
+async fn read_packaged_database(context: &mut dyn WIPICContext, name: &str) -> Result<Option<Vec<u8>>> {
+    if context.get_resource_size(name).await?.is_none() {
+        return Ok(None);
+    }
+
+    Ok(Some(context.read_resource(name).await?))
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_util::{ByteRead, ByteWrite};
+
+    use crate::context::test::TestContext;
+
+    use super::{delete_database, exists_database, list_record_info, open_database, select_record, stream_read, stream_write, update_record};
+
+    #[futures_test::test]
+    async fn lgt_exists_database_reports_missing_and_existing_database() {
+        let mut context = database_test_context();
+        context.write_bytes(0x1000, b"records\0").unwrap();
+
+        assert_eq!(exists_database(&mut context, 0x1000, 1).await.unwrap(), -12);
+        let db_id = open_database(&mut context, 0x1000, 0, 0).await.unwrap();
+        context.write_bytes(0x2000, &[1]).unwrap();
+        assert_eq!(stream_write(&mut context, db_id, 0x2000, 1).await.unwrap(), 1);
+        assert_eq!(exists_database(&mut context, 0x1000, 1).await.unwrap(), 0);
+    }
+
+    #[futures_test::test]
+    async fn lgt_create_mode_materializes_empty_database() {
+        let mut context = database_test_context();
+        context.write_bytes(0x1000, b"records\0").unwrap();
+
+        assert_eq!(exists_database(&mut context, 0x1000, 1).await.unwrap(), -12);
+        let db_id = open_database(&mut context, 0x1000, 4, 0).await.unwrap();
+        assert!(db_id > 0);
+        assert_eq!(exists_database(&mut context, 0x1000, 1).await.unwrap(), 0);
+    }
+
+    #[futures_test::test]
+    async fn lgt_update_and_select_record_use_standard_record_ids() {
+        let mut context = database_test_context();
+        let db_id = open_test_database(&mut context).await;
+        context.write_bytes(0x2000, &[1, 2, 3]).unwrap();
+        assert_eq!(stream_write(&mut context, db_id, 0x2000, 3).await.unwrap(), 3);
+        context.write_bytes(0x2010, &[4, 5]).unwrap();
+
+        assert_eq!(update_record(&mut context, db_id, 1, 0x2010, 2).await.unwrap(), 0);
+        assert_eq!(select_record(&mut context, db_id, 1, 0x2100, 2).await.unwrap(), 0);
+
+        let mut data = [0; 2];
+        context.read_bytes(0x2100, &mut data).unwrap();
+        assert_eq!(data, [4, 5]);
+    }
+
+    #[futures_test::test]
+    async fn lgt_list_record_info_and_delete_database_use_database_name() {
+        let mut context = database_test_context();
+        let db_id = open_test_database(&mut context).await;
+        context.write_bytes(0x2000, &[1, 2, 3, 4]).unwrap();
+        assert_eq!(stream_write(&mut context, db_id, 0x2000, 4).await.unwrap(), 4);
+
+        assert_eq!(list_record_info(&mut context, 0x1000, 0x2100, 1).await.unwrap(), 0);
+        let mut entry = [0; 12];
+        context.read_bytes(0x2100, &mut entry).unwrap();
+        assert_eq!(u32::from_le_bytes(entry[0..4].try_into().unwrap()), 1);
+        assert_eq!(u32::from_le_bytes(entry[8..12].try_into().unwrap()), 4);
+
+        assert_eq!(delete_database(&mut context, 0x1000, 1).await.unwrap(), 0);
+        assert_eq!(exists_database(&mut context, 0x1000, 1).await.unwrap(), -12);
+    }
+
+    #[futures_test::test]
+    async fn lgt_open_database_materializes_packaged_database() {
+        let mut context = database_test_context().with_resource("kickass", b"seed-data");
+        context.write_bytes(0x1000, b"kickass\0").unwrap();
+
+        assert_eq!(exists_database(&mut context, 0x1000, 1).await.unwrap(), 0);
+        let db_id = open_database(&mut context, 0x1000, 1, 0).await.unwrap();
+        assert!(db_id > 0);
+        assert_eq!(stream_read(&mut context, db_id, 0x2000, 9).await.unwrap(), 9);
+
+        let mut data = [0; 9];
+        context.read_bytes(0x2000, &mut data).unwrap();
+        assert_eq!(&data, b"seed-data");
+    }
+
+    fn database_test_context() -> TestContext {
+        let system = System::new(Box::new(TestPlatform::new()), "test-pid", "test-aid", DefaultTaskRunner);
+        TestContext::with_system(system)
+    }
+
+    async fn open_test_database(context: &mut TestContext) -> i32 {
+        context.write_bytes(0x1000, b"records\0").unwrap();
+        open_database(context, 0x1000, 0, 0).await.unwrap()
+    }
 }

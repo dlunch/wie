@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -8,7 +8,7 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 // mostly same as ktf's one, can we merge those?
@@ -91,23 +91,30 @@ impl WIPICContext for LgtWIPICContext {
         let class_loader = self.jvm.current_class_loader().await.unwrap();
         let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
 
-        if stream.is_none() {
-            return Ok(None);
+        if let Some(stream) = stream {
+            let available: i32 = self.jvm.invoke_virtual(&stream, "available", "()I", ()).await.unwrap();
+            return Ok(Some(available as _));
         }
 
-        let available: i32 = self.jvm.invoke_virtual(&stream.unwrap(), "available", "()I", ()).await.unwrap();
-
-        Ok(Some(available as _))
+        Ok(self.system.filesystem().size(name).await)
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
         let class_loader = self.jvm.current_class_loader().await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
-            .await
-            .unwrap()
-            .unwrap();
+        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
 
-        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap())
+        if let Some(stream) = stream {
+            return Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap());
+        }
+
+        let Some(size) = self.system.filesystem().size(name).await else {
+            return Err(WieError::FatalError(format!("Missing resource: {name}")));
+        };
+        let mut data = vec![0; size];
+        let read = self.system.filesystem().read(name, 0, size, &mut data).await.unwrap_or(0);
+        data.truncate(read);
+
+        Ok(data)
     }
 
     fn set_timer(&mut self, due: Instant, callback: WIPICMethodBody) {

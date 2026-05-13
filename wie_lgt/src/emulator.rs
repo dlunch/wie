@@ -88,6 +88,7 @@ impl LgtEmulator {
         let system = System::new(platform, pid, aid, LgtTaskRunner { core: core.clone() });
 
         for (filename, data) in files {
+            let filename = filename.trim_start_matches("P/");
             system.filesystem().add_virtual(filename, data.clone())
         }
 

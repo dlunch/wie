@@ -81,27 +81,48 @@ impl ResultConverter<()> for () {
 
 #[cfg(test)]
 pub mod test {
-    use alloc::{boxed::Box, vec::Vec};
+    use alloc::{boxed::Box, format, string::String, vec::Vec};
 
     use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
     use wie_backend::{Instant, System};
-    use wie_util::{ByteRead, ByteWrite, Result};
+    use wie_util::{ByteRead, ByteWrite, Result, WieError};
 
     use super::{WIPICContext, WIPICMethodBody};
 
+    const TEST_MEMORY_SIZE: usize = 0x20000;
+    const TEST_ALLOC_START: usize = 0x10000;
+
     pub struct TestContext {
-        memory: [u8; 0x10000],
+        memory: [u8; TEST_MEMORY_SIZE],
         last_alloc: usize,
+        system: Option<System>,
+        resources: Vec<(String, Vec<u8>)>,
     }
 
     impl TestContext {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self {
-                memory: [0; 0x10000],
-                last_alloc: 1000, // avoid using null pointer
+                memory: [0; TEST_MEMORY_SIZE],
+                last_alloc: TEST_ALLOC_START,
+                system: None,
+                resources: Vec::new(),
             }
+        }
+
+        pub fn with_system(system: System) -> Self {
+            Self {
+                memory: [0; TEST_MEMORY_SIZE],
+                last_alloc: TEST_ALLOC_START,
+                system: Some(system),
+                resources: Vec::new(),
+            }
+        }
+
+        pub fn with_resource(mut self, name: &str, data: &[u8]) -> Self {
+            self.resources.push((String::from(name), data.to_vec()));
+            self
         }
     }
 
@@ -135,19 +156,23 @@ pub mod test {
         }
 
         fn system(&mut self) -> &mut System {
-            todo!()
+            self.system.as_mut().unwrap()
         }
 
         fn spawn(&mut self, _callback: WIPICMethodBody) -> Result<()> {
             todo!()
         }
 
-        async fn get_resource_size(&self, _name: &str) -> Result<Option<usize>> {
-            todo!()
+        async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
+            Ok(self.resources.iter().find(|(x, _)| x == name).map(|(_, data)| data.len()))
         }
 
-        async fn read_resource(&self, _name: &str) -> Result<Vec<u8>> {
-            todo!()
+        async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
+            self.resources
+                .iter()
+                .find(|(x, _)| x == name)
+                .map(|(_, data)| data.clone())
+                .ok_or_else(|| WieError::FatalError(format!("Missing test resource: {name}")))
         }
 
         fn set_timer(&mut self, _due: Instant, _callback: WIPICMethodBody) {

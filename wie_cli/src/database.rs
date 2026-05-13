@@ -18,7 +18,27 @@ impl DatabaseRepository {
     }
 
     fn get_path_for_database(&self, name: &str, app_id: &str) -> PathBuf {
-        self.base_path.join(app_id).join("db").join(name)
+        let sanitized_app_id: String = app_id.chars().filter(|c| !matches!(c, '/' | '\\' | '\0')).collect();
+        let app_id = if sanitized_app_id.is_empty() || sanitized_app_id == "." || sanitized_app_id == ".." {
+            "_"
+        } else {
+            &sanitized_app_id
+        };
+
+        let name: String = name.chars().map(|c| if matches!(c, '\\' | '\0') { '_' } else { c }).collect();
+        let mut normalized_name = PathBuf::new();
+        for segment in name.trim_start_matches('/').split('/') {
+            match segment {
+                "" | "." => {}
+                ".." => normalized_name.push("_"),
+                segment => normalized_name.push(segment),
+            }
+        }
+        if normalized_name.as_os_str().is_empty() {
+            normalized_name.push("_");
+        }
+
+        self.base_path.join(app_id).join("db").join(normalized_name)
     }
 }
 
@@ -34,6 +54,21 @@ impl wie_backend::DatabaseRepository for DatabaseRepository {
         let path = self.get_path_for_database(name, app_id);
 
         path.exists()
+    }
+
+    async fn delete(&self, _system: &System, name: &str, app_id: &str) -> bool {
+        let path = self.get_path_for_database(name, app_id);
+
+        tracing::trace!("Delete database at {path:?}");
+
+        match fs::remove_dir_all(path) {
+            Ok(()) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+            Err(e) => {
+                tracing::warn!("Failed to delete database: {e}");
+                false
+            }
+        }
     }
 }
 
@@ -131,5 +166,23 @@ mod tests {
         };
         let path = repo.get_path_for_database("records", "game123");
         assert_eq!(path, PathBuf::from("/tmp/wie_test/game123/db/records"));
+    }
+
+    #[test]
+    fn database_path_strips_guest_leading_slash() {
+        let repo = DatabaseRepository {
+            base_path: PathBuf::from("/tmp/wie_test"),
+        };
+        let path = repo.get_path_for_database("/save0.dat", "PD140106");
+        assert_eq!(path, PathBuf::from("/tmp/wie_test/PD140106/db/save0.dat"));
+    }
+
+    #[test]
+    fn database_path_does_not_escape_app_scope() {
+        let repo = DatabaseRepository {
+            base_path: PathBuf::from("/tmp/wie_test"),
+        };
+        let path = repo.get_path_for_database("/../save0.dat", "PD140106");
+        assert!(path.starts_with(PathBuf::from("/tmp/wie_test/PD140106/db")));
     }
 }
