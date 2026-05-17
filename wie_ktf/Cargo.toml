@@ -13,7 +13,6 @@ futures = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 
-classfile = { workspace = true }
 java_class_proto = { workspace = true }
 java_constants = { workspace = true }
 java_runtime = { workspace = true }

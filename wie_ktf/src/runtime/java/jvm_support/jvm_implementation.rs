@@ -58,8 +58,7 @@ impl JvmImplementation for KtfJvmImplementation {
     }
 
     async fn define_class_java(&self, jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
-        let class = define_classfile_class(&mut self.core.clone(), jvm, data, self.java_functions.clone()).await?;
-        Ok(Box::new(class) as Box<_>)
+        define_classfile_class(&mut self.core.clone(), jvm, data).await
     }
 
     async fn define_array_class(&self, jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
