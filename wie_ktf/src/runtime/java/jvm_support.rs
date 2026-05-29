@@ -3,7 +3,6 @@ mod array_class_instance;
 mod class_definition;
 mod class_instance;
 mod classes;
-mod classfile;
 mod field;
 mod jvm_implementation;
 mod method;
