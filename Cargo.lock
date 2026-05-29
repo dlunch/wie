@@ -3551,6 +3551,7 @@ dependencies = [
  "java_constants",
  "java_runtime",
  "jvm",
+ "jvm_rust",
  "spin",
  "test_utils",
  "tracing",
