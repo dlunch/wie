@@ -36,7 +36,7 @@ license = "MIT"
 anyhow = { version = "^1.0" }
 async-recursion = { version = "^1.1", default-features = false }
 async-trait = { version = "^0.1", default-features = false }
-bitflags = { version = "^2.12", default-features = false }
+bitflags = { version = "^2.13", default-features = false }
 bytemuck = { version = "^1.25", default-features = false, features = ["derive"] }
 clap = { version = "^4.6", features = ["derive"] }
 dyn-clone = { version = "^1.0", default-features = false }
