@@ -173,7 +173,7 @@ pub async fn draw_arc(
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_arc(x as _, y as _, w as _, h as _, start_angle as _, arc_angle as _, color, clip);
+    canvas.draw_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
     Ok(())
 }
 
@@ -207,7 +207,7 @@ pub async fn fill_arc(
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.fill_arc(x as _, y as _, w as _, h as _, start_angle as _, arc_angle as _, color, clip);
+    canvas.fill_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
     Ok(())
 }
 

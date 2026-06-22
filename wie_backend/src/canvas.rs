@@ -51,10 +51,10 @@ pub trait Canvas: Send {
     fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color);
     fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color);
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
-    fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: u32, arc_angle: u32, color: Color, clip: Clip);
+    fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip);
     fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
     fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
-    fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: u32, arc_angle: u32, color: Color, clip: Clip);
+    fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip);
     fn fill_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
     fn put_pixel(&mut self, x: i32, y: i32, color: Color);
 }
@@ -296,6 +296,59 @@ where
 
         self.put_pixel(x, y, computed_color);
     }
+
+    fn plot(&mut self, x: i32, y: i32, color: Color, clip: &Clip) {
+        if x < 0 || y < 0 || (x as u32) >= self.image_buffer.width() || (y as u32) >= self.image_buffer.height() {
+            return;
+        }
+        if x < clip.x || x >= clip.x + clip.width as i32 || y < clip.y || y >= clip.y + clip.height as i32 {
+            return;
+        }
+        self.put_pixel(x, y, color);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn stroke_arc(&mut self, cx: f32, cy: f32, a: f32, b: f32, start_deg: f32, sweep_deg: f32, color: Color, clip: &Clip) {
+        let radius = a.max(b).max(1.0);
+        let sweep_rad = sweep_deg.to_radians();
+        let start_rad = start_deg.to_radians();
+        let steps = ((sweep_rad.abs() * radius).ceil() as i32 * 2).max(1);
+
+        for i in 0..=steps {
+            let theta = start_rad + sweep_rad * (i as f32) / (steps as f32);
+            let px = (cx + a * theta.cos()).round() as i32;
+            let py = (cy - b * theta.sin()).round() as i32;
+            self.plot(px, py, color, clip);
+        }
+    }
+}
+
+/// Whether the point lies within the pie sweep starting at `start_deg` spanning
+/// `sweep_deg` degrees (counterclockwise for positive, clockwise for negative).
+/// Angles follow the J2ME/WIPI convention: 0° is 3 o'clock, positive is CCW.
+fn point_in_sweep(px: f32, py: f32, cx: f32, cy: f32, start_deg: f32, sweep_deg: f32) -> bool {
+    if sweep_deg.abs() >= 360.0 {
+        return true;
+    }
+    if sweep_deg == 0.0 {
+        return false;
+    }
+
+    let dx = px - cx;
+    let dy = py - cy;
+    if dx * dx + dy * dy < 1.0 {
+        return true; // apex of the pie
+    }
+
+    // screen y grows downward, so negate dy to match the math convention
+    let angle = (-dy).atan2(dx).to_degrees();
+    let (start, sweep) = if sweep_deg > 0.0 {
+        (start_deg, sweep_deg)
+    } else {
+        (start_deg + sweep_deg, -sweep_deg)
+    };
+
+    (angle - start).rem_euclid(360.0) <= sweep
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -435,14 +488,50 @@ where
         }
     }
 
-    fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, _start_angle: u32, _arc_angle: u32, color: Color, clip: Clip) {
-        // TODO unimplemented
-        self.draw_rect(x, y, w, h, color, clip);
+    fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip) {
+        if w == 0 || h == 0 {
+            return;
+        }
+
+        let a = (w as f32 - 1.0) / 2.0;
+        let b = (h as f32 - 1.0) / 2.0;
+        let cx = x as f32 + a;
+        let cy = y as f32 + b;
+
+        self.stroke_arc(cx, cy, a, b, start_angle as f32, arc_angle as f32, color, &clip);
     }
 
-    fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, _arc_width: u32, _arc_height: u32, color: Color, clip: Clip) {
-        // TODO unimplemented
-        self.draw_rect(x, y, w, h, color, clip);
+    fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip) {
+        if w == 0 || h == 0 {
+            return;
+        }
+        if arc_width == 0 || arc_height == 0 {
+            return self.draw_rect(x, y, w, h, color, clip);
+        }
+
+        let rx = (arc_width.min(w) as f32 / 2.0).max(0.5);
+        let ry = (arc_height.min(h) as f32 / 2.0).max(0.5);
+        let rxi = rx.round() as i32;
+        let ryi = ry.round() as i32;
+
+        let left = x;
+        let right = x + w as i32 - 1;
+        let top = y;
+        let bottom = y + h as i32 - 1;
+
+        for px in (left + rxi)..=(right - rxi) {
+            self.plot(px, top, color, &clip);
+            self.plot(px, bottom, color, &clip);
+        }
+        for py in (top + ryi)..=(bottom - ryi) {
+            self.plot(left, py, color, &clip);
+            self.plot(right, py, color, &clip);
+        }
+
+        self.stroke_arc(right as f32 - rx, top as f32 + ry, rx, ry, 0.0, 90.0, color, &clip);
+        self.stroke_arc(left as f32 + rx, top as f32 + ry, rx, ry, 90.0, 90.0, color, &clip);
+        self.stroke_arc(left as f32 + rx, bottom as f32 - ry, rx, ry, 180.0, 90.0, color, &clip);
+        self.stroke_arc(right as f32 - rx, bottom as f32 - ry, rx, ry, 270.0, 90.0, color, &clip);
     }
 
     fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
@@ -460,14 +549,75 @@ where
         }
     }
 
-    fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, _start_angle: u32, _arc_angle: u32, color: Color, clip: Clip) {
-        // TODO unimplemented
-        self.fill_rect(x, y, w, h, color, clip);
+    fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip) {
+        if w == 0 || h == 0 {
+            return;
+        }
+
+        let a = (w as f32 - 1.0) / 2.0;
+        let b = (h as f32 - 1.0) / 2.0;
+        let cx = x as f32 + a;
+        let cy = y as f32 + b;
+        let da = a.max(0.5);
+        let db = b.max(0.5);
+        let start = start_angle as f32;
+        let sweep = arc_angle as f32;
+
+        for py in y..y + h as i32 {
+            for px in x..x + w as i32 {
+                let nx = (px as f32 - cx) / da;
+                let ny = (py as f32 - cy) / db;
+                if nx * nx + ny * ny > 1.0 {
+                    continue;
+                }
+                if !point_in_sweep(px as f32, py as f32, cx, cy, start, sweep) {
+                    continue;
+                }
+                self.plot(px, py, color, &clip);
+            }
+        }
     }
 
-    fn fill_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, _arc_width: u32, _arc_height: u32, color: Color, clip: Clip) {
-        // TODO unimplemented
-        self.fill_rect(x, y, w, h, color, clip);
+    fn fill_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip) {
+        if w == 0 || h == 0 {
+            return;
+        }
+        if arc_width == 0 || arc_height == 0 {
+            return self.fill_rect(x, y, w, h, color, clip);
+        }
+
+        let rx = (arc_width.min(w) as f32 / 2.0).max(0.5);
+        let ry = (arc_height.min(h) as f32 / 2.0).max(0.5);
+
+        let left_center = x as f32 + rx;
+        let right_center = (x + w as i32 - 1) as f32 - rx;
+        let top_center = y as f32 + ry;
+        let bottom_center = (y + h as i32 - 1) as f32 - ry;
+
+        for py in y..y + h as i32 {
+            let cy = if (py as f32) < top_center {
+                top_center
+            } else if (py as f32) > bottom_center {
+                bottom_center
+            } else {
+                py as f32
+            };
+            for px in x..x + w as i32 {
+                let cx = if (px as f32) < left_center {
+                    left_center
+                } else if (px as f32) > right_center {
+                    right_center
+                } else {
+                    px as f32
+                };
+
+                let nx = (px as f32 - cx) / rx;
+                let ny = (py as f32 - cy) / ry;
+                if nx * nx + ny * ny <= 1.0 {
+                    self.plot(px, py, color, &clip);
+                }
+            }
+        }
     }
 
     fn put_pixel(&mut self, x: i32, y: i32, color: Color) {
@@ -562,5 +712,128 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    fn full_clip(size: u32) -> Clip {
+        Clip {
+            x: 0,
+            y: 0,
+            width: size,
+            height: size,
+        }
+    }
+
+    const WHITE: Color = Color {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+
+    fn is_set(image: &impl Image, x: i32, y: i32) -> bool {
+        let c = image.get_pixel(x, y);
+        c.r != 0 || c.g != 0 || c.b != 0
+    }
+
+    #[test]
+    fn test_fill_arc_full_circle() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        canvas.fill_arc(0, 0, 32, 32, 0, 360, WHITE, full_clip(32));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 16, 16), "center should be filled");
+        assert!(!is_set(&image, 0, 0), "corner should be outside the ellipse");
+        assert!(!is_set(&image, 31, 31), "corner should be outside the ellipse");
+    }
+
+    #[test]
+    fn test_fill_arc_quadrant() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        // 0..90 deg sweeps from 3 o'clock CCW to 12 o'clock => upper-right quadrant
+        canvas.fill_arc(0, 0, 32, 32, 0, 90, WHITE, full_clip(32));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 24, 8), "upper-right quadrant should be filled");
+        assert!(!is_set(&image, 8, 8), "upper-left quadrant should be empty");
+        assert!(!is_set(&image, 8, 24), "lower-left quadrant should be empty");
+        assert!(!is_set(&image, 24, 24), "lower-right quadrant should be empty");
+    }
+
+    #[test]
+    fn test_fill_arc_negative_sweep_is_clockwise() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        // 0..-90 deg sweeps CW from 3 o'clock to 6 o'clock => lower-right quadrant
+        canvas.fill_arc(0, 0, 32, 32, 0, -90, WHITE, full_clip(32));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 24, 24), "lower-right quadrant should be filled");
+        assert!(!is_set(&image, 24, 8), "upper-right quadrant should be empty");
+    }
+
+    #[test]
+    fn test_draw_arc_endpoint() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        canvas.draw_arc(0, 0, 32, 32, 0, 360, WHITE, full_clip(32));
+        let image = canvas.into_inner();
+
+        // bounding box 32x32 => center (15.5, 15.5), radius 15.5; nominal endpoints round to:
+        assert!(is_set(&image, 31, 16), "3 o'clock (0 deg) point");
+        assert!(is_set(&image, 16, 0), "12 o'clock (90 deg) point");
+        assert!(is_set(&image, 0, 16), "9 o'clock (180 deg) point");
+        assert!(is_set(&image, 16, 31), "6 o'clock (270 deg) point");
+        assert!(!is_set(&image, 16, 16), "arc outline must not fill the interior");
+    }
+
+    #[test]
+    fn test_draw_round_rect_outline() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        canvas.draw_round_rect(0, 0, 32, 32, 16, 16, WHITE, full_clip(32));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 16, 0), "top straight edge");
+        assert!(is_set(&image, 16, 31), "bottom straight edge");
+        assert!(is_set(&image, 0, 16), "left straight edge");
+        assert!(is_set(&image, 31, 16), "right straight edge");
+        assert!(!is_set(&image, 0, 0), "rounded corner cut away");
+        assert!(!is_set(&image, 16, 16), "outline must not fill the interior");
+    }
+
+    #[test]
+    fn test_fill_arc_degenerate_width() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(8, 8));
+        canvas.fill_arc(3, 0, 1, 8, 0, 360, WHITE, full_clip(8));
+        let image = canvas.into_inner();
+
+        for y in 0..8 {
+            assert!(is_set(&image, 3, y), "degenerate 1px-wide column should be fully filled (y={y})");
+        }
+    }
+
+    #[test]
+    fn test_fill_round_rect_corners_empty() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        canvas.fill_round_rect(0, 0, 32, 32, 16, 16, WHITE, full_clip(32));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 16, 16), "center should be filled");
+        assert!(is_set(&image, 16, 0), "straight top edge should be filled");
+        assert!(!is_set(&image, 0, 0), "rounded corner should be empty");
+        assert!(!is_set(&image, 31, 0), "rounded corner should be empty");
+    }
+
+    #[test]
+    fn test_arc_respects_clip() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        let clip = Clip {
+            x: 0,
+            y: 0,
+            width: 16,
+            height: 32,
+        };
+        canvas.fill_arc(0, 0, 32, 32, 0, 360, WHITE, clip);
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 8, 16), "inside clip should be filled");
+        assert!(!is_set(&image, 24, 16), "outside clip must not be filled");
     }
 }

@@ -296,8 +296,8 @@ impl Graphics {
             (translate_y + y) as _,
             width as _,
             height as _,
-            start_angle as _,
-            arc_angle as _,
+            start_angle,
+            arc_angle,
             Rgb8Pixel::to_color(rgb as _),
             clip,
         );
@@ -682,8 +682,8 @@ impl Graphics {
             (translate_y + y) as _,
             width as _,
             height as _,
-            start_angle as _,
-            arc_angle as _,
+            start_angle,
+            arc_angle,
             Rgb8Pixel::to_color(rgb as _),
             clip,
         );
