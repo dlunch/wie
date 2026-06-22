@@ -290,6 +290,14 @@ impl ClassDefinition for JavaClassDefinition {
         }
     }
 
+    fn interface_names(&self) -> Vec<String> {
+        Vec::new() // TODO we don't store interface now
+    }
+
+    async fn prepare(&self, _: &Jvm) -> JvmResult<()> {
+        Ok(())
+    }
+
     fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Method>> {
         self.method(name, descriptor, is_static).unwrap().map(|x| Box::new(x) as _)
     }
