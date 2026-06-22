@@ -105,7 +105,7 @@ struct MemoryDatabaseRepository {
 
 #[async_trait::async_trait]
 impl DatabaseRepository for MemoryDatabaseRepository {
-    async fn open(&self, _system: &wie_backend::System, name: &str, app_id: &str) -> Box<dyn Database> {
+    async fn open(&self, name: &str, app_id: &str) -> Box<dyn Database> {
         let key = (app_id.to_string(), name.to_string());
         self.store.lock().entry(key.clone()).or_default();
         Box::new(MemoryDatabase {
@@ -114,11 +114,11 @@ impl DatabaseRepository for MemoryDatabaseRepository {
         })
     }
 
-    async fn exists(&self, _system: &wie_backend::System, name: &str, app_id: &str) -> bool {
+    async fn exists(&self, name: &str, app_id: &str) -> bool {
         self.store.lock().contains_key(&(app_id.to_string(), name.to_string()))
     }
 
-    async fn delete(&self, _system: &wie_backend::System, name: &str, app_id: &str) -> bool {
+    async fn delete(&self, name: &str, app_id: &str) -> bool {
         self.store.lock().remove(&(app_id.to_string(), name.to_string())).is_some()
     }
 }
