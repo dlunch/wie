@@ -1,3 +1,18 @@
 /target
 .vscode
 .cargo
+.DS_Store
+
+# Local agent working notes / RE derivation logs (kept local, not in the PR;
+# their content is consolidated into docs/lgt_abi.md)
+/CLAUDE_TASK_*.md
+/STEP2_REPORT.md
+/BRIDGE_REPORT.md
+
+# Test ROMs and game binaries (never commit)
+_roms/
+roms/
+*.jar
+*.sav
+*.mod
+*.log
