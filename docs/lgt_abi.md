@@ -830,6 +830,36 @@ wall, Foundation PR finalised.** A per-frame probe of the scene singleton
   and is **internal** — not an external input/time wall (cp37 holds: `field[0x78]` is
   polled internally, no input/timer dependency). **Foundation PR finalised.**
 
+**cp53 — CORRECTION to cp52: `field[0x78]` is a counter, not a data slot; the real
+blocker is an unhandled scene-state.** Deeper re-tracing showed the cp52 coordinate was
+imprecise (the cp52 text above is kept for the RE narrative; this corrects it):
+- *`field[0x78]` is a counter/state field, NOT the "resource-data slot".* Of the 28
+  `str [.,#0x78]` sites, `o.f` does `add ip,ip,#1` (increment), `o.k` does `sub r2,r2,#1`
+  (decrement), `i.aa` stores a literal-pool constant, and `o.g`/`o.h` clear it to 0. So
+  "the data slot never fills" was wrong — `field[0x78]` is not a load-completion pointer.
+- *The real blocker is the app's scene-state machine `i.a()V` @0x6fac4* — a `switch` on
+  **`field[0x74]`** (the value cp52 read as `8`), which advances `field[0x54]` via `i.U`.
+  Its handled states are `{0,3,0xc,0xd,0x14,0x1e,0x1f,0x21,0x28,0x31,0x50,0x51}` — **not
+  `8`**, so the observed `field[0x74]=8` falls to the default (no progress) and the scene
+  state never advances. The foundation's drive (`i.a(I)V` enter + `i.aE` step) does not
+  run this machine: `i.a(I)V` writes `field[0x1c]`, `i.aE` only iterates the empty
+  `field[0xd4]` array. *Experiment (reverted):* driving `i.a()V` per frame left
+  `field[0x74]=8, [0x54]=0, [0x44]=0, [0xd4]=0` unchanged — no advance, no draws.
+- *Populate path (unchanged):* the scene-object array is built by `i.c(I)→i.aa(I)` (a
+  singleton-field state machine, not a file read), under a real `field[0x74]` state that
+  is never reached.
+- *(가)/(나) status — still internal, not decisively classified.* The app builds resource
+  path strings but uses no reachable `File`/`Image`/stream (cp45), so file-read code
+  likely *exists but is gated* by the unhandled state — leaning toward internally
+  resolvable, with the gate being the unresolved obfuscated state machine. Static
+  writer-attribution is hard because the field offsets (`0x44/0x54/0x74/0x78/0xd4`) are
+  **reused across many classes** (d/i/j/l/o). A clean breakthrough needs dynamic
+  memory-watchpoint tracing (watch the b-singleton's `field[0x74]`/`[0x44]` writer) — not
+  exposed by wie's `ArmCore` today — or the ez-i SDK resource-runtime spec. **Unresolved,
+  precise next coordinates: who sets `field[0x74]=8` and why it's an unhandled state; the
+  `field[0x44]` writer for the b-singleton; the `i.c→i.aa` populate trigger.** Not an
+  external input/time wall (cp37/52 hold).
+
 ---
 
 ## 8. Current reach
@@ -857,5 +887,5 @@ wall, Foundation PR finalised.** A per-frame probe of the scene singleton
 | self-sustaining frame loop (cp44) | ✅ `drive_card_step` schedules `repaint()` each tick → o.paint 3 → 362 frames (~45 fps); idle gone; background renders continuously |
 | `[+0xd4]` keystone measured (cp47) | ✅ identity split real (`getInstance(b)≠card`) but **not** the blocker — `[+0xd4]=0` on both ⇒ the populate command (`i.b(0x46)`) never runs (hyp 3). cp48 identity-alias reverted (regressed flow) |
 | `0xb`/`0xd` lazy class/instance init (cp51) | ✅ implemented (`0xd`=run instance init_fn at `field[0x10]!=5`; `0xb`=mark class flag at `[[class+8]+0x1a]!=3`); removed a 3665×/run spin; genuine init fix |
-| full title (logo/sprites/text) — **(ii) wall, scoped future work** | ⛔ cp52: the data load **is requested** (`getInstance(b).field[0x74]=8`) but its data **never fills** (`field[0x78]=0` over 293 frames; state machine stuck, `field[0x54]=0`). The completion (`field[0x78]` fill) is the obfuscated resource subsystem (cp49/50) — `field[0x78]` writers only *clear* it; the *fill* has **no single measurable contract / no drivable hook** (cp50/52). Not File/Image/stdlib; **internal**, not an input/time wall (cp37). Whole-subsystem RE, not a one-import fix |
+| full title (logo/sprites/text) — **scoped future work** | ⛔ cp53 (corrects cp52): the app's scene-state machine `i.a()V` @0x6fac4 (a `switch` on `field[0x74]`) is parked on the observed state **`8`, which it does not handle** → `field[0x54]` never advances → scene-object array (`field[0xd4]`) stays empty → no `drawImage`/`drawString`. (cp52's "`field[0x78]` data slot never fills" was imprecise — `field[0x78]` is a counter: `o.f`++/`o.k`--.) Populate is internal (`i.c→i.aa`), not File/Image/stream; **internal**, not an input/time wall (cp37). Clean breakthrough needs memory-watchpoint tracing or the ez-i resource spec — precise coordinates in §7 cp53 |
 | clet regression (`test_helloworld`) / `clippy -p wie_lgt` | ✅ clean |

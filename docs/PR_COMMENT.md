@@ -11,11 +11,16 @@ lifecycle, now driven from `LgtJvmShared`. As a check that this is genuine rathe
 hack, the `o.g` render gate is set by the **app's own scene setup**, not forced — and
 `o.paint` then draws every frame (~45 fps) through wie's MIDP loop.
 
-The boundary is precise and documented: the title's sprites/text need a requested
-resource's data slot (`field[0x78]`) to fill, and it never does — that's inside the app's
-obfuscated internal data subsystem (a request *is* issued; only the completion is
-unreached). It's an internal mechanism, not an external input/time dependency. Details and
-the full RE trail are in `docs/lgt_abi.md` §7/§8.
+The boundary is precise and documented: the title's sprites/text are blocked because the
+app's internal scene-state machine (`i.a()V` @0x6fac4, a `switch` on `field[0x74]`) sits on
+a state value it doesn't handle, so the scene never advances to populate its objects. It's
+an internal mechanism, not an external input/time dependency. Details and the full RE trail
+are in `docs/lgt_abi.md` §7/§8.
+
+(Correction for transparency: an earlier version of this description called the blocker a
+resource "data slot" `field[0x78]` that never fills. On closer tracing that field is
+actually a counter/state field, and the real blocker is the unhandled state in the
+scene-state `switch` above — I've corrected the PR description and ABI doc accordingly.)
 
 Everything is LGT-specific in `LgtJvmShared`; shared `wie_midp` / `wie_wipi_java` classes
 are untouched. The branch is a long series of small RE checkpoints, so **"Squash and

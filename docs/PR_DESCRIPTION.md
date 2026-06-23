@@ -4,10 +4,11 @@
 > class emitted as native ARM + a `.data` descriptor, not JVM bytecode). It **boots
 > through wie's shared lcdui path and reaches a self-sustaining render loop** (the card
 > paints every frame, ~45 fps, real MIDP Graphics — background). The boundary is precise:
-> the title's sprites/text are blocked at one spot — a requested resource's data slot
-> (`field[0x78]`) never fills, inside the app's obfuscated internal data subsystem. Shared
-> `wie_midp` / `wie_wipi_java` classes are **not modified** (#1232) — all PoC code is in
-> `LgtJvmShared`.
+> the title's sprites/text are blocked because the app's internal scene-state machine
+> (`i.a()V`, a `switch` on `field[0x74]`) sits on a state value it does not handle, so the
+> scene never advances to populate its objects. It's an internal mechanism, not an external
+> input/time dependency. Shared `wie_midp` / `wie_wipi_java` classes are **not modified**
+> (#1232) — all PoC code is in `LgtJvmShared`.
 >
 > **Why this might be useful** — The hard part was the ez-i **per-frame render driver**,
 > which earlier looked like an undocumented displayable/clet ABI. RE showed it is *not* an
@@ -117,22 +118,26 @@ schedules `repaint()` so the loop self-sustains. The back-buffer flushes through
 existing MIDP path — **no shared-class changes** (#1232). This is the landmark the
 foundation set out to find.
 
-**Remaining for the full title — the app's resource/data subsystem (precise wall).**
-A per-frame probe of the scene singleton (cp52) pinned exactly where it stops: the data
-load **is requested** — `getInstance(b).field[0x74] = 8` (resource id) — and the game
-**polls `field[0x78]` (the data slot) every frame for completion**, but it **never fills**
-(0 over 293 frames), so the scene-machine state (`field[0x54]`) never advances, the
-scene-object array (`field[0xd4]`) stays empty, and no `createImage`/`drawImage` is ever
-reached. The completion (`field[0x78]` fill) is **not** a single drivable hook: every
-`field[0x78]` writer only *clears* it (request markers); the actual *fill* with bytes is
-the app's obfuscated resource subsystem (`o.g(id)`→`i.b(id)`→`0x706c`, traced to its leaf
-in `docs/lgt_abi.md` §7, cp42/45/49/50/52) which uses **no** standard `File`/`Image`/
-stream API and exposes **no single measurable `read(id)→bytes` contract**. The
-class/instance lazy-init tier (`0xb`/`0xd`) was measured and implemented (cp51) but proven
-**not** to be that data source. Unblocking the full title is a large, self-contained
-RE effort (the id→data mapping + in-memory layout of that subsystem). It is an **internal**
-mechanism — **not** an external input/time dependency (cp37: `field[0x78]` is polled
-internally) — so it is implementable, just sizeable; the precise unknowns are in §7/§8.
+**Remaining for the full title — an unhandled state in the app's scene-state machine.**
+*(An earlier draft of this section described the blocker as a resource "data slot"
+`field[0x78]` that never fills; closer re-tracing — see `docs/lgt_abi.md` §7 cp53 —
+showed that field is actually a counter, so this is the corrected account.)* The card's
+per-frame scene-state machine is `i.a()V` @0x6fac4, a `switch` on **`field[0x74]`**. Its
+handled states are `{0,3,0xc,0xd,0x14,0x1e,0x1f,0x21,0x28,0x31,0x50,0x51}`, but the
+observed value is **`8`**, which it does **not** handle → it hits the default and does not
+advance `field[0x54]` → the scene-object array (`field[0xd4]`) stays empty → no
+`createImage`/`drawImage` is reached. The foundation's drive (`i.a(I)V` enter + `i.aE`
+step) does not run this machine (`i.a(I)V` writes `field[0x1c]`; `i.aE` only iterates the
+empty `field[0xd4]`), and an experiment driving `i.a()V` per frame did not advance it
+either. The populate itself is internal (`i.c(I)→i.aa(I)`, a singleton-field machine — not
+a file read), gated on a `field[0x74]` state that is never reached. It is an **internal**
+mechanism — **not** an external input/time dependency (cp37). Two honest difficulties: the
+relevant field offsets (`0x44/0x54/0x74/0x78/0xd4`) are **reused across many app classes**,
+so static writer-attribution is ambiguous; and a clean breakthrough likely needs **dynamic
+memory-watchpoint tracing** (to catch who sets `field[0x74]=8`) — not currently exposed by
+wie's `ArmCore` — or the **ez-i SDK resource-runtime spec**. The precise open coordinates
+(who sets `field[0x74]=8` / why it's unhandled / the `field[0x44]` writer / the `i.c→i.aa`
+trigger) are recorded in §7 cp53.
 
 ## Verification
 
