@@ -6,10 +6,11 @@ use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId, stdlib};
 use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
+use crate::runtime::java::native_jvm::LgtJvmShared;
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
 
-pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Result<()> {
-    async fn handle_stdlib_svc(core: &mut ArmCore, system: &mut System, id: SvcId) -> Result<()> {
+pub fn register_stdlib_svc_handler(core: &mut ArmCore, shared: &LgtJvmShared) -> Result<()> {
+    async fn handle_stdlib_svc(core: &mut ArmCore, shared: &mut LgtJvmShared, id: SvcId) -> Result<()> {
         let (_, lr) = core.read_pc_lr()?;
 
         match id.0 {
@@ -24,14 +25,22 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&stdlib::strlen, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&stdlib::memcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&stdlib::memset, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Time as u32 => EmulatedFunction::call(&time, core, system).await?.write(core, lr),
+            x if x == StdlibSvcId::Time as u32 => EmulatedFunction::call(&time, core, &mut shared.system).await?.write(core, lr),
             x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk3 as u32 => EmulatedFunction::call(&unk3, core, &mut ()).await?.write(core, lr),
+            // Native `new` primitive: allocate a guest object; the <init> trampoline
+            // binds it to a JVM instance of the constructed class. (Identified in
+            // checkpoint 7: `obj = 0x32(...); obj.<init>()`, e.g. new StringBuffer.)
+            x if x == StdlibSvcId::Unk0x32 as u32 => {
+                let ptr = shared.alloc_native_object(core)?;
+                tracing::debug!("stdlib new (0x32) -> {ptr:#x}");
+                ptr.write(core, lr)
+            }
             _ => Err(WieError::FatalError(format!("Unknown lgt stdlib import: {:#x}", id.0))),
         }
     }
 
-    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, system)
+    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, shared)
 }
 
 async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
