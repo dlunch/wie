@@ -16,6 +16,9 @@ pub enum InitSvcId {
     JavaLoadClasses = 10,
     JavaUnk9 = 11,
     JavaUnk11 = 12,
+    JavaInterfaceUnk84 = 13,
+    JavaInterfaceStub = 14,
+    JavaNewObject = 15,
 }
 
 impl TryFrom<SvcId> for InitSvcId {
@@ -36,6 +39,9 @@ impl TryFrom<SvcId> for InitSvcId {
             10 => Self::JavaLoadClasses,
             11 => Self::JavaUnk9,
             12 => Self::JavaUnk11,
+            13 => Self::JavaInterfaceUnk84,
+            14 => Self::JavaInterfaceStub,
+            15 => Self::JavaNewObject,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown LGT init SVC id {}", value.0))),
         })
     }
@@ -261,6 +267,7 @@ impl From<WIPICSvcId> for u32 {
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum StdlibSvcId {
+    Unk0x32 = 0x32,
     Unk2 = 0x3f6,
     Atoi = 0x3fb,
     Strcpy = 0x405,

@@ -11,22 +11,33 @@ use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
 use super::{
-    SVC_CATEGORY_INIT, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPIC,
+    SVC_CATEGORY_INIT, SVC_CATEGORY_JAVA_INTERFACE, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPIC,
     java::{
         get_java_interface_method,
-        interface::{java_load_classes, java_unk0, java_unk5, java_unk9, java_unk11, java_unk12},
+        interface::{
+            handle_java_interface_svc, java_interface_stub, java_interface_unk84, java_load_classes, java_unk0, java_unk5, java_unk9, java_unk11,
+            java_unk12,
+        },
+        native_jvm::{LgtJvmShared, register_app_classes, register_java_trampoline_handler},
     },
     stdlib::register_stdlib_svc_handler,
     svc_ids::InitSvcId,
     wipi_c::register_wipic_svc_handler,
 };
 
-fn register_init_svc_handler(core: &mut ArmCore) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_INIT, handle_init_svc, &(SVC_CATEGORY_WIPIC, SVC_CATEGORY_STDLIB))
+fn register_init_svc_handler(core: &mut ArmCore, shared: &LgtJvmShared) -> Result<()> {
+    core.register_svc_handler(
+        SVC_CATEGORY_INIT,
+        handle_init_svc,
+        &(SVC_CATEGORY_WIPIC, SVC_CATEGORY_STDLIB, shared.clone()),
+    )
 }
 
-async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): &mut (u32, u32), id: SvcId) -> Result<()> {
+async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category, shared): &mut (u32, u32, LgtJvmShared), id: SvcId) -> Result<()> {
     let (_, lr) = core.read_pc_lr()?;
+
+    // Java-interface handlers that need JVM/System/trampoline access share this.
+    let mut java_ctx = shared.clone();
 
     match InitSvcId::try_from(id)? {
         InitSvcId::GetImportTable => EmulatedFunction::call(&get_import_table, core, &mut ()).await?.write(core, lr),
@@ -40,18 +51,26 @@ async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): 
         InitSvcId::JavaUnk3 => EmulatedFunction::call(&java_unk3, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaInterfaceUnk0 => EmulatedFunction::call(&java_unk0, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaInterfaceUnk12 => EmulatedFunction::call(&java_unk12, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaInterfaceUnk5 => EmulatedFunction::call(&java_unk5, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaLoadClasses => EmulatedFunction::call(&java_load_classes, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaInterfaceUnk5 => EmulatedFunction::call(&java_unk5, core, &mut java_ctx).await?.write(core, lr),
+        InitSvcId::JavaLoadClasses => EmulatedFunction::call(&java_load_classes, core, &mut java_ctx).await?.write(core, lr),
         InitSvcId::JavaUnk9 => EmulatedFunction::call(&java_unk9, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaUnk11 => EmulatedFunction::call(&java_unk11, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaUnk11 => EmulatedFunction::call(&java_unk11, core, &mut java_ctx).await?.write(core, lr),
+        InitSvcId::JavaInterfaceUnk84 => EmulatedFunction::call(&java_interface_unk84, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaInterfaceStub => EmulatedFunction::call(&java_interface_stub, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaNewObject => java_ctx.alloc_native_object(core)?.write(core, lr),
     }
 }
 
 pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
-    let entrypoint = load_executable(core, data)?;
+    let LoadedExecutable { entrypoint, data_range } = load_executable(core, data)?;
     register_wipic_svc_handler(core, system, jvm)?;
-    register_stdlib_svc_handler(core, system)?;
-    register_init_svc_handler(core)?;
+
+    // Shared LGT native-JVM runtime (instance registry + native->platform trampolines).
+    let shared = LgtJvmShared::new(jvm.clone(), system.clone());
+    register_stdlib_svc_handler(core, &shared)?;
+    register_java_trampoline_handler(core, &shared)?;
+    register_init_svc_handler(core, &shared)?;
+    core.register_svc_handler(SVC_CATEGORY_JAVA_INTERFACE, handle_java_interface_svc, &shared)?;
 
     let ptr_init_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     let ptr_init_param_2 = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
@@ -83,6 +102,16 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, dat
 
     tracing::debug!("InitStruct: {:#x?}", init_param_1.ptr_init_struct);
     let init_struct: InitStruct = read_generic(core, init_param_1.ptr_init_struct)?;
+
+    // Register the app's native classes with the JVM before the initializer runs
+    // (the initializer drives the Java-interface boot, incl. Main.main -> new Game).
+    // No-op for WIPI-C clet apps, whose `.data` holds no class descriptors.
+    if let Some((data_start, data_end)) = data_range {
+        let registered = register_app_classes(jvm, core, &shared, data_start, data_end).await?;
+        if !registered.is_empty() {
+            tracing::info!("LGT native JVM: registered {} app classes: {registered:?}", registered.len());
+        }
+    }
 
     tracing::debug!("Calling initializer at {:#x}", init_struct.fn_init);
     let _: () = core.run_function(init_struct.fn_init, &[]).await?;
@@ -121,7 +150,14 @@ async fn get_import_function(core: &mut ArmCore, wipic_category: u32, stdlib_cat
     })
 }
 
-fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
+/// The loaded executable's entrypoint plus the `.data` segment range
+/// (`start..end`), used to locate the app's native class descriptors.
+struct LoadedExecutable {
+    entrypoint: u32,
+    data_range: Option<(u32, u32)>,
+}
+
+fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<LoadedExecutable> {
     let elf = ElfBytes::<AnyEndian>::minimal_parse(data).map_err(|x| WieError::FatalError(format!("Failed to parse ELF binary.mod: {x}")))?;
 
     if elf.ehdr.e_machine != elf::abi::EM_ARM {
@@ -140,6 +176,8 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
     let shdrs = shdrs_opt.ok_or_else(|| WieError::FatalError("ELF is missing section headers".into()))?;
     let strtab = strtab_opt.ok_or_else(|| WieError::FatalError("ELF is missing section name string table".into()))?;
 
+    let mut data_range = None;
+
     for shdr in shdrs {
         let section_name = strtab
             .get(shdr.sh_name as usize)
@@ -147,6 +185,10 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
 
         if shdr.sh_addr != 0 {
             tracing::debug!("Section {section_name} at {:x}", shdr.sh_addr);
+
+            if section_name == ".data" {
+                data_range = Some((shdr.sh_addr as u32, (shdr.sh_addr + shdr.sh_size) as u32));
+            }
 
             let data = elf
                 .section_data(&shdr)
@@ -159,7 +201,10 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
 
     tracing::debug!("Entrypoint: {:#x}", elf.ehdr.e_entry);
 
-    Ok(elf.ehdr.e_entry as u32)
+    Ok(LoadedExecutable {
+        entrypoint: elf.ehdr.e_entry as u32,
+        data_range,
+    })
 }
 
 async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
