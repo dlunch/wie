@@ -18,6 +18,7 @@ impl SmafPlayer {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/io/InputStream;)V", Self::init, Default::default()),
                 JavaMethodProto::new("start", "()V", Self::start, Default::default()),
+                JavaMethodProto::new("start", "(Z)V", Self::start_with_repeat, Default::default()),
                 JavaMethodProto::new("stop", "()V", Self::stop, Default::default()),
                 JavaMethodProto::new("close", "()V", Self::close, Default::default()),
             ],
@@ -40,13 +41,17 @@ impl SmafPlayer {
     }
 
     async fn start(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> Result<()> {
-        tracing::debug!("net.wie.SmafPlayer::start({this:?})");
+        Self::start_with_repeat(jvm, context, this, false).await
+    }
+
+    async fn start_with_repeat(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, repeat: bool) -> Result<()> {
+        tracing::debug!("net.wie.SmafPlayer::start({this:?}, {repeat})");
 
         let audio_handle: i32 = jvm.get_field(&this, "audioHandle", "I").await?;
 
         let system = context.system();
 
-        system.audio().play(system, audio_handle as u32).unwrap();
+        system.audio().play(system, audio_handle as u32, repeat).unwrap();
 
         Ok(())
     }

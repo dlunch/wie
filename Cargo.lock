@@ -2620,7 +2620,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "smaf"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#a427527ad31fe9c23290ee6e2f53aeeac024085b"
+source = "git+https://github.com/dlunch/smaf.git#4c4ca836cc68d283267ab768b714d96d7acdc493"
 dependencies = [
  "anyhow",
  "nom 7.1.3",
@@ -2630,7 +2630,7 @@ dependencies = [
 [[package]]
 name = "smaf_player"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#a427527ad31fe9c23290ee6e2f53aeeac024085b"
+source = "git+https://github.com/dlunch/smaf.git#4c4ca836cc68d283267ab768b714d96d7acdc493"
 dependencies = [
  "smaf",
 ]
