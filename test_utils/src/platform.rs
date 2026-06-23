@@ -191,6 +191,14 @@ impl AudioSink for TestAudioSink {
     fn midi_control_change(&self, _channel_id: u8, _control: u8, _value: u8) {
         todo!()
     }
+
+    fn midi_pitch_bend(&self, _channel_id: u8, _value: u16) {
+        todo!()
+    }
+
+    fn midi_sysex(&self, _data: &[u8]) {
+        todo!()
+    }
 }
 
 #[derive(Default)]

@@ -50,4 +50,19 @@ impl wie_backend::AudioSink for AudioSink {
             x.lock().unwrap().send(&[0xC0 | channel_id, program]).unwrap()
         }
     }
+
+    fn midi_pitch_bend(&self, channel_id: u8, value: u16) {
+        if let Some(x) = self.midi_out.as_ref() {
+            x.lock()
+                .unwrap()
+                .send(&[0xE0 | channel_id, (value & 0x7f) as u8, ((value >> 7) & 0x7f) as u8])
+                .unwrap();
+        }
+    }
+
+    fn midi_sysex(&self, data: &[u8]) {
+        if let Some(x) = self.midi_out.as_ref() {
+            x.lock().unwrap().send(data).unwrap();
+        }
+    }
 }
