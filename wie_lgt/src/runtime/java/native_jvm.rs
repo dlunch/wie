@@ -580,6 +580,9 @@ impl ClassDefinition for LgtClassDefinition {
     fn super_class_name(&self) -> Option<String> {
         self.inner.super_name.clone()
     }
+    fn interface_names(&self) -> Vec<String> {
+        Vec::new() // LGT native classes don't track declared interfaces
+    }
     fn access_flags(&self) -> ClassAccessFlags {
         ClassAccessFlags::PUBLIC
     }
@@ -611,6 +614,10 @@ impl ClassDefinition for LgtClassDefinition {
 
         tracing::trace!("LGT instantiate {} -> guest {ptr_raw:#x}", self.inner.name);
         Ok(Box::new(instance))
+    }
+
+    async fn prepare(&self, _: &Jvm) -> JvmResult<()> {
+        Ok(()) // no constant-pool static initialisers to materialise for LGT native classes
     }
 
     fn method(&self, name: &str, descriptor: &str, _is_static: bool) -> Option<Box<dyn Method>> {
