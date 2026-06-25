@@ -267,7 +267,7 @@ impl From<WIPICSvcId> for u32 {
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum StdlibSvcId {
-    Unk0x32 = 0x32,
+    NewObject = 0x32,
     Unk2 = 0x3f6,
     Atoi = 0x3fb,
     Strcpy = 0x405,

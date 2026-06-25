@@ -31,7 +31,7 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, shared: &LgtJvmShared) ->
             // Native `new` primitive: allocate a guest object; the <init> trampoline
             // binds it to a JVM instance of the constructed class. (Identified in
             // checkpoint 7: `obj = 0x32(...); obj.<init>()`, e.g. new StringBuffer.)
-            x if x == StdlibSvcId::Unk0x32 as u32 => {
+            x if x == StdlibSvcId::NewObject as u32 => {
                 let ptr = shared.alloc_native_object(core)?;
                 tracing::debug!("stdlib new (0x32) -> {ptr:#x}");
                 ptr.write(core, lr)
