@@ -72,7 +72,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
 
     let system = context.system();
     let pid = system.pid().to_owned();
-    let exists = system.platform().database_repository().exists(system, &name, &pid).await;
+    let exists = system.platform().database_repository().exists(&name, &pid).await;
 
     if !exists && packaged.is_none() && mode == 1 {
         return Ok(-12); // M_E_NOENT
@@ -83,7 +83,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     // buffer with the existing record or packaged data so seek+overlay writes
     // preserve unrelated bytes (multi-slot saves at fixed byte offsets).
     let initial: Vec<u8> = if exists {
-        let mut db = system.platform().database_repository().open(system, &name, &pid).await;
+        let mut db = system.platform().database_repository().open(&name, &pid).await;
         if mode == 4 && packaged.is_none() {
             db.delete(1).await;
             Vec::new()
@@ -96,11 +96,11 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
             Vec::new()
         }
     } else if let Some(data) = packaged {
-        let mut db = system.platform().database_repository().open(system, &name, &pid).await;
+        let mut db = system.platform().database_repository().open(&name, &pid).await;
         db.set(1, &data).await;
         data
     } else if mode == 4 {
-        system.platform().database_repository().open(system, &name, &pid).await;
+        system.platform().database_repository().open(&name, &pid).await;
         Vec::new()
     } else {
         Vec::new()
@@ -200,7 +200,7 @@ pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWor
     let system = context.system();
     let pid = system.pid().to_owned();
 
-    if !system.platform().database_repository().exists(system, &name, &pid).await {
+    if !system.platform().database_repository().exists(&name, &pid).await {
         if let Some(data) = read_packaged_database(context, &name).await? {
             if capacity > 0 {
                 write_generic(context, buf_ptr, 1u32)?;
@@ -212,7 +212,7 @@ pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWor
         return Ok(-12); // M_E_NOENT
     }
 
-    let db = system.platform().database_repository().open(system, &name, &pid).await;
+    let db = system.platform().database_repository().open(&name, &pid).await;
     let ids = db.get_record_ids().await;
 
     let mut written = 0;
@@ -247,7 +247,7 @@ pub async fn exists_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord
 
     let system = context.system();
     let pid = system.pid().to_owned();
-    if system.platform().database_repository().exists(system, &name, &pid).await {
+    if system.platform().database_repository().exists(&name, &pid).await {
         Ok(0)
     } else {
         Ok(-12) // M_E_NOENT
@@ -378,8 +378,8 @@ pub async fn delete_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord
     let system = context.system();
     let pid = system.pid().to_owned();
 
-    let deleted = system.platform().database_repository().delete(system, &name, &pid).await;
-    if deleted || !system.platform().database_repository().exists(system, &name, &pid).await {
+    let deleted = system.platform().database_repository().delete(&name, &pid).await;
+    if deleted || !system.platform().database_repository().exists(&name, &pid).await {
         Ok(0)
     } else {
         Ok(-12) // M_E_NOENT
@@ -520,7 +520,7 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
 
     let system = context.system();
     let pid = system.pid().to_owned();
-    let exists = system.platform().database_repository().exists(system, &name, &pid).await;
+    let exists = system.platform().database_repository().exists(&name, &pid).await;
     if !exists {
         tracing::debug!("db.stat_by_name({name:?}, mode={mode}) -> -22 (not found)");
         return Ok(-22);
@@ -528,7 +528,7 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
 
     // Pull record 1's size as the "valid save" indicator the game checks
     // against 0xC7 in v2[2].
-    let db = system.platform().database_repository().open(system, &name, &pid).await;
+    let db = system.platform().database_repository().open(&name, &pid).await;
     let record_size = db.get(1).await.map(|x| x.len() as u32).unwrap_or(0);
 
     if out_buf != 0 {
@@ -564,7 +564,7 @@ pub async fn exists_database_ktf(context: &mut dyn WIPICContext, name_ptr: WIPIC
 
     let system = context.system();
     let pid = system.pid().to_owned();
-    let exists = system.platform().database_repository().exists(system, &name, &pid).await;
+    let exists = system.platform().database_repository().exists(&name, &pid).await;
 
     let result = if exists { 1 } else { 0 };
     tracing::debug!("MC_dbExists({name:?}) -> {result}");
@@ -594,7 +594,7 @@ async fn open_db_for_handle(context: &mut dyn WIPICContext, handle: &DatabaseHan
     let system = context.system();
     let pid = system.pid().to_owned();
 
-    Some(system.platform().database_repository().open(system, db_name, &pid).await)
+    Some(system.platform().database_repository().open(db_name, &pid).await)
 }
 
 async fn get_database_from_db_id(context: &mut dyn WIPICContext, db_id: i32) -> Result<Option<Box<dyn Database>>> {

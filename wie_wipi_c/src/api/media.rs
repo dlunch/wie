@@ -188,7 +188,7 @@ pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: W
 
     let system = context.system();
 
-    let result = system.audio().play(system, clip.handle);
+    let result = system.audio().play(system, clip.handle, repeat != 0);
 
     if let Err(x) = result {
         tracing::error!("Failed to load audio: {x:?}");

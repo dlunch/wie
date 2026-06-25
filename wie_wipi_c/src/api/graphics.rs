@@ -143,6 +143,74 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn draw_arc(
+    context: &mut dyn WIPICContext,
+    dst: WIPICIndirectPtr,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    start_angle: i32,
+    arc_angle: i32,
+    p_gctx: WIPICWord,
+) -> Result<()> {
+    tracing::debug!("MC_grpDrawArc({:#x}, {x}, {y}, {w}, {h}, {start_angle}, {arc_angle}, {p_gctx:#x})", dst.0);
+
+    if w <= 0 || h <= 0 {
+        return Ok(());
+    }
+
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
+    let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
+    let mut canvas = framebuffer.canvas(context)?;
+
+    let clip = Clip {
+        x: x as _,
+        y: y as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.draw_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn fill_arc(
+    context: &mut dyn WIPICContext,
+    dst: WIPICIndirectPtr,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    start_angle: i32,
+    arc_angle: i32,
+    p_gctx: WIPICWord,
+) -> Result<()> {
+    tracing::debug!("MC_grpFillArc({:#x}, {x}, {y}, {w}, {h}, {start_angle}, {arc_angle}, {p_gctx:#x})", dst.0);
+
+    if w <= 0 || h <= 0 {
+        return Ok(());
+    }
+
+    let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
+    let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
+    let mut canvas = framebuffer.canvas(context)?;
+
+    let clip = Clip {
+        x: x as _,
+        y: y as _,
+        width: w as _,
+        height: h as _,
+    };
+
+    let color = framebuffer.pixel_to_color(gctx.fgpxl);
+    canvas.fill_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
+    Ok(())
+}
+
 pub async fn create_image(
     context: &mut dyn WIPICContext,
     ptr_image: WIPICWord,

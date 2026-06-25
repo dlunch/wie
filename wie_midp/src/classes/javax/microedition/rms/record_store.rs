@@ -232,6 +232,6 @@ impl RecordStore {
         let system = context.system();
         let pid = system.pid().to_owned();
 
-        Ok(system.platform().database_repository().open(system, &db_name_str, &pid).await)
+        Ok(system.platform().database_repository().open(&db_name_str, &pid).await)
     }
 }

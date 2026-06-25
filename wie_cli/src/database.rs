@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use directories::ProjectDirs;
 
-use wie_backend::{RecordId, System};
+use wie_backend::RecordId;
 
 pub struct DatabaseRepository {
     base_path: PathBuf,
@@ -44,19 +44,19 @@ impl DatabaseRepository {
 
 #[async_trait::async_trait]
 impl wie_backend::DatabaseRepository for DatabaseRepository {
-    async fn open(&self, _system: &System, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
+    async fn open(&self, name: &str, app_id: &str) -> Box<dyn wie_backend::Database> {
         let path = self.get_path_for_database(name, app_id);
 
         Box::new(Database::new(path).unwrap())
     }
 
-    async fn exists(&self, _system: &System, name: &str, app_id: &str) -> bool {
+    async fn exists(&self, name: &str, app_id: &str) -> bool {
         let path = self.get_path_for_database(name, app_id);
 
         path.exists()
     }
 
-    async fn delete(&self, _system: &System, name: &str, app_id: &str) -> bool {
+    async fn delete(&self, name: &str, app_id: &str) -> bool {
         let path = self.get_path_for_database(name, app_id);
 
         tracing::trace!("Delete database at {path:?}");
