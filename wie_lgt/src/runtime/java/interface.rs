@@ -74,7 +74,7 @@ pub async fn handle_java_interface_svc(core: &mut ArmCore, shared: &mut LgtJvmSh
         //   a3 = output slot (.bss) the native code also stashes the result in
         // Confirmed by RE: `func@0x1834` reads `const[idx] = {len:u16, char[len]:u16}`
         // then calls this import to materialise the String passed to StringBuffer.append.
-        i if i == STRING_FACTORY_INDEX => java_new_string(core, shared, a1, a2).await?,
+        STRING_FACTORY_INDEX => java_new_string(core, shared, a1, a2).await?,
         // `getInstance`: return the singleton instance of the class whose descriptor
         // handle is `a0`. The AOT's `getInstance` (`func@0x18ac`) calls this and
         // dereferences the result as an object (`obj.field[..]`); it must be stable
@@ -82,12 +82,12 @@ pub async fn handle_java_interface_svc(core: &mut ArmCore, shared: &mut LgtJvmSh
         // `obj+0x20`) is shared. Identified cp20: `getInstance = import_0xc(class_handle,
         // registry)`; left as a no-op it returned 0, so the run-flag was never shared
         // and the game loop self-gated off.
-        i if i == GET_INSTANCE_INDEX => shared.singleton_instance(core, a0).await,
+        GET_INSTANCE_INDEX => shared.singleton_instance(core, a0).await,
         // `show-card` (Display.setCurrent / pushCard equivalent): the app hands the
         // platform a card guest block to display (`a0=jlet, a1=card, a2=jlet`). Rebind
         // it to the app card class and push it to wie's Display so the MIDP paint loop
         // ticks `o.paint` each frame (cp39). See `LgtJvmShared::show_card`.
-        i if i == SHOW_CARD_INDEX => {
+        SHOW_CARD_INDEX => {
             shared.show_card(a1).await?;
             0
         }
@@ -95,13 +95,13 @@ pub async fn handle_java_interface_svc(core: &mut ArmCore, shared: &mut LgtJvmSh
         // initialiser if it hasn't run yet (guarded on `field[0x10] != 5`). No-op'd,
         // getInstance singletons stayed uninitialised (empty fields → empty scene).
         // See `LgtJvmShared::lazy_instance_init`.
-        i if i == LAZY_INSTANCE_INIT_INDEX => {
+        LAZY_INSTANCE_INIT_INDEX => {
             shared.lazy_instance_init(core, a0, a1).await?;
             0
         }
         // Lazy class init (cp51): `0xb(class)` marks a class initialised so the AOT's
         // `if [[class+8]+0x1a] != 3` guard stops re-firing (it spun 3665× while no-op'd).
-        i if i == LAZY_CLASS_INIT_INDEX => {
+        LAZY_CLASS_INIT_INDEX => {
             shared.lazy_class_init(core, a0).await?;
             0
         }
