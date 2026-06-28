@@ -132,15 +132,11 @@ impl LgtJvmShared {
         }
     }
 
-    /// java-interface import `0xd` (cp51): **lazy instance initialisation**. The AOT
-    /// guards every lazy use of an instance with `if [inst.field+0x10] != 5 { 0xd(inst,
-    /// init_fn) }` — `5` = "initialised". `0xd` runs the instance's initialiser
-    /// `init_fn(inst)` once, then marks it initialised. Left as a no-op (cp50), every
-    /// getInstance singleton stayed uninitialised, so its fields (e.g. the scene-object
-    /// count `field[0x44]`) were 0 ⇒ empty scene ⇒ `[+0xd4]` never populated ⇒ no
-    /// sprites/text. `init_fn` is passed by the call site (e.g. `i.c` @0x788a0 for the
-    /// `b`/`o` card singleton). Marks initialised *before* running so a re-entrant
-    /// lazy-init guard on the same instance doesn't recurse.
+    /// java-interface import `0xd`: **lazy instance initialisation**. The AOT guards
+    /// every lazy use with `if [inst.field+0x10] != 5 { 0xd(inst, init_fn) }` (`5` =
+    /// "initialised"); run the instance initialiser `init_fn(inst)` once and mark it.
+    /// Marks initialised *before* running so a re-entrant guard on the same instance
+    /// doesn't recurse. See `docs/lgt_abi.md` §6.
     pub async fn lazy_instance_init(&self, core: &mut ArmCore, instance: u32, init_fn: u32) -> Result<()> {
         if instance == 0 || init_fn == 0 {
             return Ok(());
@@ -162,11 +158,10 @@ impl LgtJvmShared {
         Ok(())
     }
 
-    /// java-interface import `0xb` (cp51): **lazy class initialisation**. The AOT guards
-    /// class use with `if [[class+8]+0x1a] != 3 { 0xb(class) }` (`3` = "initialised";
-    /// the class header at `[class+8]` holds the state halfword at `+0x1a`). No-op'd, the
-    /// flag never reached 3, so the guard re-fired on every access (3665× per run — a
-    /// spin) and the class never set up. Mark the class initialised so the guard passes.
+    /// java-interface import `0xb`: **lazy class initialisation**. The AOT guards class
+    /// use with `if [[class+8]+0x1a] != 3 { 0xb(class) }` (`3` = "initialised"; the class
+    /// header at `[class+8]` holds the state halfword at `+0x1a`). Mark the class
+    /// initialised so the guard stops re-firing. See `docs/lgt_abi.md` §6.
     pub async fn lazy_class_init(&self, core: &mut ArmCore, class_handle: u32) -> Result<()> {
         if class_handle == 0 {
             return Ok(());
@@ -966,15 +961,12 @@ pub async fn handle_java_trampoline(core: &mut ArmCore, shared: &mut LgtJvmShare
     }
     if this.is_none() && !is_static && entry.name != "<init>" && this_raw != 0 {
         let pending = shared.pending_new.lock().contains(&this_raw);
-        // A native-`new`'d object (`pending_new`) that was initialised by raw native
-        // code (no platform `<init>` trampoline) and is now the target of a DIRECT
-        // hardcoded `vtable[N]` call. Its class is compiled away (cp12/13), so the
-        // global by-name vtable misroutes slot N to a foreign platform method (here
-        // Graphics.getClip*). RE proved (cp14) the result is DISCARDED at this call
-        // pattern (`bx ip` then `ldr r0,[fp,#-0x2c]` overwrites it) — i.e. a no-op
-        // probe. Pass it through (return 0) instead of NPE-ing, per the autopilot's
-        // r8 pass-through rule. Scoped to `pending_new` so genuinely-bound platform
-        // calls (which need a real value, e.g. layout getHeight) never reach here.
+        // A native-`new`'d object whose class is compiled away (still in `pending_new`),
+        // now the target of a direct hardcoded `vtable[N]` call the global by-name
+        // vtable misroutes to a foreign platform method. RE proved the result is
+        // discarded at this call pattern (`docs/lgt_abi.md` §6, cp14), so pass it
+        // through (return 0) rather than NPE. Scoped to `pending_new` so genuinely-bound
+        // platform calls (which need a real value) never reach here.
         if pending {
             tracing::debug!(
                 "LGT pending-new probe {}.{} this={this_raw:#x} lr={lr:#x} -> 0 (discarded, cp14)",
@@ -1101,42 +1093,17 @@ pub fn register_java_trampoline_handler(core: &mut ArmCore, shared: &LgtJvmShare
 /// the call (see `docs/lgt_abi.md` §4), not a derived spec — extend as more
 /// (class, index) pairs are observed.
 fn known_java_lang_vtable(class: &str) -> &'static [(u32, &'static str, &'static str)] {
+    // Each arm's RE (which call site pinned each slot) is in `docs/lgt_abi.md` §4/§7.
     match class {
-        // Game.<init> startup: getRuntime().<14>() result discarded (void => gc),
-        // then getRuntime().<13>() result used as a value (=> freeMemory).
         "java/lang/Runtime" => &[(13, "freeMemory", "()J"), (14, "gc", "()V")],
-        // cp10: `new StringBuffer(); sb.append(s1).append(s2).append(s3).toString()`
-        // at 0x4720 builds `"txt/" + arg + ".dat"`. Disassembly: vtable[19] (offset
-        // 0x4c) is called with one String arg and returns the StringBuffer (chained
-        // 3x) => `append(String)`; vtable[5] (offset 0x14) on the result is then read
-        // as a String => `toString()`. Behaviour-confirmed via the constant pool the
-        // append args come from. `append(String)` is synthesised in the trampoline
-        // (wie's StringBuffer has only `append([CII)`), see `handle_java_trampoline`.
-        // cp40: `i.a(Z)V` (@0x2fd94) builds resource paths
-        // (`append(String).append(int)…` → e.g. `"txt/" + id + ".dat"`): physical
-        // slot 19 (offset 0x4c) = `append(String)`, physical slot 24 (offset 0x60) =
-        // `append(int)`. RE'd by the call shape (`r5.slot24(r1)` returns the chainable
-        // receiver, `r1 = singleton.field[0x74]`) and a runtime probe (raw arg = `8`, a
-        // small int). Without slot 24 the call fell through to global slot 24 =
-        // `Display.pushCard` → fatal, blocking the scene's data/sprite loads.
+        // append(String) is synthesised in the trampoline (wie's StringBuffer has only
+        // append([CII)); see `handle_java_trampoline`.
         "java/lang/StringBuffer" => &[
             (5, "toString", "()Ljava/lang/String;"),
             (19, "append", "(Ljava/lang/String;)Ljava/lang/StringBuffer;"),
             (24, "append", "(I)Ljava/lang/StringBuffer;"),
         ],
-        // cp18: a.startApp tail does `t = new Thread(this); t.<11>()` then returns
-        // (the call's result is discarded; the Runnable is the Jlet base `a`, whose
-        // `run()` is the game loop). vtable[11] (offset 0x2c) on a freshly-constructed
-        // Thread, result unused => `start()V`. Behaviour-confirmed (Thread spawns the
-        // Runnable). Thread declares 0 imported virtuals, so it needs this per-class slot.
         "java/lang/Thread" => &[(11, "start", "()V")],
-        // cp30: the draw-text wrapper `B(Graphics, String)` (@0x100d8) calls
-        // `s.vtable[physical 35]()` (no args) then iterates the result as a char array:
-        // `r2 = [ret+8]; len = [r2]; for i in 0..len { char = [r2 + i*2 + 4] }` — a
-        // per-char glyph loop (bitmap font). The no-arg, char-array-returning String
-        // method is `toCharArray()[C`. Behaviour-RE'd cp30 (the loop reads `[ret+8]` as
-        // `{u32 len, u16 chars[]}` and bounds on `len`). String declares 0 imported
-        // virtuals, so it needs this per-class slot.
         "java/lang/String" => &[(35, "toCharArray", "()[C")],
         _ => &[],
     }
@@ -1238,15 +1205,10 @@ pub fn install_platform_tables(
     let mut method_slots = 0usize;
     let mut field_slots = 0usize;
 
-    // 1) Global virtual vtable + identity index table.
-    //
-    // RESERVED SLOT 0 (cp15): the AOT's offset-table virtual dispatch is
-    // `idx = virtual_method_offsets[ref]; bx vtable[idx + 1]` — the `+1` (a literal
-    // `ldr ip,[r3,#4]` after `add r3, r3, idx<<2`) means physical vtable slot 0 is
-    // reserved and methods start at slot 1. So method-ref `r` lives at PHYSICAL slot
-    // `r + 1`, with `virtual_method_offsets[r] = r` (the logical index). Then
-    // `vtable[offset[r] + 1] = vtable[r + 1]` correctly invokes ref `r` (verified by
-    // RE of AnnunciatorComponent.show@ref6 → was misrouting to vtable[7]=File.read).
+    // 1) Global virtual vtable + identity index table. Physical slot 0 is reserved
+    //    (`physical_vtable_slot`): ref `r` is installed at slot `r + 1` and
+    //    `virtual_method_offsets[r] = r`, so the AOT's `vtable[offset[r] + 1]` dispatch
+    //    lands on it. See `docs/lgt_abi.md` §4.
     let global_vtable = Allocator::alloc(core, (VTABLE_REFS + 1) * 4)?;
     wie_util::ByteWrite::write_bytes(core, global_vtable, &[0u8; ((VTABLE_REFS + 1) * 4) as usize])?;
     for r in 0..VTABLE_REFS {

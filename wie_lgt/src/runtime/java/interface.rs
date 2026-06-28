@@ -11,30 +11,16 @@ use crate::runtime::java::native_jvm::{LgtJvmShared, install_platform_tables, re
 use crate::runtime::wipi_c::invoke_lcdui_main;
 use crate::runtime::{SVC_CATEGORY_INIT, SVC_CATEGORY_JAVA_INTERFACE, svc_ids::InitSvcId};
 
-// LGT "java-interface" import module (table 0x64). The native application is an
-// AOT-compiled Java program (ez-i / Xceed toolchain): its classes are emitted as
-// native ARM code that registers itself with the platform through this module and
-// calls platform classes (`org/kwis/...`, `java/...`) by resolved offset.
-//
-// Decoded import indices (see `get_java_interface_method`):
-//   0x03 -> java_unk0          register main-class metadata (name, args)
-//   0x06 -> java_unk12         (paired with 0x07; takes the same struct ptr)
-//   0x07 -> java_unk5          register the app's OWN classes (native methods)
-//   0x14 -> java_load_classes  declare IMPORTED platform classes + resolve offsets
-//   0x82 -> java_unk9          (boot hook, arg always 0)
-//   0x83 -> java_unk11         invoke-static org/kwis/msp/lcdui/Main.main(argv)
+// LGT "java-interface" import module (table 0x64): the AOT-compiled app (ez-i / Xceed)
+// registers itself with the platform through here and calls platform classes by
+// resolved offset. See `docs/lgt_abi.md` §1 (thunk/dispatcher format), §3 (boot
+// imports) and §6 (import table status).
 
 /// Resolve java-interface import `function_index` (table `0x64`) to the SVC stub the
-/// native code will call.
-///
-/// How an app reaches here: each import site is a 16-byte thunk (`str lr; bl
-/// <dispatcher>; .word table; .word index`). On first use the dispatcher asks the
-/// platform to resolve `(table=0x64, index)` — which lands in this function — and the
-/// returned SVC stub is what subsequent calls trap through. Boot imports get dedicated
-/// `SVC_CATEGORY_INIT` handlers; everything else is routed by index through
-/// `SVC_CATEGORY_JAVA_INTERFACE` so each import keeps its identity (the SVC id *is* the
-/// index) and unimplemented ones are logged rather than silently merged. See
-/// `docs/lgt_abi.md` §1 for the thunk/dispatcher format and §6 for the import table.
+/// native code traps through. Boot imports get dedicated `SVC_CATEGORY_INIT` handlers;
+/// everything else is routed by index through `SVC_CATEGORY_JAVA_INTERFACE` so the SVC
+/// id *is* the import index (unimplemented indices are logged, not merged). See
+/// `docs/lgt_abi.md` §1/§6.
 pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Result<u32> {
     Ok(match function_index {
         0x03 => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaInterfaceUnk0)?,
@@ -43,17 +29,11 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x14 => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaLoadClasses)?,
         0x82 => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk9)?,
         0x83 => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk11)?,
-        // Native object allocator (`new`): `obj = java(0xf)(...); obj.<init>()`. Returns
-        // a guest object the <init> trampoline binds to a JVM instance of its class.
+        // Native object allocator (`new`): `obj = java(0xf)(...); obj.<init>()`.
         0x0f => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaNewObject)?,
-        // Runtime helper resolved lazily during native method execution (called
-        // first in every method with a small per-method constant — looks like a
-        // method-entry / stack-check / safepoint helper). Stubbed as a no-op.
+        // 0x54: method-entry/safepoint helper resolved first in every native method;
+        // no-op (추정). See `java_interface_unk84`.
         0x54 => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaInterfaceUnk84)?,
-        // Every other java-interface import is routed by its index (the SVC id *is*
-        // the import index) so it keeps its identity: it is logged with its index and
-        // specific imports (e.g. the native String factory) are implemented in
-        // `handle_java_interface_svc`. Unimplemented indices return 0 (no-op).
         _ => core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, function_index)?,
     })
 }
@@ -66,41 +46,17 @@ pub async fn handle_java_interface_svc(core: &mut ArmCore, shared: &mut LgtJvmSh
     let (a0, a1, a2, a3) = (core.read_param(0)?, core.read_param(1)?, core.read_param(2)?, core.read_param(3)?);
 
     let result = match index {
-        // Native String factory: build a `java/lang/String` from UTF-16 constant data
-        // and hand the native code a guest pointer bound to that JVM instance.
-        //   a0 = context (string-pool/runtime handle, unused here)
-        //   a1 = pointer to UTF-16 char data (the constant's length prefix already skipped)
-        //   a2 = char count
-        //   a3 = output slot (.bss) the native code also stashes the result in
-        // Confirmed by RE: `func@0x1834` reads `const[idx] = {len:u16, char[len]:u16}`
-        // then calls this import to materialise the String passed to StringBuffer.append.
+        // String factory: `(ctx, utf16_ptr=a1, count=a2, out_slot=a3)`. See the const.
         STRING_FACTORY_INDEX => java_new_string(core, shared, a1, a2).await?,
-        // `getInstance`: return the singleton instance of the class whose descriptor
-        // handle is `a0`. The AOT's `getInstance` (`func@0x18ac`) calls this and
-        // dereferences the result as an object (`obj.field[..]`); it must be stable
-        // across calls/threads so per-class state (e.g. the `a.run` run-flag at
-        // `obj+0x20`) is shared. Identified cp20: `getInstance = import_0xc(class_handle,
-        // registry)`; left as a no-op it returned 0, so the run-flag was never shared
-        // and the game loop self-gated off.
         GET_INSTANCE_INDEX => shared.singleton_instance(core, a0).await,
-        // `show-card` (Display.setCurrent / pushCard equivalent): the app hands the
-        // platform a card guest block to display (`a0=jlet, a1=card, a2=jlet`). Rebind
-        // it to the app card class and push it to wie's Display so the MIDP paint loop
-        // ticks `o.paint` each frame (cp39). See `LgtJvmShared::show_card`.
         SHOW_CARD_INDEX => {
             shared.show_card(a1).await?;
             0
         }
-        // Lazy instance init (cp51): `0xd(instance, init_fn)` runs the instance's
-        // initialiser if it hasn't run yet (guarded on `field[0x10] != 5`). No-op'd,
-        // getInstance singletons stayed uninitialised (empty fields → empty scene).
-        // See `LgtJvmShared::lazy_instance_init`.
         LAZY_INSTANCE_INIT_INDEX => {
             shared.lazy_instance_init(core, a0, a1).await?;
             0
         }
-        // Lazy class init (cp51): `0xb(class)` marks a class initialised so the AOT's
-        // `if [[class+8]+0x1a] != 3` guard stops re-firing (it spun 3665× while no-op'd).
         LAZY_CLASS_INIT_INDEX => {
             shared.lazy_class_init(core, a0).await?;
             0
@@ -114,33 +70,25 @@ pub async fn handle_java_interface_svc(core: &mut ArmCore, shared: &mut LgtJvmSh
     result.write(core, lr)
 }
 
-/// java-interface import index of the native String factory (UTF-16 chars -> String).
-/// Identified empirically (cp10): import `0x9` is invoked as
-/// `(0x1400154, <.text UTF-16 ptr>, <char count>, <.bss out slot>)` immediately
-/// before `StringBuffer.append`, and the char data matches the constant pool (e.g.
-/// `0xe7512`,len 4 = "txt/"). `func@0x1834` reads `const[idx]={len,chars}` then calls
-/// this import to materialise the String.
+/// Native String factory: `(ctx, utf16_ptr, count, out_slot)` → `java/lang/String`
+/// from constant-pool UTF-16, called right before `StringBuffer.append`. See
+/// `docs/lgt_abi.md` §6.
 const STRING_FACTORY_INDEX: u32 = 0x9;
 
-/// java-interface import index of `getInstance(class_handle)` — returns a class's
-/// canonical singleton instance. Identified cp20 (the `func@0x18ac` getInstance path
-/// calls `import_0xc(class_handle, registry)` and dereferences the result).
+/// `getInstance(class_handle)` → a class's canonical singleton instance (must be stable
+/// across calls/threads). See `docs/lgt_abi.md` §6.
 const GET_INSTANCE_INDEX: u32 = 0xc;
 
-/// java-interface import index of `show-card` (Display.setCurrent / pushCard
-/// equivalent). Identified cp39 from the `a.run` trace: `0x57(jlet, card_guest, jlet)`
-/// hands the platform the card the app `new`'d (the title card, guest `0x48840120`).
-/// Left as a no-op before cp39, so the card was never pushed and `o.paint` never ran.
+/// `show-card` (Display.setCurrent / pushCard equivalent): `(jlet, card_guest, jlet)`.
+/// See `docs/lgt_abi.md` §7 and `LgtJvmShared::show_card`.
 const SHOW_CARD_INDEX: u32 = 0x57;
 
-/// java-interface import index of lazy instance init (cp51): `0xd(instance, init_fn)`
-/// runs an instance's deferred initialiser the first time it's used (guarded by the AOT
-/// on `field[0x10] != 5`). Identified by the call shape in the getInstance helper
-/// `@0x1c304` (`if [inst+8].h[0x10] != 5 { r1 = init_fn; 0xd(inst, init_fn) }`).
+/// Lazy instance init: `0xd(instance, init_fn)` runs an instance's deferred initialiser
+/// once (AOT guard `field[0x10] != 5`). See `docs/lgt_abi.md` §6.
 const LAZY_INSTANCE_INIT_INDEX: u32 = 0xd;
 
-/// java-interface import index of lazy class init (cp51): `0xb(class)` ensures a class is
-/// initialised the first time it's used (AOT guard `if [[class+8]+0x1a] != 3`).
+/// Lazy class init: `0xb(class)` marks a class initialised (AOT guard
+/// `[[class+8]+0x1a] != 3`). See `docs/lgt_abi.md` §6.
 const LAZY_CLASS_INIT_INDEX: u32 = 0xb;
 
 /// Materialise a `java/lang/String` from `count` UTF-16 chars at guest `chars_ptr`,
@@ -198,21 +146,12 @@ pub async fn java_unk0(core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32
     Ok(())
 }
 
+/// Import `0x07`: the app hands over its OWN class registry (`a0`: `[0]`=count,
+/// `[2..]`=class handles, each `class_header + 0x4c`). This is the authoritative list
+/// of the app's classes; register them here, ahead of `load_classes` (0x14) and
+/// `Main.main` (0x83). `a1` is a trailing per-class byte array (role unconfirmed). See
+/// `docs/lgt_abi.md` §3.
 pub async fn java_unk5(core: &mut ArmCore, shared: &mut LgtJvmShared, a0: u32, a1: u32) -> Result<()> {
-    // a0: the application's OWN native class registry.
-    //   [0]    = handle count
-    //   [1]    = 0
-    //   [2..]  = `count` class HANDLES (each = class_header + 0x4c); the handle's
-    //            +0x08 word points back to the class header record in `.data`.
-    //   [2+n..]= trailing per-class byte array (small counts; role unconfirmed).
-    // Each class record carries native method/field tables whose method bodies are
-    // ARM code pointers (`.text`).
-    //
-    // This registry IS the authoritative list of the app's classes, handed to us at
-    // the point the initializer drives import `0x07` — which precedes `load_classes`
-    // (0x14) and `Main.main` (0x83) in the boot sequence (`docs/lgt_abi.md` §3). So we
-    // register the classes here, off the registry handles, before either consumer
-    // runs. `a1` is a trailing per-class byte array (role unconfirmed).
     tracing::debug!("java_unk5: app registry @ {a0:#x} (aux @ {a1:#x})");
 
     let jvm = shared.jvm.clone();
@@ -240,22 +179,14 @@ pub async fn java_load_classes(
     a9: u32,
     static_method_offsets: u32,
 ) -> Result<()> {
-    // Declares the platform classes the app imports and resolves the layout the
-    // native code uses to dispatch into them. Inputs:
-    //   classes        = LgtJavaImportedClass[count] (count-prefixed); each entry is
-    //                    { ptr_name, _, static_field_off/cnt, virtual_method_off/cnt,
-    //                      _, static_method_off/cnt } (24 bytes).
-    //   fields/static_fields/virtual_methods/a4/static_methods = arrays of
-    //                    { ptr_name, ptr_type } pairs the imported classes reference.
-    // Outputs (writable app RAM, e.g. 0x15006f4): the platform fills *_offsets with the
-    //   resolved indices / vtable offsets so the native code can call platform methods.
-    //   `install_platform_tables` (below) builds the global vtable + per-class
-    //   overrides + instance field layout that fill these. See `docs/lgt_abi.md` §4–5.
-    // The remaining input arrays (field-type pairs / alternate views) and the static
-    // output tables are not consumed yet (the resolved method/field tables suffice).
+    // Import `0x14`: declares the imported platform classes and the method/field refs
+    // they use, and points at the writable `*_offsets` tables the platform fills so the
+    // native code can dispatch into them. `install_platform_tables` builds the global
+    // vtable + per-class overrides + instance field layout. The unused input/output
+    // arrays below are not consumed yet (the resolved method/field tables suffice). See
+    // `docs/lgt_abi.md` §4–5.
     let _ = (static_fields, a4, static_field_offsets, a9);
 
-    // Fill the native -> platform method/field offset tables.
     install_platform_tables(
         core,
         shared,
@@ -275,14 +206,11 @@ pub async fn java_unk9(_core: &mut ArmCore, _: &mut (), a0: u32) -> Result<()> {
     Ok(())
 }
 
+/// Import `0x83` (invoke-static): `(class_name_ptr=a0, _=a1, argc=a2, argv_ptr=a3)`,
+/// observed as `Main.main` with `argv[0]` = the app's main Jlet class ("Game"). Boots
+/// the Jlet through the shared lcdui Main path (as the WIPI-C clet boot does). See
+/// `docs/lgt_abi.md` §3.
 pub async fn java_unk11(core: &mut ArmCore, shared: &mut LgtJvmShared, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    // Decoded calling convention (LGT java-interface import 0x83 — invoke-static):
-    //   a0 = ptr to class name cstring  (observed: "org/kwis/msp/lcdui/Main")
-    //   a1 = 0 (unused / implicit method "main")
-    //   a2 = argc
-    //   a3 = ptr to argv (array of `argc` cstring pointers)
-    // argv[0] is the application's main Jlet class name (e.g. "Game"). This mirrors
-    // the WIPI-C clet boot, which invokes the same Main.main with "net/wie/CletWrapper".
     let _ = a1;
     let class_name = read_cstring(core, a0).unwrap_or_default();
     let argc = a2 as usize;
@@ -301,7 +229,6 @@ pub async fn java_unk11(core: &mut ArmCore, shared: &mut LgtJvmShared, a0: u32, 
         return Err(WieError::FatalError("LGT java_unk11: empty main class name in argv[0]".into()));
     }
 
-    // Boot the application's main Jlet through the shared lcdui Main path.
     let mut jvm = shared.jvm.clone();
     invoke_lcdui_main(&mut jvm, &main_class).await
 }
