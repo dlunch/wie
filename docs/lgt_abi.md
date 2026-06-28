@@ -627,8 +627,12 @@ no-op'd import and turned it into working render:
   now dispatches through `i→b→o` to native `o.paint` (@0xd8d70). Guarded to genuine bound
   heap objects (ignores the carried-code `0x57`).
 - *card lifecycle (`drive_card_step`, called from `LgtMethod::run` just before the
-  card's `o.paint`).* First paint tick: run scene-enter `i.a(I)V` (@0x1d4ac) once; every
-  tick: run per-frame step `i.aE()V` (@0x72f2c). Both RE'd o.g-setter reachers (cp38).
+  card's `o.paint`).* First paint tick: run scene-enter `a(I)V` once; every
+  tick: run per-frame step `aE()V`. Both RE'd o.g-setter reachers (cp38). Their native
+  addresses (`@0x1d4ac` / `@0x72f2c` in the reference app) are resolved from the card
+  class's descriptor method table by name+signature at `show_card` time, not hardcoded;
+  a resolved address that drifts from the reference value is logged (`tracing::error!`,
+  non-fatal).
   The enter MUST run at the paint boundary, **not** mid-`a.run` — driving native code on
   the same `ArmCore` mid-SVC clobbers the in-flight context (an enter from `show_card`
   faulted the whole flow).

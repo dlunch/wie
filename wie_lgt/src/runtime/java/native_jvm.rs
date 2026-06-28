@@ -95,10 +95,17 @@ pub struct LgtJvmShared {
     /// (e.g. the `a.run` run-flag) is shared. Lazily created + cached here.
     singletons: Arc<Mutex<BTreeMap<u32, u32>>>,
     /// Whether the shown card's initial scene has been entered yet (cp39). The per-frame
-    /// driver runs the scene-enter `i.a(I)V` once on the first paint tick, then the
-    /// per-frame step `i.aE()V` every tick. Set false until the first paint so the enter
+    /// driver runs the scene-enter `a(I)V` once on the first paint tick, then the
+    /// per-frame step `aE()V` every tick. Set false until the first paint so the enter
     /// runs at a clean dispatch boundary (not mid-`a.run`, which clobbers the ARM core).
     card_entered: Arc<Mutex<bool>>,
+    /// Native code pointers of the shown card's lifecycle methods, resolved from the
+    /// card class's descriptor at `show_card` time (NOT hardcoded): scene-enter `a(I)V`
+    /// and per-frame step `aE()V`. `drive_card_step` reads these. `None` until a card
+    /// is shown (or if the method isn't found on the card class). See `docs/lgt_abi.md`
+    /// §7.
+    card_enter_ptr: Arc<Mutex<Option<u32>>>,
+    card_step_ptr: Arc<Mutex<Option<u32>>>,
 }
 
 impl LgtJvmShared {
@@ -114,6 +121,8 @@ impl LgtJvmShared {
             app_field_layouts: Arc::new(Mutex::new(Vec::new())),
             singletons: Arc::new(Mutex::new(BTreeMap::new())),
             card_entered: Arc::new(Mutex::new(false)),
+            card_enter_ptr: Arc::new(Mutex::new(None)),
+            card_step_ptr: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -299,6 +308,10 @@ impl LgtJvmShared {
                 return Ok(());
             }
         };
+        // Resolve the card's lifecycle method addresses from its descriptor (not
+        // hardcoded) for the per-frame driver. See `resolve_card_lifecycle`.
+        self.resolve_card_lifecycle(&definition);
+
         let card: Box<dyn ClassInstance> = Box::new(LgtClassInstance {
             guest_ptr: card_guest,
             definition,
@@ -338,7 +351,39 @@ impl LgtJvmShared {
         Ok(())
     }
 
-    /// Per-frame card step (cp39): run the shown card's step method `i.aE()V`
+    /// Resolve the shown card's lifecycle method addresses from its descriptor and
+    /// stash them for `drive_card_step`. The scene-enter `a(I)V` and per-frame step
+    /// `aE()V` are looked up by name+signature in the card class's parsed method table,
+    /// so the addresses come from the app's own metadata rather than literals. The
+    /// method *names* are this reference app's obfuscated symbols (app-scoped, like the
+    /// card class itself). The reference-app addresses are kept only to flag drift
+    /// (`tracing::error!`, non-fatal — no panic) if a descriptor ever resolves something
+    /// unexpected. See `docs/lgt_abi.md` §7.
+    fn resolve_card_lifecycle(&self, def: &LgtClassDefinition) {
+        const SCENE_ENTER: (&str, &str) = ("a", "(I)V");
+        const STEP: (&str, &str) = ("aE", "()V");
+        const REF_ENTER_PTR: u32 = 0x1d4ac;
+        const REF_STEP_PTR: u32 = 0x72f2c;
+
+        let enter = def.method_code_ptr(SCENE_ENTER.0, SCENE_ENTER.1);
+        let step = def.method_code_ptr(STEP.0, STEP.1);
+        match enter {
+            Some(p) if p != REF_ENTER_PTR => {
+                tracing::error!("LGT show_card: scene-enter resolved to {p:#x}, expected reference {REF_ENTER_PTR:#x}")
+            }
+            Some(p) => tracing::debug!("LGT show_card: scene-enter {}.a(I)V resolved to {p:#x}", def.name()),
+            None => tracing::warn!("LGT show_card: card class {} declares no scene-enter a(I)V", def.name()),
+        }
+        match step {
+            Some(p) if p != REF_STEP_PTR => tracing::error!("LGT show_card: step resolved to {p:#x}, expected reference {REF_STEP_PTR:#x}"),
+            Some(p) => tracing::debug!("LGT show_card: step {}.aE()V resolved to {p:#x}", def.name()),
+            None => tracing::warn!("LGT show_card: card class {} declares no step aE()V", def.name()),
+        }
+        *self.card_enter_ptr.lock() = enter;
+        *self.card_step_ptr.lock() = step;
+    }
+
+    /// Per-frame card step (cp39): run the shown card's step method `aE()V`
     /// (@0x72f2c) on the card `this`. ez-i ticks the current card each frame — advance
     /// the scene state machine, then paint — but wie only drives `paint`, so we run the
     /// step here, immediately before the card's `o.paint` (see [`LgtMethod::run`]).
@@ -350,13 +395,13 @@ impl LgtJvmShared {
         if card_this == 0 {
             return;
         }
-        const SCENE_ENTER_PTR: u32 = 0x1d4ac; // i.a(I)V — scene-enter (cp38)
-        const INITIAL_SCENE: u32 = 0; // initial/title scene (state arg, used deeper)
-        const STEP_PTR: u32 = 0x72f2c; // i.aE()V — per-frame step (cp38)
+        const INITIAL_SCENE: u32 = 0; // scene index, app-scoped
+        let enter_ptr = *self.card_enter_ptr.lock();
+        let step_ptr = *self.card_step_ptr.lock();
 
-        // First tick: enter the initial scene. `i.a(I)V`'s prologue sets the `o.g`
+        // First tick: enter the initial scene. The scene-enter's prologue sets the `o.g`
         // render gate (via the @0xdb200 setter) and runs the scene setup that
-        // initialises the state the per-frame step advances; without it `i.aE`
+        // initialises the state the per-frame step advances; without it the step
         // early-returns on uninitialised state and `o.paint` stays gated (cp38).
         let need_enter = {
             let mut entered = self.card_entered.lock();
@@ -368,16 +413,26 @@ impl LgtJvmShared {
             }
         };
         if need_enter {
-            let r: Result<u32> = core.run_function(SCENE_ENTER_PTR, &[card_this, INITIAL_SCENE]).await;
-            match r {
-                Ok(_) => tracing::debug!("LGT drive_card_step: entered scene via i.a({card_this:#x}, {INITIAL_SCENE})"),
-                Err(e) => tracing::warn!("LGT scene-enter i.a @{SCENE_ENTER_PTR:#x} this={card_this:#x} failed: {e}"),
+            match enter_ptr {
+                Some(enter_ptr) => {
+                    let r: Result<u32> = core.run_function(enter_ptr, &[card_this, INITIAL_SCENE]).await;
+                    match r {
+                        Ok(_) => tracing::debug!("LGT drive_card_step: entered scene via a@{enter_ptr:#x}({card_this:#x}, {INITIAL_SCENE})"),
+                        Err(e) => tracing::warn!("LGT scene-enter a@{enter_ptr:#x} this={card_this:#x} failed: {e}"),
+                    }
+                }
+                None => tracing::warn!("LGT drive_card_step: no resolved scene-enter pointer; skipping enter"),
             }
         }
 
-        let r: Result<u32> = core.run_function(STEP_PTR, &[card_this]).await;
-        if let Err(e) = r {
-            tracing::warn!("LGT card step i.aE @{STEP_PTR:#x} this={card_this:#x} failed: {e}");
+        match step_ptr {
+            Some(step_ptr) => {
+                let r: Result<u32> = core.run_function(step_ptr, &[card_this]).await;
+                if let Err(e) = r {
+                    tracing::warn!("LGT card step aE@{step_ptr:#x} this={card_this:#x} failed: {e}");
+                }
+            }
+            None => tracing::warn!("LGT drive_card_step: no resolved step pointer; skipping step"),
         }
 
         // cp44: sustain the frame loop. `a.run` is one-shot and the app's per-frame
@@ -563,6 +618,20 @@ impl LgtClassDefinition {
                 shared,
             }),
         }
+    }
+}
+
+impl LgtClassDefinition {
+    /// Native code pointer of a method declared on this class, by `(name, descriptor)`.
+    /// Returns `None` if the class doesn't declare it (e.g. it's inherited from a
+    /// platform ancestor). Used to resolve the card lifecycle methods' addresses from
+    /// app metadata instead of hardcoding them.
+    fn method_code_ptr(&self, name: &str, descriptor: &str) -> Option<u32> {
+        self.inner
+            .methods
+            .iter()
+            .find(|m| m.name == name && m.descriptor == descriptor)
+            .map(|m| m.code_ptr)
     }
 }
 
