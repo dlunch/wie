@@ -169,8 +169,9 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut (), arg1: u32, address: u32) ->
 async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
     tracing::trace!("register_class({ptr_class:#x})");
 
-    let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    if jvm.has_class(&class.name()?) {
+    let class: JavaClassDefinition = KtfJvmSupport::class_from_raw(core, ptr_class);
+    let class_name = class.name()?;
+    if jvm.has_class(&class_name) {
         return Ok(());
     }
 
@@ -183,6 +184,10 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
     if let Err(x) = result {
         return Err(JvmSupport::to_wie_err(jvm, x).await);
     }
+
+    // TODO we shouldn't resolve again.
+    let class = jvm.resolve_class(&class_name).await.unwrap();
+    jvm.ensure_initialized(&class).await.unwrap();
 
     Ok(())
 }
