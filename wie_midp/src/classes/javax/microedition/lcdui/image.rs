@@ -339,4 +339,18 @@ where
 
         self.raw_buffer.write(offset as _, &raw_bytes).unwrap();
     }
+
+    fn xor_pixel(&mut self, x: i32, y: i32, color: Color) {
+        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+            return;
+        }
+
+        let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
+
+        let mut buffer = vec![0; self.bytes_per_pixel() as usize];
+        self.raw_buffer.read(offset as _, &mut buffer).unwrap();
+
+        let raw = T::xor_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]), color);
+        self.raw_buffer.write(offset as _, bytemuck::bytes_of(&raw)).unwrap();
+    }
 }

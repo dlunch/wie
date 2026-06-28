@@ -1,13 +1,14 @@
-use alloc::{string::String as RustString, vec, vec::Vec};
+use alloc::{boxed::Box, string::String as RustString, vec, vec::Vec};
 
 use bytemuck::cast_vec;
 
 use jvm::{Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
+use java_constants::MethodAccessFlags;
 use java_runtime::classes::java::lang::String;
 
-use wie_backend::canvas::{Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
+use wie_backend::canvas::{ArgbPixel, Canvas as BackendCanvas, Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Font, Image};
@@ -60,6 +61,8 @@ impl Graphics {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init_with_image, Default::default()),
                 JavaMethodProto::new("reset", "()V", Self::reset, Default::default()),
+                // WIPI wrapper bridge only; this is not part of the MIDP Graphics API.
+                JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, MethodAccessFlags::PRIVATE),
                 JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, Default::default()),
                 JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
                 JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
@@ -111,6 +114,7 @@ impl Graphics {
                 JavaFieldProto::new("translateX", "I", Default::default()),
                 JavaFieldProto::new("translateY", "I", Default::default()),
                 JavaFieldProto::new("color", "I", Default::default()),
+                JavaFieldProto::new("xorMode", "Z", Default::default()),
             ],
             access_flags: Default::default(),
         }
@@ -147,6 +151,7 @@ impl Graphics {
         jvm.put_field(&mut this, "translateX", "I", 0).await?;
         jvm.put_field(&mut this, "translateY", "I", 0).await?;
         jvm.put_field(&mut this, "color", "I", 0).await?;
+        jvm.put_field(&mut this, "xorMode", "Z", false).await?;
 
         Ok(())
     }
@@ -173,6 +178,14 @@ impl Graphics {
         let rgb = (r << 16) | (g << 8) | b;
 
         jvm.put_field(&mut this, "color", "I", rgb).await?;
+
+        Ok(())
+    }
+
+    async fn set_xor_mode(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");
+
+        jvm.put_field(&mut this, "xorMode", "Z", xor_mode).await?;
 
         Ok(())
     }
@@ -246,8 +259,7 @@ impl Graphics {
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -283,8 +295,7 @@ impl Graphics {
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -310,8 +321,7 @@ impl Graphics {
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -335,8 +345,7 @@ impl Graphics {
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -366,8 +375,7 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::drawChar({this:?}, {ch}, {x}, {y}, {})", anchor.0);
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let string = RustString::from_utf16(&[ch]).unwrap();
 
@@ -400,8 +408,7 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::drawChar({this:?}, {chars:?}, {offset}, {length}, {x}, {y})");
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let chars = jvm.load_array(&chars, offset as _, length as _).await?;
         let string = RustString::from_utf16(&chars).unwrap();
@@ -438,8 +445,7 @@ impl Graphics {
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -472,8 +478,7 @@ impl Graphics {
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
         let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -503,8 +508,7 @@ impl Graphics {
         let x2 = x2 + translate_x;
         let y2 = y2 + translate_y;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(color as _));
 
@@ -528,8 +532,7 @@ impl Graphics {
 
         let src_image = Image::image(jvm, &img).await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
             -((src_image.width() / 2) as i32)
@@ -585,8 +588,7 @@ impl Graphics {
 
         let src_image = Image::image(jvm, &img).await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let x_delta = if anchor.contains(Anchor::HCENTER) {
             -width / 2
@@ -632,8 +634,7 @@ impl Graphics {
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -669,8 +670,7 @@ impl Graphics {
 
         let rgb: i32 = jvm.get_field(&this, "color", "I").await?;
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
@@ -778,14 +778,18 @@ impl Graphics {
 
         // TODO proper scanlength support
         let pixel_data: Vec<i32> = jvm.load_array(&rgb_data, offset as _, (width * height) as _).await?;
-        let src_image = VecImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
 
-        let image = Self::image(jvm, &mut this).await?;
-        let mut canvas = Image::canvas(jvm, &image).await?;
+        let mut canvas = Self::canvas(jvm, &mut this).await?;
 
         let clip = Self::clip(jvm, &this).await?;
 
-        canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0, clip);
+        if process_alpha {
+            let src_image = VecImageBuffer::<ArgbPixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
+            canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0, clip);
+        } else {
+            let src_image = VecImageBuffer::<Rgb8Pixel>::from_raw(width as _, height as _, cast_vec(pixel_data));
+            canvas.draw(x as _, y as _, width as _, height as _, &src_image, 0, 0, clip);
+        }
 
         Ok(())
     }
@@ -798,6 +802,16 @@ impl Graphics {
         jvm.put_field(&mut this, "color", "I", color).await?;
 
         Ok(())
+    }
+
+    async fn canvas(jvm: &Jvm, this: &mut ClassInstanceRef<Graphics>) -> JvmResult<Box<dyn BackendCanvas>> {
+        let image = Self::image(jvm, this).await?;
+        let mut canvas = Image::canvas(jvm, &image).await?;
+        let xor_mode: bool = jvm.get_field(this, "xorMode", "Z").await?;
+
+        canvas.set_xor_mode(xor_mode);
+
+        Ok(canvas)
     }
 
     pub async fn image(jvm: &Jvm, this: &mut ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Image>> {
@@ -841,7 +855,7 @@ impl Graphics {
 
 #[cfg(test)]
 mod test {
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, vec};
 
     use jvm::ClassInstanceRef;
 
@@ -874,14 +888,43 @@ mod test {
 
             let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
 
-            let image = Image::image(&jvm, &image).await?;
+            let backend_image = Image::image(&jvm, &image).await?;
 
-            assert_eq!(image.width(), 100);
-            assert_eq!(image.height(), 100);
+            assert_eq!(backend_image.width(), 100);
+            assert_eq!(backend_image.height(), 100);
 
-            assert_eq!(image.colors()[0].r, 0x00);
-            assert_eq!(image.colors()[0].g, 0xff);
-            assert_eq!(image.colors()[0].b, 0x00);
+            assert_eq!(backend_image.colors()[0].r, 0x00);
+            assert_eq!(backend_image.colors()[0].g, 0xff);
+            assert_eq!(backend_image.colors()[0].b, 0x00);
+
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xf00faa,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (true,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            let color = backend_image.get_pixel(0, 0);
+            assert_eq!(color.r, 0x12 ^ 0xf0);
+            assert_eq!(color.g, 0x34 ^ 0x0f);
+            assert_eq!(color.b, 0x56 ^ 0xaa);
+
+            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (false,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (true,)).await?;
+
+            let mut rgb_data = jvm.instantiate_array("I", 1).await?;
+            jvm.store_array(&mut rgb_data, 0, vec![0x00ff0000i32]).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "drawRGB", "([IIIIIIIZ)V", (rgb_data, 0, 1, 0, 0, 1, 1, true))
+                .await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            let color = backend_image.get_pixel(0, 0);
+            assert_eq!(color.r, 0x12);
+            assert_eq!(color.g, 0x34);
+            assert_eq!(color.b, 0x56);
 
             Ok(())
         })

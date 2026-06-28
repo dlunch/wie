@@ -499,10 +499,11 @@ impl Graphics {
         jvm.invoke_virtual(&midp_graphics, "setGrayScale", "(I)V", (value,)).await
     }
 
-    async fn set_xor_mode(_jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");
+    async fn set_xor_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");
 
-        Ok(())
+        let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        jvm.invoke_virtual(&midp_graphics, "setXORMode", "(Z)V", (xor_mode,)).await
     }
 
     async fn encode_image(
