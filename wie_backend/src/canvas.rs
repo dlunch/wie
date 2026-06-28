@@ -49,6 +49,7 @@ pub trait ImageBuffer: Send {
 pub trait Canvas: Send {
     fn image(&self) -> &dyn Image;
     fn set_xor_mode(&mut self, xor_mode: bool);
+    fn copy_area(&mut self, dx: i32, dy: i32, sx: i32, sy: i32, w: u32, h: u32, clip: Clip);
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip);
     fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color);
     fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color);
@@ -431,6 +432,38 @@ where
 
     fn set_xor_mode(&mut self, xor_mode: bool) {
         self.xor_mode = xor_mode;
+    }
+
+    fn copy_area(&mut self, dx: i32, dy: i32, sx: i32, sy: i32, w: u32, h: u32, clip: Clip) {
+        let image_width = (self.image_buffer.width() as i64).min(i32::MAX as i64);
+        let image_height = (self.image_buffer.height() as i64).min(i32::MAX as i64);
+
+        let x_start = (dx as i64).max(clip.x as i64).max(0);
+        let y_start = (dy as i64).max(clip.y as i64).max(0);
+        let x_end = (dx as i64 + w as i64).min(clip.x as i64 + clip.width as i64).min(image_width);
+        let y_end = (dy as i64 + h as i64).min(clip.y as i64 + clip.height as i64).min(image_height);
+
+        if x_start >= x_end || y_start >= y_end {
+            return;
+        }
+
+        let mut pixels = Vec::with_capacity(((x_end - x_start) * (y_end - y_start)) as usize);
+        for y_dst in y_start..y_end {
+            for x_dst in x_start..x_end {
+                let x_src = sx as i64 + x_dst - dx as i64;
+                let y_src = sy as i64 + y_dst - dy as i64;
+
+                if x_src < 0 || y_src < 0 || x_src >= image_width || y_src >= image_height {
+                    continue;
+                }
+
+                pixels.push((x_dst as i32, y_dst as i32, self.image_buffer.get_pixel(x_src as i32, y_src as i32)));
+            }
+        }
+
+        for (x, y, color) in pixels {
+            self.image_buffer.put_pixel(x, y, color);
+        }
     }
 
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip) {
@@ -879,6 +912,54 @@ mod tests {
         canvas.fill_rect(0, 0, 1, 1, source, full_clip(1));
 
         assert_color(canvas.image(), 0, 0, background);
+    }
+
+    #[test]
+    fn test_copy_area_uses_source_snapshot_for_overlap() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(4, 1));
+        let red = Color { a: 255, r: 255, g: 0, b: 0 };
+        let green = Color { a: 255, r: 0, g: 255, b: 0 };
+        let blue = Color { a: 255, r: 0, g: 0, b: 255 };
+        let black = Color { a: 255, r: 0, g: 0, b: 0 };
+
+        canvas.put_pixel(0, 0, red);
+        canvas.put_pixel(1, 0, green);
+        canvas.put_pixel(2, 0, blue);
+        canvas.put_pixel(3, 0, black);
+
+        canvas.copy_area(1, 0, 0, 0, 3, 1, full_clip(4));
+
+        assert_color(canvas.image(), 0, 0, red);
+        assert_color(canvas.image(), 1, 0, red);
+        assert_color(canvas.image(), 2, 0, green);
+        assert_color(canvas.image(), 3, 0, blue);
+    }
+
+    #[test]
+    fn test_copy_area_respects_clip() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(4, 1));
+        let red = Color { a: 255, r: 255, g: 0, b: 0 };
+        let green = Color { a: 255, r: 0, g: 255, b: 0 };
+        let blue = Color { a: 255, r: 0, g: 0, b: 255 };
+        let black = Color { a: 255, r: 0, g: 0, b: 0 };
+        let clip = Clip {
+            x: 2,
+            y: 0,
+            width: 1,
+            height: 1,
+        };
+
+        canvas.put_pixel(0, 0, red);
+        canvas.put_pixel(1, 0, green);
+        canvas.put_pixel(2, 0, blue);
+        canvas.put_pixel(3, 0, black);
+
+        canvas.copy_area(1, 0, 0, 0, 3, 1, clip);
+
+        assert_color(canvas.image(), 0, 0, red);
+        assert_color(canvas.image(), 1, 0, green);
+        assert_color(canvas.image(), 2, 0, green);
+        assert_color(canvas.image(), 3, 0, black);
     }
 
     #[test]

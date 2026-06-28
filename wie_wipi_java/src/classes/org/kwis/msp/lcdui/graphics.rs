@@ -6,7 +6,7 @@ use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
-use wie_midp::classes::javax::microedition::lcdui::{Font as MidpFont, Graphics as MidpGraphics};
+use wie_midp::classes::javax::microedition::lcdui::{Font as MidpFont, Graphics as MidpGraphics, Image as MidpImage};
 
 use crate::classes::org::kwis::msp::lcdui::{Display, Font, Image};
 
@@ -119,7 +119,7 @@ impl Graphics {
     }
 
     async fn copy_area(
-        _jvm: &Jvm,
+        jvm: &Jvm,
         _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         dx: i32,
@@ -129,8 +129,29 @@ impl Graphics {
         w: i32,
         h: i32,
     ) -> JvmResult<()> {
-        tracing::warn!("stub org.kwis.msp.lcdui.Graphics::copyArea({this:?}, {dx}, {dy}, {sx}, {sy}, {w}, {h})");
+        tracing::debug!("org.kwis.msp.lcdui.Graphics::copyArea({this:?}, {dx}, {dy}, {sx}, {sy}, {w}, {h})");
 
+        if w <= 0 || h <= 0 {
+            return Ok(());
+        }
+
+        let mut midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
+        let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
+        let mut canvas = MidpImage::canvas(jvm, &image).await?;
+
+        let translate_x: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateX", "()I", ()).await?;
+        let translate_y: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateY", "()I", ()).await?;
+        let clip = MidpGraphics::clip(jvm, &midp_graphics).await?;
+
+        canvas.copy_area(
+            translate_x + dx,
+            translate_y + dy,
+            translate_x + sx,
+            translate_y + sy,
+            w as _,
+            h as _,
+            clip,
+        );
         Ok(())
     }
 
@@ -576,5 +597,53 @@ impl Graphics {
         tracing::warn!("stub org.kwis.msp.lcdui.Graphics::getRGBPixels({this:?}, {x}, {y}, {width}, {height}, {pixels:?}, {offset}, {bpl})");
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::boxed::Box;
+
+    use jvm::ClassInstanceRef;
+    use test_utils::run_jvm_test;
+    use wie_midp::classes::javax::microedition::lcdui::Image as MidpImage;
+    use wie_util::Result;
+
+    use crate::{classes::org::kwis::msp::lcdui::Image, get_protos};
+
+    use super::Graphics;
+
+    #[test]
+    fn test_copy_area() -> Result<()> {
+        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
+            let image: ClassInstanceRef<Image> = jvm
+                .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (4, 1))
+                .await?;
+
+            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+
+            let colors = [0xff0000, 0x00ff00, 0x0000ff, 0x000000];
+            for (x, color) in colors.into_iter().enumerate() {
+                let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (color,)).await?;
+                let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (x as i32, 0, 1, 1)).await?;
+            }
+
+            let _: () = jvm.invoke_virtual(&graphics, "copyArea", "(IIIIII)V", (1, 0, 0, 0, 3, 1)).await?;
+
+            let midp_image = Image::midp_image(&jvm, &image).await?;
+            let backend_image = MidpImage::image(&jvm, &midp_image).await?;
+
+            let pixel0 = backend_image.get_pixel(0, 0);
+            let pixel1 = backend_image.get_pixel(1, 0);
+            let pixel2 = backend_image.get_pixel(2, 0);
+            let pixel3 = backend_image.get_pixel(3, 0);
+
+            assert_eq!((pixel0.r, pixel0.g, pixel0.b), (0xff, 0x00, 0x00));
+            assert_eq!((pixel1.r, pixel1.g, pixel1.b), (0xff, 0x00, 0x00));
+            assert_eq!((pixel2.r, pixel2.g, pixel2.b), (0x00, 0xff, 0x00));
+            assert_eq!((pixel3.r, pixel3.g, pixel3.b), (0x00, 0x00, 0xff));
+
+            Ok(())
+        })
     }
 }
