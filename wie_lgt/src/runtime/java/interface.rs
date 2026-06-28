@@ -7,7 +7,7 @@ use wie_core_arm::{ArmCore, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes};
 
-use crate::runtime::java::native_jvm::{LgtJvmShared, install_platform_tables};
+use crate::runtime::java::native_jvm::{LgtJvmShared, install_platform_tables, register_app_classes};
 use crate::runtime::wipi_c::invoke_lcdui_main;
 use crate::runtime::{SVC_CATEGORY_INIT, SVC_CATEGORY_JAVA_INTERFACE, svc_ids::InitSvcId};
 
@@ -198,7 +198,7 @@ pub async fn java_unk0(core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32
     Ok(())
 }
 
-pub async fn java_unk5(core: &mut ArmCore, _: &mut LgtJvmShared, a0: u32, a1: u32) -> Result<()> {
+pub async fn java_unk5(core: &mut ArmCore, shared: &mut LgtJvmShared, a0: u32, a1: u32) -> Result<()> {
     // a0: the application's OWN native class registry.
     //   [0]    = handle count
     //   [1]    = 0
@@ -206,39 +206,19 @@ pub async fn java_unk5(core: &mut ArmCore, _: &mut LgtJvmShared, a0: u32, a1: u3
     //            +0x08 word points back to the class header record in `.data`.
     //   [2+n..]= trailing per-class byte array (small counts; role unconfirmed).
     // Each class record carries native method/field tables whose method bodies are
-    // ARM code pointers (`.text`). See docs/lgt_native_classes.md and native_class.rs.
+    // ARM code pointers (`.text`).
     //
-    // This handler is diagnostic only (decode + trace). The actual registration of
-    // the app's native classes as JVM classes is done by `register_app_classes`,
-    // which scans the `.data` segment directly during `load_native` (it does not rely
-    // on this registry pointer). See `docs/lgt_abi.md` §3.
-    let count = read_generic::<u32, _>(core, a0).unwrap_or(0);
-    tracing::debug!("java_unk5: app registry @ {a0:#x} ({count} class handles, aux @ {a1:#x})");
+    // This registry IS the authoritative list of the app's classes, handed to us at
+    // the point the initializer drives import `0x07` — which precedes `load_classes`
+    // (0x14) and `Main.main` (0x83) in the boot sequence (`docs/lgt_abi.md` §3). So we
+    // register the classes here, off the registry handles, before either consumer
+    // runs. `a1` is a trailing per-class byte array (role unconfirmed).
+    tracing::debug!("java_unk5: app registry @ {a0:#x} (aux @ {a1:#x})");
 
-    if tracing::enabled!(tracing::Level::DEBUG) {
-        for i in 0..count.min(64) {
-            let handle = match read_generic::<u32, _>(core, a0 + 8 + i * 4) {
-                Ok(h) => h,
-                Err(_) => continue,
-            };
-            match crate::runtime::java::native_class::parse_native_class_from_handle(core, handle) {
-                Ok(class) => {
-                    tracing::debug!(
-                        "  class[{i}] {:?} (tag={:#x} access={:#x}) parent={:?} methods={} fields={}",
-                        class.name,
-                        class.tag,
-                        class.access_flags,
-                        class.parent_name,
-                        class.methods.len(),
-                        class.fields.len()
-                    );
-                    for m in class.methods.iter().take(3) {
-                        tracing::debug!("      {}{} code={:#x} locals={}", m.name, m.signature, m.code_ptr, m.num_locals);
-                    }
-                }
-                Err(e) => tracing::debug!("  class[{i}] handle={handle:#x} parse failed: {e}"),
-            }
-        }
+    let jvm = shared.jvm.clone();
+    let registered = register_app_classes(&jvm, core, shared, a0).await?;
+    if !registered.is_empty() {
+        tracing::info!("LGT native JVM: registered {} app classes: {registered:?}", registered.len());
     }
 
     Ok(())

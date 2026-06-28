@@ -101,13 +101,29 @@ in order during startup:
 | import | wie fn | meaning |
 |---|---|---|
 | `0x03` | `java_unk0` | register main-class metadata `(name="Game", _, flag="true")` |
-| `0x07` | `java_unk5` | register the app's OWN native classes (handle array @ a0) |
+| `0x07` | `java_unk5` | hands over the app's OWN class registry (handle array @ a0); wie registers each as a JVM class here (see below) |
 | `0x06` | `java_unk12` | paired with `0x07` (same struct ptr) — role unconfirmed (추정) |
 | `0x14` | `java_load_classes` | declare IMPORTED platform classes + resolve dispatch offsets (see §4) |
 | `0x82` | `java_unk9` | boot hook, arg always 0 (추정: lifecycle marker) |
 | `0x83` | `java_unk11` | invoke-static `org/kwis/msp/lcdui/Main.main(argv)`, `argv[0]="Game"` |
 | `0x0f` | `JavaNewObject` | native object allocator (`obj = 0xf(...); obj.<init>()`) |
 | `0x54` | `java_interface_unk84` | per-method entry helper (stack/safepoint check) — no-op (추정) |
+
+### App-class registration (registry-driven)
+
+`java_unk5` (`0x07`) hands wie the app's **class registry** in `a0`: a count-prefixed
+handle array (`[0]` = count, `[2..]` = `count` class handles, each
+`class_header + 0x4c`; the handle's `+0x08` word points back to the header). This is
+the app's own authoritative list of its classes. `register_app_classes` decodes each
+handle (`parse_native_class_from_handle`), computes the inherited-first instance-field
+layouts (§5), and registers each as an ARM-backed JVM class — driven entirely off this
+registry, **not** a heuristic `.data` scan.
+
+Ordering matters: `0x07` fires **before** `load_classes` (`0x14`, which consumes the
+field layouts to fill `field_offsets`) and **before** `Main.main` (`0x83`, which `new`s
+the Jlet). So registering at the `0x07` boundary guarantees the classes and their
+layouts exist before either consumer runs. (Registration cannot piggy-back on the
+earlier ELF-load step: the registry pointer only arrives with this import.)
 
 `0x83` boots the app's Jlet through the **shared lcdui Main path**
 (`invoke_lcdui_main(jvm, "Game")`), identical to the WIPI-C clet boot

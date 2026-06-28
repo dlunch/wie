@@ -44,7 +44,7 @@ use wie_core_arm::{Allocator, ArmCore, SvcId};
 use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use super::native_class::{LgtNativeClass, parse_native_class};
+use super::native_class::{LgtNativeClass, parse_native_class_from_handle};
 use crate::runtime::SVC_CATEGORY_JAVA_TRAMPOLINE;
 
 const OBJ_HEADER_SIZE: u32 = 0x0c;
@@ -1292,56 +1292,29 @@ fn make_method_trampoline(
     core.make_svc_stub(SVC_CATEGORY_JAVA_TRAMPOLINE, id)
 }
 
-// ---- app class scan + registration (unchanged structure) ----
+// ---- app class registration ----
 
-fn scan_class_headers(core: &ArmCore, data_start: u32, data_end: u32) -> Vec<u32> {
-    let in_data = |v: u32| v >= data_start && v < data_end;
-    let is_short_name = |ptr: u32| -> bool {
-        if ptr == 0 {
-            return false;
-        }
-        match read_null_terminated_string_bytes(core, ptr) {
-            Ok(b) => !b.is_empty() && b.len() <= 24 && b.iter().all(|&c| (0x20..0x7f).contains(&c)),
-            Err(_) => false,
-        }
-    };
-    let small_count = |table: u32| -> bool {
-        if table == 0 {
-            return true;
-        }
-        if !in_data(table) {
-            return false;
-        }
-        matches!(read_generic::<u32, _>(core, table), Ok(c) if c < 512)
-    };
-
-    let mut out = Vec::new();
-    let mut va = data_start;
-    while va + 0x40 <= data_end {
-        let read = |off: u32| read_generic::<u32, _>(core, va + off).unwrap_or(0);
-        let tag = read(0);
-        let parent_ok = read(0x10) == 0 || in_data(read(0x10)) || is_short_name(read(0x10));
-        if tag > 0 && tag < 0x1000 && is_short_name(read(0x08)) && parent_ok && small_count(read(0x38)) && small_count(read(0x3c)) {
-            out.push(va);
-        }
-        va += 4;
-    }
-    out
-}
-
-/// Scan the app's `.data` for native class headers and register each as an
-/// ARM-backed JVM class. No-op (empty) when none are found (clet path unaffected).
-pub async fn register_app_classes(jvm: &Jvm, core: &mut ArmCore, shared: &LgtJvmShared, data_start: u32, data_end: u32) -> Result<Vec<String>> {
-    let headers = scan_class_headers(core, data_start, data_end);
-    if headers.is_empty() {
+/// Register the app's own native classes (handed to us by import `0x07`, `java_unk5`)
+/// as ARM-backed JVM classes. `registry_ptr` (its `a0`) is the app's class registry:
+/// `[0]` = handle count, `[1]` = 0, `[2..]` = `count` class handles (each
+/// `class_header + 0x4c`; the handle's `+0x08` word points back to the header). Each
+/// handle is decoded with `parse_native_class_from_handle`. No-op (empty) when the
+/// registry is empty/absent (clet path unaffected). See `docs/lgt_abi.md` §3.
+pub async fn register_app_classes(jvm: &Jvm, core: &mut ArmCore, shared: &LgtJvmShared, registry_ptr: u32) -> Result<Vec<String>> {
+    let count = read_generic::<u32, _>(core, registry_ptr).unwrap_or(0);
+    if count == 0 || count >= 1024 {
         return Ok(Vec::new());
     }
-    tracing::debug!("LGT native JVM: found {} app class headers in .data", headers.len());
+    tracing::debug!("LGT native JVM: app registry @ {registry_ptr:#x} declares {count} class handles");
 
     let mut pending: Vec<LgtNativeClass> = Vec::new();
     let mut seen = BTreeSet::new();
-    for header in headers {
-        if let Ok(class) = parse_native_class(core, header)
+    for i in 0..count {
+        let handle = match read_generic::<u32, _>(core, registry_ptr + 8 + i * 4) {
+            Ok(h) => h,
+            Err(_) => continue,
+        };
+        if let Ok(class) = parse_native_class_from_handle(core, handle)
             && !class.name.is_empty()
             && seen.insert(class.name.clone())
         {
