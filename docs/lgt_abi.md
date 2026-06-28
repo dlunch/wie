@@ -622,10 +622,15 @@ no-op'd import and turned it into working render:
 - *show-card (`LgtJvmShared::show_card`).* The card guest block was bound to the
   platform `Card` base by its `<init>` trampoline (only `super Card.<init>` runs through
   wie, so the app's most-derived class isn't visible at bind time → `paint` would resolve
-  to the empty platform `Card.paint`). Rebind it to the app class `i` (cp38) as an
+  to the empty platform `Card.paint`). Rebind it to the app card class as an
   `LgtClassInstance` reusing the **same** guest pointer, then `Display.pushCard`. `paint`
   now dispatches through `i→b→o` to native `o.paint` (@0xd8d70). Guarded to genuine bound
-  heap objects (ignores the carried-code `0x57`).
+  heap objects (ignores the carried-code `0x57`). The card class is *derived*, not
+  assumed: the shown object is already a `Card`, and its app class is the unique deepest
+  app subclass of the platform `Card` in the registered class graph (`Card <- o <- b <- i`
+  ⇒ `i`). Identifying the obfuscated card symbol of an arbitrary app is per-app RE — a
+  documented PoC boundary; the derivation falls back to leaving the platform `Card` (no
+  forcing) when no unique deepest subclass exists.
 - *card lifecycle (`drive_card_step`, called from `LgtMethod::run` just before the
   card's `o.paint`).* First paint tick: run scene-enter `a(I)V` once; every
   tick: run per-frame step `aE()V`. Both RE'd o.g-setter reachers (cp38). Their native

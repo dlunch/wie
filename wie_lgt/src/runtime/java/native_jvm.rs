@@ -89,6 +89,11 @@ pub struct LgtJvmShared {
     /// it to fill `field_offsets` for instance fields (de-aliasing the otherwise
     /// all-zero table — see `docs/lgt_abi.md` §5).
     app_field_layouts: Arc<Mutex<AppFieldLayouts>>,
+    /// Registered app-class inheritance graph: `class name -> parent name`. Built in
+    /// `register_app_classes`; used by `resolve_card_class` to derive the shown card's
+    /// app class from the class graph (the deepest app subclass of the platform `Card`)
+    /// instead of assuming an obfuscated symbol name. See `docs/lgt_abi.md` §7.
+    app_class_graph: Arc<Mutex<BTreeMap<String, Option<String>>>>,
     /// `class descriptor handle -> singleton instance guest pointer`. The AOT's
     /// `getInstance` (java-interface import `0xc`) returns the one canonical instance
     /// of a class; it must be stable across calls (and threads) so per-class state
@@ -119,6 +124,7 @@ impl LgtJvmShared {
             class_vtables: Arc::new(Mutex::new(BTreeMap::new())),
             pending_new: Arc::new(Mutex::new(BTreeSet::new())),
             app_field_layouts: Arc::new(Mutex::new(Vec::new())),
+            app_class_graph: Arc::new(Mutex::new(BTreeMap::new())),
             singletons: Arc::new(Mutex::new(BTreeMap::new())),
             card_entered: Arc::new(Mutex::new(false)),
             card_enter_ptr: Arc::new(Mutex::new(None)),
@@ -265,17 +271,33 @@ impl LgtJvmShared {
         Some(instance)
     }
 
+    /// Derive the app class of the shown card from the registered class graph rather
+    /// than assuming an obfuscated symbol name. The shown object is already known to be
+    /// a `Card` (bound to the platform `org/kwis/msp/lcdui/Card` base by its `<init>`);
+    /// among the app's classes, the title card is the unique deepest subclass of that
+    /// base (reference app: `Card <- o <- b <- i`, so `i`). Returns `None` if no app
+    /// class extends `Card`, or if the deepest depth is not unique — `show_card` then
+    /// leaves the object as the platform `Card` (graceful fallback, no forcing).
+    ///
+    /// Identifying *which* obfuscated app class is the title card is per-app reverse
+    /// engineering — a documented PoC boundary. The graph heuristic is derived from app
+    /// metadata and verifiable (it must resolve to the title card and render), not a
+    /// hardcoded symbol. See `docs/lgt_abi.md` §7.
+    fn resolve_card_class(&self) -> Option<String> {
+        deepest_card_subclass(&self.app_class_graph.lock())
+    }
+
     /// LGT java-interface import `0x57` (show-card): the app `new`'d a card and hands
     /// it to the platform to display (observed `0x57(jlet, card_guest, jlet)` in
     /// `a.run` — cp39 trace). The guest block was bound to the platform `Card` base by
     /// its `<init>` trampoline: only the `super Card.<init>` runs through wie, so the
     /// app's most-derived class isn't visible at bind time and `paint` would resolve to
     /// the empty platform `Card.paint`. Rebind the guest block to the app's title-card
-    /// class (`i` — cp38) as an [`LgtClassInstance`] reusing the SAME guest pointer, so
-    /// `paint` dispatches through `i -> b -> o` to the native `o.paint` (the real draw
-    /// @0xd8d70), then push it to wie's `Display` so the MIDP paint loop ticks it each
-    /// frame. Left no-op before cp39, which is why `o.paint` never ran. See
-    /// `docs/lgt_abi.md` §7.
+    /// class (resolved from the shown object's class hierarchy — see `resolve_card_class`)
+    /// as an [`LgtClassInstance`] reusing the SAME guest pointer, so `paint` dispatches
+    /// through the app card chain to the native `o.paint` (the real draw @0xd8d70), then
+    /// push it to wie's `Display` so the MIDP paint loop ticks it each frame. Left no-op
+    /// before cp39, which is why `o.paint` never ran. See `docs/lgt_abi.md` §7.
     pub async fn show_card(&self, card_guest: u32) -> Result<()> {
         if card_guest == 0 {
             return Ok(());
@@ -289,22 +311,29 @@ impl LgtJvmShared {
             tracing::trace!("LGT show_card: {card_guest:#x} is not a bound object (carried-code 0x57?); ignoring");
             return Ok(());
         }
-        // App card class to rebind to. For the current reach (title) this is the title
-        // card `i` (cp38); other cards would each need their class resolved once shown.
-        const CARD_CLASS: &str = "i";
+        // Derive WHICH app card class the shown object is from the registered class
+        // graph — the title-card symbol is app-scoped; resolve it from the shown
+        // object's class hierarchy, do not assume the name. See `resolve_card_class`.
+        let card_class = match self.resolve_card_class() {
+            Some(c) => c,
+            None => {
+                tracing::warn!("LGT show_card: could not derive app card class; card {card_guest:#x} left as platform Card");
+                return Ok(());
+            }
+        };
         let jvm = self.jvm.clone();
 
-        let class = match jvm.resolve_class(CARD_CLASS).await {
+        let class = match jvm.resolve_class(&card_class).await {
             Ok(c) => c,
             Err(_) => {
-                tracing::warn!("LGT show_card: app card class {CARD_CLASS:?} not registered; card {card_guest:#x} left as platform Card");
+                tracing::warn!("LGT show_card: app card class {card_class:?} not registered; card {card_guest:#x} left as platform Card");
                 return Ok(());
             }
         };
         let definition = match class.definition.as_any().downcast_ref::<LgtClassDefinition>() {
             Some(def) => def.clone(),
             None => {
-                tracing::warn!("LGT show_card: {CARD_CLASS:?} is not an app class; card {card_guest:#x} left as-is");
+                tracing::warn!("LGT show_card: {card_class:?} is not an app class; card {card_guest:#x} left as-is");
                 return Ok(());
             }
         };
@@ -318,7 +347,7 @@ impl LgtJvmShared {
             jvm_fields: Arc::new(Mutex::new(BTreeMap::new())),
         });
         self.instances.lock().insert(card_guest, card.clone());
-        tracing::debug!("LGT show_card: rebound card {card_guest:#x} -> {CARD_CLASS:?}; pushing to Display");
+        tracing::debug!("LGT show_card: rebound card {card_guest:#x} -> {card_class:?}; pushing to Display");
 
         let display_val: JavaValue = match jvm
             .invoke_static(
@@ -1395,6 +1424,8 @@ pub async fn register_app_classes(jvm: &Jvm, core: &mut ArmCore, shared: &LgtJvm
     // Compute each app class's instance-field object slots (inherited-first flat
     // layout). Stored for `java_load_classes` to fill `field_offsets`. See cp17.
     *shared.app_field_layouts.lock() = compute_field_layouts(&pending);
+    // Record the class inheritance graph (name -> parent) for `resolve_card_class`.
+    *shared.app_class_graph.lock() = pending.iter().map(|c| (c.name.clone(), c.parent_name.clone())).collect();
 
     let mut registered = Vec::new();
     let mut done = BTreeSet::new();
@@ -1473,6 +1504,36 @@ fn compute_field_layouts(classes: &[LgtNativeClass]) -> AppFieldLayouts {
     layouts
 }
 
+/// The unique deepest app subclass of the platform `org/kwis/msp/lcdui/Card` in the
+/// app-class graph (`name -> parent`), or `None` if no app class extends `Card` or the
+/// deepest depth is shared by more than one class. The shown card is known to be a
+/// `Card`; this derives WHICH app card class it is from the registered class hierarchy
+/// instead of assuming an obfuscated symbol name (reference app: `Card <- o <- b <- i`
+/// ⇒ `i`). See `LgtJvmShared::resolve_card_class` and `docs/lgt_abi.md` §7.
+fn deepest_card_subclass(graph: &BTreeMap<String, Option<String>>) -> Option<String> {
+    const CARD_BASE: &str = "org/kwis/msp/lcdui/Card";
+    // Depth of `name`'s chain to the platform Card base (None if it never reaches it).
+    let depth_to_card = |name: &str| -> Option<u32> {
+        let mut cur = name;
+        for d in 1..=64u32 {
+            match graph.get(cur).and_then(|p| p.as_deref()) {
+                Some(CARD_BASE) => return Some(d),
+                Some(parent) if graph.contains_key(parent) => cur = parent,
+                _ => return None,
+            }
+        }
+        None
+    };
+    let depths: Vec<(u32, &String)> = graph.keys().filter_map(|n| depth_to_card(n).map(|d| (d, n))).collect();
+    let max_depth = depths.iter().map(|(d, _)| *d).max()?;
+    let mut at_max = depths.iter().filter(|(d, _)| *d == max_depth);
+    let first = at_max.next()?;
+    if at_max.next().is_some() {
+        return None; // ambiguous deepest card subclass
+    }
+    Some(first.1.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::collections::BTreeSet;
@@ -1481,8 +1542,8 @@ mod tests {
 
     use super::super::native_class::LgtNativeField;
     use super::{
-        LgtNativeClass, VTABLE_REFS, char_array_data_size, compute_field_layouts, known_java_lang_vtable, physical_vtable_slot,
-        write_char_array_block,
+        LgtNativeClass, VTABLE_REFS, char_array_data_size, compute_field_layouts, deepest_card_subclass, known_java_lang_vtable,
+        physical_vtable_slot, write_char_array_block,
     };
 
     fn cls(name: &str, parent: Option<&str>, fields: &[(&str, &str, u32)]) -> LgtNativeClass {
@@ -1573,6 +1634,48 @@ mod tests {
         // unknown classes get no override (they use the global identity vtable)
         assert!(known_java_lang_vtable("java/lang/Object").is_empty());
         assert!(known_java_lang_vtable("Game").is_empty());
+    }
+
+    /// The shown card's app class is derived from the registered class graph as the
+    /// unique deepest subclass of the platform `Card` base — not an assumed symbol name.
+    /// Reference-app shape: `Card <- o <- {b,d,e,j,l}`, `b <- i` ⇒ `i` is uniquely the
+    /// deepest. Non-Card app classes (`a`, `Game`) and ambiguity are excluded.
+    #[test]
+    fn derive_card_class_from_graph() {
+        use alloc::collections::BTreeMap;
+        use alloc::string::{String, ToString};
+
+        let card = || Some("org/kwis/msp/lcdui/Card".to_string());
+        let app = |p: &str| Some(p.to_string());
+        let graph: BTreeMap<String, Option<String>> = [
+            ("a".to_string(), None),
+            ("Game".to_string(), app("a")),
+            ("o".to_string(), card()),
+            ("b".to_string(), app("o")),
+            ("d".to_string(), app("o")),
+            ("e".to_string(), app("o")),
+            ("j".to_string(), app("o")),
+            ("l".to_string(), app("o")),
+            ("i".to_string(), app("b")),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(deepest_card_subclass(&graph).as_deref(), Some("i"));
+
+        // No app class extends Card -> None.
+        let no_card: BTreeMap<String, Option<String>> = [("a".to_string(), None), ("Game".to_string(), app("a"))].into_iter().collect();
+        assert_eq!(deepest_card_subclass(&no_card), None);
+
+        // Two classes tie for deepest -> ambiguous -> None.
+        let tie: BTreeMap<String, Option<String>> = [
+            ("o".to_string(), card()),
+            ("b".to_string(), app("o")),
+            ("i".to_string(), app("b")),
+            ("k".to_string(), app("b")),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(deepest_card_subclass(&tie), None);
     }
 
     /// cp31: the ez-i `char[]` guest layout — `{u32 len, u16 chars}` (chars at +4,
