@@ -62,7 +62,7 @@ impl wie_backend::AudioSink for AudioSink {
 
     fn midi_sysex(&self, data: &[u8]) {
         if let Some(x) = self.midi_out.as_ref() {
-            x.lock().unwrap().send(data).unwrap();
+            let _ = x.lock().unwrap().send(data);
         }
     }
 }
