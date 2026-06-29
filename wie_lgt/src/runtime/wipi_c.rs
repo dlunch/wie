@@ -212,7 +212,17 @@ async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a
         .await
         .unwrap();
 
-    let main_class_name = JavaLangString::from_rust_string(jvm, "net/wie/CletWrapper").await.unwrap();
+    invoke_lcdui_main(jvm, "net/wie/CletWrapper").await
+}
+
+/// Shared boot path: invoke `org.kwis.msp.lcdui.Main.main` with a single-element
+/// `String[]` whose `[0]` is the Jlet/MIDlet main class name. `Main.main`
+/// instantiates that class and drives its lifecycle.
+///
+/// Used by both the WIPI-C clet path (`clet_register`, main class
+/// `net/wie/CletWrapper`) and the Java-interface boot path (`java_unk11`).
+pub(crate) async fn invoke_lcdui_main(jvm: &mut Jvm, main_class_name: &str) -> Result<()> {
+    let main_class_name = JavaLangString::from_rust_string(jvm, main_class_name).await.unwrap();
     let mut args_array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
     jvm.store_array(&mut args_array, 0, vec![main_class_name]).await.unwrap();
 
