@@ -78,6 +78,10 @@ pub struct LgtJvmShared {
     /// §7.
     pub(super) card_enter_ptr: Arc<Mutex<Option<u32>>>,
     pub(super) card_step_ptr: Arc<Mutex<Option<u32>>>,
+    /// ELF `.data` segment range `(start, end)`, captured at load time. One of the two
+    /// inputs to `register_app_classes` (the `.data` header scan); the other is the
+    /// `0x07` registry. `None` until set by `set_data_range`. See `docs/lgt_abi.md` §3.
+    pub(super) data_range: Arc<Mutex<Option<(u32, u32)>>>,
 }
 
 impl LgtJvmShared {
@@ -96,7 +100,14 @@ impl LgtJvmShared {
             card_entered: Arc::new(Mutex::new(false)),
             card_enter_ptr: Arc::new(Mutex::new(None)),
             card_step_ptr: Arc::new(Mutex::new(None)),
+            data_range: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Record the ELF `.data` segment range, used as the scan input to
+    /// `register_app_classes`. Called once at load time.
+    pub fn set_data_range(&self, range: Option<(u32, u32)>) {
+        *self.data_range.lock() = range;
     }
 
     /// java-interface import `0xd`: **lazy instance initialisation**. The AOT guards

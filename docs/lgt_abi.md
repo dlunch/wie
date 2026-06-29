@@ -109,21 +109,31 @@ in order during startup:
 | `0x0f` | `JavaNewObject` | native object allocator (`obj = 0xf(...); obj.<init>()`) |
 | `0x54` | `java_interface_unk84` | per-method entry helper (stack/safepoint check) — no-op (추정) |
 
-### App-class registration (registry-driven)
+### App-class registration (registry ∪ `.data` scan)
 
 `java_unk5` (`0x07`) hands wie the app's **class registry** in `a0`: a count-prefixed
 handle array (`[0]` = count, `[2..]` = `count` class handles, each
-`class_header + 0x4c`; the handle's `+0x08` word points back to the header). This is
-the app's own authoritative list of its classes. `register_app_classes` decodes each
-handle (`parse_native_class_from_handle`), computes the inherited-first instance-field
-layouts (§5), and registers each as an ARM-backed JVM class — driven entirely off this
-registry, **not** a heuristic `.data` scan.
+`class_header + 0x4c`; the handle's `+0x08` word points back to the header).
+`register_app_classes` decodes each handle (`parse_native_class_from_handle`) **and**
+scans the ELF `.data` segment for class headers (`parse_native_class`), then registers
+the **union** of the two (dedup by class name), computing the inherited-first
+instance-field layouts (§5) for each.
+
+The union is required: measured on the reference ROM (`00025C2B`), the `0x07` registry
+is an **incomplete subset** — `16` handles → `16` classes — while the app actually has
+`20` classes. The registry omits the main Jlet `Game`, the Jlet base `a`, and the
+title-card subclasses `b`/`i` (the scan supplies the missing `+4`: `Game, a, b, c`…
+re-keyed, here exactly `Game, a, b, c`). A registry-only path leaves `Main.main` unable
+to resolve `Game` (`NoClassDefFoundError`) and the title card unresolvable. The `.data`
+scan is the complete source; the registry is a precise, non-heuristic input kept in the
+union so a class the scan's heuristics could miss is still covered. The two agree on the
+overlap, and the union (`20`) exactly equals the pure scan (`20`).
 
 Ordering matters: `0x07` fires **before** `load_classes` (`0x14`, which consumes the
 field layouts to fill `field_offsets`) and **before** `Main.main` (`0x83`, which `new`s
 the Jlet). So registering at the `0x07` boundary guarantees the classes and their
-layouts exist before either consumer runs. (Registration cannot piggy-back on the
-earlier ELF-load step: the registry pointer only arrives with this import.)
+layouts exist before either consumer runs. The `.data` range is captured at ELF-load
+time and stashed on `LgtJvmShared`, since the registry pointer only arrives with `0x07`.
 
 `0x83` boots the app's Jlet through the **shared lcdui Main path**
 (`invoke_lcdui_main(jvm, "Game")`), identical to the WIPI-C clet boot

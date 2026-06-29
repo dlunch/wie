@@ -12,39 +12,74 @@ use alloc::{
 use jvm::Jvm;
 
 use wie_core_arm::ArmCore;
-use wie_util::{Result, read_generic};
+use wie_util::{Result, read_generic, read_null_terminated_string_bytes};
 
 use super::AppFieldLayouts;
 use super::class_model::LgtClassDefinition;
 use super::shared::LgtJvmShared;
-use crate::runtime::java::native_class::{LgtNativeClass, parse_native_class_from_handle};
+use crate::runtime::java::native_class::{LgtNativeClass, parse_native_class, parse_native_class_from_handle};
 
-/// Register the app's own native classes (handed to us by import `0x07`, `java_unk5`)
-/// as ARM-backed JVM classes. `registry_ptr` (its `a0`) is the app's class registry:
-/// `[0]` = handle count, `[1]` = 0, `[2..]` = `count` class handles (each
-/// `class_header + 0x4c`; the handle's `+0x08` word points back to the header). Each
-/// handle is decoded with `parse_native_class_from_handle`. No-op (empty) when the
-/// registry is empty/absent (clet path unaffected). See `docs/lgt_abi.md` §3.
+/// Register the app's own native classes as ARM-backed JVM classes, from the **union**
+/// of two sources (dedup by class name):
+///
+/// 1. the `0x07` class registry at `registry_ptr` (its `a0`): `[0]` = handle count,
+///    `[2..]` = `count` class handles (each `class_header + 0x4c`; the handle's `+0x08`
+///    points back to the header), decoded with `parse_native_class_from_handle`;
+/// 2. a heuristic scan of the ELF `.data` segment (`shared.data_range`) for class
+///    headers, decoded with `parse_native_class`.
+///
+/// Why the union: on the real ez-i ROM the `0x07` registry is an **incomplete subset**
+/// (e.g. 15 of 20 classes — it omits the main Jlet `Game`, the Jlet base `a`, and the
+/// title-card subclasses `b`/`i`), so a registry-only path leaves `Main.main` unable to
+/// find `Game` (and `show_card` unable to resolve the title card). The `.data` scan is
+/// the complete source; the registry is kept as a precise, non-heuristic input that the
+/// scan's heuristics could in principle miss. Their union registers every app class.
+/// No-op (empty) when neither source yields a class (clet path unaffected). See
+/// `docs/lgt_abi.md` §3.
 pub async fn register_app_classes(jvm: &Jvm, core: &mut ArmCore, shared: &LgtJvmShared, registry_ptr: u32) -> Result<Vec<String>> {
-    let count = read_generic::<u32, _>(core, registry_ptr).unwrap_or(0);
-    if count == 0 || count >= 1024 {
-        return Ok(Vec::new());
-    }
-    tracing::debug!("LGT native JVM: app registry @ {registry_ptr:#x} declares {count} class handles");
-
     let mut pending: Vec<LgtNativeClass> = Vec::new();
     let mut seen = BTreeSet::new();
-    for i in 0..count {
-        let handle = match read_generic::<u32, _>(core, registry_ptr + 8 + i * 4) {
-            Ok(h) => h,
-            Err(_) => continue,
-        };
-        if let Ok(class) = parse_native_class_from_handle(core, handle)
-            && !class.name.is_empty()
-            && seen.insert(class.name.clone())
-        {
-            pending.push(class);
+
+    // Source 1: the `0x07` registry handles.
+    let count = read_generic::<u32, _>(core, registry_ptr).unwrap_or(0);
+    let mut registry_classes = 0usize;
+    if count != 0 && count < 1024 {
+        for i in 0..count {
+            let handle = match read_generic::<u32, _>(core, registry_ptr + 8 + i * 4) {
+                Ok(h) => h,
+                Err(_) => continue,
+            };
+            if let Ok(class) = parse_native_class_from_handle(core, handle)
+                && !class.name.is_empty()
+                && seen.insert(class.name.clone())
+            {
+                registry_classes += 1;
+                pending.push(class);
+            }
         }
+    }
+
+    // Source 2: the `.data` header scan (catches classes the registry omits).
+    let data_range = *shared.data_range.lock();
+    let mut scan_classes = 0usize;
+    if let Some((data_start, data_end)) = data_range {
+        for header in scan_class_headers(core, data_start, data_end) {
+            if let Ok(class) = parse_native_class(core, header)
+                && !class.name.is_empty()
+                && seen.insert(class.name.clone())
+            {
+                scan_classes += 1;
+                pending.push(class);
+            }
+        }
+    }
+
+    tracing::debug!(
+        "LGT native JVM: app classes from registry @ {registry_ptr:#x} ({count} handles -> {registry_classes}) \u{222a} .data scan (+{scan_classes}) = {} unique",
+        pending.len()
+    );
+    if pending.is_empty() {
+        return Ok(Vec::new());
     }
     let app_names: BTreeSet<String> = pending.iter().map(|c| c.name.clone()).collect();
 
@@ -90,6 +125,47 @@ pub async fn register_app_classes(jvm: &Jvm, core: &mut ArmCore, shared: &LgtJvm
         tracing::warn!("LGT native JVM: {} classes left unregistered: {names:?}", pending.len());
     }
     Ok(registered)
+}
+
+/// Scan the app's `.data` segment for native class-header records, returning the header
+/// addresses. A header is recognised heuristically: a small non-zero tag, a short
+/// printable `+0x08` name, a parent (`+0x10`) that is null / in `.data` / a short name,
+/// and small method/field table counts (`+0x38`/`+0x3c`). The decoded classes are
+/// unioned with the `0x07` registry in `register_app_classes` (the scan is the complete
+/// source; see that fn). No-op (empty) for clet apps, whose `.data` holds no descriptors.
+fn scan_class_headers(core: &ArmCore, data_start: u32, data_end: u32) -> Vec<u32> {
+    let in_data = |v: u32| v >= data_start && v < data_end;
+    let is_short_name = |ptr: u32| -> bool {
+        if ptr == 0 {
+            return false;
+        }
+        match read_null_terminated_string_bytes(core, ptr) {
+            Ok(b) => !b.is_empty() && b.len() <= 24 && b.iter().all(|&c| (0x20..0x7f).contains(&c)),
+            Err(_) => false,
+        }
+    };
+    let small_count = |table: u32| -> bool {
+        if table == 0 {
+            return true;
+        }
+        if !in_data(table) {
+            return false;
+        }
+        matches!(read_generic::<u32, _>(core, table), Ok(c) if c < 512)
+    };
+
+    let mut out = Vec::new();
+    let mut va = data_start;
+    while va + 0x40 <= data_end {
+        let read = |off: u32| read_generic::<u32, _>(core, va + off).unwrap_or(0);
+        let tag = read(0);
+        let parent_ok = read(0x10) == 0 || in_data(read(0x10)) || is_short_name(read(0x10));
+        if tag > 0 && tag < 0x1000 && is_short_name(read(0x08)) && parent_ok && small_count(read(0x38)) && small_count(read(0x3c)) {
+            out.push(va);
+        }
+        va += 4;
+    }
+    out
 }
 
 /// Compute each app class's instance-field object slots using the inherited-first
