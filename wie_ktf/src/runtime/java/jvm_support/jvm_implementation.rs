@@ -6,6 +6,7 @@ use core::{
 
 use java_class_proto::JavaClassProto;
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
+use jvm_rust::ClassDefinitionImpl;
 use spin::Mutex;
 
 use wie_core_arm::ArmCore;
@@ -57,8 +58,10 @@ impl JvmImplementation for KtfJvmImplementation {
         })
     }
 
-    async fn define_class_java(&self, _jvm: &Jvm, _data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
-        unreachable!()
+    async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
+        let class = ClassDefinitionImpl::from_classfile(data)?;
+
+        Ok(Box::new(class))
     }
 
     async fn define_array_class(&self, jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
