@@ -61,6 +61,12 @@ impl Display {
                     Self::get_game_action,
                     MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new(
+                    "getKeyCode",
+                    "(I)I",
+                    Self::get_key_code,
+                    MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
@@ -217,7 +223,76 @@ impl Display {
         Ok(action)
     }
 
+    async fn get_key_code(_jvm: &Jvm, _: &mut WieJvmContext, game_key: i32) -> JvmResult<i32> {
+        tracing::debug!("org.kwis.msp.lcdui.Display::getKeyCode({game_key})");
+
+        let key_code = match game_key {
+            1 => WIPIKeyCode::UP as i32,
+            2 => WIPIKeyCode::LEFT as i32,
+            5 => WIPIKeyCode::RIGHT as i32,
+            6 => WIPIKeyCode::DOWN as i32,
+            8 => WIPIKeyCode::FIRE as i32,
+            90 => WIPIKeyCode::LEFT_SOFT_KEY as i32,
+            91 => WIPIKeyCode::RIGHT_SOFT_KEY as i32,
+            92 => -8,
+            96 => WIPIKeyCode::VOLUME_UP as i32,
+            97 => WIPIKeyCode::VOLUME_DOWN as i32,
+            98 => -15,
+            99 => WIPIKeyCode::CLEAR as i32,
+            _ => 0,
+        };
+
+        Ok(key_code)
+    }
+
     pub async fn midp_display(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MidpDisplay>> {
         jvm.get_field(this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::boxed::Box;
+
+    use test_utils::run_jvm_test;
+    use wie_util::Result;
+
+    use crate::get_protos;
+
+    #[test]
+    fn test_get_key_code() -> Result<()> {
+        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
+            let up: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (1,)).await?;
+            let down: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (6,)).await?;
+            let left: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (2,)).await?;
+            let right: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (5,)).await?;
+            let fire: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (8,)).await?;
+            let soft1: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (90,)).await?;
+            let soft2: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (91,)).await?;
+            let soft3: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (92,)).await?;
+            let side_up: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (96,)).await?;
+            let side_down: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (97,)).await?;
+            let side_select: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (98,)).await?;
+            let clear: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (99,)).await?;
+            let game_a: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (9,)).await?;
+            let invalid: i32 = jvm.invoke_static("org/kwis/msp/lcdui/Display", "getKeyCode", "(I)I", (1234,)).await?;
+
+            assert_eq!(up, -1);
+            assert_eq!(down, -2);
+            assert_eq!(left, -3);
+            assert_eq!(right, -4);
+            assert_eq!(fire, -5);
+            assert_eq!(soft1, -6);
+            assert_eq!(soft2, -7);
+            assert_eq!(soft3, -8);
+            assert_eq!(side_up, -13);
+            assert_eq!(side_down, -14);
+            assert_eq!(side_select, -15);
+            assert_eq!(clear, -16);
+            assert_eq!(game_a, 0);
+            assert_eq!(invalid, 0);
+
+            Ok(())
+        })
     }
 }
