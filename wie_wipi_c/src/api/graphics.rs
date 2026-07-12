@@ -499,9 +499,16 @@ pub async fn draw_string(
 
     let string = String::from_utf8_lossy(&string_bytes);
 
+    let clip = Clip {
+        x: 0,
+        y: 0,
+        width: framebuffer.0.width,
+        height: framebuffer.0.height,
+    };
+
     let mut canvas = framebuffer.canvas(context)?;
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_text(&string, x, y, TextAlignment::Left, color);
+    canvas.draw_text(&string, x, y, TextAlignment::Left, color, clip);
 
     Ok(())
 }
@@ -696,8 +703,15 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
     let mut canvas = framebuffer.canvas(context)?;
 
+    let clip = Clip {
+        x: 0,
+        y: 0,
+        width: framebuffer.0.width as _,
+        height: framebuffer.0.height as _,
+    };
+
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, color);
+    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, color, clip);
     Ok(())
 }
 

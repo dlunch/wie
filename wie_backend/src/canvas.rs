@@ -51,8 +51,8 @@ pub trait Canvas: Send {
     fn set_xor_mode(&mut self, xor_mode: bool);
     fn copy_area(&mut self, dx: i32, dy: i32, sx: i32, sy: i32, w: u32, h: u32, clip: Clip);
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip);
-    fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color);
-    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color);
+    fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color, clip: Clip);
+    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip);
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
     fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip);
     fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
@@ -393,6 +393,49 @@ where
     }
 }
 
+/// Liang-Barsky clip of a segment to the image bounds (expanded by one pixel so
+/// endpoints just outside still step in correctly). Endpoints already inside are
+/// returned unchanged to keep the exact bresenham pixel pattern.
+fn clip_segment(x1: i32, y1: i32, x2: i32, y2: i32, width: u32, height: u32) -> Option<(i32, i32, i32, i32)> {
+    let (min_x, min_y) = (-1.0, -1.0);
+    let (max_x, max_y) = (width as f64, height as f64);
+
+    let inside = |x: i32, y: i32| (min_x..=max_x).contains(&(x as f64)) && (min_y..=max_y).contains(&(y as f64));
+    if inside(x1, y1) && inside(x2, y2) {
+        return Some((x1, y1, x2, y2));
+    }
+
+    let (fx1, fy1) = (x1 as f64, y1 as f64);
+    let (dx, dy) = (x2 as f64 - fx1, y2 as f64 - fy1);
+
+    let mut t0 = 0.0f64;
+    let mut t1 = 1.0f64;
+    for (p, q) in [(-dx, fx1 - min_x), (dx, max_x - fx1), (-dy, fy1 - min_y), (dy, max_y - fy1)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+        } else {
+            let r = q / p;
+            if p < 0.0 {
+                t0 = t0.max(r);
+            } else {
+                t1 = t1.min(r);
+            }
+        }
+    }
+    if t0 > t1 {
+        return None;
+    }
+
+    Some((
+        (fx1 + dx * t0).round() as i32,
+        (fy1 + dy * t0).round() as i32,
+        (fx1 + dx * t1).round() as i32,
+        (fy1 + dy * t1).round() as i32,
+    ))
+}
+
 /// Whether the point lies within the pie sweep starting at `start_deg` spanning
 /// `sweep_deg` degrees (counterclockwise for positive, clockwise for negative).
 /// Angles follow the J2ME/WIPI convention: 0° is 3 o'clock, positive is CCW.
@@ -485,11 +528,12 @@ where
         }
     }
 
-    fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color) {
-        if x1 == x2 && y1 == y2 {
-            self.blend_pixel(x1 as _, y1 as _, color);
+    fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color, clip: Clip) {
+        // pre-clip to image bounds: guest can pass extreme coordinates whose deltas
+        // overflow i32 and whose bresenham walk would take billions of steps
+        let Some((x1, y1, x2, y2)) = clip_segment(x1, y1, x2, y2, self.image_buffer.width(), self.image_buffer.height()) else {
             return;
-        }
+        };
 
         // bresenham's line drawing
         let dx = (x2 - x1).abs();
@@ -501,8 +545,12 @@ where
         let mut x = x1;
         let mut y = y1;
 
-        while x != x2 || y != y2 {
-            self.blend_pixel(x as _, y as _, color);
+        loop {
+            self.plot(x, y, color, &clip);
+
+            if x == x2 && y == y2 {
+                break;
+            }
 
             let e2 = 2 * err;
             if e2 > -dy {
@@ -516,7 +564,7 @@ where
         }
     }
 
-    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color) {
+    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip) {
         let size = 10.0; // TODO
         let font = FONT.as_scaled(FONT.pt_to_px_scale(size).unwrap());
 
@@ -539,9 +587,14 @@ where
             if let Some(outlined_glyph) = font.outline_glyph(glyph) {
                 outlined_glyph.draw(|glyph_x: u32, glyph_y, c| {
                     let bounds = outlined_glyph.px_bounds();
+                    let px = x + (glyph_x as f32 + bounds.min.x + position) as i32;
+                    let py = y + (glyph_y as f32 + bounds.min.y + size) as i32;
+                    if px < clip.x || px >= clip.x + clip.width as i32 || py < clip.y || py >= clip.y + clip.height as i32 {
+                        return;
+                    }
                     self.blend_pixel(
-                        x + (glyph_x as f32 + bounds.min.x + position) as i32,
-                        y + (glyph_y as f32 + bounds.min.y + size) as i32,
+                        px,
+                        py,
                         Color {
                             a: (c * 255.0) as u8,
                             r: color.r,
@@ -557,40 +610,26 @@ where
     }
 
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
-        // TODO use put_pixels
-        for x in x..x + (w as i32) {
-            if x < 0 || x >= self.image_buffer.width() as i32 {
-                continue;
-            }
-            if x < clip.x || x >= clip.x + clip.width as i32 {
-                continue;
-            }
-            if y < 0 || y >= self.image_buffer.height() as i32 {
-                continue;
-            }
-            if y < clip.y || y >= clip.y + clip.height as i32 {
-                continue;
-            }
-
-            self.put_pixel(x, y, color);
-            self.put_pixel(x, y + (h as i32) - 1, color);
+        if w == 0 || h == 0 {
+            return;
         }
-        for y in y..y + (h as i32) {
-            if x < 0 || x >= self.image_buffer.width() as i32 {
-                continue;
-            }
-            if x < clip.x || x >= clip.x + clip.width as i32 {
-                continue;
-            }
-            if y < 0 || y >= self.image_buffer.height() as i32 {
-                continue;
-            }
-            if y < clip.y || y >= clip.y + clip.height as i32 {
-                continue;
-            }
 
-            self.put_pixel(x, y, color);
-            self.put_pixel(x + (w as i32) - 1, y, color);
+        // degenerate rect is a line; also avoids plotting pixels twice, which would
+        // cancel out in xor mode
+        if w == 1 || h == 1 {
+            return self.fill_rect(x, y, w, h, color, clip);
+        }
+
+        let right = x + w as i32 - 1;
+        let bottom = y + h as i32 - 1;
+
+        for px in x..=right {
+            self.plot(px, y, color, &clip);
+            self.plot(px, bottom, color, &clip);
+        }
+        for py in (y + 1)..bottom {
+            self.plot(x, py, color, &clip);
+            self.plot(right, py, color, &clip);
         }
     }
 
@@ -742,14 +781,14 @@ impl Clip {
     pub fn intersect(&self, other: &Clip) -> Clip {
         let x = self.x.max(other.x);
         let y = self.y.max(other.y);
-        let width = (self.x + (self.width as i32)).min(other.x + (other.width as i32)) - x;
-        let height = (self.y + (self.height as i32)).min(other.y + (other.height as i32)) - y;
+        let width = (self.x as i64 + self.width as i64).min(other.x as i64 + other.width as i64) - x as i64;
+        let height = (self.y as i64 + self.height as i64).min(other.y as i64 + other.height as i64) - y as i64;
 
         Clip {
             x,
             y,
-            width: width as _,
-            height: height as _,
+            width: width.clamp(0, u32::MAX as i64) as _,
+            height: height.clamp(0, u32::MAX as i64) as _,
         }
     }
 }
@@ -793,7 +832,7 @@ mod tests {
 
     use crate::canvas::{Clip, Image, ImageBufferCanvas};
 
-    use super::{ArgbPixel, Canvas, Color, Rgb332Pixel, VecImageBuffer};
+    use super::{ArgbPixel, Canvas, Color, Rgb332Pixel, TextAlignment, VecImageBuffer};
 
     #[test]
     fn test_canvas() -> Result<()> {
@@ -1046,6 +1085,200 @@ mod tests {
         assert!(is_set(&image, 16, 0), "straight top edge should be filled");
         assert!(!is_set(&image, 0, 0), "rounded corner should be empty");
         assert!(!is_set(&image, 31, 0), "rounded corner should be empty");
+    }
+
+    #[test]
+    fn test_clip_intersect_disjoint_is_empty() {
+        let a = Clip {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        let b = Clip {
+            x: 20,
+            y: 20,
+            width: 5,
+            height: 5,
+        };
+
+        let result = a.intersect(&b);
+
+        assert_eq!(result.width, 0);
+        assert_eq!(result.height, 0);
+    }
+
+    #[test]
+    fn test_clip_intersect_partial() {
+        let a = Clip {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+        let b = Clip {
+            x: 5,
+            y: 5,
+            width: 10,
+            height: 10,
+        };
+
+        let result = a.intersect(&b);
+
+        assert_eq!(result.x, 5);
+        assert_eq!(result.y, 5);
+        assert_eq!(result.width, 5);
+        assert_eq!(result.height, 5);
+    }
+
+    #[test]
+    fn test_clip_intersect_extreme_values_no_overflow() {
+        let a = Clip {
+            x: 1,
+            y: 1,
+            width: u32::MAX,
+            height: u32::MAX,
+        };
+        let b = Clip {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        };
+
+        let result = a.intersect(&b);
+
+        assert_eq!(result.x, 1);
+        assert_eq!(result.y, 1);
+        assert_eq!(result.width, 9);
+        assert_eq!(result.height, 9);
+    }
+
+    #[test]
+    fn test_draw_rect_clips_edges_independently() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(32, 32));
+        let clip = Clip {
+            x: 0,
+            y: 16,
+            width: 32,
+            height: 16,
+        };
+        canvas.draw_rect(4, 4, 10, 20, WHITE, clip);
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 4, 23), "bottom edge inside clip should be drawn");
+        assert!(is_set(&image, 8, 23), "bottom edge interior pixels inside clip should be drawn");
+        assert!(is_set(&image, 13, 23), "bottom edge inside clip should be drawn");
+        assert!(!is_set(&image, 4, 4), "top edge outside clip must not be drawn");
+        assert!(!is_set(&image, 4, 15), "vertical edges above clip must not be drawn");
+        assert!(is_set(&image, 4, 16), "left edge inside clip should be drawn");
+        assert!(is_set(&image, 13, 20), "right edge inside clip should be drawn");
+        assert!(!is_set(&image, 5, 20), "rect interior must not be filled");
+    }
+
+    #[test]
+    fn test_draw_line_includes_endpoint() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+        canvas.draw_line(1, 1, 5, 5, WHITE, full_clip(10));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 1, 1), "start point should be drawn");
+        assert!(is_set(&image, 5, 5), "end point should be drawn");
+    }
+
+    #[test]
+    fn test_draw_line_extreme_coordinates() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+        canvas.draw_line(-2_000_000_000, 5, 2_000_000_000, 5, WHITE, full_clip(10));
+        let image = canvas.into_inner();
+
+        for x in 0..10 {
+            assert!(is_set(&image, x, 5), "visible span of extreme line should be drawn (x={x})");
+        }
+    }
+
+    #[test]
+    fn test_draw_text_respects_clip() {
+        let empty_clip = Clip {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        };
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(30, 20));
+        canvas.draw_text("A", 2, 2, TextAlignment::Left, WHITE, empty_clip);
+        let clipped = canvas.into_inner();
+
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(30, 20));
+        canvas.draw_text("A", 2, 2, TextAlignment::Left, WHITE, full_clip(30));
+        let unclipped = canvas.into_inner();
+
+        let count_set = |image: &VecImageBuffer<ArgbPixel>| {
+            (0..20)
+                .flat_map(|y| (0..30).map(move |x| (x, y)))
+                .filter(|&(x, y)| is_set(image, x, y))
+                .count()
+        };
+        assert_eq!(count_set(&clipped), 0, "empty clip must draw nothing");
+        assert!(count_set(&unclipped) > 0, "full clip must draw glyph pixels");
+    }
+
+    #[test]
+    fn test_draw_rect_xor_toggles_corners_once() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(8, 8));
+        canvas.fill_rect(0, 0, 8, 8, BACKGROUND, full_clip(8));
+        canvas.set_xor_mode(true);
+        canvas.draw_rect(1, 1, 4, 4, XOR_COLOR, full_clip(8));
+
+        let toggled = Color {
+            a: 255,
+            r: BACKGROUND.r ^ XOR_COLOR.r,
+            g: BACKGROUND.g ^ XOR_COLOR.g,
+            b: BACKGROUND.b ^ XOR_COLOR.b,
+        };
+        assert_color(canvas.image(), 1, 1, toggled);
+        assert_color(canvas.image(), 4, 4, toggled);
+        assert_color(canvas.image(), 2, 1, toggled);
+        assert_color(canvas.image(), 1, 2, toggled);
+    }
+
+    #[test]
+    fn test_draw_line_respects_clip() {
+        let clip = Clip {
+            x: 0,
+            y: 0,
+            width: 4,
+            height: 4,
+        };
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+        canvas.draw_line(6, 6, 9, 9, WHITE, clip);
+        let image = canvas.into_inner();
+
+        for i in 6..10 {
+            assert!(!is_set(&image, i, i), "line outside clip must not be drawn ({i},{i})");
+        }
+
+        let clip = Clip {
+            x: 0,
+            y: 0,
+            width: 4,
+            height: 4,
+        };
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+        canvas.draw_line(0, 0, 9, 9, WHITE, clip);
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 2, 2), "part of the line inside clip should be drawn");
+        assert!(!is_set(&image, 5, 5), "part of the line outside clip must not be drawn");
+    }
+
+    #[test]
+    fn test_draw_line_single_point() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+        canvas.draw_line(3, 3, 3, 3, WHITE, full_clip(10));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 3, 3));
     }
 
     #[test]

@@ -207,10 +207,15 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::setClip({this:?}, {x}, {y}, {width}, {height})");
 
-        jvm.put_field(&mut this, "clipX", "I", x).await?;
-        jvm.put_field(&mut this, "clipY", "I", y).await?;
-        jvm.put_field(&mut this, "clipWidth", "I", width).await?;
-        jvm.put_field(&mut this, "clipHeight", "I", height).await?;
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        // clip fields hold absolute coordinates; negative w/h must clamp to 0 or `Self::clip()`'s
+        // u32 cast produces a huge clip that copy_area's i64 extension treats as unbounded
+        jvm.put_field(&mut this, "clipX", "I", x + translate_x).await?;
+        jvm.put_field(&mut this, "clipY", "I", y + translate_y).await?;
+        jvm.put_field(&mut this, "clipWidth", "I", width.max(0)).await?;
+        jvm.put_field(&mut this, "clipHeight", "I", height.max(0)).await?;
 
         Ok(())
     }
@@ -226,12 +231,15 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Graphics::clipRect({this:?}, {x}, {y}, {width}, {height})");
 
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
         let current_clip = Self::clip(jvm, &this).await?;
         let rect = Clip {
-            x: x as _,
-            y: y as _,
-            width: width as _,
-            height: height as _,
+            x: x + translate_x,
+            y: y + translate_y,
+            width: width.max(0) as _,
+            height: height.max(0) as _,
         };
 
         let new_clip = current_clip.intersect(&rect);
@@ -352,11 +360,16 @@ impl Graphics {
 
         let clip = Self::clip(jvm, &this).await?;
 
+        if width < 0 || height < 0 {
+            return Ok(());
+        }
+
+        // MIDP drawRect outlines an area width+1 pixels wide and height+1 tall
         canvas.draw_rect(
             (translate_x + x) as _,
             (translate_y + y) as _,
-            width as _,
-            height as _,
+            width as u32 + 1,
+            height as u32 + 1,
             Rgb8Pixel::to_color(rgb as _),
             clip,
         );
@@ -384,12 +397,15 @@ impl Graphics {
 
         let color: i32 = jvm.get_field(&this, "color", "I").await?;
 
+        let clip = Self::clip(jvm, &this).await?;
+
         canvas.draw_text(
             &string,
             (translate_x + x) as _,
             (translate_y + y) as _,
             anchor.into(),
             Rgb8Pixel::to_color(color as _),
+            clip,
         );
 
         Ok(())
@@ -418,12 +434,15 @@ impl Graphics {
 
         let color: i32 = jvm.get_field(&this, "color", "I").await?;
 
+        let clip = Self::clip(jvm, &this).await?;
+
         canvas.draw_text(
             &string,
             (translate_x + x) as _,
             (translate_y + y) as _,
             anchor.into(),
             Rgb8Pixel::to_color(color as _),
+            clip,
         );
 
         Ok(())
@@ -452,12 +471,15 @@ impl Graphics {
 
         let color: i32 = jvm.get_field(&this, "color", "I").await?;
 
+        let clip = Self::clip(jvm, &this).await?;
+
         canvas.draw_text(
             &string,
             (translate_x + x) as _,
             (translate_y + y) as _,
             anchor.into(),
             Rgb8Pixel::to_color(color as _),
+            clip,
         );
 
         Ok(())
@@ -485,12 +507,15 @@ impl Graphics {
 
         let color: i32 = jvm.get_field(&this, "color", "I").await?;
 
+        let clip = Self::clip(jvm, &this).await?;
+
         canvas.draw_text(
             &substring,
             (translate_x + x) as _,
             (translate_y + y) as _,
             anchor.into(),
             Rgb8Pixel::to_color(color as _),
+            clip,
         );
 
         Ok(())
@@ -510,7 +535,9 @@ impl Graphics {
 
         let mut canvas = Self::canvas(jvm, &mut this).await?;
 
-        canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(color as _));
+        let clip = Self::clip(jvm, &this).await?;
+
+        canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, Rgb8Pixel::to_color(color as _), clip);
 
         Ok(())
     }
@@ -641,11 +668,16 @@ impl Graphics {
 
         let clip = Self::clip(jvm, &this).await?;
 
+        if width < 0 || height < 0 {
+            return Ok(());
+        }
+
+        // MIDP drawRoundRect outlines an area width+1 pixels wide and height+1 tall
         canvas.draw_round_rect(
             (translate_x + x) as _,
             (translate_y + y) as _,
-            width as _,
-            height as _,
+            width as u32 + 1,
+            height as u32 + 1,
             arc_width as _,
             arc_height as _,
             Rgb8Pixel::to_color(rgb as _),
@@ -677,11 +709,16 @@ impl Graphics {
 
         let clip = Self::clip(jvm, &this).await?;
 
+        if width < 0 || height < 0 {
+            return Ok(());
+        }
+
+        // MIDP drawArc covers an area width+1 pixels wide and height+1 tall
         canvas.draw_arc(
             (translate_x + x) as _,
             (translate_y + y) as _,
-            width as _,
-            height as _,
+            width as u32 + 1,
+            height as u32 + 1,
             start_angle,
             arc_angle,
             Rgb8Pixel::to_color(rgb as _),
@@ -703,16 +740,18 @@ impl Graphics {
         tracing::debug!("javax.microedition.lcdui.Graphics::getClipX({this:?})");
 
         let clip_x: i32 = jvm.get_field(&this, "clipX", "I").await?;
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
 
-        Ok(clip_x)
+        Ok(clip_x - translate_x)
     }
 
     async fn get_clip_y(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<i32> {
         tracing::debug!("javax.microedition.lcdui.Graphics::getClipY({this:?})");
 
         let clip_y: i32 = jvm.get_field(&this, "clipY", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
-        Ok(clip_y)
+        Ok(clip_y - translate_y)
     }
 
     async fn get_clip_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -780,6 +819,12 @@ impl Graphics {
         let pixel_data: Vec<i32> = jvm.load_array(&rgb_data, offset as _, (width * height) as _).await?;
 
         let mut canvas = Self::canvas(jvm, &mut this).await?;
+
+        let translate_x: i32 = jvm.get_field(&this, "translateX", "I").await?;
+        let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
+
+        let x = translate_x + x;
+        let y = translate_y + y;
 
         let clip = Self::clip(jvm, &this).await?;
 
@@ -857,7 +902,7 @@ impl Graphics {
 mod test {
     use alloc::{boxed::Box, vec};
 
-    use jvm::ClassInstanceRef;
+    use jvm::{ClassInstance, ClassInstanceRef, Jvm, Result as JvmResult};
 
     use test_utils::run_jvm_test;
     use wie_util::Result;
@@ -925,6 +970,183 @@ mod test {
             assert_eq!(color.r, 0x12);
             assert_eq!(color.g, 0x34);
             assert_eq!(color.b, 0x56);
+
+            Ok(())
+        })
+    }
+
+    async fn new_graphics(jvm: &Jvm) -> JvmResult<(ClassInstanceRef<Image>, Box<dyn ClassInstance>)> {
+        let image: ClassInstanceRef<Image> = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Image",
+                "createImage",
+                "(II)Ljavax/microedition/lcdui/Image;",
+                (100, 100),
+            )
+            .await?;
+
+        let graphics = jvm
+            .new_class(
+                "javax/microedition/lcdui/Graphics",
+                "(Ljavax/microedition/lcdui/Image;)V",
+                (image.clone(),),
+            )
+            .await?;
+
+        Ok((image, graphics))
+    }
+
+    #[test]
+    fn test_clip_follows_translate() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (10, 10)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 5, 5)).await?;
+
+            let clip_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
+            let clip_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
+            assert_eq!(clip_x, 0);
+            assert_eq!(clip_y, 0);
+
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (-10, -10)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            for (x, y) in [(10, 10), (14, 14)] {
+                let color = backend_image.get_pixel(x, y);
+                assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
+            }
+            for (x, y) in [(9, 9), (15, 15)] {
+                let color = backend_image.get_pixel(x, y);
+                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_clip_rect_intersects_in_translated_coords() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 20, 20)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (10, 10)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "clipRect", "(IIII)V", (0, 0, 5, 5)).await?;
+
+            let clip_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
+            let clip_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
+            let clip_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
+            let clip_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
+            assert_eq!(clip_x, 0);
+            assert_eq!(clip_y, 0);
+            assert_eq!(clip_width, 5);
+            assert_eq!(clip_height, 5);
+
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (-10, -10)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            let color = backend_image.get_pixel(10, 10);
+            assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
+            for (x, y) in [(9, 9), (15, 15)] {
+                let color = backend_image.get_pixel(x, y);
+                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_empty_clip_draws_nothing() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 5, 5)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "clipRect", "(IIII)V", (20, 20, 5, 5)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            for (x, y) in [(0, 0), (2, 2), (21, 21)] {
+                let color = backend_image.get_pixel(x, y);
+                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_negative_clip_is_empty() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, -5, -5)).await?;
+
+            let clip_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
+            let clip_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
+            assert_eq!(clip_width, 0);
+            assert_eq!(clip_height, 0);
+
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            for (x, y) in [(0, 0), (50, 50)] {
+                let color = backend_image.get_pixel(x, y);
+                assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_draw_rect_is_inclusive() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
+            // MIDP: drawRect(2, 2, 0, 3) draws a 1px-wide, 4px-tall vertical line
+            let _: () = jvm.invoke_virtual(&graphics, "drawRect", "(IIII)V", (2, 2, 0, 3)).await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            for y in 2..=5 {
+                let color = backend_image.get_pixel(2, y);
+                assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00), "y={y}");
+            }
+            let color = backend_image.get_pixel(2, 6);
+            assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+            let color = backend_image.get_pixel(3, 2);
+            assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_draw_rgb_follows_translate() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let (image, graphics) = new_graphics(&jvm).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (10, 10)).await?;
+
+            let mut rgb_data = jvm.instantiate_array("I", 1).await?;
+            jvm.store_array(&mut rgb_data, 0, vec![0x00ff0000i32]).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "drawRGB", "([IIIIIIIZ)V", (rgb_data, 0, 1, 0, 0, 1, 1, false))
+                .await?;
+
+            let backend_image = Image::image(&jvm, &image).await?;
+            let color = backend_image.get_pixel(10, 10);
+            assert_eq!((color.r, color.g, color.b), (0xff, 0x00, 0x00));
+            let color = backend_image.get_pixel(0, 0);
+            assert_eq!((color.r, color.g, color.b), (0x00, 0x00, 0x00));
 
             Ok(())
         })
