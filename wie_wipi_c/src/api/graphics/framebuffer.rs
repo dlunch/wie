@@ -151,6 +151,8 @@ impl Drop for FramebufferCanvas<'_> {
             return;
         }
 
+        tracing::warn!("framebuffer canvas dropped without explicit flush; write-back errors will be lost");
+
         if let Err(err) = self.framebuffer.write(self.context, &self.canvas.image().raw()) {
             tracing::error!("Failed to flush framebuffer canvas: {err}");
         }
