@@ -73,13 +73,16 @@ impl ListAllocator {
         tracing::trace!("Freeing {address:#x}");
 
         let header: ListAllocationHeader = read_generic(core, base_address)?;
-        debug_assert!(header.in_use());
+        if !header.in_use() {
+            return Err(WieError::FatalError(format!("Double free at {address:#x}")));
+        }
 
         let canary_value: u32 = read_generic(core, base_address + header.size() - CANARY_SIZE)?;
-        debug_assert!(
-            canary_value == CANARY_VALUE,
-            "Invalid canary value at {base_address:#x}: expected {CANARY_VALUE:#x}, got {canary_value:#x}"
-        );
+        if canary_value != CANARY_VALUE {
+            return Err(WieError::FatalError(format!(
+                "Invalid canary value at {base_address:#x}: expected {CANARY_VALUE:#x}, got {canary_value:#x}"
+            )));
+        }
 
         let header = ListAllocationHeader::new(header.size(), false);
         write_generic(core, base_address, header)?;
@@ -87,21 +90,35 @@ impl ListAllocator {
         Ok(())
     }
 
-    fn find_address(core: &ArmCore, base_address: u32, base_size: u32, size: u32) -> Result<u32> {
+    fn find_address(core: &mut ArmCore, base_address: u32, base_size: u32, size: u32) -> Result<u32> {
+        let end = base_address + base_size;
         let mut cursor = base_address;
         loop {
-            let header: ListAllocationHeader = read_generic(core, cursor)?;
+            let mut header: ListAllocationHeader = read_generic(core, cursor)?;
             if header.size() == 0 {
                 return Err(WieError::FatalError(format!("Invalid allocation header at {cursor:#x}")));
             }
 
-            if !header.in_use() && header.size() >= size {
-                return Ok(cursor);
-            } else {
-                cursor += header.size();
+            if !header.in_use() {
+                loop {
+                    let next = cursor + header.size();
+                    if next >= end {
+                        break;
+                    }
+                    let next_header: ListAllocationHeader = read_generic(core, next)?;
+                    if next_header.in_use() || next_header.size() == 0 {
+                        break;
+                    }
+                    header = ListAllocationHeader::new(header.size() + next_header.size(), false);
+                    write_generic(core, cursor, header)?;
+                }
+                if header.size() >= size {
+                    return Ok(cursor);
+                }
             }
 
-            if cursor >= base_address + base_size {
+            cursor += header.size();
+            if cursor >= end {
                 break;
             }
         }
@@ -112,7 +129,7 @@ impl ListAllocator {
 
 #[cfg(test)]
 mod tests {
-    use wie_util::Result;
+    use wie_util::{Result, WieError, write_generic};
 
     use crate::ArmCore;
 
@@ -127,6 +144,57 @@ mod tests {
         let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;
 
         assert_eq!(address, 0x40000004);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_coalesce_adjacent_free_blocks() -> Result<()> {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.map(0x40000000, 0x1000)?;
+
+        ListAllocator::init(&mut core, 0x40000000, 0x400)?;
+        let a = ListAllocator::alloc(&mut core, 0x40000000, 0x400, 0x100)?;
+        let b = ListAllocator::alloc(&mut core, 0x40000000, 0x400, 0x100)?;
+        let _c = ListAllocator::alloc(&mut core, 0x40000000, 0x400, 0x1e8)?;
+
+        ListAllocator::free(&mut core, a)?;
+        ListAllocator::free(&mut core, b)?;
+
+        let merged = ListAllocator::alloc(&mut core, 0x40000000, 0x400, 0x150)?;
+        assert_eq!(merged, a);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_double_free_returns_error() -> Result<()> {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.map(0x40000000, 0x1000)?;
+
+        ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
+        let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;
+
+        ListAllocator::free(&mut core, address)?;
+        let result = ListAllocator::free(&mut core, address);
+
+        assert!(matches!(result, Err(WieError::FatalError(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_corrupted_canary_returns_error() -> Result<()> {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.map(0x40000000, 0x1000)?;
+
+        ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
+        let address = ListAllocator::alloc(&mut core, 0x40000000, 0x1000, 4)?;
+
+        write_generic(&mut core, address + 4, 0u32)?;
+        let result = ListAllocator::free(&mut core, address);
+
+        assert!(matches!(result, Err(WieError::FatalError(_))));
 
         Ok(())
     }
