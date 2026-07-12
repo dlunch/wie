@@ -1,6 +1,7 @@
+mod sprintf;
+
 use alloc::{
     boxed::Box,
-    format, str,
     string::{String, ToString},
     vec::Vec,
 };
@@ -13,6 +14,8 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
+
+use self::sprintf::sprintf;
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -29,7 +32,8 @@ pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
 pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWord, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetSystemProperty({ptr_id:#x}, {p_out:#x}, {buf_size:#x})");
 
-    let id = String::from_utf8(read_null_terminated_string_bytes(context, ptr_id)?).unwrap();
+    let id_bytes = read_null_terminated_string_bytes(context, ptr_id)?;
+    let id = encoding_rs::EUC_KR.decode(&id_bytes).0;
 
     let value = match id.as_ref() {
         "RSSILEVEL" => "30",
@@ -165,7 +169,8 @@ pub async fn free(context: &mut dyn WIPICContext, memory: WIPICIndirectPtr) -> R
 pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord, ptr_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResourceID({ptr_name:#x}, {ptr_size:#x})");
 
-    let name = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?).unwrap();
+    let raw_name = read_null_terminated_string_bytes(context, ptr_name)?;
+    let name = encoding_rs::EUC_KR.decode(&raw_name).0;
     tracing::debug!("  resource name: {name}");
 
     let size = context.get_resource_size(&name).await?;
@@ -199,9 +204,10 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICInd
     }
 
     let name_bytes = read_null_terminated_string_bytes(context, id as _)?;
-    let name = str::from_utf8(&name_bytes).unwrap();
+    // the handle was written by get_resource_id as utf-8, not guest-encoded
+    let name = String::from_utf8_lossy(&name_bytes);
 
-    let data = context.read_resource(name).await?;
+    let data = context.read_resource(&name).await?;
 
     if data.len() as u32 > buf_size {
         return Ok(-1);
@@ -263,80 +269,6 @@ pub async fn get_free_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
     Ok(0x100000) // TODO hardcoded
 }
 
-fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result<String> {
-    let mut result = String::with_capacity(format.len());
-    let mut chars = format.chars();
-    let mut arg_iter = args.iter();
-
-    while let Some(x) = chars.next() {
-        if x == '%' {
-            let mut flag = None;
-            let mut width = None;
-            loop {
-                let c = chars.next();
-                if c.is_none() {
-                    // broken formats..
-                    result.push('%');
-                    break;
-                }
-                let c = c.unwrap();
-
-                match c {
-                    '%' => {
-                        result.push('%');
-                        break;
-                    }
-                    'd' => {
-                        let arg = *arg_iter.next().unwrap() as i32;
-                        if let Some('0') = flag {
-                            result += &format!("{arg:0width$}", width = width.unwrap_or(0));
-                        } else {
-                            result += &format!("{arg:width$}", width = width.unwrap_or(0));
-                        }
-                        break;
-                    }
-                    's' => {
-                        let ptr = *arg_iter.next().unwrap();
-                        if ptr == 0 {
-                            result += "(null)";
-                            break;
-                        }
-
-                        let str = read_null_terminated_string_bytes(context, ptr)?;
-                        let str = encoding_rs::EUC_KR.decode(&str).0;
-
-                        result += &str;
-                        break;
-                    }
-                    'c' => {
-                        let byte = arg_iter.next().unwrap();
-                        result.push(*byte as u8 as char);
-                        break;
-                    }
-                    'x' => {
-                        let byte = arg_iter.next().unwrap();
-                        result += &format!("{byte:x}");
-                        break;
-                    }
-                    '0' => flag = Some('0'),
-                    '1'..='9' => {
-                        if let Some(x) = width {
-                            width = Some(x * 10 + c.to_digit(10).unwrap() as usize)
-                        } else {
-                            width = Some(c.to_digit(10).unwrap() as usize)
-                        }
-                    }
-                    _ => unimplemented!("Unknown format: {c}"),
-                }
-            }
-        } else {
-            result.push(x);
-        }
-    }
-
-    Ok(result)
-}
-
 pub async fn exit(context: &mut dyn WIPICContext, code: i32) -> Result<()> {
     tracing::debug!("MC_knlExit({code})");
 
@@ -375,7 +307,7 @@ mod test {
 
     use crate::{WIPICContext, context::test::TestContext, method::MethodImpl};
 
-    use super::{alloc, calloc, free, get_resource_id, get_system_property, sprintk};
+    use super::{alloc, calloc, free, get_resource, get_resource_id, get_system_property, sprintk};
 
     #[futures_test::test]
     async fn test_sprintk() -> Result<()> {
@@ -427,6 +359,59 @@ mod test {
         assert_eq!(alloc(&mut context, 0).await.unwrap().0, 0);
         assert_eq!(calloc(&mut context, 0).await.unwrap().0, 0);
         assert_eq!(free(&mut context, wipi_types::wipic::WIPICIndirectPtr(0)).await.unwrap().0, 0);
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_get_system_property_non_utf8() -> Result<()> {
+        let mut context = TestContext::new();
+        let id = context.alloc_raw(16).unwrap();
+        let out = context.alloc_raw(16).unwrap();
+
+        // EUC-KR "한글"
+        write_null_terminated_string_bytes(&mut context, id, &[0xc7, 0xd1, 0xb1, 0xdb]).unwrap();
+
+        assert_eq!(get_system_property(&mut context, id, out, 16).await.unwrap(), -9);
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_get_resource_id_non_utf8() -> Result<()> {
+        let mut context = TestContext::new();
+        let name = context.alloc_raw(16).unwrap();
+        let size = context.alloc_raw(4).unwrap();
+
+        write_null_terminated_string_bytes(&mut context, name, &[0xc7, 0xd1, 0xb1, 0xdb]).unwrap();
+
+        assert_eq!(get_resource_id(&mut context, name, size).await.unwrap(), -12);
+
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_get_resource_euc_kr_roundtrip() -> Result<()> {
+        let data = [1u8, 2, 3, 4];
+        let mut context = TestContext::new().with_resource("한글", &data);
+        let name = context.alloc_raw(16).unwrap();
+        let size = context.alloc_raw(4).unwrap();
+
+        write_null_terminated_string_bytes(&mut context, name, &[0xc7, 0xd1, 0xb1, 0xdb]).unwrap();
+
+        let handle = get_resource_id(&mut context, name, size).await.unwrap();
+        assert!(handle >= 0);
+
+        let mut size_bytes = [0; 4];
+        context.read_bytes(size, &mut size_bytes).unwrap();
+        assert_eq!(u32::from_le_bytes(size_bytes), 4);
+
+        let buf = context.alloc(4).unwrap();
+        assert_eq!(get_resource(&mut context, handle, buf, 4).await.unwrap(), 0);
+
+        let mut result = [0; 4];
+        context.read_bytes(context.data_ptr(buf).unwrap(), &mut result).unwrap();
+        assert_eq!(result, data);
 
         Ok(())
     }

@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-encoding_rs = { version = "^0.8", default-features = false }
+encoding_rs = { version = "^0.8", default-features = false, features = ["alloc"] }
 
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
