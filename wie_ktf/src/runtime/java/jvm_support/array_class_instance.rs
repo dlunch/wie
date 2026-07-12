@@ -107,7 +107,14 @@ impl ArrayClassInstance for JavaArrayClassInstance {
                 .flat_map(u16::to_le_bytes)
                 .collect::<Vec<_>>(),
             4 => values.into_iter().map(|x| x.as_raw()).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
-            _ => unreachable!(),
+            8 => values
+                .into_iter()
+                .flat_map(|x| {
+                    let (low, high) = x.as_raw64();
+                    (((high as u64) << 32) | low as u64).to_le_bytes()
+                })
+                .collect::<Vec<_>>(),
+            _ => unreachable!("invalid element size: {element_size}"),
         };
 
         let offset = offset * element_size;
@@ -138,7 +145,14 @@ impl ArrayClassInstance for JavaArrayClassInstance {
                 .chunks(4)
                 .map(|x| JavaValue::from_raw(u32::from_le_bytes(x.try_into().unwrap()) as _, &element_type, &self.core))
                 .collect::<Vec<_>>(),
-            _ => unreachable!(),
+            8 => values_raw
+                .chunks(8)
+                .map(|x| {
+                    let raw = u64::from_le_bytes(x.try_into().unwrap());
+                    JavaValue::from_raw64(raw as u32, (raw >> 32) as u32, &element_type)
+                })
+                .collect::<Vec<_>>(),
+            _ => unreachable!("invalid element size: {element_size}"),
         })
     }
 

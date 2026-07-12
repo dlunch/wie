@@ -3519,6 +3519,7 @@ dependencies = [
  "async-trait",
  "bitflags 2.13.0",
  "bytemuck",
+ "encoding_rs",
  "futures",
  "java_class_proto",
  "java_constants",
