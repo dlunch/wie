@@ -45,6 +45,8 @@ impl ThreadState {
 
 impl Drop for ThreadState {
     fn drop(&mut self) {
-        Allocator::free(&mut self.core, self.stack_base as _, self.stack_size as u32).unwrap()
+        if let Err(err) = Allocator::free(&mut self.core, self.stack_base as _, self.stack_size as u32) {
+            tracing::error!("Failed to free thread stack: {err}");
+        }
     }
 }
