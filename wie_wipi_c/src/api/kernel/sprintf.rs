@@ -28,7 +28,7 @@ fn format(format: &str, args: &[u32], read_string: &mut dyn FnMut(u32) -> Result
         let mut spec = String::from("%");
         let mut flag = None;
         let mut width = None;
-        let mut long = false;
+        let mut longs = 0u32;
         loop {
             let Some(c) = chars.next() else {
                 // broken format: emit what we have as-is
@@ -43,6 +43,8 @@ fn format(format: &str, args: &[u32], read_string: &mut dyn FnMut(u32) -> Result
                     break;
                 }
                 'd' | 'u' => {
+                    // ILP32 ABI: long is one word; only long long occupies two
+                    let long = longs >= 2;
                     let raw = if long {
                         next_arg64(&mut arg_iter)
                     } else {
@@ -79,7 +81,7 @@ fn format(format: &str, args: &[u32], read_string: &mut dyn FnMut(u32) -> Result
                     break;
                 }
                 'x' => {
-                    let arg = if long {
+                    let arg = if longs >= 2 {
                         next_arg64(&mut arg_iter)
                     } else {
                         next_arg(&mut arg_iter) as u64
@@ -92,7 +94,7 @@ fn format(format: &str, args: &[u32], read_string: &mut dyn FnMut(u32) -> Result
                     }
                     break;
                 }
-                'l' => long = true,
+                'l' => longs += 1,
                 '0' if width.is_none() => flag = Some('0'),
                 '0'..='9' => width = Some(width.unwrap_or(0).saturating_mul(10).saturating_add(c.to_digit(10).unwrap() as usize)),
                 _ => {
@@ -164,11 +166,16 @@ mod test {
 
     #[test]
     fn test_long_specifiers() -> Result<()> {
-        // long arguments are two words, low first
-        assert_eq!(format("%ld", &[0xffff_ffff, 0xffff_ffff])?, "-1");
-        assert_eq!(format("%lu", &[0xffff_ffff, 0xffff_ffff])?, "18446744073709551615");
-        assert_eq!(format("%lx", &[0x9abc_def0, 0x1234_5678])?, "123456789abcdef0");
-        assert_eq!(format("%ld %d", &[1, 0, 42])?, "1 42");
+        // ILP32: long is one word, so %ld must not shift later arguments
+        assert_eq!(format("%ld", &[0xffff_ffff])?, "-1");
+        assert_eq!(format("%lu", &[0xffff_ffff])?, "4294967295");
+        assert_eq!(format("%ld %d", &[1, 42])?, "1 42");
+
+        // long long arguments are two words, low first
+        assert_eq!(format("%lld", &[0xffff_ffff, 0xffff_ffff])?, "-1");
+        assert_eq!(format("%llu", &[0xffff_ffff, 0xffff_ffff])?, "18446744073709551615");
+        assert_eq!(format("%llx", &[0x9abc_def0, 0x1234_5678])?, "123456789abcdef0");
+        assert_eq!(format("%lld %d", &[1, 0, 42])?, "1 42");
 
         Ok(())
     }
