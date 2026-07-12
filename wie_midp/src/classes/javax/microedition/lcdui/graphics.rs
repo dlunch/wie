@@ -274,6 +274,10 @@ impl Graphics {
 
         let clip = Self::clip(jvm, &this).await?;
 
+        if width < 0 || height < 0 {
+            return Ok(());
+        }
+
         canvas.fill_round_rect(
             (translate_x + x) as _,
             (translate_y + y) as _,
@@ -310,6 +314,10 @@ impl Graphics {
 
         let clip = Self::clip(jvm, &this).await?;
 
+        if width < 0 || height < 0 {
+            return Ok(());
+        }
+
         canvas.fill_arc(
             (translate_x + x) as _,
             (translate_y + y) as _,
@@ -335,6 +343,10 @@ impl Graphics {
         let translate_y: i32 = jvm.get_field(&this, "translateY", "I").await?;
 
         let clip = Self::clip(jvm, &this).await?;
+
+        if width < 0 || height < 0 {
+            return Ok(());
+        }
 
         canvas.fill_rect(
             (translate_x + x) as _,
