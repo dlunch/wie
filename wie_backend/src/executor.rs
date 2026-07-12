@@ -144,6 +144,8 @@ impl Executor {
         let tasks = self.inner.lock().tasks.drain().collect::<HashMap<_, _>>();
         let mut sleeping_tasks = self.inner.lock().sleeping_tasks.drain().collect::<HashMap<_, _>>();
 
+        let mut first_error = None;
+
         for (task_id, mut task) in tasks.into_iter() {
             let item = sleeping_tasks.get(&task_id);
             if let Some(item) = item {
@@ -160,8 +162,11 @@ impl Executor {
             self.inner.lock().current_task_id = Some(task_id);
 
             match task.as_mut().poll(&mut context) {
-                Poll::Ready(x) => {
-                    x?;
+                Poll::Ready(Ok(())) => {}
+                Poll::Ready(Err(err)) => {
+                    if first_error.is_none() {
+                        first_error = Some(err);
+                    }
                 }
                 Poll::Pending => {
                     next_tasks.insert(task_id, task);
@@ -174,7 +179,7 @@ impl Executor {
         self.inner.lock().sleeping_tasks.extend(sleeping_tasks);
         self.inner.lock().tasks.extend(next_tasks);
 
-        Ok(())
+        if let Some(err) = first_error { Err(err) } else { Ok(()) }
     }
 
     pub(crate) fn sleep(&self, timeout: u64) {
@@ -198,5 +203,114 @@ impl Executor {
         }
 
         unsafe { Waker::from_raw(noop_raw_waker()) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::sync::Arc;
+    use core::{
+        cell::Cell,
+        future::Future,
+        pin::Pin,
+        sync::atomic::{AtomicBool, Ordering},
+        task::{Context, Poll},
+    };
+
+    use wie_util::WieError;
+
+    use super::Executor;
+    use crate::time::Instant;
+
+    struct YieldOnce(bool);
+
+    impl Future for YieldOnce {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+            if self.0 {
+                Poll::Ready(())
+            } else {
+                self.0 = true;
+                Poll::Pending
+            }
+        }
+    }
+
+    fn advancing_clock(start: u64) -> impl Fn() -> Instant {
+        let time = Cell::new(start);
+        move || {
+            let now = time.get();
+            time.set(now + 1);
+            Instant::from_epoch_millis(now)
+        }
+    }
+
+    #[test]
+    fn test_failed_task_preserves_others() {
+        let mut executor = Executor::new();
+
+        executor.spawn(|| async { Err::<(), _>(WieError::FatalError("test error".into())) });
+
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_clone = completed.clone();
+        executor.spawn(move || async move {
+            YieldOnce(false).await;
+            completed_clone.store(true, Ordering::Relaxed);
+        });
+
+        assert!(executor.tick(advancing_clock(0)).is_err());
+        assert!(!completed.load(Ordering::Relaxed));
+
+        executor.tick(advancing_clock(100)).unwrap();
+        assert!(completed.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_failed_task_preserves_sleeping_tasks() {
+        let mut executor = Executor::new();
+
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_clone = completed.clone();
+        let executor_clone = executor.clone();
+        executor.spawn(move || async move {
+            executor_clone.sleep(100);
+            YieldOnce(false).await;
+            completed_clone.store(true, Ordering::Relaxed);
+        });
+
+        executor.spawn(|| async { Err::<(), _>(WieError::FatalError("test error".into())) });
+
+        assert!(executor.tick(advancing_clock(0)).is_err());
+        assert!(!completed.load(Ordering::Relaxed));
+
+        executor.tick(advancing_clock(50)).unwrap();
+        assert!(!completed.load(Ordering::Relaxed));
+
+        executor.tick(advancing_clock(200)).unwrap();
+        assert!(completed.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_all_ok_tasks_complete() {
+        let mut executor = Executor::new();
+
+        let completed_a = Arc::new(AtomicBool::new(false));
+        let completed_a_clone = completed_a.clone();
+        executor.spawn(move || async move {
+            completed_a_clone.store(true, Ordering::Relaxed);
+        });
+
+        let completed_b = Arc::new(AtomicBool::new(false));
+        let completed_b_clone = completed_b.clone();
+        executor.spawn(move || async move {
+            YieldOnce(false).await;
+            completed_b_clone.store(true, Ordering::Relaxed);
+        });
+
+        executor.tick(advancing_clock(0)).unwrap();
+
+        assert!(completed_a.load(Ordering::Relaxed));
+        assert!(completed_b.load(Ordering::Relaxed));
     }
 }
