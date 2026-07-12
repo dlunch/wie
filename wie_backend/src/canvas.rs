@@ -382,7 +382,10 @@ where
         let radius = a.max(b).max(1.0);
         let sweep_rad = sweep_deg.to_radians();
         let start_rad = start_deg.to_radians();
-        let steps = ((sweep_rad.abs() * radius).ceil() as i32 * 2).max(1);
+        // the visible portion of any arc is bounded by the image perimeter, so cap
+        // the step count; otherwise a guest-supplied huge radius spins for minutes
+        let max_steps = 16 * (self.image_buffer.width() as i64 + self.image_buffer.height() as i64).max(1);
+        let steps = ((sweep_rad.abs() * radius).ceil() as i64 * 2).clamp(1, max_steps) as i32;
 
         for i in 0..=steps {
             let theta = start_rad + sweep_rad * (i as f32) / (steps as f32);
@@ -434,6 +437,15 @@ fn clip_segment(x1: i32, y1: i32, x2: i32, y2: i32, width: u32, height: u32) -> 
         (fx1 + dx * t1).round() as i32,
         (fy1 + dy * t1).round() as i32,
     ))
+}
+
+/// Intersect the span [start, start + len) with [0, max) in i64 so extreme
+/// guest-supplied coordinates can neither overflow i32 nor iterate off-image.
+fn clamp_span(start: i32, len: u32, max: u32) -> core::ops::Range<i32> {
+    let s = (start as i64).max(0);
+    let e = (start as i64 + len as i64).min(max as i64);
+
+    if s >= e { 0..0 } else { s as i32..e as i32 }
 }
 
 /// Whether the point lies within the pie sweep starting at `start_deg` spanning
@@ -510,20 +522,27 @@ where
     }
 
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip) {
-        for y in 0..(h as i32) {
-            for x in 0..(w as i32) {
-                if sx + x < 0 || sy + y < 0 || sx + x >= src.width() as i32 || sy + y >= src.height() as i32 {
-                    continue;
-                }
-                if dx + x < 0 || dy + y < 0 || dx + x >= self.image_buffer.width() as i32 || dy + y >= self.image_buffer.height() as i32 {
-                    continue;
-                }
-                if dx + x < clip.x || dx + x >= clip.x + (clip.width as i32) || dy + y < clip.y || dy + y >= clip.y + (clip.height as i32) {
+        // iterate only the overlap of destination, source, and image bounds; i64 keeps
+        // extreme guest offsets from overflowing or spinning through offscreen pixels
+        let x_start = 0i64.max(-(dx as i64)).max(-(sx as i64));
+        let x_end = (w as i64)
+            .min(self.image_buffer.width() as i64 - dx as i64)
+            .min(src.width() as i64 - sx as i64);
+        let y_start = 0i64.max(-(dy as i64)).max(-(sy as i64));
+        let y_end = (h as i64)
+            .min(self.image_buffer.height() as i64 - dy as i64)
+            .min(src.height() as i64 - sy as i64);
+
+        for y in y_start..y_end {
+            for x in x_start..x_end {
+                let px = (dx as i64 + x) as i32;
+                let py = (dy as i64 + y) as i32;
+                if px < clip.x || px >= clip.x + (clip.width as i32) || py < clip.y || py >= clip.y + (clip.height as i32) {
                     continue;
                 }
 
                 // TODO blend multiple pixels at once for performance
-                self.blend_pixel(dx + x, dy + y, src.get_pixel(sx + x, sy + y));
+                self.blend_pixel(px, py, src.get_pixel((sx as i64 + x) as i32, (sy as i64 + y) as i32));
             }
         }
     }
@@ -620,16 +639,25 @@ where
             return self.fill_rect(x, y, w, h, color, clip);
         }
 
-        let right = x + w as i32 - 1;
-        let bottom = y + h as i32 - 1;
+        let width = self.image_buffer.width();
+        let height = self.image_buffer.height();
+        let right = x as i64 + w as i64 - 1;
+        let bottom = y as i64 + h as i64 - 1;
 
-        for px in x..=right {
+        for px in clamp_span(x, w, width) {
             self.plot(px, y, color, &clip);
-            self.plot(px, bottom, color, &clip);
+            if bottom < height as i64 {
+                self.plot(px, bottom as i32, color, &clip);
+            }
         }
-        for py in (y + 1)..bottom {
-            self.plot(x, py, color, &clip);
-            self.plot(right, py, color, &clip);
+
+        let py_start = (y as i64 + 1).max(0);
+        let py_end = bottom.min(height as i64);
+        for py in py_start..py_end {
+            self.plot(x, py as i32, color, &clip);
+            if right < width as i64 {
+                self.plot(right as i32, py as i32, color, &clip);
+            }
         }
     }
 
@@ -656,21 +684,36 @@ where
 
         let rx = (arc_width.min(w) as f32 / 2.0).max(0.5);
         let ry = (arc_height.min(h) as f32 / 2.0).max(0.5);
-        let rxi = rx.round() as i32;
-        let ryi = ry.round() as i32;
+        let rxi = rx.round() as i64;
+        let ryi = ry.round() as i64;
 
-        let left = x;
-        let right = x + w as i32 - 1;
-        let top = y;
-        let bottom = y + h as i32 - 1;
+        let width = self.image_buffer.width() as i64;
+        let height = self.image_buffer.height() as i64;
+        let left = x as i64;
+        let right = x as i64 + w as i64 - 1;
+        let top = y as i64;
+        let bottom = y as i64 + h as i64 - 1;
 
-        for px in (left + rxi)..=(right - rxi) {
-            self.plot(px, top, color, &clip);
-            self.plot(px, bottom, color, &clip);
+        let px_start = (left + rxi).max(0);
+        let px_end = (right - rxi + 1).min(width);
+        for px in px_start..px_end {
+            if (0..height).contains(&top) {
+                self.plot(px as i32, top as i32, color, &clip);
+            }
+            if (0..height).contains(&bottom) {
+                self.plot(px as i32, bottom as i32, color, &clip);
+            }
         }
-        for py in (top + ryi)..=(bottom - ryi) {
-            self.plot(left, py, color, &clip);
-            self.plot(right, py, color, &clip);
+
+        let py_start = (top + ryi).max(0);
+        let py_end = (bottom - ryi + 1).min(height);
+        for py in py_start..py_end {
+            if (0..width).contains(&left) {
+                self.plot(left as i32, py as i32, color, &clip);
+            }
+            if (0..width).contains(&right) {
+                self.plot(right as i32, py as i32, color, &clip);
+            }
         }
 
         self.stroke_arc(right as f32 - rx, top as f32 + ry, rx, ry, 0.0, 90.0, color, &clip);
@@ -681,15 +724,9 @@ where
 
     fn fill_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip) {
         // TODO use put_pixels
-        for y in y..y + (h as i32) {
-            for x in x..x + (w as i32) {
-                if x >= self.image_buffer.width() as i32 || y >= self.image_buffer.height() as i32 {
-                    continue;
-                }
-                if x < clip.x || x >= clip.x + clip.width as i32 || y < clip.y || y >= clip.y + clip.height as i32 {
-                    continue;
-                }
-                self.put_pixel(x, y, color);
+        for py in clamp_span(y, h, self.image_buffer.height()) {
+            for px in clamp_span(x, w, self.image_buffer.width()) {
+                self.plot(px, py, color, &clip);
             }
         }
     }
@@ -708,8 +745,8 @@ where
         let start = start_angle as f32;
         let sweep = arc_angle as f32;
 
-        for py in y..y + h as i32 {
-            for px in x..x + w as i32 {
+        for py in clamp_span(y, h, self.image_buffer.height()) {
+            for px in clamp_span(x, w, self.image_buffer.width()) {
                 let nx = (px as f32 - cx) / da;
                 let ny = (py as f32 - cy) / db;
                 if nx * nx + ny * ny > 1.0 {
@@ -735,11 +772,11 @@ where
         let ry = (arc_height.min(h) as f32 / 2.0).max(0.5);
 
         let left_center = x as f32 + rx;
-        let right_center = (x + w as i32 - 1) as f32 - rx;
+        let right_center = (x as i64 + w as i64 - 1) as f32 - rx;
         let top_center = y as f32 + ry;
-        let bottom_center = (y + h as i32 - 1) as f32 - ry;
+        let bottom_center = (y as i64 + h as i64 - 1) as f32 - ry;
 
-        for py in y..y + h as i32 {
+        for py in clamp_span(y, h, self.image_buffer.height()) {
             let cy = if (py as f32) < top_center {
                 top_center
             } else if (py as f32) > bottom_center {
@@ -747,7 +784,7 @@ where
             } else {
                 py as f32
             };
-            for px in x..x + w as i32 {
+            for px in clamp_span(x, w, self.image_buffer.width()) {
                 let cx = if (px as f32) < left_center {
                     left_center
                 } else if (px as f32) > right_center {
@@ -1221,6 +1258,46 @@ mod tests {
         };
         assert_eq!(count_set(&clipped), 0, "empty clip must draw nothing");
         assert!(count_set(&unclipped) > 0, "full clip must draw glyph pixels");
+    }
+
+    #[test]
+    fn test_extreme_dimensions_terminate() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+
+        // must complete quickly and draw only the visible portion, whatever the guest passes
+        canvas.draw_rect(0, 0, u32::MAX, u32::MAX, WHITE, full_clip(10));
+        canvas.fill_rect(-5, -5, u32::MAX, u32::MAX, WHITE, full_clip(10));
+        canvas.draw_rect(2, 2, 0x8000_0000, 5, WHITE, full_clip(10));
+        canvas.fill_arc(0, 0, u32::MAX, u32::MAX, 0, 360, WHITE, full_clip(10));
+        canvas.fill_round_rect(0, 0, u32::MAX, u32::MAX, 4, 4, WHITE, full_clip(10));
+        canvas.draw_round_rect(-100, -100, u32::MAX, u32::MAX, 4, 4, WHITE, full_clip(10));
+        canvas.draw_arc(0, 0, u32::MAX, u32::MAX, 0, 360, WHITE, full_clip(10));
+        canvas.draw(
+            -2_000_000_000,
+            -2_000_000_000,
+            u32::MAX,
+            u32::MAX,
+            &VecImageBuffer::<ArgbPixel>::new(4, 4),
+            0,
+            0,
+            full_clip(10),
+        );
+
+        let image = canvas.into_inner();
+        assert!(is_set(&image, 0, 0), "full-coverage fill must reach the visible area");
+    }
+
+    #[test]
+    fn test_draw_rect_edges_visible_when_partially_offscreen() {
+        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(10, 10));
+
+        // right/bottom edges far offscreen: only top and left edges are visible
+        canvas.draw_rect(2, 2, 1_000_000, 1_000_000, WHITE, full_clip(10));
+        let image = canvas.into_inner();
+
+        assert!(is_set(&image, 5, 2), "top edge should be drawn");
+        assert!(is_set(&image, 2, 5), "left edge should be drawn");
+        assert!(!is_set(&image, 5, 5), "interior must stay empty");
     }
 
     #[test]
