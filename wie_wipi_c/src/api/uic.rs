@@ -1,5 +1,3 @@
-use alloc::string::String;
-
 use wie_util::{Result, read_null_terminated_string_bytes};
 
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
@@ -13,7 +11,8 @@ pub async fn create_application_context(_context: &mut dyn WIPICContext) -> Resu
 }
 
 pub async fn get_class(context: &mut dyn WIPICContext, psz: WIPICWord) -> Result<WIPICIndirectPtr> {
-    let name = String::from_utf8(read_null_terminated_string_bytes(context, psz)?).unwrap();
+    let name_bytes = read_null_terminated_string_bytes(context, psz)?;
+    let name = encoding_rs::EUC_KR.decode(&name_bytes).0;
     tracing::warn!("stub MC_uicGetClass({name})");
 
     Ok(WIPICIndirectPtr(0))
