@@ -121,11 +121,17 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
     let mut canvas = framebuffer.canvas(context)?;
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.put_pixel(x as _, y as _, color);
+    canvas.flush()?;
+
     Ok(())
 }
 
 pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpFillRect({:#x}, {x}, {y}, {w}, {h}, {p_gctx:#x})", dst_fb.0);
+
+    if w <= 0 || h <= 0 {
+        return Ok(());
+    }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst_fb)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
@@ -140,6 +146,8 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.fill_rect(x as _, y as _, w as _, h as _, color, clip);
+    canvas.flush()?;
+
     Ok(())
 }
 
@@ -174,6 +182,8 @@ pub async fn draw_arc(
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.draw_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
+    canvas.flush()?;
+
     Ok(())
 }
 
@@ -208,6 +218,8 @@ pub async fn fill_arc(
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.fill_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
+    canvas.flush()?;
+
     Ok(())
 }
 
@@ -270,6 +282,7 @@ pub async fn draw_image(
     };
 
     canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _, clip);
+    canvas.flush()?;
 
     Ok(())
 }
@@ -382,6 +395,7 @@ pub async fn copy_area(
     };
 
     canvas.draw(dx as _, dy as _, w as _, h as _, &*image, x as _, y as _, clip);
+    canvas.flush()?;
 
     Ok(())
 }
@@ -438,6 +452,7 @@ pub async fn copy_frame_buffer(
     };
 
     dst_canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _, clip);
+    dst_canvas.flush()?;
 
     Ok(())
 }
@@ -509,6 +524,7 @@ pub async fn draw_string(
     let mut canvas = framebuffer.canvas(context)?;
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.draw_text(&string, x, y, TextAlignment::Left, color, clip);
+    canvas.flush()?;
 
     Ok(())
 }
@@ -650,6 +666,7 @@ pub async fn set_rgb_pixels(
             canvas.put_pixel(x + dx, y + dy, color);
         }
     }
+    canvas.flush()?;
 
     Ok(())
 }
@@ -680,6 +697,10 @@ pub async fn get_image_property(context: &mut dyn WIPICContext, image: WIPICIndi
 pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x: i32, y: i32, w: i32, h: i32, pgc: WIPICWord) -> Result<()> {
     tracing::debug!("MC_grpDrawRect({:#x}, {x}, {y}, {w}, {h}, {pgc:#x})", dst.0);
 
+    if w <= 0 || h <= 0 {
+        return Ok(());
+    }
+
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
     let mut canvas = framebuffer.canvas(context)?;
@@ -693,6 +714,8 @@ pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x:
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.draw_rect(x as _, y as _, w as _, h as _, color, clip);
+    canvas.flush()?;
+
     Ok(())
 }
 
@@ -712,6 +735,8 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
     canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, color, clip);
+    canvas.flush()?;
+
     Ok(())
 }
 

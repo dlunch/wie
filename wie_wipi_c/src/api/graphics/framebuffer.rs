@@ -113,6 +113,7 @@ impl FrameBuffer {
             framebuffer: self,
             context,
             canvas,
+            flushed: false,
         })
     }
 
@@ -132,10 +133,24 @@ pub struct FramebufferCanvas<'a> {
     framebuffer: &'a FrameBuffer,
     context: &'a mut dyn WIPICContext,
     canvas: Box<dyn Canvas>,
+    flushed: bool,
 }
 
+impl FramebufferCanvas<'_> {
+    pub fn flush(mut self) -> Result<()> {
+        self.flushed = true;
+
+        self.framebuffer.write(self.context, &self.canvas.image().raw())
+    }
+}
+
+// best-effort fallback for canvases dropped without an explicit flush
 impl Drop for FramebufferCanvas<'_> {
     fn drop(&mut self) {
+        if self.flushed {
+            return;
+        }
+
         if let Err(err) = self.framebuffer.write(self.context, &self.canvas.image().raw()) {
             tracing::error!("Failed to flush framebuffer canvas: {err}");
         }
