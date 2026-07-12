@@ -69,7 +69,8 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> Result<u32> {
 pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32, ptr_name: u32) -> Result<u32> {
     tracing::trace!("load_java_class({ptr_target:#x}, {ptr_name:#x})");
 
-    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
+    let name_bytes = read_null_terminated_string_bytes(core, ptr_name)?;
+    let name = encoding_rs::EUC_KR.decode(&name_bytes).0;
     let class = jvm.resolve_class(&name).await;
 
     if let Ok(x) = class {
@@ -87,9 +88,13 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
 pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord, a1: u32) -> Result<JavaMethodResult> {
     tracing::warn!("java_throw({ptr_error:#x}, {a1})");
 
-    let error = String::from_utf8(read_null_terminated_string_bytes(core, ptr_error)?).unwrap();
+    let error_bytes = read_null_terminated_string_bytes(core, ptr_error)?;
+    let error = encoding_rs::EUC_KR.decode(&error_bytes).0;
 
-    let exception = jvm.new_class(&error, "()V", ()).await.unwrap();
+    let exception = match jvm.new_class(&error, "()V", ()).await {
+        Ok(x) => x,
+        Err(x) => return Err(JvmSupport::to_wie_err(jvm, x).await),
+    };
 
     JavaMethod::handle_exception(core, jvm, exception).await
 }
@@ -208,7 +213,7 @@ async fn register_java_string(core: &mut ArmCore, jvm: &mut Jvm, offset: u32, le
     core.read_bytes(cursor, &mut bytes)?;
     let bytes_u16 = bytes.chunks(2).map(|x| u16::from_le_bytes([x[0], x[1]])).collect::<Vec<_>>();
 
-    let rust_string = String::from_utf16(&bytes_u16).unwrap();
+    let rust_string = String::from_utf16_lossy(&bytes_u16);
 
     let instance = JavaLangString::from_rust_string(jvm, &rust_string).await.unwrap();
 
