@@ -11,5 +11,6 @@ This project is dedicated to digital preservation and educational research. Our 
 
 ## Related projects
 
+- [Wie Frontend](https://github.com/dlunch/wie_app)
 - [RustJava](https://github.com/dlunch/RustJava)
 - [smaf](https://github.com/dlunch/smaf)
