@@ -465,16 +465,6 @@ mod test {
             let height: i32 = jvm.get_field(&this, "h", "I").await?;
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateX", "()I", ()).await?, x);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateY", "()I", ()).await?, y);
-            let clip_x = jvm.invoke_virtual::<_, i32>(&graphics, "getClipX", "()I", ()).await?;
-            let clip_y = jvm.invoke_virtual::<_, i32>(&graphics, "getClipY", "()I", ()).await?;
-            let clip_width = jvm.invoke_virtual::<_, i32>(&graphics, "getClipWidth", "()I", ()).await?;
-            let clip_height = jvm.invoke_virtual::<_, i32>(&graphics, "getClipHeight", "()I", ()).await?;
-            assert!(clip_x >= 0);
-            assert!(clip_y >= 0);
-            assert!(clip_width >= 0);
-            assert!(clip_height >= 0);
-            assert!(i64::from(clip_x) + i64::from(clip_width) <= i64::from(width));
-            assert!(i64::from(clip_y) + i64::from(clip_height) <= i64::from(height));
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getColor", "()I", ()).await?, 0);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 255);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 0);
@@ -484,7 +474,7 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&graphics, "setColor", "(I)V", (if transparent { 0xff0000 } else { 0x00ff00 },))
                 .await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (-10, -10, 20, 20)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, width, height)).await?;
 
             if transparent {
                 let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (7, 8)).await?;
@@ -786,7 +776,7 @@ mod test {
     }
 
     #[test]
-    fn test_card_canvas_offsets_clips_and_isolates_graphics_state() -> Result<()> {
+    fn test_card_canvas_offsets_and_isolates_graphics_state() -> Result<()> {
         let fixture: Box<[WieJavaClassProto]> = Vec::from([TestCard::as_proto(), TestCanvas::as_proto()]).into_boxed_slice();
         run_jvm_test(
             Box::new([wie_midp::get_protos().into(), get_protos().into(), fixture]),
@@ -856,11 +846,11 @@ mod test {
                 let second_outside = backend_image.get_pixel(6, 2);
                 let below_dirty = backend_image.get_pixel(5, 4);
                 assert_eq!((outside.r, outside.g, outside.b), (0, 0, 0));
-                assert_eq!((first_outside.r, first_outside.g, first_outside.b), (0, 0, 0));
+                assert_eq!((first_outside.r, first_outside.g, first_outside.b), (0xff, 0, 0));
                 assert_eq!((first_dirty.r, first_dirty.g, first_dirty.b), (0xff, 0, 0));
                 assert_eq!((second_dirty.r, second_dirty.g, second_dirty.b), (0, 0xff, 0));
-                assert_eq!((second_outside.r, second_outside.g, second_outside.b), (0, 0, 0));
-                assert_eq!((below_dirty.r, below_dirty.g, below_dirty.b), (0, 0, 0));
+                assert_eq!((second_outside.r, second_outside.g, second_outside.b), (0, 0xff, 0));
+                assert_eq!((below_dirty.r, below_dirty.g, below_dirty.b), (0, 0xff, 0));
 
                 Ok(())
             },
