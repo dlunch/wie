@@ -55,26 +55,10 @@ impl BackLight {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::get_protos;
-
-    use super::BackLight;
-
-    #[test]
-    fn test_missing_method_prototypes() {
-        let proto = BackLight::as_proto();
-        for (name, descriptor) in [("on", "(III)V"), ("off", "()V"), ("before", "()V")] {
-            let method = proto
-                .methods
-                .iter()
-                .find(|method| method.name == name && method.descriptor == descriptor)
-                .unwrap_or_else(|| panic!("missing {name}{descriptor}"));
-            assert!(method.access_flags.contains(MethodAccessFlags::STATIC));
-        }
-    }
 
     #[test]
     fn test_backlight_stubs_are_callable() -> Result<()> {

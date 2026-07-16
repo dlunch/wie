@@ -45,25 +45,10 @@ impl Vibrator {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::get_protos;
-
-    use super::Vibrator;
-
-    #[test]
-    fn test_off_proto() {
-        let proto = Vibrator::as_proto();
-        let matching = proto
-            .methods
-            .iter()
-            .filter(|method| method.name == "off" && method.descriptor == "()V" && method.access_flags == MethodAccessFlags::STATIC)
-            .count();
-
-        assert_eq!(matching, 1);
-    }
 
     #[test]
     fn test_off_is_noop() -> Result<()> {

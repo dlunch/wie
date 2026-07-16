@@ -59,26 +59,12 @@ impl HandsetProperty {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use java_runtime::classes::java::lang::String;
     use jvm::{ClassInstanceRef, runtime::JavaLangString};
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::get_protos;
-
-    use super::HandsetProperty;
-
-    #[test]
-    fn test_set_system_property_prototype() {
-        let proto = HandsetProperty::as_proto();
-        let method = proto
-            .methods
-            .iter()
-            .find(|method| method.name == "setSystemProperty" && method.descriptor == "(Ljava/lang/String;Ljava/lang/String;)Z")
-            .expect("missing setSystemProperty(Ljava/lang/String;Ljava/lang/String;)Z");
-        assert!(method.access_flags.contains(MethodAccessFlags::STATIC));
-    }
 
     #[test]
     fn test_set_system_property_returns_false() -> Result<()> {

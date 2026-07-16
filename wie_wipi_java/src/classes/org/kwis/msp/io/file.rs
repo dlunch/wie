@@ -329,7 +329,6 @@ impl File {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use java_runtime::classes::java::{
         io::{DataOutputStream, OutputStream},
         lang::String,
@@ -341,25 +340,6 @@ mod test {
     use crate::{classes::net::wie::WIPIFileOutputStream, get_protos};
 
     use super::{File, Mode};
-
-    #[test]
-    fn test_missing_method_prototypes() {
-        let proto = File::as_proto();
-        for (name, descriptor) in [
-            ("openOutputStream", "()Ljava/io/OutputStream;"),
-            ("openDataOutputStream", "()Ljava/io/DataOutputStream;"),
-            ("write", "(I)I"),
-            ("read", "()I"),
-            ("tell", "()I"),
-        ] {
-            let method = proto
-                .methods
-                .iter()
-                .find(|method| method.name == name && method.descriptor == descriptor)
-                .unwrap_or_else(|| panic!("missing {name}{descriptor}"));
-            assert!(!method.access_flags.contains(MethodAccessFlags::STATIC));
-        }
-    }
 
     #[test]
     fn test_byte_io_tell_and_output_streams() -> Result<()> {

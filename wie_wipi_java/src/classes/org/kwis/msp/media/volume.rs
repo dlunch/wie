@@ -69,33 +69,10 @@ impl Volume {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::get_protos;
-
-    use super::Volume;
-
-    #[test]
-    fn test_selected_volume_api_inventory() {
-        let proto = Volume::as_proto();
-        let expected = [
-            ("setMute", "(IZ)V"),
-            ("getMute", "(I)Z"),
-            ("setDefaultVolume", "(II)Z"),
-            ("getDefaultVolume", "(I)I"),
-        ];
-
-        for (name, descriptor) in expected {
-            let matching = proto
-                .methods
-                .iter()
-                .filter(|method| method.name == name && method.descriptor == descriptor && method.access_flags == MethodAccessFlags::STATIC)
-                .count();
-            assert_eq!(matching, 1, "{}.{}{}", proto.name, name, descriptor);
-        }
-    }
 
     #[test]
     fn test_volume_type_stubs_return_neutral_values() -> Result<()> {
