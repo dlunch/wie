@@ -16,12 +16,20 @@ impl HandsetProperty {
             name: "org/kwis/msp/handset/HandsetProperty",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "getSystemProperty",
-                "(Ljava/lang/String;)Ljava/lang/String;",
-                Self::get_system_property,
-                MethodAccessFlags::STATIC,
-            )],
+            methods: vec![
+                JavaMethodProto::new(
+                    "getSystemProperty",
+                    "(Ljava/lang/String;)Ljava/lang/String;",
+                    Self::get_system_property,
+                    MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "setSystemProperty",
+                    "(Ljava/lang/String;Ljava/lang/String;)Z",
+                    Self::set_system_property,
+                    MethodAccessFlags::STATIC,
+                ),
+            ],
             fields: vec![],
             access_flags: Default::default(),
         }
@@ -38,5 +46,56 @@ impl HandsetProperty {
 
         let result = JavaLangString::from_rust_string(jvm, value).await?;
         Ok(result.into())
+    }
+
+    async fn set_system_property(_: &Jvm, _: &mut WieJvmContext, id: ClassInstanceRef<String>, value: ClassInstanceRef<String>) -> JvmResult<bool> {
+        tracing::warn!("stub org.kwis.msp.handset.HandsetProperty::setSystemProperty({id:?}, {value:?})");
+
+        Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::boxed::Box;
+
+    use java_constants::MethodAccessFlags;
+    use java_runtime::classes::java::lang::String;
+    use jvm::{ClassInstanceRef, runtime::JavaLangString};
+    use test_utils::run_jvm_test;
+    use wie_util::Result;
+
+    use crate::get_protos;
+
+    use super::HandsetProperty;
+
+    #[test]
+    fn test_set_system_property_prototype() {
+        let proto = HandsetProperty::as_proto();
+        let method = proto
+            .methods
+            .iter()
+            .find(|method| method.name == "setSystemProperty" && method.descriptor == "(Ljava/lang/String;Ljava/lang/String;)Z")
+            .expect("missing setSystemProperty(Ljava/lang/String;Ljava/lang/String;)Z");
+        assert!(method.access_flags.contains(MethodAccessFlags::STATIC));
+    }
+
+    #[test]
+    fn test_set_system_property_returns_false() -> Result<()> {
+        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
+            let id: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "storage.test").await?.into();
+            let value: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "value").await?.into();
+            let result: bool = jvm
+                .invoke_static(
+                    "org/kwis/msp/handset/HandsetProperty",
+                    "setSystemProperty",
+                    "(Ljava/lang/String;Ljava/lang/String;)Z",
+                    (id, value),
+                )
+                .await?;
+
+            assert!(!result);
+            Ok(())
+        })
     }
 }
