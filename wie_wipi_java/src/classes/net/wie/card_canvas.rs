@@ -6,7 +6,7 @@ use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::{
-    javax::microedition::lcdui::{Display as MidpDisplay, Graphics as MidpGraphics},
+    javax::microedition::lcdui::{Canvas as MidpCanvas, Display as MidpDisplay, Graphics as MidpGraphics},
     net::wie::MIDPKeyCode,
 };
 
@@ -121,6 +121,9 @@ impl CardCanvas {
                 JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, Default::default()),
                 JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
                 JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, Default::default()),
+                JavaMethodProto::new("popCard", "()Lorg/kwis/msp/lcdui/Card;", Self::pop_card, Default::default()),
+                JavaMethodProto::new("removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", Self::remove_card, Default::default()),
+                JavaMethodProto::new("countCard", "()I", Self::count_card, Default::default()),
                 JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, Default::default()),
                 // wie private
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
@@ -149,15 +152,41 @@ impl CardCanvas {
         let graphics = jvm
             .new_class("org/kwis/msp/lcdui/Graphics", "(Ljavax/microedition/lcdui/Graphics;)V", (g,))
             .await?;
+        let display_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
+        let display_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
+        let display_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
+        let display_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
+            let x: i32 = jvm.invoke_virtual(&card, "getX", "()I", ()).await?;
+            let y: i32 = jvm.invoke_virtual(&card, "getY", "()I", ()).await?;
+            let width: i32 = jvm.invoke_virtual(&card, "getWidth", "()I", ()).await?;
+            let height: i32 = jvm.invoke_virtual(&card, "getHeight", "()I", ()).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "reset", "()V", ()).await?;
+
+            let clip_x = i64::from(display_x).max(i64::from(x));
+            let clip_y = i64::from(display_y).max(i64::from(y));
+            let clip_right = (i64::from(display_x) + i64::from(display_width)).min(i64::from(x) + i64::from(width));
+            let clip_bottom = (i64::from(display_y) + i64::from(display_height)).min(i64::from(y) + i64::from(height));
+            let clip_width = (clip_right - clip_x).max(0) as i32;
+            let clip_height = (clip_bottom - clip_y).max(0) as i32;
+
             let _: () = jvm
-                .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", (graphics.clone(),))
+                .invoke_virtual(&graphics, "setClip", "(IIII)V", (clip_x as i32, clip_y as i32, clip_width, clip_height))
                 .await?;
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (x, y)).await?;
+
+            let paint_result: JvmResult<()> = jvm
+                .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", (graphics.clone(),))
+                .await;
+            let reset_result: JvmResult<()> = jvm.invoke_virtual(&graphics, "reset", "()V", ()).await;
+            paint_result?;
+            reset_result?;
         }
 
         Ok(())
@@ -171,7 +200,7 @@ impl CardCanvas {
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
-        for i in 0..length {
+        for i in (0..length).rev() {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
             let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (1i32, key_code)).await?;
 
@@ -191,7 +220,7 @@ impl CardCanvas {
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
-        for i in 0..length {
+        for i in (0..length).rev() {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
             let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (3i32, key_code)).await?;
 
@@ -211,7 +240,7 @@ impl CardCanvas {
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
 
-        for i in 0..length {
+        for i in (0..length).rev() {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
             let propagate: bool = jvm.invoke_virtual(&card, "keyNotify", "(II)Z", (2i32, key_code)).await?;
 
@@ -226,7 +255,17 @@ impl CardCanvas {
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::pushCard({this:?}, {c:?})");
 
+        if c.is_null() {
+            return Ok(());
+        }
+
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
+        let canvas: ClassInstanceRef<MidpCanvas> = jvm.get_field(&c, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
+        let index: i32 = jvm.invoke_virtual(&cards, "indexOf", "(Ljava/lang/Object;)I", (c.clone(),)).await?;
+        if !canvas.is_null() || index >= 0 {
+            return Ok(());
+        }
+
         let _: () = jvm.invoke_virtual(&cards, "addElement", "(Ljava/lang/Object;)V", (c.clone(),)).await?;
 
         let _: () = jvm
@@ -253,6 +292,58 @@ impl CardCanvas {
         Ok(())
     }
 
+    async fn pop_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Card>> {
+        tracing::debug!("net.wie.CardCanvas::popCard({this:?})");
+
+        let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
+        let length: i32 = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
+        if length == 0 {
+            return Ok(None.into());
+        }
+
+        let card: ClassInstanceRef<Card> = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (length - 1,)).await?;
+        let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
+        let _: ClassInstanceRef<Card> = jvm.invoke_virtual(&cards, "remove", "(I)Ljava/lang/Object;", (length - 1,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&card, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (None,))
+            .await?;
+        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
+
+        Ok(card)
+    }
+
+    async fn remove_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, card: ClassInstanceRef<Card>) -> JvmResult<bool> {
+        tracing::debug!("net.wie.CardCanvas::removeCard({this:?}, {card:?})");
+
+        if card.is_null() {
+            return Ok(false);
+        }
+
+        let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
+        let index: i32 = jvm.invoke_virtual(&cards, "indexOf", "(Ljava/lang/Object;)I", (card.clone(),)).await?;
+        if index < 0 {
+            return Ok(false);
+        }
+
+        let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
+        let _: bool = jvm
+            .invoke_virtual(&cards, "removeElement", "(Ljava/lang/Object;)Z", (card.clone(),))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&card, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (None,))
+            .await?;
+        let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
+
+        Ok(true)
+    }
+
+    async fn count_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("net.wie.CardCanvas::countCard({this:?})");
+
+        let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
+        jvm.invoke_virtual(&cards, "size", "()I", ()).await
+    }
+
     async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("net.wie.CardCanvas::removeAllCards");
 
@@ -261,13 +352,16 @@ impl CardCanvas {
 
         for i in 0..length {
             let card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (i,)).await?;
+            let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
             let _: () = jvm
                 .invoke_virtual(&card, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (None,))
                 .await?;
-            let _: () = jvm.invoke_virtual(&card, "showNotify", "(Z)V", (false,)).await?;
         }
 
         let _: () = jvm.invoke_virtual(&cards, "removeAllElements", "()V", ()).await?;
+        if length != 0 {
+            let _: () = jvm.invoke_virtual(&this, "repaint", "()V", ()).await?;
+        }
 
         Ok(())
     }
@@ -283,7 +377,11 @@ impl CardCanvas {
         tracing::debug!("net.wie.CardCanvas::handleNotifyEvent({this:?}, {type}, {param1}, {param2})");
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
-        let top_card = jvm.invoke_virtual(&cards, "firstElement", "()Ljava/lang/Object;", ()).await?;
+        let length: i32 = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
+        if length == 0 {
+            return Ok(());
+        }
+        let top_card = jvm.invoke_virtual(&cards, "elementAt", "(I)Ljava/lang/Object;", (length - 1,)).await?;
 
         let _: () = jvm.invoke_virtual(&top_card, "notifyEvent", "(III)V", (r#type, param1, param2)).await?;
 

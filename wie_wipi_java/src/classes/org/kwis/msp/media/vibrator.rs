@@ -15,12 +15,10 @@ impl Vibrator {
             name: "org/kwis/msp/media/Vibrator",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new(
-                "on",
-                "(II)V",
-                Self::on,
-                MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
-            )],
+            methods: vec![
+                JavaMethodProto::new("on", "(II)V", Self::on, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("off", "()V", Self::off, MethodAccessFlags::STATIC),
+            ],
             fields: vec![],
             access_flags: Default::default(),
         }
@@ -34,5 +32,45 @@ impl Vibrator {
         context.system().platform().vibrate(duration_ms, intensity);
 
         Ok(())
+    }
+
+    async fn off(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.media.Vibrator::off()");
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::boxed::Box;
+
+    use java_constants::MethodAccessFlags;
+    use test_utils::run_jvm_test;
+    use wie_util::Result;
+
+    use crate::get_protos;
+
+    use super::Vibrator;
+
+    #[test]
+    fn test_off_proto() {
+        let proto = Vibrator::as_proto();
+        let matching = proto
+            .methods
+            .iter()
+            .filter(|method| method.name == "off" && method.descriptor == "()V" && method.access_flags == MethodAccessFlags::STATIC)
+            .count();
+
+        assert_eq!(matching, 1);
+    }
+
+    #[test]
+    fn test_off_is_noop() -> Result<()> {
+        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
+            let _: () = jvm.invoke_static("org/kwis/msp/media/Vibrator", "off", "()V", ()).await?;
+
+            Ok(())
+        })
     }
 }
