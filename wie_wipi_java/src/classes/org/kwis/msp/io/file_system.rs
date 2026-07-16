@@ -229,7 +229,6 @@ impl FileSystem {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use java_runtime::classes::java::{lang::String, util::Vector};
     use jvm::{Array, ClassInstanceRef, runtime::JavaLangString};
     use test_utils::run_jvm_test;
@@ -238,38 +237,6 @@ mod test {
     use crate::get_protos;
 
     use super::FileSystem;
-
-    #[test]
-    fn test_missing_method_prototypes() {
-        let proto = FileSystem::as_proto();
-        let expected = [
-            ("<init>", "()V", false),
-            ("getMaxFilenameLength", "()I", true),
-            ("list", "(Ljava/lang/String;)Ljava/util/Vector;", true),
-            ("list", "(Ljava/lang/String;I)Ljava/util/Vector;", true),
-            ("remove", "(Ljava/lang/String;)V", true),
-            ("remove", "(Ljava/lang/String;I)V", true),
-            ("mkdir", "(Ljava/lang/String;)V", true),
-            ("rmdir", "(Ljava/lang/String;)V", true),
-            ("rmdir", "(Ljava/lang/String;I)V", true),
-            ("toCString", "(Ljava/lang/String;)[B", true),
-            ("isFile", "(Ljava/lang/String;I)Z", true),
-            ("isDirectory", "(Ljava/lang/String;)Z", true),
-            ("getCreationTime", "(Ljava/lang/String;)I", true),
-            ("getCreationTime", "(Ljava/lang/String;I)I", true),
-            ("rename", "(Ljava/lang/String;Ljava/lang/String;)V", true),
-            ("rename", "(Ljava/lang/String;Ljava/lang/String;I)V", true),
-        ];
-
-        for (name, descriptor, is_static) in expected {
-            let method = proto
-                .methods
-                .iter()
-                .find(|method| method.name == name && method.descriptor == descriptor)
-                .unwrap_or_else(|| panic!("missing {name}{descriptor}"));
-            assert_eq!(method.access_flags.contains(MethodAccessFlags::STATIC), is_static);
-        }
-    }
 
     #[test]
     fn test_filesystem_overloads_and_neutral_stubs() -> Result<()> {

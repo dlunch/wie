@@ -152,10 +152,12 @@ impl CardCanvas {
         let graphics = jvm
             .new_class("org/kwis/msp/lcdui/Graphics", "(Ljavax/microedition/lcdui/Graphics;)V", (g,))
             .await?;
-        let display_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
-        let display_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
-        let display_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
-        let display_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
+        let display_x = i64::from(jvm.invoke_virtual::<_, i32>(&graphics, "getClipX", "()I", ()).await?)
+            + i64::from(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateX", "()I", ()).await?);
+        let display_y = i64::from(jvm.invoke_virtual::<_, i32>(&graphics, "getClipY", "()I", ()).await?)
+            + i64::from(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateY", "()I", ()).await?);
+        let display_width = i64::from(jvm.invoke_virtual::<_, i32>(&graphics, "getClipWidth", "()I", ()).await?.max(0));
+        let display_height = i64::from(jvm.invoke_virtual::<_, i32>(&graphics, "getClipHeight", "()I", ()).await?.max(0));
 
         let cards = jvm.get_field(&this, "cards", "Ljava/util/Vector;").await?;
         let length = jvm.invoke_virtual(&cards, "size", "()I", ()).await?;
@@ -169,17 +171,26 @@ impl CardCanvas {
 
             let _: () = jvm.invoke_virtual(&graphics, "reset", "()V", ()).await?;
 
-            let clip_x = i64::from(display_x).max(i64::from(x));
-            let clip_y = i64::from(display_y).max(i64::from(y));
-            let clip_right = (i64::from(display_x) + i64::from(display_width)).min(i64::from(x) + i64::from(width));
-            let clip_bottom = (i64::from(display_y) + i64::from(display_height)).min(i64::from(y) + i64::from(height));
+            let card_x = i64::from(x);
+            let card_y = i64::from(y);
+            let card_right = card_x + i64::from(width);
+            let card_bottom = card_y + i64::from(height);
+            let clip_x = display_x.max(card_x).min(card_right);
+            let clip_y = display_y.max(card_y).min(card_bottom);
+            let clip_right = (display_x + display_width).min(card_right).max(card_x);
+            let clip_bottom = (display_y + display_height).min(card_bottom).max(card_y);
             let clip_width = (clip_right - clip_x).max(0) as i32;
             let clip_height = (clip_bottom - clip_y).max(0) as i32;
 
-            let _: () = jvm
-                .invoke_virtual(&graphics, "setClip", "(IIII)V", (clip_x as i32, clip_y as i32, clip_width, clip_height))
-                .await?;
             let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (x, y)).await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &graphics,
+                    "setClip",
+                    "(IIII)V",
+                    ((clip_x - card_x) as i32, (clip_y - card_y) as i32, clip_width, clip_height),
+                )
+                .await?;
 
             let paint_result: JvmResult<()> = jvm
                 .invoke_virtual(&card, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", (graphics.clone(),))

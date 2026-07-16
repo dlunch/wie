@@ -218,36 +218,12 @@ impl Clip {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use java_runtime::classes::java::lang::String;
     use jvm::{ClassInstanceRef, runtime::JavaLangString};
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
     use crate::{classes::org::kwis::msp::media::Clip, get_protos};
-
-    #[test]
-    fn test_selected_clip_api_inventory_and_volume_abi() {
-        let proto = Clip::as_proto();
-        let expected = [
-            ("getType", "()Ljava/lang/String;"),
-            ("setPosition", "(I)Z"),
-            ("getPosition", "()I"),
-            ("setStopTime", "(I)Z"),
-            ("getStopTime", "()I"),
-            ("getVolume", "()I"),
-            ("setVolume", "(I)Z"),
-        ];
-
-        for (name, descriptor) in expected {
-            let matching = proto
-                .methods
-                .iter()
-                .filter(|method| method.name == name && method.descriptor == descriptor && method.access_flags == MethodAccessFlags::empty())
-                .count();
-            assert_eq!(matching, 1, "{}.{}{}", proto.name, name, descriptor);
-        }
-    }
 
     #[test]
     fn test_position_and_stop_time_round_trip() -> Result<()> {

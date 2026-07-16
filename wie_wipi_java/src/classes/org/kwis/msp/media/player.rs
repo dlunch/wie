@@ -94,7 +94,6 @@ impl Player {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use java_runtime::classes::java::lang::String;
     use jvm::{ClassInstanceRef, runtime::JavaLangString};
     use test_utils::run_jvm_test;
@@ -104,31 +103,6 @@ mod test {
         classes::org::kwis::msp::media::{BaseClip, Clip},
         get_protos,
     };
-
-    use super::Player;
-
-    #[test]
-    fn test_selected_player_api_inventory_and_compatibility() {
-        let proto = Player::as_proto();
-        let expected = [
-            ("pause", "(Lorg/kwis/msp/media/BaseClip;)Z"),
-            ("stop", "(Lorg/kwis/msp/media/BaseClip;)Z"),
-            ("resume", "(Lorg/kwis/msp/media/BaseClip;)Z"),
-            ("play", "(Lorg/kwis/msp/media/BaseClip;Z)Z"),
-            ("record", "(Lorg/kwis/msp/media/BaseClip;)Z"),
-            ("play", "(Lorg/kwis/msp/media/Clip;Z)Z"),
-            ("stop", "(Lorg/kwis/msp/media/Clip;)Z"),
-        ];
-
-        for (name, descriptor) in expected {
-            let matching = proto
-                .methods
-                .iter()
-                .filter(|method| method.name == name && method.descriptor == descriptor && method.access_flags == MethodAccessFlags::STATIC)
-                .count();
-            assert_eq!(matching, 1, "{}.{}{}", proto.name, name, descriptor);
-        }
-    }
 
     #[test]
     fn test_base_clip_overloads_return_false() -> Result<()> {

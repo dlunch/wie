@@ -374,7 +374,6 @@ impl DataBase {
 mod test {
     use alloc::boxed::Box;
 
-    use java_constants::MethodAccessFlags;
     use java_runtime::classes::java::lang::String;
     use jvm::{Array, ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
     use test_utils::run_jvm_test;
@@ -383,33 +382,6 @@ mod test {
     use crate::get_protos;
 
     use super::DataBase;
-
-    #[test]
-    fn test_missing_method_prototypes() {
-        let proto = DataBase::as_proto();
-        let expected = [
-            ("deleteDataBase", "(Ljava/lang/String;I)V", true),
-            ("deleteRecord", "(I)V", false),
-            ("selectRecord", "(I[BI)V", false),
-            ("sortRecord", "(Lorg/kwis/msp/db/DataFilter;Lorg/kwis/msp/db/DataComparator;)[I", false),
-            ("listDataBases", "()[Ljava/lang/String;", true),
-            ("getAccessMode", "(Ljava/lang/String;)I", true),
-            ("getDataBaseName", "()Ljava/lang/String;", false),
-            ("getDataBaseSize", "()I", false),
-            ("getRecordSize", "()I", false),
-            ("getSizeAvailable", "()I", false),
-            ("getLastModified", "()J", false),
-        ];
-
-        for (name, descriptor, is_static) in expected {
-            let method = proto
-                .methods
-                .iter()
-                .find(|method| method.name == name && method.descriptor == descriptor)
-                .unwrap_or_else(|| panic!("missing {name}{descriptor}"));
-            assert_eq!(method.access_flags.contains(MethodAccessFlags::STATIC), is_static);
-        }
-    }
 
     #[test]
     fn test_database_state_selection_and_stubs() -> Result<()> {

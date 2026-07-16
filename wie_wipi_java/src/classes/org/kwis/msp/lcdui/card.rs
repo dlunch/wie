@@ -469,12 +469,12 @@ mod test {
             let clip_y = jvm.invoke_virtual::<_, i32>(&graphics, "getClipY", "()I", ()).await?;
             let clip_width = jvm.invoke_virtual::<_, i32>(&graphics, "getClipWidth", "()I", ()).await?;
             let clip_height = jvm.invoke_virtual::<_, i32>(&graphics, "getClipHeight", "()I", ()).await?;
-            assert!(clip_x >= x);
-            assert!(clip_y >= y);
+            assert!(clip_x >= 0);
+            assert!(clip_y >= 0);
             assert!(clip_width >= 0);
             assert!(clip_height >= 0);
-            assert!(i64::from(clip_x) + i64::from(clip_width) <= i64::from(x) + i64::from(width));
-            assert!(i64::from(clip_y) + i64::from(clip_height) <= i64::from(y) + i64::from(height));
+            assert!(i64::from(clip_x) + i64::from(clip_width) <= i64::from(width));
+            assert!(i64::from(clip_y) + i64::from(clip_height) <= i64::from(height));
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getColor", "()I", ()).await?, 0);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 255);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 0);
@@ -834,7 +834,7 @@ mod test {
                     .await?;
                 let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x0000ff,)).await?;
                 let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (4, 4)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (2, 1, 4, 3)).await?;
+                let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (-2, -3, 4, 3)).await?;
 
                 let _: () = jvm
                     .invoke_virtual(&canvas, "paint", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics.clone(),))
