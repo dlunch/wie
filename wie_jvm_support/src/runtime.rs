@@ -161,7 +161,13 @@ where
             async fn call(self) -> Result<(), WieError> {
                 let result = self.callback.call().await;
                 if let Err(err) = result {
-                    return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
+                    self.jvm.attach_thread(None).await.unwrap();
+
+                    let result = Err(JvmSupport::to_wie_err(&self.jvm, err).await);
+
+                    self.jvm.detach_thread().unwrap();
+
+                    return result;
                 }
 
                 Ok(())
