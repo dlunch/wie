@@ -171,6 +171,10 @@ where
         self.system.spawn(SpawnProxy { jvm: jvm.clone(), callback });
     }
 
+    fn exit(&self, _status: i32) {
+        self.system.platform().exit();
+    }
+
     fn now(&self) -> u64 {
         self.system.platform().now().raw()
     }

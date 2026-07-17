@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
@@ -11,7 +11,7 @@ use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as 
 use wipi_types::ktf::java::JavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{ByteWrite, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::KtfJvmSupport;
 
@@ -96,6 +96,24 @@ impl ClassInstance for JavaClassInstance {
         let field_size = self.class().unwrap().field_size().unwrap();
 
         (*self).destroy(field_size as _).unwrap()
+    }
+
+    fn identity(&self) -> usize {
+        self.ptr_raw as _
+    }
+
+    fn shallow_clone(&self) -> JvmResult<Box<dyn ClassInstance>> {
+        let mut core = self.core.clone();
+        let class = self.class().unwrap();
+        let field_size = class.field_size().unwrap();
+
+        let instance = Self::instantiate(&mut core, &class, field_size).unwrap();
+
+        let mut fields = vec![0; field_size];
+        core.read_bytes(self.field_address(0).unwrap(), &mut fields).unwrap();
+        core.write_bytes(instance.field_address(0).unwrap(), &fields).unwrap();
+
+        Ok(Box::new(instance))
     }
 
     fn class_definition(&self) -> Box<dyn ClassDefinition> {

@@ -4,7 +4,7 @@ use core::{
     hash::{Hash, Hasher},
 };
 
-use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, JavaType, JavaValue, Result as JvmResult};
+use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
 use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
@@ -74,11 +74,29 @@ impl JavaArrayClassInstance {
 }
 
 #[async_trait::async_trait]
-impl ArrayClassInstance for JavaArrayClassInstance {
+impl ClassInstance for JavaArrayClassInstance {
     fn destroy(self: Box<Self>) {
         let field_size = self.element_size().unwrap() * self.array_length().unwrap() + 4;
 
         self.class_instance.destroy(field_size as _).unwrap()
+    }
+
+    fn identity(&self) -> usize {
+        self.class_instance.ptr_raw as _
+    }
+
+    fn shallow_clone(&self) -> JvmResult<Box<dyn ClassInstance>> {
+        let mut core = self.core.clone();
+        let array_class = JavaArrayClassDefinition::from_raw(self.class_instance.class().unwrap().ptr_raw, &self.core);
+        let length = self.array_length().unwrap();
+
+        let mut instance = Self::new(&mut core, &array_class, length).unwrap();
+
+        let mut buf = vec![0; length * self.element_size().unwrap()];
+        self.load_raw(0, &mut buf).unwrap();
+        instance.store_raw(0, buf).unwrap();
+
+        Ok(Box::new(instance))
     }
 
     fn class_definition(&self) -> Box<dyn ClassDefinition> {
@@ -94,6 +112,24 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         Ok(self.class_instance.ptr_raw == other.unwrap().class_instance.ptr_raw)
     }
 
+    fn as_array_instance(&self) -> Option<&dyn ArrayClassInstance> {
+        Some(self)
+    }
+
+    fn as_array_instance_mut(&mut self) -> Option<&mut dyn ArrayClassInstance> {
+        Some(self)
+    }
+
+    fn get_field(&self, _field: &dyn Field) -> JvmResult<JavaValue> {
+        panic!("Array classes do not have fields")
+    }
+
+    fn put_field(&mut self, _field: &dyn Field, _value: JavaValue) -> JvmResult<()> {
+        panic!("Array classes do not have fields")
+    }
+}
+
+impl ArrayClassInstance for JavaArrayClassInstance {
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.element_size().unwrap();
 
