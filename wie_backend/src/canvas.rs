@@ -61,8 +61,7 @@ pub trait Canvas: Send {
     fn fill_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip);
     fn fill_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
     fn invert_rect(&mut self, x: i32, y: i32, w: u32, h: u32, clip: Clip);
-    fn put_pixel(&mut self, x: i32, y: i32, color: Color);
-    fn set_pixel(&mut self, x: i32, y: i32, color: Color, clip: Clip);
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color, clip: Clip);
 }
 
 pub trait PixelType: Send {
@@ -379,7 +378,7 @@ where
         if x < clip.x as i64 || x >= clip.x as i64 + clip.width as i64 || y < clip.y as i64 || y >= clip.y as i64 + clip.height as i64 {
             return;
         }
-        self.put_pixel(x as i32, y as i32, color);
+        self.compose_pixel(x as i32, y as i32, color, false);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -856,11 +855,7 @@ where
         }
     }
 
-    fn put_pixel(&mut self, x: i32, y: i32, color: Color) {
-        self.compose_pixel(x, y, color, false);
-    }
-
-    fn set_pixel(&mut self, x: i32, y: i32, color: Color, clip: Clip) {
+    fn put_pixel(&mut self, x: i32, y: i32, color: Color, clip: Clip) {
         self.plot(x, y, color, &clip);
     }
 }
@@ -1122,10 +1117,10 @@ mod tests {
         let blue = Color { a: 255, r: 0, g: 0, b: 255 };
         let black = Color { a: 255, r: 0, g: 0, b: 0 };
 
-        canvas.put_pixel(0, 0, red);
-        canvas.put_pixel(1, 0, green);
-        canvas.put_pixel(2, 0, blue);
-        canvas.put_pixel(3, 0, black);
+        canvas.put_pixel(0, 0, red, full_clip(4));
+        canvas.put_pixel(1, 0, green, full_clip(4));
+        canvas.put_pixel(2, 0, blue, full_clip(4));
+        canvas.put_pixel(3, 0, black, full_clip(4));
 
         canvas.copy_area(1, 0, 0, 0, 3, 1, full_clip(4));
 
@@ -1149,10 +1144,10 @@ mod tests {
             height: 1,
         };
 
-        canvas.put_pixel(0, 0, red);
-        canvas.put_pixel(1, 0, green);
-        canvas.put_pixel(2, 0, blue);
-        canvas.put_pixel(3, 0, black);
+        canvas.put_pixel(0, 0, red, full_clip(4));
+        canvas.put_pixel(1, 0, green, full_clip(4));
+        canvas.put_pixel(2, 0, blue, full_clip(4));
+        canvas.put_pixel(3, 0, black, full_clip(4));
 
         canvas.copy_area(1, 0, 0, 0, 3, 1, clip);
 
@@ -1257,10 +1252,10 @@ mod tests {
             height: 1,
         };
 
-        canvas.set_pixel(0, 0, BACKGROUND, clip);
+        canvas.put_pixel(0, 0, BACKGROUND, clip);
         assert_color(canvas.image(), 0, 0, Color { a: 0, r: 0, g: 0, b: 0 });
 
-        canvas.set_pixel(1, 0, BACKGROUND, clip);
+        canvas.put_pixel(1, 0, BACKGROUND, clip);
         assert_color(canvas.image(), 1, 0, BACKGROUND);
         assert_eq!(canvas.get_pixel(1, 0).map(|color| (color.r, color.g, color.b)), Some((0x12, 0x34, 0x56)));
         assert!(canvas.get_pixel(3, 0).is_none());
@@ -1293,6 +1288,7 @@ mod tests {
                     g: 0x34,
                     b: 0x56,
                 },
+                full_clip(3),
             );
         }
 
