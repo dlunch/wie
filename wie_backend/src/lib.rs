@@ -19,6 +19,7 @@ pub use self::{
     platform::{Filesystem, Platform},
     screen::Screen,
     system::{Event, FilesystemOverlay, KeyCode, System},
+    task::YieldFuture,
     task_runner::{DefaultTaskRunner, TaskRunner},
     time::Instant,
 };

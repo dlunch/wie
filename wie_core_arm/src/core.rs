@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use spin::Mutex;
 
-use wie_backend::{ProfileCallback, ProfileSample};
+use wie_backend::{ProfileCallback, ProfileSample, YieldFuture};
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{
@@ -293,7 +293,7 @@ impl ArmCore {
 
             match result {
                 EngineRunResult::End => break,
-                EngineRunResult::CountExhausted => {}
+                EngineRunResult::CountExhausted => YieldFuture::new().await, // yield to allow other tasks to run
                 EngineRunResult::Svc { category, lr, spsr } => {
                     {
                         let mut inner = self.inner.lock();
