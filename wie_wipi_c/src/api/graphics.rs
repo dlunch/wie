@@ -120,7 +120,17 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
 
     let mut canvas = framebuffer.canvas(context)?;
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.put_pixel(x as _, y as _, color);
+    canvas.put_pixel(
+        x as _,
+        y as _,
+        color,
+        Clip {
+            x: 0,
+            y: 0,
+            width: framebuffer.0.width,
+            height: framebuffer.0.height,
+        },
+    );
     canvas.flush()?;
 
     Ok(())
@@ -657,13 +667,19 @@ pub async fn set_rgb_pixels(
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let mut canvas = framebuffer.canvas(context)?;
+    let clip = Clip {
+        x: 0,
+        y: 0,
+        width: framebuffer.0.width,
+        height: framebuffer.0.height,
+    };
     for dy in 0..h {
         for dx in 0..w {
             let off = ((dy as usize) * (w as usize) + dx as usize) * 4;
             // WIPI spec: pixels are 0x00RRGGBB.
             let rgb = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
             let color = Rgb8Pixel::to_color(rgb);
-            canvas.put_pixel(x + dx, y + dy, color);
+            canvas.put_pixel(x + dx, y + dy, color, clip);
         }
     }
     canvas.flush()?;

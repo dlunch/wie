@@ -292,7 +292,7 @@ impl Graphics2D {
         let clip = Graphics::clip(jvm, &graphics).await?;
         let image = Graphics::image(jvm, &mut graphics).await?;
         let mut canvas = Image::canvas(jvm, &image).await?;
-        canvas.set_pixel(
+        canvas.put_pixel(
             x.wrapping_add(translate_x),
             y.wrapping_add(translate_y),
             Rgb8Pixel::to_color(color as u32),
