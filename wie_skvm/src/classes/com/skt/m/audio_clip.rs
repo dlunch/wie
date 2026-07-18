@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 
-use java_constants::ClassAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use wie_jvm_support::WieJavaClassProto;
 
 // interface com.skt.m.AudioClip
@@ -14,9 +14,17 @@ impl AudioClip {
             name: "com/skt/m/AudioClip",
             parent_class: None,
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract("play", "()V", Default::default())],
+            methods: vec![
+                JavaMethodProto::new_abstract("open", "([BII)V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("close", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("loop", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("pause", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("play", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("resume", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("stop", "()V", MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT),
+            ],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }
