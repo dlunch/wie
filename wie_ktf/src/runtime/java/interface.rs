@@ -35,8 +35,8 @@ async fn handle_java_interface_svc(core: &mut ArmCore, jvm: &mut Jvm, id: SvcId)
         JavaSvcId::GetField => EmulatedFunction::call(&get_field, core, &mut ()).await?.write(core, lr),
         JavaSvcId::JbUnk4 => EmulatedFunction::call(&jb_unk4, core, &mut ()).await?.write(core, lr),
         JavaSvcId::JbUnk5 => EmulatedFunction::call(&jb_unk5, core, &mut ()).await?.write(core, lr),
-        JavaSvcId::JbUnk7 => EmulatedFunction::call(&jb_unk7, core, &mut ()).await?.write(core, lr),
-        JavaSvcId::JbUnk8 => EmulatedFunction::call(&jb_unk8, core, &mut ()).await?.write(core, lr),
+        JavaSvcId::MonitorEnter => EmulatedFunction::call(&monitor_enter, core, jvm).await?.write(core, lr),
+        JavaSvcId::JbUnk8 => EmulatedFunction::call(&monitor_exit, core, jvm).await?.write(core, lr),
         JavaSvcId::RegisterClass => EmulatedFunction::call(&register_class, core, jvm).await?.write(core, lr),
         JavaSvcId::RegisterJavaString => EmulatedFunction::call(&register_java_string, core, jvm).await?.write(core, lr),
         JavaSvcId::CallNative => EmulatedFunction::call(&call_native, core, &mut ()).await?.write(core, lr),
@@ -53,7 +53,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> Result<u32> {
         fn_get_field: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::GetField)?,
         fn_unk4: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk4)?,
         fn_unk5: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk5)?,
-        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk7)?,
+        fn_unk7: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::MonitorEnter)?,
         fn_unk8: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::JbUnk8)?,
         fn_register_class: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterClass)?,
         fn_register_java_string: core.make_svc_stub(SVC_CATEGORY_JAVA_INTERFACE, JavaSvcId::RegisterJavaString)?,
@@ -264,14 +264,20 @@ async fn jb_unk5(_: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<u32> {
     Ok(0)
 }
 
-async fn jb_unk7(_: &mut ArmCore, _: &mut (), a0: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk7({a0:#x})");
+async fn monitor_enter(core: &mut ArmCore, jvm: &mut Jvm, ptr_raw: u32) -> Result<u32> {
+    tracing::debug!("monitor_enter({ptr_raw:#x})");
+
+    let instance = JavaClassInstance::from_raw(ptr_raw, core);
+    jvm.monitor_enter(&instance).await.unwrap();
 
     Ok(0)
 }
 
-async fn jb_unk8(_: &mut ArmCore, _: &mut (), a0: u32) -> Result<u32> {
-    tracing::warn!("stub jb_unk8({a0:#x})");
+async fn monitor_exit(core: &mut ArmCore, jvm: &mut Jvm, ptr_raw: u32) -> Result<u32> {
+    tracing::debug!("monitor_exit({ptr_raw:#x})");
+
+    let instance = JavaClassInstance::from_raw(ptr_raw, core);
+    jvm.monitor_exit(&instance).await.unwrap();
 
     Ok(0)
 }
