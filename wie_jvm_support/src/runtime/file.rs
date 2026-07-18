@@ -48,6 +48,9 @@ impl File for FileImpl {
 
         let cursor = self.cursor.load(Ordering::SeqCst) as usize;
         let written = self.system.filesystem().write(&self.path, cursor, buf).await;
+        if written != buf.len() {
+            return Err(IOError::Io);
+        }
 
         self.cursor.fetch_add(written as u64, Ordering::SeqCst);
 
@@ -69,7 +72,9 @@ impl File for FileImpl {
             return Err(IOError::Unsupported);
         }
 
-        self.system.filesystem().truncate(&self.path, len as usize).await;
+        if !self.system.filesystem().truncate(&self.path, len as usize).await {
+            return Err(IOError::Io);
+        }
 
         Ok(())
     }
@@ -210,5 +215,15 @@ mod tests {
             Err(IOError::NotFound)
         ));
         assert!(matches!(FileImpl::new(system, "", false).await, Err(IOError::NotFound)));
+    }
+
+    #[futures_test::test]
+    async fn failed_writes_and_truncation_report_io_without_advancing_the_cursor() {
+        let system = new_system();
+        let mut file = FileImpl::new(system, "../escape.dat", true).await.unwrap();
+
+        assert!(matches!(file.write(&[1, 2, 3]).await, Err(IOError::Io)));
+        assert_eq!(file.tell().await.unwrap(), 0);
+        assert!(matches!(file.set_len(3).await, Err(IOError::Io)));
     }
 }

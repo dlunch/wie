@@ -67,6 +67,35 @@ impl FilesystemOverlay {
         self.virtual_files.lock().insert(key, data);
     }
 
+    pub fn is_valid_path(&self, path: &str) -> bool {
+        normalize_guest_path(path).is_some()
+    }
+
+    async fn materialize_virtual(&self, normalized: &str) -> bool {
+        let filesystem = self.platform.filesystem();
+        if filesystem.exists(&self.aid, normalized).await {
+            return true;
+        }
+
+        let virtual_data = self.virtual_files.lock().get(normalized).cloned();
+        let Some(virtual_data) = virtual_data else {
+            return true;
+        };
+
+        let written = filesystem.write(&self.aid, normalized, 0, &virtual_data).await;
+        if written != virtual_data.len() {
+            tracing::warn!(
+                path = normalized,
+                expected = virtual_data.len(),
+                written,
+                "failed to materialize virtual file"
+            );
+            return false;
+        }
+
+        true
+    }
+
     pub async fn exists(&self, path: &str) -> bool {
         let Some(normalized) = normalize_guest_path(path) else {
             return false;
@@ -109,14 +138,22 @@ impl FilesystemOverlay {
         let Some(normalized) = normalize_guest_path(path) else {
             return 0;
         };
+        if !self.materialize_virtual(&normalized).await {
+            return 0;
+        }
         self.platform.filesystem().write(&self.aid, &normalized, offset, data).await
     }
 
-    pub async fn truncate(&self, path: &str, len: usize) {
+    pub async fn truncate(&self, path: &str, len: usize) -> bool {
         let Some(normalized) = normalize_guest_path(path) else {
-            return;
+            return false;
         };
-        self.platform.filesystem().truncate(&self.aid, &normalized, len).await;
+        if !self.materialize_virtual(&normalized).await {
+            return false;
+        }
+        let filesystem = self.platform.filesystem();
+        filesystem.truncate(&self.aid, &normalized, len).await;
+        filesystem.size(&self.aid, &normalized).await == Some(len)
     }
 }
 
@@ -146,6 +183,8 @@ mod tests {
     #[derive(Default)]
     struct StubFilesystem {
         files: Mutex<HashMap<(String, String), Vec<u8>>>,
+        write_limit: Option<usize>,
+        fail_truncate: bool,
     }
     #[async_trait::async_trait]
     impl Filesystem for StubFilesystem {
@@ -166,15 +205,19 @@ mod tests {
             Some(n)
         }
         async fn write(&self, aid: &str, path: &str, offset: usize, data: &[u8]) -> usize {
+            let write_len = self.write_limit.unwrap_or(data.len()).min(data.len());
             let mut files = self.files.lock();
             let file = files.entry((aid.to_string(), path.to_string())).or_default();
-            if file.len() < offset + data.len() {
-                file.resize(offset + data.len(), 0);
+            if file.len() < offset + write_len {
+                file.resize(offset + write_len, 0);
             }
-            file[offset..offset + data.len()].copy_from_slice(data);
-            data.len()
+            file[offset..offset + write_len].copy_from_slice(&data[..write_len]);
+            write_len
         }
         async fn truncate(&self, aid: &str, path: &str, len: usize) {
+            if self.fail_truncate {
+                return;
+            }
             let mut files = self.files.lock();
             let file = files.entry((aid.to_string(), path.to_string())).or_default();
             file.resize(len, 0);
@@ -207,9 +250,11 @@ mod tests {
     }
 
     fn setup() -> FilesystemOverlay {
-        let platform: Arc<Box<dyn Platform>> = Arc::new(Box::new(StubPlatform {
-            fs: StubFilesystem::default(),
-        }));
+        setup_with_filesystem(StubFilesystem::default())
+    }
+
+    fn setup_with_filesystem(fs: StubFilesystem) -> FilesystemOverlay {
+        let platform: Arc<Box<dyn Platform>> = Arc::new(Box::new(StubPlatform { fs }));
         FilesystemOverlay::new(platform, "test-aid")
     }
 
@@ -278,5 +323,46 @@ mod tests {
         let mut buf = [0u8; 4];
         assert_eq!(fs.read("cfg.dat", 0, 4, &mut buf).await, Some(4));
         assert_eq!(buf, [1, 2, 3, 4]);
+    }
+
+    #[futures_test::test]
+    async fn first_persistent_write_materializes_virtual_prefix() {
+        let fs = setup();
+        fs.add_virtual("append.dat", vec![0xAA, 0xBB]);
+
+        assert_eq!(fs.write("append.dat", 2, &[0xCC]).await, 1);
+
+        let mut buf = [0u8; 3];
+        assert_eq!(fs.read("append.dat", 0, 3, &mut buf).await, Some(3));
+        assert_eq!(buf, [0xAA, 0xBB, 0xCC]);
+    }
+
+    #[futures_test::test]
+    async fn first_persistent_truncate_materializes_virtual_data() {
+        let fs = setup();
+        fs.add_virtual("truncate.dat", vec![1, 2, 3, 4]);
+
+        assert!(fs.truncate("truncate.dat", 2).await);
+
+        let mut buf = [0u8; 2];
+        assert_eq!(fs.read("truncate.dat", 0, 2, &mut buf).await, Some(2));
+        assert_eq!(buf, [1, 2]);
+    }
+
+    #[futures_test::test]
+    async fn persistent_backend_exposes_short_writes_and_failed_truncation() {
+        let short_write_fs = setup_with_filesystem(StubFilesystem {
+            write_limit: Some(2),
+            ..Default::default()
+        });
+        assert_eq!(short_write_fs.write("short.dat", 0, &[1, 2, 3, 4]).await, 2);
+
+        let failed_truncate_fs = setup_with_filesystem(StubFilesystem {
+            fail_truncate: true,
+            ..Default::default()
+        });
+        assert_eq!(failed_truncate_fs.write("truncate.dat", 0, &[1, 2, 3, 4]).await, 4);
+        assert!(!failed_truncate_fs.truncate("truncate.dat", 2).await);
+        assert_eq!(failed_truncate_fs.size("truncate.dat").await, Some(4));
     }
 }
