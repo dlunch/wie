@@ -41,6 +41,8 @@ impl JavaClassInstance {
     pub fn destroy(mut self, field_size: KtfJvmWord) -> Result<()> {
         let raw = self.read_raw()?;
 
+        tracing::trace!("Destroying instance at {:#x}", self.ptr_raw);
+
         Allocator::free(&mut self.core, raw.ptr_fields, (field_size + 4) as _)?;
         Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as _)?;
 
