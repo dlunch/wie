@@ -409,7 +409,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "classfile"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#f87e410d492a7485299bf5f6a14d436266fb0f08"
+source = "git+https://github.com/dlunch/RustJava.git#3296139cc7ce63822941db5180bd19a8545367e4"
 dependencies = [
  "java_constants",
  "nom 8.0.0",
@@ -1301,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "java_class_proto"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#f87e410d492a7485299bf5f6a14d436266fb0f08"
+source = "git+https://github.com/dlunch/RustJava.git#3296139cc7ce63822941db5180bd19a8545367e4"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -1312,7 +1312,7 @@ dependencies = [
 [[package]]
 name = "java_constants"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#f87e410d492a7485299bf5f6a14d436266fb0f08"
+source = "git+https://github.com/dlunch/RustJava.git#3296139cc7ce63822941db5180bd19a8545367e4"
 dependencies = [
  "bitflags 2.13.1",
 ]
@@ -1320,7 +1320,7 @@ dependencies = [
 [[package]]
 name = "java_runtime"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#f87e410d492a7485299bf5f6a14d436266fb0f08"
+source = "git+https://github.com/dlunch/RustJava.git#3296139cc7ce63822941db5180bd19a8545367e4"
 dependencies = [
  "async-trait",
  "bytemuck",
@@ -1449,7 +1449,7 @@ dependencies = [
 [[package]]
 name = "jvm"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#f87e410d492a7485299bf5f6a14d436266fb0f08"
+source = "git+https://github.com/dlunch/RustJava.git#3296139cc7ce63822941db5180bd19a8545367e4"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1468,7 +1468,7 @@ dependencies = [
 [[package]]
 name = "jvm_rust"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#f87e410d492a7485299bf5f6a14d436266fb0f08"
+source = "git+https://github.com/dlunch/RustJava.git#3296139cc7ce63822941db5180bd19a8545367e4"
 dependencies = [
  "async-recursion",
  "async-trait",
