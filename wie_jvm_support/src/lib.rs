@@ -5,9 +5,9 @@ mod context;
 mod jvm_implementation;
 mod runtime;
 
-use alloc::{boxed::Box, format};
+use alloc::{boxed::Box, format, string::ToString};
 
-use java_runtime::{RT_RUSTJAR, Runtime};
+use java_runtime::Runtime;
 use jvm::{JavaError, Jvm, runtime::JavaLangString};
 
 use wie_backend::System;
@@ -17,7 +17,7 @@ pub use context::{WieJavaClassProto, WieJvmContext};
 pub use jvm_implementation::{JvmImplementation, RustJavaJvmImplementation};
 use runtime::JvmRuntime;
 
-pub static WIE_RUSTJAR: &str = "net.wie.rustjar";
+pub static WIE_RUSTJAR: &str = "wie.rustjar";
 
 pub struct JvmSupport;
 
@@ -35,9 +35,13 @@ impl JvmSupport {
         let runtime = JvmRuntime::new(system.clone(), implementation, protos);
 
         let class_path = if let Some(x) = jar_name {
-            format!("{RT_RUSTJAR}:{WIE_RUSTJAR}:{x}")
+            if cfg!(windows) {
+                format!("{WIE_RUSTJAR};{x}")
+            } else {
+                format!("{WIE_RUSTJAR}:{x}")
+            }
         } else {
-            format!("{RT_RUSTJAR}:{WIE_RUSTJAR}")
+            WIE_RUSTJAR.to_string()
         };
 
         let properties = [

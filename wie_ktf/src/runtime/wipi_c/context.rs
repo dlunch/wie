@@ -91,9 +91,7 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
-        let class_loader = self
-            .jvm
-            .current_class_loader()
+        let class_loader = JavaLangClassLoader::get_system_class_loader(&self.jvm)
             .await
             .map_err(|err| WieError::FatalError(alloc::format!("Failed to get class loader for resource {name:?}: {err:?}")))?;
         let stream = match JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await {
@@ -124,9 +122,7 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
-        let class_loader = self
-            .jvm
-            .current_class_loader()
+        let class_loader = JavaLangClassLoader::get_system_class_loader(&self.jvm)
             .await
             .map_err(|err| WieError::FatalError(alloc::format!("Failed to get class loader for resource {name:?}: {err:?}")))?;
         let stream = match JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await {
