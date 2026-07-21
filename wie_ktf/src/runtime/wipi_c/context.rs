@@ -1,4 +1,12 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{
+    boxed::Box,
+    collections::BTreeMap,
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
+
+use spin::Mutex;
 
 use jvm::{
     Jvm,
@@ -8,7 +16,8 @@ use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
 use wie_backend::{AsyncCallable, Event, Instant, System};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
+use wie_jvm_support::JvmSupport;
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic};
 use wie_wipi_c::{WIPICContext, WIPICMethodBody};
 
 #[derive(Clone)]
@@ -16,11 +25,17 @@ pub struct KtfWIPICContext {
     core: ArmCore,
     system: System,
     jvm: Jvm, // We need jvm to access resource in jvm. TODO is there better way to do this?
+    state: Arc<Mutex<WIPICRuntimeState>>,
+}
+
+#[derive(Default)]
+pub(super) struct WIPICRuntimeState {
+    resource_cache: BTreeMap<String, Vec<u8>>,
 }
 
 impl KtfWIPICContext {
-    pub fn new(core: ArmCore, system: System, jvm: Jvm) -> Self {
-        Self { core, system, jvm }
+    pub fn new(core: ArmCore, system: System, jvm: Jvm, state: Arc<Mutex<WIPICRuntimeState>>) -> Self {
+        Self { core, system, jvm, state }
     }
 }
 
@@ -90,26 +105,81 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
-        let class_loader = self.jvm.current_class_loader().await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
+        if let Some(size) = self.state.lock().resource_cache.get(name).map(Vec::len) {
+            tracing::debug!("WIPI-C resource cache hit for size: name={name:?}, size={size}");
+            return Ok(Some(size));
+        }
+
+        let class_loader = self
+            .jvm
+            .current_class_loader()
+            .await
+            .map_err(|err| WieError::FatalError(alloc::format!("Failed to get class loader for resource {name:?}: {err:?}")))?;
+        let stream = match JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await {
+            Ok(stream) => stream,
+            Err(err) => {
+                tracing::error!("Java exception while opening resource for size query: name={name:?}, error={err:?}");
+                return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
+            }
+        };
 
         if stream.is_none() {
             return Ok(None);
         }
 
-        let available: i32 = self.jvm.invoke_virtual(&stream.unwrap(), "available", "()I", ()).await.unwrap();
+        let stream = stream.unwrap();
+        let available: i32 = match self.jvm.invoke_virtual(&stream, "available", "()I", ()).await {
+            Ok(available) => available,
+            Err(err) => {
+                tracing::error!("Java exception while querying resource size: name={name:?}, error={err:?}");
+                return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
+            }
+        };
+        drop(stream);
+        let garbage_count = match self.jvm.collect_garbage() {
+            Ok(count) => count,
+            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
+        };
+        tracing::debug!("WIPI-C resource size GC: name={name:?}, collected={garbage_count}");
 
         Ok(Some(available as _))
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
-        let class_loader = self.jvm.current_class_loader().await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name)
-            .await
-            .unwrap()
-            .unwrap();
+        if let Some(data) = self.state.lock().resource_cache.get(name).cloned() {
+            tracing::debug!("WIPI-C resource cache hit for read: name={name:?}, size={}", data.len());
+            return Ok(data);
+        }
 
-        Ok(JavaIoInputStream::read_until_end(&self.jvm, &stream).await.unwrap())
+        let class_loader = self
+            .jvm
+            .current_class_loader()
+            .await
+            .map_err(|err| WieError::FatalError(alloc::format!("Failed to get class loader for resource {name:?}: {err:?}")))?;
+        let stream = match JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await {
+            Ok(Some(stream)) => stream,
+            Ok(None) => return Err(WieError::FatalError(alloc::format!("Resource disappeared before read: {name:?}"))),
+            Err(err) => {
+                tracing::error!("Java exception while opening resource for read: name={name:?}, error={err:?}");
+                return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
+            }
+        };
+
+        let data = match JavaIoInputStream::read_until_end(&self.jvm, &stream).await {
+            Ok(data) => data,
+            Err(err) => {
+                tracing::error!("Java exception while reading resource: name={name:?}, error={err:?}");
+                return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
+            }
+        };
+        drop(stream);
+        self.state.lock().resource_cache.insert(name.to_string(), data.clone());
+        let garbage_count = match self.jvm.collect_garbage() {
+            Ok(count) => count,
+            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
+        };
+        tracing::info!("WIPI-C resource cached: name={name:?}, size={}, collected={garbage_count}", data.len());
+        Ok(data)
     }
 
     fn set_timer(&mut self, due: Instant, callback: WIPICMethodBody) {

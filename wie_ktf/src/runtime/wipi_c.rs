@@ -1,6 +1,7 @@
-use alloc::{boxed::Box, vec};
+use alloc::{boxed::Box, sync::Arc, vec};
 
 use jvm::Jvm;
+use spin::Mutex;
 use wie_backend::System;
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
 use wie_util::{Result, WieError};
@@ -13,7 +14,7 @@ mod context;
 pub mod interface;
 mod method_table;
 
-use context::KtfWIPICContext;
+use context::{KtfWIPICContext, WIPICRuntimeState};
 
 struct WIPICMethodResult {
     result: WIPICResult,
@@ -55,12 +56,12 @@ impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
     }
 }
 
-async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
+async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm, state): &mut (System, Jvm, Arc<Mutex<WIPICRuntimeState>>), id: SvcId) -> Result<()> {
     let table_id = WIPICTableId::try_from(id.0 >> 16)?;
     let function_id = id.0 as u16;
     let (_, lr) = core.read_pc_lr()?;
     if table_id == WIPICTableId::Kernel && function_id == WIPICKernelMethodId::Reserved1 as u16 {
-        return interface::get_wipic_interfaces(core, &mut KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone()))
+        return interface::get_wipic_interfaces(core, &mut KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone(), state.clone()))
             .await?
             .write(core, lr);
     }
@@ -70,7 +71,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
 
     EmulatedFunction::call(
         &CMethodProxy {
-            context: KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone()),
+            context: KtfWIPICContext::new(core.clone(), system.clone(), jvm.clone(), state.clone()),
             body,
         },
         core,
@@ -81,5 +82,9 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
 }
 
 pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, &(system.clone(), jvm.clone()))
+    core.register_svc_handler(
+        SVC_CATEGORY_WIPIC,
+        handle_wipic_svc,
+        &(system.clone(), jvm.clone(), Arc::new(Mutex::new(WIPICRuntimeState::default()))),
+    )
 }
