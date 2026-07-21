@@ -121,6 +121,16 @@ impl DatabaseRepository for MemoryDatabaseRepository {
     async fn delete(&self, name: &str, app_id: &str) -> bool {
         self.store.lock().remove(&(app_id.to_string(), name.to_string())).is_some()
     }
+
+    async fn usage(&self, app_id: &str) -> u64 {
+        self.store
+            .lock()
+            .iter()
+            .filter(|((record_app_id, _), _)| record_app_id == app_id)
+            .flat_map(|(_, records)| records.values())
+            .map(|record| record.len() as u64)
+            .sum()
+    }
 }
 
 struct MemoryDatabase {

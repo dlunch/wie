@@ -225,6 +225,10 @@ mod tests {
         async fn delete(&self, _name: &str, _app_id: &str) -> bool {
             false
         }
+
+        async fn usage(&self, _app_id: &str) -> u64 {
+            0
+        }
     }
 
     struct NullFilesystem;

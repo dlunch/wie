@@ -520,7 +520,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
             WIPICDatabaseMethodId::GetAccessMode => Some(gen_stub(9, "MC_dbGetAccessMode")),
             WIPICDatabaseMethodId::GetNumberOfRecords => Some(gen_stub(10, "MC_dbGetNumberOfRecords")),
             WIPICDatabaseMethodId::GetRecordSize => Some(gen_stub(11, "MC_dbGetRecordSize")),
-            WIPICDatabaseMethodId::ListDatabases => Some(gen_stub(12, "MC_dbListDataBase")),
+            WIPICDatabaseMethodId::ListDatabases => Some(database::list_databases.into_body()),
             WIPICDatabaseMethodId::Unk13 => Some(gen_stub(13, "MC_dbUnk13")),
             WIPICDatabaseMethodId::Unk14 => Some(gen_stub(14, "MC_dbUnk14")),
             WIPICDatabaseMethodId::Unk15 => Some(gen_stub(15, "MC_dbUnk15")),
