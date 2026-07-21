@@ -1,5 +1,5 @@
-use alloc::{boxed::Box, format};
-use core::{array, cell::RefCell};
+use alloc::{boxed::Box, format, vec};
+use core::cell::RefCell;
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 
@@ -138,13 +138,13 @@ const PAGE_SIZE: usize = 0x10000;
 const PAGE_MASK: u32 = (PAGE_SIZE - 1) as _;
 
 struct EmulatedMemory {
-    pages: [Option<Box<[u8; PAGE_SIZE]>>; (TOTAL_MEMORY / PAGE_SIZE as u64) as usize],
+    pages: Box<[Option<Box<[u8; PAGE_SIZE]>>]>,
 }
 
 impl EmulatedMemory {
     fn new() -> Self {
         Self {
-            pages: array::from_fn(|_| None),
+            pages: vec![None; (TOTAL_MEMORY / PAGE_SIZE as u64) as usize].into_boxed_slice(),
         }
     }
 
@@ -340,9 +340,17 @@ impl Memory for Arm32CpuMemory<'_> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::boxed::Box;
+    use core::mem::size_of;
+
     use arm32_cpu::Memory;
 
     use super::EmulatedMemory;
+
+    #[test]
+    fn page_table_is_heap_allocated() {
+        assert_eq!(size_of::<EmulatedMemory>(), size_of::<Box<[Option<Box<[u8; super::PAGE_SIZE]>>]>>());
+    }
 
     #[test]
     fn test_memory_basic() {
