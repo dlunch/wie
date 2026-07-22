@@ -1,12 +1,4 @@
-use alloc::{
-    boxed::Box,
-    collections::BTreeMap,
-    string::{String, ToString},
-    sync::Arc,
-    vec::Vec,
-};
-
-use spin::Mutex;
+use alloc::{boxed::Box, vec::Vec};
 
 use jvm::{
     Jvm,
@@ -25,17 +17,11 @@ pub struct KtfWIPICContext {
     core: ArmCore,
     system: System,
     jvm: Jvm, // We need jvm to access resource in jvm. TODO is there better way to do this?
-    state: Arc<Mutex<WIPICRuntimeState>>,
-}
-
-#[derive(Default)]
-pub(super) struct WIPICRuntimeState {
-    resource_cache: BTreeMap<String, Vec<u8>>,
 }
 
 impl KtfWIPICContext {
-    pub fn new(core: ArmCore, system: System, jvm: Jvm, state: Arc<Mutex<WIPICRuntimeState>>) -> Self {
-        Self { core, system, jvm, state }
+    pub fn new(core: ArmCore, system: System, jvm: Jvm) -> Self {
+        Self { core, system, jvm }
     }
 }
 
@@ -105,11 +91,6 @@ impl WIPICContext for KtfWIPICContext {
     }
 
     async fn get_resource_size(&self, name: &str) -> Result<Option<usize>> {
-        if let Some(size) = self.state.lock().resource_cache.get(name).map(Vec::len) {
-            tracing::debug!("WIPI-C resource cache hit for size: name={name:?}, size={size}");
-            return Ok(Some(size));
-        }
-
         let class_loader = self
             .jvm
             .current_class_loader()
@@ -123,34 +104,26 @@ impl WIPICContext for KtfWIPICContext {
             }
         };
 
-        if stream.is_none() {
-            return Ok(None);
+        let result = match stream {
+            Some(stream) => {
+                let available: i32 = match self.jvm.invoke_virtual(&stream, "available", "()I", ()).await {
+                    Ok(available) => available,
+                    Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
+                };
+                drop(stream);
+                Some(available as usize)
+            }
+            None => None,
+        };
+        match self.jvm.collect_garbage() {
+            Ok(_) => {}
+            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
         }
 
-        let stream = stream.unwrap();
-        let available: i32 = match self.jvm.invoke_virtual(&stream, "available", "()I", ()).await {
-            Ok(available) => available,
-            Err(err) => {
-                tracing::error!("Java exception while querying resource size: name={name:?}, error={err:?}");
-                return Err(JvmSupport::to_wie_err(&self.jvm, err).await);
-            }
-        };
-        drop(stream);
-        let garbage_count = match self.jvm.collect_garbage() {
-            Ok(count) => count,
-            Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
-        };
-        tracing::debug!("WIPI-C resource size GC: name={name:?}, collected={garbage_count}");
-
-        Ok(Some(available as _))
+        Ok(result)
     }
 
     async fn read_resource(&self, name: &str) -> Result<Vec<u8>> {
-        if let Some(data) = self.state.lock().resource_cache.get(name).cloned() {
-            tracing::debug!("WIPI-C resource cache hit for read: name={name:?}, size={}", data.len());
-            return Ok(data);
-        }
-
         let class_loader = self
             .jvm
             .current_class_loader()
@@ -173,12 +146,10 @@ impl WIPICContext for KtfWIPICContext {
             }
         };
         drop(stream);
-        self.state.lock().resource_cache.insert(name.to_string(), data.clone());
-        let garbage_count = match self.jvm.collect_garbage() {
-            Ok(count) => count,
+        match self.jvm.collect_garbage() {
+            Ok(_) => {}
             Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
-        };
-        tracing::info!("WIPI-C resource cached: name={name:?}, size={}, collected={garbage_count}", data.len());
+        }
         Ok(data)
     }
 
