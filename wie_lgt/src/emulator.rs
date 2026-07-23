@@ -111,7 +111,7 @@ impl LgtEmulator {
         let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
         let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &[], RustJavaJvmImplementation).await?; // TODO use lgt's java implementation
 
-        let class_loader = jvm.current_class_loader().await.unwrap();
+        let class_loader = JavaLangClassLoader::get_system_class_loader(&jvm).await.unwrap();
         let stream = JavaLangClassLoader::get_resource_as_stream(&jvm, &class_loader, "binary.mod")
             .await
             .unwrap()
