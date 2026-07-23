@@ -293,7 +293,7 @@ impl Toolkit {
         }
 
         let resource_name = JavaLangString::to_rust_string(jvm, &file_name).await?;
-        let class_loader = jvm.current_class_loader().await?;
+        let class_loader = JavaLangClassLoader::get_system_class_loader(&jvm).await?;
         let Some(stream) = JavaLangClassLoader::get_resource_as_stream(jvm, &class_loader, &resource_name).await? else {
             return Err(jvm.exception("java/io/IOException", "image resource was not found").await);
         };
