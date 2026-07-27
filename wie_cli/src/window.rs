@@ -32,7 +32,9 @@ fn read_display_size(display_size: &RwLock<(u32, u32)>) -> (u32, u32) {
         Ok(display_size) => *display_size,
         Err(error) => {
             tracing::warn!("Display size lock is poisoned; using the last value");
-            *error.into_inner()
+            let display_size_value = *error.into_inner();
+            display_size.clear_poison();
+            display_size_value
         }
     }
 }
@@ -515,7 +517,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::is_valid_display_size;
+    use std::sync::RwLock;
+
+    use super::{is_valid_display_size, read_display_size};
 
     #[test]
     fn validates_display_size_bounds() {
@@ -527,5 +531,20 @@ mod tests {
         assert!(!is_valid_display_size(4097, 1));
         assert!(!is_valid_display_size(4096, 1025));
         assert!(!is_valid_display_size(u32::MAX, 2));
+    }
+
+    #[test]
+    fn read_display_size_clears_poison() {
+        let display_size = RwLock::new((176, 220));
+        let _ = std::panic::catch_unwind(|| {
+            let mut display_size = display_size.write().unwrap();
+            *display_size = (240, 320);
+            panic!("poison display size lock");
+        });
+
+        assert!(display_size.is_poisoned());
+        assert_eq!(read_display_size(&display_size), (240, 320));
+        assert!(!display_size.is_poisoned());
+        assert_eq!(*display_size.read().unwrap(), (240, 320));
     }
 }
