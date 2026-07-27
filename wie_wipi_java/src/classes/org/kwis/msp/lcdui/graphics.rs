@@ -628,6 +628,14 @@ impl Graphics {
         let mut midp_graphics: ClassInstanceRef<MidpGraphics> = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
         let backend_image = MidpImage::image(jvm, &image).await?;
+        let translate_x: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateX", "()I", ()).await?;
+        let translate_y: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateY", "()I", ()).await?;
+        let Some(x) = x.checked_add(translate_x) else {
+            return Ok(0);
+        };
+        let Some(y) = y.checked_add(translate_y) else {
+            return Ok(0);
+        };
         if x < 0 || y < 0 || x as u32 >= backend_image.width() || y as u32 >= backend_image.height() {
             return Ok(0);
         }
@@ -828,6 +836,28 @@ mod test {
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (0, 0)).await?, 0x123456);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (-1, 0)).await?, 0);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (2, 0)).await?, 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_get_pixel_follows_translation() -> Result<()> {
+        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
+            let image: ClassInstanceRef<Image> = jvm
+                .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 1))
+                .await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x654321,)).await?;
+            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (1, 0, 1, 1)).await?;
+
+            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (1, 0)).await?;
+
+            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (0, 0)).await?, 0x654321);
+            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (1, 0)).await?, 0);
 
             Ok(())
         })
