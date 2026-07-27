@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::{
-    io::{DataInputStream, DataOutputStream, File as JavaFile, InputStream, OutputStream},
+    io::{DataInputStream, DataOutputStream, InputStream, OutputStream},
     lang::String,
 };
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
@@ -229,8 +229,12 @@ impl File {
     async fn open_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<InputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openInputStream({this:?})");
 
-        let file: ClassInstanceRef<JavaFile> = jvm.get_field(&this, "file", "Ljava/io/File;").await?;
-        let input_stream = jvm.new_class("java/io/FileInputStream", "(Ljava/io/File;)V", (file,)).await?;
+        let closed: bool = jvm.get_field(&this, "closed", "Z").await?;
+        if closed {
+            return Err(jvm.exception("java/io/IOException", "File closed").await);
+        }
+
+        let input_stream = jvm.new_class("net/wie/WIPIFileInputStream", "(Lorg/kwis/msp/io/File;)V", (this,)).await?;
 
         Ok(input_stream.into())
     }
@@ -330,7 +334,7 @@ mod test {
     use alloc::boxed::Box;
 
     use java_runtime::classes::java::{
-        io::{DataOutputStream, OutputStream},
+        io::{DataInputStream, DataOutputStream, OutputStream},
         lang::String,
     };
     use jvm::{ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
@@ -403,6 +407,18 @@ mod test {
                 let after_data_output_write: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
                 assert_eq!(after_data_output_write, 3);
                 let _: () = jvm.invoke_virtual(&data_output, "close", "()V", ()).await?;
+
+                let _: () = jvm.invoke_virtual(&file, "seek", "(I)V", (0,)).await?;
+                let data_input: ClassInstanceRef<DataInputStream> = jvm
+                    .invoke_virtual(&file, "openDataInputStream", "()Ljava/io/DataInputStream;", ())
+                    .await?;
+                let prefix: i32 = jvm.invoke_virtual(&data_input, "readUnsignedShort", "()I", ()).await?;
+                assert_eq!(prefix, 0xfeab);
+                let after_input_read: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
+                assert_eq!(after_input_read, 2);
+                let trailing: i32 = jvm.invoke_virtual(&file, "read", "()I", ()).await?;
+                assert_eq!(trailing, 0xcd);
+                let _: () = jvm.invoke_virtual(&data_input, "close", "()V", ()).await?;
 
                 let reopened: ClassInstanceRef<OutputStream> = jvm.invoke_virtual(&file, "openOutputStream", "()Ljava/io/OutputStream;", ()).await?;
                 let _: () = jvm.invoke_virtual(&reopened, "close", "()V", ()).await?;

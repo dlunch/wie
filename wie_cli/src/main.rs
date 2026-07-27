@@ -7,7 +7,7 @@ mod window;
 
 use core::str;
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{BTreeMap, HashMap, hash_map::Entry},
     error::Error,
     fs::{self, File},
     io::{LineWriter, Write, stderr},
@@ -191,12 +191,15 @@ fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallba
 }
 
 pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
-    let window = WindowImpl::new(240, 320).unwrap(); // TODO hardcoded size
+    let buf = fs::read(filename)?;
+    let archive = if filename.ends_with("zip") { Some(extract_zip(&buf)?) } else { None };
+    let (screen_width, screen_height) = archive.as_ref().and_then(display_size_from_archive).unwrap_or((240, 320));
+
+    let window = WindowImpl::new(screen_width, screen_height).unwrap();
     let platform = Box::new(WieCliPlatform::new(window.handle()));
 
-    let buf = fs::read(filename)?;
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("zip") {
-        let files = extract_zip(&buf).unwrap();
+        let files = archive.unwrap();
 
         if KtfEmulator::loadable_archive(&files) {
             Box::new(KtfEmulator::from_archive(platform, files, options)?)
@@ -292,6 +295,24 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
     })
 }
 
+fn display_size_from_archive(files: &BTreeMap<String, Vec<u8>>) -> Option<(u32, u32)> {
+    let display_size = adf_value(files, b"DisplaySize")?;
+    let separator = display_size.iter().position(|&byte| matches!(byte, b'*' | b'x' | b'X'))?;
+    let width = core::str::from_utf8(&display_size[..separator]).ok()?.trim().parse().ok()?;
+    let height = core::str::from_utf8(&display_size[separator + 1..]).ok()?.trim().parse().ok()?;
+
+    Some((width, height))
+}
+
+fn adf_value<'a>(files: &'a BTreeMap<String, Vec<u8>>, key: &[u8]) -> Option<&'a [u8]> {
+    let adf = files.get("__adf__")?;
+    adf.split(|&byte| byte == b'\n').find_map(|line| {
+        let separator = line.iter().position(|&byte| byte == b':')?;
+        let (line_key, value) = (&line[..separator], &line[separator + 1..]);
+        (line_key == key).then(|| value.strip_suffix(b"\r").unwrap_or(value))
+    })
+}
+
 fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
     match key {
         PhysicalKey::Code(WinitKeyCode::Digit1) => Some(KeyCode::NUM1),
@@ -319,5 +340,36 @@ fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
         PhysicalKey::Code(WinitKeyCode::F1) => Some(KeyCode::CALL),
         PhysicalKey::Code(WinitKeyCode::F2) => Some(KeyCode::HANGUP),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display_size_from_archive;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn reads_display_size_from_ktf_adf() {
+        let mut files = BTreeMap::new();
+        files.insert("__adf__".to_string(), b"Name:Seoul Tycoon 2\nDisplaySize:176*220\nOffRun:0\n".to_vec());
+
+        assert_eq!(display_size_from_archive(&files), Some((176, 220)));
+    }
+
+    #[test]
+    fn ignores_missing_or_invalid_display_size() {
+        assert_eq!(display_size_from_archive(&BTreeMap::new()), None);
+
+        let mut files = BTreeMap::new();
+        files.insert("__adf__".to_string(), b"DisplaySize:invalid\n".to_vec());
+        assert_eq!(display_size_from_archive(&files), None);
+    }
+
+    #[test]
+    fn honors_seoul_tycoon_2_adf_display_size() {
+        let mut files = BTreeMap::new();
+        files.insert("__adf__".to_string(), b"AID:01036924\nMClass:Seoul2\nDisplaySize:176*220\n".to_vec());
+
+        assert_eq!(display_size_from_archive(&files), Some((176, 220)));
     }
 }
