@@ -121,11 +121,23 @@ impl Platform for WieCliPlatform {
         let midi_out = (|| {
             let midi_out = MidiOutput::new("wie_cli")?;
             let midi_ports = midi_out.ports();
-            let out_port = midi_ports.last().ok_or_else(|| anyhow::anyhow!("No MIDI output port"))?;
+            let port_names = midi_ports
+                .iter()
+                .map(|port| midi_out.port_name(port).unwrap_or_else(|_| "<unknown>".to_string()))
+                .collect::<Vec<_>>();
+            let port_index = preferred_midi_output_index(&port_names).ok_or_else(|| anyhow::anyhow!("No MIDI output port"))?;
+            let out_port = &midi_ports[port_index];
 
+            tracing::info!(port = %port_names[port_index], "Using MIDI output");
             Ok::<_, Box<dyn Error>>(midi_out.connect(out_port, "wie_cli")?)
-        })()
-        .ok();
+        })();
+        let midi_out = match midi_out {
+            Ok(connection) => Some(connection),
+            Err(error) => {
+                tracing::warn!(%error, "MIDI output is unavailable");
+                None
+            }
+        };
 
         Box::new(AudioSink::new(midi_out, self.audio_thread_tx.clone()))
     }
@@ -292,6 +304,24 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
     })
 }
 
+fn preferred_midi_output_index(port_names: &[String]) -> Option<usize> {
+    const SOFTWARE_SYNTH_NAMES: &[&str] = &["microsoft gs wavetable", "fluidsynth", "timidity", "qsynth"];
+
+    port_names
+        .iter()
+        .position(|name| {
+            let name = name.to_ascii_lowercase();
+            SOFTWARE_SYNTH_NAMES.iter().any(|software_synth| name.contains(software_synth))
+        })
+        .or_else(|| {
+            port_names.iter().position(|name| {
+                let name = name.to_ascii_lowercase();
+                name.contains("synth") || name.contains("wavetable")
+            })
+        })
+        .or_else(|| (!port_names.is_empty()).then_some(0))
+}
+
 fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
     match key {
         PhysicalKey::Code(WinitKeyCode::Digit1) => Some(KeyCode::NUM1),
@@ -319,5 +349,34 @@ fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
         PhysicalKey::Code(WinitKeyCode::F1) => Some(KeyCode::CALL),
         PhysicalKey::Code(WinitKeyCode::F2) => Some(KeyCode::HANGUP),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::preferred_midi_output_index;
+
+    #[test]
+    fn prefers_software_synth_over_external_midi_ports() {
+        let port_names = vec![
+            "Microsoft GS Wavetable Synth".to_string(),
+            "Hammer 88".to_string(),
+            "Babyface Midi Port 1".to_string(),
+        ];
+
+        assert_eq!(preferred_midi_output_index(&port_names), Some(0));
+    }
+
+    #[test]
+    fn recognizes_common_cross_platform_software_synths() {
+        let port_names = vec!["External MIDI".to_string(), "FLUIDSynth virtual port".to_string()];
+
+        assert_eq!(preferred_midi_output_index(&port_names), Some(1));
+    }
+
+    #[test]
+    fn falls_back_to_first_midi_port() {
+        assert_eq!(preferred_midi_output_index(&["External MIDI".to_string()]), Some(0));
+        assert_eq!(preferred_midi_output_index(&[]), None);
     }
 }
