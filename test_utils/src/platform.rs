@@ -4,7 +4,7 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use hashbrown::HashMap;
 use spin::Mutex;
@@ -36,7 +36,7 @@ impl Default for TestPlatform {
 impl TestPlatform {
     pub fn new() -> Self {
         Self {
-            screen: TestScreen,
+            screen: TestScreen::default(),
             event_handler: None,
             fs: Arc::new(MemoryFilesystem::default()),
             db: Arc::new(MemoryDatabaseRepository::default()),
@@ -48,7 +48,7 @@ impl TestPlatform {
         T: Fn(TestPlatformEvent) + Sync + Send + 'static,
     {
         Self {
-            screen: TestScreen,
+            screen: TestScreen::default(),
             event_handler: Some(Box::new(event_handler)),
             fs: Arc::new(MemoryFilesystem::default()),
             db: Arc::new(MemoryDatabaseRepository::default()),
@@ -211,10 +211,28 @@ impl AudioSink for TestAudioSink {
     }
 }
 
-#[derive(Default)]
-pub struct TestScreen;
+pub struct TestScreen {
+    width: AtomicU32,
+    height: AtomicU32,
+}
+
+impl Default for TestScreen {
+    fn default() -> Self {
+        Self {
+            width: AtomicU32::new(320),
+            height: AtomicU32::new(240),
+        }
+    }
+}
 
 impl Screen for TestScreen {
+    fn resize(&self, width: u32, height: u32) -> Result<()> {
+        self.width.store(width, Ordering::SeqCst);
+        self.height.store(height, Ordering::SeqCst);
+
+        Ok(())
+    }
+
     fn request_redraw(&self) -> Result<()> {
         Ok(())
     }
@@ -222,10 +240,10 @@ impl Screen for TestScreen {
     fn paint(&self, _image: &dyn Image) {}
 
     fn width(&self) -> u32 {
-        320
+        self.width.load(Ordering::SeqCst)
     }
 
     fn height(&self) -> u32 {
-        240
+        self.height.load(Ordering::SeqCst)
     }
 }

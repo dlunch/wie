@@ -257,6 +257,10 @@ mod tests {
     struct NullScreen;
 
     impl Screen for NullScreen {
+        fn resize(&self, _width: u32, _height: u32) -> wie_util::Result<()> {
+            Ok(())
+        }
+
         fn request_redraw(&self) -> wie_util::Result<()> {
             Ok(())
         }
