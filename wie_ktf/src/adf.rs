@@ -26,11 +26,11 @@ impl KtfAdf {
 
         for line in &mut lines {
             if line.starts_with(b"AID:") {
-                aid = String::from_utf8_lossy(&line[4..]).into();
+                aid = String::from_utf8_lossy(&line[4..]).trim().into();
             } else if line.starts_with(b"PID:") {
-                pid = String::from_utf8_lossy(&line[4..]).into();
+                pid = String::from_utf8_lossy(&line[4..]).trim().into();
             } else if line.starts_with(b"MClass:") {
-                mclass = String::from_utf8_lossy(&line[7..]).into();
+                mclass = String::from_utf8_lossy(&line[7..]).trim().into();
             } else if line.starts_with(b"DisplaySize:") {
                 display_size = parse_display_size(&line[12..]);
             }
@@ -79,6 +79,16 @@ mod tests {
     #[test]
     fn parse_adf_full() {
         let data = b"AID:foo\nPID:bar\nMClass:baz\nDisplaySize:176*220\n";
+        let adf = KtfAdf::parse(data);
+        assert_eq!(adf.aid, "foo");
+        assert_eq!(adf.pid, "bar");
+        assert_eq!(adf.mclass, "baz");
+        assert_eq!(adf.display_size, Some((176, 220)));
+    }
+
+    #[test]
+    fn parse_adf_crlf() {
+        let data = b"AID:foo\r\nPID:bar\r\nMClass:baz\r\nDisplaySize:176*220\r\n";
         let adf = KtfAdf::parse(data);
         assert_eq!(adf.aid, "foo");
         assert_eq!(adf.pid, "bar");
