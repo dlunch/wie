@@ -49,13 +49,15 @@ pub struct WindowHandle {
 
 impl WindowHandle {
     pub fn send_quit_event(&self) {
-        self.send_event(WindowInternalEvent::Quit).unwrap();
+        if let Err(error) = self.send_event(WindowInternalEvent::Quit) {
+            tracing::warn!("Failed to send quit event: {error}");
+        }
     }
 
     fn send_event(&self, event: WindowInternalEvent) -> wie_util::Result<()> {
-        self.event_loop_proxy.send_event(event).unwrap();
-
-        Ok(())
+        self.event_loop_proxy
+            .send_event(event)
+            .map_err(|_| wie_util::WieError::FatalError("Window event loop is closed".into()))
     }
 }
 
@@ -80,7 +82,9 @@ impl Screen for WindowHandle {
             .map(|x| ((x.a as u32) << 24) | ((x.r as u32) << 16) | ((x.g as u32) << 8) | (x.b as u32))
             .collect::<Vec<_>>();
 
-        self.send_event(WindowInternalEvent::Paint(data)).unwrap()
+        if let Err(error) = self.send_event(WindowInternalEvent::Paint(data)) {
+            tracing::warn!("Failed to send paint event: {error}");
+        }
     }
 
     fn width(&self) -> u32 {
