@@ -39,6 +39,12 @@ use self::{
     window::{WindowCallbackEvent, WindowHandle, WindowImpl},
 };
 
+const DEFAULT_DISPLAY_SIZE: (u32, u32) = (240, 320);
+// Legacy mobile displays are much smaller; these bounds keep one RGBA frame at
+// or below 16 MiB while still leaving ample room for unusual app metadata.
+const MAX_DISPLAY_DIMENSION: u32 = 4096;
+const MAX_DISPLAY_PIXELS: u32 = 4 * 1024 * 1024;
+
 struct WieCliPlatform {
     audio_thread_tx: Sender<(u8, u32, Vec<i16>)>,
     database_repository: DatabaseRepository,
@@ -193,9 +199,9 @@ fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallba
 pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
     let buf = fs::read(filename)?;
     let archive = if filename.ends_with("zip") { Some(extract_zip(&buf)?) } else { None };
-    let (screen_width, screen_height) = archive.as_ref().and_then(display_size_from_archive).unwrap_or((240, 320));
+    let (screen_width, screen_height) = archive.as_ref().and_then(display_size_from_archive).unwrap_or(DEFAULT_DISPLAY_SIZE);
 
-    let window = WindowImpl::new(screen_width, screen_height).unwrap();
+    let window = WindowImpl::new(screen_width, screen_height)?;
     let platform = Box::new(WieCliPlatform::new(window.handle()));
 
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("zip") {
@@ -298,10 +304,12 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
 fn display_size_from_archive(files: &BTreeMap<String, Vec<u8>>) -> Option<(u32, u32)> {
     let display_size = adf_value(files, b"DisplaySize")?;
     let separator = display_size.iter().position(|&byte| matches!(byte, b'*' | b'x' | b'X'))?;
-    let width = core::str::from_utf8(&display_size[..separator]).ok()?.trim().parse().ok()?;
-    let height = core::str::from_utf8(&display_size[separator + 1..]).ok()?.trim().parse().ok()?;
+    let width: u32 = core::str::from_utf8(&display_size[..separator]).ok()?.trim().parse().ok()?;
+    let height: u32 = core::str::from_utf8(&display_size[separator + 1..]).ok()?.trim().parse().ok()?;
+    let pixels = width.checked_mul(height)?;
 
-    Some((width, height))
+    (width > 0 && height > 0 && width <= MAX_DISPLAY_DIMENSION && height <= MAX_DISPLAY_DIMENSION && pixels <= MAX_DISPLAY_PIXELS)
+        .then_some((width, height))
 }
 
 fn adf_value<'a>(files: &'a BTreeMap<String, Vec<u8>>, key: &[u8]) -> Option<&'a [u8]> {
@@ -348,6 +356,12 @@ mod tests {
     use super::display_size_from_archive;
     use std::collections::BTreeMap;
 
+    fn archive_with_display_size(display_size: &str) -> BTreeMap<String, Vec<u8>> {
+        let mut files = BTreeMap::new();
+        files.insert("__adf__".to_string(), format!("DisplaySize:{display_size}\n").into_bytes());
+        files
+    }
+
     #[test]
     fn reads_display_size_from_ktf_adf() {
         let mut files = BTreeMap::new();
@@ -360,9 +374,21 @@ mod tests {
     fn ignores_missing_or_invalid_display_size() {
         assert_eq!(display_size_from_archive(&BTreeMap::new()), None);
 
-        let mut files = BTreeMap::new();
-        files.insert("__adf__".to_string(), b"DisplaySize:invalid\n".to_vec());
-        assert_eq!(display_size_from_archive(&files), None);
+        assert_eq!(display_size_from_archive(&archive_with_display_size("invalid")), None);
+    }
+
+    #[test]
+    fn rejects_unsafe_display_sizes() {
+        assert_eq!(display_size_from_archive(&archive_with_display_size("0*220")), None);
+        assert_eq!(display_size_from_archive(&archive_with_display_size("176*0")), None);
+        assert_eq!(display_size_from_archive(&archive_with_display_size("4097*1")), None);
+        assert_eq!(display_size_from_archive(&archive_with_display_size("4096*1025")), None);
+        assert_eq!(display_size_from_archive(&archive_with_display_size("4294967295*2")), None);
+    }
+
+    #[test]
+    fn accepts_display_size_at_pixel_budget() {
+        assert_eq!(display_size_from_archive(&archive_with_display_size("2048*2048")), Some((2048, 2048)));
     }
 
     #[test]
