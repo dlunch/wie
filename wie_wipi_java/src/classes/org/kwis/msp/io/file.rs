@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
 use java_runtime::classes::java::{
-    io::{DataInputStream, DataOutputStream, InputStream, OutputStream},
+    io::{DataInputStream, DataOutputStream, FileDescriptor, InputStream, OutputStream},
     lang::String,
 };
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
@@ -78,6 +78,7 @@ impl File {
             fields: vec![
                 JavaFieldProto::new("file", "Ljava/io/File;", Default::default()),
                 JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", Default::default()),
+                JavaFieldProto::new("inputStream", "Ljava/io/InputStream;", Default::default()),
                 JavaFieldProto::new("mode", "I", Default::default()),
                 JavaFieldProto::new("closed", "Z", Default::default()),
                 JavaFieldProto::new("outputStreamOpen", "Z", Default::default()),
@@ -140,7 +141,14 @@ impl File {
             let _: () = jvm.invoke_virtual(&raf, "setLength", "(J)V", (0i64,)).await?;
         }
 
+        let descriptor: ClassInstanceRef<FileDescriptor> = jvm.invoke_virtual(&raf, "getFD", "()Ljava/io/FileDescriptor;", ()).await?;
+        let input_stream: ClassInstanceRef<InputStream> = jvm
+            .new_class("java/io/FileInputStream", "(Ljava/io/FileDescriptor;)V", (descriptor,))
+            .await?
+            .into();
+
         jvm.put_field(&mut this, "raf", "Ljava/io/RandomAccessFile;", raf).await?;
+        jvm.put_field(&mut this, "inputStream", "Ljava/io/InputStream;", input_stream).await?;
         jvm.put_field(&mut this, "file", "Ljava/io/File;", file).await?;
         jvm.put_field(&mut this, "mode", "I", mode as i32).await?;
         jvm.put_field(&mut this, "closed", "Z", false).await?;
@@ -234,9 +242,9 @@ impl File {
             return Err(jvm.exception("java/io/IOException", "File closed").await);
         }
 
-        let input_stream = jvm.new_class("net/wie/WIPIFileInputStream", "(Lorg/kwis/msp/io/File;)V", (this,)).await?;
+        let input_stream: ClassInstanceRef<InputStream> = jvm.get_field(&this, "inputStream", "Ljava/io/InputStream;").await?;
 
-        Ok(input_stream.into())
+        Ok(input_stream)
     }
 
     async fn open_data_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<DataInputStream>> {
@@ -418,7 +426,6 @@ mod test {
                 assert_eq!(after_input_read, 2);
                 let trailing: i32 = jvm.invoke_virtual(&file, "read", "()I", ()).await?;
                 assert_eq!(trailing, 0xcd);
-                let _: () = jvm.invoke_virtual(&data_input, "close", "()V", ()).await?;
 
                 let reopened: ClassInstanceRef<OutputStream> = jvm.invoke_virtual(&file, "openOutputStream", "()Ljava/io/OutputStream;", ()).await?;
                 let _: () = jvm.invoke_virtual(&reopened, "close", "()V", ()).await?;
@@ -428,6 +435,7 @@ mod test {
                 let read: i32 = jvm.invoke_virtual(&file, "read", "([B)I", (bytes.clone(),)).await?;
                 assert_eq!(read, 3);
                 assert_eq!(jvm.load_array::<i8>(&bytes, 0, 3).await?, [-2i8, -85, -51]);
+                let _: () = jvm.invoke_virtual(&file, "close", "()V", ()).await?;
 
                 Ok(())
             },
