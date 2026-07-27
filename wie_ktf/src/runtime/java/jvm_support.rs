@@ -214,9 +214,9 @@ mod test {
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::Result;
+    use wie_util::{Result, WieError};
 
-    use super::{JavaArrayClassInstance, KtfJvmSupport};
+    use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport};
 
     use test_utils::TestPlatform;
 
@@ -268,6 +268,86 @@ mod test {
             let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
 
             assert_eq!(time, 0x12345678_abcdef01);
+
+            Ok(())
+        });
+
+        loop {
+            system.tick()?;
+            if done.load(Ordering::Relaxed) {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exception_class_matches_raw_class_and_vtable() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+
+        let done = Arc::new(AtomicBool::new(false));
+
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(async move || {
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
+
+            let exception = jvm.new_class("java/lang/NullPointerException", "()V", ()).await.unwrap();
+            let null_pointer_class = jvm
+                .resolve_class("java/lang/NullPointerException")
+                .await
+                .unwrap()
+                .definition
+                .as_any()
+                .downcast_ref::<JavaClassDefinition>()
+                .unwrap()
+                .clone();
+            let runtime_exception_class = jvm
+                .resolve_class("java/lang/RuntimeException")
+                .await
+                .unwrap()
+                .definition
+                .as_any()
+                .downcast_ref::<JavaClassDefinition>()
+                .unwrap()
+                .clone();
+            let illegal_argument_class = jvm
+                .resolve_class("java/lang/IllegalArgumentException")
+                .await
+                .unwrap()
+                .definition
+                .as_any()
+                .downcast_ref::<JavaClassDefinition>()
+                .unwrap()
+                .clone();
+
+            assert!(JavaMethod::exception_class_matches(&core, &jvm, &*exception, 0)?);
+            assert!(JavaMethod::exception_class_matches(&core, &jvm, &*exception, null_pointer_class.ptr_raw)?);
+            assert!(JavaMethod::exception_class_matches(
+                &core,
+                &jvm,
+                &*exception,
+                null_pointer_class.ptr_vtable()?
+            )?);
+            assert!(JavaMethod::exception_class_matches(
+                &core,
+                &jvm,
+                &*exception,
+                runtime_exception_class.ptr_vtable()?
+            )?);
+            assert!(!JavaMethod::exception_class_matches(
+                &core,
+                &jvm,
+                &*exception,
+                illegal_argument_class.ptr_vtable()?
+            )?);
+
+            let ptr_exception = KtfJvmSupport::class_instance_raw(&exception);
+            let result = JavaMethod::handle_exception(&mut core, &jvm, exception).await;
+            assert!(matches!(result, Err(WieError::JavaException(ptr)) if ptr == ptr_exception));
+
+            done_clone.store(true, Ordering::Relaxed);
 
             Ok(())
         });

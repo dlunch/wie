@@ -154,9 +154,14 @@ impl JavaMethod {
         // mirrors the trampoline path in `interface.rs::map_jump_result`, but for the
         // outermost frame whose caller is the Rust JVM rather than another ARM trampoline.
         async fn run_with_unwind(core: &mut ArmCore, mut pc: u32, mut args: Vec<u32>) -> Result<JavaMethodRunResult> {
+            let caller_context = core.save_context();
+
             loop {
                 match core.run_function::<JavaMethodRunResult>(pc, &args).await {
-                    Ok(r) => return Ok(r),
+                    Ok(r) => {
+                        core.restore_context(&caller_context);
+                        return Ok(r);
+                    }
                     Err(WieError::JavaExceptionUnwind {
                         context_base,
                         target,
@@ -218,13 +223,32 @@ impl JavaMethod {
         Ok(result)
     }
 
+    pub(super) fn exception_class_matches(core: &ArmCore, jvm: &Jvm, exception: &dyn ClassInstance, ptr_class: u32) -> Result<bool> {
+        if ptr_class == 0 {
+            return Ok(true);
+        }
+
+        if let Some(instance) = exception.as_any().downcast_ref::<JavaClassInstance>() {
+            for class in instance.class()?.read_class_hierarchy()? {
+                if class.ptr_raw == ptr_class || class.ptr_vtable()? == ptr_class {
+                    return Ok(true);
+                }
+            }
+
+            return Ok(false);
+        }
+
+        let class = JavaClassDefinition::from_raw(ptr_class, core);
+        Ok(jvm.is_instance(exception, &class.name()?))
+    }
+
     pub async fn handle_exception(core: &mut ArmCore, jvm: &Jvm, exception: Box<dyn ClassInstance>) -> Result<JavaMethodResult> {
         tracing::warn!("Java exception thrown: {exception:?}");
 
         let current_java_exception_handler = KtfJvmSupport::current_java_exception_handler(core)?;
 
         if current_java_exception_handler == 0 {
-            return Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await);
+            return Err(WieError::JavaException(KtfJvmSupport::class_instance_raw(&exception)));
         }
 
         let exception_handler: RawJavaExceptionHandler = read_generic(core, current_java_exception_handler)?;
@@ -233,24 +257,24 @@ impl JavaMethod {
         let exception_table = method.exception_table()?;
 
         for entry in exception_table {
-            if entry.from_pc <= exception_handler.current_pc && exception_handler.current_pc < entry.to_pc {
-                let class = JavaClassDefinition::from_raw(entry.ptr_class, core);
-                if entry.ptr_class == 0 || jvm.is_instance(&*exception, &class.name()?) {
-                    let restore_context: u32 = read_generic(core, exception_handler.ptr_functions + 4)?;
-                    let contexts_base = current_java_exception_handler + 24;
+            if entry.from_pc <= exception_handler.current_pc
+                && exception_handler.current_pc < entry.to_pc
+                && Self::exception_class_matches(core, jvm, &*exception, entry.ptr_class)?
+            {
+                let restore_context: u32 = read_generic(core, exception_handler.ptr_functions + 4)?;
+                let contexts_base = current_java_exception_handler + 24;
 
-                    tracing::debug!(
-                        "Java exception handler found: {:#x}, method: {:#x}",
-                        entry.target,
-                        exception_handler.ptr_method
-                    );
+                tracing::debug!(
+                    "Java exception handler found: {:#x}, method: {:#x}",
+                    entry.target,
+                    exception_handler.ptr_method
+                );
 
-                    return Err(WieError::JavaExceptionUnwind {
-                        context_base: contexts_base,
-                        target: entry.target,
-                        next_pc: restore_context,
-                    });
-                }
+                return Err(WieError::JavaExceptionUnwind {
+                    context_base: contexts_base,
+                    target: entry.target,
+                    next_pc: restore_context,
+                });
             }
         }
 

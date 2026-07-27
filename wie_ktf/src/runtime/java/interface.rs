@@ -99,14 +99,31 @@ pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord
     JavaMethod::handle_exception(core, jvm, exception).await
 }
 
-fn map_jump_result(result: core::result::Result<u32, WieError>) -> Result<JavaMethodResult> {
+fn map_exception_unwind(core: &ArmCore, caller_sp: u32, context_base: u32, target: u32, next_pc: u32) -> Result<JavaMethodResult> {
+    let handler_sp: u32 = read_generic(core, context_base + 9 * 4)?;
+    tracing::trace!(
+        "Checking Java exception unwind boundary: caller_sp={caller_sp:#x}, handler_sp={handler_sp:#x}, next_pc={next_pc:#x}, target={target:#x}"
+    );
+
+    if caller_sp != handler_sp {
+        return Err(WieError::JavaExceptionUnwind {
+            context_base,
+            target,
+            next_pc,
+        });
+    }
+
+    Ok(JavaMethodResult::new(vec![context_base, target], Some(next_pc)))
+}
+
+fn map_jump_result(core: &ArmCore, caller_sp: u32, result: core::result::Result<u32, WieError>) -> Result<JavaMethodResult> {
     match result {
         Ok(result) => Ok(JavaMethodResult::new(vec![result], None)),
         Err(WieError::JavaExceptionUnwind {
             context_base,
             target,
             next_pc,
-        }) => Ok(JavaMethodResult::new(vec![context_base, target], Some(next_pc))),
+        }) => map_exception_unwind(core, caller_sp, context_base, target, next_pc),
         Err(err) => Err(err),
     }
 }
@@ -168,7 +185,9 @@ async fn java_jump_1(core: &mut ArmCore, _: &mut (), arg1: u32, address: u32) ->
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    map_jump_result(core.run_function::<u32>(address, &[arg1, 0, 0]).await)
+    let caller_sp = core.save_context().sp;
+    let result = core.run_function::<u32>(address, &[arg1, 0, 0]).await;
+    map_jump_result(core, caller_sp, result)
 }
 
 async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
@@ -290,13 +309,14 @@ async fn call_native(core: &mut ArmCore, _: &mut (), address: u32, ptr_data: u32
     }
 
     // TODO correctly figure out parameter
+    let caller_sp = core.save_context().sp;
     let result = match core.run_function::<u32>(address, &[ptr_data, ptr_data]).await {
         Ok(result) => result,
         Err(WieError::JavaExceptionUnwind {
             context_base,
             target,
             next_pc,
-        }) => return Ok(JavaMethodResult::new(vec![context_base, target], Some(next_pc))),
+        }) => return map_exception_unwind(core, caller_sp, context_base, target, next_pc),
         Err(err) => return Err(err),
     };
 
@@ -313,7 +333,9 @@ async fn java_jump_2(core: &mut ArmCore, _: &mut (), arg1: u32, arg2: u32, addre
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    map_jump_result(core.run_function::<u32>(address, &[arg1, arg2, 0]).await)
+    let caller_sp = core.save_context().sp;
+    let result = core.run_function::<u32>(address, &[arg1, arg2, 0]).await;
+    map_jump_result(core, caller_sp, result)
 }
 
 async fn java_jump_3(core: &mut ArmCore, _: &mut (), arg1: u32, arg2: u32, arg3: u32, address: u32) -> Result<JavaMethodResult> {
@@ -323,7 +345,9 @@ async fn java_jump_3(core: &mut ArmCore, _: &mut (), arg1: u32, arg2: u32, arg3:
         return Err(WieError::FatalError("jump native address is null".to_string()));
     }
 
-    map_jump_result(core.run_function::<u32>(address, &[arg1, arg2, arg3]).await)
+    let caller_sp = core.save_context().sp;
+    let result = core.run_function::<u32>(address, &[arg1, arg2, arg3]).await;
+    map_jump_result(core, caller_sp, result)
 }
 
 pub async fn java_new(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<u32> {
