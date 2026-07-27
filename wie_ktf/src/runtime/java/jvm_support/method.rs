@@ -171,7 +171,10 @@ impl JavaMethod {
                         pc = next_pc;
                         args = vec![context_base, target];
                     }
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        core.restore_context(&caller_context);
+                        return Err(e);
+                    }
                 }
             }
         }
