@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use core::{fmt::Debug, fmt::Formatter, num::NonZeroU32};
-use std::{fmt, vec};
+use std::{fmt, sync::RwLock, vec};
 
 use fast_image_resize::ResizeAlg;
 use fast_image_resize::{PixelType, ResizeOptions, SrcCropping};
@@ -16,8 +16,20 @@ use winit::{
 
 use wie_backend::{Screen, canvas::Image};
 
+const MAX_DISPLAY_DIMENSION: u32 = 4096;
+const MAX_DISPLAY_PIXELS: u32 = 4 * 1024 * 1024;
+
+fn is_valid_display_size(width: u32, height: u32) -> bool {
+    width > 0
+        && height > 0
+        && width <= MAX_DISPLAY_DIMENSION
+        && height <= MAX_DISPLAY_DIMENSION
+        && width.checked_mul(height).is_some_and(|pixels| pixels <= MAX_DISPLAY_PIXELS)
+}
+
 #[derive(Debug)]
 pub enum WindowInternalEvent {
+    Resize(u32, u32),
     RequestRedraw,
     Paint(Vec<u32>),
     Quit,
@@ -31,8 +43,7 @@ pub enum WindowCallbackEvent {
 }
 
 pub struct WindowHandle {
-    width: u32,
-    height: u32,
+    display_size: Arc<RwLock<(u32, u32)>>,
     event_loop_proxy: EventLoopProxy<WindowInternalEvent>,
 }
 
@@ -49,6 +60,15 @@ impl WindowHandle {
 }
 
 impl Screen for WindowHandle {
+    fn resize(&self, width: u32, height: u32) -> wie_util::Result<()> {
+        if !is_valid_display_size(width, height) {
+            return Err(wie_util::WieError::FatalError(format!("Invalid display size: {width}x{height}")));
+        }
+
+        *self.display_size.write().unwrap() = (width, height);
+        self.send_event(WindowInternalEvent::Resize(width, height))
+    }
+
     fn request_redraw(&self) -> wie_util::Result<()> {
         self.send_event(WindowInternalEvent::RequestRedraw)
     }
@@ -64,31 +84,36 @@ impl Screen for WindowHandle {
     }
 
     fn width(&self) -> u32 {
-        self.width
+        self.display_size.read().unwrap().0
     }
 
     fn height(&self) -> u32 {
-        self.height
+        self.display_size.read().unwrap().1
     }
 }
 
 pub struct WindowImpl {
-    width: u32,
-    height: u32,
+    display_size: Arc<RwLock<(u32, u32)>>,
     event_loop: EventLoop<WindowInternalEvent>,
 }
 
 impl WindowImpl {
     pub fn new(width: u32, height: u32) -> anyhow::Result<Self> {
+        if !is_valid_display_size(width, height) {
+            anyhow::bail!("Invalid display size: {width}x{height}");
+        }
+
         let event_loop = EventLoop::<WindowInternalEvent>::with_user_event().build()?;
 
-        Ok(Self { width, height, event_loop })
+        Ok(Self {
+            display_size: Arc::new(RwLock::new((width, height))),
+            event_loop,
+        })
     }
 
     pub fn handle(&self) -> WindowHandle {
         WindowHandle {
-            width: self.width,
-            height: self.height,
+            display_size: self.display_size.clone(),
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
@@ -100,7 +125,8 @@ impl WindowImpl {
         self.event_loop.set_control_flow(ControlFlow::Poll);
 
         const DEFAULT_USER_SCALE_FACTOR: f64 = 1.0;
-        let orig_size = LogicalSize::new(self.width, self.height);
+        let (width, height) = *self.display_size.read().unwrap();
+        let orig_size = LogicalSize::new(width, height);
         let mut handler = ApplicationHandlerImpl {
             native_scale_factor: 1.0,
             user_scale_factor: DEFAULT_USER_SCALE_FACTOR,
@@ -113,7 +139,7 @@ impl WindowImpl {
             context: None,
             surface: None,
             callback: Box::new(callback),
-            last_frame: vec![0u32; (self.width * self.height) as usize],
+            last_frame: vec![0u32; (width * height) as usize],
         };
 
         Ok(self.event_loop.run_app(&mut handler)?)
@@ -277,6 +303,24 @@ where
         self.scaled_image_buf = vec![0u32; self.scaled_size.width as usize * self.scaled_size.height as usize];
     }
 
+    fn resize_content(&mut self, width: u32, height: u32) {
+        let content_size = LogicalSize::new(width, height);
+        if self.content_size == content_size {
+            return;
+        }
+
+        self.content_size = content_size;
+        self.last_frame = vec![0u32; width as usize * height as usize];
+        self.update_scale_factor(None, None);
+
+        if let Some(window) = &self.window {
+            if let Some(new_size) = window.request_inner_size(self.scaled_size) {
+                self.window_size = new_size;
+            }
+            self.on_resize();
+        }
+    }
+
     /// Updates the scaled content image surface's size.
     fn on_resize(&mut self) {
         tracing::info!(
@@ -370,10 +414,23 @@ where
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: WindowInternalEvent) {
         match event {
+            WindowInternalEvent::Resize(width, height) => {
+                self.resize_content(width, height);
+            }
             WindowInternalEvent::RequestRedraw => {
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowInternalEvent::Paint(data) => {
+                let expected_len = self.content_size.width as usize * self.content_size.height as usize;
+                if data.len() != expected_len {
+                    tracing::warn!(
+                        "frame size mismatch, skipping paint: {}, expected {} for {:?}",
+                        data.len(),
+                        expected_len,
+                        self.content_size
+                    );
+                    return;
+                }
                 self.last_frame = data;
                 self.paint_last_frame();
             }
@@ -430,5 +487,22 @@ where
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_display_size;
+
+    #[test]
+    fn validates_display_size_bounds() {
+        assert!(is_valid_display_size(176, 220));
+        assert!(is_valid_display_size(2048, 2048));
+
+        assert!(!is_valid_display_size(0, 220));
+        assert!(!is_valid_display_size(176, 0));
+        assert!(!is_valid_display_size(4097, 1));
+        assert!(!is_valid_display_size(4096, 1025));
+        assert!(!is_valid_display_size(u32::MAX, 2));
     }
 }

@@ -40,6 +40,11 @@ impl KtfEmulator {
         let adf = KtfAdf::parse(adf);
 
         tracing::info!("Loading app {}, pid {}, mclass {}", adf.aid, adf.pid, adf.mclass);
+        if let Some((width, height)) = adf.display_size
+            && let Err(error) = platform.screen().resize(width, height)
+        {
+            tracing::warn!("Ignoring unsupported display size {width}x{height}: {error}");
+        }
 
         let jar_filename = format!("{}.jar", adf.aid);
 

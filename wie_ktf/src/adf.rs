@@ -12,6 +12,7 @@ pub struct KtfAdf {
     pub aid: String,
     pub pid: String,
     pub mclass: String,
+    pub display_size: Option<(u32, u32)>,
 }
 
 impl KtfAdf {
@@ -19,6 +20,7 @@ impl KtfAdf {
         let mut aid = String::new();
         let mut pid = String::new();
         let mut mclass = String::new();
+        let mut display_size = None;
 
         let mut lines = data.split(|x| *x == b'\n');
 
@@ -29,12 +31,28 @@ impl KtfAdf {
                 pid = String::from_utf8_lossy(&line[4..]).into();
             } else if line.starts_with(b"MClass:") {
                 mclass = String::from_utf8_lossy(&line[7..]).into();
+            } else if line.starts_with(b"DisplaySize:") {
+                display_size = parse_display_size(&line[12..]);
             }
             // TODO load name, it's in euc-kr..
         }
 
-        Self { aid, pid, mclass }
+        Self {
+            aid,
+            pid,
+            mclass,
+            display_size,
+        }
     }
+}
+
+fn parse_display_size(data: &[u8]) -> Option<(u32, u32)> {
+    let value = core::str::from_utf8(data).ok()?.trim();
+    let separator = value.find(|character| matches!(character, '*' | 'x' | 'X'))?;
+    let width: u32 = value[..separator].trim().parse().ok()?;
+    let height: u32 = value[separator + 1..].trim().parse().ok()?;
+
+    (width > 0 && height > 0).then_some((width, height))
 }
 
 pub fn find_client_bin(jar: &[u8]) -> Result<(String, Vec<u8>)> {
@@ -60,11 +78,12 @@ mod tests {
 
     #[test]
     fn parse_adf_full() {
-        let data = b"AID:foo\nPID:bar\nMClass:baz\n";
+        let data = b"AID:foo\nPID:bar\nMClass:baz\nDisplaySize:176*220\n";
         let adf = KtfAdf::parse(data);
         assert_eq!(adf.aid, "foo");
         assert_eq!(adf.pid, "bar");
         assert_eq!(adf.mclass, "baz");
+        assert_eq!(adf.display_size, Some((176, 220)));
     }
 
     #[test]
@@ -73,6 +92,7 @@ mod tests {
         assert!(adf.aid.is_empty());
         assert!(adf.pid.is_empty());
         assert!(adf.mclass.is_empty());
+        assert_eq!(adf.display_size, None);
     }
 
     #[test]
@@ -82,6 +102,21 @@ mod tests {
         assert_eq!(adf.aid, "only");
         assert!(adf.pid.is_empty());
         assert!(adf.mclass.is_empty());
+        assert_eq!(adf.display_size, None);
+    }
+
+    #[test]
+    fn parse_adf_display_size_variants() {
+        assert_eq!(KtfAdf::parse(b"DisplaySize: 176 x 220\r\n").display_size, Some((176, 220)));
+        assert_eq!(KtfAdf::parse(b"DisplaySize:176X220\n").display_size, Some((176, 220)));
+    }
+
+    #[test]
+    fn parse_adf_invalid_display_size() {
+        assert_eq!(KtfAdf::parse(b"DisplaySize:invalid\n").display_size, None);
+        assert_eq!(KtfAdf::parse(b"DisplaySize:0*220\n").display_size, None);
+        assert_eq!(KtfAdf::parse(b"DisplaySize:176*0\n").display_size, None);
+        assert_eq!(KtfAdf::parse(b"DisplaySize:4294967296*220\n").display_size, None);
     }
 
     #[test]
