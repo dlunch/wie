@@ -27,6 +27,25 @@ fn is_valid_display_size(width: u32, height: u32) -> bool {
         && width.checked_mul(height).is_some_and(|pixels| pixels <= MAX_DISPLAY_PIXELS)
 }
 
+fn read_display_size(display_size: &RwLock<(u32, u32)>) -> (u32, u32) {
+    match display_size.read() {
+        Ok(display_size) => *display_size,
+        Err(error) => {
+            tracing::warn!("Display size lock is poisoned; using the last value");
+            *error.into_inner()
+        }
+    }
+}
+
+fn write_display_size(display_size: &RwLock<(u32, u32)>, width: u32, height: u32) -> wie_util::Result<()> {
+    let mut display_size = display_size
+        .write()
+        .map_err(|_| wie_util::WieError::FatalError("Display size lock is poisoned".into()))?;
+    *display_size = (width, height);
+
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum WindowInternalEvent {
     Resize(u32, u32),
@@ -67,7 +86,7 @@ impl Screen for WindowHandle {
             return Err(wie_util::WieError::FatalError(format!("Invalid display size: {width}x{height}")));
         }
 
-        *self.display_size.write().unwrap() = (width, height);
+        write_display_size(&self.display_size, width, height)?;
         self.send_event(WindowInternalEvent::Resize(width, height))
     }
 
@@ -88,11 +107,11 @@ impl Screen for WindowHandle {
     }
 
     fn width(&self) -> u32 {
-        self.display_size.read().unwrap().0
+        read_display_size(&self.display_size).0
     }
 
     fn height(&self) -> u32 {
-        self.display_size.read().unwrap().1
+        read_display_size(&self.display_size).1
     }
 }
 
@@ -129,7 +148,7 @@ impl WindowImpl {
         self.event_loop.set_control_flow(ControlFlow::Poll);
 
         const DEFAULT_USER_SCALE_FACTOR: f64 = 1.0;
-        let (width, height) = *self.display_size.read().unwrap();
+        let (width, height) = read_display_size(&self.display_size);
         let orig_size = LogicalSize::new(width, height);
         let mut handler = ApplicationHandlerImpl {
             native_scale_factor: 1.0,
