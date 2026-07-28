@@ -43,11 +43,12 @@ struct WieCliPlatform {
     audio_thread_tx: Sender<(u8, u32, Vec<i16>)>,
     database_repository: DatabaseRepository,
     filesystem: CliFilesystem,
+    midi_device: Option<usize>,
     window: WindowHandle,
 }
 
 impl WieCliPlatform {
-    fn new(window: WindowHandle) -> Self {
+    fn new(window: WindowHandle, midi_device: Option<usize>) -> Self {
         let (tx, rx) = channel();
         thread::spawn(|| Self::audio_thread(rx));
 
@@ -55,6 +56,7 @@ impl WieCliPlatform {
             audio_thread_tx: tx,
             database_repository: DatabaseRepository::new(),
             filesystem: CliFilesystem::new(),
+            midi_device,
             window,
         }
     }
@@ -121,15 +123,23 @@ impl Platform for WieCliPlatform {
         let midi_out = (|| {
             let midi_out = MidiOutput::new("wie_cli")?;
             let midi_ports = midi_out.ports();
-            let port_names = midi_ports
-                .iter()
-                .map(|port| midi_out.port_name(port).unwrap_or_else(|_| "<unknown>".to_string()))
-                .collect::<Vec<_>>();
-            let port_index = preferred_midi_output_index(&port_names).ok_or_else(|| anyhow::anyhow!("No MIDI output port"))?;
+            let port_index = select_midi_output_index(midi_ports.len(), self.midi_device).ok_or_else(|| anyhow::anyhow!("No MIDI output port"))?;
             let out_port = &midi_ports[port_index];
+            let port_name = midi_out.port_name(out_port).unwrap_or_else(|_| "<unknown>".to_string());
 
-            tracing::info!(port = %port_names[port_index], "Using MIDI output");
-            Ok::<_, Box<dyn Error>>(midi_out.connect(out_port, "wie_cli")?)
+            if let Some(requested) = self.midi_device
+                && requested != port_index
+            {
+                tracing::warn!(
+                    requested,
+                    fallback = %port_name,
+                    "Requested MIDI output index is out of range; using default"
+                );
+            }
+
+            let connection = midi_out.connect(out_port, "wie_cli")?;
+            tracing::info!(port = %port_name, "Using MIDI output");
+            Ok::<_, Box<dyn Error>>(connection)
         })();
         let midi_out = match midi_out {
             Ok(connection) => Some(connection),
@@ -165,13 +175,20 @@ impl Platform for WieCliPlatform {
 
 #[derive(Parser)]
 struct Args {
-    filename: String,
+    #[arg(required_unless_present = "list_midi_devices")]
+    filename: Option<String>,
     #[arg(long, default_value_t = false)]
     debug: bool,
     /// Write a flamegraph-folded sampling profile to this path (one line per
     /// flushed batch; `flamegraph.pl` aggregates duplicates).
     #[arg(long)]
     profile_out: Option<PathBuf>,
+    /// Select a MIDI output by zero-based index.
+    #[arg(long, value_name = "INDEX")]
+    midi_device: Option<usize>,
+    /// List available MIDI output devices and exit.
+    #[arg(long, conflicts_with_all = ["filename", "debug", "profile_out", "midi_device"])]
+    list_midi_devices: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -182,13 +199,27 @@ fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
+    if args.list_midi_devices {
+        return list_midi_devices();
+    }
+
     let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let options = Options {
         enable_gdbserver: args.debug,
         profile,
     };
+    let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
 
-    start(&args.filename, options)
+    start_with_midi_device(filename, options, args.midi_device)
+}
+
+fn list_midi_devices() -> anyhow::Result<()> {
+    let midi_out = MidiOutput::new("wie_cli")?;
+    for (index, port) in midi_out.ports().iter().enumerate() {
+        let name = midi_out.port_name(port).unwrap_or_else(|_| "<unknown>".to_string());
+        println!("{index}: {name}");
+    }
+    Ok(())
 }
 
 fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallback> {
@@ -203,8 +234,12 @@ fn profile_callback(path: &PathBuf) -> anyhow::Result<wie_backend::ProfileCallba
 }
 
 pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
+    start_with_midi_device(filename, options, None)
+}
+
+fn start_with_midi_device(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320)?;
-    let platform = Box::new(WieCliPlatform::new(window.handle()));
+    let platform = Box::new(WieCliPlatform::new(window.handle(), midi_device));
 
     let buf = fs::read(filename)?;
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("zip") {
@@ -304,22 +339,8 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
     })
 }
 
-fn preferred_midi_output_index(port_names: &[String]) -> Option<usize> {
-    const SOFTWARE_SYNTH_NAMES: &[&str] = &["microsoft gs wavetable", "fluidsynth", "timidity", "qsynth"];
-
-    port_names
-        .iter()
-        .position(|name| {
-            let name = name.to_ascii_lowercase();
-            SOFTWARE_SYNTH_NAMES.iter().any(|software_synth| name.contains(software_synth))
-        })
-        .or_else(|| {
-            port_names.iter().position(|name| {
-                let name = name.to_ascii_lowercase();
-                name.contains("synth") || name.contains("wavetable")
-            })
-        })
-        .or_else(|| (!port_names.is_empty()).then_some(0))
+fn select_midi_output_index(port_count: usize, requested: Option<usize>) -> Option<usize> {
+    requested.filter(|&index| index < port_count).or_else(|| port_count.checked_sub(1))
 }
 
 fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
@@ -354,29 +375,50 @@ fn convert_key(key: PhysicalKey) -> Option<KeyCode> {
 
 #[cfg(test)]
 mod tests {
-    use super::preferred_midi_output_index;
+    use clap::Parser;
+
+    use super::{Args, select_midi_output_index};
 
     #[test]
-    fn prefers_software_synth_over_external_midi_ports() {
-        let port_names = vec![
-            "Microsoft GS Wavetable Synth".to_string(),
-            "Hammer 88".to_string(),
-            "Babyface Midi Port 1".to_string(),
-        ];
-
-        assert_eq!(preferred_midi_output_index(&port_names), Some(0));
+    fn defaults_to_last_midi_port() {
+        assert_eq!(select_midi_output_index(3, None), Some(2));
     }
 
     #[test]
-    fn recognizes_common_cross_platform_software_synths() {
-        let port_names = vec!["External MIDI".to_string(), "FLUIDSynth virtual port".to_string()];
-
-        assert_eq!(preferred_midi_output_index(&port_names), Some(1));
+    fn selects_midi_port_by_index() {
+        for index in 0..3 {
+            assert_eq!(select_midi_output_index(3, Some(index)), Some(index));
+        }
     }
 
     #[test]
-    fn falls_back_to_first_midi_port() {
-        assert_eq!(preferred_midi_output_index(&["External MIDI".to_string()]), Some(0));
-        assert_eq!(preferred_midi_output_index(&[]), None);
+    fn invalid_midi_device_falls_back_to_last_port() {
+        assert_eq!(select_midi_output_index(2, Some(2)), Some(1));
+    }
+
+    #[test]
+    fn handles_empty_midi_port_list() {
+        assert_eq!(select_midi_output_index(0, Some(0)), None);
+    }
+
+    #[test]
+    fn list_midi_devices_does_not_require_filename() {
+        let args = Args::try_parse_from(["wie_cli", "--list-midi-devices"]).unwrap();
+
+        assert!(args.list_midi_devices);
+        assert!(args.filename.is_none());
+    }
+
+    #[test]
+    fn normal_run_requires_filename() {
+        assert!(Args::try_parse_from(["wie_cli"]).is_err());
+    }
+
+    #[test]
+    fn parses_midi_device_with_filename() {
+        let args = Args::try_parse_from(["wie_cli", "game.jar", "--midi-device", "1"]).unwrap();
+
+        assert_eq!(args.filename.as_deref(), Some("game.jar"));
+        assert_eq!(args.midi_device, Some(1));
     }
 }
