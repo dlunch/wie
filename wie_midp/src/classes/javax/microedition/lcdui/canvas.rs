@@ -83,7 +83,7 @@ impl Canvas {
     }
 
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::debug!("stub javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
+        tracing::warn!("stub javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
 
         jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
     }
