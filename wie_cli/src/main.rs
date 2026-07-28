@@ -3,6 +3,8 @@ extern crate alloc;
 mod audio_sink;
 mod database;
 mod filesystem;
+#[cfg(not(target_arch = "wasm32"))]
+mod midi_worker;
 mod window;
 
 use core::str;

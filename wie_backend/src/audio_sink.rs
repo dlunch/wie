@@ -1,3 +1,21 @@
+use alloc::vec::Vec;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MidiEvent {
+    NoteOn { channel: u8, note: u8, velocity: u8 },
+    NoteOff { channel: u8, note: u8, velocity: u8 },
+    ProgramChange { channel: u8, program: u8 },
+    ControlChange { channel: u8, control: u8, value: u8 },
+    PitchBend { channel: u8, value: u16 },
+    SysEx(Vec<u8>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScheduledMidiEvent {
+    pub at_ms: u64,
+    pub event: MidiEvent,
+}
+
 pub trait AudioSink: Sync + Send {
     fn play_wave(&self, channel: u8, sampling_rate: u32, wave_data: &[i16]);
     fn midi_note_on(&self, channel_id: u8, note: u8, velocity: u8);
@@ -6,4 +24,10 @@ pub trait AudioSink: Sync + Send {
     fn midi_control_change(&self, channel_id: u8, control: u8, value: u8);
     fn midi_pitch_bend(&self, channel_id: u8, value: u16);
     fn midi_sysex(&self, data: &[u8]);
+
+    fn schedule_midi(&self, _playback_id: u64, _events: &[ScheduledMidiEvent], _duration_ms: u64, _repeat: bool) -> bool {
+        false
+    }
+
+    fn stop_scheduled_midi(&self, _playback_id: u64) {}
 }

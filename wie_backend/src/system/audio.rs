@@ -8,7 +8,10 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use smaf_player::{SmafEvent, parse_smaf};
 
-use crate::{System, audio_sink::AudioSink};
+use crate::{
+    System,
+    audio_sink::{AudioSink, MidiEvent, ScheduledMidiEvent},
+};
 
 pub type AudioHandle = u32;
 #[derive(Debug)]
@@ -24,8 +27,14 @@ enum AudioFile {
 pub struct Audio {
     sink: Arc<Box<dyn AudioSink>>,
     files: BTreeMap<AudioHandle, AudioFile>,
-    playing: BTreeMap<AudioHandle, Arc<AtomicBool>>,
+    playing: BTreeMap<AudioHandle, Playback>,
     last_audio_handle: AudioHandle,
+    last_playback_id: u64,
+}
+
+enum Playback {
+    Executor(Arc<AtomicBool>),
+    Scheduled(u64),
 }
 
 impl Audio {
@@ -35,6 +44,7 @@ impl Audio {
             files: BTreeMap::new(),
             playing: BTreeMap::new(),
             last_audio_handle: 0,
+            last_playback_id: 0,
         }
     }
 
@@ -55,12 +65,21 @@ impl Audio {
 
         self.stop(audio_handle);
 
+        if let Some((events, duration_ms)) = player.midi_sequence() {
+            self.last_playback_id += 1;
+            let playback_id = self.last_playback_id;
+            if self.sink.schedule_midi(playback_id, &events, duration_ms, repeat) {
+                self.playing.insert(audio_handle, Playback::Scheduled(playback_id));
+                return Ok(());
+            }
+        }
+
         let mut system_clone = system.clone();
         let sink_clone = self.sink.clone();
 
         let stop_flag = Arc::new(AtomicBool::new(false));
         let stop_flag_clone = stop_flag.clone();
-        self.playing.insert(audio_handle, stop_flag);
+        self.playing.insert(audio_handle, Playback::Executor(stop_flag));
 
         // TODO use dedicated audio player task
         system.spawn(async move || {
@@ -73,8 +92,11 @@ impl Audio {
     }
 
     pub fn stop(&mut self, audio_handle: AudioHandle) {
-        if let Some(stop_flag) = self.playing.remove(&audio_handle) {
-            stop_flag.store(true, Ordering::Relaxed);
+        if let Some(playback) = self.playing.remove(&audio_handle) {
+            match playback {
+                Playback::Executor(stop_flag) => stop_flag.store(true, Ordering::Relaxed),
+                Playback::Scheduled(playback_id) => self.sink.stop_scheduled_midi(playback_id),
+            }
         }
     }
 
@@ -96,6 +118,46 @@ pub struct SmafPlayer {
 impl SmafPlayer {
     pub fn new(data: &[u8]) -> Self {
         Self { events: parse_smaf(data) }
+    }
+
+    fn midi_sequence(&self) -> Option<(Vec<ScheduledMidiEvent>, u64)> {
+        let mut result = Vec::new();
+        let mut duration_ms = 0;
+
+        for (time, event) in &self.events {
+            duration_ms = duration_ms.max(*time as u64);
+            let event = match event {
+                SmafEvent::Wave { .. } => return None,
+                SmafEvent::MidiNoteOn { channel, note, velocity } => MidiEvent::NoteOn {
+                    channel: *channel,
+                    note: *note,
+                    velocity: *velocity,
+                },
+                SmafEvent::MidiNoteOff { channel, note, velocity } => MidiEvent::NoteOff {
+                    channel: *channel,
+                    note: *note,
+                    velocity: *velocity,
+                },
+                SmafEvent::MidiProgramChange { channel, program } => MidiEvent::ProgramChange {
+                    channel: *channel,
+                    program: *program,
+                },
+                SmafEvent::MidiControlChange { channel, control, value } => MidiEvent::ControlChange {
+                    channel: *channel,
+                    control: *control,
+                    value: *value,
+                },
+                SmafEvent::MidiPitchBend { channel, value } => MidiEvent::PitchBend {
+                    channel: *channel,
+                    value: *value,
+                },
+                SmafEvent::MidiSysEx(data) => MidiEvent::SysEx(data.clone()),
+                SmafEvent::End => continue,
+            };
+            result.push(ScheduledMidiEvent { at_ms: *time as u64, event });
+        }
+
+        Some((result, duration_ms))
     }
 
     pub async fn play(&self, system: &mut System, sink: &dyn AudioSink, stop_flag: &AtomicBool, repeat: bool) {
@@ -179,7 +241,10 @@ mod tests {
     use smaf_player::SmafEvent;
 
     use super::SmafPlayer;
-    use crate::{AudioSink, Database, DatabaseRepository, DefaultTaskRunner, Filesystem, Instant, Platform, Screen, System, canvas::Image};
+    use crate::{
+        AudioSink, Database, DatabaseRepository, DefaultTaskRunner, Filesystem, Instant, MidiEvent, Platform, ScheduledMidiEvent, Screen, System,
+        canvas::Image,
+    };
 
     struct NullDatabase;
 
@@ -409,5 +474,60 @@ mod tests {
         player.play(&mut system, &sink, &stop_flag, true).await;
 
         assert_eq!(counter.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn converts_pure_midi_to_an_absolute_sequence() {
+        let player = SmafPlayer {
+            events: vec![
+                (5, SmafEvent::MidiProgramChange { channel: 1, program: 4 }),
+                (
+                    10,
+                    SmafEvent::MidiNoteOn {
+                        channel: 1,
+                        note: 60,
+                        velocity: 100,
+                    },
+                ),
+                (30, SmafEvent::End),
+            ],
+        };
+
+        assert_eq!(
+            player.midi_sequence(),
+            Some((
+                vec![
+                    ScheduledMidiEvent {
+                        at_ms: 5,
+                        event: MidiEvent::ProgramChange { channel: 1, program: 4 },
+                    },
+                    ScheduledMidiEvent {
+                        at_ms: 10,
+                        event: MidiEvent::NoteOn {
+                            channel: 1,
+                            note: 60,
+                            velocity: 100,
+                        },
+                    },
+                ],
+                30,
+            ))
+        );
+    }
+
+    #[test]
+    fn keeps_mixed_wave_sequences_on_the_executor_fallback() {
+        let player = SmafPlayer {
+            events: vec![(
+                0,
+                SmafEvent::Wave {
+                    channel: 1,
+                    sampling_rate: 8000,
+                    data: vec![0],
+                },
+            )],
+        };
+
+        assert_eq!(player.midi_sequence(), None);
     }
 }
