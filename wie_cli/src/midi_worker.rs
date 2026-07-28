@@ -136,7 +136,7 @@ impl Playback {
     }
 
     fn recover_from_late_wakeup(&mut self, now: Instant) -> LateRecovery {
-        if !self.repeat || self.duration.is_zero() {
+        if !self.repeat || self.duration.is_zero() || self.next_event >= self.events.len() {
             return LateRecovery::None;
         }
 
@@ -567,6 +567,19 @@ mod tests {
         );
         assert_eq!(playback.cycle_start, start + Duration::from_millis(60));
         assert_eq!(playback.next_deadline(), start + Duration::from_millis(65));
+    }
+
+    #[test]
+    fn repeating_playback_finishes_normally_after_a_late_cycle_end_wakeup() {
+        let start = Instant::now();
+        let mut playback = Playback::new(vec![note_on(0, 60)], Duration::from_millis(30), true, start);
+
+        assert_eq!(playback.take_due_event(start), Some((start, note_on(0, 60).event)));
+        let late_wakeup = start + Duration::from_millis(31);
+        assert_eq!(playback.recover_from_late_wakeup(late_wakeup), LateRecovery::None);
+        assert!(!playback.finish_cycle(late_wakeup));
+        assert_eq!(playback.cycle_start, start + Duration::from_millis(30));
+        assert_eq!(playback.next_deadline(), start + Duration::from_millis(30));
     }
 
     #[test]
