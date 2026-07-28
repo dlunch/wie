@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
+    sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
     thread,
     time::{Duration, Instant},
 };
@@ -8,8 +8,7 @@ use std::{
 use midir::MidiOutputConnection;
 use wie_backend::{MidiEvent, ScheduledMidiEvent};
 
-const MAX_CATCH_UP_LATENESS: Duration = Duration::from_millis(50);
-const DEADLINE_YIELD_WINDOW: Duration = Duration::from_millis(1);
+const MAX_EVENT_LATENESS: Duration = Duration::from_millis(50);
 
 pub struct MidiWorker {
     tx: Sender<MidiCommand>,
@@ -136,18 +135,39 @@ impl Playback {
         false
     }
 
-    fn skip_missed_cycles(&mut self, now: Instant) -> bool {
-        if !self.repeat || self.duration.is_zero() || now <= self.cycle_start + self.duration + MAX_CATCH_UP_LATENESS {
-            return false;
+    fn recover_from_late_wakeup(&mut self, now: Instant) -> LateRecovery {
+        if !self.repeat || self.duration.is_zero() {
+            return LateRecovery::None;
         }
 
         let elapsed = now.saturating_duration_since(self.cycle_start);
         let completed_cycles = elapsed.as_nanos() / self.duration.as_nanos();
-        let advance = self.duration.saturating_mul(completed_cycles.min(u32::MAX as u128) as u32);
+        let cycle_remainder = elapsed.as_nanos() % self.duration.as_nanos();
+        if completed_cycles == 0 && now.saturating_duration_since(self.next_deadline()) <= MAX_EVENT_LATENESS {
+            return LateRecovery::None;
+        }
+
+        if completed_cycles > 0 && cycle_remainder == 0 {
+            let first_boundary_event = self.events[self.next_event..]
+                .iter()
+                .position(|event| Duration::from_millis(event.at_ms) == self.duration)
+                .map(|index| self.next_event + index);
+            if let Some(first_boundary_event) = first_boundary_event {
+                let previous_cycles = completed_cycles - 1;
+                let advance = self.duration.saturating_mul(previous_cycles.min(u32::MAX as u128) as u32);
+                self.cycle_start += advance;
+                self.next_event = first_boundary_event;
+                return LateRecovery::CycleBoundary;
+            }
+        }
+
+        let cycles_to_next = completed_cycles + u128::from(cycle_remainder > 0);
+        let cycles_to_next = cycles_to_next.max(1);
+        let advance = self.duration.saturating_mul(cycles_to_next.min(u32::MAX as u128) as u32);
         self.cycle_start += advance;
         self.next_event = 0;
 
-        true
+        LateRecovery::NextCycle
     }
 
     fn track(&mut self, event: &MidiEvent) {
@@ -172,6 +192,13 @@ impl Playback {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LateRecovery {
+    None,
+    CycleBoundary,
+    NextCycle,
+}
+
 fn run_worker(mut connection: MidiOutputConnection, rx: Receiver<MidiCommand>) {
     // Scheduling and deadline handling are shared by every native target. Some
     // platforms need a process-level hint to make timed waits precise enough;
@@ -194,7 +221,7 @@ fn run_worker(mut connection: MidiOutputConnection, rx: Receiver<MidiCommand>) {
 
         let Some(command) = command else {
             for (_, playback) in playbacks {
-                cleanup_playback(&mut connection, &playback, true);
+                cleanup_playback(&mut connection, &playback);
             }
             break;
         };
@@ -207,7 +234,7 @@ fn run_worker(mut connection: MidiOutputConnection, rx: Receiver<MidiCommand>) {
                 repeat,
             } => {
                 if let Some(previous) = playbacks.remove(&playback_id) {
-                    cleanup_playback(&mut connection, &previous, true);
+                    cleanup_playback(&mut connection, &previous);
                 }
                 tracing::debug!(
                     playback_id,
@@ -220,7 +247,7 @@ fn run_worker(mut connection: MidiOutputConnection, rx: Receiver<MidiCommand>) {
             }
             MidiCommand::Stop { playback_id } => {
                 if let Some(playback) = playbacks.remove(&playback_id) {
-                    cleanup_playback(&mut connection, &playback, true);
+                    cleanup_playback(&mut connection, &playback);
                 }
             }
             MidiCommand::Send(event) => send_event(&mut connection, &event),
@@ -241,19 +268,10 @@ fn receive_until(rx: &Receiver<MidiCommand>, deadline: Instant) -> WorkerWake {
             return WorkerWake::Deadline;
         }
 
-        let remaining = deadline - now;
-        if remaining > DEADLINE_YIELD_WINDOW {
-            match rx.recv_timeout(remaining - DEADLINE_YIELD_WINDOW) {
-                Ok(command) => return WorkerWake::Command(command),
-                Err(RecvTimeoutError::Timeout) => continue,
-                Err(RecvTimeoutError::Disconnected) => return WorkerWake::Disconnected,
-            }
-        } else {
-            match rx.try_recv() {
-                Ok(command) => return WorkerWake::Command(command),
-                Err(TryRecvError::Empty) => thread::yield_now(),
-                Err(TryRecvError::Disconnected) => return WorkerWake::Disconnected,
-            }
+        match rx.recv_timeout(deadline - now) {
+            Ok(command) => return WorkerWake::Command(command),
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => return WorkerWake::Disconnected,
         }
     }
 }
@@ -274,19 +292,22 @@ fn dispatch_due_events(connection: &mut MidiOutputConnection, playbacks: &mut BT
         };
 
         let playback = playbacks.get_mut(&playback_id).unwrap();
-        if playback.skip_missed_cycles(now) {
-            cleanup_playback(connection, playback, false);
-            tracing::debug!(
-                playback_id,
-                late_event_count = playback.late_event_count,
-                max_lateness_ms = playback.max_lateness.as_millis(),
-                "Skipped missed MIDI playback cycles"
-            );
-            playback.active_notes.clear();
-            playback.used_channels.clear();
-            playback.late_event_count = 0;
-            playback.max_lateness = Duration::ZERO;
-            continue;
+        match playback.recover_from_late_wakeup(now) {
+            LateRecovery::None | LateRecovery::CycleBoundary => {}
+            LateRecovery::NextCycle => {
+                cleanup_playback(connection, playback);
+                tracing::debug!(
+                    playback_id,
+                    late_event_count = playback.late_event_count,
+                    max_lateness_ms = playback.max_lateness.as_millis(),
+                    "Skipped to the next complete MIDI playback cycle"
+                );
+                playback.active_notes.clear();
+                playback.used_channels.clear();
+                playback.late_event_count = 0;
+                playback.max_lateness = Duration::ZERO;
+                continue;
+            }
         }
         if let Some((_deadline, event)) = playback.take_due_event(now) {
             send_event(connection, &event);
@@ -294,7 +315,7 @@ fn dispatch_due_events(connection: &mut MidiOutputConnection, playbacks: &mut BT
             continue;
         }
 
-        cleanup_playback(connection, playback, !playback.repeat);
+        cleanup_playback(connection, playback);
         tracing::debug!(
             playback_id,
             late_event_count = playback.late_event_count,
@@ -307,13 +328,13 @@ fn dispatch_due_events(connection: &mut MidiOutputConnection, playbacks: &mut BT
     }
 }
 
-fn cleanup_playback(connection: &mut MidiOutputConnection, playback: &Playback, full: bool) {
-    for event in cleanup_events(playback, full) {
+fn cleanup_playback(connection: &mut MidiOutputConnection, playback: &Playback) {
+    for event in cleanup_events(playback) {
         send_event(connection, &event);
     }
 }
 
-fn cleanup_events(playback: &Playback, full: bool) -> Vec<MidiEvent> {
+fn cleanup_events(playback: &Playback) -> Vec<MidiEvent> {
     let mut result = Vec::new();
     for (channel, note) in &playback.active_notes {
         result.push(MidiEvent::NoteOff {
@@ -329,18 +350,16 @@ fn cleanup_events(playback: &Playback, full: bool) -> Vec<MidiEvent> {
             control: 64,
             value: 0,
         });
-        if full {
-            result.push(MidiEvent::ControlChange {
-                channel: *channel,
-                control: 120,
-                value: 0,
-            });
-            result.push(MidiEvent::ControlChange {
-                channel: *channel,
-                control: 123,
-                value: 0,
-            });
-        }
+        result.push(MidiEvent::ControlChange {
+            channel: *channel,
+            control: 120,
+            value: 0,
+        });
+        result.push(MidiEvent::ControlChange {
+            channel: *channel,
+            control: 123,
+            value: 0,
+        });
     }
 
     result
@@ -423,6 +442,13 @@ mod tests {
         }
     }
 
+    fn program_change(at_ms: u64, program: u8) -> ScheduledMidiEvent {
+        ScheduledMidiEvent {
+            at_ms,
+            event: MidiEvent::ProgramChange { channel: 0, program },
+        }
+    }
+
     #[test]
     fn uses_absolute_event_deadlines() {
         let start = Instant::now();
@@ -442,26 +468,105 @@ mod tests {
     }
 
     #[test]
-    fn repeating_playback_skips_missed_cycles_without_drift() {
+    fn repeating_playback_waits_for_the_next_complete_cycle_without_drift() {
         let start = Instant::now();
         let mut playback = Playback::new(vec![note_on(5, 60)], Duration::from_millis(30), true, start);
 
-        assert!(playback.skip_missed_cycles(start + Duration::from_millis(95)));
+        assert_eq!(
+            playback.recover_from_late_wakeup(start + Duration::from_millis(95)),
+            LateRecovery::NextCycle
+        );
+        assert_eq!(playback.cycle_start, start + Duration::from_millis(120));
+        assert_eq!(playback.next_deadline(), start + Duration::from_millis(125));
+    }
+
+    #[test]
+    fn repeating_playback_keeps_events_within_the_lateness_limit() {
+        let start = Instant::now();
+        let mut playback = Playback::new(vec![note_on(5, 60)], Duration::from_millis(1000), true, start);
+
+        assert_eq!(playback.recover_from_late_wakeup(start + Duration::from_millis(55)), LateRecovery::None);
+        assert_eq!(playback.cycle_start, start);
+    }
+
+    #[test]
+    fn repeating_playback_does_not_catch_up_previous_cycles() {
+        let start = Instant::now();
+        let mut playback = Playback::new(vec![note_on(5, 60)], Duration::from_millis(30), true, start);
+
+        assert_eq!(
+            playback.recover_from_late_wakeup(start + Duration::from_millis(80)),
+            LateRecovery::NextCycle
+        );
         assert_eq!(playback.cycle_start, start + Duration::from_millis(90));
         assert_eq!(playback.next_deadline(), start + Duration::from_millis(95));
+    }
+
+    #[test]
+    fn repeating_playback_keeps_an_event_at_the_cycle_boundary() {
+        let start = Instant::now();
+        let mut playback = Playback::new(vec![note_on(30, 60)], Duration::from_millis(30), true, start);
+
         assert_eq!(
-            playback.take_due_event(start + Duration::from_millis(95)),
-            Some((start + Duration::from_millis(95), note_on(5, 60).event))
+            playback.recover_from_late_wakeup(start + Duration::from_millis(30)),
+            LateRecovery::CycleBoundary
+        );
+        assert_eq!(
+            playback.take_due_event(start + Duration::from_millis(30)),
+            Some((start + Duration::from_millis(30), note_on(30, 60).event))
         );
     }
 
     #[test]
-    fn repeating_playback_catches_up_small_lateness() {
+    fn repeating_playback_restarts_state_at_the_next_complete_cycle() {
         let start = Instant::now();
-        let mut playback = Playback::new(vec![note_on(5, 60)], Duration::from_millis(30), true, start);
+        let mut playback = Playback::new(vec![program_change(0, 4), note_on(100, 62)], Duration::from_millis(1000), true, start);
 
-        assert!(!playback.skip_missed_cycles(start + Duration::from_millis(80)));
-        assert_eq!(playback.cycle_start, start);
+        assert_eq!(
+            playback.recover_from_late_wakeup(start + Duration::from_millis(80)),
+            LateRecovery::NextCycle
+        );
+        assert_eq!(playback.cycle_start, start + Duration::from_millis(1000));
+        assert_eq!(playback.next_deadline(), start + Duration::from_millis(1000));
+        assert_eq!(
+            playback.take_due_event(start + Duration::from_millis(1000)),
+            Some((start + Duration::from_millis(1000), program_change(0, 4).event))
+        );
+    }
+
+    #[test]
+    fn repeating_playback_keeps_only_boundary_events_from_the_previous_cycle() {
+        let start = Instant::now();
+        let mut playback = Playback::new(
+            vec![note_on(5, 60), note_on(10, 62), note_on(30, 64)],
+            Duration::from_millis(30),
+            true,
+            start,
+        );
+
+        assert_eq!(
+            playback.recover_from_late_wakeup(start + Duration::from_millis(60)),
+            LateRecovery::CycleBoundary
+        );
+        assert_eq!(playback.cycle_start, start + Duration::from_millis(30));
+        assert_eq!(playback.next_deadline(), start + Duration::from_millis(60));
+        assert_eq!(
+            playback.take_due_event(start + Duration::from_millis(60)),
+            Some((start + Duration::from_millis(60), note_on(30, 64).event))
+        );
+    }
+
+    #[test]
+    fn repeating_playback_starts_a_new_cycle_at_an_exact_boundary() {
+        let start = Instant::now();
+        let mut playback = Playback::new(vec![note_on(5, 60), note_on(10, 62)], Duration::from_millis(30), true, start);
+
+        assert_eq!(
+            playback.recover_from_late_wakeup(start + Duration::from_millis(60)),
+            LateRecovery::NextCycle
+        );
+        assert_eq!(playback.cycle_start, start + Duration::from_millis(60));
+        assert_eq!(playback.next_deadline(), start + Duration::from_millis(65));
     }
 
     #[test]
@@ -490,7 +595,7 @@ mod tests {
         playback.track(&MidiEvent::ProgramChange { channel: 1, program: 4 });
 
         assert_eq!(
-            cleanup_events(&playback, true),
+            cleanup_events(&playback),
             vec![
                 MidiEvent::NoteOff {
                     channel: 0,
