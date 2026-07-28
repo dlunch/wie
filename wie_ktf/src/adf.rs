@@ -48,7 +48,7 @@ impl KtfAdf {
 
 fn parse_display_size(data: &[u8]) -> Option<(u32, u32)> {
     let value = core::str::from_utf8(data).ok()?.trim();
-    let separator = value.find(|character| matches!(character, '*' | 'x' | 'X'))?;
+    let separator = value.find(['*', 'x', 'X'])?;
     let width: u32 = value[..separator].trim().parse().ok()?;
     let height: u32 = value[separator + 1..].trim().parse().ok()?;
 
