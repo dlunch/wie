@@ -4,7 +4,8 @@ use core::time::Duration;
 use spin::Mutex;
 
 use java_runtime::{
-    File, FileDescriptorId, FileSize, FileStat, FileType, IOError, IOResult, RT_RUSTJAR, Runtime, SpawnCallback, get_runtime_class_proto,
+    File, FileDescriptorId, FileOpenOptions, FileSize, FileStat, FileType, IOError, IOResult, RT_RUSTJAR, Runtime, SpawnCallback,
+    get_runtime_class_proto,
 };
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
 
@@ -201,10 +202,10 @@ where
         Ok(FileDescriptorId::new(STDERR_FD))
     }
 
-    async fn open(&self, path: &str, write: bool) -> IOResult<FileDescriptorId> {
-        tracing::debug!("open({path:?}, {write:?})");
+    async fn open(&self, path: &str, options: FileOpenOptions) -> IOResult<FileDescriptorId> {
+        tracing::debug!("open({path:?}, {options:?})");
 
-        let file = FileImpl::new(self.system.clone(), path, write).await?;
+        let file = FileImpl::new(self.system.clone(), path, options).await?;
         Ok(self.file_table.lock().add(Box::new(file)))
     }
 
