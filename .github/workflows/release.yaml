@@ -1,9 +1,9 @@
-name: Release Tauri
+name: Release
 
 on:
+  schedule:
+    - cron: "0 0 * * *"
   push:
-    branches:
-      - main
     tags:
       - "v[0-9]*.[0-9]*.[0-9]*"
 
@@ -18,6 +18,7 @@ jobs:
       asset_identity: ${{ steps.context.outputs.asset_identity }}
       channel: ${{ steps.context.outputs.channel }}
       run_number: ${{ steps.context.outputs.run_number }}
+      should_build: ${{ steps.context.outputs.should_build }}
       target_sha: ${{ steps.context.outputs.target_sha }}
       app_version: ${{ steps.context.outputs.app_version }}
     steps:
@@ -30,11 +31,12 @@ jobs:
 
       - name: Resolve channel and version
         id: context
-        run: bash .github/scripts/release-tauri/resolve-context.sh
+        run: bash .github/scripts/release/resolve-context.sh
 
   web:
-    name: Web frontend
+    name: Build web frontend
     needs: context
+    if: needs.context.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout target
@@ -43,6 +45,20 @@ jobs:
           ref: ${{ needs.context.outputs.target_sha }}
           persist-credentials: false
           submodules: recursive
+
+      - name: Restore Cargo cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Restore WASM build cache
+        uses: actions/cache/restore@v6
+        with:
+          path: target
+          key: ${{ runner.os }}-stable-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-stable-build-wasm-target-
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -64,15 +80,29 @@ jobs:
           npm ci
           npm run build:prod
 
+      - name: Save Cargo cache
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save WASM build cache
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: target
+          key: ${{ runner.os }}-stable-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Upload web frontend
         uses: actions/upload-artifact@v6
         with:
-          name: tauri-web
+          name: release-web
           path: wie_web/dist
           if-no-files-found: error
 
   windows:
-    name: Windows x64
+    name: Build Windows x64
     needs:
       - context
       - web
@@ -93,7 +123,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: tauri-web
+          name: release-web
           path: wie_web/dist
 
       - name: Build unsigned installers
@@ -119,7 +149,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    name: Linux x64
+    name: Build Linux x64
     needs:
       - context
       - web
@@ -145,7 +175,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: tauri-web
+          name: release-web
           path: wie_web/dist
 
       - name: Build unsigned packages
@@ -170,7 +200,7 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macOS universal
+    name: Build macOS universal
     needs:
       - context
       - web
@@ -191,7 +221,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: tauri-web
+          name: release-web
           path: wie_web/dist
 
       - name: Build unsigned universal bundles
@@ -216,7 +246,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    name: Android aarch64
+    name: Build Android aarch64
     needs:
       - context
       - web
@@ -250,7 +280,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: tauri-web
+          name: release-web
           path: wie_web/dist
 
       - name: Install Tauri CLI
@@ -286,7 +316,7 @@ jobs:
           if-no-files-found: error
 
   ios:
-    name: iOS aarch64
+    name: Build iOS aarch64
     needs:
       - context
       - web
@@ -307,7 +337,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: tauri-web
+          name: release-web
           path: wie_web/dist
 
       - name: Install iOS build dependencies
@@ -346,10 +376,11 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-  publish:
-    name: Publish release
+  deploy_web:
+    name: Deploy web frontend
     needs:
       - context
+      - web
       - windows
       - linux
       - macos
@@ -357,9 +388,41 @@ jobs:
       - ios
     runs-on: ubuntu-latest
     permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Download web frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: release-web
+          path: wie_web/dist
+
+      - name: Publish nightly site to Cloudflare Pages
+        if: needs.context.outputs.channel == 'nightly'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./wie_web/dist --project-name=wie-dev --branch=main
+
+      - name: Publish stable site to Cloudflare Pages
+        if: needs.context.outputs.channel == 'stable'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./wie_web/dist --project-name=wie --branch=main
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - context
+      - deploy_web
+    runs-on: ubuntu-latest
+    permissions:
       contents: write
     concurrency:
-      group: tauri-release-publisher-${{ github.repository }}
+      group: release-publisher-${{ github.repository }}
       cancel-in-progress: false
     env:
       CHANNEL: ${{ needs.context.outputs.channel }}
@@ -380,5 +443,5 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Publish release
-        run: bash .github/scripts/release-tauri/publish.sh
+      - name: Publish GitHub release
+        run: bash .github/scripts/release/publish.sh
