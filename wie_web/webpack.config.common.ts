@@ -52,10 +52,6 @@ class WasmPackPlugin {
 
 const commonConfig = (mode: "development" | "production"): webpack.Configuration => ({
   context: import.meta.dirname,
-  experiments: {
-    futureDefaults: true,
-    css: false,
-  },
   output: {
     path: path.resolve(import.meta.dirname, "dist"),
     clean: true,

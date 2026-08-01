@@ -4,9 +4,9 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "build:dev": "webpack --config wie_web/webpack.config.dev.ts --disable-interpret",
-    "build:prod": "webpack --config wie_web/webpack.config.prod.ts --disable-interpret",
-    "start": "webpack serve --config wie_web/webpack.config.dev.ts --disable-interpret"
+    "build:dev": "webpack --config wie_web/webpack.config.dev.ts",
+    "build:prod": "webpack --config wie_web/webpack.config.prod.ts",
+    "start": "webpack serve --config wie_web/webpack.config.dev.ts"
   },
   "author": "",
   "dependencies": {
@@ -18,7 +18,7 @@
     "ts-loader": "^9.5.4",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "typescript": "5.9.3",
-    "webpack": "^5.105.3",
+    "webpack": "^5.109.2",
     "webpack-cli": "^7.2.2",
     "webpack-dev-server": "^6.0.0"
   },
