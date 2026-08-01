@@ -82,7 +82,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "f02d26a267c8cc8f3fdd15e70e58f9f2"
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy ./wie_web/dist --project-name=${{ fromJSON('["wie-dev", "wie"]')[ github.ref != 'refs/heads/main' ] }} --branch=main
 
       - name: Save cache cargo
