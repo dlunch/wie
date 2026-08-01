@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "moduleResolution": "Node",
+    "module": "ESNext",
+    "target": "ESNext",
+    "paths": {
+      "@pkg": ["./pkg"],
+      "*": ["./src/ts/*"]
+    }
+  }
+}

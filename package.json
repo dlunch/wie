@@ -1,0 +1,30 @@
+{
+  "name": "wie_web",
+  "version": "0.1.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "build:dev": "webpack --config wie_web/webpack.config.dev.ts --disable-interpret",
+    "build:prod": "webpack --config wie_web/webpack.config.prod.ts --disable-interpret",
+    "start": "webpack serve --config wie_web/webpack.config.dev.ts --disable-interpret"
+  },
+  "author": "",
+  "dependencies": {
+    "css-loader": "^7.1.4",
+    "html-bundler-webpack-plugin": "^4.22.0",
+    "sass": "^1.97.3",
+    "sass-loader": "^16.0.7",
+    "spessasynth_lib": "^4.2.10",
+    "ts-loader": "^9.5.4",
+    "tsconfig-paths-webpack-plugin": "^4.2.0",
+    "typescript": "5.9.3",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/webpack": "^5.28.5",
+    "copy-webpack-plugin": "^14.0.0"
+  }
+}

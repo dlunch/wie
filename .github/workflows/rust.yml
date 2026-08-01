@@ -44,7 +44,7 @@ jobs:
 
       - name: Install required packages
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt update;sudo apt install libasound2-dev
+        run: sudo apt update;sudo apt install -y --no-install-recommends libwebkit2gtk-4.1-dev libasound2-dev build-essential zstd
 
       - name: Install required packages
         if: matrix.os == 'windows-latest'
@@ -52,7 +52,7 @@ jobs:
 
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all -- -D warnings
-      - run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo clippy --target wasm32-unknown-unknown --workspace --exclude wie_app -- -D warnings
 
       - if: matrix.os == 'windows-latest'
         run: |

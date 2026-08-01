@@ -1,0 +1,295 @@
+body, p {
+  margin: 0px;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.prestart {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 100px;
+  padding: 60px 24px 24px;
+  background: #f5f5f5;
+  box-sizing: border-box;
+  transition: opacity 0.3s ease;
+}
+
+.prestart.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prestart-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.file-picker {
+  background: #333;
+  color: #fff;
+  border: none;
+  padding: 14px 36px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.1em;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-picker:hover {
+  background: #555;
+}
+
+.corner-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 10;
+  transition: opacity 0.3s ease;
+}
+
+.corner-actions.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.corner-actions > a,
+.corner-actions > button {
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 18px;
+  line-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.corner-actions > a:hover,
+.corner-actions > button:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.button-container > .settings-toggle {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  background: transparent;
+  color: #333;
+  border: none;
+  padding: 6px 10px;
+  font-size: 1.2em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.button-container > .settings-toggle:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.canvas-wrapper {
+  position: relative;
+  margin: 0 auto;
+  width: min(100vw, 480px);
+  aspect-ratio: 3 / 4;
+  z-index: 1;
+}
+
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ad-banner {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+
+.settings-panel {
+  display: none;
+  position: absolute;
+  top: 48px;
+  right: 8px;
+  z-index: 100;
+  background: #333;
+  color: #fff;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.settings-panel.visible {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-panel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-panel input[type="range"] {
+  width: 120px;
+  margin-left: auto;
+}
+
+.button-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: min(1vw, 4px);
+}
+
+.button-container > p {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  gap: min(1vw, 4px);
+}
+
+.button-container > p > button {
+  width: min(20vw, 96px);
+  height: 2vh;
+  margin: 0;
+  font-size: 0.5em;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.tutorial-overlay.visible {
+  display: flex;
+}
+
+.tutorial-modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.tutorial-modal h2 {
+  margin: 0 0 16px 0;
+  font-size: 1.5em;
+  border-bottom: 2px solid #333;
+  padding-bottom: 8px;
+}
+
+.tutorial-modal h3 {
+  margin: 16px 0 8px 0;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.tutorial-modal p {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.tutorial-modal .note {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.tutorial-modal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.9em;
+}
+
+.tutorial-modal td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.tutorial-modal td:first-child {
+  white-space: nowrap;
+}
+
+.tutorial-modal kbd {
+  background: #f4f4f4;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.tutorial-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tutorial-footer label {
+  font-size: 0.9em;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tutorial-footer button {
+  background: #333;
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.tutorial-footer button:hover {
+  background: #555;
+}

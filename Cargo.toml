@@ -14,6 +14,8 @@ members = [
     "wie_ktf_dump",
     "wie_lgt",
     "wie_skt",
+    "wie_web",
+    "wie_tauri",
 ]
 
 default-members = ["wie_cli"]
@@ -53,7 +55,11 @@ jvm_rust = { git = "https://github.com/dlunch/RustJava.git" }
 wipi_types = { git = "https://github.com/dlunch/wipi.git" }
 
 wie_backend = { path = "wie_backend" }
+wie_j2me = { path = "wie_j2me" }
+wie_ktf = { path = "wie_ktf" }
+wie_lgt = { path = "wie_lgt" }
 wie_midp = { path = "wie_midp" }
+wie_skt = { path = "wie_skt" }
 wie_util = { path = "wie_util" }
 wie_core_arm = { path = "wie_core_arm" }
 wie_jvm_support = { path = "wie_jvm_support" }

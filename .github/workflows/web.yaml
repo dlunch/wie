@@ -1,0 +1,87 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+name: Web CI
+
+jobs:
+  web_ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable]
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: "recursive"
+
+      - name: Install packages
+        run: |
+          sudo apt-get update;sudo apt-get install -y --no-install-recommends build-essential zstd
+
+      - name: Restore cache cargo
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo
+
+      - name: Restore cache cargo build
+        uses: actions/cache/restore@v6
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.rust }}-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.rust }}-build-wasm-target-
+
+      - name: Restore cache .npm
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: wasm32-unknown-unknown
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: latest
+
+      - name: npm install
+        run: npm ci
+
+      - name: Build
+        run: npm run build:dev
+
+      - name: Save cache cargo
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cache cargo build
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.rust }}-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cache .npm
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
