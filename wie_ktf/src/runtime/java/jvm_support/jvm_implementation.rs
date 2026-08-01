@@ -59,7 +59,7 @@ impl JvmImplementation for KtfJvmImplementation {
     }
 
     async fn define_class_java(&self, _jvm: &Jvm, data: &[u8]) -> JvmResult<Box<dyn ClassDefinition>> {
-        let class = ClassDefinitionImpl::from_classfile(data)?;
+        let class = ClassDefinitionImpl::from_classfile(data).unwrap();
 
         Ok(Box::new(class))
     }
