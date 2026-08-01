@@ -5,6 +5,7 @@ jobs:
   test:
     name: coverage
     runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
