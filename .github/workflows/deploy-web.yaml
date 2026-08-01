@@ -1,0 +1,107 @@
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - release
+
+name: Deploy Web
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository == 'dlunch/wie'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: "recursive"
+
+      - name: Install packages
+        run: |
+          sudo apt-get update;sudo apt-get install -y --no-install-recommends build-essential zstd
+
+      - name: Restore cache cargo
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Restore cache cargo build
+        uses: actions/cache/restore@v6
+        with:
+          path: target
+          key: ${{ runner.os }}-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-build-wasm-target-
+
+      - name: Restore cache .npm
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: latest
+
+      - name: npm install
+        run: npm ci
+
+      - name: Build
+        if: github.ref == 'refs/heads/release'
+        run: npm run build:prod
+
+      - name: Build
+        if: github.ref == 'refs/heads/main'
+        run: npm run build:dev
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./wie_web/dist --project-name=${{ fromJSON('["wie-dev", "wie"]')[ github.ref != 'refs/heads/main' ] }} --branch=main
+
+      - name: Save cache cargo
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cache cargo build
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: target
+          key: ${{ runner.os }}-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cache .npm
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}

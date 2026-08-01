@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>wie - 피처폰 게임 에뮬레이터 (WIPI/J2ME)</title>
+    <meta name="description" content="옛 한국 피처폰의 WIPI/J2ME 게임을 웹 브라우저에서 바로 실행하는 에뮬레이터. ZIP 파일을 업로드하면 자동으로 게임이 시작됩니다. 설치 없이 모바일/PC에서 사용 가능." />
+    <meta name="keywords" content="wie, WIPI, J2ME, 피처폰, 피처폰 게임, 폰게임, 에뮬레이터, 모바일 게임, 추억의 게임, 휴대폰 에뮬레이터" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="wie - 피처폰 게임 에뮬레이터" />
+    <meta property="og:description" content="옛 한국 피처폰의 WIPI/J2ME 게임을 웹 브라우저에서 바로 실행하는 에뮬레이터." />
+    <meta property="og:url" content="https://wie.dlunch.net/" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="stylesheet" href="@css/style.css" />
+    <script src="@ts/index.ts" defer="defer"></script>
+    <script
+      async
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7838202724819744"
+      crossorigin="anonymous"
+    ></script>
+    <!-- Google tag (gtag.js) -->
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-G6TBDLLPWK"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-G6TBDLLPWK");
+    </script>
+  </head>
+  <body>
+    <div id="tutorial-overlay" class="tutorial-overlay">
+      <div class="tutorial-modal">
+        <h2>wie</h2>
+
+        <section>
+          <h3>이게 뭐예요?</h3>
+          <p>
+            <strong>wie</strong>는 옛 한국 피처폰에서 돌아가던
+            <strong>WIPI / J2ME</strong> 게임을 웹 브라우저에서 그대로
+            실행해 주는 에뮬레이터입니다.
+          </p>
+          <p>
+            설치 없이 모바일과 PC 어디서나 사용할 수 있고, 모든 처리는
+            브라우저 안에서 이루어집니다. 업로드한 파일은 외부로 전송되지
+            않습니다.
+          </p>
+        </section>
+
+        <section>
+          <h3>파일 업로드</h3>
+          <p>
+            휴대폰에서 추출한 파일을 <strong>ZIP 파일</strong>로 압축해서 그대로
+            업로드하세요.
+          </p>
+          <p class="note">
+            ※ ZIP 파일 안에 <strong>JAR 파일</strong>이 포함되어 있어야 합니다.
+          </p>
+        </section>
+
+        <section>
+          <h3>키 바인딩</h3>
+          <table>
+            <tr>
+              <td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td>
+              <td>숫자 1, 2, 3</td>
+            </tr>
+            <tr>
+              <td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd></td>
+              <td>숫자 4, 5, 6</td>
+            </tr>
+            <tr>
+              <td><kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></td>
+              <td>숫자 7, 8, 9</td>
+            </tr>
+            <tr>
+              <td><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd></td>
+              <td>*, 0, #</td>
+            </tr>
+            <tr>
+              <td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td>
+              <td>방향키</td>
+            </tr>
+            <tr>
+              <td><kbd>Space</kbd></td>
+              <td>OK</td>
+            </tr>
+            <tr>
+              <td><kbd>Backspace</kbd></td>
+              <td>CLR</td>
+            </tr>
+          </table>
+        </section>
+
+        <div class="tutorial-footer">
+          <label>
+            <input type="checkbox" id="dont-show-again" />
+            다시 보지 않기
+          </label>
+          <button id="close-tutorial">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="canvas-wrapper">
+      <canvas id="canvas" width="240" height="320"></canvas>
+      <div class="corner-actions">
+        <button id="show-tutorial" title="사용법">❓</button>
+        <a href="https://github.com/dlunch/wie" target="_blank" rel="noopener noreferrer"><img src="https://cdn.simpleicons.org/github/white" alt="GitHub" width="20" height="20" /></a>
+        <a href="https://wie-site.dlunch.net/" target="_blank" rel="noopener noreferrer">🌐</a>
+        <button id="settings-toggle" class="settings-toggle">⚙️</button>
+      </div>
+      <div id="settings-panel" class="settings-panel">
+        <label>🎵 MIDI <input type="range" id="volume-midi" min="0" max="100" value="50" /></label>
+        <label>🔊 효과음 <input type="range" id="volume-pcm" min="0" max="100" value="50" /></label>
+      </div>
+      <div class="prestart" id="prestart">
+        <div class="prestart-row">
+          <input type="file" id="file" hidden />
+          <label for="file" class="file-picker"><span id="file-name">파일 선택</span></label>
+        </div>
+        <div class="ad-banner" id="ad-banner">
+          <ins
+            class="adsbygoogle"
+            style="display:block;width:100%;height:100%"
+            data-ad-client="ca-pub-7838202724819744"
+            data-ad-slot="8335895407"
+            data-ad-format="auto"
+            data-full-width-responsive="true"
+            <% if (adtest) { %>data-adtest="on"<% } %>
+          ></ins>
+          <script>
+            (adsbygoogle = window.adsbygoogle || []).push({});
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-container">
+      <p>
+        <button data-key="UP">↑</button>
+      </p>
+      <p>
+        <button data-key="LEFT">←</button>
+        <button data-key="OK">OK</button>
+        <button data-key="RIGHT">→</button>
+      </p>
+      <p>
+        <button data-key="DOWN">↓</button>
+      </p>
+      <p>
+        <button data-key="CLR">CLR</button>
+      </p>
+      <p>
+        <button data-key="1">1</button>
+        <button data-key="2">2</button>
+        <button data-key="3">3</button>
+      </p>
+      <p>
+        <button data-key="4">4</button>
+        <button data-key="5">5</button>
+        <button data-key="6">6</button>
+      </p>
+      <p>
+        <button data-key="7">7</button>
+        <button data-key="8">8</button>
+        <button data-key="9">9</button>
+      </p>
+      <p>
+        <button data-key="*">*</button>
+        <button data-key="0">0</button>
+        <button data-key="#">#</button>
+      </p>
+    </div>
+  </body>
+</html>

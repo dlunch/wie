@@ -9,8 +9,18 @@ This project is dedicated to digital preservation and educational research. Our 
 - [Contribution guide](https://github.com/dlunch/wie/blob/main/CONTRIBUTING.md)
 - Architecture docs: [Emulator](docs/architecture.md) | [KTF](docs/ktf.md) | [LGT](docs/lgt.md)
 
+## Frontend
+
+The web and Android/iOS frontends are maintained in this repository under `wie_web` and `wie_tauri`.
+
+```bash
+npm install
+npm run build:dev   # development web build
+npm run build:prod  # production web build
+npm start           # web development server
+```
+
 ## Related projects
 
-- [Wie Frontend](https://github.com/dlunch/wie_app)
 - [RustJava](https://github.com/dlunch/RustJava)
 - [smaf](https://github.com/dlunch/smaf)

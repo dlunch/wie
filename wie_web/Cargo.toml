@@ -1,0 +1,38 @@
+[package]
+name = "wie_web"
+version.workspace = true
+edition.workspace = true
+license = "Proprietary"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[package.metadata.wasm-pack.profile.profiling]
+wasm-opt = ["-O", "-g", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/rust/lib.rs"
+
+[dependencies]
+async-trait = { version = "^0.1" }
+anyhow = { version = "^1.0" }
+console_error_panic_hook = { version = "^0.1" }
+futures = { version = "^0.3", default-features = false, features = ["alloc"] }
+hashbrown = { version = "^0.16" }
+js-sys = { version = "^0.3" }
+rodio = { version = "^0.22", features = ["playback", "wasm-bindgen"], default-features = false }
+time = { version = "^0.3", features = ["wasm-bindgen"] }
+tracing = { version = "^0.1", features = ["release_max_level_info"] }
+tracing-subscriber = { version = "^0.3", features = ["time"] }
+tracing-web = { version = "^0.1" }
+wasm-bindgen = { version = "^0.2" }
+wasm-bindgen-futures = { version = "^0.4" }
+web-sys = { version = "^0.3", features = ["HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Window", "Navigator"] }
+
+wie_backend = { workspace = true }
+wie_ktf = { workspace = true }
+wie_lgt = { workspace = true }
+wie_skt = { workspace = true }
+wie_j2me = { workspace = true }
+wie_util = { workspace = true }

@@ -6,6 +6,9 @@
 - **Test single**: `cargo test -p wie_ktf test_helloworld` or `cargo test -p <crate> <test_name>`
 - **Lint**: `cargo clippy --workspace`
 - **Format**: `cargo fmt` (uses rustfmt.toml: max_width=150, use_field_init_shorthand=true)
+- **Web install**: `npm install`
+- **Web build**: `npm run build:dev` or `npm run build:prod`
+- **Web dev server**: `npm start`
 - **Pre-commit (MANDATORY)**: Always run `cargo fmt` and `cargo clippy --workspace` before every commit. CI will reject unformatted or lint-failing code.
 
 ## Code Style Guidelines
@@ -24,3 +27,5 @@
 - `wie_jvm_support`: JVM support
 - `wie_midp`, `wie_wipi_*`, `wie_skvm`: API implementations
 - `wie_j2me`, `wie_skt`, `wie_ktf`, `wie_lgt`: Platform-specific logic
+- `wie_web`: Rust/WebAssembly and TypeScript web frontend
+- `wie_tauri`: Desktop and mobile Tauri frontend
