@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "0 0 * * *"
   push:
@@ -60,10 +61,15 @@ jobs:
           key: ${{ runner.os }}-stable-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-stable-build-wasm-target-
 
+      - name: Restore npm cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
-        with:
-          cache: npm
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -93,6 +99,13 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-stable-build-wasm-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save npm cache
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
 
       - name: Upload web frontend
         uses: actions/upload-artifact@v6

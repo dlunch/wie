@@ -10,7 +10,9 @@ if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
   # MSI prerelease identifiers must be numeric and at most 65535; epoch days keep nightly versions monotonic.
   app_version="${base_version}-$(($(date -u +%s) / 86400))"
   asset_identity=nightly
-  if [[ $(git rev-parse --verify 'refs/tags/nightly^{commit}' 2>/dev/null || true) == "$target_sha" ]]; then
+  if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+    should_build=true
+  elif [[ $(git rev-parse --verify 'refs/tags/nightly^{commit}' 2>/dev/null || true) == "$target_sha" ]]; then
     should_build=false
   else
     should_build=true
