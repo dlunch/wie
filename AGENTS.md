@@ -20,6 +20,10 @@
 - **Types**: Explicit types preferred. Never use `as any` equivalents or suppress errors
 - **Async**: Use `async-trait` for async trait methods
 
+## Engineering Principles
+- Keep implementations and automation minimal. Do not add options, dependencies, scripts, metadata, workflow steps, or explicit version/retention settings unless they are required for the requested behavior; rely on established tool and repository defaults when they are sufficient.
+- Avoid redundant or defensive validation for states already guaranteed by internal types, trusted workflow context, build tools, or a following command that will fail naturally. Add validation only at meaningful external/dynamic boundaries or when it provides required observable behavior.
+
 ## Project Layout
 - `wie_backend`: System-level services for APIs
 - `wie_cli`: CLI for local testing
