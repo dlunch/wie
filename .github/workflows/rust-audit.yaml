@@ -23,7 +23,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: target
-          key: ${{ runner.os }}-stable-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-stable-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - uses: actions/checkout@v7
         with:

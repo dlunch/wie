@@ -21,8 +21,8 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: target
-          key: ${{ runner.os }}-stable-coverage-build-target-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-stable-coverage-build-target-
+          key: ${{ runner.os }}-stable-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-stable-build-target-
 
       - name: Install required packages
         run: sudo apt update;sudo apt install -y libwebkit2gtk-4.1-dev libasound2-dev
@@ -53,4 +53,4 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           path: target
-          key: ${{ runner.os }}-${{ matrix.rust }}-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-stable-build-target-${{ hashFiles('**/Cargo.lock') }}
