@@ -23,14 +23,14 @@ jobs:
           submodules: "recursive"
 
       - name: Cache cargo
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cargo
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo
 
       - name: Cache cargo build
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: target
           key: ${{ runner.os }}-${{ matrix.rust }}-build-target-${{ hashFiles('**/Cargo.lock') }}
@@ -54,3 +54,17 @@ jobs:
       - run: cargo clippy --all -- -D warnings
       - run: cargo clippy --target wasm32-unknown-unknown --workspace --exclude wie_app -- -D warnings
       - run: cargo test --all
+
+      - name: Save cache cargo
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cache cargo build
+        uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.rust }}-build-target-${{ hashFiles('**/Cargo.lock') }}
