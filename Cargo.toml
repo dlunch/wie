@@ -2,6 +2,7 @@
 resolver = "2"
 
 members = [
+    "wie_app",
     "wie_backend",
     "wie_cli",
     "wie_util",
@@ -15,7 +16,6 @@ members = [
     "wie_lgt",
     "wie_skt",
     "wie_web",
-    "wie_tauri",
 ]
 
 default-members = ["wie_cli"]
