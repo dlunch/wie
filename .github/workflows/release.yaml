@@ -110,7 +110,7 @@ jobs:
       - name: Upload web frontend
         uses: actions/upload-artifact@v6
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
           if-no-files-found: error
 
@@ -136,7 +136,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
 
       - name: Build unsigned installers
@@ -188,7 +188,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
 
       - name: Build unsigned packages
@@ -234,7 +234,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
 
       - name: Build unsigned universal bundles
@@ -293,7 +293,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
 
       - name: Install Tauri CLI
@@ -350,7 +350,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
 
       - name: Install iOS build dependencies
@@ -407,7 +407,7 @@ jobs:
       - name: Download web frontend
         uses: actions/download-artifact@v7
         with:
-          name: release-web
+          name: web-frontend
           path: wie_web/dist
 
       - name: Publish nightly site to Cloudflare Pages
