@@ -28,4 +28,4 @@
 - `wie_midp`, `wie_wipi_*`, `wie_skvm`: API implementations
 - `wie_j2me`, `wie_skt`, `wie_ktf`, `wie_lgt`: Platform-specific logic
 - `wie_web`: Rust/WebAssembly and TypeScript web frontend
-- `wie_tauri`: Desktop and mobile Tauri frontend
+- `wie_app`: Desktop and mobile Tauri frontend
