@@ -24,7 +24,7 @@ jobs:
           restore-keys: ${{ runner.os }}-stable-coverage-build-target-
 
       - name: Install required packages
-        run: apt update;apt install -y libwebkit2gtk-4.1-dev libasound2-dev
+        run: sudo apt update;sudo apt install -y libwebkit2gtk-4.1-dev libasound2-dev
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
