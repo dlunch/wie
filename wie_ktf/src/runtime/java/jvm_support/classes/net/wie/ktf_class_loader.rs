@@ -34,6 +34,7 @@ impl KtfClassLoader {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V", Self::init, Default::default()),
+                JavaMethodProto::new("loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::load_class, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
             ],
             fields: vec![
@@ -90,6 +91,54 @@ impl KtfClassLoader {
         jvm.put_field(&mut this, "fnGetClass", "I", native_functions.fn_get_class as i32).await?;
 
         Ok(())
+    }
+
+    async fn load_class(
+        jvm: &Jvm,
+        _context: &mut ClassLoaderContext,
+        this: ClassInstanceRef<Self>,
+        name: ClassInstanceRef<String>,
+    ) -> JvmResult<ClassInstanceRef<Class>> {
+        tracing::debug!("net.wie.KtfClassLoader::loadClass({this:?}, {name:?})");
+
+        // 1. Check if already loaded
+        let class: ClassInstanceRef<Class> = jvm
+            .invoke_virtual(&this, "findLoadedClass", "(Ljava/lang/String;)Ljava/lang/Class;", (name.clone(),))
+            .await?;
+        if !class.is_null() {
+            return Ok(class);
+        }
+
+        // 2. Array types are not native — delegate to parent
+        let name_str = JavaLangString::to_rust_string(jvm, &name).await?;
+        if name_str.starts_with('[') {
+            let parent: ClassInstanceRef<ClassLoader> = jvm.get_field(&this, "parent", "Ljava/lang/ClassLoader;").await?;
+            if !parent.is_null() {
+                return jvm
+                    .invoke_virtual(&parent, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", (name,))
+                    .await;
+            }
+            return Ok(None.into());
+        }
+
+        // 3. Try native resolution from client.bin first
+        let class: ClassInstanceRef<Class> = jvm
+            .invoke_virtual(&this, "findClass", "(Ljava/lang/String;)Ljava/lang/Class;", (name.clone(),))
+            .await?;
+        if !class.is_null() {
+            return Ok(class);
+        }
+
+        // 4. Fall back to parent class loader
+        let parent: ClassInstanceRef<ClassLoader> = jvm.get_field(&this, "parent", "Ljava/lang/ClassLoader;").await?;
+        if !parent.is_null() {
+            let class: ClassInstanceRef<Class> = jvm
+                .invoke_virtual(&parent, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", (name,))
+                .await?;
+            return Ok(class);
+        }
+
+        Ok(None.into())
     }
 
     async fn find_class(
