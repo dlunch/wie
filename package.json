@@ -23,7 +23,7 @@
     "webpack-dev-server": "^5.2.3"
   },
   "devDependencies": {
-    "@types/node": "^25.3.2",
+    "@types/node": "^26.1.2",
     "@types/webpack": "^5.28.5",
     "copy-webpack-plugin": "^14.0.0"
   }
