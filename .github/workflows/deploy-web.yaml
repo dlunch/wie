@@ -3,14 +3,13 @@ on:
   push:
     branches:
       - main
-      - release
+    tags:
+      - 'v*'
 
 name: Deploy Web
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,7 +17,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository == 'dlunch/wie'
+    if: github.repository == 'dlunch/wie' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,11 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
           submodules: "recursive"
-
-      - name: Install packages
-        run: |
-          sudo apt-get update;sudo apt-get install -y --no-install-recommends build-essential zstd
 
       - name: Restore cache cargo
         uses: actions/cache/restore@v6
@@ -70,20 +66,29 @@ jobs:
       - name: npm install
         run: npm ci
 
-      - name: Build
-        if: github.ref == 'refs/heads/release'
-        run: npm run build:prod
-
-      - name: Build
+      - name: Build development site
         if: github.ref == 'refs/heads/main'
         run: npm run build:dev
 
-      - name: Publish to Cloudflare Pages
+      - name: Build production site
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+        run: npm run build:prod
+
+      - name: Publish development site to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./wie_web/dist --project-name=${{ fromJSON('["wie-dev", "wie"]')[ github.ref != 'refs/heads/main' ] }} --branch=main
+          command: pages deploy ./wie_web/dist --project-name=wie-dev --branch=main
+
+      - name: Publish production site to Cloudflare Pages
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./wie_web/dist --project-name=wie --branch=main
 
       - name: Save cache cargo
         uses: actions/cache/save@v6
