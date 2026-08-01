@@ -21,10 +21,6 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Install packages
-        run: |
-          sudo apt-get update;sudo apt-get install -y --no-install-recommends build-essential zstd
-
       - name: Restore cache cargo
         uses: actions/cache/restore@v6
         with:
