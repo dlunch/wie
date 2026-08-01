@@ -31,7 +31,6 @@ jobs:
 
       - name: Generate code coverage
         run: |
-          export RUST_MIN_STACK=4194304
           cargo tarpaulin --all-features --skip-clean --workspace --timeout 120 --out xml
 
       - name: Upload to codecov.io
