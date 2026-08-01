@@ -1,0 +1,384 @@
+name: Release Tauri
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: read
+
+jobs:
+  context:
+    name: Resolve release context
+    runs-on: ubuntu-latest
+    outputs:
+      asset_identity: ${{ steps.context.outputs.asset_identity }}
+      channel: ${{ steps.context.outputs.channel }}
+      run_number: ${{ steps.context.outputs.run_number }}
+      target_sha: ${{ steps.context.outputs.target_sha }}
+      app_version: ${{ steps.context.outputs.app_version }}
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Resolve channel and version
+        id: context
+        run: bash .github/scripts/release-tauri/resolve-context.sh
+
+  web:
+    name: Web frontend
+    needs: context
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Build production frontend
+        run: |
+          npm ci
+          npm run build:prod
+
+      - name: Upload web frontend
+        uses: actions/upload-artifact@v6
+        with:
+          name: tauri-web
+          path: wie_web/dist
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    needs:
+      - context
+      - web
+    runs-on: windows-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Download web frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-web
+          path: wie_web/dist
+
+      - name: Build unsigned installers
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: wie_app
+          args: >-
+            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --ci --target x86_64-pc-windows-msvc --bundles msi,nsis --no-sign
+
+      - name: Package installers
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item (Get-ChildItem target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-x86_64-unsigned.msi"
+          Copy-Item (Get-ChildItem target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-x86_64-unsigned-setup.exe"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-windows
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    name: Linux x64
+    needs:
+      - context
+      - web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libayatana-appindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Download web frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-web
+          path: wie_web/dist
+
+      - name: Build unsigned packages
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: wie_app
+          args: >-
+            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --ci --target x86_64-unknown-linux-gnu --bundles appimage,deb --no-sign
+
+      - name: Package bundles
+        run: |
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-x86_64-unsigned.AppImage"
+          cp target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-x86_64-unsigned.deb"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS universal
+    needs:
+      - context
+      - web
+    runs-on: macos-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Download web frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-web
+          path: wie_web/dist
+
+      - name: Build unsigned universal bundles
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: wie_app
+          args: >-
+            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --ci --target universal-apple-darwin --bundles app,dmg --no-sign
+
+      - name: Package bundles
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent target/universal-apple-darwin/release/bundle/macos/*.app "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.app.zip"
+          cp target/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.dmg"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-macos
+          path: dist/*
+          if-no-files-found: error
+
+  android:
+    name: Android aarch64
+    needs:
+      - context
+      - web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Select preinstalled Android NDK
+        shell: bash
+        run: |
+          ndk_home=${ANDROID_NDK_LATEST_HOME:-$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)}
+          echo "ANDROID_NDK_HOME=$ndk_home" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ndk_home" >> "$GITHUB_ENV"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Download web frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-web
+          path: wie_web/dist
+
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+
+      - name: Initialize Android project
+        working-directory: wie_app
+        run: cargo tauri android init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
+
+      - name: Build unsigned Android packages
+        uses: tauri-apps/tauri-action@v1
+        with:
+          tauriScript: cargo tauri
+          projectPath: wie_app
+          mobile: android
+          args: >-
+            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --target aarch64 --apk --aab --ci
+
+      - name: Package Android bundles
+        run: |
+          mkdir -p dist
+          cp "$(find wie_app/gen/android/app/build/outputs/apk -type f -name '*-release-unsigned.apk' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64-unsigned.apk"
+          cp "$(find wie_app/gen/android/app/build/outputs/bundle -type f -name '*-release.aab' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64-unsigned.aab"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-android
+          path: dist/*
+          if-no-files-found: error
+
+  ios:
+    name: iOS aarch64
+    needs:
+      - context
+      - web
+    runs-on: macos-latest
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Download web frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: tauri-web
+          path: wie_web/dist
+
+      - name: Install iOS build dependencies
+        run: arch -arm64 brew reinstall xcodegen libimobiledevice
+
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+
+      - name: Initialize iOS project
+        working-directory: wie_app
+        run: cargo tauri ios init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
+
+      - name: Build unsigned iOS archive
+        uses: tauri-apps/tauri-action@v1
+        with:
+          tauriScript: cargo tauri
+          projectPath: wie_app
+          mobile: ios
+          args: >-
+            --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
+            --target aarch64 --no-sign --archive-only
+            --build-number ${{ needs.context.outputs.run_number }} --ci
+
+      - name: Package iOS archive
+        run: |
+          mkdir -p dist
+          archive=$(find target wie_app/gen -type d -name '*.xcarchive' -print -quit)
+          ditto -c -k --keepParent "$archive" "dist/wie-${{ needs.context.outputs.asset_identity }}-ios-aarch64-unsigned.xcarchive.zip"
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-ios
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs:
+      - context
+      - windows
+      - linux
+      - macos
+      - android
+      - ios
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: tauri-release-publisher-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      CHANNEL: ${{ needs.context.outputs.channel }}
+      GH_TOKEN: ${{ github.token }}
+      RUN_NUMBER: ${{ needs.context.outputs.run_number }}
+      TARGET_SHA: ${{ needs.context.outputs.target_sha }}
+    steps:
+      - name: Checkout release scripts
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.context.outputs.target_sha }}
+          persist-credentials: false
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release
+        run: bash .github/scripts/release-tauri/publish.sh
