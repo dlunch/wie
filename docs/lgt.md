@@ -1,70 +1,196 @@
 # LGT Platform Architecture
 
-LGT (LG Telecom) is a carrier, and LGT devices shipped with their own WIPI implementation. Currently only **Clet** (C native apps) execution is implemented. Java app support is not yet implemented.
+## Table of contents
 
-## App Structure
+- [Overview](#overview)
+- [Application package](#application-package)
+- [Native initialization](#native-initialization)
+- [Import resolution](#import-resolution)
+- [Java bootstrap](#java-bootstrap)
+- [AOT Java data model](#aot-java-data-model)
+- [Link-time metadata](#link-time-metadata)
+- [Java runtime interface](#java-runtime-interface)
+- [ABI details](#abi-details)
 
-An LGT app consists of:
-- A JAR containing:
-  - `binary.mod` — an ARM ELF executable
-  - App resources
-- An `app_info` file (separate from the JAR) — app descriptor (AID, PID, MClass)
+## Overview
 
-### Clets
+LGT WIPI applications use an ARM ELF executable named `binary.mod`. Clets contain native application code, while Java applications contain Java methods that have already been AOT-compiled into ARM code together with the metadata needed to bind them to the Java runtime.
 
-C native apps compiled as standard ARM ELF binaries. Unlike KTF's raw binary format, LGT uses proper ELF with section headers, allowing standard loading at specified addresses.
+Both application types use the same ELF initialization and import-table mechanism. Java binaries additionally describe generated classes, imported classes and members, object layouts, and ARM entrypoints for generated methods.
 
-### Java Apps
+## Application package
 
-Not yet implemented.
+An installed application consists of:
 
-## Platform Interfaces
+- `app_info`, which describes values including the AID, PID, and main class;
+- an application archive containing `binary.mod` and application resources.
 
-LGT uses its own WIPI-side import-table mechanism instead of KTF's direct callback approach.
+`binary.mod` is an ELF32 ARM executable. Its addressed sections are loaded at the virtual addresses recorded in the ELF section headers.
 
-### Import Table System
+## Native initialization
 
-During initialization, the native binary receives platform callbacks for import resolution:
-- one callback identifies an import table
-- another resolves a function pointer from a table ID and function index
+Initialization follows this sequence:
 
-The binary uses these callbacks to resolve each platform function it needs. Known tables:
+```text
+load binary.mod sections
+  -> allocate a host output block and an import resolver block
+  -> call the ELF entrypoint with both blocks
+  -> read the binary initialization descriptor from the output block
+  -> call the initializer referenced by the descriptor
+```
+
+The host output block is platform-owned memory through which the binary returns a pointer to its initialization descriptor. The import resolver block provides callbacks for resolving an import table and a function within that table. The ELF entrypoint records these inputs and publishes the generated initializer through the descriptor.
+
+ARM initializer and method pointers are Thumb pointers and commonly have bit 0 set.
+
+## Import resolution
+
+Generated binaries call platform functions through numbered import tables. The import resolver block provides one callback to identify an import table and another to resolve a function index within that table.
+
+Known tables are:
 
 | Table ID | Purpose |
-|----------|---------|
-| `0x1fb`  | WIPI C functions (kernel, graphics, etc.) |
-| `0x64`   | Java interface functions |
-| `0x1`    | C standard library (memcpy, strlen, etc.) |
+| --- | --- |
+| `0x1fb` | WIPI C functions |
+| `0x64` | LGT Java runtime functions |
+| `0x1` | C standard library functions |
+| `0x1f8`, `0x1fc`, `0x1ff`, `0x201` | Additional LGT bootstrap services whose contracts are only partly known |
 
-### WIPI C Interface
+Generated code uses lazy 16-byte import thunks. On first use, a thunk calls the import resolver and patches itself with the returned target. Subsequent calls jump directly to that target.
 
-Provides the LGT-side WIPI C surface (kernel, graphics, database, timer, etc.), but delivered through the import table rather than a named interface pointer.
+## Java bootstrap
 
-### Standard Library
+The generated Java initializer performs these operations:
 
-LGT-specific: provides C standard library functions (memcpy, strlen, etc.) that the native binary expects from the platform. KTF binaries include these in their own binary; LGT imports them.
+1. Obtain the application archive path through import table `0x1f8`, index `0x17`.
+2. Pass the archive-related value to Java import `0x82`.
+3. Establish the generated class table and runtime context through Java import `0x07`.
+4. Link imported and public class metadata through Java imports `0x14` and `0x13`.
+5. Prepare and initialize generated classes through Java imports `0x0b`, `0x0c`, and `0x0d`.
+6. Invoke Java import `0x83` with the WIPI Java entry class and startup arguments.
 
-## Initialization Sequence
+The operation names are inferred from how their inputs and outputs are used.
 
-1. Platform parses `binary.mod` as ELF, loads sections into memory at their specified addresses
-2. Calls the ELF entrypoint with platform-owned initialization blocks
-   - one of these blocks contains the import-resolution callbacks
-3. The binary stores the import-resolution callbacks and uses them on demand when platform functions are needed
-4. The binary returns a pointer to a structure containing its initialization entry
-5. Platform calls that initialization entry to start the app
+## AOT Java data model
 
-## Key Differences from KTF
+### Class metadata
 
-| Aspect | KTF WIPI | LGT WIPI |
-|--------|----------|----------|
-| Binary format | Raw ARM (`client.bin`) | ELF (`binary.mod`) |
-| Function binding | Direct callback pointers | Import table lookup |
-| Java integration | AOT-compiled into ARM binary | Not yet implemented |
-| C stdlib | Included in binary | Provided by platform |
+Generated classes use the following relationship:
 
-## How We Emulate This
+```text
+generated class record
+  +0x00 unknown
+  +0x04 unknown
+  +0x08 -> generated class descriptor
 
-- **ARM execution**: Same `wie_core_arm::ArmCore` as KTF.
-- **ELF loading**: Uses the `elf` crate to parse sections and load them at their specified addresses.
-- **Import table**: Rust callbacks map `(table_id, function_index)` pairs to registered function addresses for WIPI C, Java interface, and stdlib functions.
-- **JVM**: Uses `RustJavaJvmImplementation` (pure Rust JVM) since there's no AOT-compiled Java to run from ARM memory.
+generated class descriptor
+  +0x08 -> class name
+  +0x10 -> superclass name
+  +0x2c -> generated callback
+  +0x30 -> generated callback
+  +0x34 -> generated callback
+  +0x38 -> method table
+  +0x3c -> field table
+```
+
+A generated field record contains pointers to the declaring class, field name, and descriptor together with metadata words and a mutable field-slot index.
+
+A generated method record contains pointers to the declaring class, method name, and descriptor together with metadata words and a generated Thumb method pointer. One metadata word correlates with the Java argument slot count, including `this` for instance methods.
+
+### Object layout and dispatch
+
+Generated objects use this layout:
+
+```text
+generated object record
+  +0x00 -> vtable/method pointer array
+  +0x04 unknown runtime word
+  +0x08 -> field slot array
+```
+
+Generated instance methods access fields and virtual methods directly:
+
+```text
+value = this->fields[field_slot]
+target = object->vtable[virtual_method_slot + 1]
+target(object, ...)
+```
+
+Field and virtual-method slots are patched during linking. The purpose of the leading vtable entry is not yet known.
+
+## Link-time metadata
+
+The generated image contains three class collections:
+
+- a collection of generated application class pointers;
+- a collection of external Java and WIPI classes referenced by generated code;
+- a collection of generated classes whose members are exported for cross-class linking.
+
+Each imported-class record divides flat name/descriptor tables into per-class ranges for static fields, virtual methods, and static methods.
+
+Java import `0x14` receives 11 pointers to generated input tables and patch output areas:
+
+| Argument | Table or role | Confidence |
+| ---: | --- | --- |
+| `r0` | imported classes | Observed |
+| `r1` | field name/descriptor pairs | Observed |
+| `r2` | static field name/descriptor pairs | Observed |
+| `r3` | virtual method name/descriptor pairs | Observed |
+| stack 0 | additional method metadata | Unknown |
+| stack 1 | static method imports | Observed |
+| stack 2 | output or offset base | Unknown |
+| stack 3 | field slot output | Inferred |
+| stack 4 | virtual method slot output | Inferred |
+| stack 5 | imported static method output | Inferred |
+| stack 6 | imported class or method target output | Unknown |
+
+The Java runtime resolves each class and member by name and descriptor, then writes field slots, vtable slots, static storage references, or callable targets into the corresponding output tables. Generated methods consume these patched values directly.
+
+Output tables for field and virtual-method slots use `u16` entries rather than byte or host-sized offsets.
+
+## Java runtime interface
+
+The following table lists the known subset of Java import table `0x64`:
+
+| Index | Observed or inferred role |
+| ---: | --- |
+| `0x03` | bootstrap helper |
+| `0x06` | bootstrap or class helper |
+| `0x07` | establish the generated class table and runtime context |
+| `0x09` | create or cache a Java string from UTF-16 data |
+| `0x0b` | prepare or register a generated class |
+| `0x0c` | obtain a runtime class handle |
+| `0x0d` | ensure class initialization |
+| `0x0e` | obtain an array type |
+| `0x0f` | instantiate an object |
+| `0x10` | instantiate an array |
+| `0x11` | runtime helper |
+| `0x12` | runtime helper |
+| `0x13` | link a public or generated class |
+| `0x14` | link imported classes and members |
+| `0x1f` | frame or exception helper |
+| `0x20` | frame or exception helper |
+| `0x21` | frame or exception helper |
+| `0x22` | raise `NullPointerException` |
+| `0x23` | raise an array index exception |
+| `0x25` | raise an arithmetic exception |
+| `0x54` | generated method prologue |
+| `0x55` | companion frame or runtime helper |
+| `0x61` | runtime helper |
+| `0x82` | Java application bootstrap setup |
+| `0x83` | invoke or start the Java application |
+| `0xe1` | runtime helper |
+| `0xe2` | runtime helper |
+| `0xfa` | runtime helper |
+
+## ABI details
+
+- Instance methods pass `this` in `r0`; later arguments follow the ARM calling convention.
+- Static methods, 64-bit argument alignment, and native-method wrappers require further confirmation.
+- Class descriptors contain several unknown fields and three generated callback pointers.
+- One descriptor value appears to represent total inherited instance field slots rather than the declared field count.
+- Generated Java string imports receive UTF-16 data together with a cache or output slot.
+- Class initialization state is visible to generated code and is managed separately from metadata registration.
+- Generated method prologue and exception helpers maintain ARM frame state used by Java exception paths.
+- The raw array header and data layout are not yet known.
+- Static Java storage and imported static member targets occupy ARM-visible slots patched during linking.
