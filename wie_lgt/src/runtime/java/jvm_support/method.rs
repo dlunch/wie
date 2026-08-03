@@ -6,7 +6,9 @@ use java_constants::MethodAccessFlags;
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 
-use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult};
+use wie_core_arm::{
+    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult,
+};
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_slot_count};
 use wie_util::{WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
@@ -38,10 +40,10 @@ impl JavaMethod {
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
-        let ptr_name = wie_core_arm::Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
+        let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_name, proto.name.as_bytes())?;
 
-        let ptr_descriptor = wie_core_arm::Allocator::alloc(core, (proto.descriptor.len() + 1) as u32)?;
+        let ptr_descriptor = Allocator::alloc(core, (proto.descriptor.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_descriptor, proto.descriptor.as_bytes())?;
 
         let method_type = JavaType::parse(&proto.descriptor);

@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
-use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
+use jvm::{ArrayClassDefinition, ClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::array_element_size;
@@ -25,7 +25,7 @@ impl JavaArrayClassDefinition {
     }
 
     fn element_type_descriptor(&self) -> String {
-        let class_name = jvm::ClassDefinition::name(&self.class);
+        let class_name = ClassDefinition::name(&self.class);
         class_name[1..].into()
     }
 

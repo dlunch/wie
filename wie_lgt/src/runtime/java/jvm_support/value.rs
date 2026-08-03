@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use jvm::ClassInstance;
+use jvm::{ClassDefinition, ClassInstance};
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::NativeJavaValueCodec;
@@ -21,7 +21,7 @@ impl JavaValueCodec {
 impl NativeJavaValueCodec for JavaValueCodec {
     fn object_from_raw(&self, raw: u32) -> Box<dyn ClassInstance> {
         let instance = JavaClassInstance::from_raw(raw, &self.core);
-        if jvm::ClassDefinition::name(&instance.class().unwrap()).starts_with('[') {
+        if ClassDefinition::name(&instance.class().unwrap()).starts_with('[') {
             Box::new(JavaArrayClassInstance::from_raw(raw, &self.core))
         } else {
             Box::new(instance)

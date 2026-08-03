@@ -5,7 +5,7 @@ use core::{
     mem::size_of,
 };
 
-use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, Field, JavaValue, Result as JvmResult};
+use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::{decode_array_values, encode_array_values};
@@ -52,7 +52,7 @@ impl JavaArrayClassInstance {
         JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core).element_size()
     }
 
-    fn element_type(&self) -> jvm::JavaType {
+    fn element_type(&self) -> JavaType {
         JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core).element_type()
     }
 
