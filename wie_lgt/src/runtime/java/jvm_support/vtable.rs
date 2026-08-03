@@ -4,34 +4,25 @@ use core::mem::size_of;
 use java_constants::MethodAccessFlags;
 use jvm::Method;
 
-use wie_core_arm::{Allocator, ArmCore};
+use wie_core_arm::ArmCore;
 use wie_util::write_generic;
 
-use super::{JavaClassDefinition, JavaMethod, Result};
+use super::{JavaMethod, Result};
 
-pub struct JavaVtable {
-    pub ptr_raw: u32,
-}
+pub struct JavaVtable;
 
 impl JavaVtable {
-    pub fn new(core: &mut ArmCore, ptr_class: u32, parent_class: Option<&JavaClassDefinition>, declared_methods: &[JavaMethod]) -> Result<Self> {
-        let methods = Self::build_methods(parent_class, declared_methods)?;
-
-        let ptr_raw = Allocator::alloc(core, ((methods.len() + 1) * size_of::<u32>()) as u32)?;
+    pub fn write(core: &mut ArmCore, ptr_raw: u32, ptr_class: u32, methods: &[JavaMethod]) -> Result<()> {
         write_generic(core, ptr_raw, ptr_class)?;
         for (index, method) in methods.iter().enumerate() {
             write_generic(core, ptr_raw + ((index + 1) * size_of::<u32>()) as u32, method.target()?)?;
         }
 
-        Ok(Self { ptr_raw })
+        Ok(())
     }
 
-    pub fn build_methods(parent_class: Option<&JavaClassDefinition>, declared_methods: &[JavaMethod]) -> Result<Vec<JavaMethod>> {
-        let mut methods = if let Some(parent_class) = parent_class {
-            parent_class.virtual_methods()?
-        } else {
-            Vec::new()
-        };
+    pub fn build_methods(parent_methods: &[JavaMethod], declared_methods: &[JavaMethod]) -> Vec<JavaMethod> {
+        let mut methods = parent_methods.to_vec();
 
         for method in declared_methods {
             let flags = method.access_flags();
@@ -49,6 +40,6 @@ impl JavaVtable {
             }
         }
 
-        Ok(methods)
+        methods
     }
 }

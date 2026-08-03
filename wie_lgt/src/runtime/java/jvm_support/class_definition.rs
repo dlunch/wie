@@ -63,7 +63,36 @@ impl JavaClassDefinition {
             None
         };
 
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let parent_virtual_methods = if let Some(parent_class) = &parent_class {
+            parent_class.virtual_methods(jvm).await?
+        } else {
+            Vec::new()
+        };
+        let mut virtual_method_signatures = parent_virtual_methods
+            .iter()
+            .map(|method| (method.name(), method.descriptor()))
+            .collect::<Vec<_>>();
+        for method in &proto.methods {
+            if method.access_flags.intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) || method.name.starts_with('<') {
+                continue;
+            }
+            if !virtual_method_signatures
+                .iter()
+                .any(|(name, descriptor)| name == &method.name && descriptor == &method.descriptor)
+            {
+                virtual_method_signatures.push((method.name.to_string(), method.descriptor.to_string()));
+            }
+        }
+        let virtual_method_count = virtual_method_signatures.len();
+        let static_field_slot_count = proto
+            .fields
+            .iter()
+            .filter(|field| field.access_flags.contains(FieldAccessFlags::STATIC))
+            .map(|field| if field.descriptor == "J" || field.descriptor == "D" { 2 } else { 1 })
+            .sum::<usize>();
+        let class_storage_size = size_of::<RawJavaClass>() + (static_field_slot_count + virtual_method_count + 1) * size_of::<LgtJvmWord>();
+        let ptr_raw = Allocator::alloc(core, class_storage_size as u32)?;
+        core.write_bytes(ptr_raw, &vec![0; class_storage_size])?;
         let ptr_name = Self::allocate_string(core, proto.name)?;
         let ptr_super_class_name = if let Some(parent_class) = &parent_class {
             Self::allocate_string(core, &ClassDefinition::name(parent_class))?
@@ -124,15 +153,9 @@ impl JavaClassDefinition {
             JavaField::new(core, ptr_field, ptr_raw, field, slot as u32)?;
         }
 
-        let ptr_static_fields = if static_field_slot == 0 {
-            0
-        } else {
-            let address = Allocator::alloc(core, (static_field_slot * size_of::<LgtJvmWord>()) as u32)?;
-            core.write_bytes(address, &vec![0; static_field_slot * size_of::<LgtJvmWord>()])?;
-            address
-        };
-
-        let vtable = JavaVtable::new(core, ptr_raw, parent_class.as_ref(), &methods)?;
+        let virtual_methods = JavaVtable::build_methods(&parent_virtual_methods, &methods);
+        let ptr_dispatch_table = ptr_raw + (size_of::<RawJavaClass>() + static_field_slot_count * size_of::<LgtJvmWord>()) as u32;
+        JavaVtable::write(core, ptr_dispatch_table, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         write_generic(
             core,
@@ -157,10 +180,9 @@ impl JavaClassDefinition {
                 fn_get_class: 0,
                 ptr_methods,
                 ptr_fields,
-                // Rust-defined classes keep their runtime pointers in the descriptor's trailing words.
-                unk13: vtable.ptr_raw,
-                unk14: ptr_static_fields,
-                unk15: parent_class.as_ref().map(|class| class.ptr_raw).unwrap_or(0),
+                unk13: 0,
+                unk14: 0,
+                unk15: 0,
             },
         )?;
         write_generic(
@@ -188,12 +210,17 @@ impl JavaClassDefinition {
             .downcast_ref::<JavaClassDefinition>()
             .unwrap()
             .clone();
-        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let virtual_methods = parent_class.virtual_methods(jvm).await?;
+        let virtual_method_count = virtual_methods.len();
+        let class_storage_size = size_of::<RawJavaClass>() + (virtual_method_count + 1) * size_of::<LgtJvmWord>();
+        let ptr_raw = Allocator::alloc(core, class_storage_size as u32)?;
+        core.write_bytes(ptr_raw, &vec![0; class_storage_size])?;
         let ptr_name = Self::allocate_string(core, name)?;
         let ptr_super_class_name = Self::allocate_string(core, "java/lang/Object")?;
         let interface_names = vec!["java/lang/Cloneable".to_string(), "java/io/Serializable".to_string()];
         let ptr_interface_names = Self::allocate_string_table(core, &interface_names)?;
-        let vtable = JavaVtable::new(core, ptr_raw, Some(&parent_class), &[])?;
+        let ptr_dispatch_table = ptr_raw + size_of::<RawJavaClass>() as u32;
+        JavaVtable::write(core, ptr_dispatch_table, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         let access_flags = ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL;
         write_generic(
@@ -219,9 +246,9 @@ impl JavaClassDefinition {
                 fn_get_class: 0,
                 ptr_methods: 0,
                 ptr_fields: 0,
-                unk13: vtable.ptr_raw,
+                unk13: 0,
                 unk14: 0,
-                unk15: parent_class.ptr_raw,
+                unk15: 0,
             },
         )?;
         write_generic(
@@ -268,11 +295,6 @@ impl JavaClassDefinition {
         Ok(String::from_utf8(read_null_terminated_string_bytes(&self.core, address)?).unwrap())
     }
 
-    fn parent_class(&self) -> Result<Option<Self>> {
-        let ptr_parent_class = self.descriptor()?.unk15;
-        Ok((ptr_parent_class != 0).then(|| Self::from_raw(ptr_parent_class, &self.core)))
-    }
-
     fn methods(&self) -> Result<Vec<JavaMethod>> {
         let ptr_methods = self.descriptor()?.ptr_methods;
         if ptr_methods == 0 {
@@ -306,19 +328,43 @@ impl JavaClassDefinition {
     }
 
     pub fn ptr_dispatch_table(&self) -> Result<u32> {
-        Ok(self.descriptor()?.unk13)
+        let static_field_slot_count = self
+            .fields()?
+            .into_iter()
+            .filter(|field| field.access_flags().contains(FieldAccessFlags::STATIC))
+            .map(|field| if field.descriptor() == "J" || field.descriptor() == "D" { 2 } else { 1 })
+            .sum::<usize>();
+        Ok(self.ptr_raw + (size_of::<RawJavaClass>() + static_field_slot_count * size_of::<LgtJvmWord>()) as u32)
     }
 
     pub(super) fn ptr_static_fields(&self) -> Result<u32> {
-        Ok(self.descriptor()?.unk14)
+        Ok(self.ptr_raw + size_of::<RawJavaClass>() as u32)
     }
 
     pub fn instance_field_slot_count(&self) -> Result<usize> {
         Ok(self.descriptor()?.instance_field_slot_count as usize)
     }
 
-    pub fn virtual_methods(&self) -> Result<Vec<JavaMethod>> {
-        JavaVtable::build_methods(self.parent_class()?.as_ref(), &self.methods()?)
+    pub(super) async fn virtual_methods(&self, jvm: &Jvm) -> Result<Vec<JavaMethod>> {
+        let mut hierarchy = vec![self.clone()];
+        while let Some(parent_name) = ClassDefinition::super_class_name(hierarchy.last().unwrap()) {
+            let parent_class = jvm
+                .resolve_class(&parent_name)
+                .await
+                .unwrap()
+                .definition
+                .as_any()
+                .downcast_ref::<JavaClassDefinition>()
+                .unwrap()
+                .clone();
+            hierarchy.push(parent_class);
+        }
+
+        let mut virtual_methods = Vec::new();
+        for class in hierarchy.into_iter().rev() {
+            virtual_methods = JavaVtable::build_methods(&virtual_methods, &class.methods()?);
+        }
+        Ok(virtual_methods)
     }
 }
 

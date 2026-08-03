@@ -153,8 +153,8 @@ mod tests {
             let child_definition = child_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
             jvm.register_class(child_class, None).await.unwrap();
 
-            let base_methods = base_definition.virtual_methods()?;
-            let child_methods = child_definition.virtual_methods()?;
+            let base_methods = base_definition.virtual_methods(&jvm).await?;
+            let child_methods = child_definition.virtual_methods(&jvm).await?;
             let base_slot = base_methods
                 .iter()
                 .position(|method| method.name() == "value" && method.descriptor() == "()I")
