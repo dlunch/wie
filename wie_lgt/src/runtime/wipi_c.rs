@@ -3,7 +3,6 @@ use alloc::{boxed::Box, string::ToString, vec};
 mod context;
 
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_rust::ClassDefinitionImpl;
 use wipi_types::lgt::CletFunctions;
 use wipi_types::wipic::WIPICIndirectPtr;
 
@@ -18,7 +17,6 @@ use wie_wipi_c::{
 
 use context::LgtWIPICContext;
 
-use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
 use crate::runtime::{SVC_CATEGORY_WIPIC, svc_ids::WIPICSvcId};
 
 const TIME_VALUE_PTR: u32 = 0x7fff1004;
@@ -186,12 +184,6 @@ async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a
     tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
     let functions: CletFunctions = read_generic(core, function_table)?;
-
-    let context = CletWrapperContext { core: core.clone() };
-    let clet_wrapper_class = ClassDefinitionImpl::from_class_proto(CletWrapper::as_proto(), Box::new(context.clone()) as Box<_>);
-    let clet_wrapper_card_class = ClassDefinitionImpl::from_class_proto(CletWrapperCard::as_proto(), Box::new(context) as Box<_>);
-    jvm.register_class(Box::new(clet_wrapper_class), None).await.unwrap();
-    jvm.register_class(Box::new(clet_wrapper_card_class), None).await.unwrap();
 
     jvm.put_static_field("net/wie/CletWrapper", "startClet", "I", functions.start_clet as i32)
         .await

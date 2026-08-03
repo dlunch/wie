@@ -3,6 +3,7 @@ extern crate alloc;
 
 mod context;
 mod jvm_implementation;
+pub mod native;
 mod runtime;
 
 use alloc::{boxed::Box, format, string::ToString};

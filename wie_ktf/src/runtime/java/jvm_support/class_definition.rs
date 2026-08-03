@@ -11,6 +11,7 @@ use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Metho
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::native::NativeJavaValueCodec;
 use wie_util::{
     read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic, write_null_terminated_string_bytes,
     write_null_terminated_table,
@@ -18,7 +19,7 @@ use wie_util::{
 
 use crate::runtime::java::JavaSvcFunctions;
 
-use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueExt, vtable::JavaVtable};
+use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueCodec, vtable::JavaVtable};
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
@@ -315,12 +316,12 @@ impl ClassDefinition for JavaClassDefinition {
         let value = self.read_static_field(field).unwrap();
 
         let r#type = JavaType::parse(&field.descriptor());
-        Ok(JavaValue::from_raw(value, &r#type, &self.core))
+        Ok(JavaValueCodec::new(&self.core).decode_word(value, &r#type))
     }
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let value = value.as_raw();
+        let value = JavaValueCodec::new(&self.core).encode_word(&value);
 
         self.write_static_field(field, value as _).unwrap();
 

@@ -12,6 +12,7 @@ use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResul
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::native::array_element_size;
 use wie_util::{write_generic, write_null_terminated_string_bytes};
 
 use super::{KtfJvmSupport, Result, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition};
@@ -94,19 +95,7 @@ impl JavaArrayClassDefinition {
 
     pub fn element_size(&self) -> Result<usize> {
         let r#type = JavaType::parse(&self.element_type_descriptor()?);
-        Ok(match r#type {
-            JavaType::Boolean => 1,
-            JavaType::Byte => 1,
-            JavaType::Char => 2,
-            JavaType::Short => 2,
-            JavaType::Int => 4,
-            JavaType::Long => 8,
-            JavaType::Float => 4,
-            JavaType::Double => 8,
-            JavaType::Class(_) => 4, // TODO do we need to extract pointer size to constant?
-            JavaType::Array(_) => 4,
-            JavaType::Void | JavaType::Method(_, _) => unreachable!(),
-        })
+        Ok(array_element_size(&r#type))
     }
 }
 
