@@ -9,4 +9,4 @@ const SVC_CATEGORY_WIPIC: u32 = 3;
 const SVC_CATEGORY_JAVA: u32 = 4;
 const SVC_CATEGORY_STDLIB: u32 = 5;
 
-pub(crate) use java::LgtJvmImplementation;
+pub(crate) use java::LgtJvmSupport;

@@ -8,7 +8,20 @@ mod method;
 mod value;
 mod vtable;
 
-pub use jvm_implementation::LgtJvmImplementation;
+use alloc::boxed::Box;
+
+use jvm::Jvm;
+
+use wie_backend::System;
+use wie_core_arm::ArmCore;
+use wie_jvm_support::{JvmImplementation, JvmSupport};
+use wie_midp::get_protos as get_midp_protos;
+use wie_util::Result;
+use wie_wipi_java::get_protos as get_wipi_java_protos;
+
+use super::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
+
+use jvm_implementation::LgtJvmImplementation;
 
 use self::{
     array_class_definition::JavaArrayClassDefinition, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition,
@@ -16,7 +29,27 @@ use self::{
 };
 
 pub(super) type LgtJvmWord = u32;
-pub(super) type Result<T> = wie_util::Result<T>;
+
+pub struct LgtJvmSupport;
+
+impl LgtJvmSupport {
+    pub async fn init(core: &mut ArmCore, system: &System, jar_name: Option<&str>) -> Result<Jvm> {
+        let protos = [get_midp_protos().into(), get_wipi_java_protos().into()];
+        let implementation = LgtJvmImplementation::new(core)?;
+        let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], implementation.clone()).await?;
+
+        let context = CletWrapperContext { core: core.clone() };
+        for proto in [CletWrapper::as_proto(), CletWrapperCard::as_proto()] {
+            let class = match implementation.define_class_rust(&jvm, proto, Box::new(context.clone()) as Box<_>).await {
+                Ok(class) => class,
+                Err(error) => return Err(JvmSupport::to_wie_err(&jvm, error).await),
+            };
+            jvm.register_class(class, None).await.unwrap();
+        }
+
+        Ok(jvm)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -37,7 +70,7 @@ mod tests {
     use wie_jvm_support::{JvmImplementation, JvmSupport};
     use wie_util::{Result, read_generic};
 
-    use super::{JavaArrayClassInstance, JavaClassInstance, LgtJvmImplementation};
+    use super::{JavaArrayClassInstance, JavaClassInstance, LgtJvmImplementation, get_midp_protos, get_wipi_java_protos};
 
     struct Base;
     struct Child;
@@ -59,7 +92,7 @@ mod tests {
         context.sp = stack + 0x100;
         core.restore_context(&context);
 
-        let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
+        let protos = [get_midp_protos().into(), get_wipi_java_protos().into()];
         let implementation = LgtJvmImplementation::new(&mut core)?;
         let jvm = JvmSupport::new_jvm(system, None, Box::new(protos), &[], implementation.clone()).await?;
 
@@ -83,7 +116,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(JavaLangString::to_rust_string(&jvm, &combined).await.unwrap(), "lgt-native");
-            let invalid_char: jvm::Result<u16> = jvm.invoke_virtual(&first, "charAt", "(I)C", (i32::MAX,)).await;
+            let invalid_char: JvmResult<u16> = jvm.invoke_virtual(&first, "charAt", "(I)C", (i32::MAX,)).await;
             assert!(invalid_char.is_err());
 
             let date: Box<dyn ClassInstance> = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();

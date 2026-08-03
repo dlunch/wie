@@ -12,7 +12,7 @@ pub mod interface;
 mod jvm_support;
 
 pub use interface::get_java_interface_method;
-pub use jvm_support::LgtJvmImplementation;
+pub use jvm_support::LgtJvmSupport;
 
 pub type JavaSvcFunctions = Arc<Mutex<BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>>>;
 
