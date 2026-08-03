@@ -4,6 +4,7 @@ use alloc::{
     format,
     string::{String, ToString},
     sync::{Arc, Weak},
+    vec,
     vec::Vec,
 };
 use core::{fmt, fmt::Debug, fmt::Formatter, mem::size_of, ops::Deref, ops::DerefMut};
@@ -148,7 +149,7 @@ impl JavaClassDefinition {
             0
         } else {
             let address = Allocator::alloc(core, (static_field_slot * size_of::<LgtJvmWord>()) as u32)?;
-            core.write_bytes(address, &alloc::vec![0; static_field_slot * size_of::<LgtJvmWord>()])?;
+            core.write_bytes(address, &vec![0; static_field_slot * size_of::<LgtJvmWord>()])?;
             address
         };
 
@@ -229,7 +230,7 @@ impl JavaClassDefinition {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
         let ptr_name = Self::allocate_string(core, name)?;
         let ptr_super_class_name = Self::allocate_string(core, "java/lang/Object")?;
-        let interface_names = alloc::vec!["java/lang/Cloneable".to_string(), "java/io/Serializable".to_string()];
+        let interface_names = vec!["java/lang/Cloneable".to_string(), "java/io/Serializable".to_string()];
         let ptr_interface_names = Self::allocate_string_table(core, &interface_names)?;
         let vtable = JavaVtable::new(core, ptr_raw, Some(&parent_class), &[])?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
