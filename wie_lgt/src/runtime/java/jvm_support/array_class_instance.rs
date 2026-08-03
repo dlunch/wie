@@ -149,31 +149,23 @@ impl ArrayClassInstance for JavaArrayClassInstance {
                 .map(|value| JavaValue::from_raw(value as u32, &element_type, &self.core, self.class.class.registry()))
                 .collect(),
             2 => bytes
-                .chunks_exact(2)
-                .map(|value| {
-                    JavaValue::from_raw(
-                        u16::from_le_bytes(value.try_into().unwrap()) as u32,
-                        &element_type,
-                        &self.core,
-                        self.class.class.registry(),
-                    )
-                })
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|value| JavaValue::from_raw(u16::from_le_bytes(*value) as u32, &element_type, &self.core, self.class.class.registry()))
                 .collect(),
             4 => bytes
-                .chunks_exact(4)
-                .map(|value| {
-                    JavaValue::from_raw(
-                        u32::from_le_bytes(value.try_into().unwrap()),
-                        &element_type,
-                        &self.core,
-                        self.class.class.registry(),
-                    )
-                })
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|value| JavaValue::from_raw(u32::from_le_bytes(*value), &element_type, &self.core, self.class.class.registry()))
                 .collect(),
             8 => bytes
-                .chunks_exact(8)
+                .as_chunks::<8>()
+                .0
+                .iter()
                 .map(|value| {
-                    let value = u64::from_le_bytes(value.try_into().unwrap());
+                    let value = u64::from_le_bytes(*value);
                     JavaValue::from_raw64(value as u32, (value >> 32) as u32, &element_type)
                 })
                 .collect(),
