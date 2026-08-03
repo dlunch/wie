@@ -24,12 +24,13 @@ use alloc::sync::Arc;
 use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter,
 };
+use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_slot_count};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::JavaClassDefinition;
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
-use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueExt};
+use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueCodec};
 
 pub struct JavaMethod {
     pub ptr_raw: u32,
@@ -123,16 +124,8 @@ impl JavaMethod {
 
         let mut core = self.core.clone();
 
-        let mut raw_args = Vec::with_capacity(args.len());
-        for arg in args.iter() {
-            if matches!(arg, JavaValue::Double(_) | JavaValue::Long(_)) {
-                let (arg, arg_high) = arg.as_raw64();
-                raw_args.push(arg);
-                raw_args.push(arg_high);
-            } else {
-                raw_args.push(arg.as_raw());
-            }
-        }
+        let codec = JavaValueCodec::new(&self.core);
+        let raw_args = encode_method_arguments(&codec, &args);
 
         struct JavaMethodRunResult {
             result: u32,
@@ -200,9 +193,9 @@ impl JavaMethod {
         };
 
         if matches!(return_type, JavaType::Double | JavaType::Long) {
-            Ok(JavaValue::from_raw64(result.result, result.result_high, &return_type))
+            Ok(codec.decode_wide(result.result, result.result_high, &return_type))
         } else {
-            Ok(JavaValue::from_raw(result.result, &return_type, &core))
+            Ok(codec.decode_word(result.result, &return_type))
         }
     }
 
@@ -385,13 +378,7 @@ where
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
-        let double_long_count = self
-            .parameter_types
-            .iter()
-            .filter(|x| matches!(x, JavaType::Double | JavaType::Long))
-            .count();
-
-        let param_count = self.parameter_types.len() + double_long_count;
+        let param_count = method_argument_slot_count(&self.parameter_types);
 
         let raw_args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
             let param_base = u32::get(core, 1);
@@ -402,21 +389,8 @@ where
             (0..param_count).map(|x| u32::get(core, x + 1)).collect::<Vec<_>>()
         };
 
-        let mut args = Vec::with_capacity(self.parameter_types.len());
-
-        let mut it = raw_args.into_iter();
-        for param in self.parameter_types.iter() {
-            let arg = it.next().unwrap();
-
-            let value = if matches!(param, JavaType::Double | JavaType::Long) {
-                let arg_high = it.next().unwrap();
-
-                JavaValue::from_raw64(arg, arg_high, param)
-            } else {
-                JavaValue::from_raw(arg, param, core)
-            };
-            args.push(value);
-        }
+        let codec = JavaValueCodec::new(core);
+        let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
 
         let mut context = self.context.clone();
         let (_, lr) = core.read_pc_lr()?;
@@ -432,10 +406,10 @@ where
         }
 
         let result = if matches!(self.return_type, JavaType::Double | JavaType::Long) {
-            let (result, result_high) = result.unwrap().as_raw64();
+            let (result, result_high) = codec.encode_wide(&result.unwrap());
             vec![result, result_high]
         } else {
-            vec![result.unwrap().as_raw()]
+            vec![codec.encode_word(&result.unwrap())]
         };
 
         Ok(JavaMethodResult { result, next_pc: None })

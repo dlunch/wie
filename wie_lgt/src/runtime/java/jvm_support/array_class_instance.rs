@@ -8,9 +8,10 @@ use core::{
 use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition, ClassInstance, Field, JavaValue, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
+use wie_jvm_support::native::{decode_array_values, encode_array_values};
 use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
 
-use super::{ClassRegistry, JavaArrayClassDefinition, JavaClassInstance, Result, value::JavaValueExt};
+use super::{ClassRegistry, JavaArrayClassDefinition, JavaClassInstance, Result, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
@@ -116,23 +117,11 @@ impl ClassInstance for JavaArrayClassInstance {
 impl ArrayClassInstance for JavaArrayClassInstance {
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
         let element_size = self.class.element_size();
-        let bytes = match element_size {
-            1 => values.iter().map(JavaValueExt::as_raw).map(|x| x as u8).collect::<Vec<_>>(),
-            2 => values
-                .iter()
-                .map(JavaValueExt::as_raw)
-                .flat_map(|x| (x as u16).to_le_bytes())
-                .collect::<Vec<_>>(),
-            4 => values.iter().map(JavaValueExt::as_raw).flat_map(u32::to_le_bytes).collect::<Vec<_>>(),
-            8 => values
-                .iter()
-                .flat_map(|value| {
-                    let (low, high) = value.as_raw64();
-                    (((high as u64) << 32) | low as u64).to_le_bytes()
-                })
-                .collect::<Vec<_>>(),
-            _ => unreachable!(),
-        };
+        let bytes = encode_array_values(
+            &JavaValueCodec::new(&self.core, self.class.class.registry()),
+            &self.class.element_type(),
+            &values,
+        );
         self.store_raw(offset * element_size, &bytes).unwrap();
         Ok(())
     }
@@ -143,34 +132,11 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         self.load_raw(offset * element_size, &mut bytes).unwrap();
         let element_type = self.class.element_type();
 
-        Ok(match element_size {
-            1 => bytes
-                .into_iter()
-                .map(|value| JavaValue::from_raw(value as u32, &element_type, &self.core, self.class.class.registry()))
-                .collect(),
-            2 => bytes
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|value| JavaValue::from_raw(u16::from_le_bytes(*value) as u32, &element_type, &self.core, self.class.class.registry()))
-                .collect(),
-            4 => bytes
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|value| JavaValue::from_raw(u32::from_le_bytes(*value), &element_type, &self.core, self.class.class.registry()))
-                .collect(),
-            8 => bytes
-                .as_chunks::<8>()
-                .0
-                .iter()
-                .map(|value| {
-                    let value = u64::from_le_bytes(*value);
-                    JavaValue::from_raw64(value as u32, (value >> 32) as u32, &element_type)
-                })
-                .collect(),
-            _ => unreachable!(),
-        })
+        Ok(decode_array_values(
+            &JavaValueCodec::new(&self.core, self.class.class.registry()),
+            &element_type,
+            &bytes,
+        ))
     }
 
     fn raw_buffer(&self) -> JvmResult<Box<dyn ArrayRawBuffer>> {

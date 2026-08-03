@@ -7,14 +7,12 @@ use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult};
+use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_slot_count};
 use wie_util::{WieError, read_generic, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
-use super::{
-    ClassRegistry, Result,
-    value::{JavaValueExt, class_instance_from_raw, class_instance_raw},
-};
+use super::{ClassRegistry, Result, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaMethod {
@@ -47,11 +45,8 @@ impl JavaMethod {
 
         let method_type = JavaType::parse(&proto.descriptor);
         let (parameter_types, _) = method_type.as_method();
-        let argument_slot_count = parameter_types
-            .iter()
-            .map(|x| if matches!(x, JavaType::Double | JavaType::Long) { 2 } else { 1 })
-            .sum::<u16>()
-            + u16::from(!proto.access_flags.contains(MethodAccessFlags::STATIC));
+        let argument_slot_count =
+            method_argument_slot_count(parameter_types) as u16 + u16::from(!proto.access_flags.contains(MethodAccessFlags::STATIC));
         let access_flags = proto.access_flags;
         let target = Self::register_java_method(core, jvm, ptr_raw, proto, context, functions, registry.clone())?;
 
@@ -93,24 +88,16 @@ impl JavaMethod {
     async fn run_async(&self, args: Box<[JavaValue]>) -> Result<JavaValue> {
         let raw = self.raw()?;
         let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
-        let mut raw_args = Vec::new();
-        for arg in args.iter() {
-            if matches!(arg, JavaValue::Double(_) | JavaValue::Long(_)) {
-                let (low, high) = arg.as_raw64();
-                raw_args.push(low);
-                raw_args.push(high);
-            } else {
-                raw_args.push(arg.as_raw());
-            }
-        }
+        let codec = JavaValueCodec::new(&self.core, &self.registry);
+        let raw_args = encode_method_arguments(&codec, &args);
 
         let mut core = self.core.clone();
         let result: JavaMethodRunResult = core.run_function(raw.ptr_method, &raw_args).await?;
 
         if matches!(return_type, JavaType::Double | JavaType::Long) {
-            Ok(JavaValue::from_raw64(result.low, result.high, &return_type))
+            Ok(codec.decode_wide(result.low, result.high, &return_type))
         } else {
-            Ok(JavaValue::from_raw(result.low, &return_type, &core, &self.registry))
+            Ok(codec.decode_word(result.low, &return_type))
         }
     }
 
@@ -164,7 +151,9 @@ impl Method for JavaMethod {
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
         match self.run_async(args).await {
             Ok(value) => Ok(value),
-            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(class_instance_from_raw(ptr_raw, &self.core, &self.registry))),
+            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(
+                JavaValueCodec::new(&self.core, &self.registry).object_from_raw(ptr_raw),
+            )),
             Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
         }
     }
@@ -200,38 +189,25 @@ where
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
-        let parameter_slot_count = self
-            .parameter_types
-            .iter()
-            .map(|x| if matches!(x, JavaType::Double | JavaType::Long) { 2 } else { 1 })
-            .sum::<usize>();
+        let parameter_slot_count = method_argument_slot_count(&self.parameter_types);
         let raw_args = (0..parameter_slot_count)
             .map(|index| <u32 as EmulatedFunctionParam<u32>>::get(core, index))
             .collect::<Vec<_>>();
 
-        let mut raw_args = raw_args.into_iter();
-        let mut args = Vec::with_capacity(self.parameter_types.len());
-        for parameter_type in &self.parameter_types {
-            let low = raw_args.next().unwrap();
-            let value = if matches!(parameter_type, JavaType::Double | JavaType::Long) {
-                JavaValue::from_raw64(low, raw_args.next().unwrap(), parameter_type)
-            } else {
-                JavaValue::from_raw(low, parameter_type, core, &self.registry)
-            };
-            args.push(value);
-        }
+        let codec = JavaValueCodec::new(core, &self.registry);
+        let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
 
         let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
         let result = match result {
             Ok(value) => value,
-            Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(class_instance_raw(&*instance))),
+            Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),
         };
 
         let result = if matches!(self.return_type, JavaType::Double | JavaType::Long) {
-            let (low, high) = result.as_raw64();
+            let (low, high) = codec.encode_wide(&result);
             vec![low, high]
         } else {
-            vec![result.as_raw()]
+            vec![codec.encode_word(&result)]
         };
 
         Ok(JavaMethodResult { result })

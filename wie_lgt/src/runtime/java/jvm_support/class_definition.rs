@@ -18,11 +18,12 @@ use wipi_types::lgt::java::{
 };
 
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::native::NativeJavaValueCodec;
 use wie_util::{ByteWrite, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
 
 use crate::runtime::java::JavaSvcFunctions;
 
-use super::{JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result, value::JavaValueExt, vtable::JavaVtable};
+use super::{JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result, value::JavaValueCodec, vtable::JavaVtable};
 
 pub(super) type ClassRegistry = Arc<Mutex<BTreeMap<u32, Weak<ClassMetadata>>>>;
 
@@ -394,23 +395,25 @@ impl ClassDefinition for JavaClassDefinition {
         let field_type = JavaType::parse(&field.descriptor());
         let address = field.static_address().unwrap();
         let low = read_generic(&self.core, address).unwrap();
+        let codec = JavaValueCodec::new(&self.core, &self.registry);
         Ok(if matches!(field_type, JavaType::Long | JavaType::Double) {
             let high = read_generic(&self.core, address + 4).unwrap();
-            JavaValue::from_raw64(low, high, &field_type)
+            codec.decode_wide(low, high, &field_type)
         } else {
-            JavaValue::from_raw(low, &field_type, &self.core, &self.registry)
+            codec.decode_word(low, &field_type)
         })
     }
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let address = field.static_address().unwrap();
+        let codec = JavaValueCodec::new(&self.core, &self.registry);
         if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {
-            let (low, high) = value.as_raw64();
+            let (low, high) = codec.encode_wide(&value);
             write_generic(&mut self.core, address, low).unwrap();
             write_generic(&mut self.core, address + 4, high).unwrap();
         } else {
-            write_generic(&mut self.core, address, value.as_raw()).unwrap();
+            write_generic(&mut self.core, address, codec.encode_word(&value)).unwrap();
         }
         Ok(())
     }

@@ -4,6 +4,7 @@ use core::fmt::{self, Debug, Formatter};
 use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
 
 use wie_core_arm::ArmCore;
+use wie_jvm_support::native::array_element_size;
 
 use super::{ClassRegistry, JavaArrayClassInstance, JavaClassDefinition, Result};
 
@@ -34,13 +35,7 @@ impl JavaArrayClassDefinition {
     }
 
     pub fn element_size(&self) -> usize {
-        match JavaType::parse(&self.element_type_name) {
-            JavaType::Boolean | JavaType::Byte => 1,
-            JavaType::Char | JavaType::Short => 2,
-            JavaType::Int | JavaType::Float | JavaType::Class(_) | JavaType::Array(_) => 4,
-            JavaType::Long | JavaType::Double => 8,
-            JavaType::Void | JavaType::Method(_, _) => unreachable!(),
-        }
+        array_element_size(&self.element_type())
     }
 
     pub fn element_type(&self) -> JavaType {
