@@ -84,18 +84,45 @@ generated class record
   +0x08 -> generated class descriptor
 
 generated class descriptor
+  +0x00 Java class access flags
+  +0x04 -> next generated class record, or zero at the end of the list
   +0x08 -> class name
+  +0x0c -> class word in the instance-field-initializer record, when present
   +0x10 -> superclass name
-  +0x2c -> generated callback
-  +0x30 -> generated callback
-  +0x34 -> generated callback
+  +0x18 u16: total instance field slots including inherited fields
+  +0x1a u16: generated-class link state
+  +0x20 -> instance-field-initializer record, when present
+  +0x28 -> implemented-interface name table, when present
+  +0x2c -> member-linking callback
+  +0x30 -> initialized-class lookup callback
+  +0x34 -> runtime-class lookup callback
   +0x38 -> method table
   +0x3c -> field table
 ```
 
-A generated field record contains pointers to the declaring class, field name, and descriptor together with metadata words and a mutable field-slot index.
+The three callbacks form two related paths:
 
-A generated method record contains pointers to the declaring class, method name, and descriptor together with metadata words and a generated Thumb method pointer. One metadata word correlates with the Java argument slot count, including `this` for instance methods.
+```text
+runtime-class lookup
+  register the generated class if its link state is not ready
+  resolve its runtime class from the generated class record and runtime context
+
+initialized-class lookup
+  obtain the runtime class
+  run the generated class initializer if its initialization state is not ready
+
+member linking
+  match the runtime class to an exported generated-class record
+  link its fields and methods and patch the generated slot tables
+```
+
+The member-linking callback is empty for classes that do not export members. It is not the Java class initializer. The instance field initializer referenced by the descriptor writes initial values to a newly created object's fields; it is separate from the `<init>` constructor method. The class initializer passed to Java import `0x0d` manages static class initialization.
+
+Generated interface metadata has a different descriptor form. Its access flags include `ACC_INTERFACE | ACC_ABSTRACT`, but the descriptor pointer and callback fields do not follow the concrete-class offsets above and require separate layout analysis.
+
+A generated field record contains pointers to the declaring class, field name, and descriptor together with flags, an unknown metadata word, and a mutable field slot.
+
+A generated method record contains pointers to the declaring class, method name, and descriptor together with access flags, the Java argument slot count, additional metadata, and a generated Thumb method pointer. The argument slot count includes `this` for instance methods.
 
 ### Object layout and dispatch
 
@@ -103,20 +130,27 @@ Generated objects use this layout:
 
 ```text
 generated object record
-  +0x00 -> vtable/method pointer array
+  +0x00 -> class dispatch table
   +0x04 unknown runtime word
   +0x08 -> field slot array
+
+class dispatch table
+  +0x00 unknown or reserved
+  +0x04 virtual method slot 0
+  +0x08 virtual method slot 1
+  ...
 ```
 
 Generated instance methods access fields and virtual methods directly:
 
 ```text
 value = this->fields[field_slot]
-target = object->vtable[virtual_method_slot + 1]
+dispatch_table = *(u32 **)object
+target = dispatch_table[virtual_method_slot + 1]
 target(object, ...)
 ```
 
-Field and virtual-method slots are patched during linking. The purpose of the leading vtable entry is not yet known.
+Field and virtual-method slots are patched during linking. Generated dynamic-call sequences explicitly add four bytes between the dispatch-table base and virtual method slot zero. The purpose of the leading table entry is not yet known.
 
 ## Link-time metadata
 
@@ -126,27 +160,25 @@ The generated image contains three class collections:
 - a collection of external Java and WIPI classes referenced by generated code;
 - a collection of generated classes whose members are exported for cross-class linking.
 
-Each imported-class record divides flat name/descriptor tables into per-class ranges for static fields, virtual methods, and static methods.
+Each imported or exported class record divides flat name/descriptor tables into per-class ranges for instance fields, static fields, virtual methods, interface methods, and non-virtual methods.
 
 Java import `0x14` receives 11 pointers to generated input tables and patch output areas:
 
 | Argument | Table or role | Confidence |
 | ---: | --- | --- |
-| `r0` | imported classes | Observed |
-| `r1` | field name/descriptor pairs | Observed |
-| `r2` | static field name/descriptor pairs | Observed |
-| `r3` | virtual method name/descriptor pairs | Observed |
-| stack 0 | additional method metadata | Unknown |
-| stack 1 | static method imports | Observed |
-| stack 2 | output or offset base | Unknown |
-| stack 3 | field slot output | Inferred |
-| stack 4 | virtual method slot output | Inferred |
-| stack 5 | imported static method output | Inferred |
-| stack 6 | imported class or method target output | Unknown |
+| `r0` | imported class records | Observed |
+| `r1` | instance-field imports | Observed |
+| `r2` | static-field imports | Observed |
+| `r3` | virtual-method imports | Observed |
+| stack 0 | interface-method imports | Inferred |
+| stack 1 | non-virtual method imports | Observed |
+| stack 2 | instance-field slot outputs | Inferred |
+| stack 3 | static-field slot outputs | Inferred |
+| stack 4 | virtual-method slot outputs | Observed |
+| stack 5 | interface-method slot outputs | Inferred |
+| stack 6 | non-virtual method target outputs | Observed |
 
-The Java runtime resolves each class and member by name and descriptor, then writes field slots, vtable slots, static storage references, or callable targets into the corresponding output tables. Generated methods consume these patched values directly.
-
-Output tables for field and virtual-method slots use `u16` entries rather than byte or host-sized offsets.
+The Java runtime resolves each class and member by name and descriptor, then writes field slots, virtual method slots, or callable targets into the corresponding output tables. Non-virtual method imports include constructors, static methods, and other calls whose target can be resolved without receiver-based dispatch. Slot outputs are `u16`; non-virtual method targets are ARM-callable pointers. Generated methods consume these patched values directly.
 
 ## Java runtime interface
 
@@ -154,43 +186,43 @@ The following table lists the known subset of Java import table `0x64`:
 
 | Index | Observed or inferred role |
 | ---: | --- |
-| `0x03` | bootstrap helper |
-| `0x06` | bootstrap or class helper |
-| `0x07` | establish the generated class table and runtime context |
-| `0x09` | create or cache a Java string from UTF-16 data |
-| `0x0b` | prepare or register a generated class |
-| `0x0c` | obtain a runtime class handle |
-| `0x0d` | ensure class initialization |
+| `0x03` | initialize Java application bootstrap state; exact contract unresolved |
+| `0x06` | destroy the generated Java runtime context |
+| `0x07` | create a runtime context from the generated class collection and runtime metadata |
+| `0x09` | resolve and cache a Java string literal from UTF-16 data |
+| `0x0b` | register or link a generated class record |
+| `0x0c` | resolve a runtime class from a generated class record and runtime context |
+| `0x0d` | ensure class initialization using a generated initializer callback |
 | `0x0e` | obtain an array type |
 | `0x0f` | instantiate an object |
 | `0x10` | instantiate an array |
-| `0x11` | runtime helper |
-| `0x12` | runtime helper |
-| `0x13` | link a public or generated class |
+| `0x11` | no references observed |
+| `0x12` | test whether a caught exception matches a class |
+| `0x13` | link an exported generated class and patch its member slots |
 | `0x14` | link imported classes and members |
-| `0x1f` | frame or exception helper |
-| `0x20` | frame or exception helper |
-| `0x21` | frame or exception helper |
+| `0x1f` | push an exception-handler context |
+| `0x20` | pop an exception-handler context |
+| `0x21` | rethrow the current exception |
 | `0x22` | raise `NullPointerException` |
 | `0x23` | raise an array index exception |
 | `0x25` | raise an arithmetic exception |
 | `0x54` | generated method prologue |
-| `0x55` | companion frame or runtime helper |
-| `0x61` | runtime helper |
-| `0x82` | Java application bootstrap setup |
-| `0x83` | invoke or start the Java application |
-| `0xe1` | runtime helper |
-| `0xe2` | runtime helper |
-| `0xfa` | runtime helper |
+| `0x55` | generated-code safepoint or runtime poll |
+| `0x61` | store a reference-array element with runtime checks or barriers |
+| `0x82` | set the Java application JAR path |
+| `0x83` | start the Java application entry class |
+| `0xe1` | obtain the `java/lang/String` runtime class |
+| `0xe2` | obtain the `[Ljava/lang/String;` runtime array type |
+| `0xfa` | no references observed |
 
 ## ABI details
 
 - Instance methods pass `this` in `r0`; later arguments follow the ARM calling convention.
 - Static methods, 64-bit argument alignment, and native-method wrappers require further confirmation.
-- Class descriptors contain several unknown fields and three generated callback pointers.
-- One descriptor value appears to represent total inherited instance field slots rather than the declared field count.
+- Concrete class descriptors contain additional packed metadata and runtime state whose roles are not yet known.
+- The descriptor's instance field slot count includes inherited fields rather than only declared fields.
 - Generated Java string imports receive UTF-16 data together with a cache or output slot.
 - Class initialization state is visible to generated code and is managed separately from metadata registration.
-- Generated method prologue and exception helpers maintain ARM frame state used by Java exception paths.
+- Generated method prologue, safepoint, and exception helpers maintain runtime state around generated ARM code.
 - The raw array header and data layout are not yet known.
 - Static Java storage and imported static member targets occupy ARM-visible slots patched during linking.

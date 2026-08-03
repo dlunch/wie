@@ -14,7 +14,10 @@ use super::{
     SVC_CATEGORY_INIT, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPIC,
     java::{
         get_java_interface_method,
-        interface::{java_load_classes, java_unk0, java_unk5, java_unk9, java_unk11, java_unk12},
+        interface::{
+            java_create_runtime_context, java_destroy_runtime_context, java_link_imported_classes, java_set_jar_path, java_start_application,
+            java_unk0,
+        },
     },
     stdlib::register_stdlib_svc_handler,
     svc_ids::InitSvcId,
@@ -34,16 +37,18 @@ async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): 
             .await?
             .write(core, lr),
         InitSvcId::Unk0 => EmulatedFunction::call(&unk0, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaUnk7 => EmulatedFunction::call(&java_unk7, core, &mut ()).await?.write(core, lr),
+        InitSvcId::GetApplicationJarPath => EmulatedFunction::call(&get_application_jar_path, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk1 => EmulatedFunction::call(&java_unk1, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk2 => EmulatedFunction::call(&java_unk2, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaUnk3 => EmulatedFunction::call(&java_unk3, core, &mut ()).await?.write(core, lr),
         InitSvcId::JavaInterfaceUnk0 => EmulatedFunction::call(&java_unk0, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaInterfaceUnk12 => EmulatedFunction::call(&java_unk12, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaInterfaceUnk5 => EmulatedFunction::call(&java_unk5, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaLoadClasses => EmulatedFunction::call(&java_load_classes, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaUnk9 => EmulatedFunction::call(&java_unk9, core, &mut ()).await?.write(core, lr),
-        InitSvcId::JavaUnk11 => EmulatedFunction::call(&java_unk11, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaDestroyRuntimeContext => EmulatedFunction::call(&java_destroy_runtime_context, core, &mut ())
+            .await?
+            .write(core, lr),
+        InitSvcId::JavaCreateRuntimeContext => EmulatedFunction::call(&java_create_runtime_context, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaLinkImportedClasses => EmulatedFunction::call(&java_link_imported_classes, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaSetJarPath => EmulatedFunction::call(&java_set_jar_path, core, &mut ()).await?.write(core, lr),
+        InitSvcId::JavaStartApplication => EmulatedFunction::call(&java_start_application, core, &mut ()).await?.write(core, lr),
     }
 }
 
@@ -109,7 +114,7 @@ async fn get_import_function(core: &mut ArmCore, wipic_category: u32, stdlib_cat
 
     Ok(match (import_table, function_index) {
         (0x1f8, 0x16) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::Unk0)?,
-        (0x1f8, 0x17) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk7)?,
+        (0x1f8, 0x17) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetApplicationJarPath)?,
         (0x1fc, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk1)?,
         (0x1ff, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk2)?,
         (0x201, 0x03) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaUnk3)?,
@@ -186,10 +191,8 @@ async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -
     Ok(())
 }
 
-async fn java_unk7(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<u32> {
-    tracing::warn!("java_unk7({a0:#x}, {a1:#x}, {a2:#x})");
+async fn get_application_jar_path(_core: &mut ArmCore, _: &mut (), a0: u32, capacity: u32, path_output: u32) -> Result<u32> {
+    tracing::warn!("stub get_application_jar_path({a0:#x}, {capacity}, {path_output:#x})");
 
-    // get jar path?
-
-    Ok(0 as _)
+    Ok(0)
 }
