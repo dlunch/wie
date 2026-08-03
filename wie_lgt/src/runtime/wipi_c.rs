@@ -39,12 +39,12 @@ struct CMethodProxy {
     body: WIPICMethodBody,
 }
 
-async fn handle_wipic_svc(core: &mut ArmCore, context: &mut (System, Jvm), id: SvcId) -> Result<()> {
-    let wipic_context = LgtWIPICContext::new(core.clone(), context.0.clone(), context.1.clone());
+async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
+    let wipic_context = LgtWIPICContext::new(core.clone(), system.clone(), jvm.clone());
     let (_, lr) = core.read_pc_lr()?;
     let method = match WIPICSvcId::try_from(id)? {
         WIPICSvcId::CletRegister => {
-            return EmulatedFunction::call(&clet_register, core, context).await?.write(core, lr);
+            return EmulatedFunction::call(&clet_register, core, jvm).await?.write(core, lr);
         }
         WIPICSvcId::GetFramebufferPointer => graphics::get_framebuffer_pointer.into_body(),
         WIPICSvcId::GetFramebufferWidth => graphics::get_framebuffer_width.into_body(),
@@ -180,12 +180,10 @@ pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm
     core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, &(system.clone(), jvm.clone()))
 }
 
-async fn clet_register(core: &mut ArmCore, context: &mut (System, Jvm), function_table: u32, a1: u32) -> Result<()> {
+async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
     let functions: CletFunctions = read_generic(core, function_table)?;
-
-    let jvm = &context.1;
 
     jvm.put_static_field("net/wie/CletWrapper", "startClet", "I", functions.start_clet as i32)
         .await
