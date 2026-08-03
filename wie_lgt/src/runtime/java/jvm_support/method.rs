@@ -8,7 +8,7 @@ use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult};
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_slot_count};
-use wie_util::{WieError, read_generic, write_generic, write_null_terminated_string_bytes};
+use wie_util::{WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
@@ -77,11 +77,6 @@ impl JavaMethod {
         Ok(self.raw()?.ptr_method)
     }
 
-    fn read_string(&self, address: u32) -> String {
-        let bytes = wie_util::read_null_terminated_string_bytes(&self.core, address).unwrap();
-        String::from_utf8(bytes).unwrap()
-    }
-
     async fn run_async(&self, args: Box<[JavaValue]>) -> Result<JavaValue> {
         let raw = self.raw()?;
         let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
@@ -136,11 +131,11 @@ impl JavaMethod {
 #[async_trait::async_trait]
 impl Method for JavaMethod {
     fn name(&self) -> String {
-        self.read_string(self.raw().unwrap().ptr_name)
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
     }
 
     fn descriptor(&self) -> String {
-        self.read_string(self.raw().unwrap().ptr_descriptor)
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {

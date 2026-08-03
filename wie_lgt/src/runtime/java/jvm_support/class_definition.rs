@@ -93,15 +93,33 @@ impl JavaClassDefinition {
         let class_storage_size = size_of::<RawJavaClass>() + (static_field_slot_count + virtual_method_count + 1) * size_of::<LgtJvmWord>();
         let ptr_raw = Allocator::alloc(core, class_storage_size as u32)?;
         core.write_bytes(ptr_raw, &vec![0; class_storage_size])?;
-        let ptr_name = Self::allocate_string(core, proto.name)?;
+        let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
+        write_null_terminated_string_bytes(core, ptr_name, proto.name.as_bytes())?;
         let ptr_super_class_name = if let Some(parent_class) = &parent_class {
-            Self::allocate_string(core, &ClassDefinition::name(parent_class))?
+            let parent_name = ClassDefinition::name(parent_class);
+            let ptr_parent_name = Allocator::alloc(core, (parent_name.len() + 1) as u32)?;
+            write_null_terminated_string_bytes(core, ptr_parent_name, parent_name.as_bytes())?;
+            ptr_parent_name
         } else {
             0
         };
 
-        let interface_names = proto.interfaces.iter().map(|x| (*x).to_string()).collect::<Vec<_>>();
-        let ptr_interface_names = Self::allocate_string_table(core, &interface_names)?;
+        let interface_name_pointers = proto
+            .interfaces
+            .iter()
+            .map(|interface_name| {
+                let address = Allocator::alloc(core, (interface_name.len() + 1) as u32)?;
+                write_null_terminated_string_bytes(core, address, interface_name.as_bytes())?;
+                Ok(address)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let ptr_interface_names = if interface_name_pointers.is_empty() {
+            0
+        } else {
+            let address = Allocator::alloc(core, ((interface_name_pointers.len() + 1) * size_of::<u32>()) as u32)?;
+            write_null_terminated_table(core, address, &interface_name_pointers)?;
+            address
+        };
 
         let ptr_methods = if proto.methods.is_empty() {
             0
@@ -215,10 +233,20 @@ impl JavaClassDefinition {
         let class_storage_size = size_of::<RawJavaClass>() + (virtual_method_count + 1) * size_of::<LgtJvmWord>();
         let ptr_raw = Allocator::alloc(core, class_storage_size as u32)?;
         core.write_bytes(ptr_raw, &vec![0; class_storage_size])?;
-        let ptr_name = Self::allocate_string(core, name)?;
-        let ptr_super_class_name = Self::allocate_string(core, "java/lang/Object")?;
-        let interface_names = vec!["java/lang/Cloneable".to_string(), "java/io/Serializable".to_string()];
-        let ptr_interface_names = Self::allocate_string_table(core, &interface_names)?;
+        let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
+        write_null_terminated_string_bytes(core, ptr_name, name.as_bytes())?;
+        let ptr_super_class_name = Allocator::alloc(core, "java/lang/Object".len() as u32 + 1)?;
+        write_null_terminated_string_bytes(core, ptr_super_class_name, b"java/lang/Object")?;
+        let interface_name_pointers = ["java/lang/Cloneable", "java/io/Serializable"]
+            .iter()
+            .map(|interface_name| {
+                let address = Allocator::alloc(core, (interface_name.len() + 1) as u32)?;
+                write_null_terminated_string_bytes(core, address, interface_name.as_bytes())?;
+                Ok(address)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let ptr_interface_names = Allocator::alloc(core, ((interface_name_pointers.len() + 1) * size_of::<u32>()) as u32)?;
+        write_null_terminated_table(core, ptr_interface_names, &interface_name_pointers)?;
         let ptr_dispatch_table = ptr_raw + size_of::<RawJavaClass>() as u32;
         JavaVtable::write(core, ptr_dispatch_table, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
@@ -264,35 +292,12 @@ impl JavaClassDefinition {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    fn allocate_string(core: &mut ArmCore, value: &str) -> Result<u32> {
-        let address = Allocator::alloc(core, (value.len() + 1) as u32)?;
-        write_null_terminated_string_bytes(core, address, value.as_bytes())?;
-        Ok(address)
-    }
-
-    fn allocate_string_table(core: &mut ArmCore, values: &[String]) -> Result<u32> {
-        if values.is_empty() {
-            return Ok(0);
-        }
-        let pointers = values
-            .iter()
-            .map(|value| Self::allocate_string(core, value))
-            .collect::<Result<Vec<_>>>()?;
-        let address = Allocator::alloc(core, ((pointers.len() + 1) * size_of::<u32>()) as u32)?;
-        write_null_terminated_table(core, address, &pointers)?;
-        Ok(address)
-    }
-
     fn raw(&self) -> Result<RawJavaClass> {
         read_generic(&self.core, self.ptr_raw)
     }
 
     fn descriptor(&self) -> Result<RawJavaClassDescriptor> {
         read_generic(&self.core, self.raw()?.ptr_descriptor)
-    }
-
-    fn read_string(&self, address: u32) -> Result<String> {
-        Ok(String::from_utf8(read_null_terminated_string_bytes(&self.core, address)?).unwrap())
     }
 
     fn methods(&self) -> Result<Vec<JavaMethod>> {
@@ -371,12 +376,12 @@ impl JavaClassDefinition {
 #[async_trait::async_trait]
 impl ClassDefinition for JavaClassDefinition {
     fn name(&self) -> String {
-        self.read_string(self.descriptor().unwrap().ptr_name).unwrap()
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.descriptor().unwrap().ptr_name).unwrap()).unwrap()
     }
 
     fn super_class_name(&self) -> Option<String> {
         let ptr_name = self.descriptor().unwrap().ptr_super_class_name;
-        (ptr_name != 0).then(|| self.read_string(ptr_name).unwrap())
+        (ptr_name != 0).then(|| String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap())
     }
 
     fn interface_names(&self) -> Vec<String> {
@@ -387,7 +392,7 @@ impl ClassDefinition for JavaClassDefinition {
         read_null_terminated_table(&self.core, ptr_names)
             .unwrap()
             .into_iter()
-            .map(|ptr_name| self.read_string(ptr_name).unwrap())
+            .map(|ptr_name| String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap())
             .collect()
     }
 
