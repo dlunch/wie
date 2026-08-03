@@ -5,28 +5,24 @@ use jvm::ClassInstance;
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::NativeJavaValueCodec;
 
-use super::{ClassRegistry, JavaArrayClassInstance, JavaClassInstance};
+use super::{JavaArrayClassInstance, JavaClassInstance};
 
 #[derive(Clone)]
 pub struct JavaValueCodec {
     core: ArmCore,
-    registry: ClassRegistry,
 }
 
 impl JavaValueCodec {
-    pub fn new(core: &ArmCore, registry: &ClassRegistry) -> Self {
-        Self {
-            core: core.clone(),
-            registry: registry.clone(),
-        }
+    pub fn new(core: &ArmCore) -> Self {
+        Self { core: core.clone() }
     }
 }
 
 impl NativeJavaValueCodec for JavaValueCodec {
     fn object_from_raw(&self, raw: u32) -> Box<dyn ClassInstance> {
-        let instance = JavaClassInstance::from_raw(raw, &self.core, &self.registry);
-        if jvm::ClassDefinition::name(instance.class()).starts_with('[') {
-            Box::new(JavaArrayClassInstance::from_raw(raw, &self.core, &self.registry))
+        let instance = JavaClassInstance::from_raw(raw, &self.core);
+        if jvm::ClassDefinition::name(&instance.class().unwrap()).starts_with('[') {
+            Box::new(JavaArrayClassInstance::from_raw(raw, &self.core))
         } else {
             Box::new(instance)
         }

@@ -18,25 +18,16 @@ use super::{JavaClassDefinition, JavaField, LgtJvmWord, Result, value::JavaValue
 #[derive(Clone)]
 pub struct JavaClassInstance {
     pub ptr_raw: u32,
-    class: JavaClassDefinition,
     core: ArmCore,
 }
 
 impl JavaClassInstance {
-    pub fn from_raw(ptr_raw: u32, core: &ArmCore, registry: &super::ClassRegistry) -> Self {
-        let ptr_dispatch_table = read_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32).unwrap();
-        let ptr_class = read_generic(core, ptr_dispatch_table).unwrap();
-        let class = JavaClassDefinition::from_raw(ptr_class, core, registry);
-
-        Self {
-            ptr_raw,
-            class,
-            core: core.clone(),
-        }
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub fn new(core: &mut ArmCore, class: &JavaClassDefinition) -> Result<Self> {
-        Self::instantiate(core, class, class.instance_field_slot_count() * size_of::<LgtJvmWord>())
+        Self::instantiate(core, class, class.instance_field_slot_count()? * size_of::<LgtJvmWord>())
     }
 
     pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
@@ -48,16 +39,12 @@ impl JavaClassInstance {
         write_generic(
             core,
             ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32,
-            class.ptr_dispatch_table(),
+            class.ptr_dispatch_table()?,
         )?;
         write_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, unk1) as u32, 0u32)?;
         write_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32, ptr_fields)?;
 
-        Ok(Self {
-            ptr_raw,
-            class: class.clone(),
-            core: core.clone(),
-        })
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     pub(super) fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
@@ -66,8 +53,10 @@ impl JavaClassInstance {
         Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as u32)
     }
 
-    pub fn class(&self) -> &JavaClassDefinition {
-        &self.class
+    pub fn class(&self) -> Result<JavaClassDefinition> {
+        let ptr_dispatch_table = read_generic(&self.core, self.ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32)?;
+        let ptr_class = read_generic(&self.core, ptr_dispatch_table)?;
+        Ok(JavaClassDefinition::from_raw(ptr_class, &self.core))
     }
 
     pub(super) fn ptr_fields(&self) -> Result<u32> {
@@ -86,7 +75,7 @@ impl JavaClassInstance {
 #[async_trait::async_trait]
 impl ClassInstance for JavaClassInstance {
     fn destroy(self: Box<Self>) {
-        let storage_size = self.class.instance_field_slot_count() * size_of::<LgtJvmWord>();
+        let storage_size = self.class().unwrap().instance_field_slot_count().unwrap() * size_of::<LgtJvmWord>();
         (*self).destroy_with_storage(storage_size).unwrap();
     }
 
@@ -95,9 +84,10 @@ impl ClassInstance for JavaClassInstance {
     }
 
     fn shallow_clone(&self) -> JvmResult<Box<dyn ClassInstance>> {
-        let storage_size = self.class.instance_field_slot_count() * size_of::<LgtJvmWord>();
+        let class = self.class().unwrap();
+        let storage_size = class.instance_field_slot_count().unwrap() * size_of::<LgtJvmWord>();
         let mut core = self.core.clone();
-        let instance = Self::instantiate(&mut core, &self.class, storage_size).unwrap();
+        let instance = Self::instantiate(&mut core, &class, storage_size).unwrap();
         let mut fields = vec![0; storage_size];
         if storage_size != 0 {
             core.read_bytes(self.ptr_fields().unwrap(), &mut fields).unwrap();
@@ -107,7 +97,7 @@ impl ClassInstance for JavaClassInstance {
     }
 
     fn class_definition(&self) -> Box<dyn ClassDefinition> {
-        Box::new(self.class.clone())
+        Box::new(self.class().unwrap())
     }
 
     fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
@@ -123,7 +113,7 @@ impl ClassInstance for JavaClassInstance {
         let field_type = JavaType::parse(&field.descriptor());
         let address = self.field_address(field.slot().unwrap()).unwrap();
         let low = read_generic(&self.core, address).unwrap();
-        let codec = JavaValueCodec::new(&self.core, self.class.registry());
+        let codec = JavaValueCodec::new(&self.core);
 
         Ok(if matches!(field_type, JavaType::Long | JavaType::Double) {
             let high = read_generic(&self.core, address + 4).unwrap();
@@ -137,7 +127,7 @@ impl ClassInstance for JavaClassInstance {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         debug_assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
         let address = self.field_address(field.slot().unwrap()).unwrap();
-        let codec = JavaValueCodec::new(&self.core, self.class.registry());
+        let codec = JavaValueCodec::new(&self.core);
 
         if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {
             let (low, high) = codec.encode_wide(&value);

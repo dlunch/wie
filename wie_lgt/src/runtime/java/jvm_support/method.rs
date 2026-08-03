@@ -12,17 +12,19 @@ use wie_util::{WieError, read_generic, write_generic, write_null_terminated_stri
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
-use super::{ClassRegistry, Result, value::JavaValueCodec};
+use super::{Result, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaMethod {
     pub ptr_raw: u32,
     core: ArmCore,
-    registry: ClassRegistry,
 }
 
 impl JavaMethod {
-    #[allow(clippy::too_many_arguments)]
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
+    }
+
     pub fn new<C, Context>(
         core: &mut ArmCore,
         jvm: &Jvm,
@@ -31,7 +33,6 @@ impl JavaMethod {
         proto: JavaMethodProto<C>,
         context: Context,
         functions: JavaSvcFunctions,
-        registry: ClassRegistry,
     ) -> Result<Self>
     where
         C: ?Sized + 'static + Send,
@@ -48,7 +49,7 @@ impl JavaMethod {
         let argument_slot_count =
             method_argument_slot_count(parameter_types) as u16 + u16::from(!proto.access_flags.contains(MethodAccessFlags::STATIC));
         let access_flags = proto.access_flags;
-        let target = Self::register_java_method(core, jvm, ptr_raw, proto, context, functions, registry.clone())?;
+        let target = Self::register_java_method(core, jvm, ptr_raw, proto, context, functions)?;
 
         write_generic(
             core,
@@ -65,11 +66,7 @@ impl JavaMethod {
             },
         )?;
 
-        Ok(Self {
-            ptr_raw,
-            core: core.clone(),
-            registry,
-        })
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     fn raw(&self) -> Result<RawJavaMethod> {
@@ -88,7 +85,7 @@ impl JavaMethod {
     async fn run_async(&self, args: Box<[JavaValue]>) -> Result<JavaValue> {
         let raw = self.raw()?;
         let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
-        let codec = JavaValueCodec::new(&self.core, &self.registry);
+        let codec = JavaValueCodec::new(&self.core);
         let raw_args = encode_method_arguments(&codec, &args);
 
         let mut core = self.core.clone();
@@ -108,7 +105,6 @@ impl JavaMethod {
         proto: JavaMethodProto<C>,
         context: Context,
         functions: JavaSvcFunctions,
-        registry: ClassRegistry,
     ) -> Result<u32>
     where
         C: ?Sized + 'static + Send,
@@ -127,7 +123,6 @@ impl JavaMethod {
             context,
             parameter_types,
             return_type: return_type.clone(),
-            registry,
         };
         let proxy = RegisteredFunctionHolder::new(proxy, &());
         functions
@@ -151,9 +146,7 @@ impl Method for JavaMethod {
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
         match self.run_async(args).await {
             Ok(value) => Ok(value),
-            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(
-                JavaValueCodec::new(&self.core, &self.registry).object_from_raw(ptr_raw),
-            )),
+            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
             Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
         }
     }
@@ -179,7 +172,6 @@ where
     context: Context,
     parameter_types: Vec<JavaType>,
     return_type: JavaType,
-    registry: ClassRegistry,
 }
 
 #[async_trait::async_trait]
@@ -194,7 +186,7 @@ where
             .map(|index| <u32 as EmulatedFunctionParam<u32>>::get(core, index))
             .collect::<Vec<_>>();
 
-        let codec = JavaValueCodec::new(core, &self.registry);
+        let codec = JavaValueCodec::new(core);
         let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
 
         let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;

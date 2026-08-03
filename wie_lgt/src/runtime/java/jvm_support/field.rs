@@ -9,17 +9,20 @@ use wipi_types::lgt::java::LgtJavaClassField as RawJavaField;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_generic, write_generic, write_null_terminated_string_bytes};
 
-use super::{ClassRegistry, Result};
+use super::{JavaClassDefinition, Result};
 
 #[derive(Clone)]
 pub struct JavaField {
     pub ptr_raw: u32,
     core: ArmCore,
-    registry: ClassRegistry,
 }
 
 impl JavaField {
-    pub fn new(core: &mut ArmCore, ptr_raw: u32, ptr_class: u32, proto: JavaFieldProto, slot: u32, registry: ClassRegistry) -> Result<Self> {
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
+    }
+
+    pub fn new(core: &mut ArmCore, ptr_raw: u32, ptr_class: u32, proto: JavaFieldProto, slot: u32) -> Result<Self> {
         let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_name, proto.name.as_bytes())?;
 
@@ -39,11 +42,7 @@ impl JavaField {
             },
         )?;
 
-        Ok(Self {
-            ptr_raw,
-            core: core.clone(),
-            registry,
-        })
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     fn raw(&self) -> Result<RawJavaField> {
@@ -56,9 +55,9 @@ impl JavaField {
 
     pub fn static_address(&self) -> Result<u32> {
         let raw = self.raw()?;
-        let metadata = self.registry.lock().get(&raw.ptr_class).unwrap().upgrade().unwrap();
+        let class = JavaClassDefinition::from_raw(raw.ptr_class, &self.core);
 
-        Ok(metadata.ptr_static_fields + raw.slot * 4)
+        Ok(class.ptr_static_fields()? + raw.slot * 4)
     }
 
     fn read_string(&self, address: u32) -> String {

@@ -11,22 +11,18 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::native::{decode_array_values, encode_array_values};
 use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
 
-use super::{ClassRegistry, JavaArrayClassDefinition, JavaClassInstance, Result, value::JavaValueCodec};
+use super::{JavaArrayClassDefinition, JavaClassInstance, Result, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
     pub class_instance: JavaClassInstance,
-    class: JavaArrayClassDefinition,
     core: ArmCore,
 }
 
 impl JavaArrayClassInstance {
-    pub fn from_raw(ptr_raw: u32, core: &ArmCore, registry: &ClassRegistry) -> Self {
-        let class_instance = JavaClassInstance::from_raw(ptr_raw, core, registry);
-        let class = JavaArrayClassDefinition::from_class(class_instance.class().clone(), core);
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
         Self {
-            class_instance,
-            class,
+            class_instance: JavaClassInstance::from_raw(ptr_raw, core),
             core: core.clone(),
         }
     }
@@ -36,15 +32,11 @@ impl JavaArrayClassInstance {
         let class_instance = JavaClassInstance::instantiate(core, &class.class, storage_size)?;
         write_generic(core, class_instance.ptr_fields()?, length as u32)?;
 
-        Ok(Self {
-            class_instance,
-            class: class.clone(),
-            core: core.clone(),
-        })
+        Ok(Self::from_raw(class_instance.ptr_raw, core))
     }
 
     fn storage_size(&self) -> usize {
-        size_of::<u32>() + self.array_length() * self.class.element_size()
+        size_of::<u32>() + self.array_length() * self.element_size()
     }
 
     fn array_length(&self) -> usize {
@@ -54,6 +46,14 @@ impl JavaArrayClassInstance {
 
     fn base_address(&self) -> u32 {
         self.class_instance.storage_address(size_of::<u32>()).unwrap()
+    }
+
+    fn element_size(&self) -> usize {
+        JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core).element_size()
+    }
+
+    fn element_type(&self) -> jvm::JavaType {
+        JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core).element_type()
     }
 
     pub fn load_raw(&self, byte_offset: usize, buffer: &mut [u8]) -> Result<()> {
@@ -79,15 +79,16 @@ impl ClassInstance for JavaArrayClassInstance {
 
     fn shallow_clone(&self) -> JvmResult<Box<dyn ClassInstance>> {
         let mut core = self.core.clone();
-        let mut instance = Self::new(&mut core, &self.class, self.array_length()).unwrap();
-        let mut data = vec![0; self.array_length() * self.class.element_size()];
+        let class = JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core);
+        let mut instance = Self::new(&mut core, &class, self.array_length()).unwrap();
+        let mut data = vec![0; self.array_length() * self.element_size()];
         self.load_raw(0, &mut data).unwrap();
         instance.store_raw(0, &data).unwrap();
         Ok(Box::new(instance))
     }
 
     fn class_definition(&self) -> Box<dyn ClassDefinition> {
-        Box::new(self.class.clone())
+        Box::new(JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core))
     }
 
     fn equals(&self, other: &dyn ClassInstance) -> JvmResult<bool> {
@@ -116,34 +117,26 @@ impl ClassInstance for JavaArrayClassInstance {
 
 impl ArrayClassInstance for JavaArrayClassInstance {
     fn store(&mut self, offset: usize, values: Box<[JavaValue]>) -> JvmResult<()> {
-        let element_size = self.class.element_size();
-        let bytes = encode_array_values(
-            &JavaValueCodec::new(&self.core, self.class.class.registry()),
-            &self.class.element_type(),
-            &values,
-        );
+        let element_size = self.element_size();
+        let bytes = encode_array_values(&JavaValueCodec::new(&self.core), &self.element_type(), &values);
         self.store_raw(offset * element_size, &bytes).unwrap();
         Ok(())
     }
 
     fn load(&self, offset: usize, count: usize) -> JvmResult<Vec<JavaValue>> {
-        let element_size = self.class.element_size();
+        let element_size = self.element_size();
         let mut bytes = vec![0; count * element_size];
         self.load_raw(offset * element_size, &mut bytes).unwrap();
-        let element_type = self.class.element_type();
+        let element_type = self.element_type();
 
-        Ok(decode_array_values(
-            &JavaValueCodec::new(&self.core, self.class.class.registry()),
-            &element_type,
-            &bytes,
-        ))
+        Ok(decode_array_values(&JavaValueCodec::new(&self.core), &element_type, &bytes))
     }
 
     fn raw_buffer(&self) -> JvmResult<Box<dyn ArrayRawBuffer>> {
         Ok(Box::new(ArrayRawBufferImpl {
             core: self.core.clone(),
             base_address: self.base_address(),
-            element_size: self.class.element_size(),
+            element_size: self.element_size(),
         }))
     }
 
@@ -151,7 +144,7 @@ impl ArrayClassInstance for JavaArrayClassInstance {
         Ok(Box::new(ArrayRawBufferImpl {
             core: self.core.clone(),
             base_address: self.base_address(),
-            element_size: self.class.element_size(),
+            element_size: self.element_size(),
         }))
     }
 

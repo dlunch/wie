@@ -6,32 +6,27 @@ use jvm::{ArrayClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResul
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::array_element_size;
 
-use super::{ClassRegistry, JavaArrayClassInstance, JavaClassDefinition, Result};
+use super::{JavaArrayClassInstance, JavaClassDefinition, Result};
 
 #[derive(Clone)]
 pub struct JavaArrayClassDefinition {
     pub class: JavaClassDefinition,
-    element_type_name: String,
     core: ArmCore,
 }
 
 impl JavaArrayClassDefinition {
-    pub async fn new(core: &mut ArmCore, jvm: &Jvm, element_type_name: &str, registry: ClassRegistry) -> Result<Self> {
-        let class = JavaClassDefinition::new_array(core, jvm, &format!("[{element_type_name}"), registry).await?;
-        Ok(Self {
-            class,
-            element_type_name: element_type_name.into(),
-            core: core.clone(),
-        })
+    pub async fn new(core: &mut ArmCore, jvm: &Jvm, element_type_name: &str) -> Result<Self> {
+        let class = JavaClassDefinition::new_array(core, jvm, &format!("[{element_type_name}")).await?;
+        Ok(Self { class, core: core.clone() })
     }
 
     pub fn from_class(class: JavaClassDefinition, core: &ArmCore) -> Self {
-        let name = jvm::ClassDefinition::name(&class);
-        Self {
-            class,
-            element_type_name: name[1..].into(),
-            core: core.clone(),
-        }
+        Self { class, core: core.clone() }
+    }
+
+    fn element_type_descriptor(&self) -> String {
+        let class_name = jvm::ClassDefinition::name(&self.class);
+        class_name[1..].into()
     }
 
     pub fn element_size(&self) -> usize {
@@ -39,14 +34,14 @@ impl JavaArrayClassDefinition {
     }
 
     pub fn element_type(&self) -> JavaType {
-        JavaType::parse(&self.element_type_name)
+        JavaType::parse(&self.element_type_descriptor())
     }
 }
 
 #[async_trait::async_trait]
 impl ArrayClassDefinition for JavaArrayClassDefinition {
     fn element_type_name(&self) -> String {
-        self.element_type_name.clone()
+        self.element_type_descriptor()
     }
 
     async fn instantiate_array(&self, jvm: &Jvm, length: usize) -> JvmResult<Box<dyn ClassInstance>> {
@@ -59,8 +54,6 @@ impl ArrayClassDefinition for JavaArrayClassDefinition {
 
 impl Debug for JavaArrayClassDefinition {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("JavaArrayClassDefinition")
-            .field("element_type_name", &self.element_type_name)
-            .finish()
+        f.debug_struct("JavaArrayClassDefinition").field("class", &self.class).finish()
     }
 }

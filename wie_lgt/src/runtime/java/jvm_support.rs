@@ -11,12 +11,8 @@ mod vtable;
 pub use jvm_implementation::LgtJvmImplementation;
 
 use self::{
-    array_class_definition::JavaArrayClassDefinition,
-    array_class_instance::JavaArrayClassInstance,
-    class_definition::{ClassRegistry, JavaClassDefinition},
-    class_instance::JavaClassInstance,
-    field::JavaField,
-    method::JavaMethod,
+    array_class_definition::JavaArrayClassDefinition, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod,
 };
 
 pub(super) type LgtJvmWord = u32;
@@ -98,7 +94,7 @@ mod tests {
             let ptr_dispatch_table: u32 = read_generic(&core, native_date.ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32)?;
             let ptr_class: u32 = read_generic(&core, ptr_dispatch_table)?;
             let ptr_fields: u32 = read_generic(&core, native_date.ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32)?;
-            assert_eq!(ptr_class, native_date.class().ptr_raw());
+            assert_eq!(ptr_class, native_date.class()?.ptr_raw);
             assert_ne!(ptr_fields, 0);
 
             let mut shorts = jvm.instantiate_array("S", 10).await.unwrap();
@@ -157,19 +153,19 @@ mod tests {
             let child_definition = child_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
             jvm.register_class(child_class, None).await.unwrap();
 
-            let base_slot = base_definition
-                .virtual_methods()
+            let base_methods = base_definition.virtual_methods()?;
+            let child_methods = child_definition.virtual_methods()?;
+            let base_slot = base_methods
                 .iter()
                 .position(|method| method.name() == "value" && method.descriptor() == "()I")
                 .unwrap();
-            let child_slot = child_definition
-                .virtual_methods()
+            let child_slot = child_methods
                 .iter()
                 .position(|method| method.name() == "value" && method.descriptor() == "()I")
                 .unwrap();
             assert_eq!(child_slot, base_slot);
-            let child_target = child_definition.virtual_methods()[child_slot].target()?;
-            let dispatch_target: u32 = read_generic(&core, child_definition.ptr_dispatch_table() + ((child_slot + 1) * 4) as u32)?;
+            let child_target = child_methods[child_slot].target()?;
+            let dispatch_target: u32 = read_generic(&core, child_definition.ptr_dispatch_table()? + ((child_slot + 1) * 4) as u32)?;
             assert_eq!(dispatch_target, child_target);
 
             let child = jvm.instantiate_class("net/wie/test/Child").await.unwrap();

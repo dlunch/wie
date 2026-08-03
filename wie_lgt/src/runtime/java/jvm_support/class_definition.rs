@@ -1,9 +1,7 @@
 use alloc::{
     boxed::Box,
-    collections::BTreeMap,
     format,
     string::{String, ToString},
-    sync::{Arc, Weak},
     vec,
     vec::Vec,
 };
@@ -12,7 +10,6 @@ use core::{fmt, fmt::Debug, fmt::Formatter, mem::size_of, ops::Deref, ops::Deref
 use java_class_proto::JavaClassProto;
 use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
-use spin::Mutex;
 use wipi_types::lgt::java::{
     LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassField as RawJavaField,
     LgtJavaClassMethod as RawJavaMethod,
@@ -20,43 +17,24 @@ use wipi_types::lgt::java::{
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{ByteWrite, read_generic, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
+use wie_util::{
+    ByteWrite, read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic, write_null_terminated_string_bytes,
+    write_null_terminated_table,
+};
 
 use crate::runtime::java::JavaSvcFunctions;
 
 use super::{JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result, value::JavaValueCodec, vtable::JavaVtable};
 
-pub(super) type ClassRegistry = Arc<Mutex<BTreeMap<u32, Weak<ClassMetadata>>>>;
-
-pub(super) struct ClassMetadata {
-    pub ptr_raw: u32,
-    pub ptr_dispatch_table: u32,
-    pub ptr_static_fields: u32,
-    pub instance_field_slot_count: usize,
-    pub name: String,
-    pub super_class: Option<JavaClassDefinition>,
-    pub interface_names: Vec<String>,
-    pub access_flags: ClassAccessFlags,
-    pub methods: Vec<JavaMethod>,
-    pub fields: Vec<JavaField>,
-    pub virtual_methods: Vec<JavaMethod>,
-}
-
 #[derive(Clone)]
 pub struct JavaClassDefinition {
-    metadata: Arc<ClassMetadata>,
+    pub ptr_raw: u32,
     core: ArmCore,
-    registry: ClassRegistry,
 }
 
 impl JavaClassDefinition {
-    pub fn from_raw(ptr_raw: u32, core: &ArmCore, registry: &ClassRegistry) -> Self {
-        let metadata = registry.lock().get(&ptr_raw).unwrap().upgrade().unwrap();
-        Self {
-            metadata,
-            core: core.clone(),
-            registry: registry.clone(),
-        }
+    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub async fn new<C, Context>(
@@ -65,7 +43,6 @@ impl JavaClassDefinition {
         proto: JavaClassProto<C>,
         context: Context,
         functions: JavaSvcFunctions,
-        registry: ClassRegistry,
     ) -> Result<Self>
     where
         C: ?Sized + 'static + Send,
@@ -89,7 +66,7 @@ impl JavaClassDefinition {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
         let ptr_name = Self::allocate_string(core, proto.name)?;
         let ptr_super_class_name = if let Some(parent_class) = &parent_class {
-            Self::allocate_string(core, &parent_class.metadata.name)?
+            Self::allocate_string(core, &ClassDefinition::name(parent_class))?
         } else {
             0
         };
@@ -116,7 +93,6 @@ impl JavaClassDefinition {
                 method,
                 context.clone(),
                 functions.clone(),
-                registry.clone(),
             )?);
         }
 
@@ -128,9 +104,12 @@ impl JavaClassDefinition {
         if ptr_fields != 0 {
             write_generic(core, ptr_fields, proto.fields.len() as u32)?;
         }
-        let mut instance_field_slot = parent_class.as_ref().map(|x| x.metadata.instance_field_slot_count).unwrap_or(0);
+        let mut instance_field_slot = parent_class
+            .as_ref()
+            .map(|class| class.instance_field_slot_count())
+            .transpose()?
+            .unwrap_or(0);
         let mut static_field_slot = 0usize;
-        let mut fields = Vec::with_capacity(proto.fields.len());
         for (index, field) in proto.fields.into_iter().enumerate() {
             let is_static = field.access_flags.contains(FieldAccessFlags::STATIC);
             let slot = if is_static { static_field_slot } else { instance_field_slot };
@@ -142,7 +121,7 @@ impl JavaClassDefinition {
             }
 
             let ptr_field = ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32;
-            fields.push(JavaField::new(core, ptr_field, ptr_raw, field, slot as u32, registry.clone())?);
+            JavaField::new(core, ptr_field, ptr_raw, field, slot as u32)?;
         }
 
         let ptr_static_fields = if static_field_slot == 0 {
@@ -178,9 +157,10 @@ impl JavaClassDefinition {
                 fn_get_class: 0,
                 ptr_methods,
                 ptr_fields,
-                unk13: 0,
-                unk14: 0,
-                unk15: 0,
+                // Rust-defined classes keep their runtime pointers in the descriptor's trailing words.
+                unk13: vtable.ptr_raw,
+                unk14: ptr_static_fields,
+                unk15: parent_class.as_ref().map(|class| class.ptr_raw).unwrap_or(0),
             },
         )?;
         write_generic(
@@ -193,31 +173,12 @@ impl JavaClassDefinition {
             },
         )?;
 
-        let metadata = Arc::new(ClassMetadata {
-            ptr_raw,
-            ptr_dispatch_table: vtable.ptr_raw,
-            ptr_static_fields,
-            instance_field_slot_count: instance_field_slot,
-            name: proto.name.to_string(),
-            super_class: parent_class,
-            interface_names,
-            access_flags: proto.access_flags,
-            methods,
-            fields,
-            virtual_methods: vtable.methods,
-        });
-        registry.lock().insert(ptr_raw, Arc::downgrade(&metadata));
-
         tracing::trace!("Wrote LGT Java definition {} at {ptr_raw:#x}", proto.name);
 
-        Ok(Self {
-            metadata,
-            core: core.clone(),
-            registry,
-        })
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub async fn new_array(core: &mut ArmCore, jvm: &Jvm, name: &str, registry: ClassRegistry) -> Result<Self> {
+    pub async fn new_array(core: &mut ArmCore, jvm: &Jvm, name: &str) -> Result<Self> {
         let parent_class = jvm
             .resolve_class("java/lang/Object")
             .await
@@ -258,9 +219,9 @@ impl JavaClassDefinition {
                 fn_get_class: 0,
                 ptr_methods: 0,
                 ptr_fields: 0,
-                unk13: 0,
+                unk13: vtable.ptr_raw,
                 unk14: 0,
-                unk15: 0,
+                unk15: parent_class.ptr_raw,
             },
         )?;
         write_generic(
@@ -273,26 +234,7 @@ impl JavaClassDefinition {
             },
         )?;
 
-        let metadata = Arc::new(ClassMetadata {
-            ptr_raw,
-            ptr_dispatch_table: vtable.ptr_raw,
-            ptr_static_fields: 0,
-            instance_field_slot_count: 0,
-            name: name.to_string(),
-            super_class: Some(parent_class),
-            interface_names,
-            access_flags,
-            methods: Vec::new(),
-            fields: Vec::new(),
-            virtual_methods: vtable.methods,
-        });
-        registry.lock().insert(ptr_raw, Arc::downgrade(&metadata));
-
-        Ok(Self {
-            metadata,
-            core: core.clone(),
-            registry,
-        })
+        Ok(Self::from_raw(ptr_raw, core))
     }
 
     fn allocate_string(core: &mut ArmCore, value: &str) -> Result<u32> {
@@ -314,44 +256,97 @@ impl JavaClassDefinition {
         Ok(address)
     }
 
-    #[cfg(test)]
-    pub fn ptr_raw(&self) -> u32 {
-        self.metadata.ptr_raw
+    fn raw(&self) -> Result<RawJavaClass> {
+        read_generic(&self.core, self.ptr_raw)
     }
 
-    pub fn ptr_dispatch_table(&self) -> u32 {
-        self.metadata.ptr_dispatch_table
+    fn descriptor(&self) -> Result<RawJavaClassDescriptor> {
+        read_generic(&self.core, self.raw()?.ptr_descriptor)
     }
 
-    pub fn instance_field_slot_count(&self) -> usize {
-        self.metadata.instance_field_slot_count
+    fn read_string(&self, address: u32) -> Result<String> {
+        Ok(String::from_utf8(read_null_terminated_string_bytes(&self.core, address)?).unwrap())
     }
 
-    pub fn virtual_methods(&self) -> &[JavaMethod] {
-        &self.metadata.virtual_methods
+    fn parent_class(&self) -> Result<Option<Self>> {
+        let ptr_parent_class = self.descriptor()?.unk15;
+        Ok((ptr_parent_class != 0).then(|| Self::from_raw(ptr_parent_class, &self.core)))
     }
 
-    pub fn registry(&self) -> &ClassRegistry {
-        &self.registry
+    fn methods(&self) -> Result<Vec<JavaMethod>> {
+        let ptr_methods = self.descriptor()?.ptr_methods;
+        if ptr_methods == 0 {
+            return Ok(Vec::new());
+        }
+        let count: u32 = read_generic(&self.core, ptr_methods)?;
+        Ok((0..count as usize)
+            .map(|index| {
+                JavaMethod::from_raw(
+                    ptr_methods + size_of::<u32>() as u32 + (index * size_of::<RawJavaMethod>()) as u32,
+                    &self.core,
+                )
+            })
+            .collect())
+    }
+
+    fn fields(&self) -> Result<Vec<JavaField>> {
+        let ptr_fields = self.descriptor()?.ptr_fields;
+        if ptr_fields == 0 {
+            return Ok(Vec::new());
+        }
+        let count: u32 = read_generic(&self.core, ptr_fields)?;
+        Ok((0..count as usize)
+            .map(|index| {
+                JavaField::from_raw(
+                    ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32,
+                    &self.core,
+                )
+            })
+            .collect())
+    }
+
+    pub fn ptr_dispatch_table(&self) -> Result<u32> {
+        Ok(self.descriptor()?.unk13)
+    }
+
+    pub(super) fn ptr_static_fields(&self) -> Result<u32> {
+        Ok(self.descriptor()?.unk14)
+    }
+
+    pub fn instance_field_slot_count(&self) -> Result<usize> {
+        Ok(self.descriptor()?.instance_field_slot_count as usize)
+    }
+
+    pub fn virtual_methods(&self) -> Result<Vec<JavaMethod>> {
+        JavaVtable::build_methods(self.parent_class()?.as_ref(), &self.methods()?)
     }
 }
 
 #[async_trait::async_trait]
 impl ClassDefinition for JavaClassDefinition {
     fn name(&self) -> String {
-        self.metadata.name.clone()
+        self.read_string(self.descriptor().unwrap().ptr_name).unwrap()
     }
 
     fn super_class_name(&self) -> Option<String> {
-        self.metadata.super_class.as_ref().map(|x| x.metadata.name.clone())
+        let ptr_name = self.descriptor().unwrap().ptr_super_class_name;
+        (ptr_name != 0).then(|| self.read_string(ptr_name).unwrap())
     }
 
     fn interface_names(&self) -> Vec<String> {
-        self.metadata.interface_names.clone()
+        let ptr_names = self.descriptor().unwrap().ptr_interface_names;
+        if ptr_names == 0 {
+            return Vec::new();
+        }
+        read_null_terminated_table(&self.core, ptr_names)
+            .unwrap()
+            .into_iter()
+            .map(|ptr_name| self.read_string(ptr_name).unwrap())
+            .collect()
     }
 
     fn access_flags(&self) -> ClassAccessFlags {
-        self.metadata.access_flags
+        ClassAccessFlags::from_bits_truncate(self.descriptor().unwrap().access_flags as u16)
     }
 
     async fn instantiate(&self, jvm: &Jvm) -> JvmResult<Box<dyn ClassInstance>> {
@@ -366,29 +361,27 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Method>> {
-        self.metadata
-            .methods
-            .iter()
+        self.methods()
+            .unwrap()
+            .into_iter()
             .find(|method| {
                 method.name() == name && method.descriptor() == descriptor && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
             })
-            .cloned()
-            .map(|x| Box::new(x) as Box<_>)
+            .map(|method| Box::new(method) as Box<_>)
     }
 
     fn field(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Field>> {
-        self.metadata
-            .fields
-            .iter()
+        self.fields()
+            .unwrap()
+            .into_iter()
             .find(|field| {
                 field.name() == name && field.descriptor() == descriptor && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static
             })
-            .cloned()
-            .map(|x| Box::new(x) as Box<_>)
+            .map(|field| Box::new(field) as Box<_>)
     }
 
     fn fields(&self) -> Vec<Box<dyn Field>> {
-        self.metadata.fields.iter().cloned().map(|x| Box::new(x) as Box<_>).collect()
+        self.fields().unwrap().into_iter().map(|field| Box::new(field) as Box<_>).collect()
     }
 
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
@@ -396,7 +389,7 @@ impl ClassDefinition for JavaClassDefinition {
         let field_type = JavaType::parse(&field.descriptor());
         let address = field.static_address().unwrap();
         let low = read_generic(&self.core, address).unwrap();
-        let codec = JavaValueCodec::new(&self.core, &self.registry);
+        let codec = JavaValueCodec::new(&self.core);
         Ok(if matches!(field_type, JavaType::Long | JavaType::Double) {
             let high = read_generic(&self.core, address + 4).unwrap();
             codec.decode_wide(low, high, &field_type)
@@ -408,7 +401,7 @@ impl ClassDefinition for JavaClassDefinition {
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let address = field.static_address().unwrap();
-        let codec = JavaValueCodec::new(&self.core, &self.registry);
+        let codec = JavaValueCodec::new(&self.core);
         if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {
             let (low, high) = codec.encode_wide(&value);
             write_generic(&mut self.core, address, low).unwrap();
@@ -423,8 +416,8 @@ impl ClassDefinition for JavaClassDefinition {
 impl Debug for JavaClassDefinition {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaClassDefinition")
-            .field("name", &self.metadata.name)
-            .field("ptr_raw", &self.metadata.ptr_raw)
+            .field("name", &ClassDefinition::name(self))
+            .field("ptr_raw", &self.ptr_raw)
             .finish()
     }
 }
