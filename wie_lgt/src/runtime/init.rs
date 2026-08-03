@@ -13,7 +13,7 @@ use wie_util::{Result, WieError, read_generic, write_generic};
 use super::{
     SVC_CATEGORY_INIT, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPIC,
     java::{
-        get_java_interface_method,
+        LgtJvmImplementation, get_java_interface_method,
         interface::{
             java_create_runtime_context, java_destroy_runtime_context, java_link_imported_classes, java_set_jar_path, java_start_application,
             java_unk0,
@@ -52,9 +52,9 @@ async fn handle_init_svc(core: &mut ArmCore, (wipic_category, stdlib_category): 
     }
 }
 
-pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8]) -> Result<()> {
+pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, data: &[u8], jvm_implementation: LgtJvmImplementation) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
-    register_wipic_svc_handler(core, system, jvm)?;
+    register_wipic_svc_handler(core, system, jvm, jvm_implementation)?;
     register_stdlib_svc_handler(core, system)?;
     register_init_svc_handler(core)?;
 

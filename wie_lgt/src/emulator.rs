@@ -6,10 +6,10 @@ use jvm::runtime::{JavaIoInputStream, JavaLangClassLoader};
 
 use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
-use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
+use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
 
-use crate::runtime::init::load_native;
+use crate::runtime::{LgtJvmImplementation, init::load_native};
 
 struct LgtTaskRunner {
     core: ArmCore,
@@ -109,7 +109,8 @@ impl LgtEmulator {
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, _main_class_name: Option<String>) -> Result<()> {
         let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
-        let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &[], RustJavaJvmImplementation).await?; // TODO use lgt's java implementation
+        let jvm_implementation = LgtJvmImplementation::new(core)?;
+        let jvm = JvmSupport::new_jvm(system, Some(&jar_filename), Box::new(protos), &[], jvm_implementation.clone()).await?;
 
         let class_loader = JavaLangClassLoader::get_system_class_loader(&jvm).await.unwrap();
         let stream = JavaLangClassLoader::get_resource_as_stream(&jvm, &class_loader, "binary.mod")
@@ -119,7 +120,7 @@ impl LgtEmulator {
 
         let binary_mod = JavaIoInputStream::read_until_end(&jvm, &stream).await.unwrap();
 
-        load_native(core, system, &jvm, &binary_mod).await?;
+        load_native(core, system, &jvm, &binary_mod, jvm_implementation).await?;
 
         Ok(())
     }

@@ -3,13 +3,12 @@ use alloc::{boxed::Box, string::ToString, vec};
 mod context;
 
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
-use jvm_rust::ClassDefinitionImpl;
 use wipi_types::lgt::CletFunctions;
 use wipi_types::wipic::WIPICIndirectPtr;
 
 use wie_backend::System;
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, ResultWriter, SvcId};
-use wie_jvm_support::JvmSupport;
+use wie_jvm_support::{JvmImplementation, JvmSupport};
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
@@ -18,7 +17,10 @@ use wie_wipi_c::{
 
 use context::LgtWIPICContext;
 
-use crate::runtime::java::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext};
+use crate::runtime::java::{
+    LgtJvmImplementation,
+    classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext},
+};
 use crate::runtime::{SVC_CATEGORY_WIPIC, svc_ids::WIPICSvcId};
 
 const TIME_VALUE_PTR: u32 = 0x7fff1004;
@@ -41,12 +43,19 @@ struct CMethodProxy {
     body: WIPICMethodBody,
 }
 
-async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), id: SvcId) -> Result<()> {
-    let wipic_context = LgtWIPICContext::new(core.clone(), system.clone(), jvm.clone());
+#[derive(Clone)]
+struct WIPICSvcContext {
+    system: System,
+    jvm: Jvm,
+    jvm_implementation: LgtJvmImplementation,
+}
+
+async fn handle_wipic_svc(core: &mut ArmCore, context: &mut WIPICSvcContext, id: SvcId) -> Result<()> {
+    let wipic_context = LgtWIPICContext::new(core.clone(), context.system.clone(), context.jvm.clone());
     let (_, lr) = core.read_pc_lr()?;
     let method = match WIPICSvcId::try_from(id)? {
         WIPICSvcId::CletRegister => {
-            return EmulatedFunction::call(&clet_register, core, jvm).await?.write(core, lr);
+            return EmulatedFunction::call(&clet_register, core, context).await?.write(core, lr);
         }
         WIPICSvcId::GetFramebufferPointer => graphics::get_framebuffer_pointer.into_body(),
         WIPICSvcId::GetFramebufferWidth => graphics::get_framebuffer_width.into_body(),
@@ -178,20 +187,44 @@ impl EmulatedFunction<(), WIPICMethodResult, ()> for CMethodProxy {
     }
 }
 
-pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, &(system.clone(), jvm.clone()))
+pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm, jvm_implementation: LgtJvmImplementation) -> Result<()> {
+    core.register_svc_handler(
+        SVC_CATEGORY_WIPIC,
+        handle_wipic_svc,
+        &WIPICSvcContext {
+            system: system.clone(),
+            jvm: jvm.clone(),
+            jvm_implementation,
+        },
+    )
 }
 
-async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
+async fn clet_register(core: &mut ArmCore, context: &mut WIPICSvcContext, function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
     let functions: CletFunctions = read_generic(core, function_table)?;
 
-    let context = CletWrapperContext { core: core.clone() };
-    let clet_wrapper_class = ClassDefinitionImpl::from_class_proto(CletWrapper::as_proto(), Box::new(context.clone()) as Box<_>);
-    let clet_wrapper_card_class = ClassDefinitionImpl::from_class_proto(CletWrapperCard::as_proto(), Box::new(context) as Box<_>);
-    jvm.register_class(Box::new(clet_wrapper_class), None).await.unwrap();
-    jvm.register_class(Box::new(clet_wrapper_card_class), None).await.unwrap();
+    let class_context = CletWrapperContext { core: core.clone() };
+    let clet_wrapper_class = context
+        .jvm_implementation
+        .define_class_rust(&context.jvm, CletWrapper::as_proto(), Box::new(class_context.clone()) as Box<_>)
+        .await;
+    let clet_wrapper_class = match clet_wrapper_class {
+        Ok(class) => class,
+        Err(error) => return Err(JvmSupport::to_wie_err(&context.jvm, error).await),
+    };
+    let clet_wrapper_card_class = context
+        .jvm_implementation
+        .define_class_rust(&context.jvm, CletWrapperCard::as_proto(), Box::new(class_context) as Box<_>)
+        .await;
+    let clet_wrapper_card_class = match clet_wrapper_card_class {
+        Ok(class) => class,
+        Err(error) => return Err(JvmSupport::to_wie_err(&context.jvm, error).await),
+    };
+    context.jvm.register_class(clet_wrapper_class, None).await.unwrap();
+    context.jvm.register_class(clet_wrapper_card_class, None).await.unwrap();
+
+    let jvm = &context.jvm;
 
     jvm.put_static_field("net/wie/CletWrapper", "startClet", "I", functions.start_clet as i32)
         .await
