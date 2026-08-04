@@ -64,7 +64,7 @@ impl JavaVtable {
         Ok(())
     }
 
-    pub fn read_compiler_vtable(
+    pub fn build_from_compiler_vtable(
         core: &ArmCore,
         ptr_vtable: u32,
         entry_count: usize,
@@ -198,7 +198,7 @@ mod tests {
             .into_iter()
             .map(|target| JavaVtableEntry { target, method: None })
             .collect::<Vec<_>>();
-        let entries = JavaVtable::read_compiler_vtable(&core, ptr_vtable, compiler_targets.len(), &parent_methods, &[])?;
+        let entries = JavaVtable::build_from_compiler_vtable(&core, ptr_vtable, compiler_targets.len(), &parent_methods, &[])?;
 
         assert_eq!(entries.iter().map(|entry| entry.target).collect::<Vec<_>>(), vec![0x11, 0x99, 0x33, 0x88]);
         Ok(())

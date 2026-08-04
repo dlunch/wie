@@ -404,7 +404,7 @@ impl JavaClassDefinition {
             } else {
                 Vec::new()
             };
-            JavaVtable::read_compiler_vtable(
+            JavaVtable::build_from_compiler_vtable(
                 core,
                 descriptor.ptr_vtable,
                 descriptor.vtable_count as usize,
