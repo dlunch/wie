@@ -7,7 +7,10 @@ use core::mem::size_of;
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_constants::FieldAccessFlags;
-use java_runtime::classes::java::lang::{Class, ClassLoader, String};
+use java_runtime::classes::java::{
+    lang::{Class, ClassLoader, String},
+    util::Vector,
+};
 use jvm::{ClassInstance, ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor};
 
@@ -34,6 +37,7 @@ impl LgtClassLoader {
             fields: vec![
                 JavaFieldProto::new("generatedClasses", "I", Default::default()),
                 JavaFieldProto::new("runtimeContext", "I", Default::default()),
+                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
                 JavaFieldProto::new("instance", "Lnet/wie/LgtClassLoader;", FieldAccessFlags::STATIC),
             ],
             access_flags: Default::default(),
@@ -53,6 +57,8 @@ impl LgtClassLoader {
             .await?;
         jvm.put_field(&mut this, "generatedClasses", "I", generated_classes).await?;
         jvm.put_field(&mut this, "runtimeContext", "I", runtime_context).await?;
+        let native_strings: ClassInstanceRef<Vector> = jvm.new_class("java/util/Vector", "()V", ()).await?.into();
+        jvm.put_field(&mut this, "nativeStrings", "Ljava/util/Vector;", native_strings).await?;
         jvm.put_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;", this)
             .await
     }

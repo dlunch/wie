@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec};
 use core::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    mem::{offset_of, size_of},
+    mem::size_of,
 };
 
 use java_constants::FieldAccessFlags;
@@ -38,11 +38,13 @@ impl JavaClassInstance {
 
         write_generic(
             core,
-            ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32,
-            class.ptr_vtable()?,
+            ptr_raw,
+            RawJavaClassInstance {
+                ptr_dispatch_table: class.ptr_vtable()?,
+                unk1: 0,
+                ptr_fields,
+            },
         )?;
-        write_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, unk1) as u32, class.ptr_raw)?;
-        write_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32, ptr_fields)?;
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -54,12 +56,14 @@ impl JavaClassInstance {
     }
 
     pub fn class(&self) -> Result<JavaClassDefinition> {
-        let ptr_class = read_generic(&self.core, self.ptr_raw + offset_of!(RawJavaClassInstance, unk1) as u32)?;
+        let raw: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw)?;
+        let ptr_class = read_generic(&self.core, raw.ptr_dispatch_table)?;
         Ok(JavaClassDefinition::from_raw(ptr_class, &self.core))
     }
 
     pub fn ptr_fields(&self) -> Result<u32> {
-        read_generic(&self.core, self.ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32)
+        let raw: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw)?;
+        Ok(raw.ptr_fields)
     }
 
     pub fn storage_address(&self, byte_offset: usize) -> Result<u32> {

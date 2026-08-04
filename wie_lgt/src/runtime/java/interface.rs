@@ -1,8 +1,9 @@
 use alloc::{boxed::Box, format, string::String, string::ToString, vec::Vec};
 use core::mem::size_of;
 
+use java_runtime::classes::java::util::Vector;
 use jvm::{
-    ClassDefinition, ClassInstance, JavaError, Jvm,
+    ClassDefinition, ClassInstance, ClassInstanceRef, JavaError, Jvm,
     runtime::{JavaLangClass, JavaLangClassLoader, JavaLangString},
 };
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
@@ -88,6 +89,18 @@ pub async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_con
         .collect::<Result<Vec<u16>>>()?;
     let value = String::from_utf16(&characters).map_err(|error| WieError::FatalError(format!("Invalid LGT UTF-16 literal: {error}")))?;
     let value = JavaLangString::from_rust_string(jvm, &value)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    let class_loader: Box<dyn ClassInstance> = jvm
+        .get_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;")
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    let native_strings: ClassInstanceRef<Vector> = jvm
+        .get_field(&class_loader, "nativeStrings", "Ljava/util/Vector;")
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    let _: bool = jvm
+        .invoke_virtual(&native_strings, "add", "(Ljava/lang/Object;)Z", (value.clone(),))
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let value = LgtJvmSupport::class_instance_raw(&*value);

@@ -252,7 +252,7 @@ impl LgtJvmSupport {
             if entries.len() <= index {
                 entries.resize(index + 1, JavaVtableEntry { target: 0, method: None });
             }
-            if entries[index].target != 0 {
+            if entries[index].method.is_some() {
                 return Err(WieError::FatalError(alloc::format!(
                     "Generated vtable index collision for {candidate_name}.{name}{descriptor} at index {index}"
                 )));
@@ -462,15 +462,14 @@ mod tests {
             assert_eq!(time, 0x12345678_abcdef01);
 
             let native_date = date.as_any().downcast_ref::<JavaClassInstance>().unwrap();
-            let ptr_vtable: u32 = read_generic(&core, native_date.ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32)?;
-            let ptr_class: u32 = read_generic(&core, native_date.ptr_raw + offset_of!(RawJavaClassInstance, unk1) as u32)?;
-            let ptr_fields: u32 = read_generic(&core, native_date.ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32)?;
+            let raw_instance: RawJavaClassInstance = read_generic(&core, native_date.ptr_raw)?;
+            let ptr_class: u32 = read_generic(&core, raw_instance.ptr_dispatch_table)?;
             assert_eq!(ptr_class, native_date.class()?.ptr_raw);
-            assert_eq!(read_generic::<u32, _>(&core, ptr_vtable)?, 0);
+            assert_eq!(raw_instance.unk1, 0);
             let raw_class: RawJavaClass = read_generic(&core, ptr_class)?;
-            assert_eq!(raw_class.unk1, ptr_vtable);
+            assert_eq!(raw_class.unk1, raw_instance.ptr_dispatch_table);
             assert_eq!(raw_class.unk2, 0);
-            assert_ne!(ptr_fields, 0);
+            assert_ne!(raw_instance.ptr_fields, 0);
 
             let mut shorts = jvm.instantiate_array("S", 10).await.unwrap();
             jvm.store_array(&mut shorts, 0, (0..10i16).collect::<Vec<_>>()).await.unwrap();
@@ -517,6 +516,16 @@ mod tests {
                 .clone();
             let object_methods = object_definition.virtual_methods(&jvm).await?;
             assert_eq!(object_methods[1].as_ref().unwrap().name(), "getClass");
+            let object: Box<dyn ClassInstance> = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
+            let missing_target: u32 = read_generic(&core, object_definition.ptr_vtable()? + 4)?;
+            let error = core
+                .run_function::<u32>(missing_target, &[LgtJvmSupport::class_instance_raw(&*object)])
+                .await
+                .unwrap_err();
+            match error {
+                WieError::Unimplemented(message) => assert_eq!(message, "java/lang/Object vtable index 0"),
+                error => panic!("unexpected missing vtable error: {error}"),
+            }
 
             let string_definition = jvm
                 .resolve_class("java/lang/String")

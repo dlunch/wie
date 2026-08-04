@@ -7,7 +7,7 @@ use jvm::Method;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{WieError, read_generic, write_generic};
 
-use crate::runtime::java::abi::JavaAbi;
+use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JavaAbi};
 
 use super::{JavaMethod, Result};
 
@@ -33,10 +33,10 @@ impl JavaVtable {
         abi.vtable_index(class_name, name, descriptor)
     }
 
-    pub fn allocate(core: &mut ArmCore, entries: &[JavaVtableEntry]) -> Result<u32> {
+    pub fn allocate(core: &mut ArmCore, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<u32> {
         let ptr_allocation = Allocator::alloc(core, ((entries.len() + 2) * size_of::<u32>()) as u32)?;
         let ptr_vtable = ptr_allocation + size_of::<u32>() as u32;
-        Self::write(core, ptr_vtable, entries)?;
+        Self::write(core, ptr_vtable, ptr_class, entries)?;
         Ok(ptr_vtable)
     }
 
@@ -54,11 +54,16 @@ impl JavaVtable {
             .collect()
     }
 
-    pub fn write(core: &mut ArmCore, ptr_vtable: u32, entries: &[JavaVtableEntry]) -> Result<()> {
+    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<()> {
         write_generic(core, ptr_vtable - size_of::<u32>() as u32, entries.len() as u32)?;
-        write_generic(core, ptr_vtable, 0u32)?;
+        write_generic(core, ptr_vtable, ptr_class)?;
         for (index, entry) in entries.iter().enumerate() {
-            write_generic(core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32, entry.target)?;
+            let target = if entry.target == 0 {
+                core.make_svc_stub(SVC_CATEGORY_JAVA_VTABLE, index as u32)?
+            } else {
+                entry.target
+            };
+            write_generic(core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32, target)?;
         }
 
         Ok(())
@@ -88,11 +93,10 @@ impl JavaVtable {
                     methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
                 }
                 let inherited = &methods[index];
-                if inherited.target != 0
-                    && !inherited
-                        .method
-                        .as_ref()
-                        .is_some_and(|inherited| inherited.name() == method.name() && inherited.descriptor() == method.descriptor())
+                if inherited
+                    .method
+                    .as_ref()
+                    .is_some_and(|inherited| inherited.name() != method.name() || inherited.descriptor() != method.descriptor())
                 {
                     return Err(WieError::FatalError(format!(
                         "Fixed vtable index collision for {class_name}.{}{} at index {index}",
@@ -188,7 +192,7 @@ impl JavaVtable {
                 if methods.len() <= index {
                     methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
                 }
-                if methods[index].target != 0 {
+                if methods[index].method.is_some() {
                     return Err(WieError::FatalError(format!(
                         "Fixed vtable index collision for {class_name}.{name}{descriptor} at index {index}"
                     )));

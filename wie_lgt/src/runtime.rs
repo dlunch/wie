@@ -9,5 +9,6 @@ const SVC_CATEGORY_JAVA_SYSTEM: u32 = 2;
 const SVC_CATEGORY_WIPIC: u32 = 3;
 const SVC_CATEGORY_JAVA: u32 = 4;
 const SVC_CATEGORY_STDLIB: u32 = 5;
+const SVC_CATEGORY_JAVA_VTABLE: u32 = 6;
 
 pub use java::LgtJvmSupport;

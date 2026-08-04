@@ -190,7 +190,7 @@ impl JavaClassDefinition {
             instance_field_word_index = instance_field_word_index.max(field_size);
         }
         let virtual_methods = JavaVtable::build_runtime_methods(class_name, parent_class_name, &parent_virtual_methods, &methods)?;
-        let ptr_vtable = JavaVtable::allocate(core, &virtual_methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, ptr_raw, &virtual_methods)?;
 
         write_generic(
             core,
@@ -267,7 +267,7 @@ impl JavaClassDefinition {
         for (index, ptr_name) in interface_name_pointers.into_iter().enumerate() {
             write_generic(core, ptr_interface_names + ((index + 1) * size_of::<u32>()) as u32, ptr_name)?;
         }
-        let ptr_vtable = JavaVtable::allocate(core, &virtual_methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         let access_flags = ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL;
         write_generic(
@@ -443,7 +443,7 @@ impl JavaClassDefinition {
 
     pub fn set_vtable_entries(&self, entries: &[JavaVtableEntry]) -> Result<()> {
         let mut core = self.core.clone();
-        let ptr_vtable = JavaVtable::allocate(&mut core, entries)?;
+        let ptr_vtable = JavaVtable::allocate(&mut core, self.ptr_raw, entries)?;
         let mut raw = self.raw()?;
         raw.unk1 = ptr_vtable;
         write_generic(&mut core, self.ptr_raw, raw)

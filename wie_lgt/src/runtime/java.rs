@@ -1,11 +1,14 @@
-use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc};
 
 use spin::Mutex;
+use wipi_types::lgt::java::{
+    LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassInstance as RawJavaClassInstance,
+};
 
 use wie_core_arm::{ArmCore, JumpTo, RegisteredFunction, SvcId};
-use wie_util::{Result, WieError};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes};
 
-use crate::runtime::SVC_CATEGORY_JAVA;
+use crate::runtime::{SVC_CATEGORY_JAVA, SVC_CATEGORY_JAVA_VTABLE};
 
 mod abi;
 pub mod classes;
@@ -39,6 +42,19 @@ async fn handle_java_svc(core: &mut ArmCore, (functions, exception_state): &mut 
     }
 }
 
+async fn handle_missing_java_vtable_entry(core: &mut ArmCore, _: &mut (), id: SvcId) -> Result<JumpTo> {
+    let ptr_instance = core.read_param(0)?;
+    let instance: RawJavaClassInstance = read_generic(core, ptr_instance)?;
+    let ptr_class: u32 = read_generic(core, instance.ptr_dispatch_table)?;
+    let class: RawJavaClass = read_generic(core, ptr_class)?;
+    let descriptor: RawJavaClassDescriptor = read_generic(core, class.ptr_descriptor)?;
+    let class_name = String::from_utf8(read_null_terminated_string_bytes(core, descriptor.ptr_name)?)
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT class name: {error}")))?;
+
+    Err(WieError::Unimplemented(format!("{class_name} vtable index {}", id.0)))
+}
+
 pub fn register_java_svc_handler(core: &mut ArmCore, functions: &JavaSvcFunctions, exception_state: JavaExceptionState) -> Result<()> {
-    core.register_svc_handler(SVC_CATEGORY_JAVA, handle_java_svc, &(functions.clone(), exception_state))
+    core.register_svc_handler(SVC_CATEGORY_JAVA, handle_java_svc, &(functions.clone(), exception_state))?;
+    core.register_svc_handler(SVC_CATEGORY_JAVA_VTABLE, handle_missing_java_vtable_entry, &())
 }
