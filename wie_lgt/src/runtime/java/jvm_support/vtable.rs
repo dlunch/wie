@@ -7,7 +7,7 @@ use jvm::Method;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{WieError, read_generic, write_generic};
 
-use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JavaAbi};
+use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JavaClassAbi};
 
 use super::{JavaMethod, Result};
 
@@ -19,20 +19,13 @@ pub struct JavaVtableEntry {
 
 pub struct JavaVtable;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum JavaVtableMethodLayout {
+    Complete,
+    ConfirmedOnly,
+}
+
 impl JavaVtable {
-    const FIXED_ENTRY_COUNT: usize = 35;
-
-    fn fixed_index(abi: &JavaAbi, class_name: &str, super_class_name: Option<&str>, name: &str, descriptor: &str) -> Option<usize> {
-        if (matches!(class_name, "org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper")
-            || matches!(super_class_name, Some("org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper")))
-            && let Some(index) = abi.vtable_index("org/kwis/msp/lcdui/Jlet", name, descriptor)
-        {
-            return Some(index);
-        }
-
-        abi.vtable_index(class_name, name, descriptor)
-    }
-
     pub fn allocate(core: &mut ArmCore, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<u32> {
         let ptr_allocation = Allocator::alloc(core, ((entries.len() + 2) * size_of::<u32>()) as u32)?;
         let ptr_vtable = ptr_allocation + size_of::<u32>() as u32;
@@ -69,89 +62,18 @@ impl JavaVtable {
         Ok(())
     }
 
-    pub fn build_runtime_methods(
+    pub fn build_methods(
         class_name: &str,
-        super_class_name: Option<&str>,
+        abi_classes: &[&JavaClassAbi],
+        layout: JavaVtableMethodLayout,
         parent_methods: &[JavaVtableEntry],
         declared_methods: &[JavaMethod],
     ) -> Result<Vec<JavaVtableEntry>> {
-        let abi = JavaAbi::parse();
         let mut methods = parent_methods.to_vec();
-        if class_name == "java/lang/Object" {
-            methods.resize(Self::FIXED_ENTRY_COUNT, JavaVtableEntry { target: 0, method: None });
+        let minimum_size = abi_classes.iter().filter_map(|class| class.vtable_size).max().unwrap_or(0);
+        if methods.len() < minimum_size {
+            methods.resize(minimum_size, JavaVtableEntry { target: 0, method: None });
         }
-
-        for method in declared_methods {
-            let flags = method.access_flags();
-            if flags.intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) || method.name().starts_with('<') {
-                continue;
-            }
-
-            let index = Self::fixed_index(&abi, class_name, super_class_name, &method.name(), &method.descriptor());
-            if let Some(index) = index {
-                if methods.len() <= index {
-                    methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
-                }
-                let inherited = &methods[index];
-                if inherited
-                    .method
-                    .as_ref()
-                    .is_some_and(|inherited| inherited.name() != method.name() || inherited.descriptor() != method.descriptor())
-                {
-                    return Err(WieError::FatalError(format!(
-                        "Fixed vtable index collision for {class_name}.{}{} at index {index}",
-                        method.name(),
-                        method.descriptor()
-                    )));
-                }
-                methods[index] = JavaVtableEntry {
-                    target: method.target()?,
-                    method: Some(method.clone()),
-                };
-            }
-        }
-
-        for method in declared_methods {
-            let flags = method.access_flags();
-            if flags.intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) || method.name().starts_with('<') {
-                continue;
-            }
-
-            if Self::fixed_index(&abi, class_name, super_class_name, &method.name(), &method.descriptor()).is_some() {
-                continue;
-            }
-
-            if let Some(index) = methods.iter().position(|candidate| {
-                candidate
-                    .method
-                    .as_ref()
-                    .is_some_and(|candidate| candidate.name() == method.name() && candidate.descriptor() == method.descriptor())
-            }) {
-                methods[index] = JavaVtableEntry {
-                    target: method.target()?,
-                    method: Some(method.clone()),
-                };
-            } else {
-                methods.push(JavaVtableEntry {
-                    target: method.target()?,
-                    method: Some(method.clone()),
-                });
-            }
-        }
-
-        Ok(methods)
-    }
-
-    pub fn build_generated_methods(
-        class_name: &str,
-        super_class_name: Option<&str>,
-        is_jlet_subclass: bool,
-        is_card_subclass: bool,
-        parent_methods: &[JavaVtableEntry],
-        declared_methods: &[JavaMethod],
-    ) -> Result<Vec<JavaVtableEntry>> {
-        let abi = JavaAbi::parse();
-        let mut methods = parent_methods.to_vec();
 
         for method in declared_methods {
             let flags = method.access_flags();
@@ -167,45 +89,50 @@ impl JavaVtable {
                     .as_ref()
                     .is_some_and(|candidate| candidate.name() == name && candidate.descriptor() == descriptor)
             });
-            let abi_class = if is_jlet_subclass {
-                Some("org/kwis/msp/lcdui/Jlet")
-            } else if is_card_subclass {
-                Some("org/kwis/msp/lcdui/Card")
-            } else {
-                None
-            };
-            let confirmed_index = abi_class.and_then(|class_name| abi.vtable_index(class_name, &name, &descriptor));
+            let confirmed_index = abi_classes.iter().find_map(|class| class.vtable_index(&name, &descriptor));
 
-            if let Some(index) = inherited_index {
-                if confirmed_index != Some(index) {
+            let index = if let Some(index) = confirmed_index {
+                if layout == JavaVtableMethodLayout::ConfirmedOnly && inherited_index.is_some_and(|inherited_index| inherited_index != index) {
                     return Err(WieError::FatalError(format!(
                         "Unknown generated override {class_name}.{name}{descriptor}"
                     )));
                 }
-                methods[index] = JavaVtableEntry {
-                    target: method.target()?,
-                    method: Some(method.clone()),
-                };
-            } else if let Some(index) = confirmed_index
-                && super_class_name == Some("org/kwis/msp/lcdui/Jlet")
-            {
                 if methods.len() <= index {
                     methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
                 }
-                if methods[index].method.is_some() {
+                if methods[index]
+                    .method
+                    .as_ref()
+                    .is_some_and(|method| method.name() != name || method.descriptor() != descriptor)
+                {
                     return Err(WieError::FatalError(format!(
                         "Fixed vtable index collision for {class_name}.{name}{descriptor} at index {index}"
                     )));
                 }
-                methods[index] = JavaVtableEntry {
-                    target: method.target()?,
-                    method: Some(method.clone()),
-                };
-            } else if confirmed_index.is_some() {
-                return Err(WieError::FatalError(format!(
-                    "Unknown generated override {class_name}.{name}{descriptor}"
-                )));
-            }
+                index
+            } else {
+                match (layout, inherited_index) {
+                    (JavaVtableMethodLayout::Complete, Some(index)) => index,
+                    (JavaVtableMethodLayout::Complete, None) => {
+                        methods.push(JavaVtableEntry {
+                            target: method.target()?,
+                            method: Some(method.clone()),
+                        });
+                        continue;
+                    }
+                    (JavaVtableMethodLayout::ConfirmedOnly, Some(_)) => {
+                        return Err(WieError::FatalError(format!(
+                            "Unknown generated override {class_name}.{name}{descriptor}"
+                        )));
+                    }
+                    (JavaVtableMethodLayout::ConfirmedOnly, None) => continue,
+                }
+            };
+
+            methods[index] = JavaVtableEntry {
+                target: method.target()?,
+                method: Some(method.clone()),
+            };
         }
 
         Ok(methods)

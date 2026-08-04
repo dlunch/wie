@@ -1,5 +1,6 @@
 [[class]]
 name = "java/lang/Object"
+vtable_size = 35
 vtable = [
     { name = "getClass", descriptor = "()Ljava/lang/Class;", index = 1 },
 ]
@@ -67,6 +68,15 @@ vtable = [
 
 [[class]]
 name = "org/kwis/msp/lcdui/Jlet"
+vtable = [
+    { name = "startApp", descriptor = "([Ljava/lang/String;)V", index = 15 },
+    { name = "pauseApp", descriptor = "()V", index = 16 },
+    { name = "resumeApp", descriptor = "()V", index = 17 },
+    { name = "destroyApp", descriptor = "(Z)V", index = 18 },
+]
+
+[[class]]
+name = "org/kwis/msp/lcdui/JletWrapper"
 vtable = [
     { name = "startApp", descriptor = "([Ljava/lang/String;)V", index = 15 },
     { name = "pauseApp", descriptor = "()V", index = 16 },

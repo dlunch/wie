@@ -6211,6 +6211,7 @@ dependencies = [
  "java_constants",
  "java_runtime",
  "jvm",
+ "lazy_static",
  "serde",
  "spin",
  "test_utils",

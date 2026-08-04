@@ -17,14 +17,14 @@ use crate::runtime::{
     SVC_CATEGORY_JAVA,
     java::{
         JavaSvcFunctions,
-        abi::{CLASS_INITIALIZATION_STATE_FIELD, CLASS_NATIVE_NAME_FIELD, JavaAbi, WORD_FIELD_DESCRIPTOR},
+        abi::{CLASS_INITIALIZATION_STATE_FIELD, CLASS_NATIVE_NAME_FIELD, JAVA_ABI, WORD_FIELD_DESCRIPTOR},
     },
 };
 
 use super::{
     JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result,
     value::JavaValueCodec,
-    vtable::{JavaVtable, JavaVtableEntry},
+    vtable::{JavaVtable, JavaVtableEntry, JavaVtableMethodLayout},
 };
 
 #[derive(Clone)]
@@ -57,8 +57,7 @@ impl JavaClassDefinition {
             fields: field_protos,
             access_flags,
         } = proto;
-        let abi = JavaAbi::parse();
-        let class_abi = abi.class.iter().find(|class| class.name == class_name);
+        let class_abi = JAVA_ABI.class(class_name);
         let fixed_fields = class_abi.map(|class| class.field.as_slice()).unwrap_or_default();
 
         let parent_class = if let Some(parent_name) = parent_class_name {
@@ -81,6 +80,27 @@ impl JavaClassDefinition {
         } else {
             Vec::new()
         };
+        let mut abi_classes = class_abi.into_iter().collect::<Vec<_>>();
+        let mut abi_parent = parent_class.clone();
+        while let Some(parent) = abi_parent {
+            if let Some(class) = JAVA_ABI.class(&ClassDefinition::name(&parent)) {
+                abi_classes.push(class);
+            }
+            abi_parent = if let Some(parent_name) = ClassDefinition::super_class_name(&parent) {
+                Some(
+                    jvm.resolve_class(&parent_name)
+                        .await
+                        .unwrap()
+                        .definition
+                        .as_any()
+                        .downcast_ref::<JavaClassDefinition>()
+                        .unwrap()
+                        .clone(),
+                )
+            } else {
+                None
+            };
+        }
         let parent_name = parent_class.as_ref().map(ClassDefinition::name);
         let static_field_word_count = field_protos
             .iter()
@@ -189,7 +209,13 @@ impl JavaClassDefinition {
         if let Some(field_size) = class_abi.and_then(|class| class.field_size) {
             instance_field_word_index = instance_field_word_index.max(field_size);
         }
-        let virtual_methods = JavaVtable::build_runtime_methods(class_name, parent_class_name, &parent_virtual_methods, &methods)?;
+        let virtual_methods = JavaVtable::build_methods(
+            class_name,
+            &abi_classes,
+            JavaVtableMethodLayout::Complete,
+            &parent_virtual_methods,
+            &methods,
+        )?;
         let ptr_vtable = JavaVtable::allocate(core, ptr_raw, &virtual_methods)?;
 
         write_generic(
@@ -400,12 +426,12 @@ impl JavaClassDefinition {
 
         let class_name = ClassDefinition::name(self);
         let super_class_name = ClassDefinition::super_class_name(self);
+        let mut abi_classes = JAVA_ABI.class(&class_name).into_iter().collect::<Vec<_>>();
         let mut ancestor_name = super_class_name.clone();
-        let mut is_jlet_subclass = false;
-        let mut is_card_subclass = false;
         while let Some(name) = ancestor_name {
-            is_jlet_subclass |= matches!(name.as_str(), "org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper");
-            is_card_subclass |= name == "org/kwis/msp/lcdui/Card";
+            if let Some(class) = JAVA_ABI.class(&name) {
+                abi_classes.push(class);
+            }
             ancestor_name = jvm
                 .resolve_class(&name)
                 .await
@@ -429,11 +455,10 @@ impl JavaClassDefinition {
         } else {
             Vec::new()
         };
-        let virtual_methods = JavaVtable::build_generated_methods(
+        let virtual_methods = JavaVtable::build_methods(
             &class_name,
-            super_class_name.as_deref(),
-            is_jlet_subclass,
-            is_card_subclass,
+            &abi_classes,
+            JavaVtableMethodLayout::ConfirmedOnly,
             &parent_methods,
             &self.methods()?,
         )?;

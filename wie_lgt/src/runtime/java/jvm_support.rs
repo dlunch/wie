@@ -757,9 +757,10 @@ mod tests {
                     direct_jlet_methods[index].as_ref().unwrap().target()?
                 );
             }
-            for index in 15usize..=18 {
+            for (offset, method) in deep_jlet_methods[15..=18].iter().enumerate() {
+                let index = offset + 15;
                 let target: u32 = read_generic(&core, deep_jlet_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
-                assert_eq!(target, deep_jlet_methods[index].as_ref().unwrap().target()?);
+                assert_eq!(target, method.as_ref().unwrap().target()?);
             }
 
             let static_class = implementation
