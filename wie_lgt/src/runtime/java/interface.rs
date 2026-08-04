@@ -1,21 +1,22 @@
 use alloc::{boxed::Box, format, string::String, string::ToString, vec::Vec};
-use core::mem::{offset_of, size_of};
+use core::mem::size_of;
 
 use jvm::{
     ClassDefinition, ClassInstance, JavaError, Jvm,
     runtime::{JavaLangClass, JavaLangClassLoader, JavaLangString},
 };
-use wipi_types::lgt::java::{
-    LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassInstanceFields as RawJavaClassInstanceFields,
-    LgtJavaClassLink as RawJavaClassLink,
-};
+use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
 
 use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use crate::runtime::{
     SVC_CATEGORY_JAVA_SYSTEM,
-    java::{JavaExceptionState, jvm_support::LgtJvmSupport},
+    java::{
+        JavaExceptionState,
+        abi::{CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR},
+        jvm_support::LgtJvmSupport,
+    },
     svc_ids::JavaSystemSvcId,
 };
 
@@ -228,9 +229,12 @@ pub async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u3
     Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
-pub async fn java_initialize_class(core: &mut ArmCore, _: &mut Jvm, ptr_class_object: u32, callback: u32) -> Result<()> {
-    let ptr_fields: u32 = read_generic(core, ptr_class_object + 2 * size_of::<u32>() as u32)?;
-    let ready: u16 = read_generic(core, ptr_fields + offset_of!(RawJavaClassInstanceFields, unk2) as u32)?;
+pub async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, callback: u32) -> Result<()> {
+    let mut class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
+    let ready: i32 = jvm
+        .get_field(&class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     if ready == 5 {
         return Ok(());
     }
@@ -238,7 +242,9 @@ pub async fn java_initialize_class(core: &mut ArmCore, _: &mut Jvm, ptr_class_ob
     if callback != 0 {
         let _: () = core.run_function(callback, &[]).await?;
     }
-    write_generic(core, ptr_fields + offset_of!(RawJavaClassInstanceFields, unk2) as u32, 5u16)
+    jvm.put_field(&mut class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))
 }
 
 pub async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {

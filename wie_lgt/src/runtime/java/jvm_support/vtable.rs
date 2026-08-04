@@ -7,6 +7,8 @@ use jvm::Method;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{WieError, read_generic, write_generic};
 
+use crate::runtime::java::abi::JavaAbi;
+
 use super::{JavaMethod, Result};
 
 #[derive(Clone)]
@@ -20,41 +22,15 @@ pub struct JavaVtable;
 impl JavaVtable {
     const FIXED_ENTRY_COUNT: usize = 35;
 
-    fn fixed_index(class_name: &str, super_class_name: Option<&str>, name: &str, descriptor: &str) -> Option<usize> {
-        if matches!(class_name, "org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper")
-            || matches!(super_class_name, Some("org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper"))
+    fn fixed_index(abi: &JavaAbi, class_name: &str, super_class_name: Option<&str>, name: &str, descriptor: &str) -> Option<usize> {
+        if (matches!(class_name, "org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper")
+            || matches!(super_class_name, Some("org/kwis/msp/lcdui/Jlet" | "org/kwis/msp/lcdui/JletWrapper")))
+            && let Some(index) = abi.vtable_index("org/kwis/msp/lcdui/Jlet", name, descriptor)
         {
-            match (name, descriptor) {
-                ("startApp", "([Ljava/lang/String;)V") => return Some(15),
-                ("pauseApp", "()V") => return Some(16),
-                ("resumeApp", "()V") => return Some(17),
-                ("destroyApp", "(Z)V") => return Some(18),
-                _ => {}
-            }
+            return Some(index);
         }
 
-        match (class_name, name, descriptor) {
-            ("java/lang/Object", "getClass", "()Ljava/lang/Class;") => Some(1),
-            ("java/lang/Class", "getResourceAsStream", "(Ljava/lang/String;)Ljava/io/InputStream;") => Some(16),
-            ("java/io/InputStream", "read", "([B)I") => Some(11),
-            ("java/io/InputStream", "available", "()I") => Some(14),
-            ("java/io/InputStream", "close", "()V") => Some(15),
-            ("java/io/Reader", "read", "([C)I") => Some(11),
-            ("java/io/Reader", "close", "()V") => Some(18),
-            ("java/lang/String", "length", "()I") => Some(10),
-            ("java/lang/String", "charAt", "(I)C") => Some(11),
-            ("java/lang/String", "substring", "(II)Ljava/lang/String;") => Some(28),
-            ("java/lang/StringBuffer", "toString", "()Ljava/lang/String;") => Some(4),
-            ("java/lang/StringBuffer", "append", "(Ljava/lang/String;)Ljava/lang/StringBuffer;") => Some(18),
-            ("java/lang/StringBuffer", "append", "(I)Ljava/lang/StringBuffer;") => Some(23),
-            ("java/io/PrintStream", "println", "(Ljava/lang/String;)V") => Some(34),
-            ("java/lang/Thread", "start", "()V") => Some(10),
-            ("java/lang/Thread", "setPriority", "(I)V") => Some(14),
-            ("java/util/Random", "nextInt", "()I") => Some(12),
-            ("org/kwis/msp/lcdui/Card", "keyNotify", "(II)Z") => Some(25),
-            ("org/kwis/msp/lcdui/Card", "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V") => Some(27),
-            _ => None,
-        }
+        abi.vtable_index(class_name, name, descriptor)
     }
 
     pub fn allocate(core: &mut ArmCore, entries: &[JavaVtableEntry]) -> Result<u32> {
@@ -94,6 +70,7 @@ impl JavaVtable {
         parent_methods: &[JavaVtableEntry],
         declared_methods: &[JavaMethod],
     ) -> Result<Vec<JavaVtableEntry>> {
+        let abi = JavaAbi::parse();
         let mut methods = parent_methods.to_vec();
         if class_name == "java/lang/Object" {
             methods.resize(Self::FIXED_ENTRY_COUNT, JavaVtableEntry { target: 0, method: None });
@@ -105,7 +82,7 @@ impl JavaVtable {
                 continue;
             }
 
-            let index = Self::fixed_index(class_name, super_class_name, &method.name(), &method.descriptor());
+            let index = Self::fixed_index(&abi, class_name, super_class_name, &method.name(), &method.descriptor());
             if let Some(index) = index {
                 if methods.len() <= index {
                     methods.resize(index + 1, JavaVtableEntry { target: 0, method: None });
@@ -136,7 +113,7 @@ impl JavaVtable {
                 continue;
             }
 
-            if Self::fixed_index(class_name, super_class_name, &method.name(), &method.descriptor()).is_some() {
+            if Self::fixed_index(&abi, class_name, super_class_name, &method.name(), &method.descriptor()).is_some() {
                 continue;
             }
 
@@ -169,6 +146,7 @@ impl JavaVtable {
         parent_methods: &[JavaVtableEntry],
         declared_methods: &[JavaMethod],
     ) -> Result<Vec<JavaVtableEntry>> {
+        let abi = JavaAbi::parse();
         let mut methods = parent_methods.to_vec();
 
         for method in declared_methods {
@@ -185,15 +163,14 @@ impl JavaVtable {
                     .as_ref()
                     .is_some_and(|candidate| candidate.name() == name && candidate.descriptor() == descriptor)
             });
-            let confirmed_index = match (is_jlet_subclass, is_card_subclass, name.as_str(), descriptor.as_str()) {
-                (true, _, "startApp", "([Ljava/lang/String;)V") => Some(15),
-                (true, _, "pauseApp", "()V") => Some(16),
-                (true, _, "resumeApp", "()V") => Some(17),
-                (true, _, "destroyApp", "(Z)V") => Some(18),
-                (_, true, "keyNotify", "(II)Z") => Some(25),
-                (_, true, "paint", "(Lorg/kwis/msp/lcdui/Graphics;)V") => Some(27),
-                _ => None,
+            let abi_class = if is_jlet_subclass {
+                Some("org/kwis/msp/lcdui/Jlet")
+            } else if is_card_subclass {
+                Some("org/kwis/msp/lcdui/Card")
+            } else {
+                None
             };
+            let confirmed_index = abi_class.and_then(|class_name| abi.vtable_index(class_name, &name, &descriptor));
 
             if let Some(index) = inherited_index {
                 if confirmed_index != Some(index) {

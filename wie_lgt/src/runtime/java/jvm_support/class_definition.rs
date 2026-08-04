@@ -6,14 +6,20 @@ use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::lgt::java::{
     LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassField as RawJavaField,
-    LgtJavaClassInstanceFields as RawJavaClassInstanceFields, LgtJavaClassMethod as RawJavaMethod,
+    LgtJavaClassMethod as RawJavaMethod,
 };
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
 use wie_jvm_support::native::NativeJavaValueCodec;
 use wie_util::{ByteWrite, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
-use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
+use crate::runtime::{
+    SVC_CATEGORY_JAVA,
+    java::{
+        JavaSvcFunctions,
+        abi::{CLASS_INITIALIZATION_STATE_FIELD, CLASS_NATIVE_NAME_FIELD, JavaAbi, WORD_FIELD_DESCRIPTOR},
+    },
+};
 
 use super::{
     JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result,
@@ -51,6 +57,9 @@ impl JavaClassDefinition {
             fields: field_protos,
             access_flags,
         } = proto;
+        let abi = JavaAbi::parse();
+        let class_abi = abi.class.iter().find(|class| class.name == class_name);
+        let fixed_fields = class_abi.map(|class| class.field.as_slice()).unwrap_or_default();
 
         let parent_class = if let Some(parent_name) = parent_class_name {
             Some(
@@ -97,10 +106,11 @@ impl JavaClassDefinition {
         } else {
             Allocator::alloc(core, (size_of::<u32>() + method_protos.len() * size_of::<RawJavaMethod>()) as u32)?
         };
-        let ptr_fields = if field_protos.is_empty() {
+        let field_count = field_protos.len() + fixed_fields.len();
+        let ptr_fields = if field_count == 0 {
             0
         } else {
-            Allocator::alloc(core, (size_of::<u32>() + field_protos.len() * size_of::<RawJavaField>()) as u32)?
+            Allocator::alloc(core, (size_of::<u32>() + field_count * size_of::<RawJavaField>()) as u32)?
         };
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
 
@@ -120,7 +130,7 @@ impl JavaClassDefinition {
             write_generic(core, ptr_methods, method_protos.len() as u32)?;
         }
         if ptr_fields != 0 {
-            write_generic(core, ptr_fields, field_protos.len() as u32)?;
+            write_generic(core, ptr_fields, field_count as u32)?;
         }
 
         let mut methods = Vec::with_capacity(method_protos.len());
@@ -142,7 +152,7 @@ impl JavaClassDefinition {
             .transpose()?
             .unwrap_or(0);
         let mut static_field_word_index = 0usize;
-        for (index, field) in field_protos.into_iter().enumerate() {
+        for (index, field) in field_protos.iter().enumerate() {
             let is_static = field.access_flags.contains(FieldAccessFlags::STATIC);
             let word_index = if is_static { static_field_word_index } else { instance_field_word_index };
             let word_count = if field.descriptor == "J" || field.descriptor == "D" { 2 } else { 1 };
@@ -153,7 +163,31 @@ impl JavaClassDefinition {
             }
 
             let ptr_field = ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32;
-            JavaField::new(core, ptr_field, ptr_raw, field, word_index as u32)?;
+            JavaField::new(
+                core,
+                ptr_field,
+                ptr_raw,
+                &field.name,
+                &field.descriptor,
+                field.access_flags,
+                word_index as u32,
+            )?;
+        }
+        for (offset, field) in fixed_fields.iter().enumerate() {
+            let index = field_protos.len() + offset;
+            let ptr_field = ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32;
+            JavaField::new(
+                core,
+                ptr_field,
+                ptr_raw,
+                &field.name,
+                &field.descriptor,
+                FieldAccessFlags::PRIVATE,
+                field.index,
+            )?;
+        }
+        if let Some(field_size) = class_abi.and_then(|class| class.field_size) {
+            instance_field_word_index = instance_field_word_index.max(field_size);
         }
         let virtual_methods = JavaVtable::build_runtime_methods(class_name, parent_class_name, &parent_virtual_methods, &methods)?;
         let ptr_vtable = JavaVtable::allocate(core, &virtual_methods)?;
@@ -326,6 +360,19 @@ impl JavaClassDefinition {
 
     pub fn ptr_static_fields(&self) -> Result<u32> {
         Ok(self.ptr_raw + size_of::<RawJavaClass>() as u32)
+    }
+
+    pub async fn initialize_class_object(&self, jvm: &Jvm, class_object: &mut Box<dyn ClassInstance>) -> Result<()> {
+        jvm.put_field(
+            class_object,
+            CLASS_NATIVE_NAME_FIELD,
+            WORD_FIELD_DESCRIPTOR,
+            self.descriptor()?.ptr_name as i32,
+        )
+        .await
+        .map_err(|error| match error {
+            JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(&self.core).object_to_raw(&*instance)),
+        })
     }
 
     pub fn instance_field_word_count(&self) -> Result<usize> {
@@ -529,17 +576,22 @@ impl EmulatedFunction<(), u32, ()> for JavaClassGetterProxy {
         let class = self.jvm.resolve_class(&class_name).await.map_err(|error| match error {
             JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
         })?;
-        let java_class = class.java_class();
-        let java_class = java_class.as_any().downcast_ref::<JavaClassInstance>().unwrap();
+        let mut java_class = class.java_class();
+        self.class.initialize_class_object(&self.jvm, &mut java_class).await?;
 
         if self.initialize {
             self.jvm.ensure_initialized(&class).await.map_err(|error| match error {
                 JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
             })?;
-            write_generic(core, java_class.ptr_fields()? + offset_of!(RawJavaClassInstanceFields, unk2) as u32, 5u16)?;
+            self.jvm
+                .put_field(&mut java_class, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
+                .await
+                .map_err(|error| match error {
+                    JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
+                })?;
         }
 
-        Ok(java_class.ptr_raw)
+        Ok(JavaValueCodec::new(core).object_to_raw(&*java_class))
     }
 }
 

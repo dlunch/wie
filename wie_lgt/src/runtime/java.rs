@@ -7,6 +7,7 @@ use wie_util::{Result, WieError};
 
 use crate::runtime::SVC_CATEGORY_JAVA;
 
+mod abi;
 pub mod classes;
 mod exception;
 pub mod interface;

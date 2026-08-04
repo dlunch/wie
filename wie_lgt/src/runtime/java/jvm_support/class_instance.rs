@@ -7,7 +7,7 @@ use core::{
 
 use java_constants::FieldAccessFlags;
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
-use wipi_types::lgt::java::{LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassInstanceFields as RawJavaClassInstanceFields};
+use wipi_types::lgt::java::LgtJavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
@@ -27,11 +27,7 @@ impl JavaClassInstance {
     }
 
     pub fn new(core: &mut ArmCore, class: &JavaClassDefinition) -> Result<Self> {
-        Self::instantiate(
-            core,
-            class,
-            size_of::<RawJavaClassInstanceFields>() + class.instance_field_word_count()? * size_of::<LgtJvmWord>(),
-        )
+        Self::instantiate(core, class, class.instance_field_word_count()? * size_of::<LgtJvmWord>())
     }
 
     pub fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
@@ -71,11 +67,11 @@ impl JavaClassInstance {
     }
 
     pub fn storage_size(&self) -> Result<usize> {
-        Ok(size_of::<RawJavaClassInstanceFields>() + self.class()?.instance_field_word_count()? * size_of::<LgtJvmWord>())
+        Ok(self.class()?.instance_field_word_count()? * size_of::<LgtJvmWord>())
     }
 
     fn field_address(&self, word_index: u32) -> Result<u32> {
-        self.storage_address(offset_of!(RawJavaClassInstanceFields, fields) + word_index as usize * size_of::<LgtJvmWord>())
+        self.storage_address(word_index as usize * size_of::<LgtJvmWord>())
     }
 }
 
