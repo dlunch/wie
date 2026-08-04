@@ -2,10 +2,14 @@ use core::pin::Pin;
 
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 
-use jvm::runtime::{JavaIoInputStream, JavaLangClassLoader};
+use jvm::{
+    JavaError,
+    runtime::{JavaIoInputStream, JavaLangClassLoader},
+};
 
 use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner, extract_zip};
 use wie_core_arm::{Allocator, ArmCore};
+use wie_jvm_support::JvmSupport;
 use wie_util::{Result, WieError};
 
 use crate::runtime::{LgtJvmSupport, init::load_native};
@@ -117,7 +121,15 @@ impl LgtEmulator {
 
         let binary_mod = JavaIoInputStream::read_until_end(&jvm, &stream).await.unwrap();
 
-        load_native(core, system, &jvm, exception_state, &jar_filename, &binary_mod).await?;
+        if let Err(error) = load_native(core, system, &jvm, exception_state, &jar_filename, &binary_mod).await {
+            return Err(match error {
+                WieError::JavaException(ptr_exception) => {
+                    let exception = LgtJvmSupport::class_instance_from_raw(core, ptr_exception);
+                    JvmSupport::to_wie_err(&jvm, JavaError::JavaException(exception)).await
+                }
+                error => error,
+            });
+        }
 
         Ok(())
     }
