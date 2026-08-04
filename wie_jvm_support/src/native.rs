@@ -54,7 +54,7 @@ pub trait NativeJavaValueCodec {
     }
 }
 
-pub fn method_argument_slot_count(types: &[JavaType]) -> usize {
+pub fn method_argument_word_count(types: &[JavaType]) -> usize {
     types
         .iter()
         .map(|r#type| usize::from(matches!(r#type, JavaType::Long | JavaType::Double)) + 1)

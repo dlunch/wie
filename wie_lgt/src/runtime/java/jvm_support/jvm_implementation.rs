@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmImplementation;
 use wie_util::Result;
 
-use crate::runtime::java::{JavaSvcFunctions, register_java_svc_handler};
+use crate::runtime::java::{JavaExceptionState, JavaSvcFunctions, register_java_svc_handler};
 
 use super::{JavaArrayClassDefinition, JavaClassDefinition};
 
@@ -17,17 +17,24 @@ use super::{JavaArrayClassDefinition, JavaClassDefinition};
 pub struct LgtJvmImplementation {
     core: ArmCore,
     functions: JavaSvcFunctions,
+    exception_state: JavaExceptionState,
 }
 
 impl LgtJvmImplementation {
     pub fn new(core: &mut ArmCore) -> Result<Self> {
         let functions = Arc::new(Mutex::new(BTreeMap::new()));
-        register_java_svc_handler(core, &functions)?;
+        let exception_state = JavaExceptionState::new(core)?;
+        register_java_svc_handler(core, &functions, exception_state)?;
 
         Ok(Self {
             core: core.clone(),
             functions,
+            exception_state,
         })
+    }
+
+    pub(super) fn exception_state(&self) -> JavaExceptionState {
+        self.exception_state
     }
 }
 
@@ -51,7 +58,7 @@ impl JvmImplementation for LgtJvmImplementation {
     }
 
     async fn define_array_class(&self, jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
-        match JavaArrayClassDefinition::new(&mut self.core.clone(), jvm, element_type_name).await {
+        match JavaArrayClassDefinition::new(&mut self.core.clone(), jvm, element_type_name, self.functions.clone()).await {
             Ok(class) => Ok(Box::new(class)),
             Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
         }

@@ -8,9 +8,10 @@ mod image_observer;
 mod input_method_handler;
 mod jlet;
 mod jlet_event_listener;
+mod jlet_wrapper;
 mod main;
 
 pub use self::{
     card::Card, display::Display, event_queue::EventQueue, font::Font, graphics::Graphics, image::Image, image_observer::ImageObserver,
-    input_method_handler::InputMethodHandler, jlet::Jlet, jlet_event_listener::JletEventListener, main::Main,
+    input_method_handler::InputMethodHandler, jlet::Jlet, jlet_event_listener::JletEventListener, jlet_wrapper::JletWrapper, main::Main,
 };

@@ -9,7 +9,7 @@ use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult,
 };
-use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_slot_count};
+use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
@@ -48,8 +48,8 @@ impl JavaMethod {
 
         let method_type = JavaType::parse(&proto.descriptor);
         let (parameter_types, _) = method_type.as_method();
-        let argument_slot_count =
-            method_argument_slot_count(parameter_types) as u16 + u16::from(!proto.access_flags.contains(MethodAccessFlags::STATIC));
+        let argument_word_count =
+            method_argument_word_count(parameter_types) as u16 + u16::from(!proto.access_flags.contains(MethodAccessFlags::STATIC));
         let access_flags = proto.access_flags;
         let target = Self::register_java_method(core, jvm, ptr_raw, proto, context, functions)?;
 
@@ -61,7 +61,7 @@ impl JavaMethod {
                 ptr_name,
                 ptr_descriptor,
                 access_flags: access_flags.bits(),
-                argument_slot_count,
+                argument_slot_count: argument_word_count,
                 unk3: 0,
                 ptr_method: target,
                 unk4: 0,
@@ -85,8 +85,7 @@ impl JavaMethod {
         let codec = JavaValueCodec::new(&self.core);
         let raw_args = encode_method_arguments(&codec, &args);
 
-        let mut core = self.core.clone();
-        let result: JavaMethodRunResult = core.run_function(raw.ptr_method, &raw_args).await?;
+        let result: JavaMethodRunResult = self.core.clone().run_function(raw.ptr_method, &raw_args).await?;
 
         if matches!(return_type, JavaType::Double | JavaType::Long) {
             Ok(codec.decode_wide(result.low, result.high, &return_type))
@@ -178,15 +177,52 @@ where
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
-        let parameter_slot_count = method_argument_slot_count(&self.parameter_types);
-        let raw_args = (0..parameter_slot_count)
+        let parameter_word_count = method_argument_word_count(&self.parameter_types);
+        let raw_args = (0..parameter_word_count)
             .map(|index| <u32 as EmulatedFunctionParam<u32>>::get(core, index))
             .collect::<Vec<_>>();
 
         let codec = JavaValueCodec::new(core);
         let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
 
-        let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
+        let result = if self.proto.name == "read" && self.proto.descriptor == "([C)I" {
+            let JavaValue::Object(Some(this)) = &args[0] else { unreachable!() };
+            let JavaValue::Object(Some(buffer)) = &args[1] else { unreachable!() };
+            let length = self.jvm.array_length(buffer).await;
+            match length {
+                Ok(length) => {
+                    let mut total = 0usize;
+                    let mut end_of_input = false;
+                    let mut error = None;
+                    while total < length {
+                        match self
+                            .jvm
+                            .invoke_virtual::<_, i32>(this, "read", "([CII)I", (buffer.clone(), total as i32, (length - total) as i32))
+                            .await
+                        {
+                            Ok(-1) => {
+                                end_of_input = true;
+                                break;
+                            }
+                            Ok(0) => break,
+                            Ok(read) => total += read as usize,
+                            Err(read_error) => {
+                                error = Some(read_error);
+                                break;
+                            }
+                        }
+                    }
+                    if let Some(error) = error {
+                        Err(error)
+                    } else {
+                        Ok(JavaValue::Int(if total == 0 && end_of_input { -1 } else { total as i32 }))
+                    }
+                }
+                Err(error) => Err(error),
+            }
+        } else {
+            self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await
+        };
         let result = match result {
             Ok(value) => value,
             Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),
@@ -225,5 +261,146 @@ impl ResultWriter<JavaMethodResult> for JavaMethodResult {
     fn write(self, core: &mut ArmCore, next_pc: u32) -> Result<()> {
         core.write_return_value(&self.result)?;
         core.set_next_pc(next_pc)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, sync::Arc, vec};
+    use core::{
+        mem::size_of,
+        sync::atomic::{AtomicBool, Ordering},
+    };
+
+    use java_class_proto::{JavaClassProto, JavaMethodProto};
+    use java_constants::MethodAccessFlags;
+    use jvm::{JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
+    use spin::Mutex;
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_jvm_support::{JvmImplementation, JvmSupport};
+    use wie_util::{Result, write_generic, write_null_terminated_string_bytes};
+
+    use super::{JavaMethod, JavaMethodRunResult, RawJavaMethod};
+    use crate::runtime::java::jvm_support::{JavaClassInstance, LgtJvmImplementation};
+
+    async fn rust_wide_bridge(_jvm: &Jvm, observed: &mut Arc<Mutex<Option<(i64, u64)>>>, integer: i64, floating: f64) -> JvmResult<i64> {
+        *observed.lock() = Some((integer, floating.to_bits()));
+        Ok(integer ^ floating.to_bits() as i64)
+    }
+
+    #[test]
+    fn aot_method_bridge_preserves_reference_and_wide_values_in_both_directions() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let system_clone = system.clone();
+
+        system.spawn(async move || {
+            let mut core = ArmCore::new(false, None)?;
+            Allocator::init(&mut core)?;
+
+            let mut context = core.save_context();
+            let stack = Allocator::alloc(&mut core, 0x100)?;
+            context.sp = stack + 0x100;
+            core.restore_context(&context);
+
+            let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
+            let implementation = LgtJvmImplementation::new(&mut core)?;
+            let jvm = JvmSupport::new_jvm(&system_clone, None, Box::new(protos), &[], implementation.clone()).await?;
+
+            let ptr_aot = Allocator::alloc(&mut core, 6)?;
+            write_generic(&mut core, ptr_aot, 0x1808u16)?; // adds r0, r1, r0
+            write_generic(&mut core, ptr_aot + 2, 0x0011u16)?; // movs r1, r2
+            write_generic(&mut core, ptr_aot + 4, 0x4770u16)?; // bx lr
+
+            let ptr_name = Allocator::alloc(&mut core, 7)?;
+            write_null_terminated_string_bytes(&mut core, ptr_name, b"bridge")?;
+            let descriptor = b"(Ljava/lang/String;J)J";
+            let ptr_descriptor = Allocator::alloc(&mut core, descriptor.len() as u32 + 1)?;
+            write_null_terminated_string_bytes(&mut core, ptr_descriptor, descriptor)?;
+            let ptr_method = Allocator::alloc(&mut core, size_of::<RawJavaMethod>() as u32)?;
+            write_generic(
+                &mut core,
+                ptr_method,
+                RawJavaMethod {
+                    ptr_class: 0,
+                    ptr_name,
+                    ptr_descriptor,
+                    access_flags: MethodAccessFlags::STATIC.bits(),
+                    argument_slot_count: 3,
+                    unk3: 0,
+                    ptr_method: ptr_aot + 1,
+                    unk4: 0,
+                },
+            )?;
+
+            let reference = JavaLangString::from_rust_string(&jvm, "guest-reference").await.unwrap();
+            let ptr_reference = reference.as_any().downcast_ref::<JavaClassInstance>().unwrap().ptr_raw;
+            let wide = 0x1234_5678_0102_0304i64;
+            let result = JavaMethod::from_raw(ptr_method, &core)
+                .run(&jvm, vec![JavaValue::Object(Some(reference)), JavaValue::Long(wide)].into_boxed_slice())
+                .await
+                .unwrap();
+            assert_eq!(
+                i64::from(result),
+                ((wide as u64 & 0xffff_ffff_0000_0000) | ((wide as u32).wrapping_add(ptr_reference) as u64)) as i64
+            );
+
+            let observed = Arc::new(Mutex::new(None));
+            let class = implementation
+                .define_class_rust(
+                    &jvm,
+                    JavaClassProto {
+                        name: "net/wie/test/RustBridge",
+                        parent_class: Some("java/lang/Object"),
+                        interfaces: vec![],
+                        methods: vec![JavaMethodProto::new("wide", "(JD)J", rust_wide_bridge, MethodAccessFlags::STATIC)],
+                        fields: vec![],
+                        access_flags: Default::default(),
+                    },
+                    Box::new(observed.clone()),
+                )
+                .await
+                .unwrap();
+            let method = class.method("wide", "(JD)J", true).unwrap();
+            let target = method.as_any().downcast_ref::<JavaMethod>().unwrap().target()?;
+
+            let ptr_wrapper = Allocator::alloc(&mut core, 12)?;
+            write_generic(&mut core, ptr_wrapper, 0xb500u16)?; // push {lr}
+            write_generic(&mut core, ptr_wrapper + 2, 0x4c01u16)?; // ldr r4, [pc, #4]
+            write_generic(&mut core, ptr_wrapper + 4, 0x47a0u16)?; // blx r4
+            write_generic(&mut core, ptr_wrapper + 6, 0xbd00u16)?; // pop {pc}
+            write_generic(&mut core, ptr_wrapper + 8, target)?;
+
+            let integer = 0x1357_9bdf_2468_ace0i64;
+            let floating = -13.25f64;
+            let integer_bits = integer as u64;
+            let floating_bits = floating.to_bits();
+            let result: JavaMethodRunResult = core
+                .run_function(
+                    ptr_wrapper + 1,
+                    &[
+                        integer_bits as u32,
+                        (integer_bits >> 32) as u32,
+                        floating_bits as u32,
+                        (floating_bits >> 32) as u32,
+                    ],
+                )
+                .await?;
+            assert_eq!(*observed.lock(), Some((integer, floating_bits)));
+            assert_eq!(((result.high as u64) << 32) | result.low as u64, (integer ^ floating_bits as i64) as u64);
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+
+        Ok(())
     }
 }
