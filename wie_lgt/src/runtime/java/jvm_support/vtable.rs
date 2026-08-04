@@ -10,7 +10,7 @@ use wie_util::{WieError, read_generic, write_generic};
 use super::{JavaMethod, Result};
 
 #[derive(Clone)]
-pub(super) struct JavaVtableEntry {
+pub struct JavaVtableEntry {
     pub target: u32,
     pub method: Option<JavaMethod>,
 }

@@ -1,11 +1,14 @@
 use alloc::{boxed::Box, format, string::String, string::ToString, vec::Vec};
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 use jvm::{
     ClassDefinition, ClassInstance, JavaError, Jvm,
     runtime::{JavaLangClass, JavaLangClassLoader, JavaLangString},
 };
-use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
+use wipi_types::lgt::java::{
+    LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassInstanceFields as RawJavaClassInstanceFields,
+    LgtJavaClassLink as RawJavaClassLink,
+};
 
 use wie_core_arm::ArmCore;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
@@ -109,7 +112,7 @@ pub async fn java_exception_matches_class(
     exception_state: JavaExceptionState,
     _ptr_exception_type: u32,
     ptr_class_name: u32,
-    _ptr_class_fields: u32,
+    _ptr_fields: u32,
 ) -> Result<u32> {
     let class_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT exception class name: {error}")))?;
@@ -227,7 +230,7 @@ pub async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u3
 
 pub async fn java_initialize_class(core: &mut ArmCore, _: &mut Jvm, ptr_class_object: u32, callback: u32) -> Result<()> {
     let ptr_fields: u32 = read_generic(core, ptr_class_object + 2 * size_of::<u32>() as u32)?;
-    let ready: u16 = read_generic(core, ptr_fields + 0x10)?;
+    let ready: u16 = read_generic(core, ptr_fields + offset_of!(RawJavaClassInstanceFields, unk2) as u32)?;
     if ready == 5 {
         return Ok(());
     }
@@ -235,7 +238,7 @@ pub async fn java_initialize_class(core: &mut ArmCore, _: &mut Jvm, ptr_class_ob
     if callback != 0 {
         let _: () = core.run_function(callback, &[]).await?;
     }
-    write_generic(core, ptr_fields + 0x10, 5u16)
+    write_generic(core, ptr_fields + offset_of!(RawJavaClassInstanceFields, unk2) as u32, 5u16)
 }
 
 pub async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {
@@ -419,7 +422,7 @@ async fn link_class_members(
 
     for index in link.virtual_method_offset..link.virtual_method_offset + link.virtual_method_count {
         let (name, descriptor) = read_member_name_and_descriptor(core, virtual_method_imports, index)?;
-        let method_index = LgtJvmSupport::virtual_method_index(jvm, class_name, &name, &descriptor).await?;
+        let method_index = LgtJvmSupport::virtual_method_index(core, jvm, class_name, &name, &descriptor).await?;
         write_generic(core, virtual_method_indices + index as u32 * size_of::<u16>() as u32, method_index)?;
     }
 

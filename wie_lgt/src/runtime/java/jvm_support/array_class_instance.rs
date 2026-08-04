@@ -56,12 +56,12 @@ impl JavaArrayClassInstance {
         JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core).element_type()
     }
 
-    pub fn load_raw(&self, byte_offset: usize, buffer: &mut [u8]) -> Result<()> {
+    fn load_raw(&self, byte_offset: usize, buffer: &mut [u8]) -> Result<()> {
         self.core.read_bytes(self.base_address() + byte_offset as u32, buffer)?;
         Ok(())
     }
 
-    pub fn store_raw(&mut self, byte_offset: usize, buffer: &[u8]) -> Result<()> {
+    fn store_raw(&mut self, byte_offset: usize, buffer: &[u8]) -> Result<()> {
         self.core.write_bytes(self.base_address() + byte_offset as u32, buffer)
     }
 }

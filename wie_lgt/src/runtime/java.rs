@@ -13,7 +13,7 @@ pub mod interface;
 mod jvm_support;
 mod system;
 
-pub(crate) use exception::JavaExceptionState;
+pub use exception::JavaExceptionState;
 pub use interface::get_java_interface_method;
 pub use jvm_support::LgtJvmSupport;
 pub use system::register_java_system_svc_handler;

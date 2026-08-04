@@ -18,7 +18,7 @@ use super::{Result, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaMethod {
-    pub ptr_raw: u32,
+    ptr_raw: u32,
     core: ArmCore,
 }
 
@@ -61,7 +61,7 @@ impl JavaMethod {
                 ptr_name,
                 ptr_descriptor,
                 access_flags: access_flags.bits(),
-                argument_slot_count: argument_word_count,
+                argument_word_count,
                 unk3: 0,
                 ptr_method: target,
                 unk4: 0,
@@ -253,7 +253,7 @@ impl RunFunctionResult<JavaMethodRunResult> for JavaMethodRunResult {
     }
 }
 
-pub struct JavaMethodResult {
+struct JavaMethodResult {
     result: Vec<u32>,
 }
 
@@ -330,7 +330,7 @@ mod tests {
                     ptr_name,
                     ptr_descriptor,
                     access_flags: MethodAccessFlags::STATIC.bits(),
-                    argument_slot_count: 3,
+                    argument_word_count: 3,
                     unk3: 0,
                     ptr_method: ptr_aot + 1,
                     unk4: 0,

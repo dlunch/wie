@@ -7,7 +7,7 @@ use core::{
 
 use java_constants::FieldAccessFlags;
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
-use wipi_types::lgt::java::LgtJavaClassInstance as RawJavaClassInstance;
+use wipi_types::lgt::java::{LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassInstanceFields as RawJavaClassInstanceFields};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
@@ -27,10 +27,14 @@ impl JavaClassInstance {
     }
 
     pub fn new(core: &mut ArmCore, class: &JavaClassDefinition) -> Result<Self> {
-        Self::instantiate(core, class, class.instance_field_word_count()? * size_of::<LgtJvmWord>())
+        Self::instantiate(
+            core,
+            class,
+            size_of::<RawJavaClassInstanceFields>() + class.instance_field_word_count()? * size_of::<LgtJvmWord>(),
+        )
     }
 
-    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
+    pub fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as u32)?;
         let allocated_storage_size = storage_size.max(size_of::<LgtJvmWord>());
         let ptr_fields = Allocator::alloc(core, allocated_storage_size as u32)?;
@@ -47,7 +51,7 @@ impl JavaClassInstance {
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub(super) fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
+    pub fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
         let ptr_fields = self.ptr_fields()?;
         Allocator::free(&mut self.core, ptr_fields, storage_size.max(size_of::<LgtJvmWord>()) as u32)?;
         Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as u32)
@@ -58,20 +62,20 @@ impl JavaClassInstance {
         Ok(JavaClassDefinition::from_raw(ptr_class, &self.core))
     }
 
-    pub(super) fn ptr_fields(&self) -> Result<u32> {
+    pub fn ptr_fields(&self) -> Result<u32> {
         read_generic(&self.core, self.ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32)
     }
 
-    pub(super) fn storage_address(&self, byte_offset: usize) -> Result<u32> {
+    pub fn storage_address(&self, byte_offset: usize) -> Result<u32> {
         Ok(self.ptr_fields()? + byte_offset as u32)
     }
 
-    pub(super) fn storage_size(&self) -> Result<usize> {
-        Ok(self.class()?.instance_field_word_count()? * size_of::<LgtJvmWord>())
+    pub fn storage_size(&self) -> Result<usize> {
+        Ok(size_of::<RawJavaClassInstanceFields>() + self.class()?.instance_field_word_count()? * size_of::<LgtJvmWord>())
     }
 
     fn field_address(&self, word_index: u32) -> Result<u32> {
-        self.storage_address(word_index as usize * size_of::<LgtJvmWord>())
+        self.storage_address(offset_of!(RawJavaClassInstanceFields, fields) + word_index as usize * size_of::<LgtJvmWord>())
     }
 }
 

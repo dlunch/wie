@@ -33,7 +33,7 @@ impl LgtJvmImplementation {
         })
     }
 
-    pub(super) fn exception_state(&self) -> JavaExceptionState {
+    pub fn exception_state(&self) -> JavaExceptionState {
         self.exception_state
     }
 }

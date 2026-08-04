@@ -7,19 +7,19 @@ const STATE_WORDS: u32 = 2;
 const FRAME_WORDS: u32 = 18;
 
 #[derive(Clone, Copy)]
-pub(crate) struct JavaExceptionState {
+pub struct JavaExceptionState {
     ptr_raw: u32,
 }
 
 impl JavaExceptionState {
-    pub(crate) fn new(core: &mut ArmCore) -> Result<Self> {
+    pub fn new(core: &mut ArmCore) -> Result<Self> {
         let ptr_raw = Allocator::alloc(core, STATE_WORDS * size_of::<u32>() as u32)?;
         write_generic(core, ptr_raw, [0u32; STATE_WORDS as usize])?;
 
         Ok(Self { ptr_raw })
     }
 
-    pub(crate) fn push(&self, core: &mut ArmCore) -> Result<()> {
+    pub fn push(&self, core: &mut ArmCore) -> Result<()> {
         let context = core.save_context();
         let ptr_previous_frame: u32 = read_generic(core, self.ptr_raw)?;
         let frame = [
@@ -50,7 +50,7 @@ impl JavaExceptionState {
         Ok(())
     }
 
-    pub(crate) fn pop(&self, core: &mut ArmCore) -> Result<()> {
+    pub fn pop(&self, core: &mut ArmCore) -> Result<()> {
         let ptr_frame: u32 = read_generic(core, self.ptr_raw)?;
         let frame: [u32; FRAME_WORDS as usize] = read_generic(core, ptr_frame)?;
         write_generic(core, self.ptr_raw, frame[0])?;
@@ -58,11 +58,11 @@ impl JavaExceptionState {
         Allocator::free(core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)
     }
 
-    pub(crate) fn pending(&self, core: &ArmCore) -> Result<u32> {
+    pub fn pending(&self, core: &ArmCore) -> Result<u32> {
         read_generic(core, self.ptr_raw + size_of::<u32>() as u32)
     }
 
-    pub(crate) fn unwind(&self, core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
+    pub fn unwind(&self, core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
         let ptr_frame: u32 = read_generic(core, self.ptr_raw)?;
         if ptr_frame == 0 {
             return Ok(None);
