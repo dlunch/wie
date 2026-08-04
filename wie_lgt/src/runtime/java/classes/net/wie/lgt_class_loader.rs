@@ -8,10 +8,7 @@ use core::mem::size_of;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use java_constants::FieldAccessFlags;
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
-use jvm::{
-    ClassDefinition, ClassInstance, ClassInstanceRef, JavaError, Jvm, Result as JvmResult,
-    runtime::{JavaLangClassLoader, JavaLangString},
-};
+use jvm::{ClassInstance, ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::ArmCore;
@@ -92,30 +89,7 @@ impl LgtClassLoader {
             Err(error) => return Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
         };
 
-        let definition = LgtJvmSupport::class_from_raw(core, ptr_class);
         let loader: Box<dyn ClassInstance> = this.clone().into();
-        let mut dependency_names = definition.interface_names();
-        if let Some(parent_name) = definition.super_class_name() {
-            dependency_names.insert(0, parent_name);
-        }
-        for dependency_name in dependency_names {
-            if let Some(ptr_dependency) = match Self::find_raw_class(core, generated_classes as u32, &dependency_name) {
-                Ok(ptr_dependency) => ptr_dependency,
-                Err(error) => return Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
-            } {
-                if let Err(error) = LgtJvmSupport::register_generated_class(core, jvm, ptr_dependency, loader.clone()).await {
-                    return match error {
-                        wie_util::WieError::JavaException(ptr_exception) => {
-                            Err(JavaError::JavaException(LgtJvmSupport::class_instance_from_raw(core, ptr_exception)))
-                        }
-                        error => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
-                    };
-                }
-            } else if JavaLangClassLoader::load_class(jvm, &loader, &dependency_name).await?.is_none() {
-                return Err(jvm.exception("java/lang/ClassNotFoundException", &dependency_name).await);
-            }
-        }
-
         match LgtJvmSupport::register_generated_class(core, jvm, ptr_class, loader).await {
             Ok(class) => Ok(class.into()),
             Err(wie_util::WieError::JavaException(ptr_exception)) => {
