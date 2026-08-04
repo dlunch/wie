@@ -13,7 +13,7 @@
     "css-loader": "^7.1.4",
     "html-bundler-webpack-plugin": "^4.23.2",
     "sass": "^1.102.0",
-    "sass-loader": "^16.0.8",
+    "sass-loader": "^17.0.0",
     "spessasynth_lib": "^4.2.10",
     "ts-loader": "^9.6.2",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
