@@ -8,7 +8,7 @@ use wipi_types::lgt::java::{
 use wie_core_arm::{ArmCore, JumpTo, RegisteredFunction, SvcId};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes};
 
-use crate::runtime::{SVC_CATEGORY_JAVA, SVC_CATEGORY_JAVA_VTABLE};
+use crate::runtime::{SVC_CATEGORY_JAVA, SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY};
 
 mod abi;
 pub mod classes;
@@ -53,5 +53,5 @@ async fn handle_missing_java_vtable_entry(core: &mut ArmCore, _: &mut (), id: Sv
 
 pub fn register_java_svc_handler(core: &mut ArmCore, functions: &JavaSvcFunctions) -> Result<()> {
     core.register_svc_handler(SVC_CATEGORY_JAVA, handle_java_svc, functions)?;
-    core.register_svc_handler(SVC_CATEGORY_JAVA_VTABLE, handle_missing_java_vtable_entry, &())
+    core.register_svc_handler(SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY, handle_missing_java_vtable_entry, &())
 }

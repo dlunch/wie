@@ -7,7 +7,7 @@ use jvm::{ClassDefinition, Jvm, Method};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, write_generic};
 
-use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JAVA_ABI};
+use crate::runtime::{SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY, java::abi::JAVA_ABI};
 
 use super::{JavaClassDefinition, JavaMethod};
 
@@ -54,7 +54,7 @@ impl JavaVtable {
         write_generic(core, ptr_vtable, ptr_class)?;
         for (index, entry) in entries.iter().enumerate() {
             let target = if entry.target == 0 {
-                core.make_svc_stub(SVC_CATEGORY_JAVA_VTABLE, index as u32)?
+                core.make_svc_stub(SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY, index as u32)?
             } else {
                 entry.target
             };

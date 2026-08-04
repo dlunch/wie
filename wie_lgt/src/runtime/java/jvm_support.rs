@@ -25,7 +25,7 @@ use jvm_implementation::LgtJvmImplementation;
 
 use self::{
     array_class_definition::JavaArrayClassDefinition, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition,
-    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, vtable::JavaVtableEntry,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueCodec, vtable::JavaVtableEntry,
 };
 
 type LgtJvmWord = u32;
@@ -66,7 +66,7 @@ impl LgtJvmSupport {
     }
 
     pub fn class_instance_from_raw(core: &ArmCore, ptr_instance: u32) -> Box<dyn ClassInstance> {
-        value::JavaValueCodec::new(core).object_from_raw(ptr_instance)
+        JavaValueCodec::new(core).object_from_raw(ptr_instance)
     }
 
     pub fn class_instance_raw(instance: &dyn ClassInstance) -> u32 {
@@ -247,9 +247,7 @@ impl LgtJvmSupport {
             Ok(Some(java_class)) => java_class,
             Ok(None) => unreachable!(),
             Err(JavaError::JavaException(instance)) => {
-                return Err(wie_util::WieError::JavaException(
-                    value::JavaValueCodec::new(core).object_to_raw(&*instance),
-                ));
+                return Err(wie_util::WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)));
             }
         };
         registered_definition.initialize_class_object(jvm, &mut java_class).await?;
