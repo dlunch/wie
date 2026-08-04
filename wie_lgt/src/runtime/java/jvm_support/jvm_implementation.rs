@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmImplementation;
 use wie_util::Result;
 
-use crate::runtime::java::{JavaSvcFunctions, register_java_svc_handler};
+use crate::runtime::java::{JavaSvcFunctions, exception, register_java_svc_handler};
 
 use super::{JavaArrayClassDefinition, JavaClassDefinition};
 
@@ -22,6 +22,7 @@ pub struct LgtJvmImplementation {
 impl LgtJvmImplementation {
     pub fn new(core: &mut ArmCore) -> Result<Self> {
         let functions = Arc::new(Mutex::new(BTreeMap::new()));
+        exception::init(core)?;
         register_java_svc_handler(core, &functions)?;
 
         Ok(Self {
@@ -51,7 +52,7 @@ impl JvmImplementation for LgtJvmImplementation {
     }
 
     async fn define_array_class(&self, jvm: &Jvm, element_type_name: &str) -> JvmResult<Box<dyn ClassDefinition>> {
-        match JavaArrayClassDefinition::new(&mut self.core.clone(), jvm, element_type_name).await {
+        match JavaArrayClassDefinition::new(&mut self.core.clone(), jvm, element_type_name, self.functions.clone()).await {
             Ok(class) => Ok(Box::new(class)),
             Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
         }

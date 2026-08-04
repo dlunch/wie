@@ -1,0 +1,88 @@
+# Vtable index 0 contains the raw-class pointer, so method indexes start at 1.
+# vtable_size counts method entries, including unknown entries.
+# Field indexes address 32-bit words in instance field storage; field_size is
+# the total word count, including unknown fields.
+
+[[class]]
+name = "java/lang/Object"
+vtable_size = 10
+vtable = [
+    { name = "getClass", descriptor = "()Ljava/lang/Class;", index = 1 },
+    { name = "toString", descriptor = "()Ljava/lang/String;", index = 4 },
+]
+
+[[class]]
+name = "java/lang/Class"
+field_size = 5
+vtable = [
+    { name = "getResourceAsStream", descriptor = "(Ljava/lang/String;)Ljava/io/InputStream;", index = 16 },
+]
+field = [
+    { name = "nativeClassName", descriptor = "I", index = 2 },
+    { name = "initializationState", descriptor = "I", index = 4 },
+]
+
+[[class]]
+name = "java/io/InputStream"
+vtable = [
+    { name = "read", descriptor = "([B)I", index = 11 },
+    { name = "available", descriptor = "()I", index = 14 },
+    { name = "close", descriptor = "()V", index = 15 },
+]
+
+[[class]]
+name = "java/io/Reader"
+vtable = [
+    { name = "read", descriptor = "([C)I", index = 11 },
+    { name = "close", descriptor = "()V", index = 18 },
+]
+
+[[class]]
+name = "java/lang/String"
+vtable = [
+    { name = "length", descriptor = "()I", index = 10 },
+    { name = "charAt", descriptor = "(I)C", index = 11 },
+    { name = "substring", descriptor = "(II)Ljava/lang/String;", index = 28 },
+]
+
+[[class]]
+name = "java/lang/StringBuffer"
+vtable = [
+    { name = "append", descriptor = "(Ljava/lang/String;)Ljava/lang/StringBuffer;", index = 18 },
+    { name = "append", descriptor = "(I)Ljava/lang/StringBuffer;", index = 23 },
+]
+
+[[class]]
+name = "java/io/PrintStream"
+vtable = [
+    { name = "println", descriptor = "(Ljava/lang/String;)V", index = 34 },
+]
+
+[[class]]
+name = "java/lang/Thread"
+vtable = [
+    { name = "start", descriptor = "()V", index = 10 },
+    { name = "setPriority", descriptor = "(I)V", index = 14 },
+]
+
+[[class]]
+name = "java/util/Random"
+vtable = [
+    { name = "nextInt", descriptor = "()I", index = 12 },
+]
+
+[[class]]
+name = "org/kwis/msp/lcdui/Jlet"
+vtable = [
+    { name = "startApp", descriptor = "([Ljava/lang/String;)V", index = 15 },
+    { name = "pauseApp", descriptor = "()V", index = 16 },
+    { name = "resumeApp", descriptor = "()V", index = 17 },
+    { name = "destroyApp", descriptor = "(Z)V", index = 18 },
+]
+
+[[class]]
+name = "org/kwis/msp/lcdui/Card"
+vtable = [
+    { name = "keyNotify", descriptor = "(II)Z", index = 25 },
+    { name = "paint", descriptor = "(Lorg/kwis/msp/lcdui/Graphics;)V", index = 27 },
+]

@@ -7,15 +7,6 @@ pub enum InitSvcId {
     GetImportFunction = 1,
     Unk0 = 2,
     GetApplicationJarPath = 3,
-    JavaUnk1 = 4,
-    JavaUnk2 = 5,
-    JavaUnk3 = 6,
-    JavaInterfaceUnk0 = 7,
-    JavaDestroyRuntimeContext = 8,
-    JavaCreateRuntimeContext = 9,
-    JavaLinkImportedClasses = 10,
-    JavaSetJarPath = 11,
-    JavaStartApplication = 12,
 }
 
 impl TryFrom<SvcId> for InitSvcId {
@@ -27,17 +18,98 @@ impl TryFrom<SvcId> for InitSvcId {
             1 => Self::GetImportFunction,
             2 => Self::Unk0,
             3 => Self::GetApplicationJarPath,
-            4 => Self::JavaUnk1,
-            5 => Self::JavaUnk2,
-            6 => Self::JavaUnk3,
-            7 => Self::JavaInterfaceUnk0,
-            8 => Self::JavaDestroyRuntimeContext,
-            9 => Self::JavaCreateRuntimeContext,
-            10 => Self::JavaLinkImportedClasses,
-            11 => Self::JavaSetJarPath,
-            12 => Self::JavaStartApplication,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown LGT init SVC id {}", value.0))),
         })
+    }
+}
+
+#[derive(Copy, Clone)]
+#[repr(u32)]
+pub enum JavaSystemSvcId {
+    InterfaceUnk0 = 0,
+    DestroyRuntimeContext = 1,
+    CreateRuntimeContext = 2,
+    LinkImportedClasses = 3,
+    SetJarPath = 4,
+    StartApplication = 5,
+    RegisterClass = 6,
+    ResolveClass = 7,
+    InitializeClass = 8,
+    GetArrayType = 9,
+    Instantiate = 10,
+    InstantiateArray = 11,
+    MethodPrologue = 12,
+    Safepoint = 13,
+    StringLiteral = 14,
+    PushExceptionFrame = 15,
+    PopExceptionFrame = 16,
+    StoreReferenceArray = 17,
+    GetStringClass = 18,
+    GetStringArrayClass = 19,
+    PendingException = 20,
+    StoreReferenceArrayUnchecked = 21,
+    InstantiateMultiArray = 22,
+    LinkPublicClass = 23,
+    ExceptionMatchesClass = 24,
+    RethrowException = 25,
+    RaiseNullPointerException = 26,
+    RaiseArrayIndexException = 27,
+    RaiseArithmeticException = 28,
+    Unk1 = 29,
+    Unk2 = 30,
+    Unk3 = 31,
+}
+
+impl TryFrom<SvcId> for JavaSystemSvcId {
+    type Error = wie_util::WieError;
+
+    fn try_from(value: SvcId) -> Result<Self, Self::Error> {
+        Ok(match value.0 {
+            0 => Self::InterfaceUnk0,
+            1 => Self::DestroyRuntimeContext,
+            2 => Self::CreateRuntimeContext,
+            3 => Self::LinkImportedClasses,
+            4 => Self::SetJarPath,
+            5 => Self::StartApplication,
+            6 => Self::RegisterClass,
+            7 => Self::ResolveClass,
+            8 => Self::InitializeClass,
+            9 => Self::GetArrayType,
+            10 => Self::Instantiate,
+            11 => Self::InstantiateArray,
+            12 => Self::MethodPrologue,
+            13 => Self::Safepoint,
+            14 => Self::StringLiteral,
+            15 => Self::PushExceptionFrame,
+            16 => Self::PopExceptionFrame,
+            17 => Self::StoreReferenceArray,
+            18 => Self::GetStringClass,
+            19 => Self::GetStringArrayClass,
+            20 => Self::PendingException,
+            21 => Self::StoreReferenceArrayUnchecked,
+            22 => Self::InstantiateMultiArray,
+            23 => Self::LinkPublicClass,
+            24 => Self::ExceptionMatchesClass,
+            25 => Self::RethrowException,
+            26 => Self::RaiseNullPointerException,
+            27 => Self::RaiseArrayIndexException,
+            28 => Self::RaiseArithmeticException,
+            29 => Self::Unk1,
+            30 => Self::Unk2,
+            31 => Self::Unk3,
+            _ => {
+                return Err(wie_util::WieError::FatalError(alloc::format!(
+                    "Unknown LGT Java system SVC id {}",
+                    value.0
+                )));
+            }
+        })
+    }
+}
+
+impl From<JavaSystemSvcId> for u32 {
+    fn from(value: JavaSystemSvcId) -> Self {
+        value as u32
     }
 }
 

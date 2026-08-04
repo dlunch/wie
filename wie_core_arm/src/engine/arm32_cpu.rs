@@ -33,7 +33,9 @@ impl Arm32CpuEngine {
         self.mem.read_range(svc_address, 2, &mut svc_bytes)?;
         let instruction = u16::from_le_bytes(svc_bytes);
         if instruction & 0xff00 != 0xdf00 {
-            return Err(WieError::FatalError(format!("Invalid Thumb SVC instruction {instruction:#06x}")));
+            return Err(WieError::FatalError(format!(
+                "Invalid Thumb SVC instruction {instruction:#06x} at {svc_address:#x}"
+            )));
         }
 
         let category = instruction as u32 & 0xff;

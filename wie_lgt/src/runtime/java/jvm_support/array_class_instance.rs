@@ -9,9 +9,9 @@ use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::{decode_array_values, encode_array_values};
-use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 
-use super::{JavaArrayClassDefinition, JavaClassInstance, Result, value::JavaValueCodec};
+use super::{JavaArrayClassDefinition, JavaClassInstance, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
@@ -56,12 +56,12 @@ impl JavaArrayClassInstance {
         JavaArrayClassDefinition::from_class(self.class_instance.class().unwrap(), &self.core).element_type()
     }
 
-    pub fn load_raw(&self, byte_offset: usize, buffer: &mut [u8]) -> Result<()> {
+    fn load_raw(&self, byte_offset: usize, buffer: &mut [u8]) -> Result<()> {
         self.core.read_bytes(self.base_address() + byte_offset as u32, buffer)?;
         Ok(())
     }
 
-    pub fn store_raw(&mut self, byte_offset: usize, buffer: &[u8]) -> Result<()> {
+    fn store_raw(&mut self, byte_offset: usize, buffer: &[u8]) -> Result<()> {
         self.core.write_bytes(self.base_address() + byte_offset as u32, buffer)
     }
 }

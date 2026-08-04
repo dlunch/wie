@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec};
 use core::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    mem::{offset_of, size_of},
+    mem::size_of,
 };
 
 use java_constants::FieldAccessFlags;
@@ -11,9 +11,9 @@ use wipi_types::lgt::java::LgtJavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 
-use super::{JavaClassDefinition, JavaField, LgtJvmWord, Result, value::JavaValueCodec};
+use super::{JavaClassDefinition, JavaField, LgtJvmWord, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaClassInstance {
@@ -27,10 +27,10 @@ impl JavaClassInstance {
     }
 
     pub fn new(core: &mut ArmCore, class: &JavaClassDefinition) -> Result<Self> {
-        Self::instantiate(core, class, class.instance_field_slot_count()? * size_of::<LgtJvmWord>())
+        Self::instantiate(core, class, class.instance_field_word_count()? * size_of::<LgtJvmWord>())
     }
 
-    pub(super) fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
+    pub fn instantiate(core: &mut ArmCore, class: &JavaClassDefinition, storage_size: usize) -> Result<Self> {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClassInstance>() as u32)?;
         let allocated_storage_size = storage_size.max(size_of::<LgtJvmWord>());
         let ptr_fields = Allocator::alloc(core, allocated_storage_size as u32)?;
@@ -38,44 +38,51 @@ impl JavaClassInstance {
 
         write_generic(
             core,
-            ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32,
-            class.ptr_dispatch_table()?,
+            ptr_raw,
+            RawJavaClassInstance {
+                ptr_dispatch_table: class.ptr_vtable()?,
+                unk1: 0,
+                ptr_fields,
+            },
         )?;
-        write_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, unk1) as u32, 0u32)?;
-        write_generic(core, ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32, ptr_fields)?;
 
         Ok(Self::from_raw(ptr_raw, core))
     }
 
-    pub(super) fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
+    pub fn destroy_with_storage(mut self, storage_size: usize) -> Result<()> {
         let ptr_fields = self.ptr_fields()?;
         Allocator::free(&mut self.core, ptr_fields, storage_size.max(size_of::<LgtJvmWord>()) as u32)?;
         Allocator::free(&mut self.core, self.ptr_raw, size_of::<RawJavaClassInstance>() as u32)
     }
 
     pub fn class(&self) -> Result<JavaClassDefinition> {
-        let ptr_dispatch_table = read_generic(&self.core, self.ptr_raw + offset_of!(RawJavaClassInstance, ptr_dispatch_table) as u32)?;
-        let ptr_class = read_generic(&self.core, ptr_dispatch_table)?;
+        let raw: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw)?;
+        let ptr_class = read_generic(&self.core, raw.ptr_dispatch_table)?;
         Ok(JavaClassDefinition::from_raw(ptr_class, &self.core))
     }
 
-    pub(super) fn ptr_fields(&self) -> Result<u32> {
-        read_generic(&self.core, self.ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32)
+    pub fn ptr_fields(&self) -> Result<u32> {
+        let raw: RawJavaClassInstance = read_generic(&self.core, self.ptr_raw)?;
+        Ok(raw.ptr_fields)
     }
 
-    pub(super) fn storage_address(&self, byte_offset: usize) -> Result<u32> {
+    pub fn storage_address(&self, byte_offset: usize) -> Result<u32> {
         Ok(self.ptr_fields()? + byte_offset as u32)
     }
 
-    fn field_address(&self, slot: u32) -> Result<u32> {
-        self.storage_address(slot as usize * size_of::<LgtJvmWord>())
+    pub fn storage_size(&self) -> Result<usize> {
+        Ok(self.class()?.instance_field_word_count()? * size_of::<LgtJvmWord>())
+    }
+
+    fn field_address(&self, word_index: u32) -> Result<u32> {
+        self.storage_address(word_index as usize * size_of::<LgtJvmWord>())
     }
 }
 
 #[async_trait::async_trait]
 impl ClassInstance for JavaClassInstance {
     fn destroy(self: Box<Self>) {
-        let storage_size = self.class().unwrap().instance_field_slot_count().unwrap() * size_of::<LgtJvmWord>();
+        let storage_size = self.storage_size().unwrap();
         (*self).destroy_with_storage(storage_size).unwrap();
     }
 
@@ -85,7 +92,7 @@ impl ClassInstance for JavaClassInstance {
 
     fn shallow_clone(&self) -> JvmResult<Box<dyn ClassInstance>> {
         let class = self.class().unwrap();
-        let storage_size = class.instance_field_slot_count().unwrap() * size_of::<LgtJvmWord>();
+        let storage_size = self.storage_size().unwrap();
         let mut core = self.core.clone();
         let instance = Self::instantiate(&mut core, &class, storage_size).unwrap();
         let mut fields = vec![0; storage_size];
@@ -111,7 +118,7 @@ impl ClassInstance for JavaClassInstance {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         debug_assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
         let field_type = JavaType::parse(&field.descriptor());
-        let address = self.field_address(field.slot().unwrap()).unwrap();
+        let address = self.field_address(field.word_index().unwrap()).unwrap();
         let low = read_generic(&self.core, address).unwrap();
         let codec = JavaValueCodec::new(&self.core);
 
@@ -126,7 +133,7 @@ impl ClassInstance for JavaClassInstance {
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         debug_assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
-        let address = self.field_address(field.slot().unwrap()).unwrap();
+        let address = self.field_address(field.word_index().unwrap()).unwrap();
         let codec = JavaValueCodec::new(&self.core);
 
         if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {

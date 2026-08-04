@@ -388,6 +388,10 @@ impl Graphics {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawString({this:?}, {string:?}, {x}, {y}, {anchor})");
 
+        if string.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "string is null").await);
+        }
+
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
 
         jvm.invoke_virtual(&midp_graphics, "drawString", "(Ljava/lang/String;III)V", (string, x, y, anchor))
@@ -779,6 +783,7 @@ impl Graphics {
 mod test {
     use alloc::boxed::Box;
 
+    use java_runtime::classes::java::lang::String;
     use jvm::ClassInstanceRef;
     use test_utils::run_jvm_test;
     use wie_midp::classes::javax::microedition::lcdui::Image as MidpImage;
@@ -858,6 +863,25 @@ mod test {
 
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (0, 0)).await?, 0x654321);
             assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (1, 0)).await?, 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_draw_string_rejects_null() -> Result<()> {
+        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
+            let image: ClassInstanceRef<Image> = jvm
+                .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (1, 1))
+                .await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+            let string: ClassInstanceRef<String> = None.into();
+
+            assert!(
+                jvm.invoke_virtual::<_, ()>(&graphics, "drawString", "(Ljava/lang/String;III)V", (string, 0, 0, 0))
+                    .await
+                    .is_err()
+            );
 
             Ok(())
         })

@@ -5,8 +5,11 @@ use jvm::{ArrayClassDefinition, ClassDefinition, ClassInstance, JavaType, Jvm, R
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::array_element_size;
+use wie_util::Result;
 
-use super::{JavaArrayClassInstance, JavaClassDefinition, Result};
+use crate::runtime::java::JavaSvcFunctions;
+
+use super::{JavaArrayClassInstance, JavaClassDefinition};
 
 #[derive(Clone)]
 pub struct JavaArrayClassDefinition {
@@ -15,8 +18,8 @@ pub struct JavaArrayClassDefinition {
 }
 
 impl JavaArrayClassDefinition {
-    pub async fn new(core: &mut ArmCore, jvm: &Jvm, element_type_name: &str) -> Result<Self> {
-        let class = JavaClassDefinition::new_array(core, jvm, &format!("[{element_type_name}")).await?;
+    pub async fn new(core: &mut ArmCore, jvm: &Jvm, element_type_name: &str, functions: JavaSvcFunctions) -> Result<Self> {
+        let class = JavaClassDefinition::new_array(core, jvm, &format!("[{element_type_name}"), functions).await?;
         Ok(Self { class, core: core.clone() })
     }
 

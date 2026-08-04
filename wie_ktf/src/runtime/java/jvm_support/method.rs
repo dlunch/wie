@@ -22,7 +22,7 @@ use alloc::sync::Arc;
 use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter,
 };
-use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_slot_count};
+use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::JavaClassDefinition;
@@ -376,7 +376,7 @@ where
     Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
 {
     async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
-        let param_count = method_argument_slot_count(&self.parameter_types);
+        let param_count = method_argument_word_count(&self.parameter_types);
 
         let raw_args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
             let param_base = u32::get(core, 1);

@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{FieldAccessFlags, MethodAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -40,6 +40,10 @@ impl Jlet {
                     Default::default(),
                 ),
                 JavaMethodProto::new("notifyDestroyed", "()V", Self::notify_destroyed, Default::default()),
+                JavaMethodProto::new_abstract("startApp", "([Ljava/lang/String;)V", MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("pauseApp", "()V", MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("resumeApp", "()V", MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::ABSTRACT),
             ],
             fields: vec![
                 JavaFieldProto::new("wipiMidlet", "Lnet/wie/WIPIMIDlet;", Default::default()),
@@ -47,7 +51,7 @@ impl Jlet {
                 JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", Default::default()),
                 JavaFieldProto::new("currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::ABSTRACT,
         }
     }
 

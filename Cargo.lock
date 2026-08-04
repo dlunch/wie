@@ -6211,8 +6211,11 @@ dependencies = [
  "java_constants",
  "java_runtime",
  "jvm",
+ "lazy_static",
+ "serde",
  "spin",
  "test_utils",
+ "toml 1.1.3+spec-1.1.0",
  "tracing",
  "wie_backend",
  "wie_core_arm",
@@ -6851,7 +6854,7 @@ dependencies = [
 [[package]]
 name = "wipi_types"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/wipi.git#67c8bb02ea57fa4bd655e8697e4a72ff91b33e3a"
+source = "git+https://github.com/dlunch/wipi.git#d7d0e7ab03bec387fc31c77539e9680d885abd1e"
 dependencies = [
  "bytemuck",
  "cfg-if",
