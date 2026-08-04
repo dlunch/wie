@@ -108,7 +108,7 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
 
       - name: Upload web frontend
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: web-frontend
           path: wie_web/dist
@@ -155,7 +155,7 @@ jobs:
           Copy-Item (Get-ChildItem target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe | Select-Object -First 1) "dist/wie-${{ needs.context.outputs.asset_identity }}-windows-x86_64-unsigned-setup.exe"
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-windows
           path: dist/*
@@ -206,7 +206,7 @@ jobs:
           cp target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb "dist/wie-${{ needs.context.outputs.asset_identity }}-linux-x86_64-unsigned.deb"
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-linux
           path: dist/*
@@ -252,7 +252,7 @@ jobs:
           cp target/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/wie-${{ needs.context.outputs.asset_identity }}-macos-universal-unsigned.dmg"
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-macos
           path: dist/*
@@ -322,7 +322,7 @@ jobs:
           cp "$(find wie_app/gen/android/app/build/outputs/bundle -type f -name '*-release.aab' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64-unsigned.aab"
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-android
           path: dist/*
@@ -383,7 +383,7 @@ jobs:
           ditto -c -k --keepParent "$archive" "dist/wie-${{ needs.context.outputs.asset_identity }}-ios-aarch64-unsigned.xcarchive.zip"
 
       - name: Upload iOS artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-ios
           path: dist/*
