@@ -284,23 +284,12 @@ pub async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, p
     };
     let name = format!("{}{component}", "[".repeat(rank as usize));
 
-    let class = if ptr_component_name != 0 {
-        let loader: Box<dyn ClassInstance> = jvm
-            .get_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;")
-            .await
-            .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-        JavaLangClassLoader::load_class(jvm, &loader, &name)
-            .await
-            .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?
-            .ok_or_else(|| WieError::FatalError(format!("LGT array class not resolved: {name}")))?
-    } else {
-        jvm.resolve_class(&name)
-            .await
-            .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?
-            .java_class()
-    };
+    let class = jvm
+        .resolve_class(&name)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
 
-    Ok(LgtJvmSupport::class_instance_raw(&*class))
+    Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
 pub async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32) -> Result<u32> {

@@ -5,10 +5,11 @@ use jvm::{ArrayClassDefinition, ClassDefinition, ClassInstance, JavaType, Jvm, R
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::array_element_size;
+use wie_util::Result;
 
 use crate::runtime::java::JavaSvcFunctions;
 
-use super::{JavaArrayClassInstance, JavaClassDefinition, Result};
+use super::{JavaArrayClassInstance, JavaClassDefinition};
 
 #[derive(Clone)]
 pub struct JavaArrayClassDefinition {

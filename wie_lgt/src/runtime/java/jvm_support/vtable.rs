@@ -5,11 +5,11 @@ use java_constants::MethodAccessFlags;
 use jvm::{ClassDefinition, Jvm, Method};
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{WieError, read_generic, write_generic};
+use wie_util::{Result, WieError, read_generic, write_generic};
 
 use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JAVA_ABI};
 
-use super::{JavaClassDefinition, JavaMethod, Result};
+use super::{JavaClassDefinition, JavaMethod};
 
 #[derive(Clone)]
 pub struct JavaVtableEntry {
@@ -88,14 +88,17 @@ impl JavaVtable {
             .collect()
     }
 
-    pub fn build_methods(
+    pub async fn build_methods(
         jvm: &Jvm,
         class_name: &str,
         parent_class: Option<&JavaClassDefinition>,
-        parent_methods: &[JavaVtableEntry],
         declared_methods: &[JavaMethod],
     ) -> Result<Vec<JavaVtableEntry>> {
-        let mut methods = parent_methods.to_vec();
+        let mut methods = if let Some(parent_class) = parent_class {
+            parent_class.vtable_entries(jvm).await?
+        } else {
+            Vec::new()
+        };
         let mut abi_classes = JAVA_ABI.class(class_name).into_iter().collect::<Vec<_>>();
         let mut ancestor = parent_class.cloned();
         while let Some(class) = ancestor {

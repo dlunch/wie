@@ -9,9 +9,9 @@ use jvm::{ArrayClassInstance, ArrayRawBuffer, ArrayRawBufferMut, ClassDefinition
 
 use wie_core_arm::ArmCore;
 use wie_jvm_support::native::{decode_array_values, encode_array_values};
-use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 
-use super::{JavaArrayClassDefinition, JavaClassInstance, Result, value::JavaValueCodec};
+use super::{JavaArrayClassDefinition, JavaClassInstance, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {

@@ -11,7 +11,7 @@ use wipi_types::lgt::java::{
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{ByteWrite, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
+use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{
     SVC_CATEGORY_JAVA,
@@ -22,7 +22,7 @@ use crate::runtime::{
 };
 
 use super::{
-    JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result,
+    JavaClassInstance, JavaField, JavaMethod, LgtJvmWord,
     value::JavaValueCodec,
     vtable::{JavaVtable, JavaVtableEntry},
 };
@@ -75,11 +75,6 @@ impl JavaClassDefinition {
             None
         };
 
-        let parent_virtual_methods = if let Some(parent_class) = &parent_class {
-            parent_class.vtable_entries(jvm).await?
-        } else {
-            Vec::new()
-        };
         let parent_name = parent_class.as_ref().map(ClassDefinition::name);
         let static_field_word_count = field_protos
             .iter()
@@ -188,7 +183,7 @@ impl JavaClassDefinition {
         if let Some(field_size) = class_abi.and_then(|class| class.field_size) {
             instance_field_word_index = instance_field_word_index.max(field_size);
         }
-        let virtual_methods = JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &parent_virtual_methods, &methods)?;
+        let virtual_methods = JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?;
         let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
         JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
 
@@ -401,14 +396,14 @@ impl JavaClassDefinition {
         } else {
             None
         };
-        let parent_methods = if let Some(parent_class) = &parent_class {
-            parent_class.vtable_entries(jvm).await?
-        } else {
-            Vec::new()
-        };
         let descriptor = self.descriptor()?;
         let declared_methods = self.methods()?;
         let virtual_methods = if descriptor.ptr_vtable != 0 {
+            let parent_methods = if let Some(parent_class) = &parent_class {
+                parent_class.vtable_entries(jvm).await?
+            } else {
+                Vec::new()
+            };
             JavaVtable::read_compiler_vtable(
                 core,
                 descriptor.ptr_vtable,
@@ -417,7 +412,7 @@ impl JavaClassDefinition {
                 &declared_methods,
             )?
         } else {
-            JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &parent_methods, &declared_methods)?
+            JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &declared_methods).await?
         };
 
         self.set_vtable_entries(&virtual_methods)

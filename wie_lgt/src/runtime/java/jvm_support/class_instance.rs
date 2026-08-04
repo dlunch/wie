@@ -11,9 +11,9 @@ use wipi_types::lgt::java::LgtJavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{ByteRead, ByteWrite, read_generic, write_generic};
+use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 
-use super::{JavaClassDefinition, JavaField, LgtJvmWord, Result, value::JavaValueCodec};
+use super::{JavaClassDefinition, JavaField, LgtJvmWord, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaClassInstance {

@@ -10,11 +10,11 @@ use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult,
 };
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
-use wie_util::{WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
-use super::{Result, value::JavaValueCodec};
+use super::value::JavaValueCodec;
 
 #[derive(Clone)]
 pub struct JavaMethod {

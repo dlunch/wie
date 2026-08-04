@@ -6,9 +6,7 @@ use jvm::Field;
 use wipi_types::lgt::java::LgtJavaClassField as RawJavaField;
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
-
-use super::Result;
+use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 #[derive(Clone)]
 pub struct JavaField {
