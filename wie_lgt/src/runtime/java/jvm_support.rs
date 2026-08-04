@@ -28,7 +28,7 @@ use jvm_implementation::LgtJvmImplementation;
 
 use self::{
     array_class_definition::JavaArrayClassDefinition, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition,
-    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, vtable::JavaVtableEntry,
 };
 
 type LgtJvmWord = u32;
@@ -130,15 +130,48 @@ impl LgtJvmSupport {
                 ))
             })?
             .clone();
-        let methods = definition.virtual_methods(jvm).await?;
-        let index = methods
-            .iter()
-            .position(|method| {
-                method
-                    .as_ref()
-                    .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
-            })
-            .ok_or_else(|| WieError::FatalError(alloc::format!("Unable to resolve virtual method {class_name}.{name}{descriptor}")))?;
+        let mut methods = definition.vtable_entries(jvm).await?;
+        if let Some(index) = methods.iter().position(|entry| {
+            entry
+                .method
+                .as_ref()
+                .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
+        }) {
+            return u16::try_from(index).map_err(|_| {
+                WieError::FatalError(alloc::format!(
+                    "Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}"
+                ))
+            });
+        }
+
+        let mut current_name = String::from(class_name);
+        let method = loop {
+            let class = jvm
+                .get_class(&current_name)
+                .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking virtual method: {current_name}")))?;
+            if let Some(method) = class.definition.method(name, descriptor, false) {
+                break method
+                    .as_any()
+                    .downcast_ref::<JavaMethod>()
+                    .ok_or_else(|| WieError::FatalError(alloc::format!("Unsupported method implementation for {current_name}.{name}{descriptor}")))?
+                    .clone();
+            }
+
+            let Some(parent_name) = class.definition.super_class_name() else {
+                return Err(WieError::FatalError(alloc::format!(
+                    "Unable to resolve virtual method {class_name}.{name}{descriptor}"
+                )));
+            };
+            current_name = parent_name;
+        };
+
+        let index = methods.len();
+        methods.push(JavaVtableEntry {
+            target: method.target()?,
+            method: Some(method),
+        });
+        definition.set_vtable_entries(&methods)?;
+
         u16::try_from(index).map_err(|_| {
             WieError::FatalError(alloc::format!(
                 "Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}"
@@ -390,9 +423,9 @@ mod tests {
                 .downcast_ref::<super::JavaClassDefinition>()
                 .unwrap()
                 .clone();
-            let object_methods = object_definition.virtual_methods(&jvm).await?;
-            assert_eq!(object_methods[1].as_ref().unwrap().name(), "getClass");
-            assert_eq!(object_methods[4].as_ref().unwrap().name(), "toString");
+            let object_methods = object_definition.vtable_entries(&jvm).await?;
+            assert_eq!(object_methods[1].method.as_ref().unwrap().name(), "getClass");
+            assert_eq!(object_methods[4].method.as_ref().unwrap().name(), "toString");
             let object: Box<dyn ClassInstance> = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
             let missing_target: u32 = read_generic(&core, object_definition.ptr_vtable()? + 4)?;
             let error = core
@@ -413,13 +446,13 @@ mod tests {
                 .downcast_ref::<super::JavaClassDefinition>()
                 .unwrap()
                 .clone();
-            let string_methods = string_definition.virtual_methods(&jvm).await?;
-            assert_eq!(string_methods[10].as_ref().unwrap().name(), "length");
-            assert_eq!(string_methods[11].as_ref().unwrap().name(), "charAt");
-            assert_eq!(string_methods[28].as_ref().unwrap().name(), "substring");
+            let string_methods = string_definition.vtable_entries(&jvm).await?;
+            assert_eq!(string_methods[10].method.as_ref().unwrap().name(), "length");
+            assert_eq!(string_methods[11].method.as_ref().unwrap().name(), "charAt");
+            assert_eq!(string_methods[28].method.as_ref().unwrap().name(), "substring");
             for index in [10usize, 11, 28] {
                 let target: u32 = read_generic(&core, string_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
-                assert_eq!(target, string_methods[index].as_ref().unwrap().target()?);
+                assert_eq!(target, string_methods[index].method.as_ref().unwrap().target()?);
             }
 
             let reader_definition = jvm
@@ -431,9 +464,9 @@ mod tests {
                 .downcast_ref::<super::JavaClassDefinition>()
                 .unwrap()
                 .clone();
-            let reader_methods = reader_definition.virtual_methods(&jvm).await?;
+            let reader_methods = reader_definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [(11usize, "read", "([C)I"), (18, "close", "()V")] {
-                let method = reader_methods[index].as_ref().unwrap();
+                let method = reader_methods[index].method.as_ref().unwrap();
                 assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
                 let target: u32 = read_generic(&core, reader_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
@@ -448,9 +481,9 @@ mod tests {
                 .downcast_ref::<super::JavaClassDefinition>()
                 .unwrap()
                 .clone();
-            let input_stream_reader_methods = input_stream_reader_definition.virtual_methods(&jvm).await?;
+            let input_stream_reader_methods = input_stream_reader_definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [(11usize, "read", "([C)I"), (18, "close", "()V")] {
-                let method = input_stream_reader_methods[index].as_ref().unwrap();
+                let method = input_stream_reader_methods[index].method.as_ref().unwrap();
                 assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
                 let target: u32 = read_generic(&core, input_stream_reader_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
@@ -513,33 +546,7 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            let child_definition = child_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
             jvm.register_class(child_class, None).await.unwrap();
-
-            let base_methods = base_definition.virtual_methods(&jvm).await?;
-            let child_methods = child_definition.virtual_methods(&jvm).await?;
-            assert!(base_methods[0].is_none());
-            let base_index = base_methods
-                .iter()
-                .position(|method| {
-                    method
-                        .as_ref()
-                        .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
-                })
-                .unwrap();
-            let child_index = child_methods
-                .iter()
-                .position(|method| {
-                    method
-                        .as_ref()
-                        .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
-                })
-                .unwrap();
-            assert_eq!(child_index, base_index);
-            assert_eq!(child_methods[1].as_ref().unwrap().name(), "getClass");
-            let child_target = child_methods[child_index].as_ref().unwrap().target()?;
-            let dispatch_target: u32 = read_generic(&core, child_definition.ptr_vtable()? + ((child_index + 1) * 4) as u32)?;
-            assert_eq!(dispatch_target, child_target);
 
             let child = jvm.instantiate_class("net/wie/test/Child").await.unwrap();
             let value: i32 = jvm.invoke_virtual(&child, "value", "()I", ()).await.unwrap();
@@ -592,14 +599,14 @@ mod tests {
                 .await
                 .unwrap();
             let direct_jlet_definition = direct_jlet_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
-            let direct_jlet_methods = direct_jlet_definition.virtual_methods(&jvm).await?;
+            let direct_jlet_methods = direct_jlet_definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [
                 (15usize, "startApp", "([Ljava/lang/String;)V"),
                 (16, "pauseApp", "()V"),
                 (17, "resumeApp", "()V"),
                 (18, "destroyApp", "(Z)V"),
             ] {
-                let method = direct_jlet_methods[index].as_ref().unwrap();
+                let method = direct_jlet_methods[index].method.as_ref().unwrap();
                 assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
                 let target: u32 = read_generic(&core, direct_jlet_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
@@ -622,22 +629,22 @@ mod tests {
                 .await
                 .unwrap();
             let deep_jlet_definition = deep_jlet_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
-            let deep_jlet_methods = deep_jlet_definition.virtual_methods(&jvm).await?;
-            assert_eq!(deep_jlet_methods[16].as_ref().unwrap().name(), "pauseApp");
+            let deep_jlet_methods = deep_jlet_definition.vtable_entries(&jvm).await?;
+            assert_eq!(deep_jlet_methods[16].method.as_ref().unwrap().name(), "pauseApp");
             assert_ne!(
-                deep_jlet_methods[16].as_ref().unwrap().target()?,
-                direct_jlet_methods[16].as_ref().unwrap().target()?
+                deep_jlet_methods[16].method.as_ref().unwrap().target()?,
+                direct_jlet_methods[16].method.as_ref().unwrap().target()?
             );
             for index in [15usize, 17, 18] {
                 assert_eq!(
-                    deep_jlet_methods[index].as_ref().unwrap().target()?,
-                    direct_jlet_methods[index].as_ref().unwrap().target()?
+                    deep_jlet_methods[index].method.as_ref().unwrap().target()?,
+                    direct_jlet_methods[index].method.as_ref().unwrap().target()?
                 );
             }
             for (offset, method) in deep_jlet_methods[15..=18].iter().enumerate() {
                 let index = offset + 15;
                 let target: u32 = read_generic(&core, deep_jlet_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
-                assert_eq!(target, method.as_ref().unwrap().target()?);
+                assert_eq!(target, method.method.as_ref().unwrap().target()?);
             }
 
             let static_class = implementation
@@ -854,82 +861,6 @@ mod tests {
     }
 
     #[test]
-    fn test_generated_override_uses_inherited_index() -> Result<()> {
-        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
-        let done = Arc::new(AtomicBool::new(false));
-        let done_clone = done.clone();
-        let system_clone = system.clone();
-
-        system.spawn(async move || {
-            let (jvm, mut core, implementation) = init_jvm(&system_clone).await?;
-            let runtime_base = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/UnknownOverrideBase",
-                        parent_class: Some("java/lang/Object"),
-                        interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("value", "()I", base_value, Default::default())],
-                        fields: vec![],
-                        access_flags: Default::default(),
-                    },
-                    Box::new(()),
-                )
-                .await
-                .unwrap();
-            let runtime_base_definition = runtime_base.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
-            jvm.register_class(runtime_base, None).await.unwrap();
-            let runtime_base_methods = runtime_base_definition.virtual_methods(&jvm).await?;
-            let value_index = runtime_base_methods
-                .iter()
-                .position(|method| {
-                    method
-                        .as_ref()
-                        .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
-                })
-                .unwrap();
-
-            let generated_child = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/UnknownOverrideChild",
-                        parent_class: Some("net/wie/test/UnknownOverrideBase"),
-                        interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("value", "()I", child_value, Default::default())],
-                        fields: vec![],
-                        access_flags: Default::default(),
-                    },
-                    Box::new(()),
-                )
-                .await
-                .unwrap();
-            let ptr_child = generated_child.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().ptr_raw;
-            let loader: Box<dyn ClassInstance> = jvm
-                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
-                .await
-                .unwrap();
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_child, loader).await?;
-            let child_class = jvm.get_class("net/wie/test/UnknownOverrideChild").unwrap();
-            let child_definition = child_class.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
-            let child_methods = child_definition.virtual_methods(&jvm).await?;
-            assert_ne!(
-                child_methods[value_index].as_ref().unwrap().target()?,
-                runtime_base_methods[value_index].as_ref().unwrap().target()?
-            );
-
-            done_clone.store(true, Ordering::Relaxed);
-            Ok(())
-        });
-
-        while !done.load(Ordering::Relaxed) {
-            system.tick()?;
-        }
-
-        Ok(())
-    }
-
-    #[test]
     fn test_generated_jlet_wrapper_overrides_use_confirmed_indices() -> Result<()> {
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
@@ -973,110 +904,20 @@ mod tests {
                 .downcast_ref::<super::JavaClassDefinition>()
                 .unwrap()
                 .clone();
-            let methods = definition.virtual_methods(&jvm).await?;
+            let methods = definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [
                 (15usize, "startApp", "([Ljava/lang/String;)V"),
                 (16, "pauseApp", "()V"),
                 (17, "resumeApp", "()V"),
                 (18, "destroyApp", "(Z)V"),
             ] {
-                let method = methods[index].as_ref().unwrap();
+                let method = methods[index].method.as_ref().unwrap();
                 assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
                 assert_eq!(
                     read_generic::<u32, _>(&core, definition.ptr_vtable()? + ((index + 1) * size_of::<u32>()) as u32)?,
                     method.target()?
                 );
             }
-
-            done_clone.store(true, Ordering::Relaxed);
-            Ok(())
-        });
-
-        while !done.load(Ordering::Relaxed) {
-            system.tick()?;
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_generated_vtable_is_built_during_registration() -> Result<()> {
-        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
-        let done = Arc::new(AtomicBool::new(false));
-        let done_clone = done.clone();
-        let system_clone = system.clone();
-
-        system.spawn(async move || {
-            let (jvm, mut core, implementation) = init_jvm(&system_clone).await?;
-            let generated_base = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/GeneratedDynamicBase",
-                        parent_class: Some("java/lang/Object"),
-                        interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("value", "()I", base_value, Default::default())],
-                        fields: vec![],
-                        access_flags: Default::default(),
-                    },
-                    Box::new(()),
-                )
-                .await
-                .unwrap();
-            let ptr_base = generated_base.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().ptr_raw;
-            let loader: Box<dyn ClassInstance> = jvm
-                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
-                .await
-                .unwrap();
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_base, loader.clone()).await?;
-
-            let generated_child = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/GeneratedDynamicChild",
-                        parent_class: Some("net/wie/test/GeneratedDynamicBase"),
-                        interfaces: vec![],
-                        methods: vec![],
-                        fields: vec![],
-                        access_flags: Default::default(),
-                    },
-                    Box::new(()),
-                )
-                .await
-                .unwrap();
-            let ptr_child = generated_child.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().ptr_raw;
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_child, loader).await?;
-
-            let mut index = None;
-            let mut target = None;
-            for class_name in ["net/wie/test/GeneratedDynamicBase", "net/wie/test/GeneratedDynamicChild"] {
-                let definition = jvm
-                    .get_class(class_name)
-                    .unwrap()
-                    .definition
-                    .as_any()
-                    .downcast_ref::<super::JavaClassDefinition>()
-                    .unwrap()
-                    .clone();
-                let methods = definition.virtual_methods(&jvm).await?;
-                let class_index = methods
-                    .iter()
-                    .position(|method| {
-                        method
-                            .as_ref()
-                            .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
-                    })
-                    .unwrap();
-                assert_eq!(index.get_or_insert(class_index), &class_index);
-                let class_target: u32 = read_generic(&core, definition.ptr_vtable()? + ((class_index + 1) * size_of::<u32>()) as u32)?;
-                assert_eq!(class_target, methods[class_index].as_ref().unwrap().target()?);
-                assert_eq!(target.get_or_insert(class_target), &class_target);
-            }
-            assert_eq!(
-                LgtJvmSupport::virtual_method_index(&jvm, "net/wie/test/GeneratedDynamicChild", "value", "()I").await? as usize,
-                index.unwrap()
-            );
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

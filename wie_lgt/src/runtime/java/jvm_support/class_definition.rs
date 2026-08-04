@@ -199,7 +199,7 @@ impl JavaClassDefinition {
                 access_flags: access_flags.bits() as u32,
                 ptr_next_class: 0,
                 ptr_name,
-                ptr_instance_field_initializer_class: 0,
+                ptr_vtable: 0,
                 ptr_super_class_name,
                 unk4: 0,
                 instance_field_word_count: instance_field_word_index as u16,
@@ -208,7 +208,7 @@ impl JavaClassDefinition {
                 ptr_instance_field_initializer_record: 0,
                 unk9: 0,
                 unk10: 0,
-                unk11: 0,
+                vtable_count: 0,
                 ptr_interface_names,
                 fn_link_members: 0,
                 fn_get_initialized_class: 0,
@@ -278,7 +278,7 @@ impl JavaClassDefinition {
                 access_flags: access_flags.bits() as u32,
                 ptr_next_class: 0,
                 ptr_name,
-                ptr_instance_field_initializer_class: 0,
+                ptr_vtable: 0,
                 ptr_super_class_name,
                 unk4: 0,
                 instance_field_word_count: 0,
@@ -287,7 +287,7 @@ impl JavaClassDefinition {
                 ptr_instance_field_initializer_record: 0,
                 unk9: 0,
                 unk10: 0,
-                unk11: 0,
+                vtable_count: 0,
                 ptr_interface_names,
                 fn_link_members: 0,
                 fn_get_initialized_class: 0,
@@ -406,7 +406,19 @@ impl JavaClassDefinition {
         } else {
             Vec::new()
         };
-        let virtual_methods = JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &parent_methods, &self.methods()?)?;
+        let descriptor = self.descriptor()?;
+        let declared_methods = self.methods()?;
+        let virtual_methods = if descriptor.ptr_vtable != 0 {
+            JavaVtable::read_compiler_vtable(
+                core,
+                descriptor.ptr_vtable,
+                descriptor.vtable_count as usize,
+                &parent_methods,
+                &declared_methods,
+            )?
+        } else {
+            JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &parent_methods, &declared_methods)?
+        };
 
         self.set_vtable_entries(&virtual_methods)
     }
@@ -527,10 +539,6 @@ impl JavaClassDefinition {
             .map(|class| Ok((ClassDefinition::name(&class), class.methods()?)))
             .collect::<Result<Vec<_>>>()?;
         JavaVtable::read(&self.core, self.ptr_vtable()?, &known_classes)
-    }
-
-    pub async fn virtual_methods(&self, jvm: &Jvm) -> Result<Vec<Option<JavaMethod>>> {
-        Ok(self.vtable_entries(jvm).await?.into_iter().map(|entry| entry.method).collect())
     }
 }
 

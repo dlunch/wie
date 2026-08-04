@@ -320,8 +320,8 @@ pub async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_objec
         let ptr_raw = LgtJvmSupport::class_definition_raw(&*definition);
         let raw: RawJavaClass = read_generic(core, ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(core, raw.ptr_descriptor)?;
-        if descriptor.ptr_instance_field_initializer_class != 0 {
-            let callback: u32 = read_generic(core, descriptor.ptr_instance_field_initializer_class + size_of::<u32>() as u32)?;
+        if descriptor.ptr_vtable != 0 {
+            let callback: u32 = read_generic(core, descriptor.ptr_vtable + size_of::<u32>() as u32)?;
             if callback != 0 {
                 initializer_callbacks.push(callback);
             }

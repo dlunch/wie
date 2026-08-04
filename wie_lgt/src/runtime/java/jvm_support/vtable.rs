@@ -64,6 +64,30 @@ impl JavaVtable {
         Ok(())
     }
 
+    pub fn read_compiler_vtable(
+        core: &ArmCore,
+        ptr_vtable: u32,
+        entry_count: usize,
+        parent_methods: &[JavaVtableEntry],
+        declared_methods: &[JavaMethod],
+    ) -> Result<Vec<JavaVtableEntry>> {
+        (0..entry_count)
+            .map(|index| {
+                let target = read_generic(core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32)?;
+                if target == 0 {
+                    return Ok(parent_methods.get(index).cloned().unwrap_or(JavaVtableEntry { target: 0, method: None }));
+                }
+
+                let method = declared_methods
+                    .iter()
+                    .chain(parent_methods.iter().filter_map(|entry| entry.method.as_ref()))
+                    .find(|method| method.target().is_ok_and(|method_target| method_target == target))
+                    .cloned();
+                Ok(JavaVtableEntry { target, method })
+            })
+            .collect()
+    }
+
     pub fn build_methods(
         jvm: &Jvm,
         class_name: &str,
@@ -132,15 +156,6 @@ impl JavaVtable {
             } else if let Some(index) = inherited_index {
                 index
             } else {
-                if method.target()? == 0 {
-                    return Err(WieError::FatalError(format!(
-                        "Missing LGT Java ABI vtable index for {class_name}.{name}{descriptor}"
-                    )));
-                }
-                methods.push(JavaVtableEntry {
-                    target: method.target()?,
-                    method: Some(method.clone()),
-                });
                 continue;
             };
 
@@ -151,5 +166,38 @@ impl JavaVtable {
         }
 
         Ok(methods)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{vec, vec::Vec};
+    use core::mem::size_of;
+
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{Result, write_generic};
+
+    use super::{JavaVtable, JavaVtableEntry};
+
+    #[test]
+    fn compiler_vtable_uses_parent_targets_for_empty_entries() -> Result<()> {
+        let mut core = ArmCore::new(false, None)?;
+        Allocator::init(&mut core)?;
+
+        let compiler_targets = [0, 0x99, 0, 0x88];
+        let ptr_vtable = Allocator::alloc(&mut core, ((compiler_targets.len() + 1) * size_of::<u32>()) as u32)?;
+        write_generic(&mut core, ptr_vtable, 0x1234u32)?;
+        for (index, target) in compiler_targets.iter().enumerate() {
+            write_generic(&mut core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32, *target)?;
+        }
+
+        let parent_methods = [0x11, 0x22, 0x33, 0x44]
+            .into_iter()
+            .map(|target| JavaVtableEntry { target, method: None })
+            .collect::<Vec<_>>();
+        let entries = JavaVtable::read_compiler_vtable(&core, ptr_vtable, compiler_targets.len(), &parent_methods, &[])?;
+
+        assert_eq!(entries.iter().map(|entry| entry.target).collect::<Vec<_>>(), vec![0x11, 0x99, 0x33, 0x88]);
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 [[class]]
 name = "java/lang/Object"
-vtable_size = 35
+vtable_size = 10
 vtable = [
     { name = "getClass", descriptor = "()Ljava/lang/Class;", index = 1 },
     { name = "toString", descriptor = "()Ljava/lang/String;", index = 4 },
