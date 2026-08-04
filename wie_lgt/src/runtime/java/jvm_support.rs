@@ -835,6 +835,31 @@ mod tests {
             assert_eq!(class_object_again, class_object);
             assert_eq!(read_generic::<u16, _>(&core, bound_fields + 16)?, 5);
 
+            let static_child_class = implementation
+                .define_class_rust(
+                    &jvm,
+                    JavaClassProto {
+                        name: "net/wie/test/StaticStorageChild",
+                        parent_class: Some("net/wie/test/StaticStorage"),
+                        interfaces: vec![],
+                        methods: vec![],
+                        fields: vec![JavaFieldProto::new("word", "I", FieldAccessFlags::STATIC)],
+                        access_flags: Default::default(),
+                    },
+                    Box::new(()),
+                )
+                .await
+                .unwrap();
+            let mut static_child_definition = static_child_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
+            let child_word_field = ClassDefinition::field(&static_child_definition, "word", "I", true).unwrap();
+            static_child_definition
+                .put_static_field(&*child_word_field, JavaValue::Int(0x1071))
+                .unwrap();
+            let JavaValue::Object(Some(inherited_reference)) = static_child_definition.get_static_field(&*reference_field).unwrap() else {
+                panic!("expected inherited static reference field")
+            };
+            assert_eq!(inherited_reference.identity(), guest_reference.identity());
+
             let short_class = jvm.get_class(&ClassDefinition::name(&short_array_definition.class)).unwrap();
             let registered_short_definition = short_class.definition.as_any().downcast_ref::<super::JavaArrayClassDefinition>().unwrap();
             let short_java_class = short_class.java_class();

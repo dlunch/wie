@@ -159,7 +159,7 @@ impl JavaClassDefinition {
             }
 
             let ptr_field = ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32;
-            JavaField::new(core, ptr_field, ptr_raw, field, word_index as u32)?;
+            JavaField::new(core, ptr_field, ptr_raw, ptr_class_fields + 0x14, field, word_index as u32)?;
         }
         let virtual_methods = JavaVtable::build_runtime_methods(class_name, parent_class_name, &parent_virtual_methods, &methods)?;
         let ptr_vtable = JavaVtable::allocate(core, &virtual_methods)?;
@@ -326,10 +326,12 @@ impl JavaClassDefinition {
             return Ok(Vec::new());
         }
         let count: u32 = read_generic(&self.core, ptr_fields)?;
+        let ptr_static_fields = self.ptr_static_fields()?;
         Ok((0..count as usize)
             .map(|index| {
                 JavaField::from_raw(
                     ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32,
+                    ptr_static_fields,
                     &self.core,
                 )
             })
@@ -648,7 +650,7 @@ impl ClassDefinition for JavaClassDefinition {
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let field_type = JavaType::parse(&field.descriptor());
-        let address = self.ptr_static_fields().unwrap() + field.word_index().unwrap() * size_of::<LgtJvmWord>() as u32;
+        let address = field.static_address().unwrap();
         let low = read_generic(&self.core, address).unwrap();
         let codec = JavaValueCodec::new(&self.core);
         Ok(if matches!(field_type, JavaType::Long | JavaType::Double) {
@@ -661,7 +663,7 @@ impl ClassDefinition for JavaClassDefinition {
 
     fn put_static_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let address = self.ptr_static_fields().unwrap() + field.word_index().unwrap() * size_of::<LgtJvmWord>() as u32;
+        let address = field.static_address().unwrap();
         let codec = JavaValueCodec::new(&self.core);
         if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {
             let (low, high) = codec.encode_wide(&value);

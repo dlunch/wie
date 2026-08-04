@@ -14,15 +14,20 @@ use super::Result;
 #[derive(Clone)]
 pub struct JavaField {
     pub ptr_raw: u32,
+    ptr_static_fields: u32,
     core: ArmCore,
 }
 
 impl JavaField {
-    pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
-        Self { ptr_raw, core: core.clone() }
+    pub fn from_raw(ptr_raw: u32, ptr_static_fields: u32, core: &ArmCore) -> Self {
+        Self {
+            ptr_raw,
+            ptr_static_fields,
+            core: core.clone(),
+        }
     }
 
-    pub fn new(core: &mut ArmCore, ptr_raw: u32, ptr_class: u32, proto: JavaFieldProto, word_index: u32) -> Result<Self> {
+    pub fn new(core: &mut ArmCore, ptr_raw: u32, ptr_class: u32, ptr_static_fields: u32, proto: JavaFieldProto, word_index: u32) -> Result<Self> {
         let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_name, proto.name.as_bytes())?;
 
@@ -42,7 +47,7 @@ impl JavaField {
             },
         )?;
 
-        Ok(Self::from_raw(ptr_raw, core))
+        Ok(Self::from_raw(ptr_raw, ptr_static_fields, core))
     }
 
     fn raw(&self) -> Result<RawJavaField> {
@@ -51,6 +56,10 @@ impl JavaField {
 
     pub fn word_index(&self) -> Result<u32> {
         Ok(self.raw()?.slot)
+    }
+
+    pub fn static_address(&self) -> Result<u32> {
+        Ok(self.ptr_static_fields + self.word_index()? * 4)
     }
 }
 
