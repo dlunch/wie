@@ -197,8 +197,8 @@ pub async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u3
     Ok(())
 }
 
-pub async fn java_create_runtime_context(_core: &mut ArmCore, jvm: &mut Jvm, generated_classes: u32, runtime_metadata: u32) -> Result<u32> {
-    tracing::debug!("java_create_runtime_context({generated_classes:#x}, {runtime_metadata:#x})");
+pub async fn java_create_runtime_context(_core: &mut ArmCore, jvm: &mut Jvm, generated_classes: u32, _runtime_metadata: u32) -> Result<u32> {
+    tracing::debug!("java_create_runtime_context({generated_classes:#x})");
 
     let parent: Box<dyn ClassInstance> = jvm
         .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
@@ -207,8 +207,8 @@ pub async fn java_create_runtime_context(_core: &mut ArmCore, jvm: &mut Jvm, gen
     let _: Box<dyn ClassInstance> = jvm
         .new_class(
             "net/wie/LgtClassLoader",
-            "(Ljava/lang/ClassLoader;II)V",
-            (parent, generated_classes as i32, runtime_metadata as i32),
+            "(Ljava/lang/ClassLoader;I)V",
+            (parent, generated_classes as i32),
         )
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;

@@ -31,12 +31,11 @@ impl LgtClassLoader {
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;II)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;I)V", Self::init, Default::default()),
                 JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
             ],
             fields: vec![
                 JavaFieldProto::new("generatedClasses", "I", Default::default()),
-                JavaFieldProto::new("runtimeContext", "I", Default::default()),
                 JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
                 JavaFieldProto::new("instance", "Lnet/wie/LgtClassLoader;", FieldAccessFlags::STATIC),
             ],
@@ -50,13 +49,11 @@ impl LgtClassLoader {
         mut this: ClassInstanceRef<Self>,
         parent: ClassInstanceRef<ClassLoader>,
         generated_classes: i32,
-        runtime_context: i32,
     ) -> JvmResult<()> {
         let _: () = jvm
             .invoke_special(&this, "java/lang/ClassLoader", "<init>", "(Ljava/lang/ClassLoader;)V", (parent,))
             .await?;
         jvm.put_field(&mut this, "generatedClasses", "I", generated_classes).await?;
-        jvm.put_field(&mut this, "runtimeContext", "I", runtime_context).await?;
         let native_strings: ClassInstanceRef<Vector> = jvm.new_class("java/util/Vector", "()V", ()).await?.into();
         jvm.put_field(&mut this, "nativeStrings", "Ljava/util/Vector;", native_strings).await?;
         jvm.put_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;", this)
