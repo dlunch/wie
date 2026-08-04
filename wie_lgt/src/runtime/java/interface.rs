@@ -43,8 +43,8 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x22 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseNullPointerException)?,
         0x23 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArrayIndexException)?,
         0x25 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArithmeticException)?,
-        0x54 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MethodPrologue)?,
-        0x55 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Safepoint)?,
+        0x54 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk54)?,
+        0x55 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk55)?,
         0x61 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreReferenceArray)?,
         0x82 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::SetJarPath)?,
         0x83 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StartApplication)?,
@@ -78,8 +78,8 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::Instantiate => EmulatedFunction::call(&java_instantiate, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::InstantiateArray => EmulatedFunction::call(&java_instantiate_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::InstantiateMultiArray => EmulatedFunction::call(&java_instantiate_multi_array, core, jvm).await?.write(core, lr),
-            JavaSystemSvcId::MethodPrologue => EmulatedFunction::call(&java_method_prologue, core, &mut ()).await?.write(core, lr),
-            JavaSystemSvcId::Safepoint => EmulatedFunction::call(&java_safepoint, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::Unk54 => EmulatedFunction::call(&java_unk54, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::Unk55 => EmulatedFunction::call(&java_unk55, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, &mut ()).await?.write(core, lr),
@@ -136,11 +136,11 @@ async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -
     Ok(())
 }
 
-async fn java_method_prologue(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+async fn java_unk54(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
     Ok(())
 }
 
-async fn java_safepoint(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+async fn java_unk55(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
     Ok(())
 }
 

@@ -268,8 +268,8 @@ Known functions in Java import table `0x64` are:
 | `0x22` | raise `NullPointerException` |
 | `0x23` | raise an array-index exception |
 | `0x25` | raise an arithmetic exception |
-| `0x54` | generated method prologue |
-| `0x55` | safepoint or runtime poll |
+| `0x54` | unresolved generated-code helper |
+| `0x55` | unresolved generated-code helper |
 | `0x61` | checked reference-array store |
 | `0x82` | set the application archive path |
 | `0x83` | start the Java application entry class |
