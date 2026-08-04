@@ -9,7 +9,7 @@ async-trait = { workspace = true }
 bytemuck = { workspace = true }
 futures = { workspace = true }
 lazy_static = { workspace = true }
-serde = { workspace = true, features = ["alloc"] }
+serde = { workspace = true }
 spin = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }

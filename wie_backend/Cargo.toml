@@ -7,13 +7,13 @@ license.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
+lazy_static = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 
 ab_glyph = { version = "^0.2", features = ["libm"], default-features = false }
 hashbrown = { version = "^0.17", features = ["default-hasher"], default-features = false }
 image = { version = "^0.25", features = ["bmp", "gif", "jpeg", "png"], default-features = false }
-lazy_static = { workspace = true }
 num-traits = { version = "^0.2", default-features = false }
 zip = { version = "^8.6", features = ["deflate"], default-features = false }
 

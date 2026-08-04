@@ -8,7 +8,7 @@ license.workspace = true
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
 md5 = { workspace = true }
-serde = { workspace = true, features = ["alloc"] }
+serde = { workspace = true }
 spin = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
