@@ -134,7 +134,7 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Download web frontend
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-frontend
           path: wie_web/dist
@@ -186,7 +186,7 @@ jobs:
           targets: x86_64-unknown-linux-gnu
 
       - name: Download web frontend
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-frontend
           path: wie_web/dist
@@ -232,7 +232,7 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Download web frontend
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-frontend
           path: wie_web/dist
@@ -291,7 +291,7 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Download web frontend
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-frontend
           path: wie_web/dist
@@ -348,7 +348,7 @@ jobs:
           targets: aarch64-apple-ios
 
       - name: Download web frontend
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-frontend
           path: wie_web/dist
@@ -405,7 +405,7 @@ jobs:
       deployments: write
     steps:
       - name: Download web frontend
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-frontend
           path: wie_web/dist
@@ -450,7 +450,7 @@ jobs:
           persist-credentials: false
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release-assets
