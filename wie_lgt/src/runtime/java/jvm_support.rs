@@ -392,6 +392,7 @@ mod tests {
                 .clone();
             let object_methods = object_definition.virtual_methods(&jvm).await?;
             assert_eq!(object_methods[1].as_ref().unwrap().name(), "getClass");
+            assert_eq!(object_methods[4].as_ref().unwrap().name(), "toString");
             let object: Box<dyn ClassInstance> = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
             let missing_target: u32 = read_generic(&core, object_definition.ptr_vtable()? + 4)?;
             let error = core
