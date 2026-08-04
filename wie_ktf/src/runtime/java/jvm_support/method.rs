@@ -10,8 +10,6 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use futures::TryFutureExt;
-use wie_jvm_support::JvmSupport;
-
 use java_class_proto::JavaMethodProto;
 use java_constants::MethodAccessFlags;
 use jvm::{ClassInstance, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
@@ -274,7 +272,7 @@ impl JavaMethod {
             }
         }
 
-        Err(JvmSupport::to_wie_err(jvm, JavaError::JavaException(exception)).await)
+        Err(WieError::JavaException(KtfJvmSupport::class_instance_raw(&exception)))
     }
 
     fn register_java_method<C, Context>(
