@@ -239,8 +239,10 @@ where
     }
 
     async fn find_rustjar_class(&self, jvm: &Jvm, classpath: &str, class: &str) -> JvmResult<Option<Box<dyn ClassDefinition>>> {
+        let class = class.replace('.', "/");
+
         if classpath == RT_RUSTJAR {
-            let proto = get_runtime_class_proto(class);
+            let proto = get_runtime_class_proto(&class);
             if let Some(proto) = proto {
                 return Ok(Some(
                     self.implementation

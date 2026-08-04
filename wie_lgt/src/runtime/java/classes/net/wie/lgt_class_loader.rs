@@ -84,7 +84,7 @@ impl LgtClassLoader {
         this: ClassInstanceRef<Self>,
         name: ClassInstanceRef<String>,
     ) -> JvmResult<ClassInstanceRef<Class>> {
-        let name = JavaLangString::to_rust_string(jvm, &name).await?;
+        let name = JavaLangString::to_rust_string(jvm, &name).await?.replace('.', "/");
         let generated_classes: i32 = jvm.get_field(&this, "generatedClasses", "I").await?;
         let ptr_class = match Self::find_raw_class(core, generated_classes as u32, &name) {
             Ok(Some(ptr_class)) => ptr_class,

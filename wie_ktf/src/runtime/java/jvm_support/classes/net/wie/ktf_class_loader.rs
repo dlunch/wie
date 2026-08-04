@@ -107,7 +107,7 @@ impl KtfClassLoader {
         }
 
         // find from client.bin
-        let name = JavaLangString::to_rust_string(jvm, &name).await?;
+        let name = JavaLangString::to_rust_string(jvm, &name).await?.replace('.', "/");
 
         let ptr_name_size = (name.len() + 1) as u32;
         let ptr_name = Allocator::alloc(&mut context.core, ptr_name_size).unwrap();
