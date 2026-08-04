@@ -441,7 +441,7 @@ async fn link_class_members(
 
     for index in link.virtual_method_offset..link.virtual_method_offset + link.virtual_method_count {
         let (name, descriptor) = read_member_name_and_descriptor(core, virtual_method_imports, index)?;
-        let method_index = LgtJvmSupport::virtual_method_index(core, jvm, class_name, &name, &descriptor).await?;
+        let method_index = LgtJvmSupport::virtual_method_index(jvm, class_name, &name, &descriptor).await?;
         write_generic(core, virtual_method_indices + index as u32 * size_of::<u16>() as u32, method_index)?;
     }
 

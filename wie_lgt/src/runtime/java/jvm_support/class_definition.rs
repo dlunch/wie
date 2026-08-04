@@ -24,7 +24,7 @@ use crate::runtime::{
 use super::{
     JavaClassInstance, JavaField, JavaMethod, LgtJvmWord, Result,
     value::JavaValueCodec,
-    vtable::{JavaVtable, JavaVtableEntry, JavaVtableMethodLayout},
+    vtable::{JavaVtable, JavaVtableEntry},
 };
 
 #[derive(Clone)]
@@ -80,27 +80,6 @@ impl JavaClassDefinition {
         } else {
             Vec::new()
         };
-        let mut abi_classes = class_abi.into_iter().collect::<Vec<_>>();
-        let mut abi_parent = parent_class.clone();
-        while let Some(parent) = abi_parent {
-            if let Some(class) = JAVA_ABI.class(&ClassDefinition::name(&parent)) {
-                abi_classes.push(class);
-            }
-            abi_parent = if let Some(parent_name) = ClassDefinition::super_class_name(&parent) {
-                Some(
-                    jvm.resolve_class(&parent_name)
-                        .await
-                        .unwrap()
-                        .definition
-                        .as_any()
-                        .downcast_ref::<JavaClassDefinition>()
-                        .unwrap()
-                        .clone(),
-                )
-            } else {
-                None
-            };
-        }
         let parent_name = parent_class.as_ref().map(ClassDefinition::name);
         let static_field_word_count = field_protos
             .iter()
@@ -209,14 +188,9 @@ impl JavaClassDefinition {
         if let Some(field_size) = class_abi.and_then(|class| class.field_size) {
             instance_field_word_index = instance_field_word_index.max(field_size);
         }
-        let virtual_methods = JavaVtable::build_methods(
-            class_name,
-            &abi_classes,
-            JavaVtableMethodLayout::Complete,
-            &parent_virtual_methods,
-            &methods,
-        )?;
-        let ptr_vtable = JavaVtable::allocate(core, ptr_raw, &virtual_methods)?;
+        let virtual_methods = JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &parent_virtual_methods, &methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
 
         write_generic(
             core,
@@ -293,7 +267,8 @@ impl JavaClassDefinition {
         for (index, ptr_name) in interface_name_pointers.into_iter().enumerate() {
             write_generic(core, ptr_interface_names + ((index + 1) * size_of::<u32>()) as u32, ptr_name)?;
         }
-        let ptr_vtable = JavaVtable::allocate(core, ptr_raw, &virtual_methods)?;
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         let access_flags = ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL;
         write_generic(
@@ -405,70 +380,41 @@ impl JavaClassDefinition {
         Ok(self.descriptor()?.instance_field_word_count as usize)
     }
 
-    pub fn validated_interface_names(&self) -> Result<Vec<String>> {
-        let ptr_names = self.descriptor()?.ptr_interface_names;
-        if ptr_names == 0 {
-            return Ok(Vec::new());
-        }
-
-        let count: u32 = read_generic(&self.core, ptr_names)?;
-        (0..count as usize)
-            .map(|index| {
-                let ptr_name = read_generic(&self.core, ptr_names + ((index + 1) * size_of::<u32>()) as u32)?;
-                String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name)?)
-                    .map_err(|error| WieError::FatalError(format!("Invalid LGT interface name: {error}")))
-            })
-            .collect()
-    }
-
     pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
         self.patch_declared_instance_field_word_indices()?;
 
         let class_name = ClassDefinition::name(self);
         let super_class_name = ClassDefinition::super_class_name(self);
-        let mut abi_classes = JAVA_ABI.class(&class_name).into_iter().collect::<Vec<_>>();
-        let mut ancestor_name = super_class_name.clone();
-        while let Some(name) = ancestor_name {
-            if let Some(class) = JAVA_ABI.class(&name) {
-                abi_classes.push(class);
-            }
-            ancestor_name = jvm
-                .resolve_class(&name)
-                .await
-                .map_err(|error| match error {
-                    JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
-                })?
-                .definition
-                .super_class_name();
-        }
-        let parent_methods = if let Some(parent_name) = &super_class_name {
-            let parent = jvm.resolve_class(parent_name).await.map_err(|error| match error {
-                JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
-            })?;
-            parent
-                .definition
-                .as_any()
-                .downcast_ref::<JavaClassDefinition>()
-                .unwrap()
-                .vtable_entries(jvm)
-                .await?
+        let parent_class = if let Some(parent_name) = &super_class_name {
+            Some(
+                jvm.resolve_class(parent_name)
+                    .await
+                    .map_err(|error| match error {
+                        JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
+                    })?
+                    .definition
+                    .as_any()
+                    .downcast_ref::<JavaClassDefinition>()
+                    .unwrap()
+                    .clone(),
+            )
+        } else {
+            None
+        };
+        let parent_methods = if let Some(parent_class) = &parent_class {
+            parent_class.vtable_entries(jvm).await?
         } else {
             Vec::new()
         };
-        let virtual_methods = JavaVtable::build_methods(
-            &class_name,
-            &abi_classes,
-            JavaVtableMethodLayout::ConfirmedOnly,
-            &parent_methods,
-            &self.methods()?,
-        )?;
+        let virtual_methods = JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &parent_methods, &self.methods()?)?;
 
         self.set_vtable_entries(&virtual_methods)
     }
 
     pub fn set_vtable_entries(&self, entries: &[JavaVtableEntry]) -> Result<()> {
         let mut core = self.core.clone();
-        let ptr_vtable = JavaVtable::allocate(&mut core, self.ptr_raw, entries)?;
+        let ptr_vtable = JavaVtable::allocate(&mut core, entries.len())?;
+        JavaVtable::write(&mut core, ptr_vtable, self.ptr_raw, entries)?;
         let mut raw = self.raw()?;
         raw.unk1 = ptr_vtable;
         write_generic(&mut core, self.ptr_raw, raw)
@@ -576,11 +522,11 @@ impl JavaClassDefinition {
             hierarchy.push(parent_class);
         }
 
-        let mut known_methods = Vec::new();
-        for class in hierarchy {
-            known_methods.extend(class.methods()?);
-        }
-        JavaVtable::read(&self.core, self.ptr_vtable()?, &known_methods)
+        let known_classes = hierarchy
+            .into_iter()
+            .map(|class| Ok((ClassDefinition::name(&class), class.methods()?)))
+            .collect::<Result<Vec<_>>>()?;
+        JavaVtable::read(&self.core, self.ptr_vtable()?, &known_classes)
     }
 
     pub async fn virtual_methods(&self, jvm: &Jvm) -> Result<Vec<Option<JavaMethod>>> {
@@ -632,7 +578,18 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn interface_names(&self) -> Vec<String> {
-        self.validated_interface_names().unwrap()
+        let ptr_names = self.descriptor().unwrap().ptr_interface_names;
+        if ptr_names == 0 {
+            return Vec::new();
+        }
+
+        let count: u32 = read_generic(&self.core, ptr_names).unwrap();
+        (0..count as usize)
+            .map(|index| {
+                let ptr_name = read_generic(&self.core, ptr_names + ((index + 1) * size_of::<u32>()) as u32).unwrap();
+                String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap()
+            })
+            .collect()
     }
 
     fn access_flags(&self) -> ClassAccessFlags {

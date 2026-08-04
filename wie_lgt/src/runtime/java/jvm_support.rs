@@ -8,18 +8,15 @@ mod method;
 mod value;
 mod vtable;
 
-use alloc::{boxed::Box, string::String, vec::Vec};
-use core::mem::size_of;
+use alloc::{boxed::Box, string::String};
 
-use java_constants::MethodAccessFlags;
 use jvm::{ClassDefinition, ClassInstance, JavaError, Jvm, Method};
-use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_backend::System;
 use wie_core_arm::ArmCore;
 use wie_jvm_support::{JvmImplementation, JvmSupport, native::NativeJavaValueCodec};
 use wie_midp::get_protos as get_midp_protos;
-use wie_util::{Result, WieError, read_generic};
+use wie_util::{Result, WieError};
 use wie_wipi_java::get_protos as get_wipi_java_protos;
 
 use super::{
@@ -31,7 +28,7 @@ use jvm_implementation::LgtJvmImplementation;
 
 use self::{
     array_class_definition::JavaArrayClassDefinition, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition,
-    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, vtable::JavaVtableEntry,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod,
 };
 
 type LgtJvmWord = u32;
@@ -119,7 +116,7 @@ impl LgtJvmSupport {
         }
     }
 
-    pub async fn virtual_method_index(core: &ArmCore, jvm: &Jvm, class_name: &str, name: &str, descriptor: &str) -> Result<u16> {
+    pub async fn virtual_method_index(jvm: &Jvm, class_name: &str, name: &str, descriptor: &str) -> Result<u16> {
         let class = jvm
             .get_class(class_name)
             .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking virtual method: {class_name}")))?;
@@ -134,140 +131,19 @@ impl LgtJvmSupport {
             })?
             .clone();
         let methods = definition.virtual_methods(jvm).await?;
-        if let Some(index) = methods.iter().position(|method| {
-            method
-                .as_ref()
-                .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
-        }) {
-            return u16::try_from(index).map_err(|_| {
-                WieError::FatalError(alloc::format!(
-                    "Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}"
-                ))
-            });
-        }
-
-        let mut declaring_definition = definition;
-        let method = loop {
-            if let Some(method) = declaring_definition.methods()?.into_iter().find(|method| {
-                !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE)
-                    && !method.name().starts_with('<')
-                    && method.name() == name
-                    && method.descriptor() == descriptor
-            }) {
-                break method;
-            }
-            let Some(parent_name) = declaring_definition.super_class_name() else {
-                return Err(WieError::FatalError(alloc::format!(
-                    "Unable to resolve virtual method {class_name}.{name}{descriptor}"
-                )));
-            };
-            declaring_definition = jvm
-                .get_class(&parent_name)
-                .unwrap()
-                .definition
-                .as_any()
-                .downcast_ref::<JavaClassDefinition>()
-                .unwrap()
-                .clone();
-        };
-
-        let loader: Box<dyn ClassInstance> = jvm
-            .get_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;")
-            .await
-            .map_err(|JavaError::JavaException(instance)| WieError::JavaException(Self::class_instance_raw(&*instance)))?;
-        let generated_classes: i32 = jvm
-            .get_field(&loader, "generatedClasses", "I")
-            .await
-            .map_err(|JavaError::JavaException(instance)| WieError::JavaException(Self::class_instance_raw(&*instance)))?;
-        let generated_classes = generated_classes as u32;
-        let last_bucket: u32 = read_generic(core, generated_classes)?;
-        let mut generated_class_pointers = Vec::new();
-        for bucket in 0..=last_bucket {
-            let mut ptr_class: u32 = read_generic(core, generated_classes + size_of::<u32>() as u32 + bucket * size_of::<u32>() as u32)?;
-            while ptr_class != 0 {
-                generated_class_pointers.push(ptr_class);
-                let raw: RawJavaClass = read_generic(core, ptr_class)?;
-                let raw_descriptor: RawJavaClassDescriptor = read_generic(core, raw.ptr_descriptor)?;
-                ptr_class = raw_descriptor.ptr_next_class;
-            }
-        }
-        if !generated_class_pointers.contains(&declaring_definition.ptr_raw) {
-            return Err(WieError::FatalError(alloc::format!(
-                "Unable to resolve virtual method {class_name}.{name}{descriptor}"
-            )));
-        }
-
-        let mut declaring_entries = declaring_definition.vtable_entries(jvm).await?;
-        let index = declaring_entries.len();
-        let index_u16 = u16::try_from(index).map_err(|_| {
+        let index = methods
+            .iter()
+            .position(|method| {
+                method
+                    .as_ref()
+                    .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
+            })
+            .ok_or_else(|| WieError::FatalError(alloc::format!("Unable to resolve virtual method {class_name}.{name}{descriptor}")))?;
+        u16::try_from(index).map_err(|_| {
             WieError::FatalError(alloc::format!(
                 "Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}"
             ))
-        })?;
-        let entry = JavaVtableEntry {
-            target: method.target()?,
-            method: Some(method),
-        };
-
-        let mut descendant_updates = Vec::new();
-        for ptr_class in generated_class_pointers {
-            if ptr_class == declaring_definition.ptr_raw {
-                continue;
-            }
-            let candidate = JavaClassDefinition::from_raw(ptr_class, core);
-            if candidate.descriptor()?.link_state != 3 {
-                continue;
-            }
-
-            let candidate_name = ClassDefinition::name(&candidate);
-            let mut ancestor_name = candidate.super_class_name();
-            let mut is_descendant = false;
-            while let Some(name) = ancestor_name {
-                let ancestor = jvm.get_class(&name).unwrap();
-                let ancestor = ancestor.definition.as_any().downcast_ref::<JavaClassDefinition>().unwrap();
-                if ancestor.ptr_raw == declaring_definition.ptr_raw {
-                    is_descendant = true;
-                    break;
-                }
-                ancestor_name = ancestor.super_class_name();
-            }
-            if !is_descendant {
-                continue;
-            }
-
-            if candidate.methods()?.into_iter().any(|candidate_method| {
-                !candidate_method
-                    .access_flags()
-                    .intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE)
-                    && !candidate_method.name().starts_with('<')
-                    && candidate_method.name() == name
-                    && candidate_method.descriptor() == descriptor
-            }) {
-                return Err(WieError::FatalError(alloc::format!(
-                    "Unknown generated override {candidate_name}.{name}{descriptor}"
-                )));
-            }
-
-            let mut entries = candidate.vtable_entries(jvm).await?;
-            if entries.len() <= index {
-                entries.resize(index + 1, JavaVtableEntry { target: 0, method: None });
-            }
-            if entries[index].method.is_some() {
-                return Err(WieError::FatalError(alloc::format!(
-                    "Generated vtable index collision for {candidate_name}.{name}{descriptor} at index {index}"
-                )));
-            }
-            entries[index] = entry.clone();
-            descendant_updates.push((candidate, entries));
-        }
-
-        declaring_entries.push(entry);
-        declaring_definition.set_vtable_entries(&declaring_entries)?;
-        for (descendant, entries) in descendant_updates {
-            descendant.set_vtable_entries(&entries)?;
-        }
-
-        Ok(index_u16)
+        })
     }
 
     pub fn non_virtual_method_target(jvm: &Jvm, class_name: &str, name: &str, descriptor: &str) -> Result<u32> {
@@ -977,7 +853,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generated_unknown_override_is_rejected() -> Result<()> {
+    fn test_generated_override_uses_inherited_index() -> Result<()> {
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
         let done_clone = done.clone();
@@ -1000,7 +876,17 @@ mod tests {
                 )
                 .await
                 .unwrap();
+            let runtime_base_definition = runtime_base.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
             jvm.register_class(runtime_base, None).await.unwrap();
+            let runtime_base_methods = runtime_base_definition.virtual_methods(&jvm).await?;
+            let value_index = runtime_base_methods
+                .iter()
+                .position(|method| {
+                    method
+                        .as_ref()
+                        .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
+                })
+                .unwrap();
 
             let generated_child = implementation
                 .define_class_rust(
@@ -1022,12 +908,13 @@ mod tests {
                 .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
                 .await
                 .unwrap();
-            let error = LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_child, loader)
-                .await
-                .unwrap_err();
-            assert!(
-                matches!(error, WieError::FatalError(ref message) if message.contains("net/wie/test/UnknownOverrideChild.value()I")),
-                "unexpected error: {error}"
+            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_child, loader).await?;
+            let child_class = jvm.get_class("net/wie/test/UnknownOverrideChild").unwrap();
+            let child_definition = child_class.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            let child_methods = child_definition.virtual_methods(&jvm).await?;
+            assert_ne!(
+                child_methods[value_index].as_ref().unwrap().target()?,
+                runtime_base_methods[value_index].as_ref().unwrap().target()?
             );
 
             done_clone.store(true, Ordering::Relaxed);
@@ -1112,7 +999,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generated_dynamic_vtable_propagates_to_registered_descendants() -> Result<()> {
+    fn test_generated_vtable_is_built_during_registration() -> Result<()> {
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let done = Arc::new(AtomicBool::new(false));
         let done_clone = done.clone();
@@ -1135,24 +1022,12 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            let generated_base = generated_base.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
-
-            let generated_classes = Allocator::alloc(&mut core, 2 * size_of::<u32>() as u32)?;
-            write_generic(&mut core, generated_classes, 0u32)?;
-            write_generic(&mut core, generated_classes + size_of::<u32>() as u32, generated_base.ptr_raw)?;
-            let parent: Box<dyn ClassInstance> = jvm
+            let ptr_base = generated_base.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().ptr_raw;
+            let loader: Box<dyn ClassInstance> = jvm
                 .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
                 .await
                 .unwrap();
-            let loader: Box<dyn ClassInstance> = jvm
-                .new_class(
-                    "net/wie/LgtClassLoader",
-                    "(Ljava/lang/ClassLoader;II)V",
-                    (parent, generated_classes as i32, 0),
-                )
-                .await
-                .unwrap();
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, generated_base.ptr_raw, loader.clone()).await?;
+            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_base, loader.clone()).await?;
 
             let generated_child = implementation
                 .define_class_rust(
@@ -1169,66 +1044,12 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            let generated_child = generated_child.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().clone();
-            let mut child_descriptor = generated_child.descriptor()?;
-            child_descriptor.ptr_next_class = generated_base.ptr_raw;
-            write_generic(&mut core, generated_child.raw()?.ptr_descriptor, child_descriptor)?;
-            write_generic(&mut core, generated_classes + size_of::<u32>() as u32, generated_child.ptr_raw)?;
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, generated_child.ptr_raw, loader.clone()).await?;
+            let ptr_child = generated_child.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().ptr_raw;
+            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_child, loader).await?;
 
-            let generated_grandchild = implementation
-                .define_class_rust(
-                    &jvm,
-                    JavaClassProto {
-                        name: "net/wie/test/GeneratedDynamicGrandchild",
-                        parent_class: Some("net/wie/test/GeneratedDynamicChild"),
-                        interfaces: vec![],
-                        methods: vec![],
-                        fields: vec![],
-                        access_flags: Default::default(),
-                    },
-                    Box::new(()),
-                )
-                .await
-                .unwrap();
-            let generated_grandchild = generated_grandchild
-                .as_any()
-                .downcast_ref::<super::JavaClassDefinition>()
-                .unwrap()
-                .clone();
-            let mut grandchild_descriptor = generated_grandchild.descriptor()?;
-            grandchild_descriptor.ptr_next_class = generated_child.ptr_raw;
-            write_generic(&mut core, generated_grandchild.raw()?.ptr_descriptor, grandchild_descriptor)?;
-            write_generic(&mut core, generated_classes + size_of::<u32>() as u32, generated_grandchild.ptr_raw)?;
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, generated_grandchild.ptr_raw, loader).await?;
-
-            for class_name in [
-                "net/wie/test/GeneratedDynamicBase",
-                "net/wie/test/GeneratedDynamicChild",
-                "net/wie/test/GeneratedDynamicGrandchild",
-            ] {
-                let definition = jvm
-                    .get_class(class_name)
-                    .unwrap()
-                    .definition
-                    .as_any()
-                    .downcast_ref::<super::JavaClassDefinition>()
-                    .unwrap()
-                    .clone();
-                assert!(definition.virtual_methods(&jvm).await?.iter().all(|method| {
-                    !method
-                        .as_ref()
-                        .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
-                }));
-            }
-
-            let index = LgtJvmSupport::virtual_method_index(&core, &jvm, "net/wie/test/GeneratedDynamicBase", "value", "()I").await?;
+            let mut index = None;
             let mut target = None;
-            for class_name in [
-                "net/wie/test/GeneratedDynamicBase",
-                "net/wie/test/GeneratedDynamicChild",
-                "net/wie/test/GeneratedDynamicGrandchild",
-            ] {
+            for class_name in ["net/wie/test/GeneratedDynamicBase", "net/wie/test/GeneratedDynamicChild"] {
                 let definition = jvm
                     .get_class(class_name)
                     .unwrap()
@@ -1238,19 +1059,22 @@ mod tests {
                     .unwrap()
                     .clone();
                 let methods = definition.virtual_methods(&jvm).await?;
-                let method = methods[index as usize].as_ref().unwrap();
-                assert_eq!((method.name().as_str(), method.descriptor().as_str()), ("value", "()I"));
-                let class_target: u32 = read_generic(&core, definition.ptr_vtable()? + (index as u32 + 1) * size_of::<u32>() as u32)?;
-                assert_eq!(class_target, method.target()?);
+                let class_index = methods
+                    .iter()
+                    .position(|method| {
+                        method
+                            .as_ref()
+                            .is_some_and(|method| method.name() == "value" && method.descriptor() == "()I")
+                    })
+                    .unwrap();
+                assert_eq!(index.get_or_insert(class_index), &class_index);
+                let class_target: u32 = read_generic(&core, definition.ptr_vtable()? + ((class_index + 1) * size_of::<u32>()) as u32)?;
+                assert_eq!(class_target, methods[class_index].as_ref().unwrap().target()?);
                 assert_eq!(target.get_or_insert(class_target), &class_target);
-                assert_eq!(
-                    read_generic::<u32, _>(&core, definition.ptr_vtable()? - size_of::<u32>() as u32)?,
-                    index as u32 + 1
-                );
             }
             assert_eq!(
-                LgtJvmSupport::virtual_method_index(&core, &jvm, "net/wie/test/GeneratedDynamicGrandchild", "value", "()I").await?,
-                index
+                LgtJvmSupport::virtual_method_index(&jvm, "net/wie/test/GeneratedDynamicChild", "value", "()I").await? as usize,
+                index.unwrap()
             );
 
             done_clone.store(true, Ordering::Relaxed);

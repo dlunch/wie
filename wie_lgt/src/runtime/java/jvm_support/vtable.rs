@@ -1,15 +1,15 @@
-use alloc::{format, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use core::mem::size_of;
 
 use java_constants::MethodAccessFlags;
-use jvm::Method;
+use jvm::{ClassDefinition, Jvm, Method};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{WieError, read_generic, write_generic};
 
-use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JavaClassAbi};
+use crate::runtime::{SVC_CATEGORY_JAVA_VTABLE, java::abi::JAVA_ABI};
 
-use super::{JavaMethod, Result};
+use super::{JavaClassDefinition, JavaMethod, Result};
 
 #[derive(Clone)]
 pub struct JavaVtableEntry {
@@ -19,29 +19,31 @@ pub struct JavaVtableEntry {
 
 pub struct JavaVtable;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum JavaVtableMethodLayout {
-    Complete,
-    ConfirmedOnly,
-}
-
 impl JavaVtable {
-    pub fn allocate(core: &mut ArmCore, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<u32> {
-        let ptr_allocation = Allocator::alloc(core, ((entries.len() + 2) * size_of::<u32>()) as u32)?;
-        let ptr_vtable = ptr_allocation + size_of::<u32>() as u32;
-        Self::write(core, ptr_vtable, ptr_class, entries)?;
-        Ok(ptr_vtable)
+    pub fn allocate(core: &mut ArmCore, entry_count: usize) -> Result<u32> {
+        let ptr_allocation = Allocator::alloc(core, ((entry_count + 2) * size_of::<u32>()) as u32)?;
+        Ok(ptr_allocation + size_of::<u32>() as u32)
     }
 
-    pub fn read(core: &ArmCore, ptr_vtable: u32, known_methods: &[JavaMethod]) -> Result<Vec<JavaVtableEntry>> {
+    pub fn read(core: &ArmCore, ptr_vtable: u32, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
         let entry_count: u32 = read_generic(core, ptr_vtable - size_of::<u32>() as u32)?;
         (0..entry_count as usize)
             .map(|index| {
                 let target = read_generic(core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32)?;
-                let method = known_methods
+                let method = known_classes
                     .iter()
+                    .flat_map(|(_, methods)| methods)
                     .find(|method| method.target().is_ok_and(|method_target| method_target == target))
-                    .cloned();
+                    .cloned()
+                    .or_else(|| {
+                        known_classes.iter().find_map(|(class_name, methods)| {
+                            let entry = JAVA_ABI.class(class_name)?.vtable.iter().find(|entry| entry.index == index)?;
+                            methods
+                                .iter()
+                                .find(|method| method.name() == entry.name && method.descriptor() == entry.descriptor)
+                                .cloned()
+                        })
+                    });
                 Ok(JavaVtableEntry { target, method })
             })
             .collect()
@@ -63,13 +65,30 @@ impl JavaVtable {
     }
 
     pub fn build_methods(
+        jvm: &Jvm,
         class_name: &str,
-        abi_classes: &[&JavaClassAbi],
-        layout: JavaVtableMethodLayout,
+        parent_class: Option<&JavaClassDefinition>,
         parent_methods: &[JavaVtableEntry],
         declared_methods: &[JavaMethod],
     ) -> Result<Vec<JavaVtableEntry>> {
         let mut methods = parent_methods.to_vec();
+        let mut abi_classes = JAVA_ABI.class(class_name).into_iter().collect::<Vec<_>>();
+        let mut ancestor = parent_class.cloned();
+        while let Some(class) = ancestor {
+            let name = ClassDefinition::name(&class);
+            if let Some(class) = JAVA_ABI.class(&name) {
+                abi_classes.push(class);
+            }
+            ancestor = ClassDefinition::super_class_name(&class).map(|name| {
+                jvm.get_class(&name)
+                    .unwrap()
+                    .definition
+                    .as_any()
+                    .downcast_ref::<JavaClassDefinition>()
+                    .unwrap()
+                    .clone()
+            });
+        }
         let minimum_size = abi_classes.iter().filter_map(|class| class.vtable_size).max().unwrap_or(0);
         if methods.len() < minimum_size {
             methods.resize(minimum_size, JavaVtableEntry { target: 0, method: None });
@@ -92,9 +111,9 @@ impl JavaVtable {
             let confirmed_index = abi_classes.iter().find_map(|class| class.vtable_index(&name, &descriptor));
 
             let index = if let Some(index) = confirmed_index {
-                if layout == JavaVtableMethodLayout::ConfirmedOnly && inherited_index.is_some_and(|inherited_index| inherited_index != index) {
+                if inherited_index.is_some_and(|inherited_index| inherited_index != index) {
                     return Err(WieError::FatalError(format!(
-                        "Unknown generated override {class_name}.{name}{descriptor}"
+                        "Inherited vtable index does not match LGT Java ABI for {class_name}.{name}{descriptor}"
                     )));
                 }
                 if methods.len() <= index {
@@ -110,23 +129,19 @@ impl JavaVtable {
                     )));
                 }
                 index
+            } else if let Some(index) = inherited_index {
+                index
             } else {
-                match (layout, inherited_index) {
-                    (JavaVtableMethodLayout::Complete, Some(index)) => index,
-                    (JavaVtableMethodLayout::Complete, None) => {
-                        methods.push(JavaVtableEntry {
-                            target: method.target()?,
-                            method: Some(method.clone()),
-                        });
-                        continue;
-                    }
-                    (JavaVtableMethodLayout::ConfirmedOnly, Some(_)) => {
-                        return Err(WieError::FatalError(format!(
-                            "Unknown generated override {class_name}.{name}{descriptor}"
-                        )));
-                    }
-                    (JavaVtableMethodLayout::ConfirmedOnly, None) => continue,
+                if method.target()? == 0 {
+                    return Err(WieError::FatalError(format!(
+                        "Missing LGT Java ABI vtable index for {class_name}.{name}{descriptor}"
+                    )));
                 }
+                methods.push(JavaVtableEntry {
+                    target: method.target()?,
+                    method: Some(method.clone()),
+                });
+                continue;
             };
 
             methods[index] = JavaVtableEntry {
