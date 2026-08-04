@@ -144,6 +144,7 @@ impl LgtJvmSupport {
             });
         }
 
+        // TODO Remove this fallback once data/lgt_java_abi.toml covers every linked virtual method.
         let mut current_name = String::from(class_name);
         let method = loop {
             let class = jvm
