@@ -585,10 +585,10 @@ mod tests {
                 .unwrap();
             let chars = jvm.instantiate_array("C", input.len()).await.unwrap();
             let read: i32 = jvm.invoke_virtual(&reader, "read", "([C)I", (chars.clone(),)).await.unwrap();
-            assert_eq!(read as usize, input.len());
+            assert!(read > 0 && read as usize <= input.len());
             assert_eq!(
-                jvm.load_array::<u16>(&chars, 0, input.len()).await.unwrap(),
-                input.into_iter().map(|value| value as u16).collect::<Vec<_>>()
+                jvm.load_array::<u16>(&chars, 0, read as usize).await.unwrap(),
+                input[..read as usize].iter().map(|value| *value as u16).collect::<Vec<_>>()
             );
 
             let base_class = implementation

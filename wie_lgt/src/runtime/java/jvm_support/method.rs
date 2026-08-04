@@ -185,44 +185,7 @@ where
         let codec = JavaValueCodec::new(core);
         let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
 
-        let result = if self.proto.name == "read" && self.proto.descriptor == "([C)I" {
-            let JavaValue::Object(Some(this)) = &args[0] else { unreachable!() };
-            let JavaValue::Object(Some(buffer)) = &args[1] else { unreachable!() };
-            let length = self.jvm.array_length(buffer).await;
-            match length {
-                Ok(length) => {
-                    let mut total = 0usize;
-                    let mut end_of_input = false;
-                    let mut error = None;
-                    while total < length {
-                        match self
-                            .jvm
-                            .invoke_virtual::<_, i32>(this, "read", "([CII)I", (buffer.clone(), total as i32, (length - total) as i32))
-                            .await
-                        {
-                            Ok(-1) => {
-                                end_of_input = true;
-                                break;
-                            }
-                            Ok(0) => break,
-                            Ok(read) => total += read as usize,
-                            Err(read_error) => {
-                                error = Some(read_error);
-                                break;
-                            }
-                        }
-                    }
-                    if let Some(error) = error {
-                        Err(error)
-                    } else {
-                        Ok(JavaValue::Int(if total == 0 && end_of_input { -1 } else { total as i32 }))
-                    }
-                }
-                Err(error) => Err(error),
-            }
-        } else {
-            self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await
-        };
+        let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
         let result = match result {
             Ok(value) => value,
             Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),
