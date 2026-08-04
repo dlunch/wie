@@ -43,7 +43,6 @@ vtable = [
 [[class]]
 name = "java/lang/StringBuffer"
 vtable = [
-    { name = "toString", descriptor = "()Ljava/lang/String;", index = 4 },
     { name = "append", descriptor = "(Ljava/lang/String;)Ljava/lang/StringBuffer;", index = 18 },
     { name = "append", descriptor = "(I)Ljava/lang/StringBuffer;", index = 23 },
 ]
@@ -69,15 +68,6 @@ vtable = [
 
 [[class]]
 name = "org/kwis/msp/lcdui/Jlet"
-vtable = [
-    { name = "startApp", descriptor = "([Ljava/lang/String;)V", index = 15 },
-    { name = "pauseApp", descriptor = "()V", index = 16 },
-    { name = "resumeApp", descriptor = "()V", index = 17 },
-    { name = "destroyApp", descriptor = "(Z)V", index = 18 },
-]
-
-[[class]]
-name = "org/kwis/msp/lcdui/JletWrapper"
 vtable = [
     { name = "startApp", descriptor = "([Ljava/lang/String;)V", index = 15 },
     { name = "pauseApp", descriptor = "()V", index = 16 },

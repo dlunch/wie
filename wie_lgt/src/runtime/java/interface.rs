@@ -8,7 +8,7 @@ use jvm::{
 };
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
 
-use wie_core_arm::ArmCore;
+use wie_core_arm::{ArmCore, EmulatedFunction, JumpTo, ResultWriter, SvcId};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
 use crate::runtime::{
@@ -55,30 +55,112 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
     })
 }
 
-pub async fn java_unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+pub fn register_java_system_svc_handler(core: &mut ArmCore, jvm: &Jvm, exception_state: JavaExceptionState, ptr_jar_path: u32) -> Result<()> {
+    core.register_svc_handler(
+        SVC_CATEGORY_JAVA_SYSTEM,
+        handle_java_system_svc,
+        &(jvm.clone(), exception_state, ptr_jar_path),
+    )
+}
+
+async fn handle_java_system_svc(
+    core: &mut ArmCore,
+    (jvm, exception_state, ptr_jar_path): &mut (Jvm, JavaExceptionState, u32),
+    id: SvcId,
+) -> Result<JumpTo> {
+    let (_, lr) = core.read_pc_lr()?;
+    let result: Result<()> = async {
+        match JavaSystemSvcId::try_from(id)? {
+            JavaSystemSvcId::InterfaceUnk0 => EmulatedFunction::call(&java_unk0, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::DestroyRuntimeContext => EmulatedFunction::call(&java_destroy_runtime_context, core, &mut ())
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::CreateRuntimeContext => EmulatedFunction::call(&java_create_runtime_context, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::LinkImportedClasses => EmulatedFunction::call(&java_link_imported_classes, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::SetJarPath => EmulatedFunction::call(&java_set_jar_path, core, ptr_jar_path).await?.write(core, lr),
+            JavaSystemSvcId::StartApplication => EmulatedFunction::call(&java_start_application, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::RegisterClass => EmulatedFunction::call(&java_register_class, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::ResolveClass => EmulatedFunction::call(&java_resolve_class, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::InitializeClass => EmulatedFunction::call(&java_initialize_class, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::GetArrayType => EmulatedFunction::call(&java_get_array_type, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::Instantiate => EmulatedFunction::call(&java_instantiate, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::InstantiateArray => EmulatedFunction::call(&java_instantiate_array, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::InstantiateMultiArray => EmulatedFunction::call(&java_instantiate_multi_array, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::MethodPrologue => EmulatedFunction::call(&java_method_prologue, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::Safepoint => EmulatedFunction::call(&java_safepoint, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, exception_state)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, exception_state)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::StoreReferenceArray => EmulatedFunction::call(&java_store_reference_array, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::GetStringClass => EmulatedFunction::call(&java_get_string_class, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::GetStringArrayClass => EmulatedFunction::call(&java_get_string_array_class, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::PendingException => EmulatedFunction::call(&java_pending_exception, core, exception_state)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::StoreReferenceArrayUnchecked => EmulatedFunction::call(&java_store_reference_array_unchecked, core, &mut ())
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::LinkPublicClass => EmulatedFunction::call(&java_link_public_class, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::ExceptionMatchesClass => {
+                java_exception_matches_class(core, jvm, *exception_state, core.read_param(0)?, core.read_param(1)?, core.read_param(2)?)
+                    .await?
+                    .write(core, lr)
+            }
+            JavaSystemSvcId::RethrowException => EmulatedFunction::call(&java_rethrow_exception, core, exception_state)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::RaiseNullPointerException => EmulatedFunction::call(&java_raise_null_pointer_exception, core, jvm)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::RaiseArrayIndexException => EmulatedFunction::call(&java_raise_array_index_exception, core, jvm)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::RaiseArithmeticException => EmulatedFunction::call(&java_raise_arithmetic_exception, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::Unk1 => EmulatedFunction::call(&java_unk1, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::Unk2 => EmulatedFunction::call(&java_unk2, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::Unk3 => EmulatedFunction::call(&java_unk3, core, &mut ()).await?.write(core, lr),
+        }
+    }
+    .await;
+
+    match result {
+        Ok(()) => Ok(JumpTo(lr)),
+        Err(WieError::JavaException(ptr_exception)) => match exception_state.unwind(core, ptr_exception)? {
+            Some(resume_address) => Ok(JumpTo(resume_address)),
+            None => Err(WieError::JavaException(ptr_exception)),
+        },
+        Err(error) => Err(error),
+    }
+}
+
+async fn java_unk1(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk1({a0:#x}, {a1:#x}, {a2:#x})");
     Ok(())
 }
 
-pub async fn java_unk2(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+async fn java_unk2(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk2({a0:#x}, {a1:#x}, {a2:#x})");
     Ok(())
 }
 
-pub async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+async fn java_unk3(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk3({a0:#x}, {a1:#x}, {a2:#x})");
     Ok(())
 }
 
-pub async fn java_method_prologue(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+async fn java_method_prologue(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
     Ok(())
 }
 
-pub async fn java_safepoint(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
+async fn java_safepoint(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
     Ok(())
 }
 
-pub async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context: u32, data: u32, length: u32, cache: u32) -> Result<u32> {
+async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context: u32, data: u32, length: u32, cache: u32) -> Result<u32> {
     let cached: u32 = read_generic(core, cache)?;
     if cached != 0 {
         return Ok(cached);
@@ -108,19 +190,19 @@ pub async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_con
     Ok(value)
 }
 
-pub async fn java_push_exception_frame(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<()> {
+async fn java_push_exception_frame(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<()> {
     exception_state.push(core)
 }
 
-pub async fn java_pop_exception_frame(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<()> {
+async fn java_pop_exception_frame(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<()> {
     exception_state.pop(core)
 }
 
-pub async fn java_pending_exception(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<u32> {
+async fn java_pending_exception(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<u32> {
     exception_state.pending(core)
 }
 
-pub async fn java_exception_matches_class(
+async fn java_exception_matches_class(
     core: &mut ArmCore,
     jvm: &Jvm,
     exception_state: JavaExceptionState,
@@ -136,32 +218,32 @@ pub async fn java_exception_matches_class(
     Ok(u32::from(jvm.is_instance(&*exception, &class_name)))
 }
 
-pub async fn java_rethrow_exception(core: &mut ArmCore, exception_state: &mut JavaExceptionState, ptr_exception: u32) -> Result<()> {
+async fn java_rethrow_exception(core: &mut ArmCore, exception_state: &mut JavaExceptionState, ptr_exception: u32) -> Result<()> {
     exception_state.pop(core)?;
     Err(WieError::JavaException(ptr_exception))
 }
 
-pub async fn java_raise_null_pointer_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
+async fn java_raise_null_pointer_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
     let JavaError::JavaException(exception) = jvm.exception("java/lang/NullPointerException", "").await;
     Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)))
 }
 
-pub async fn java_raise_array_index_exception(_core: &mut ArmCore, jvm: &mut Jvm, index: u32) -> Result<()> {
+async fn java_raise_array_index_exception(_core: &mut ArmCore, jvm: &mut Jvm, index: u32) -> Result<()> {
     let JavaError::JavaException(exception) = jvm.exception("java/lang/ArrayIndexOutOfBoundsException", &index.to_string()).await;
     Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)))
 }
 
-pub async fn java_raise_arithmetic_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
+async fn java_raise_arithmetic_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
     let JavaError::JavaException(exception) = jvm.exception("java/lang/ArithmeticException", "/ by zero").await;
     Err(WieError::JavaException(LgtJvmSupport::class_instance_raw(&*exception)))
 }
 
-pub async fn java_store_reference_array_unchecked(core: &mut ArmCore, _: &mut (), ptr_array: u32, index: u32, ptr_value: u32) -> Result<()> {
+async fn java_store_reference_array_unchecked(core: &mut ArmCore, _: &mut (), ptr_array: u32, index: u32, ptr_value: u32) -> Result<()> {
     let ptr_fields: u32 = read_generic(core, ptr_array + 2 * size_of::<u32>() as u32)?;
     write_generic(core, ptr_fields + (index + 1) * size_of::<u32>() as u32, ptr_value)
 }
 
-pub async fn java_store_reference_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_array: u32, index: u32, ptr_value: u32) -> Result<()> {
+async fn java_store_reference_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_array: u32, index: u32, ptr_value: u32) -> Result<()> {
     let mut array = LgtJvmSupport::class_instance_from_raw(core, ptr_array);
     let value = (ptr_value != 0).then(|| LgtJvmSupport::class_instance_from_raw(core, ptr_value));
     if let Some(value) = &value
@@ -175,7 +257,7 @@ pub async fn java_store_reference_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_a
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))
 }
 
-pub async fn java_get_string_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
+async fn java_get_string_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
     let class = jvm
         .resolve_class("java/lang/String")
         .await
@@ -183,7 +265,7 @@ pub async fn java_get_string_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result
     Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
-pub async fn java_get_string_array_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
+async fn java_get_string_array_class(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<u32> {
     let class = jvm
         .resolve_class("[Ljava/lang/String;")
         .await
@@ -191,13 +273,13 @@ pub async fn java_get_string_array_class(_core: &mut ArmCore, jvm: &mut Jvm) -> 
     Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
-pub async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
+async fn java_unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32) -> Result<()> {
     tracing::warn!("java_unk0({a0:#x}, {a1:#x}, {a2:#x})");
 
     Ok(())
 }
 
-pub async fn java_create_runtime_context(_core: &mut ArmCore, jvm: &mut Jvm, generated_classes: u32, _runtime_metadata: u32) -> Result<u32> {
+async fn java_create_runtime_context(_core: &mut ArmCore, jvm: &mut Jvm, generated_classes: u32, _runtime_metadata: u32) -> Result<u32> {
     tracing::debug!("java_create_runtime_context({generated_classes:#x})");
 
     let parent: Box<dyn ClassInstance> = jvm
@@ -216,7 +298,7 @@ pub async fn java_create_runtime_context(_core: &mut ArmCore, jvm: &mut Jvm, gen
     Ok(generated_classes)
 }
 
-pub async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
+async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Result<()> {
     let class = LgtJvmSupport::class_from_raw(core, ptr_class);
     if class.descriptor()?.link_state == 3 {
         return Ok(());
@@ -231,7 +313,7 @@ pub async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u
     Ok(())
 }
 
-pub async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, _runtime_context: u32) -> Result<u32> {
+async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, _runtime_context: u32) -> Result<u32> {
     java_register_class(core, jvm, ptr_class).await?;
 
     let name = ClassDefinition::name(&LgtJvmSupport::class_from_raw(core, ptr_class));
@@ -242,7 +324,7 @@ pub async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u3
     Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
-pub async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, callback: u32) -> Result<()> {
+async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, callback: u32) -> Result<()> {
     let mut class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
     let ready: i32 = jvm
         .get_field(&class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)
@@ -260,7 +342,7 @@ pub async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))
 }
 
-pub async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {
+async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {
     let component = if ptr_component_name != 0 {
         let component = String::from_utf8(read_null_terminated_string_bytes(core, ptr_component_name)?)
             .map_err(|error| WieError::FatalError(format!("Invalid LGT array component name: {error}")))?;
@@ -292,7 +374,7 @@ pub async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, p
     Ok(LgtJvmSupport::class_instance_raw(&*class.java_class()))
 }
 
-pub async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32) -> Result<u32> {
+async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32) -> Result<u32> {
     let class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
     let definition = JavaLangClass::to_rust_class(jvm, &class_object)
         .await
@@ -333,7 +415,7 @@ pub async fn java_instantiate(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_objec
     Ok(ptr_instance)
 }
 
-pub async fn java_instantiate_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, length: u32) -> Result<u32> {
+async fn java_instantiate_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, length: u32) -> Result<u32> {
     let class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
     let name = JavaLangClass::name(jvm, &class_object)
         .await
@@ -349,7 +431,7 @@ pub async fn java_instantiate_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class
     Ok(LgtJvmSupport::class_instance_raw(&*array))
 }
 
-pub async fn java_instantiate_multi_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, ptr_dimensions: u32, rank: u32) -> Result<u32> {
+async fn java_instantiate_multi_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_object: u32, ptr_dimensions: u32, rank: u32) -> Result<u32> {
     let class_object = LgtJvmSupport::class_instance_from_raw(core, ptr_class_object);
     let name = JavaLangClass::name(jvm, &class_object)
         .await
@@ -460,7 +542,7 @@ async fn link_class_members(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn java_link_public_class(
+async fn java_link_public_class(
     core: &mut ArmCore,
     jvm: &mut Jvm,
     ptr_link: u32,
@@ -501,7 +583,7 @@ pub async fn java_link_public_class(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn java_link_imported_classes(
+async fn java_link_imported_classes(
     core: &mut ArmCore,
     jvm: &mut Jvm,
     imported_classes: u32,
@@ -567,11 +649,11 @@ pub async fn java_link_imported_classes(
     Ok(())
 }
 
-pub async fn java_set_jar_path(core: &mut ArmCore, ptr_jar_path: &mut u32, jar_path: u32) -> Result<()> {
+async fn java_set_jar_path(core: &mut ArmCore, ptr_jar_path: &mut u32, jar_path: u32) -> Result<()> {
     write_generic(core, *ptr_jar_path, jar_path)
 }
 
-pub async fn java_start_application(
+async fn java_start_application(
     core: &mut ArmCore,
     jvm: &mut Jvm,
     entry_class_name: u32,
@@ -623,7 +705,7 @@ pub async fn java_start_application(
     Ok(())
 }
 
-pub async fn java_destroy_runtime_context(_core: &mut ArmCore, _: &mut (), runtime_context: u32) -> Result<()> {
+async fn java_destroy_runtime_context(_core: &mut ArmCore, _: &mut (), runtime_context: u32) -> Result<()> {
     tracing::warn!("stub java_destroy_runtime_context({runtime_context:#x})");
 
     Ok(())

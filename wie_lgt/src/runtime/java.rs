@@ -13,14 +13,12 @@ use crate::runtime::{SVC_CATEGORY_JAVA, SVC_CATEGORY_JAVA_VTABLE};
 mod abi;
 pub mod classes;
 mod exception;
-pub mod interface;
+mod interface;
 mod jvm_support;
-mod system;
 
 pub use exception::JavaExceptionState;
-pub use interface::get_java_interface_method;
+pub use interface::{get_java_interface_method, register_java_system_svc_handler};
 pub use jvm_support::LgtJvmSupport;
-pub use system::register_java_system_svc_handler;
 
 pub type JavaSvcFunctions = Arc<Mutex<BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>>>;
 
