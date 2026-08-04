@@ -19,10 +19,7 @@ use wie_midp::get_protos as get_midp_protos;
 use wie_util::{Result, WieError};
 use wie_wipi_java::get_protos as get_wipi_java_protos;
 
-use super::{
-    JavaExceptionState,
-    classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext, LgtClassLoader},
-};
+use super::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext, LgtClassLoader};
 
 use jvm_implementation::LgtJvmImplementation;
 
@@ -36,7 +33,7 @@ type LgtJvmWord = u32;
 pub struct LgtJvmSupport;
 
 impl LgtJvmSupport {
-    pub async fn init(core: &mut ArmCore, system: &System, jar_name: Option<&str>) -> Result<(Jvm, JavaExceptionState)> {
+    pub async fn init(core: &mut ArmCore, system: &System, jar_name: Option<&str>) -> Result<Jvm> {
         let protos = [get_midp_protos().into(), get_wipi_java_protos().into()];
         let implementation = LgtJvmImplementation::new(core)?;
         let jvm = JvmSupport::new_jvm(system, jar_name, Box::new(protos), &[], implementation.clone()).await?;
@@ -61,7 +58,7 @@ impl LgtJvmSupport {
             jvm.register_class(class, None).await.unwrap();
         }
 
-        Ok((jvm, implementation.exception_state()))
+        Ok(jvm)
     }
 
     pub fn class_from_raw(core: &ArmCore, ptr_class: u32) -> JavaClassDefinition {

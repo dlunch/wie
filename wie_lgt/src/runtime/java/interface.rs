@@ -14,8 +14,8 @@ use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes
 use crate::runtime::{
     SVC_CATEGORY_JAVA_SYSTEM,
     java::{
-        JavaExceptionState,
         abi::{CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR},
+        exception,
         jvm_support::LgtJvmSupport,
     },
     svc_ids::JavaSystemSvcId,
@@ -55,19 +55,11 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
     })
 }
 
-pub fn register_java_system_svc_handler(core: &mut ArmCore, jvm: &Jvm, exception_state: JavaExceptionState, ptr_jar_path: u32) -> Result<()> {
-    core.register_svc_handler(
-        SVC_CATEGORY_JAVA_SYSTEM,
-        handle_java_system_svc,
-        &(jvm.clone(), exception_state, ptr_jar_path),
-    )
+pub fn register_java_system_svc_handler(core: &mut ArmCore, jvm: &Jvm, ptr_jar_path: u32) -> Result<()> {
+    core.register_svc_handler(SVC_CATEGORY_JAVA_SYSTEM, handle_java_system_svc, &(jvm.clone(), ptr_jar_path))
 }
 
-async fn handle_java_system_svc(
-    core: &mut ArmCore,
-    (jvm, exception_state, ptr_jar_path): &mut (Jvm, JavaExceptionState, u32),
-    id: SvcId,
-) -> Result<JumpTo> {
+async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (Jvm, u32), id: SvcId) -> Result<JumpTo> {
     let (_, lr) = core.read_pc_lr()?;
     let result: Result<()> = async {
         match JavaSystemSvcId::try_from(id)? {
@@ -89,30 +81,22 @@ async fn handle_java_system_svc(
             JavaSystemSvcId::MethodPrologue => EmulatedFunction::call(&java_method_prologue, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::Safepoint => EmulatedFunction::call(&java_safepoint, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
-            JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, exception_state)
-                .await?
-                .write(core, lr),
-            JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, exception_state)
-                .await?
-                .write(core, lr),
+            JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StoreReferenceArray => EmulatedFunction::call(&java_store_reference_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetStringClass => EmulatedFunction::call(&java_get_string_class, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetStringArrayClass => EmulatedFunction::call(&java_get_string_array_class, core, jvm).await?.write(core, lr),
-            JavaSystemSvcId::PendingException => EmulatedFunction::call(&java_pending_exception, core, exception_state)
-                .await?
-                .write(core, lr),
+            JavaSystemSvcId::PendingException => EmulatedFunction::call(&java_pending_exception, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StoreReferenceArrayUnchecked => EmulatedFunction::call(&java_store_reference_array_unchecked, core, &mut ())
                 .await?
                 .write(core, lr),
             JavaSystemSvcId::LinkPublicClass => EmulatedFunction::call(&java_link_public_class, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::ExceptionMatchesClass => {
-                java_exception_matches_class(core, jvm, *exception_state, core.read_param(0)?, core.read_param(1)?, core.read_param(2)?)
+                java_exception_matches_class(core, jvm, core.read_param(0)?, core.read_param(1)?, core.read_param(2)?)
                     .await?
                     .write(core, lr)
             }
-            JavaSystemSvcId::RethrowException => EmulatedFunction::call(&java_rethrow_exception, core, exception_state)
-                .await?
-                .write(core, lr),
+            JavaSystemSvcId::RethrowException => EmulatedFunction::call(&java_rethrow_exception, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::RaiseNullPointerException => EmulatedFunction::call(&java_raise_null_pointer_exception, core, jvm)
                 .await?
                 .write(core, lr),
@@ -129,7 +113,7 @@ async fn handle_java_system_svc(
 
     match result {
         Ok(()) => Ok(JumpTo(lr)),
-        Err(WieError::JavaException(ptr_exception)) => match exception_state.unwind(core, ptr_exception)? {
+        Err(WieError::JavaException(ptr_exception)) => match exception::unwind(core, ptr_exception)? {
             Some(resume_address) => Ok(JumpTo(resume_address)),
             None => Err(WieError::JavaException(ptr_exception)),
         },
@@ -190,36 +174,29 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
     Ok(value)
 }
 
-async fn java_push_exception_frame(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<()> {
-    exception_state.push(core)
+async fn java_push_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    exception::push(core)
 }
 
-async fn java_pop_exception_frame(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<()> {
-    exception_state.pop(core)
+async fn java_pop_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+    exception::pop(core)
 }
 
-async fn java_pending_exception(core: &mut ArmCore, exception_state: &mut JavaExceptionState) -> Result<u32> {
-    exception_state.pending(core)
+async fn java_pending_exception(core: &mut ArmCore, _: &mut ()) -> Result<u32> {
+    exception::pending(core)
 }
 
-async fn java_exception_matches_class(
-    core: &mut ArmCore,
-    jvm: &Jvm,
-    exception_state: JavaExceptionState,
-    _ptr_exception_type: u32,
-    ptr_class_name: u32,
-    _ptr_fields: u32,
-) -> Result<u32> {
+async fn java_exception_matches_class(core: &mut ArmCore, jvm: &Jvm, _ptr_exception_type: u32, ptr_class_name: u32, _ptr_fields: u32) -> Result<u32> {
     let class_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT exception class name: {error}")))?;
-    let ptr_exception = exception_state.pending(core)?;
+    let ptr_exception = exception::pending(core)?;
     let exception = LgtJvmSupport::class_instance_from_raw(core, ptr_exception);
 
     Ok(u32::from(jvm.is_instance(&*exception, &class_name)))
 }
 
-async fn java_rethrow_exception(core: &mut ArmCore, exception_state: &mut JavaExceptionState, ptr_exception: u32) -> Result<()> {
-    exception_state.pop(core)?;
+async fn java_rethrow_exception(core: &mut ArmCore, _: &mut (), ptr_exception: u32) -> Result<()> {
+    exception::pop(core)?;
     Err(WieError::JavaException(ptr_exception))
 }
 
@@ -742,7 +719,7 @@ mod tests {
             let stack = Allocator::alloc(&mut core, 0x100)?;
             context.sp = stack + 0x100;
             core.restore_context(&context);
-            let (mut jvm, _) = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
+            let mut jvm = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
             let class_name = "org/kwis/msp/lcdui/Font";
             jvm.resolve_class(class_name).await.unwrap();
 

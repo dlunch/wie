@@ -9,7 +9,7 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::JvmImplementation;
 use wie_util::Result;
 
-use crate::runtime::java::{JavaExceptionState, JavaSvcFunctions, register_java_svc_handler};
+use crate::runtime::java::{JavaSvcFunctions, exception, register_java_svc_handler};
 
 use super::{JavaArrayClassDefinition, JavaClassDefinition};
 
@@ -17,24 +17,18 @@ use super::{JavaArrayClassDefinition, JavaClassDefinition};
 pub struct LgtJvmImplementation {
     core: ArmCore,
     functions: JavaSvcFunctions,
-    exception_state: JavaExceptionState,
 }
 
 impl LgtJvmImplementation {
     pub fn new(core: &mut ArmCore) -> Result<Self> {
         let functions = Arc::new(Mutex::new(BTreeMap::new()));
-        let exception_state = JavaExceptionState::new(core)?;
-        register_java_svc_handler(core, &functions, exception_state)?;
+        exception::init(core)?;
+        register_java_svc_handler(core, &functions)?;
 
         Ok(Self {
             core: core.clone(),
             functions,
-            exception_state,
         })
-    }
-
-    pub fn exception_state(&self) -> JavaExceptionState {
-        self.exception_state
     }
 }
 

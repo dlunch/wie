@@ -111,7 +111,7 @@ impl LgtEmulator {
 
     #[tracing::instrument(name = "start", skip_all)]
     async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, _main_class_name: Option<String>) -> Result<()> {
-        let (jvm, exception_state) = LgtJvmSupport::init(core, system, Some(&jar_filename)).await?;
+        let jvm = LgtJvmSupport::init(core, system, Some(&jar_filename)).await?;
 
         let class_loader = JavaLangClassLoader::get_system_class_loader(&jvm).await.unwrap();
         let stream = JavaLangClassLoader::get_resource_as_stream(&jvm, &class_loader, "binary.mod")
@@ -121,7 +121,7 @@ impl LgtEmulator {
 
         let binary_mod = JavaIoInputStream::read_until_end(&jvm, &stream).await.unwrap();
 
-        if let Err(error) = load_native(core, system, &jvm, exception_state, &jar_filename, &binary_mod).await {
+        if let Err(error) = load_native(core, system, &jvm, &jar_filename, &binary_mod).await {
             return Err(match error {
                 WieError::JavaException(ptr_exception) => {
                     let exception = LgtJvmSupport::class_instance_from_raw(core, ptr_exception);

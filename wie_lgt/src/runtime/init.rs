@@ -12,7 +12,7 @@ use wie_util::{Result, WieError, read_generic, write_generic, write_null_termina
 
 use super::{
     SVC_CATEGORY_INIT, SVC_CATEGORY_JAVA_SYSTEM, SVC_CATEGORY_STDLIB, SVC_CATEGORY_WIPIC,
-    java::{JavaExceptionState, get_java_interface_method, register_java_system_svc_handler},
+    java::{get_java_interface_method, register_java_system_svc_handler},
     stdlib::register_stdlib_svc_handler,
     svc_ids::{InitSvcId, JavaSystemSvcId},
     wipi_c::register_wipic_svc_handler,
@@ -38,14 +38,7 @@ async fn handle_init_svc(core: &mut ArmCore, ptr_jar_path: &mut u32, id: SvcId) 
     Ok(JumpTo(lr))
 }
 
-pub async fn load_native(
-    core: &mut ArmCore,
-    system: &mut System,
-    jvm: &Jvm,
-    exception_state: JavaExceptionState,
-    jar_path: &str,
-    data: &[u8],
-) -> Result<()> {
+pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, jar_path: &str, data: &[u8]) -> Result<()> {
     let entrypoint = load_executable(core, data)?;
     register_wipic_svc_handler(core, system, jvm)?;
     register_stdlib_svc_handler(core, system)?;
@@ -54,7 +47,7 @@ pub async fn load_native(
     let ptr_jar_path = Allocator::alloc(core, size_of::<u32>() as u32)?;
     write_generic(core, ptr_jar_path, ptr_jar_path_value)?;
     register_init_svc_handler(core, ptr_jar_path)?;
-    register_java_system_svc_handler(core, jvm, exception_state, ptr_jar_path)?;
+    register_java_system_svc_handler(core, jvm, ptr_jar_path)?;
 
     let ptr_init_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
     let ptr_init_param_2 = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
@@ -213,9 +206,9 @@ mod tests {
             context.sp = stack + 0x100;
             core.restore_context(&context);
 
-            let (jvm, exception_state) = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
+            let jvm = LgtJvmSupport::init(&mut core, &system_clone, None).await?;
             register_init_svc_handler(&mut core, 0)?;
-            register_java_system_svc_handler(&mut core, &jvm, exception_state, 0)?;
+            register_java_system_svc_handler(&mut core, &jvm, 0)?;
 
             let array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
             let value = JavaLangString::from_rust_string(&jvm, "stored").await.unwrap();

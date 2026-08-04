@@ -1,3 +1,8 @@
+# Vtable index 0 contains the raw-class pointer, so method indexes start at 1.
+# vtable_size counts method entries, including unknown entries.
+# Field indexes address 32-bit words in instance field storage; field_size is
+# the total word count, including unknown fields.
+
 [[class]]
 name = "java/lang/Object"
 vtable_size = 10
