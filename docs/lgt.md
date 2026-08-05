@@ -266,10 +266,10 @@ Known functions in Java import table `0x64` are:
 | `0x14` | link imported classes and patch member outputs |
 | `0x1f` | push an exception-handler frame |
 | `0x20` | pop an exception-handler frame |
-| `0x21` | rethrow an exception through the current frame |
-| `0x22` | raise `NullPointerException` |
-| `0x23` | raise an array-index exception |
-| `0x25` | raise an arithmetic exception |
+| `0x21` | raise `NullPointerException` |
+| `0x22` | raise an array-index exception |
+| `0x23` | raise an arithmetic exception |
+| `0x25` | throw an exception through the current frame |
 | `0x54` | unresolved generated-code helper |
 | `0x55` | unresolved generated-code helper |
 | `0x56` | enter an object monitor |
