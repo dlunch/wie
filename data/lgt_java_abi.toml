@@ -14,15 +14,13 @@ vtable = [
 
 [[class]]
 name = "java/lang/Class"
-field_size = 25
+field_size = 5
 vtable = [
     { name = "getResourceAsStream", descriptor = "(Ljava/lang/String;)Ljava/io/InputStream;", index = 16 },
 ]
 field = [
     { name = "nativeClassName", descriptor = "I", index = 2 },
     { name = "initializationState", descriptor = "I", index = 4 },
-    { name = "nameBytes", descriptor = "[B", index = 23 },
-    { name = "classLoader", descriptor = "Ljava/lang/ClassLoader;", index = 24 },
 ]
 
 [[class]]

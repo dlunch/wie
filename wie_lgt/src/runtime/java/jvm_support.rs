@@ -687,7 +687,7 @@ mod tests {
 
             let class_object: u32 = core.run_function(descriptor.fn_get_class, &[]).await?;
             assert_eq!(class_object, java_class_raw);
-            assert_eq!(static_fields, static_definition.ptr_raw + size_of::<RawJavaClass>() as u32);
+            assert_eq!(static_fields, java_class_instance.ptr_fields()? + 0x14);
             assert_eq!(read_generic::<u32, _>(&core, static_fields)?, 0x1234_5678);
             assert_eq!(read_generic::<u32, _>(&core, static_fields + 4)?, 0x9abc_def0);
             assert_eq!(read_generic::<u32, _>(&core, static_fields + 8)?, 0x1234_5678);
@@ -711,7 +711,7 @@ mod tests {
 
             let initialized_class_object: u32 = core.run_function(descriptor.fn_get_initialized_class, &[]).await?;
             assert_eq!(initialized_class_object, class_object);
-            assert_eq!(java_class_instance.ptr_fields()?, class_fields);
+            assert_ne!(java_class_instance.ptr_fields()?, class_fields);
             let native_name: i32 = jvm.get_field(&java_class, CLASS_NATIVE_NAME_FIELD, WORD_FIELD_DESCRIPTOR).await.unwrap();
             let initialization_state: i32 = jvm
                 .get_field(&java_class, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR)

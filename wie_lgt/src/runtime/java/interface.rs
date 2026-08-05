@@ -205,8 +205,7 @@ async fn java_exception_matches_class(core: &mut ArmCore, jvm: &Jvm, _ptr_except
     Ok(u32::from(jvm.is_instance(&*exception, &class_name)))
 }
 
-async fn java_rethrow_exception(core: &mut ArmCore, _: &mut (), ptr_exception: u32) -> Result<()> {
-    exception::pop(core)?;
+async fn java_rethrow_exception(_core: &mut ArmCore, _: &mut (), ptr_exception: u32) -> Result<()> {
     Err(WieError::JavaException(ptr_exception))
 }
 
@@ -327,7 +326,6 @@ async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_obje
     if callback != 0 {
         let _: () = core.run_function(callback, &[]).await?;
     }
-
     Ok(())
 }
 

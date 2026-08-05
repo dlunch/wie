@@ -11,6 +11,8 @@ use crate::runtime::{SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY, java::abi::JAVA_ABI
 
 use super::{JavaClassDefinition, JavaMethod};
 
+const VTABLE_METADATA_WORDS: usize = 2;
+
 #[derive(Clone)]
 pub struct JavaVtableEntry {
     pub target: u32,
@@ -21,8 +23,12 @@ pub struct JavaVtable;
 
 impl JavaVtable {
     pub fn allocate(core: &mut ArmCore, entry_count: usize) -> Result<u32> {
-        let ptr_allocation = Allocator::alloc(core, ((entry_count + 2) * size_of::<u32>()) as u32)?;
-        Ok(ptr_allocation + size_of::<u32>() as u32)
+        let ptr_allocation = Allocator::alloc(core, ((entry_count + VTABLE_METADATA_WORDS + 1) * size_of::<u32>()) as u32)?;
+        Ok(ptr_allocation + (VTABLE_METADATA_WORDS * size_of::<u32>()) as u32)
+    }
+
+    pub fn class_fields(core: &ArmCore, ptr_vtable: u32) -> Result<u32> {
+        read_generic(core, ptr_vtable - (VTABLE_METADATA_WORDS * size_of::<u32>()) as u32)
     }
 
     pub fn read(core: &ArmCore, ptr_vtable: u32, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
@@ -49,7 +55,8 @@ impl JavaVtable {
             .collect()
     }
 
-    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<()> {
+    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, ptr_class_fields: u32, entries: &[JavaVtableEntry]) -> Result<()> {
+        write_generic(core, ptr_vtable - (VTABLE_METADATA_WORDS * size_of::<u32>()) as u32, ptr_class_fields)?;
         write_generic(core, ptr_vtable - size_of::<u32>() as u32, entries.len() as u32)?;
         write_generic(core, ptr_vtable, ptr_class)?;
         for (index, entry) in entries.iter().enumerate() {

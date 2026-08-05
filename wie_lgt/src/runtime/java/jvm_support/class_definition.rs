@@ -6,12 +6,14 @@ use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::lgt::java::{
     LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassField as RawJavaField,
-    LgtJavaClassMethod as RawJavaMethod,
+    LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassMethod as RawJavaMethod,
 };
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
+use wie_util::{
+    ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
+};
 
 use crate::runtime::{
     SVC_CATEGORY_JAVA,
@@ -26,6 +28,8 @@ use super::{
     value::JavaValueCodec,
     vtable::{JavaVtable, JavaVtableEntry},
 };
+
+const CLASS_FIELD_PREFIX_SIZE: usize = 0x14;
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
@@ -89,9 +93,9 @@ impl JavaClassDefinition {
             .filter(|field| field.access_flags.contains(FieldAccessFlags::STATIC))
             .map(|field| if field.descriptor == "J" || field.descriptor == "D" { 2 } else { 1 })
             .sum::<usize>();
-        let class_storage_size = size_of::<RawJavaClass>() + static_field_word_count * size_of::<LgtJvmWord>();
-
-        let ptr_raw = Allocator::alloc(core, class_storage_size as u32)?;
+        let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let class_fields_size = CLASS_FIELD_PREFIX_SIZE + static_field_word_count * size_of::<LgtJvmWord>();
+        let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
         let ptr_name = Allocator::alloc(core, (class_name.len() + 1) as u32)?;
         let ptr_super_class_name = if let Some(parent_name) = &parent_name {
             Allocator::alloc(core, (parent_name.len() + 1) as u32)?
@@ -116,7 +120,8 @@ impl JavaClassDefinition {
         };
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
 
-        core.write_bytes(ptr_raw, &vec![0; class_storage_size])?;
+        core.write_bytes(ptr_raw, &[0; size_of::<RawJavaClass>()])?;
+        core.write_bytes(ptr_class_fields, &vec![0; class_fields_size])?;
         write_null_terminated_string_bytes(core, ptr_name, class_name.as_bytes())?;
         if let Some(parent_name) = &parent_name {
             write_null_terminated_string_bytes(core, ptr_super_class_name, parent_name.as_bytes())?;
@@ -217,7 +222,7 @@ impl JavaClassDefinition {
             JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?
         };
         let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, ptr_class_fields, &virtual_methods)?;
 
         write_generic(
             core,
@@ -277,6 +282,8 @@ impl JavaClassDefinition {
             .clone();
         let virtual_methods = parent_class.vtable_entries(jvm).await?;
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        let ptr_class_fields = Allocator::alloc(core, CLASS_FIELD_PREFIX_SIZE as u32)?;
+        core.write_bytes(ptr_class_fields, &[0; CLASS_FIELD_PREFIX_SIZE])?;
         let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_name, name.as_bytes())?;
         let ptr_super_class_name = Allocator::alloc(core, "java/lang/Object".len() as u32 + 1)?;
@@ -295,7 +302,7 @@ impl JavaClassDefinition {
             write_generic(core, ptr_interface_names + ((index + 1) * size_of::<u32>()) as u32, ptr_name)?;
         }
         let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
-        JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
+        JavaVtable::write(core, ptr_vtable, ptr_raw, ptr_class_fields, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
         let access_flags = ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL;
         write_generic(
@@ -387,10 +394,28 @@ impl JavaClassDefinition {
     }
 
     pub fn ptr_static_fields(&self) -> Result<u32> {
-        Ok(self.ptr_raw + size_of::<RawJavaClass>() as u32)
+        let ptr_class_fields = JavaVtable::class_fields(&self.core, self.ptr_vtable()?)?;
+        Ok(ptr_class_fields + CLASS_FIELD_PREFIX_SIZE as u32)
     }
 
     pub async fn initialize_class_object(&self, jvm: &Jvm, class_object: &mut Box<dyn ClassInstance>) -> Result<()> {
+        let instance = class_object.as_any_mut().downcast_mut::<JavaClassInstance>().unwrap();
+        let current_fields = instance.ptr_fields()?;
+        let ptr_class_fields = self.ptr_static_fields()? - CLASS_FIELD_PREFIX_SIZE as u32;
+        if current_fields != ptr_class_fields {
+            let storage_size = instance.storage_size()?;
+            let mut fields = vec![0; storage_size];
+            let mut core = self.core.clone();
+            core.read_bytes(current_fields, &mut fields)?;
+            core.write_bytes(ptr_class_fields, &fields)?;
+            write_generic(
+                &mut core,
+                instance.ptr_raw + offset_of!(RawJavaClassInstance, ptr_fields) as u32,
+                ptr_class_fields,
+            )?;
+            Allocator::free(&mut core, current_fields, storage_size.max(size_of::<LgtJvmWord>()) as u32)?;
+        }
+
         jvm.put_field(
             class_object,
             CLASS_NATIVE_NAME_FIELD,
@@ -447,13 +472,24 @@ impl JavaClassDefinition {
             JavaVtable::build_methods(jvm, &class_name, parent_class.as_ref(), &declared_methods).await?
         };
 
-        self.set_vtable_entries(&virtual_methods)
+        // The final generated-descriptor word is the AOT static storage size in words.
+        let static_field_word_count = descriptor.unk15 as usize;
+        let class_fields_size = CLASS_FIELD_PREFIX_SIZE + static_field_word_count * size_of::<LgtJvmWord>();
+        let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
+        core.write_bytes(ptr_class_fields, &vec![0; class_fields_size])?;
+
+        let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
+        JavaVtable::write(core, ptr_vtable, self.ptr_raw, ptr_class_fields, &virtual_methods)?;
+        let mut raw = self.raw()?;
+        raw.unk1 = ptr_vtable;
+        write_generic(core, self.ptr_raw, raw)
     }
 
     pub fn set_vtable_entries(&self, entries: &[JavaVtableEntry]) -> Result<()> {
         let mut core = self.core.clone();
+        let ptr_class_fields = self.ptr_static_fields()? - CLASS_FIELD_PREFIX_SIZE as u32;
         let ptr_vtable = JavaVtable::allocate(&mut core, entries.len())?;
-        JavaVtable::write(&mut core, ptr_vtable, self.ptr_raw, entries)?;
+        JavaVtable::write(&mut core, ptr_vtable, self.ptr_raw, ptr_class_fields, entries)?;
         let mut raw = self.raw()?;
         raw.unk1 = ptr_vtable;
         write_generic(&mut core, self.ptr_raw, raw)
