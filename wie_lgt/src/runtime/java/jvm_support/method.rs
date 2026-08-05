@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, string::ToString, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, string::ToString, sync::Arc, vec, vec::Vec};
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
 use java_class_proto::JavaMethodProto;
@@ -183,9 +183,24 @@ where
             .collect::<Vec<_>>();
 
         let codec = JavaValueCodec::new(core);
-        let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
+        let mut args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
 
-        let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
+        let result = if self.proto.access_flags.contains(MethodAccessFlags::ABSTRACT) {
+            let receiver = match args.remove(0) {
+                JavaValue::Object(Some(receiver)) => receiver,
+                _ => {
+                    return Err(WieError::FatalError(format!(
+                        "Invalid receiver for interface method {}{}",
+                        self.proto.name, self.proto.descriptor
+                    )));
+                }
+            };
+            self.jvm
+                .invoke_virtual::<Vec<JavaValue>, JavaValue>(&receiver, &self.proto.name, &self.proto.descriptor, args)
+                .await
+        } else {
+            self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await
+        };
         let result = match result {
             Ok(value) => value,
             Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),

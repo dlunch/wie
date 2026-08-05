@@ -19,6 +19,7 @@ impl BaseClip {
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
                 JavaMethodProto::new("putData", "([BII)I", Self::put_data, Default::default()),
+                JavaMethodProto::new("setBuffer", "([BI)Z", Self::set_buffer, Default::default()),
                 JavaMethodProto::new("clearData", "()V", Self::clear_data, Default::default()),
                 JavaMethodProto::new("availableDataSize", "()I", Self::available_data_size, Default::default()),
             ],
@@ -81,5 +82,19 @@ impl BaseClip {
         jvm.put_field(&mut this, "player", "Ljavax/microedition/media/Player;", None).await?;
 
         Ok(())
+    }
+
+    async fn set_buffer(
+        jvm: &Jvm,
+        _: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        buffer: ClassInstanceRef<Array<i8>>,
+        size: i32,
+    ) -> JvmResult<bool> {
+        tracing::debug!("org.kwis.msp.media.BaseClip::setBuffer({this:?}, {buffer:?}, {size})");
+
+        let written: i32 = jvm.invoke_virtual(&this, "putData", "([BII)I", (buffer, 0, size)).await?;
+
+        Ok(written == size)
     }
 }

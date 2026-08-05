@@ -58,6 +58,7 @@ pub enum JavaSystemSvcId {
     Unk1 = 29,
     Unk2 = 30,
     Unk3 = 31,
+    GetInterfaceDispatchTable = 32,
 }
 
 impl TryFrom<SvcId> for JavaSystemSvcId {
@@ -97,6 +98,7 @@ impl TryFrom<SvcId> for JavaSystemSvcId {
             29 => Self::Unk1,
             30 => Self::Unk2,
             31 => Self::Unk3,
+            32 => Self::GetInterfaceDispatchTable,
             _ => {
                 return Err(wie_util::WieError::FatalError(alloc::format!(
                     "Unknown LGT Java system SVC id {}",

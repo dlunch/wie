@@ -27,6 +27,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x06 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::DestroyRuntimeContext)?,
         0x07 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::CreateRuntimeContext)?,
         0x09 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StringLiteral)?,
+        0x0a => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable)?,
         0x0b => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RegisterClass)?,
         0x0c => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::ResolveClass)?,
         0x0d => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::InitializeClass)?,
@@ -81,6 +82,9 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::Unk54 => EmulatedFunction::call(&java_unk54, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::Unk55 => EmulatedFunction::call(&java_unk55, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::GetInterfaceDispatchTable => EmulatedFunction::call(&java_get_interface_dispatch_table, core, jvm)
+                .await?
+                .write(core, lr),
             JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StoreReferenceArray => EmulatedFunction::call(&java_store_reference_array, core, jvm).await?.write(core, lr),
@@ -172,6 +176,12 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
     let value = LgtJvmSupport::class_instance_raw(&*value);
     write_generic(core, cache, value)?;
     Ok(value)
+}
+
+async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, _ptr_instance: u32, ptr_interface_name: u32) -> Result<u32> {
+    let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_interface_name)?)
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT interface class name: {error}")))?;
+    LgtJvmSupport::interface_dispatch_table(jvm, &interface_name).await
 }
 
 async fn java_push_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {
@@ -311,12 +321,14 @@ async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_obje
         return Ok(());
     }
 
+    jvm.put_field(&mut class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     if callback != 0 {
         let _: () = core.run_function(callback, &[]).await?;
     }
-    jvm.put_field(&mut class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
-        .await
-        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))
+
+    Ok(())
 }
 
 async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {
@@ -493,12 +505,10 @@ async fn link_class_members(
         write_generic(core, virtual_method_indices + index as u32 * size_of::<u16>() as u32, method_index)?;
     }
 
-    if link.interface_method_count != 0 {
-        return Err(WieError::FatalError(format!(
-            "Interface method linking is not implemented for {class_name}: table {interface_method_imports:#x}, output {interface_method_indices:#x}, range {}..{}",
-            link.interface_method_offset,
-            link.interface_method_offset + link.interface_method_count
-        )));
+    for index in link.interface_method_offset..link.interface_method_offset + link.interface_method_count {
+        let (name, descriptor) = read_member_name_and_descriptor(core, interface_method_imports, index)?;
+        let method_index = LgtJvmSupport::virtual_method_index(jvm, class_name, &name, &descriptor).await?;
+        write_generic(core, interface_method_indices + index as u32 * size_of::<u16>() as u32, method_index)?;
     }
 
     let (initialized_class_getter, class_getter) = LgtJvmSupport::class_getter_targets(jvm, class_name)?;

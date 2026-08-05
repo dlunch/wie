@@ -17,6 +17,7 @@ impl TextComponent {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, Default::default()),
                 JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, Default::default()),
                 JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, Default::default()),
             ],
@@ -44,6 +45,12 @@ impl TextComponent {
 
     async fn set_max_length(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>, max_length: i32) -> JvmResult<()> {
         tracing::warn!("stub org.kwis.msp.lwc.TextComponent::<init>({this:?}, {max_length})");
+
+        Ok(())
+    }
+
+    async fn set_string(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<TextComponent>, data: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::warn!("stub org.kwis.msp.lwc.TextComponent::setString({this:?}, {data:?})");
 
         Ok(())
     }

@@ -59,6 +59,14 @@ impl JavaClassDefinition {
         } = proto;
         let class_abi = JAVA_ABI.class(class_name);
         let fixed_fields = class_abi.map(|class| class.field.as_slice()).unwrap_or_default();
+        let additional_fixed_fields = fixed_fields
+            .iter()
+            .filter(|fixed| {
+                !field_protos.iter().any(|field| {
+                    !field.access_flags.contains(FieldAccessFlags::STATIC) && field.name == fixed.name && field.descriptor == fixed.descriptor
+                })
+            })
+            .collect::<Vec<_>>();
 
         let parent_class = if let Some(parent_name) = parent_class_name {
             Some(
@@ -100,7 +108,7 @@ impl JavaClassDefinition {
         } else {
             Allocator::alloc(core, (size_of::<u32>() + method_protos.len() * size_of::<RawJavaMethod>()) as u32)?
         };
-        let field_count = field_protos.len() + fixed_fields.len();
+        let field_count = field_protos.len() + additional_fixed_fields.len();
         let ptr_fields = if field_count == 0 {
             0
         } else {
@@ -148,12 +156,21 @@ impl JavaClassDefinition {
         let mut static_field_word_index = 0usize;
         for (index, field) in field_protos.iter().enumerate() {
             let is_static = field.access_flags.contains(FieldAccessFlags::STATIC);
-            let word_index = if is_static { static_field_word_index } else { instance_field_word_index };
             let word_count = if field.descriptor == "J" || field.descriptor == "D" { 2 } else { 1 };
+            let word_index = if is_static {
+                static_field_word_index
+            } else if let Some(fixed) = fixed_fields
+                .iter()
+                .find(|fixed| fixed.name == field.name && fixed.descriptor == field.descriptor)
+            {
+                fixed.index as usize
+            } else {
+                instance_field_word_index
+            };
             if is_static {
                 static_field_word_index += word_count;
             } else {
-                instance_field_word_index += word_count;
+                instance_field_word_index = instance_field_word_index.max(word_index + word_count);
             }
 
             let ptr_field = ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32;
@@ -167,7 +184,7 @@ impl JavaClassDefinition {
                 word_index as u32,
             )?;
         }
-        for (offset, field) in fixed_fields.iter().enumerate() {
+        for (offset, field) in additional_fixed_fields.iter().enumerate() {
             let index = field_protos.len() + offset;
             let ptr_field = ptr_fields + size_of::<u32>() as u32 + (index * size_of::<RawJavaField>()) as u32;
             JavaField::new(
@@ -183,7 +200,22 @@ impl JavaClassDefinition {
         if let Some(field_size) = class_abi.and_then(|class| class.field_size) {
             instance_field_word_index = instance_field_word_index.max(field_size);
         }
-        let virtual_methods = JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?;
+        let virtual_methods = if access_flags.contains(ClassAccessFlags::INTERFACE) {
+            methods
+                .iter()
+                .filter(|method| {
+                    !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) && !method.name().starts_with('<')
+                })
+                .map(|method| {
+                    Ok(JavaVtableEntry {
+                        target: method.target()?,
+                        method: Some(method.clone()),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?
+        };
         let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
         JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
 
@@ -577,7 +609,21 @@ impl ClassDefinition for JavaClassDefinition {
 
     fn super_class_name(&self) -> Option<String> {
         let ptr_name = self.descriptor().unwrap().ptr_super_class_name;
-        (ptr_name != 0).then(|| String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap())
+        if ptr_name == 0 {
+            return None;
+        }
+
+        if let Ok(raw_class) = read_generic::<RawJavaClass, _>(&self.core, ptr_name)
+            && raw_class.ptr_descriptor != 0
+            && let Ok(descriptor) = read_generic::<RawJavaClassDescriptor, _>(&self.core, raw_class.ptr_descriptor)
+            && let Ok(name) = read_null_terminated_string_bytes(&self.core, descriptor.ptr_name)
+            && let Ok(name) = String::from_utf8(name)
+            && !name.is_empty()
+        {
+            return Some(name);
+        }
+
+        Some(String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap())
     }
 
     fn interface_names(&self) -> Vec<String> {

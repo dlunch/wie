@@ -8,18 +8,21 @@ name = "java/lang/Object"
 vtable_size = 10
 vtable = [
     { name = "getClass", descriptor = "()Ljava/lang/Class;", index = 1 },
+    { name = "equals", descriptor = "(Ljava/lang/Object;)Z", index = 3 },
     { name = "toString", descriptor = "()Ljava/lang/String;", index = 4 },
 ]
 
 [[class]]
 name = "java/lang/Class"
-field_size = 5
+field_size = 25
 vtable = [
     { name = "getResourceAsStream", descriptor = "(Ljava/lang/String;)Ljava/io/InputStream;", index = 16 },
 ]
 field = [
     { name = "nativeClassName", descriptor = "I", index = 2 },
     { name = "initializationState", descriptor = "I", index = 4 },
+    { name = "nameBytes", descriptor = "[B", index = 23 },
+    { name = "classLoader", descriptor = "Ljava/lang/ClassLoader;", index = 24 },
 ]
 
 [[class]]
@@ -43,11 +46,13 @@ vtable = [
     { name = "length", descriptor = "()I", index = 10 },
     { name = "charAt", descriptor = "(I)C", index = 11 },
     { name = "substring", descriptor = "(II)Ljava/lang/String;", index = 28 },
+    { name = "trim", descriptor = "()Ljava/lang/String;", index = 33 },
 ]
 
 [[class]]
 name = "java/lang/StringBuffer"
 vtable = [
+    { name = "append", descriptor = "(Ljava/lang/Object;)Ljava/lang/StringBuffer;", index = 17 },
     { name = "append", descriptor = "(Ljava/lang/String;)Ljava/lang/StringBuffer;", index = 18 },
     { name = "append", descriptor = "(I)Ljava/lang/StringBuffer;", index = 23 },
 ]

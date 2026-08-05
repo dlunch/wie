@@ -8,7 +8,7 @@ mod method;
 mod value;
 mod vtable;
 
-use alloc::{boxed::Box, string::String};
+use alloc::{boxed::Box, format, string::String};
 
 use jvm::{ClassDefinition, ClassInstance, JavaError, Jvm, Method};
 
@@ -90,21 +90,18 @@ impl LgtJvmSupport {
         loop {
             let class = jvm
                 .get_class(&current_name)
-                .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking field: {current_name}")))?;
+                .ok_or_else(|| WieError::FatalError(format!("Class not loaded while linking field: {current_name}")))?;
             if let Some(field) = class.definition.field(name, descriptor, is_static) {
                 let field = field
                     .as_any()
                     .downcast_ref::<JavaField>()
-                    .ok_or_else(|| WieError::FatalError(alloc::format!("Unsupported field implementation for {current_name}.{name}{descriptor}")))?;
-                return u16::try_from(field.word_index()?).map_err(|_| {
-                    WieError::FatalError(alloc::format!(
-                        "Field word index does not fit LGT ABI for {current_name}.{name}{descriptor}"
-                    ))
-                });
+                    .ok_or_else(|| WieError::FatalError(format!("Unsupported field implementation for {current_name}.{name}{descriptor}")))?;
+                return u16::try_from(field.word_index()?)
+                    .map_err(|_| WieError::FatalError(format!("Field word index does not fit LGT ABI for {current_name}.{name}{descriptor}")));
             }
 
             let Some(parent_name) = class.definition.super_class_name() else {
-                return Err(WieError::FatalError(alloc::format!(
+                return Err(WieError::FatalError(format!(
                     "Unable to resolve {} field {class_name}.{name}{descriptor}",
                     if is_static { "static" } else { "instance" }
                 )));
@@ -116,16 +113,12 @@ impl LgtJvmSupport {
     pub async fn virtual_method_index(jvm: &Jvm, class_name: &str, name: &str, descriptor: &str) -> Result<u16> {
         let class = jvm
             .get_class(class_name)
-            .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking virtual method: {class_name}")))?;
+            .ok_or_else(|| WieError::FatalError(format!("Class not loaded while linking virtual method: {class_name}")))?;
         let definition = class
             .definition
             .as_any()
             .downcast_ref::<JavaClassDefinition>()
-            .ok_or_else(|| {
-                WieError::FatalError(alloc::format!(
-                    "Unsupported class implementation while linking virtual method: {class_name}"
-                ))
-            })?
+            .ok_or_else(|| WieError::FatalError(format!("Unsupported class implementation while linking virtual method: {class_name}")))?
             .clone();
         let mut methods = definition.vtable_entries(jvm).await?;
         if let Some(index) = methods.iter().position(|entry| {
@@ -134,11 +127,8 @@ impl LgtJvmSupport {
                 .as_ref()
                 .is_some_and(|method| method.name() == name && method.descriptor() == descriptor)
         }) {
-            return u16::try_from(index).map_err(|_| {
-                WieError::FatalError(alloc::format!(
-                    "Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}"
-                ))
-            });
+            return u16::try_from(index)
+                .map_err(|_| WieError::FatalError(format!("Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}")));
         }
 
         // TODO Remove this fallback once data/lgt_java_abi.toml covers every linked virtual method.
@@ -146,17 +136,17 @@ impl LgtJvmSupport {
         let method = loop {
             let class = jvm
                 .get_class(&current_name)
-                .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking virtual method: {current_name}")))?;
+                .ok_or_else(|| WieError::FatalError(format!("Class not loaded while linking virtual method: {current_name}")))?;
             if let Some(method) = class.definition.method(name, descriptor, false) {
                 break method
                     .as_any()
                     .downcast_ref::<JavaMethod>()
-                    .ok_or_else(|| WieError::FatalError(alloc::format!("Unsupported method implementation for {current_name}.{name}{descriptor}")))?
+                    .ok_or_else(|| WieError::FatalError(format!("Unsupported method implementation for {current_name}.{name}{descriptor}")))?
                     .clone();
             }
 
             let Some(parent_name) = class.definition.super_class_name() else {
-                return Err(WieError::FatalError(alloc::format!(
+                return Err(WieError::FatalError(format!(
                     "Unable to resolve virtual method {class_name}.{name}{descriptor}"
                 )));
             };
@@ -170,11 +160,22 @@ impl LgtJvmSupport {
         });
         definition.set_vtable_entries(&methods)?;
 
-        u16::try_from(index).map_err(|_| {
-            WieError::FatalError(alloc::format!(
-                "Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}"
-            ))
-        })
+        u16::try_from(index)
+            .map_err(|_| WieError::FatalError(format!("Virtual method index does not fit LGT ABI for {class_name}.{name}{descriptor}")))
+    }
+
+    pub async fn interface_dispatch_table(jvm: &mut Jvm, class_name: &str) -> Result<u32> {
+        let class = jvm
+            .resolve_class(class_name)
+            .await
+            .map_err(|JavaError::JavaException(instance)| WieError::JavaException(Self::class_instance_raw(&*instance)))?;
+        let definition = class
+            .definition
+            .as_any()
+            .downcast_ref::<JavaClassDefinition>()
+            .ok_or_else(|| WieError::FatalError(format!("Unsupported interface class implementation: {class_name}")))?;
+
+        definition.ptr_vtable()
     }
 
     pub fn non_virtual_method_target(jvm: &Jvm, class_name: &str, name: &str, descriptor: &str) -> Result<u32> {
@@ -182,7 +183,7 @@ impl LgtJvmSupport {
         loop {
             let class = jvm
                 .get_class(&current_name)
-                .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking direct method: {current_name}")))?;
+                .ok_or_else(|| WieError::FatalError(format!("Class not loaded while linking direct method: {current_name}")))?;
             if let Some(method) = class
                 .definition
                 .method(name, descriptor, true)
@@ -191,12 +192,12 @@ impl LgtJvmSupport {
                 let method = method
                     .as_any()
                     .downcast_ref::<JavaMethod>()
-                    .ok_or_else(|| WieError::FatalError(alloc::format!("Unsupported method implementation for {current_name}.{name}{descriptor}")))?;
+                    .ok_or_else(|| WieError::FatalError(format!("Unsupported method implementation for {current_name}.{name}{descriptor}")))?;
                 return method.target();
             }
 
             let Some(parent_name) = class.definition.super_class_name() else {
-                return Err(WieError::FatalError(alloc::format!(
+                return Err(WieError::FatalError(format!(
                     "Unable to resolve non-virtual method {class_name}.{name}{descriptor}"
                 )));
             };
@@ -207,12 +208,12 @@ impl LgtJvmSupport {
     pub fn class_getter_targets(jvm: &Jvm, class_name: &str) -> Result<(u32, u32)> {
         let class = jvm
             .get_class(class_name)
-            .ok_or_else(|| WieError::FatalError(alloc::format!("Class not loaded while linking class getters: {class_name}")))?;
-        let definition = class.definition.as_any().downcast_ref::<JavaClassDefinition>().ok_or_else(|| {
-            WieError::FatalError(alloc::format!(
-                "Unsupported class implementation while linking class getters: {class_name}"
-            ))
-        })?;
+            .ok_or_else(|| WieError::FatalError(format!("Class not loaded while linking class getters: {class_name}")))?;
+        let definition = class
+            .definition
+            .as_any()
+            .downcast_ref::<JavaClassDefinition>()
+            .ok_or_else(|| WieError::FatalError(format!("Unsupported class implementation while linking class getters: {class_name}")))?;
         let descriptor = definition.descriptor()?;
         Ok((descriptor.fn_get_initialized_class, descriptor.fn_get_class))
     }
@@ -235,7 +236,7 @@ impl LgtJvmSupport {
             {
                 return Ok(existing.java_class());
             }
-            return Err(wie_util::WieError::FatalError(alloc::format!(
+            return Err(wie_util::WieError::FatalError(format!(
                 "Class {class_name} is already registered from a different definition"
             )));
         }
