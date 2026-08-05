@@ -19,7 +19,7 @@ async-trait = { version = "^0.1" }
 anyhow = { version = "^1.0" }
 console_error_panic_hook = { version = "^0.1" }
 futures = { version = "^0.3", default-features = false, features = ["alloc"] }
-hashbrown = { version = "^0.16" }
+hashbrown = { version = "^0.17" }
 js-sys = { version = "^0.3" }
 rodio = { version = "^0.22", features = ["playback", "wasm-bindgen"], default-features = false }
 time = { version = "^0.3", features = ["wasm-bindgen"] }
