@@ -69,6 +69,12 @@ vtable = [
 ]
 
 [[class]]
+name = "java/lang/Runnable"
+vtable = [
+    { name = "run", descriptor = "()V", index = 10 },
+]
+
+[[class]]
 name = "java/util/Random"
 vtable = [
     { name = "nextInt", descriptor = "()I", index = 12 },

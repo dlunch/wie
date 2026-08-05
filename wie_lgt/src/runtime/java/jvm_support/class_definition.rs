@@ -24,7 +24,7 @@ use crate::runtime::{
 };
 
 use super::{
-    JavaClassInstance, JavaField, JavaMethod, LgtJvmWord,
+    JavaClassInstance, JavaField, JavaMethod, JavaVtableMethod, LgtJvmWord,
     value::JavaValueCodec,
     vtable::{JavaVtable, JavaVtableEntry},
 };
@@ -696,13 +696,27 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Method>> {
-        self.methods()
-            .unwrap()
-            .into_iter()
-            .find(|method| {
-                method.name() == name && method.descriptor() == descriptor && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
-            })
-            .map(|method| Box::new(method) as Box<_>)
+        if let Some(method) = self.methods().unwrap().into_iter().find(|method| {
+            method.name() == name && method.descriptor() == descriptor && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
+        }) {
+            return Some(Box::new(method));
+        }
+        if is_static {
+            return None;
+        }
+
+        let raw_descriptor = self.descriptor().unwrap();
+        if raw_descriptor.ptr_vtable == 0 {
+            return None;
+        }
+        let entry = JAVA_ABI.class.iter().flat_map(|class| &class.vtable).find(|entry| {
+            entry.name == name
+                && entry.descriptor == descriptor
+                && entry.index < raw_descriptor.vtable_count as usize
+                && read_generic::<u32, _>(&self.core, raw_descriptor.ptr_vtable + ((entry.index + 1) * size_of::<u32>()) as u32).unwrap() != 0
+        })?;
+        let target = read_generic(&self.core, self.ptr_vtable().unwrap() + ((entry.index + 1) * size_of::<u32>()) as u32).unwrap();
+        Some(Box::new(JavaVtableMethod::new(&self.core, name, descriptor, target)))
     }
 
     fn field(&self, name: &str, descriptor: &str, is_static: bool) -> Option<Box<dyn Field>> {

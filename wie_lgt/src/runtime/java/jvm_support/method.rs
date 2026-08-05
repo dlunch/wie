@@ -22,6 +22,14 @@ pub struct JavaMethod {
     core: ArmCore,
 }
 
+#[derive(Clone)]
+pub struct JavaVtableMethod {
+    core: ArmCore,
+    name: String,
+    descriptor: String,
+    target: u32,
+}
+
 impl JavaMethod {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
         Self { ptr_raw, core: core.clone() }
@@ -79,21 +87,6 @@ impl JavaMethod {
         Ok(self.raw()?.ptr_method)
     }
 
-    async fn run_async(&self, args: Box<[JavaValue]>) -> Result<JavaValue> {
-        let raw = self.raw()?;
-        let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
-        let codec = JavaValueCodec::new(&self.core);
-        let raw_args = encode_method_arguments(&codec, &args);
-
-        let result: JavaMethodRunResult = self.core.clone().run_function(raw.ptr_method, &raw_args).await?;
-
-        if matches!(return_type, JavaType::Double | JavaType::Long) {
-            Ok(codec.decode_wide(result.low, result.high, &return_type))
-        } else {
-            Ok(codec.decode_word(result.low, &return_type))
-        }
-    }
-
     fn register_java_method<C, Context>(
         core: &mut ArmCore,
         jvm: &Jvm,
@@ -140,7 +133,7 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        match self.run_async(args).await {
+        match run_method(&self.core, self.target().unwrap(), &self.descriptor(), args).await {
             Ok(value) => Ok(value),
             Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
             Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
@@ -155,6 +148,63 @@ impl Method for JavaMethod {
 impl Debug for JavaMethod {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
+    }
+}
+
+impl JavaVtableMethod {
+    pub fn new(core: &ArmCore, name: &str, descriptor: &str, target: u32) -> Self {
+        Self {
+            core: core.clone(),
+            name: name.into(),
+            descriptor: descriptor.into(),
+            target,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Method for JavaVtableMethod {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn descriptor(&self) -> String {
+        self.descriptor.clone()
+    }
+
+    async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
+        match run_method(&self.core, self.target, &self.descriptor, args).await {
+            Ok(value) => Ok(value),
+            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
+            Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
+        }
+    }
+
+    fn access_flags(&self) -> MethodAccessFlags {
+        MethodAccessFlags::PUBLIC
+    }
+}
+
+impl Debug for JavaVtableMethod {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JavaVtableMethod")
+            .field("name", &self.name)
+            .field("descriptor", &self.descriptor)
+            .field("target", &self.target)
+            .finish()
+    }
+}
+
+async fn run_method(core: &ArmCore, target: u32, descriptor: &str, args: Box<[JavaValue]>) -> Result<JavaValue> {
+    let return_type = JavaType::parse(descriptor).as_method().1.clone();
+    let codec = JavaValueCodec::new(core);
+    let raw_args = encode_method_arguments(&codec, &args);
+    let result: JavaMethodRunResult = core.clone().run_function(target, &raw_args).await?;
+
+    if matches!(return_type, JavaType::Double | JavaType::Long) {
+        Ok(codec.decode_wide(result.low, result.high, &return_type))
+    } else {
+        Ok(codec.decode_word(result.low, &return_type))
     }
 }
 
