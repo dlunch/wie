@@ -46,6 +46,8 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x25 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArithmeticException)?,
         0x54 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk54)?,
         0x55 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk55)?,
+        0x56 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorEnter)?,
+        0x57 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorExit)?,
         0x61 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreReferenceArray)?,
         0x82 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::SetJarPath)?,
         0x83 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StartApplication)?,
@@ -81,6 +83,8 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::InstantiateMultiArray => EmulatedFunction::call(&java_instantiate_multi_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::Unk54 => EmulatedFunction::call(&java_unk54, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::Unk55 => EmulatedFunction::call(&java_unk55, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::MonitorEnter => EmulatedFunction::call(&java_monitor_enter, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::MonitorExit => EmulatedFunction::call(&java_monitor_exit, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::GetInterfaceDispatchTable => EmulatedFunction::call(&java_get_interface_dispatch_table, core, jvm)
                 .await?
@@ -146,6 +150,22 @@ async fn java_unk54(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
 
 async fn java_unk55(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
     Ok(())
+}
+
+async fn java_monitor_enter(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32) -> Result<u32> {
+    let instance = LgtJvmSupport::class_instance_from_raw(core, ptr_instance);
+    jvm.monitor_enter(&*instance)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    Ok(0)
+}
+
+async fn java_monitor_exit(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32) -> Result<u32> {
+    let instance = LgtJvmSupport::class_instance_from_raw(core, ptr_instance);
+    jvm.monitor_exit(&*instance)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    Ok(0)
 }
 
 async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context: u32, data: u32, length: u32, cache: u32) -> Result<u32> {

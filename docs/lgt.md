@@ -123,7 +123,9 @@ generated class descriptor
   +0x34 -> callback that registers the class and returns its class object
   +0x38 -> count-prefixed method table
   +0x3c -> count-prefixed field table
-  +0x40..+0x48 unknown
+  +0x40 -> runtime-owned class-field backing storage
+  +0x44 unknown runtime word; generated value is -2
+  +0x48 u32: static field words
 ```
 
 The three callbacks have separate roles:
@@ -270,6 +272,8 @@ Known functions in Java import table `0x64` are:
 | `0x25` | raise an arithmetic exception |
 | `0x54` | unresolved generated-code helper |
 | `0x55` | unresolved generated-code helper |
+| `0x56` | enter an object monitor |
+| `0x57` | exit an object monitor |
 | `0x61` | checked reference-array store |
 | `0x82` | set the application archive path |
 | `0x83` | start the Java application entry class |

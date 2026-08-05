@@ -11,8 +11,6 @@ use crate::runtime::{SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY, java::abi::JAVA_ABI
 
 use super::{JavaClassDefinition, JavaMethod};
 
-const VTABLE_METADATA_WORDS: usize = 2;
-
 #[derive(Clone)]
 pub struct JavaVtableEntry {
     pub target: u32,
@@ -23,17 +21,11 @@ pub struct JavaVtable;
 
 impl JavaVtable {
     pub fn allocate(core: &mut ArmCore, entry_count: usize) -> Result<u32> {
-        let ptr_allocation = Allocator::alloc(core, ((entry_count + VTABLE_METADATA_WORDS + 1) * size_of::<u32>()) as u32)?;
-        Ok(ptr_allocation + (VTABLE_METADATA_WORDS * size_of::<u32>()) as u32)
+        Allocator::alloc(core, ((entry_count + 1) * size_of::<u32>()) as u32)
     }
 
-    pub fn class_fields(core: &ArmCore, ptr_vtable: u32) -> Result<u32> {
-        read_generic(core, ptr_vtable - (VTABLE_METADATA_WORDS * size_of::<u32>()) as u32)
-    }
-
-    pub fn read(core: &ArmCore, ptr_vtable: u32, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
-        let entry_count: u32 = read_generic(core, ptr_vtable - size_of::<u32>() as u32)?;
-        (0..entry_count as usize)
+    pub fn read(core: &ArmCore, ptr_vtable: u32, entry_count: usize, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
+        (0..entry_count)
             .map(|index| {
                 let target = read_generic(core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32)?;
                 let method = known_classes
@@ -55,9 +47,7 @@ impl JavaVtable {
             .collect()
     }
 
-    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, ptr_class_fields: u32, entries: &[JavaVtableEntry]) -> Result<()> {
-        write_generic(core, ptr_vtable - (VTABLE_METADATA_WORDS * size_of::<u32>()) as u32, ptr_class_fields)?;
-        write_generic(core, ptr_vtable - size_of::<u32>() as u32, entries.len() as u32)?;
+    pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<()> {
         write_generic(core, ptr_vtable, ptr_class)?;
         for (index, entry) in entries.iter().enumerate() {
             let target = if entry.target == 0 {
