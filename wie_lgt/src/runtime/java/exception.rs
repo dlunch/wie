@@ -73,10 +73,8 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
 
     let ptr_frame = support_context.ptr_current_exception_frame;
     let frame: [u32; FRAME_WORDS as usize] = read_generic(core, ptr_frame)?;
-    support_context.ptr_current_exception_frame = frame[0];
     support_context.ptr_pending_exception = ptr_exception;
     write_generic(core, SUPPORT_CONTEXT_BASE, support_context)?;
-    Allocator::free(core, ptr_frame, FRAME_WORDS * size_of::<u32>() as u32)?;
 
     let context = ArmCoreContext {
         r0: frame[1],
@@ -108,7 +106,7 @@ mod tests {
     use wie_core_arm::{Allocator, ArmCore};
     use wie_util::Result;
 
-    use super::{init, pending, push, unwind};
+    use super::{init, pending, pop, push, unwind};
 
     #[test]
     fn exception_frame_restores_guest_context() -> Result<()> {
@@ -134,8 +132,10 @@ mod tests {
         assert_eq!(restored.pc, 0x4000);
         assert_eq!(pending(&core)?, 0x1234);
 
+        pop(&mut core)?;
+        assert_eq!(pending(&core)?, 0);
         assert_eq!(unwind(&mut core, 0x5678)?, None);
-        assert_eq!(pending(&core)?, 0x1234);
+        assert_eq!(pending(&core)?, 0);
 
         Ok(())
     }

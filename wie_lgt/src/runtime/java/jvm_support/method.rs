@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, string::ToString, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
 use java_class_proto::JavaMethodProto;
@@ -136,7 +136,10 @@ impl Method for JavaMethod {
         match run_method(&self.core, self.target().unwrap(), &self.descriptor(), args).await {
             Ok(value) => Ok(value),
             Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
-            Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
+            Err(error) => {
+                let message = format!("{error}{}", self.core.dump_reg_stack(0x1000));
+                Err(jvm.exception("net/wie/WieError", &message).await)
+            }
         }
     }
 
@@ -176,7 +179,10 @@ impl Method for JavaVtableMethod {
         match run_method(&self.core, self.target, &self.descriptor, args).await {
             Ok(value) => Ok(value),
             Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
-            Err(error) => Err(jvm.exception("net/wie/WieError", &error.to_string()).await),
+            Err(error) => {
+                let message = format!("{error}{}", self.core.dump_reg_stack(0x1000));
+                Err(jvm.exception("net/wie/WieError", &message).await)
+            }
         }
     }
 
@@ -234,7 +240,6 @@ where
 
         let codec = JavaValueCodec::new(core);
         let mut args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
-
         let result = if self.proto.access_flags.contains(MethodAccessFlags::ABSTRACT) {
             let receiver = match args.remove(0) {
                 JavaValue::Object(Some(receiver)) => receiver,

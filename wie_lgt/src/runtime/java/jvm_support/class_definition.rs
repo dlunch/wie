@@ -237,7 +237,7 @@ impl JavaClassDefinition {
                 instance_field_word_count: instance_field_word_index as u16,
                 link_state: 0,
                 unk7: 0,
-                ptr_instance_field_initializer_record: 0,
+                ptr_instance_reference_bitmap: 0,
                 unk9: 0,
                 unk10: 0,
                 vtable_count: virtual_methods.len() as u16,
@@ -318,7 +318,7 @@ impl JavaClassDefinition {
                 instance_field_word_count: 0,
                 link_state: 0,
                 unk7: 0,
-                ptr_instance_field_initializer_record: 0,
+                ptr_instance_reference_bitmap: 0,
                 unk9: 0,
                 unk10: 0,
                 vtable_count: virtual_methods.len() as u16,
@@ -730,7 +730,22 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn fields(&self) -> Vec<Box<dyn Field>> {
-        self.fields().unwrap().into_iter().map(|field| Box::new(field) as Box<_>).collect()
+        let mut fields = self
+            .fields()
+            .unwrap()
+            .into_iter()
+            .map(|field| Box::new(field) as Box<dyn Field>)
+            .collect::<Vec<_>>();
+        let descriptor = self.descriptor().unwrap();
+        if descriptor.ptr_instance_reference_bitmap != 0 {
+            for word_index in 0..descriptor.instance_field_word_count as u32 {
+                let byte: u8 = read_generic(&self.core, descriptor.ptr_instance_reference_bitmap + word_index / 8).unwrap();
+                if byte & (0x80 >> (word_index % 8)) != 0 {
+                    fields.push(Box::new(JavaField::from_reference_word(word_index, &self.core)));
+                }
+            }
+        }
+        fields
     }
 
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {

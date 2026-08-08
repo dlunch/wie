@@ -83,9 +83,14 @@ impl Canvas {
     }
 
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
+        tracing::debug!("javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
 
-        jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, 0, 0)).await
+        let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        if !display.is_null() {
+            let _: () = jvm.invoke_virtual(&display, "handlePaintEvent", "()V", ()).await?;
+        }
+
+        Ok(())
     }
 
     async fn get_game_action(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {

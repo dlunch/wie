@@ -1,5 +1,6 @@
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -163,8 +164,19 @@ impl JavaMethod {
                         args = vec![context_base, target];
                     }
                     Err(e) => {
+                        let error = match e {
+                            error @ WieError::JavaException(_) => error,
+                            error => {
+                                let context = core.dump_reg_stack(0x1000);
+                                match error {
+                                    WieError::Unimplemented(message) => WieError::Unimplemented(format!("{message}{context}")),
+                                    WieError::FatalError(message) => WieError::FatalError(format!("{message}{context}")),
+                                    error => WieError::FatalError(format!("{error}{context}")),
+                                }
+                            }
+                        };
                         core.restore_context(&caller_context);
-                        return Err(e);
+                        return Err(error);
                     }
                 }
             }

@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::{format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
 use java_constants::FieldAccessFlags;
@@ -11,12 +11,25 @@ use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_ge
 #[derive(Clone)]
 pub struct JavaField {
     pub ptr_raw: u32,
+    reference_word_index: Option<u32>,
     core: ArmCore,
 }
 
 impl JavaField {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
-        Self { ptr_raw, core: core.clone() }
+        Self {
+            ptr_raw,
+            reference_word_index: None,
+            core: core.clone(),
+        }
+    }
+
+    pub fn from_reference_word(word_index: u32, core: &ArmCore) -> Self {
+        Self {
+            ptr_raw: 0,
+            reference_word_index: Some(word_index),
+            core: core.clone(),
+        }
     }
 
     pub fn new(
@@ -55,21 +68,37 @@ impl JavaField {
     }
 
     pub fn word_index(&self) -> Result<u32> {
-        Ok(self.raw()?.word_index)
+        if let Some(word_index) = self.reference_word_index {
+            Ok(word_index)
+        } else {
+            Ok(self.raw()?.word_index)
+        }
     }
 }
 
 impl Field for JavaField {
     fn name(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
+        if let Some(word_index) = self.reference_word_index {
+            format!("<reference-word-{word_index}>")
+        } else {
+            String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
+        }
     }
 
     fn descriptor(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
+        if self.reference_word_index.is_some() {
+            "Ljava/lang/Object;".into()
+        } else {
+            String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
+        }
     }
 
     fn access_flags(&self) -> FieldAccessFlags {
-        FieldAccessFlags::from_bits_truncate(self.raw().unwrap().flags as _)
+        if self.reference_word_index.is_some() {
+            FieldAccessFlags::empty()
+        } else {
+            FieldAccessFlags::from_bits_truncate(self.raw().unwrap().flags as _)
+        }
     }
 }
 

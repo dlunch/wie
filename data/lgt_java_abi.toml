@@ -1,4 +1,4 @@
-# Vtable index 0 contains the raw-class pointer, so method indexes start at 1.
+# Vtable word 0 contains the raw-class pointer; method index 0 starts at word 1.
 # vtable_size counts method entries, including unknown entries.
 # Field indexes address 32-bit words in instance field storage; field_size is
 # the total word count, including unknown fields.
@@ -26,7 +26,9 @@ field = [
 [[class]]
 name = "java/io/InputStream"
 vtable = [
+    { name = "read", descriptor = "()I", index = 10 },
     { name = "read", descriptor = "([B)I", index = 11 },
+    { name = "read", descriptor = "([BII)I", index = 12 },
     { name = "available", descriptor = "()I", index = 14 },
     { name = "close", descriptor = "()V", index = 15 },
 ]
@@ -39,12 +41,19 @@ vtable = [
 ]
 
 [[class]]
+name = "java/io/DataInputStream"
+vtable = [
+    { name = "readByte", descriptor = "()B", index = 23 },
+]
+
+[[class]]
 name = "java/lang/String"
 vtable = [
     { name = "length", descriptor = "()I", index = 10 },
     { name = "charAt", descriptor = "(I)C", index = 11 },
     { name = "substring", descriptor = "(II)Ljava/lang/String;", index = 28 },
     { name = "trim", descriptor = "()Ljava/lang/String;", index = 33 },
+    { name = "toCharArray", descriptor = "()[C", index = 34 },
 ]
 
 [[class]]
@@ -53,6 +62,7 @@ vtable = [
     { name = "append", descriptor = "(Ljava/lang/Object;)Ljava/lang/StringBuffer;", index = 17 },
     { name = "append", descriptor = "(Ljava/lang/String;)Ljava/lang/StringBuffer;", index = 18 },
     { name = "append", descriptor = "(I)Ljava/lang/StringBuffer;", index = 23 },
+    { name = "delete", descriptor = "(II)Ljava/lang/StringBuffer;", index = 27 },
 ]
 
 [[class]]
