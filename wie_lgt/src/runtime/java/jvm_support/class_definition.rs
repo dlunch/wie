@@ -5,8 +5,8 @@ use java_class_proto::JavaClassProto;
 use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::lgt::java::{
-    LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassField as RawJavaField,
-    LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassMethod as RawJavaMethod,
+    LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
+    LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassMethod as RawJavaMethod,
 };
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
@@ -87,7 +87,6 @@ impl JavaClassDefinition {
             None
         };
 
-        let parent_name = parent_class.as_ref().map(ClassDefinition::name);
         let static_field_word_count = field_protos
             .iter()
             .filter(|field| field.access_flags.contains(FieldAccessFlags::STATIC))
@@ -97,11 +96,7 @@ impl JavaClassDefinition {
         let class_fields_size = CLASS_FIELD_PREFIX_SIZE + static_field_word_count * size_of::<LgtJvmWord>();
         let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
         let ptr_name = Allocator::alloc(core, (class_name.len() + 1) as u32)?;
-        let ptr_super_class_name = if let Some(parent_name) = &parent_name {
-            Allocator::alloc(core, (parent_name.len() + 1) as u32)?
-        } else {
-            0
-        };
+        let ptr_super_class = parent_class.as_ref().map(|class| class.ptr_raw).unwrap_or(0);
         let interface_name_pointers = interface_names
             .iter()
             .map(|interface_name| Allocator::alloc(core, (interface_name.len() + 1) as u32))
@@ -123,9 +118,6 @@ impl JavaClassDefinition {
         core.write_bytes(ptr_raw, &[0; size_of::<RawJavaClass>()])?;
         core.write_bytes(ptr_class_fields, &vec![0; class_fields_size])?;
         write_null_terminated_string_bytes(core, ptr_name, class_name.as_bytes())?;
-        if let Some(parent_name) = &parent_name {
-            write_null_terminated_string_bytes(core, ptr_super_class_name, parent_name.as_bytes())?;
-        }
         for (interface_name, ptr_interface_name) in interface_names.iter().zip(&interface_name_pointers) {
             write_null_terminated_string_bytes(core, *ptr_interface_name, interface_name.as_bytes())?;
         }
@@ -232,13 +224,13 @@ impl JavaClassDefinition {
                 ptr_next_class: 0,
                 ptr_name,
                 ptr_vtable: 0,
-                ptr_super_class_name,
+                ptr_super_class,
                 unk4: 0,
                 instance_field_word_count: instance_field_word_index as u16,
                 link_state: 0,
                 unk7: 0,
                 ptr_instance_reference_bitmap: 0,
-                unk9: 0,
+                flags: 0,
                 unk10: 0,
                 vtable_count: virtual_methods.len() as u16,
                 ptr_interface_names,
@@ -286,8 +278,7 @@ impl JavaClassDefinition {
         core.write_bytes(ptr_class_fields, &[0; CLASS_FIELD_PREFIX_SIZE])?;
         let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_name, name.as_bytes())?;
-        let ptr_super_class_name = Allocator::alloc(core, "java/lang/Object".len() as u32 + 1)?;
-        write_null_terminated_string_bytes(core, ptr_super_class_name, b"java/lang/Object")?;
+        let ptr_super_class = parent_class.ptr_raw;
         let interface_name_pointers = ["java/lang/Cloneable", "java/io/Serializable"]
             .iter()
             .map(|interface_name| {
@@ -313,13 +304,13 @@ impl JavaClassDefinition {
                 ptr_next_class: 0,
                 ptr_name,
                 ptr_vtable: 0,
-                ptr_super_class_name,
+                ptr_super_class,
                 unk4: 0,
                 instance_field_word_count: 0,
                 link_state: 0,
                 unk7: 0,
                 ptr_instance_reference_bitmap: 0,
-                unk9: 0,
+                flags: 0,
                 unk10: 0,
                 vtable_count: virtual_methods.len() as u16,
                 ptr_interface_names,
@@ -434,6 +425,7 @@ impl JavaClassDefinition {
     pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
         self.patch_declared_instance_field_word_indices()?;
 
+        let mut descriptor = self.descriptor()?;
         let class_name = ClassDefinition::name(self);
         let super_class_name = ClassDefinition::super_class_name(self);
         let parent_class = if let Some(parent_name) = &super_class_name {
@@ -452,7 +444,10 @@ impl JavaClassDefinition {
         } else {
             None
         };
-        let mut descriptor = self.descriptor()?;
+        if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
+            descriptor.ptr_super_class = parent_class.as_ref().unwrap().ptr_raw;
+            descriptor.flags &= !LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME;
+        }
         let declared_methods = self.methods()?;
         let virtual_methods = if descriptor.ptr_vtable != 0 {
             let parent_methods = if let Some(parent_class) = &parent_class {
@@ -647,21 +642,18 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn super_class_name(&self) -> Option<String> {
-        let ptr_name = self.descriptor().unwrap().ptr_super_class_name;
-        if ptr_name == 0 {
+        let descriptor = self.descriptor().unwrap();
+        if descriptor.ptr_super_class == 0 {
             return None;
         }
 
-        if let Ok(raw_class) = read_generic::<RawJavaClass, _>(&self.core, ptr_name)
-            && raw_class.ptr_descriptor != 0
-            && let Ok(descriptor) = read_generic::<RawJavaClassDescriptor, _>(&self.core, raw_class.ptr_descriptor)
-            && let Ok(name) = read_null_terminated_string_bytes(&self.core, descriptor.ptr_name)
-            && let Ok(name) = String::from_utf8(name)
-            && !name.is_empty()
-        {
-            return Some(name);
-        }
-
+        let ptr_name = if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
+            descriptor.ptr_super_class
+        } else {
+            let super_class: RawJavaClass = read_generic(&self.core, descriptor.ptr_super_class).unwrap();
+            let super_descriptor: RawJavaClassDescriptor = read_generic(&self.core, super_class.ptr_descriptor).unwrap();
+            super_descriptor.ptr_name
+        };
         Some(String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap())
     }
 

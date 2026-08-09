@@ -278,13 +278,16 @@ mod tests {
     use java_constants::FieldAccessFlags;
     use java_runtime::classes::java::lang::String;
     use jvm::{Array, ClassDefinition, ClassInstance, ClassInstanceRef, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
-    use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance};
+    use wipi_types::lgt::java::{
+        LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
+        LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance,
+    };
 
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
     use wie_jvm_support::{JvmImplementation, JvmSupport};
-    use wie_util::{Result, WieError, read_generic, write_generic};
+    use wie_util::{Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
 
     use crate::runtime::java::abi::{CLASS_INITIALIZATION_STATE_FIELD, CLASS_NATIVE_NAME_FIELD, WORD_FIELD_DESCRIPTOR};
 
@@ -886,7 +889,16 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            let ptr_entry = generated_entry.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap().ptr_raw;
+            let generated_definition = generated_entry.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            let ptr_entry = generated_definition.ptr_raw;
+            let ptr_parent_name = Allocator::alloc(&mut core, "org/kwis/msp/lcdui/JletWrapper".len() as u32 + 1)?;
+            write_null_terminated_string_bytes(&mut core, ptr_parent_name, b"org/kwis/msp/lcdui/JletWrapper")?;
+            let raw_class: RawJavaClass = read_generic(&core, ptr_entry)?;
+            let mut descriptor: RawJavaClassDescriptor = read_generic(&core, raw_class.ptr_descriptor)?;
+            descriptor.ptr_super_class = ptr_parent_name;
+            descriptor.flags |= LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME;
+            write_generic(&mut core, raw_class.ptr_descriptor, descriptor)?;
+
             let loader: Box<dyn ClassInstance> = jvm
                 .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
                 .await
@@ -901,6 +913,12 @@ mod tests {
                 .downcast_ref::<super::JavaClassDefinition>()
                 .unwrap()
                 .clone();
+            let descriptor = definition.descriptor()?;
+            let parent_class = jvm.get_class("org/kwis/msp/lcdui/JletWrapper").unwrap();
+            let parent = parent_class.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            assert_eq!(descriptor.ptr_super_class, parent.ptr_raw);
+            assert_eq!(descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, 0);
+
             let methods = definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [
                 (15usize, "startApp", "([Ljava/lang/String;)V"),
