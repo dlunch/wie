@@ -24,7 +24,7 @@ use crate::runtime::{
 };
 
 use super::{
-    JavaClassInstance, JavaField, JavaMethod, LgtJvmWord,
+    JavaClassInstance, JavaField, JavaMethod, JavaReferenceField, LgtJvmWord,
     value::JavaValueCodec,
     vtable::{JavaVtable, JavaVtableEntry},
 };
@@ -719,7 +719,7 @@ impl ClassDefinition for JavaClassDefinition {
             for word_index in 0..descriptor.instance_field_word_count as u32 {
                 let byte: u8 = read_generic(&self.core, descriptor.ptr_instance_reference_bitmap + word_index / 8).unwrap();
                 if byte & (0x80 >> (word_index % 8)) != 0 {
-                    fields.push(Box::new(JavaField::from_reference_word(word_index, &self.core)));
+                    fields.push(Box::new(JavaReferenceField { word_index }));
                 }
             }
         }

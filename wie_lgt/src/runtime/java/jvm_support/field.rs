@@ -11,25 +11,12 @@ use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_ge
 #[derive(Clone)]
 pub struct JavaField {
     pub ptr_raw: u32,
-    reference_word_index: Option<u32>,
     core: ArmCore,
 }
 
 impl JavaField {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
-        Self {
-            ptr_raw,
-            reference_word_index: None,
-            core: core.clone(),
-        }
-    }
-
-    pub fn from_reference_word(word_index: u32, core: &ArmCore) -> Self {
-        Self {
-            ptr_raw: 0,
-            reference_word_index: Some(word_index),
-            core: core.clone(),
-        }
+        Self { ptr_raw, core: core.clone() }
     }
 
     pub fn new(
@@ -68,42 +55,45 @@ impl JavaField {
     }
 
     pub fn word_index(&self) -> Result<u32> {
-        if let Some(word_index) = self.reference_word_index {
-            Ok(word_index)
-        } else {
-            Ok(self.raw()?.word_index)
-        }
+        Ok(self.raw()?.word_index)
     }
 }
 
 impl Field for JavaField {
     fn name(&self) -> String {
-        if let Some(word_index) = self.reference_word_index {
-            format!("<reference-word-{word_index}>")
-        } else {
-            String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
-        }
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
     }
 
     fn descriptor(&self) -> String {
-        if self.reference_word_index.is_some() {
-            "Ljava/lang/Object;".into()
-        } else {
-            String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
-        }
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
     }
 
     fn access_flags(&self) -> FieldAccessFlags {
-        if self.reference_word_index.is_some() {
-            FieldAccessFlags::empty()
-        } else {
-            FieldAccessFlags::from_bits_truncate(self.raw().unwrap().flags as _)
-        }
+        FieldAccessFlags::from_bits_truncate(self.raw().unwrap().flags as _)
     }
 }
 
 impl Debug for JavaField {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaField").field("ptr_raw", &self.ptr_raw).finish()
+    }
+}
+
+#[derive(Debug)]
+pub struct JavaReferenceField {
+    pub word_index: u32,
+}
+
+impl Field for JavaReferenceField {
+    fn name(&self) -> String {
+        format!("<reference-word-{}>", self.word_index)
+    }
+
+    fn descriptor(&self) -> String {
+        "Ljava/lang/Object;".into()
+    }
+
+    fn access_flags(&self) -> FieldAccessFlags {
+        FieldAccessFlags::empty()
     }
 }
