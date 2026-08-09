@@ -24,14 +24,8 @@ use super::classes::net::wie::{CletWrapper, CletWrapperCard, CletWrapperContext,
 use jvm_implementation::LgtJvmImplementation;
 
 use self::{
-    array_class_definition::JavaArrayClassDefinition,
-    array_class_instance::JavaArrayClassInstance,
-    class_definition::JavaClassDefinition,
-    class_instance::JavaClassInstance,
-    field::JavaField,
-    method::{JavaMethod, JavaVtableMethod},
-    value::JavaValueCodec,
-    vtable::JavaVtableEntry,
+    array_class_definition::JavaArrayClassDefinition, array_class_instance::JavaArrayClassInstance, class_definition::JavaClassDefinition,
+    class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueCodec, vtable::JavaVtableEntry,
 };
 
 type LgtJvmWord = u32;

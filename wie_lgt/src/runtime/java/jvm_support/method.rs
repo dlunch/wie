@@ -22,14 +22,6 @@ pub struct JavaMethod {
     core: ArmCore,
 }
 
-#[derive(Clone)]
-pub struct JavaVtableMethod {
-    core: ArmCore,
-    name: String,
-    descriptor: String,
-    target: u32,
-}
-
 impl JavaMethod {
     pub fn from_raw(ptr_raw: u32, core: &ArmCore) -> Self {
         Self { ptr_raw, core: core.clone() }
@@ -154,53 +146,6 @@ impl Debug for JavaMethod {
     }
 }
 
-impl JavaVtableMethod {
-    pub fn new(core: &ArmCore, name: &str, descriptor: &str, target: u32) -> Self {
-        Self {
-            core: core.clone(),
-            name: name.into(),
-            descriptor: descriptor.into(),
-            target,
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl Method for JavaVtableMethod {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn descriptor(&self) -> String {
-        self.descriptor.clone()
-    }
-
-    async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        match run_method(&self.core, self.target, &self.descriptor, args).await {
-            Ok(value) => Ok(value),
-            Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
-            Err(error) => {
-                let message = format!("{error}{}", self.core.dump_reg_stack(0x1000));
-                Err(jvm.exception("net/wie/WieError", &message).await)
-            }
-        }
-    }
-
-    fn access_flags(&self) -> MethodAccessFlags {
-        MethodAccessFlags::PUBLIC
-    }
-}
-
-impl Debug for JavaVtableMethod {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("JavaVtableMethod")
-            .field("name", &self.name)
-            .field("descriptor", &self.descriptor)
-            .field("target", &self.target)
-            .finish()
-    }
-}
-
 async fn run_method(core: &ArmCore, target: u32, descriptor: &str, args: Box<[JavaValue]>) -> Result<JavaValue> {
     let return_type = JavaType::parse(descriptor).as_method().1.clone();
     let codec = JavaValueCodec::new(core);
@@ -239,23 +184,8 @@ where
             .collect::<Vec<_>>();
 
         let codec = JavaValueCodec::new(core);
-        let mut args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
-        let result = if self.proto.access_flags.contains(MethodAccessFlags::ABSTRACT) {
-            let receiver = match args.remove(0) {
-                JavaValue::Object(Some(receiver)) => receiver,
-                _ => {
-                    return Err(WieError::FatalError(format!(
-                        "Invalid receiver for interface method {}{}",
-                        self.proto.name, self.proto.descriptor
-                    )));
-                }
-            };
-            self.jvm
-                .invoke_virtual::<Vec<JavaValue>, JavaValue>(&receiver, &self.proto.name, &self.proto.descriptor, args)
-                .await
-        } else {
-            self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await
-        };
+        let args = decode_method_arguments(&codec, &self.parameter_types, &raw_args);
+        let result = self.proto.body.call(&self.jvm, &mut self.context.clone(), args.into_boxed_slice()).await;
         let result = match result {
             Ok(value) => value,
             Err(JavaError::JavaException(instance)) => return Err(WieError::JavaException(codec.object_to_raw(&*instance))),
@@ -307,7 +237,7 @@ mod tests {
 
     use java_class_proto::{JavaClassProto, JavaMethodProto};
     use java_constants::MethodAccessFlags;
-    use jvm::{JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
+    use jvm::{JavaError, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
     use spin::Mutex;
 
     use test_utils::TestPlatform;
@@ -425,6 +355,64 @@ mod tests {
                 .await?;
             assert_eq!(*observed.lock(), Some((integer, floating_bits)));
             assert_eq!(((result.high as u64) << 32) | result.low as u64, (integer ^ floating_bits as i64) as u64);
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn abstract_method_target_throws_abstract_method_error() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let system_clone = system.clone();
+
+        system.spawn(async move || {
+            let mut core = ArmCore::new(false, None)?;
+            Allocator::init(&mut core)?;
+
+            let mut context = core.save_context();
+            let stack = Allocator::alloc(&mut core, 0x100)?;
+            context.sp = stack + 0x100;
+            core.restore_context(&context);
+
+            let implementation = LgtJvmImplementation::new(&mut core)?;
+            let jvm = JvmSupport::new_jvm(
+                &system_clone,
+                None,
+                Box::new([wie_midp::get_protos().into()]),
+                &[],
+                implementation.clone(),
+            )
+            .await?;
+            let class = implementation
+                .define_class_rust(
+                    &jvm,
+                    JavaClassProto {
+                        name: "net/wie/test/AbstractMethod",
+                        parent_class: Some("java/lang/Object"),
+                        interfaces: vec![],
+                        methods: vec![JavaMethodProto::new_abstract("call", "()V", MethodAccessFlags::ABSTRACT)],
+                        fields: vec![],
+                        access_flags: Default::default(),
+                    },
+                    Box::new(()),
+                )
+                .await
+                .unwrap();
+            let method = class.method("call", "()V", false).unwrap();
+            let result = method.run(&jvm, vec![JavaValue::Object(None)].into_boxed_slice()).await;
+            let Err(JavaError::JavaException(exception)) = result else {
+                panic!("abstract method target must throw AbstractMethodError");
+            };
+            assert!(jvm.is_instance(&*exception, "java/lang/AbstractMethodError"));
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())
