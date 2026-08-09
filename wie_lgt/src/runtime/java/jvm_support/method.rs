@@ -125,7 +125,17 @@ impl Method for JavaMethod {
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
-        match run_method(&self.core, self.target().unwrap(), &self.descriptor(), args).await {
+        let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();
+        let codec = JavaValueCodec::new(&self.core);
+        let raw_args = encode_method_arguments(&codec, &args);
+        let result: Result<JavaMethodRunResult> = self.core.clone().run_function(self.target().unwrap(), &raw_args).await;
+        match result.map(|result| {
+            if matches!(return_type, JavaType::Double | JavaType::Long) {
+                codec.decode_wide(result.low, result.high, &return_type)
+            } else {
+                codec.decode_word(result.low, &return_type)
+            }
+        }) {
             Ok(value) => Ok(value),
             Err(WieError::JavaException(ptr_raw)) => Err(JavaError::JavaException(JavaValueCodec::new(&self.core).object_from_raw(ptr_raw))),
             Err(error) => {
@@ -143,19 +153,6 @@ impl Method for JavaMethod {
 impl Debug for JavaMethod {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaMethod").field("ptr_raw", &self.ptr_raw).finish()
-    }
-}
-
-async fn run_method(core: &ArmCore, target: u32, descriptor: &str, args: Box<[JavaValue]>) -> Result<JavaValue> {
-    let return_type = JavaType::parse(descriptor).as_method().1.clone();
-    let codec = JavaValueCodec::new(core);
-    let raw_args = encode_method_arguments(&codec, &args);
-    let result: JavaMethodRunResult = core.clone().run_function(target, &raw_args).await?;
-
-    if matches!(return_type, JavaType::Double | JavaType::Long) {
-        Ok(codec.decode_wide(result.low, result.high, &return_type))
-    } else {
-        Ok(codec.decode_word(result.low, &return_type))
     }
 }
 
