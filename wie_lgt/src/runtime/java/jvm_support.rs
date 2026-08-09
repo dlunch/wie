@@ -257,7 +257,7 @@ impl LgtJvmSupport {
                 return Err(wie_util::WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)));
             }
         };
-        registered_definition.initialize_class_object(jvm, &mut java_class).await?;
+        registered_definition.bind_class_object_storage(jvm, &mut java_class).await?;
         registered_definition.set_link_state(3)?;
 
         let fn_link_members = registered_definition.descriptor()?.fn_link_members;

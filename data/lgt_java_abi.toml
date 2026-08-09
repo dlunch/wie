@@ -1,7 +1,6 @@
 # Vtable word 0 contains the raw-class pointer; method index 0 starts at word 1.
 # vtable_size counts method entries, including unknown entries.
-# Field indexes address 32-bit words in instance field storage; field_size is
-# the total word count, including unknown fields.
+# Field indexes address 32-bit words in instance field storage.
 
 [[class]]
 name = "java/lang/Object"
@@ -14,7 +13,6 @@ vtable = [
 
 [[class]]
 name = "java/lang/Class"
-field_size = 5
 vtable = [
     { name = "getResourceAsStream", descriptor = "(Ljava/lang/String;)Ljava/io/InputStream;", index = 16 },
 ]

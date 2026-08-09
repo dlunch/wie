@@ -192,9 +192,8 @@ impl JavaClassDefinition {
                 FieldAccessFlags::PRIVATE,
                 field.index,
             )?;
-        }
-        if let Some(field_size) = class_abi.and_then(|class| class.field_size) {
-            instance_field_word_index = instance_field_word_index.max(field_size);
+            let word_count = if field.descriptor == "J" || field.descriptor == "D" { 2 } else { 1 };
+            instance_field_word_index = instance_field_word_index.max(field.index as usize + word_count);
         }
         let virtual_methods = if access_flags.contains(ClassAccessFlags::INTERFACE) {
             JavaVtable::build_interface_methods(&methods)?
@@ -373,13 +372,20 @@ impl JavaClassDefinition {
     }
 
     pub fn ptr_static_fields(&self) -> Result<u32> {
+        // This prefix belongs to the LGT java/lang/Class ABI; it is not part of
+        // the represented class's Java instance-field layout.
         Ok(self.descriptor()?.ptr_class_fields + size_of::<RawJavaClassFieldStorage>() as u32)
     }
 
-    pub async fn initialize_class_object(&self, jvm: &Jvm, class_object: &mut Box<dyn ClassInstance>) -> Result<()> {
+    pub async fn bind_class_object_storage(&self, jvm: &Jvm, class_object: &mut Box<dyn ClassInstance>) -> Result<()> {
         let instance = class_object.as_any_mut().downcast_mut::<JavaClassInstance>().unwrap();
         let current_fields = instance.ptr_fields()?;
         let ptr_class_fields = self.descriptor()?.ptr_class_fields;
+
+        // LGT AOT uses java/lang/Class.ptr_fields as one combined block: the class
+        // object's five-word ABI prefix followed by the represented class's static
+        // fields. Preserve RustJava's initialized class-object fields before rebinding
+        // the object to this descriptor-owned storage.
         if current_fields != ptr_class_fields {
             let storage_size = instance.storage_size()?;
             let mut fields = vec![0; storage_size];
@@ -614,7 +620,7 @@ impl EmulatedFunction<(), u32, ()> for JavaClassGetterProxy {
             JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
         })?;
         let mut java_class = class.java_class();
-        self.class.initialize_class_object(&self.jvm, &mut java_class).await?;
+        self.class.bind_class_object_storage(&self.jvm, &mut java_class).await?;
 
         if self.initialize {
             self.jvm.ensure_initialized(&class).await.map_err(|error| match error {
