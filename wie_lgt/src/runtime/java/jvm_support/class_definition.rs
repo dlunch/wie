@@ -6,7 +6,8 @@ use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use wipi_types::lgt::java::{
     LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
-    LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassMethod as RawJavaMethod,
+    LgtJavaClassField as RawJavaField, LgtJavaClassFieldStorage as RawJavaClassFieldStorage, LgtJavaClassInstance as RawJavaClassInstance,
+    LgtJavaClassMethod as RawJavaMethod,
 };
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
@@ -28,8 +29,6 @@ use super::{
     value::JavaValueCodec,
     vtable::{JavaVtable, JavaVtableEntry},
 };
-
-const CLASS_FIELD_PREFIX_SIZE: usize = 0x14;
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
@@ -93,7 +92,7 @@ impl JavaClassDefinition {
             .map(|field| if field.descriptor == "J" || field.descriptor == "D" { 2 } else { 1 })
             .sum::<usize>();
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
-        let class_fields_size = CLASS_FIELD_PREFIX_SIZE + static_field_word_count * size_of::<LgtJvmWord>();
+        let class_fields_size = size_of::<RawJavaClassFieldStorage>() + static_field_word_count * size_of::<LgtJvmWord>();
         let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
         let ptr_name = Allocator::alloc(core, (class_name.len() + 1) as u32)?;
         let ptr_super_class = parent_class.as_ref().map(|class| class.ptr_raw).unwrap_or(0);
@@ -198,18 +197,7 @@ impl JavaClassDefinition {
             instance_field_word_index = instance_field_word_index.max(field_size);
         }
         let virtual_methods = if access_flags.contains(ClassAccessFlags::INTERFACE) {
-            methods
-                .iter()
-                .filter(|method| {
-                    !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) && !method.name().starts_with('<')
-                })
-                .map(|method| {
-                    Ok(JavaVtableEntry {
-                        target: method.target()?,
-                        method: Some(method.clone()),
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?
+            JavaVtable::build_interface_methods(&methods)?
         } else {
             JavaVtable::build_methods(jvm, class_name, parent_class.as_ref(), &methods).await?
         };
@@ -274,8 +262,8 @@ impl JavaClassDefinition {
             .clone();
         let virtual_methods = parent_class.vtable_entries(jvm).await?;
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
-        let ptr_class_fields = Allocator::alloc(core, CLASS_FIELD_PREFIX_SIZE as u32)?;
-        core.write_bytes(ptr_class_fields, &[0; CLASS_FIELD_PREFIX_SIZE])?;
+        let ptr_class_fields = Allocator::alloc(core, size_of::<RawJavaClassFieldStorage>() as u32)?;
+        core.write_bytes(ptr_class_fields, &[0; size_of::<RawJavaClassFieldStorage>()])?;
         let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
         write_null_terminated_string_bytes(core, ptr_name, name.as_bytes())?;
         let ptr_super_class = parent_class.ptr_raw;
@@ -385,13 +373,13 @@ impl JavaClassDefinition {
     }
 
     pub fn ptr_static_fields(&self) -> Result<u32> {
-        Ok(self.descriptor()?.ptr_class_fields + CLASS_FIELD_PREFIX_SIZE as u32)
+        Ok(self.descriptor()?.ptr_class_fields + size_of::<RawJavaClassFieldStorage>() as u32)
     }
 
     pub async fn initialize_class_object(&self, jvm: &Jvm, class_object: &mut Box<dyn ClassInstance>) -> Result<()> {
         let instance = class_object.as_any_mut().downcast_mut::<JavaClassInstance>().unwrap();
         let current_fields = instance.ptr_fields()?;
-        let ptr_class_fields = self.ptr_static_fields()? - CLASS_FIELD_PREFIX_SIZE as u32;
+        let ptr_class_fields = self.descriptor()?.ptr_class_fields;
         if current_fields != ptr_class_fields {
             let storage_size = instance.storage_size()?;
             let mut fields = vec![0; storage_size];
@@ -427,7 +415,16 @@ impl JavaClassDefinition {
 
         let mut descriptor = self.descriptor()?;
         let class_name = ClassDefinition::name(self);
-        let super_class_name = ClassDefinition::super_class_name(self);
+        let super_class_name = if descriptor.ptr_super_class == 0 {
+            None
+        } else if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
+            Some(
+                String::from_utf8(read_null_terminated_string_bytes(core, descriptor.ptr_super_class)?)
+                    .map_err(|error| WieError::FatalError(format!("Invalid LGT superclass name: {error}")))?,
+            )
+        } else {
+            ClassDefinition::super_class_name(self)
+        };
         let parent_class = if let Some(parent_name) = &super_class_name {
             Some(
                 jvm.resolve_class(parent_name)
@@ -467,7 +464,7 @@ impl JavaClassDefinition {
         };
 
         let static_field_word_count = descriptor.static_field_word_count as usize;
-        let class_fields_size = CLASS_FIELD_PREFIX_SIZE + static_field_word_count * size_of::<LgtJvmWord>();
+        let class_fields_size = size_of::<RawJavaClassFieldStorage>() + static_field_word_count * size_of::<LgtJvmWord>();
         let ptr_class_fields = Allocator::alloc(core, class_fields_size as u32)?;
         core.write_bytes(ptr_class_fields, &vec![0; class_fields_size])?;
 
@@ -647,14 +644,9 @@ impl ClassDefinition for JavaClassDefinition {
             return None;
         }
 
-        let ptr_name = if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
-            descriptor.ptr_super_class
-        } else {
-            let super_class: RawJavaClass = read_generic(&self.core, descriptor.ptr_super_class).unwrap();
-            let super_descriptor: RawJavaClassDescriptor = read_generic(&self.core, super_class.ptr_descriptor).unwrap();
-            super_descriptor.ptr_name
-        };
-        Some(String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap())
+        let super_class: RawJavaClass = read_generic(&self.core, descriptor.ptr_super_class).unwrap();
+        let super_descriptor: RawJavaClassDescriptor = read_generic(&self.core, super_class.ptr_descriptor).unwrap();
+        Some(String::from_utf8(read_null_terminated_string_bytes(&self.core, super_descriptor.ptr_name).unwrap()).unwrap())
     }
 
     fn interface_names(&self) -> Vec<String> {

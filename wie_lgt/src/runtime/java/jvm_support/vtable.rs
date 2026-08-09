@@ -85,6 +85,21 @@ impl JavaVtable {
             .collect()
     }
 
+    pub fn build_interface_methods(declared_methods: &[JavaMethod]) -> Result<Vec<JavaVtableEntry>> {
+        declared_methods
+            .iter()
+            .filter(|method| {
+                !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) && !method.name().starts_with('<')
+            })
+            .map(|method| {
+                Ok(JavaVtableEntry {
+                    target: method.target()?,
+                    method: Some(method.clone()),
+                })
+            })
+            .collect()
+    }
+
     pub async fn build_methods(
         jvm: &Jvm,
         class_name: &str,
