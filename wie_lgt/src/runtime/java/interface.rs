@@ -310,7 +310,11 @@ async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) 
         .get_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;")
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-    LgtJvmSupport::register_generated_class(core, jvm, ptr_class, loader).await?;
+    let generated_classes: i32 = jvm
+        .get_field(&loader, "generatedClasses", "I")
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    LgtJvmSupport::register_generated_class(core, jvm, ptr_class, generated_classes as u32, loader).await?;
 
     Ok(())
 }

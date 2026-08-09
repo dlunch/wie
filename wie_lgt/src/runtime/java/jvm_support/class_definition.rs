@@ -7,7 +7,8 @@ use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue,
 use wipi_types::lgt::java::{
     LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
     LgtJavaClassField as RawJavaField, LgtJavaClassFieldStorage as RawJavaClassFieldStorage, LgtJavaClassInstance as RawJavaClassInstance,
-    LgtJavaClassMethod as RawJavaMethod,
+    LgtJavaClassMethod as RawJavaMethod, LgtJavaInterfaceReference as RawJavaInterfaceReference,
+    LgtJavaInterfaceReferences as RawJavaInterfaceReferences,
 };
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
@@ -212,7 +213,7 @@ impl JavaClassDefinition {
                 ptr_name,
                 ptr_vtable: 0,
                 ptr_super_class,
-                unk4: 0,
+                ptr_interface_references: 0,
                 instance_field_word_count: instance_field_word_index as u16,
                 link_state: 0,
                 unk7: 0,
@@ -292,7 +293,7 @@ impl JavaClassDefinition {
                 ptr_name,
                 ptr_vtable: 0,
                 ptr_super_class,
-                unk4: 0,
+                ptr_interface_references: 0,
                 instance_field_word_count: 0,
                 link_state: 0,
                 unk7: 0,
@@ -416,11 +417,75 @@ impl JavaClassDefinition {
         Ok(self.descriptor()?.instance_field_word_count as usize)
     }
 
-    pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm) -> Result<()> {
+    pub async fn prepare_generated(&mut self, core: &mut ArmCore, jvm: &Jvm, generated_classes: u32) -> Result<()> {
         self.patch_declared_instance_field_word_indices()?;
 
         let mut descriptor = self.descriptor()?;
         let class_name = ClassDefinition::name(self);
+        let interface_names = if descriptor.ptr_interface_names != 0 {
+            ClassDefinition::interface_names(self)
+        } else if descriptor.ptr_interface_references != 0 {
+            let references: RawJavaInterfaceReferences = read_generic(core, descriptor.ptr_interface_references)?;
+            let mut interface_names = Vec::with_capacity(references.count as usize);
+            let mut interface_name_pointers = Vec::with_capacity(references.count as usize);
+
+            for index in 0..references.count as usize {
+                let ptr_reference = read_generic(
+                    core,
+                    descriptor.ptr_interface_references + size_of::<RawJavaInterfaceReferences>() as u32 + (index * size_of::<u32>()) as u32,
+                )?;
+                let mut reference: RawJavaInterfaceReference = read_generic(core, ptr_reference)?;
+                let mut ptr_generated_interface = 0;
+                let last_bucket: u32 = read_generic(core, generated_classes)?;
+                for bucket in 0..=last_bucket {
+                    let mut ptr_class = read_generic(core, generated_classes + size_of::<u32>() as u32 + bucket * size_of::<u32>() as u32)?;
+                    while ptr_class != 0 {
+                        if ptr_class == reference.ptr_class_or_name {
+                            ptr_generated_interface = ptr_class;
+                            break;
+                        }
+                        let class: RawJavaClass = read_generic(core, ptr_class)?;
+                        let class_descriptor: RawJavaClassDescriptor = read_generic(core, class.ptr_descriptor)?;
+                        ptr_class = class_descriptor.ptr_next_class;
+                    }
+                    if ptr_generated_interface != 0 {
+                        break;
+                    }
+                }
+                if ptr_generated_interface == self.ptr_raw {
+                    continue;
+                }
+
+                let ptr_name = if ptr_generated_interface != 0 {
+                    let interface: RawJavaClass = read_generic(core, ptr_generated_interface)?;
+                    let interface_descriptor: RawJavaClassDescriptor = read_generic(core, interface.ptr_descriptor)?;
+                    interface_descriptor.ptr_name
+                } else {
+                    let ptr_name = reference.ptr_class_or_name;
+                    let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?)
+                        .map_err(|error| WieError::FatalError(format!("Invalid LGT interface name: {error}")))?;
+                    let interface_class = jvm.resolve_class(&interface_name).await.map_err(|error| match error {
+                        JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
+                    })?;
+                    reference.ptr_class_or_name = interface_class.definition.as_any().downcast_ref::<JavaClassDefinition>().unwrap().ptr_raw;
+                    write_generic(core, ptr_reference, reference)?;
+                    ptr_name
+                };
+                let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?)
+                    .map_err(|error| WieError::FatalError(format!("Invalid LGT interface name: {error}")))?;
+                interface_names.push(interface_name);
+                interface_name_pointers.push(ptr_name);
+            }
+
+            descriptor.ptr_interface_names = Allocator::alloc(core, (size_of::<u32>() + interface_name_pointers.len() * size_of::<u32>()) as u32)?;
+            write_generic(core, descriptor.ptr_interface_names, interface_name_pointers.len() as u32)?;
+            for (index, ptr_name) in interface_name_pointers.into_iter().enumerate() {
+                write_generic(core, descriptor.ptr_interface_names + ((index + 1) * size_of::<u32>()) as u32, ptr_name)?;
+            }
+            interface_names
+        } else {
+            Vec::new()
+        };
         let super_class_name = if descriptor.ptr_super_class == 0 {
             None
         } else if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
@@ -451,13 +516,88 @@ impl JavaClassDefinition {
             descriptor.ptr_super_class = parent_class.as_ref().unwrap().ptr_raw;
             descriptor.flags &= !LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME;
         }
-        let declared_methods = self.methods()?;
+        let mut declared_methods = self.methods()?;
         let virtual_methods = if descriptor.ptr_vtable != 0 {
             let parent_methods = if let Some(parent_class) = &parent_class {
                 parent_class.vtable_entries(jvm).await?
             } else {
                 Vec::new()
             };
+
+            let mut abi_classes = Vec::new();
+            if let Some(class) = JAVA_ABI.class(&class_name) {
+                abi_classes.push(class);
+            }
+            for interface_name in &interface_names {
+                if let Some(class) = JAVA_ABI.class(interface_name) {
+                    abi_classes.push(class);
+                }
+            }
+
+            let mut aot_methods = Vec::new();
+            for index in 0..descriptor.vtable_count as usize {
+                let target = read_generic(core, descriptor.ptr_vtable + ((index + 1) * size_of::<u32>()) as u32)?;
+                if target == 0 {
+                    continue;
+                }
+                if parent_methods.get(index).is_some_and(|entry| entry.target == target) {
+                    continue;
+                }
+
+                let method = if let Some(parent_method) = parent_methods.get(index).and_then(|entry| entry.method.as_ref()) {
+                    Some((
+                        parent_method.name(),
+                        parent_method.descriptor(),
+                        parent_method.access_flags() & !MethodAccessFlags::ABSTRACT,
+                    ))
+                } else {
+                    abi_classes.iter().find_map(|class| {
+                        class
+                            .vtable
+                            .iter()
+                            .find(|method| method.index == index)
+                            .map(|method| (method.name.clone(), method.descriptor.clone(), MethodAccessFlags::PUBLIC))
+                    })
+                };
+                let Some((name, method_descriptor, access_flags)) = method else {
+                    continue;
+                };
+                if declared_methods
+                    .iter()
+                    .any(|method| method.name() == name && method.descriptor() == method_descriptor)
+                {
+                    continue;
+                }
+                aot_methods.push((name, method_descriptor, access_flags, target));
+            }
+
+            if !aot_methods.is_empty() {
+                let existing_count = declared_methods.len();
+                let method_count = existing_count + aot_methods.len();
+                let ptr_methods = Allocator::alloc(core, (size_of::<u32>() + method_count * size_of::<RawJavaMethod>()) as u32)?;
+                write_generic(core, ptr_methods, method_count as u32)?;
+
+                if existing_count != 0 {
+                    let mut methods = vec![0; existing_count * size_of::<RawJavaMethod>()];
+                    core.read_bytes(descriptor.ptr_methods + size_of::<u32>() as u32, &mut methods)?;
+                    core.write_bytes(ptr_methods + size_of::<u32>() as u32, &methods)?;
+                }
+
+                for (offset, (name, method_descriptor, access_flags, target)) in aot_methods.into_iter().enumerate() {
+                    let ptr_method = ptr_methods + size_of::<u32>() as u32 + ((existing_count + offset) * size_of::<RawJavaMethod>()) as u32;
+                    declared_methods.push(JavaMethod::new_aot(
+                        core,
+                        ptr_method,
+                        self.ptr_raw,
+                        &name,
+                        &method_descriptor,
+                        access_flags,
+                        target,
+                    )?);
+                }
+                descriptor.ptr_methods = ptr_methods;
+            }
+
             JavaVtable::build_from_compiler_vtable(
                 core,
                 descriptor.ptr_vtable,

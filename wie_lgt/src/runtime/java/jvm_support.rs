@@ -228,6 +228,7 @@ impl LgtJvmSupport {
         core: &mut ArmCore,
         jvm: &Jvm,
         ptr_class: u32,
+        generated_classes: u32,
         loader: Box<dyn ClassInstance>,
     ) -> Result<Box<dyn ClassInstance>> {
         let mut definition = JavaClassDefinition::from_raw(ptr_class, core);
@@ -248,7 +249,7 @@ impl LgtJvmSupport {
         }
 
         let previous_link_state = definition.descriptor()?.link_state;
-        definition.prepare_generated(core, jvm).await?;
+        definition.prepare_generated(core, jvm, generated_classes).await?;
         let registered_definition = definition.clone();
         let mut java_class = match jvm.register_class(Box::new(definition), Some(loader)).await {
             Ok(Some(java_class)) => java_class,
@@ -286,14 +287,15 @@ mod tests {
     use jvm::{Array, ClassDefinition, ClassInstance, ClassInstanceRef, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
     use wipi_types::lgt::java::{
         LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
-        LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance,
+        LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassMethod as RawJavaMethod,
+        LgtJavaInterfaceReference as RawJavaInterfaceReference, LgtJavaInterfaceReferences as RawJavaInterfaceReferences,
     };
 
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
     use wie_jvm_support::{JvmImplementation, JvmSupport};
-    use wie_util::{Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
+    use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
 
     use crate::runtime::java::abi::{CLASS_INITIALIZATION_STATE_FIELD, CLASS_NATIVE_NAME_FIELD, WORD_FIELD_DESCRIPTOR};
 
@@ -909,7 +911,10 @@ mod tests {
                 .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
                 .await
                 .unwrap();
-            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_entry, loader).await?;
+            let generated_classes = Allocator::alloc(&mut core, 2 * size_of::<u32>() as u32)?;
+            write_generic(&mut core, generated_classes, 0u32)?;
+            write_generic(&mut core, generated_classes + size_of::<u32>() as u32, ptr_entry)?;
+            LgtJvmSupport::register_generated_class(&mut core, &jvm, ptr_entry, generated_classes, loader).await?;
 
             let definition = jvm
                 .get_class("net/wie/test/GeneratedJletEntry")
@@ -939,6 +944,144 @@ mod tests {
                     method.target()?
                 );
             }
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn generated_class_exposes_compiler_vtable_methods_to_jvm() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let system_clone = system.clone();
+
+        system.spawn(async move || {
+            let (jvm, mut core, implementation) = init_jvm(&system_clone).await?;
+            let generated_class = implementation
+                .define_class_rust(
+                    &jvm,
+                    JavaClassProto {
+                        name: "net/wie/test/GeneratedInputStream",
+                        parent_class: Some("java/io/InputStream"),
+                        interfaces: vec![],
+                        methods: vec![JavaMethodProto::new("read", "()I", base_value, Default::default())],
+                        fields: vec![],
+                        access_flags: Default::default(),
+                    },
+                    Box::new(()),
+                )
+                .await
+                .unwrap();
+            let generated_definition = generated_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            let raw_class: RawJavaClass = read_generic(&core, generated_definition.ptr_raw)?;
+            let mut descriptor: RawJavaClassDescriptor = read_generic(&core, raw_class.ptr_descriptor)?;
+            let parent_name = "java/io/InputStream";
+            let ptr_parent_name = Allocator::alloc(&mut core, parent_name.len() as u32 + 1)?;
+            write_null_terminated_string_bytes(&mut core, ptr_parent_name, parent_name.as_bytes())?;
+            descriptor.ptr_super_class = ptr_parent_name;
+            descriptor.flags |= LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME;
+            descriptor.ptr_vtable = raw_class.unk1;
+            descriptor.ptr_methods = 0;
+            write_generic(&mut core, raw_class.ptr_descriptor, descriptor)?;
+
+            let loader: Box<dyn ClassInstance> = jvm
+                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
+                .await
+                .unwrap();
+            let generated_classes = Allocator::alloc(&mut core, 2 * size_of::<u32>() as u32)?;
+            write_generic(&mut core, generated_classes, 0u32)?;
+            write_generic(&mut core, generated_classes + size_of::<u32>() as u32, generated_definition.ptr_raw)?;
+            LgtJvmSupport::register_generated_class(&mut core, &jvm, generated_definition.ptr_raw, generated_classes, loader).await?;
+
+            let linked_class = jvm.get_class("net/wie/test/GeneratedInputStream").unwrap();
+            let linked_definition = linked_class.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            assert_ne!(linked_definition.descriptor()?.ptr_methods, 0);
+            let instance = jvm.instantiate_class("net/wie/test/GeneratedInputStream").await.unwrap();
+            let value: i32 = jvm.invoke_virtual(&instance, "read", "()I", ()).await.unwrap();
+            assert_eq!(value, 1);
+
+            let generated_class = implementation
+                .define_class_rust(
+                    &jvm,
+                    JavaClassProto {
+                        name: "net/wie/test/GeneratedRunnable",
+                        parent_class: Some("java/lang/Object"),
+                        interfaces: vec!["java/lang/Runnable"],
+                        methods: vec![JavaMethodProto::new("run", "()V", jlet_pause, Default::default())],
+                        fields: vec![],
+                        access_flags: Default::default(),
+                    },
+                    Box::new(()),
+                )
+                .await
+                .unwrap();
+            let generated_definition = generated_class.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            let raw_class: RawJavaClass = read_generic(&core, generated_definition.ptr_raw)?;
+            let mut descriptor: RawJavaClassDescriptor = read_generic(&core, raw_class.ptr_descriptor)?;
+            let method: RawJavaMethod = read_generic(&core, descriptor.ptr_methods + size_of::<u32>() as u32)?;
+            let ptr_vtable = Allocator::alloc(&mut core, 12 * size_of::<u32>() as u32)?;
+            let mut inherited_vtable = vec![0; 11 * size_of::<u32>()];
+            core.read_bytes(raw_class.unk1, &mut inherited_vtable)?;
+            core.write_bytes(ptr_vtable, &inherited_vtable)?;
+            write_generic(&mut core, ptr_vtable + 11 * size_of::<u32>() as u32, method.ptr_method)?;
+
+            let interface_name = "java/lang/Runnable";
+            let ptr_interface_name = Allocator::alloc(&mut core, interface_name.len() as u32 + 1)?;
+            write_null_terminated_string_bytes(&mut core, ptr_interface_name, interface_name.as_bytes())?;
+            let ptr_interface_reference = Allocator::alloc(&mut core, size_of::<RawJavaInterfaceReference>() as u32)?;
+            write_generic(
+                &mut core,
+                ptr_interface_reference,
+                RawJavaInterfaceReference {
+                    ptr_class_or_name: ptr_interface_name,
+                },
+            )?;
+            let ptr_interface_references = Allocator::alloc(&mut core, (size_of::<RawJavaInterfaceReferences>() + size_of::<u32>()) as u32)?;
+            write_generic(
+                &mut core,
+                ptr_interface_references,
+                RawJavaInterfaceReferences { count: 1, references: [] },
+            )?;
+            write_generic(
+                &mut core,
+                ptr_interface_references + size_of::<RawJavaInterfaceReferences>() as u32,
+                ptr_interface_reference,
+            )?;
+
+            descriptor.ptr_vtable = ptr_vtable;
+            descriptor.vtable_count = 11;
+            descriptor.ptr_interface_references = ptr_interface_references;
+            descriptor.ptr_interface_names = 0;
+            descriptor.ptr_methods = 0;
+            write_generic(&mut core, raw_class.ptr_descriptor, descriptor)?;
+
+            let loader: Box<dyn ClassInstance> = jvm
+                .invoke_static("java/lang/ClassLoader", "getSystemClassLoader", "()Ljava/lang/ClassLoader;", ())
+                .await
+                .unwrap();
+            write_generic(&mut core, generated_classes + size_of::<u32>() as u32, generated_definition.ptr_raw)?;
+            LgtJvmSupport::register_generated_class(&mut core, &jvm, generated_definition.ptr_raw, generated_classes, loader).await?;
+
+            let linked_class = jvm.get_class("net/wie/test/GeneratedRunnable").unwrap();
+            let linked_definition = linked_class.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            assert_eq!(
+                ClassDefinition::interface_names(linked_definition),
+                vec![RustString::from(interface_name)]
+            );
+            let reference: RawJavaInterfaceReference = read_generic(&core, ptr_interface_reference)?;
+            let runnable = jvm.get_class(interface_name).unwrap();
+            let runnable_definition = runnable.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
+            assert_eq!(reference.ptr_class_or_name, runnable_definition.ptr_raw);
+            let instance = jvm.instantiate_class("net/wie/test/GeneratedRunnable").await.unwrap();
+            jvm.invoke_virtual::<_, ()>(&instance, "run", "()V", ()).await.unwrap();
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

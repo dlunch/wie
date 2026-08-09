@@ -40,19 +40,43 @@ impl JavaMethod {
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
-        let ptr_name = Allocator::alloc(core, (proto.name.len() + 1) as u32)?;
-        write_null_terminated_string_bytes(core, ptr_name, proto.name.as_bytes())?;
-
-        let ptr_descriptor = Allocator::alloc(core, (proto.descriptor.len() + 1) as u32)?;
-        write_null_terminated_string_bytes(core, ptr_descriptor, proto.descriptor.as_bytes())?;
-
-        let method_type = JavaType::parse(&proto.descriptor);
-        let (parameter_types, _) = method_type.as_method();
-        let argument_word_count =
-            method_argument_word_count(parameter_types) as u16 + u16::from(!proto.access_flags.contains(MethodAccessFlags::STATIC));
+        let name = proto.name.clone();
+        let descriptor = proto.descriptor.clone();
         let access_flags = proto.access_flags;
         let target = Self::register_java_method(core, jvm, ptr_raw, proto, context, functions)?;
+        Self::write(core, ptr_raw, ptr_class, &name, &descriptor, access_flags, target)
+    }
 
+    pub fn new_aot(
+        core: &mut ArmCore,
+        ptr_raw: u32,
+        ptr_class: u32,
+        name: &str,
+        descriptor: &str,
+        access_flags: MethodAccessFlags,
+        target: u32,
+    ) -> Result<Self> {
+        Self::write(core, ptr_raw, ptr_class, name, descriptor, access_flags, target)
+    }
+
+    fn write(
+        core: &mut ArmCore,
+        ptr_raw: u32,
+        ptr_class: u32,
+        name: &str,
+        descriptor: &str,
+        access_flags: MethodAccessFlags,
+        target: u32,
+    ) -> Result<Self> {
+        let ptr_name = Allocator::alloc(core, (name.len() + 1) as u32)?;
+        write_null_terminated_string_bytes(core, ptr_name, name.as_bytes())?;
+
+        let ptr_descriptor = Allocator::alloc(core, (descriptor.len() + 1) as u32)?;
+        write_null_terminated_string_bytes(core, ptr_descriptor, descriptor.as_bytes())?;
+
+        let method_type = JavaType::parse(descriptor);
+        let (parameter_types, _) = method_type.as_method();
+        let argument_word_count = method_argument_word_count(parameter_types) as u16 + u16::from(!access_flags.contains(MethodAccessFlags::STATIC));
         write_generic(
             core,
             ptr_raw,
