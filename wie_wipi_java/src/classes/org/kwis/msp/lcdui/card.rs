@@ -421,6 +421,7 @@ mod test {
                     JavaFieldProto::new("hideCount", "I", Default::default()),
                     JavaFieldProto::new("keyCount", "I", Default::default()),
                     JavaFieldProto::new("notifyCount", "I", Default::default()),
+                    JavaFieldProto::new("paintCount", "I", Default::default()),
                 ],
                 access_flags: Default::default(),
             }
@@ -458,7 +459,10 @@ mod test {
                 .await
         }
 
-        async fn paint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+        async fn paint(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, graphics: ClassInstanceRef<Graphics>) -> JvmResult<()> {
+            let paint_count: i32 = jvm.get_field(&this, "paintCount", "I").await?;
+            jvm.put_field(&mut this, "paintCount", "I", paint_count + 1).await?;
+
             let x: i32 = jvm.get_field(&this, "x", "I").await?;
             let y: i32 = jvm.get_field(&this, "y", "I").await?;
             let width: i32 = jvm.get_field(&this, "w", "I").await?;
@@ -663,6 +667,9 @@ mod test {
                 assert_eq!(jvm.invoke_virtual::<_, i32>(&canvas, "countCard", "()I", ()).await?, 1);
                 assert_eq!(jvm.get_field::<i32>(&first, "showCount", "I").await?, 1);
                 assert!(jvm.invoke_virtual::<_, bool>(&first, "isShown", "()Z", ()).await?);
+                let paint_count: i32 = jvm.get_field(&first, "paintCount", "I").await?;
+                let _: () = jvm.invoke_virtual(&first, "serviceRepaints", "()V", ()).await?;
+                assert_eq!(jvm.get_field::<i32>(&first, "paintCount", "I").await?, paint_count + 1);
 
                 let other_canvas: ClassInstanceRef<CardCanvas> = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?.into();
                 let _: () = jvm

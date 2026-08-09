@@ -93,7 +93,7 @@ impl LgtClassLoader {
         };
 
         let loader: Box<dyn ClassInstance> = this.clone().into();
-        match LgtJvmSupport::register_generated_class(core, jvm, ptr_class, loader).await {
+        match LgtJvmSupport::register_generated_class(core, jvm, ptr_class, generated_classes as u32, loader).await {
             Ok(class) => Ok(class.into()),
             Err(wie_util::WieError::JavaException(ptr_exception)) => {
                 Err(JavaError::JavaException(LgtJvmSupport::class_instance_from_raw(core, ptr_exception)))

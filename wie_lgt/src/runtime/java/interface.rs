@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use java_runtime::classes::java::util::Vector;
 use jvm::{
-    ClassDefinition, ClassInstance, ClassInstanceRef, JavaError, Jvm,
+    ClassDefinition, ClassInstance, ClassInstanceRef, JavaError, JavaType, Jvm,
     runtime::{JavaLangClass, JavaLangClassLoader, JavaLangString},
 };
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
@@ -27,6 +27,7 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x06 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::DestroyRuntimeContext)?,
         0x07 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::CreateRuntimeContext)?,
         0x09 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StringLiteral)?,
+        0x0a => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::GetInterfaceDispatchTable)?,
         0x0b => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RegisterClass)?,
         0x0c => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::ResolveClass)?,
         0x0d => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::InitializeClass)?,
@@ -34,17 +35,19 @@ pub fn get_java_interface_method(core: &mut ArmCore, function_index: u32) -> Res
         0x0f => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Instantiate)?,
         0x10 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::InstantiateArray)?,
         0x11 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::InstantiateMultiArray)?,
-        0x12 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::ExceptionMatchesClass)?,
+        0x12 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::IsClassAssignable)?,
         0x13 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::LinkPublicClass)?,
         0x14 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::LinkImportedClasses)?,
         0x1f => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::PushExceptionFrame)?,
         0x20 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::PopExceptionFrame)?,
-        0x21 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RethrowException)?,
+        0x21 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::ThrowException)?,
         0x22 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseNullPointerException)?,
         0x23 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArrayIndexException)?,
         0x25 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::RaiseArithmeticException)?,
         0x54 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk54)?,
         0x55 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk55)?,
+        0x56 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorEnter)?,
+        0x57 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::MonitorExit)?,
         0x61 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StoreReferenceArray)?,
         0x82 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::SetJarPath)?,
         0x83 => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::StartApplication)?,
@@ -80,7 +83,12 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
             JavaSystemSvcId::InstantiateMultiArray => EmulatedFunction::call(&java_instantiate_multi_array, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::Unk54 => EmulatedFunction::call(&java_unk54, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::Unk55 => EmulatedFunction::call(&java_unk55, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::MonitorEnter => EmulatedFunction::call(&java_monitor_enter, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::MonitorExit => EmulatedFunction::call(&java_monitor_exit, core, jvm).await?.write(core, lr),
             JavaSystemSvcId::StringLiteral => EmulatedFunction::call(&java_string_literal, core, jvm).await?.write(core, lr),
+            JavaSystemSvcId::GetInterfaceDispatchTable => EmulatedFunction::call(&java_get_interface_dispatch_table, core, jvm)
+                .await?
+                .write(core, lr),
             JavaSystemSvcId::PushExceptionFrame => EmulatedFunction::call(&java_push_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::PopExceptionFrame => EmulatedFunction::call(&java_pop_exception_frame, core, &mut ()).await?.write(core, lr),
             JavaSystemSvcId::StoreReferenceArray => EmulatedFunction::call(&java_store_reference_array, core, jvm).await?.write(core, lr),
@@ -91,12 +99,10 @@ async fn handle_java_system_svc(core: &mut ArmCore, (jvm, ptr_jar_path): &mut (J
                 .await?
                 .write(core, lr),
             JavaSystemSvcId::LinkPublicClass => EmulatedFunction::call(&java_link_public_class, core, jvm).await?.write(core, lr),
-            JavaSystemSvcId::ExceptionMatchesClass => {
-                java_exception_matches_class(core, jvm, core.read_param(0)?, core.read_param(1)?, core.read_param(2)?)
-                    .await?
-                    .write(core, lr)
-            }
-            JavaSystemSvcId::RethrowException => EmulatedFunction::call(&java_rethrow_exception, core, &mut ()).await?.write(core, lr),
+            JavaSystemSvcId::IsClassAssignable => java_is_class_assignable(core, jvm, core.read_param(0)?, core.read_param(1)?, core.read_param(2)?)
+                .await?
+                .write(core, lr),
+            JavaSystemSvcId::ThrowException => Err(WieError::JavaException(core.read_param(0)?)),
             JavaSystemSvcId::RaiseNullPointerException => EmulatedFunction::call(&java_raise_null_pointer_exception, core, jvm)
                 .await?
                 .write(core, lr),
@@ -144,6 +150,22 @@ async fn java_unk55(_core: &mut ArmCore, _: &mut ()) -> Result<()> {
     Ok(())
 }
 
+async fn java_monitor_enter(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32) -> Result<u32> {
+    let instance = LgtJvmSupport::class_instance_from_raw(core, ptr_instance);
+    jvm.monitor_enter(&*instance)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    Ok(0)
+}
+
+async fn java_monitor_exit(core: &mut ArmCore, jvm: &mut Jvm, ptr_instance: u32) -> Result<u32> {
+    let instance = LgtJvmSupport::class_instance_from_raw(core, ptr_instance);
+    jvm.monitor_exit(&*instance)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    Ok(0)
+}
+
 async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context: u32, data: u32, length: u32, cache: u32) -> Result<u32> {
     let cached: u32 = read_generic(core, cache)?;
     if cached != 0 {
@@ -174,6 +196,12 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
     Ok(value)
 }
 
+async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, _ptr_instance: u32, ptr_interface_name: u32) -> Result<u32> {
+    let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_interface_name)?)
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT interface class name: {error}")))?;
+    LgtJvmSupport::interface_dispatch_table(jvm, &interface_name).await
+}
+
 async fn java_push_exception_frame(core: &mut ArmCore, _: &mut ()) -> Result<()> {
     exception::push(core)
 }
@@ -186,18 +214,15 @@ async fn java_pending_exception(core: &mut ArmCore, _: &mut ()) -> Result<u32> {
     exception::pending(core)
 }
 
-async fn java_exception_matches_class(core: &mut ArmCore, jvm: &Jvm, _ptr_exception_type: u32, ptr_class_name: u32, _ptr_fields: u32) -> Result<u32> {
+async fn java_is_class_assignable(core: &mut ArmCore, jvm: &Jvm, ptr_class: u32, ptr_class_name: u32, _ptr_fields: u32) -> Result<u32> {
     let class_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
-        .map_err(|error| WieError::FatalError(format!("Invalid LGT exception class name: {error}")))?;
-    let ptr_exception = exception::pending(core)?;
-    let exception = LgtJvmSupport::class_instance_from_raw(core, ptr_exception);
+        .map_err(|error| WieError::FatalError(format!("Invalid LGT class name: {error}")))?;
+    let source_class_name = LgtJvmSupport::class_from_raw(core, ptr_class).name();
 
-    Ok(u32::from(jvm.is_instance(&*exception, &class_name)))
-}
-
-async fn java_rethrow_exception(core: &mut ArmCore, _: &mut (), ptr_exception: u32) -> Result<()> {
-    exception::pop(core)?;
-    Err(WieError::JavaException(ptr_exception))
+    Ok(u32::from(jvm.is_type_assignable(
+        &JavaType::from_class_name(&source_class_name),
+        &JavaType::from_class_name(&class_name),
+    )))
 }
 
 async fn java_raise_null_pointer_exception(_core: &mut ArmCore, jvm: &mut Jvm) -> Result<()> {
@@ -285,7 +310,11 @@ async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) 
         .get_static_field("net/wie/LgtClassLoader", "instance", "Lnet/wie/LgtClassLoader;")
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
-    LgtJvmSupport::register_generated_class(core, jvm, ptr_class, loader).await?;
+    let generated_classes: i32 = jvm
+        .get_field(&loader, "generatedClasses", "I")
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
+    LgtJvmSupport::register_generated_class(core, jvm, ptr_class, generated_classes as u32, loader).await?;
 
     Ok(())
 }
@@ -311,12 +340,13 @@ async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_obje
         return Ok(());
     }
 
+    jvm.put_field(&mut class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
+        .await
+        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     if callback != 0 {
         let _: () = core.run_function(callback, &[]).await?;
     }
-    jvm.put_field(&mut class_object, CLASS_INITIALIZATION_STATE_FIELD, WORD_FIELD_DESCRIPTOR, 5i32)
-        .await
-        .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))
+    Ok(())
 }
 
 async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {
@@ -493,12 +523,10 @@ async fn link_class_members(
         write_generic(core, virtual_method_indices + index as u32 * size_of::<u16>() as u32, method_index)?;
     }
 
-    if link.interface_method_count != 0 {
-        return Err(WieError::FatalError(format!(
-            "Interface method linking is not implemented for {class_name}: table {interface_method_imports:#x}, output {interface_method_indices:#x}, range {}..{}",
-            link.interface_method_offset,
-            link.interface_method_offset + link.interface_method_count
-        )));
+    for index in link.interface_method_offset..link.interface_method_offset + link.interface_method_count {
+        let (name, descriptor) = read_member_name_and_descriptor(core, interface_method_imports, index)?;
+        let method_index = LgtJvmSupport::virtual_method_index(jvm, class_name, &name, &descriptor).await?;
+        write_generic(core, interface_method_indices + index as u32 * size_of::<u16>() as u32, method_index)?;
     }
 
     let (initialized_class_getter, class_getter) = LgtJvmSupport::class_getter_targets(jvm, class_name)?;

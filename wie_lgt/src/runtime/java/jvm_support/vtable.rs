@@ -21,13 +21,11 @@ pub struct JavaVtable;
 
 impl JavaVtable {
     pub fn allocate(core: &mut ArmCore, entry_count: usize) -> Result<u32> {
-        let ptr_allocation = Allocator::alloc(core, ((entry_count + 2) * size_of::<u32>()) as u32)?;
-        Ok(ptr_allocation + size_of::<u32>() as u32)
+        Allocator::alloc(core, ((entry_count + 1) * size_of::<u32>()) as u32)
     }
 
-    pub fn read(core: &ArmCore, ptr_vtable: u32, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
-        let entry_count: u32 = read_generic(core, ptr_vtable - size_of::<u32>() as u32)?;
-        (0..entry_count as usize)
+    pub fn read(core: &ArmCore, ptr_vtable: u32, entry_count: usize, known_classes: &[(String, Vec<JavaMethod>)]) -> Result<Vec<JavaVtableEntry>> {
+        (0..entry_count)
             .map(|index| {
                 let target = read_generic(core, ptr_vtable + ((index + 1) * size_of::<u32>()) as u32)?;
                 let method = known_classes
@@ -50,7 +48,6 @@ impl JavaVtable {
     }
 
     pub fn write(core: &mut ArmCore, ptr_vtable: u32, ptr_class: u32, entries: &[JavaVtableEntry]) -> Result<()> {
-        write_generic(core, ptr_vtable - size_of::<u32>() as u32, entries.len() as u32)?;
         write_generic(core, ptr_vtable, ptr_class)?;
         for (index, entry) in entries.iter().enumerate() {
             let target = if entry.target == 0 {
@@ -84,6 +81,21 @@ impl JavaVtable {
                     .find(|method| method.target().is_ok_and(|method_target| method_target == target))
                     .cloned();
                 Ok(JavaVtableEntry { target, method })
+            })
+            .collect()
+    }
+
+    pub fn build_interface_methods(declared_methods: &[JavaMethod]) -> Result<Vec<JavaVtableEntry>> {
+        declared_methods
+            .iter()
+            .filter(|method| {
+                !method.access_flags().intersects(MethodAccessFlags::STATIC | MethodAccessFlags::PRIVATE) && !method.name().starts_with('<')
+            })
+            .map(|method| {
+                Ok(JavaVtableEntry {
+                    target: method.target()?,
+                    method: Some(method.clone()),
+                })
             })
             .collect()
     }

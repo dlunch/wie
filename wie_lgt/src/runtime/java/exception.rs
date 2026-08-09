@@ -71,7 +71,8 @@ pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
         return Ok(None);
     }
 
-    let frame: [u32; FRAME_WORDS as usize] = read_generic(core, support_context.ptr_current_exception_frame)?;
+    let ptr_frame = support_context.ptr_current_exception_frame;
+    let frame: [u32; FRAME_WORDS as usize] = read_generic(core, ptr_frame)?;
     support_context.ptr_pending_exception = ptr_exception;
     write_generic(core, SUPPORT_CONTEXT_BASE, support_context)?;
 
@@ -134,6 +135,7 @@ mod tests {
         pop(&mut core)?;
         assert_eq!(pending(&core)?, 0);
         assert_eq!(unwind(&mut core, 0x5678)?, None);
+        assert_eq!(pending(&core)?, 0);
 
         Ok(())
     }

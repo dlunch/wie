@@ -1,5 +1,6 @@
 use alloc::{
     boxed::Box,
+    format,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -25,8 +26,10 @@ use wie_core_arm::{
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
 
-use crate::runtime::java::jvm_support::JavaClassDefinition;
-use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
+use crate::{
+    emulator::IMAGE_BASE,
+    runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions, java::jvm_support::JavaClassDefinition},
+};
 
 use super::{KtfJvmSupport, class_instance::JavaClassInstance, name::JavaFullName, value::JavaValueCodec};
 
@@ -163,8 +166,19 @@ impl JavaMethod {
                         args = vec![context_base, target];
                     }
                     Err(e) => {
+                        let error = match e {
+                            error @ WieError::JavaException(_) => error,
+                            error => {
+                                let context = core.dump_reg_stack(IMAGE_BASE);
+                                match error {
+                                    WieError::Unimplemented(message) => WieError::Unimplemented(format!("{message}{context}")),
+                                    WieError::FatalError(message) => WieError::FatalError(format!("{message}{context}")),
+                                    error => WieError::FatalError(format!("{error}{context}")),
+                                }
+                            }
+                        };
                         core.restore_context(&caller_context);
-                        return Err(e);
+                        return Err(error);
                     }
                 }
             }

@@ -13,7 +13,7 @@ use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 
-use super::{JavaClassDefinition, JavaField, LgtJvmWord, value::JavaValueCodec};
+use super::{JavaClassDefinition, JavaField, JavaReferenceField, LgtJvmWord, value::JavaValueCodec};
 
 #[derive(Clone)]
 pub struct JavaClassInstance {
@@ -115,10 +115,14 @@ impl ClassInstance for JavaClassInstance {
     }
 
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
-        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         debug_assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
         let field_type = JavaType::parse(&field.descriptor());
-        let address = self.field_address(field.word_index().unwrap()).unwrap();
+        let word_index = if let Some(field) = field.as_any().downcast_ref::<JavaField>() {
+            field.word_index().unwrap()
+        } else {
+            field.as_any().downcast_ref::<JavaReferenceField>().unwrap().word_index
+        };
+        let address = self.field_address(word_index).unwrap();
         let low = read_generic(&self.core, address).unwrap();
         let codec = JavaValueCodec::new(&self.core);
 
@@ -131,9 +135,13 @@ impl ClassInstance for JavaClassInstance {
     }
 
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
-        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         debug_assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
-        let address = self.field_address(field.word_index().unwrap()).unwrap();
+        let word_index = if let Some(field) = field.as_any().downcast_ref::<JavaField>() {
+            field.word_index().unwrap()
+        } else {
+            field.as_any().downcast_ref::<JavaReferenceField>().unwrap().word_index
+        };
+        let address = self.field_address(word_index).unwrap();
         let codec = JavaValueCodec::new(&self.core);
 
         if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {

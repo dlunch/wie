@@ -21,7 +21,6 @@ pub struct JavaAbi {
 #[derive(Deserialize)]
 pub struct JavaClassAbi {
     pub name: String,
-    pub field_size: Option<usize>,
     pub vtable_size: Option<usize>,
     #[serde(default)]
     pub vtable: Vec<JavaVtableIndex>,

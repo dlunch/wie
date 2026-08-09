@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::{format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
 use java_constants::FieldAccessFlags;
@@ -76,5 +76,24 @@ impl Field for JavaField {
 impl Debug for JavaField {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JavaField").field("ptr_raw", &self.ptr_raw).finish()
+    }
+}
+
+#[derive(Debug)]
+pub struct JavaReferenceField {
+    pub word_index: u32,
+}
+
+impl Field for JavaReferenceField {
+    fn name(&self) -> String {
+        format!("<reference-word-{}>", self.word_index)
+    }
+
+    fn descriptor(&self) -> String {
+        "Ljava/lang/Object;".into()
+    }
+
+    fn access_flags(&self) -> FieldAccessFlags {
+        FieldAccessFlags::empty()
     }
 }

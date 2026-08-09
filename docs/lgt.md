@@ -109,21 +109,25 @@ generated class descriptor
   +0x00 u32: Java access flags
   +0x04 -> next generated class record, or zero
   +0x08 -> class name
-  +0x0c -> a word within an optional record used while creating instances
-  +0x10 -> superclass name
+  +0x0c -> compiler-generated virtual table
+  +0x10 -> superclass reference: class-name pointer while bit 1 at `+0x24` is set, class-record pointer otherwise
   +0x14 unknown
   +0x18 u16: total instance field words, including inherited fields
   +0x1a u16: class status; value 3 indicates ready
   +0x1c unknown
-  +0x20 -> optional record used while creating instances
-  +0x24 packed metadata with unresolved meaning
+  +0x20 -> instance-reference bitmap
+  +0x24 u8 flags; bit 1 marks `+0x10` as an unresolved superclass name
+  +0x25 unknown
+  +0x26 u16: number of virtual-table entries
   +0x28 -> count-prefixed implemented-interface name table
   +0x2c -> callback that patches exported member outputs
   +0x30 -> callback that returns the class object after class initialization
   +0x34 -> callback that registers the class and returns its class object
   +0x38 -> count-prefixed method table
   +0x3c -> count-prefixed field table
-  +0x40..+0x48 unknown
+  +0x40 -> runtime-owned class-field backing storage
+  +0x44 unknown runtime word; generated value is -2
+  +0x48 u32: static field words
 ```
 
 The three callbacks have separate roles:
@@ -132,7 +136,11 @@ The three callbacks have separate roles:
 - The callback at `+0x30` obtains that class object and ensures the class initializer has completed.
 - The callback at `+0x2c` binds exported fields and methods and patches the generated output tables.
 
-The callback at `+0x2c` is not `<clinit>`. The callback associated with the optional record at `+0x20` is also distinct from both `<init>` and `<clinit>`: it writes generated initial field values into newly allocated object storage.
+The callback at `+0x2c` is not `<clinit>`. The virtual-table word immediately after the raw-class pointer is an instance-field initializer callback, distinct from both `<init>` and `<clinit>`.
+
+The bitmap at `+0x20` has one bit per 32-bit instance-field word, including inherited words. Bits are ordered by field-word index, most-significant bit first within each byte; a set bit marks an object reference that must remain visible to garbage collection. The byte length is the instance-field word count rounded up to whole bytes. A class with no reference fields may point into zero-filled storage.
+
+Before linking, an external superclass is represented by its class name and bit 1 at `+0x24` is set. Linking replaces `+0x10` with the resolved class-record pointer and clears the bit. A superclass known to the compiler is stored as a class-record pointer from the outset.
 
 ### Fields and methods
 
@@ -252,6 +260,7 @@ Known functions in Java import table `0x64` are:
 | `0x06` | teardown helper paired with `0x07` |
 | `0x07` | install the generated-class collection and accompanying opaque metadata |
 | `0x09` | resolve and cache a UTF-16 Java string literal |
+| `0x0a` | obtain an interface dispatch table |
 | `0x0b` | register a generated class record |
 | `0x0c` | resolve a runtime class object from a generated class record |
 | `0x0d` | ensure class initialization using a generated callback |
@@ -259,17 +268,19 @@ Known functions in Java import table `0x64` are:
 | `0x0f` | instantiate an object |
 | `0x10` | instantiate a one-dimensional array |
 | `0x11` | instantiate a multidimensional array |
-| `0x12` | test whether the pending exception matches a class |
+| `0x12` | test whether a class is assignable to a named type |
 | `0x13` | link a public generated class and patch member outputs |
 | `0x14` | link imported classes and patch member outputs |
 | `0x1f` | push an exception-handler frame |
 | `0x20` | pop an exception-handler frame |
-| `0x21` | rethrow an exception through the current frame |
+| `0x21` | throw an exception through the current frame |
 | `0x22` | raise `NullPointerException` |
 | `0x23` | raise an array-index exception |
 | `0x25` | raise an arithmetic exception |
 | `0x54` | unresolved generated-code helper |
 | `0x55` | unresolved generated-code helper |
+| `0x56` | enter an object monitor |
+| `0x57` | exit an object monitor |
 | `0x61` | checked reference-array store |
 | `0x82` | set the application archive path |
 | `0x83` | start the Java application entry class |
