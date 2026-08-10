@@ -40,4 +40,38 @@ impl Allocator {
             BucketAllocator::free(core, HEAP_BASE + HEAP_SIZE / 2, address, size)
         }
     }
+
+    pub fn is_allocated(core: &ArmCore, address: u32, size: u32) -> Result<bool> {
+        if size > BUCKET_MAX as _ {
+            ListAllocator::is_allocated(core, HEAP_BASE, HEAP_SIZE / 2, address, size)
+        } else {
+            BucketAllocator::is_allocated(core, HEAP_BASE + HEAP_SIZE / 2, address, size)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wie_util::Result;
+
+    use crate::{Allocator, ArmCore};
+
+    #[test]
+    fn allocation_status_tracks_bucket_and_list_allocations() -> Result<()> {
+        let mut core = ArmCore::new(false, None)?;
+        Allocator::init(&mut core)?;
+
+        let bucket = Allocator::alloc(&mut core, 12)?;
+        let list = Allocator::alloc(&mut core, 1024)?;
+        assert!(Allocator::is_allocated(&core, bucket, 12)?);
+        assert!(Allocator::is_allocated(&core, list, 1024)?);
+        assert!(!Allocator::is_allocated(&core, bucket + 4, 12)?);
+
+        Allocator::free(&mut core, bucket, 12)?;
+        Allocator::free(&mut core, list, 1024)?;
+        assert!(!Allocator::is_allocated(&core, bucket, 12)?);
+        assert!(!Allocator::is_allocated(&core, list, 1024)?);
+
+        Ok(())
+    }
 }

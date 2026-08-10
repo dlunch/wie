@@ -862,8 +862,8 @@ impl ClassDefinition for JavaClassDefinition {
             }
         }
 
-        // AOT descriptors have no static reference bitmap. Expose words that
-        // resolve through an intact instance, dispatch table, and class chain.
+        // LGT AOT static storage is untyped, so conservatively retain words that
+        // point to allocated instances with an intact object-header chain.
         for word_index in 0..descriptor.static_field_word_count {
             let ptr_instance: u32 = read_generic(
                 &self.core,
@@ -871,6 +871,9 @@ impl ClassDefinition for JavaClassDefinition {
             )
             .unwrap();
             if ptr_instance == 0 {
+                continue;
+            }
+            if !Allocator::is_allocated(&self.core, ptr_instance, size_of::<RawJavaClassInstance>() as u32).unwrap() {
                 continue;
             }
 
