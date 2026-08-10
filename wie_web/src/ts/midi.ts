@@ -1,66 +1,154 @@
-import { WorkletSynthesizer } from 'spessasynth_lib';
+import { WorkletSynthesizer } from "spessasynth_lib";
 
-type AudioState = { synth: WorkletSynthesizer; ctx: AudioContext; gain: GainNode };
+type MidiEvent = [time: number, kind: "midi", data: Uint8Array];
+type WaveEvent = [time: number, kind: "wave", channels: number, samplingRate: number, samples: Int16Array];
+type TransportEvent = MidiEvent | WaveEvent;
 
-let masterVolume = 0.5;
+type WorkerOutput =
+  | { type: "event"; handle: number; deadline: number; event: TransportEvent }
+  | { type: "cleanup"; handle: number; deadline: number; channels: number[]; notes: [number, number][]; immediate: boolean };
+
+type AudioState = {
+  synth: WorkletSynthesizer | null;
+  ctx: AudioContext;
+  midiGain: GainNode;
+  pcmGain: GainNode;
+  pcmSources: Map<number, Set<AudioBufferSourceNode>>;
+};
+
+let midiVolume = 0.5;
+let pcmVolume = 0.5;
 
 async function initAudio(): Promise<AudioState> {
   const ctx = new AudioContext();
-  await ctx.audioWorklet.addModule('/spessasynth_processor.min.js');
-  const synth = new WorkletSynthesizer(ctx);
-  const buffer = await fetch('GeneralUser.sf3').then(r => r.arrayBuffer());
-  await synth.soundBankManager.addSoundBank(buffer, 'main');
-  await synth.isReady;
-  const gain = ctx.createGain();
-  gain.gain.value = masterVolume;
-  synth.connect(gain);
-  gain.connect(ctx.destination);
-  return { synth, ctx, gain };
+  const midiGain = ctx.createGain();
+  midiGain.gain.value = midiVolume;
+  midiGain.connect(ctx.destination);
+
+  const pcmGain = ctx.createGain();
+  pcmGain.gain.value = pcmVolume;
+  pcmGain.connect(ctx.destination);
+
+  let synth: WorkletSynthesizer | null = null;
+  try {
+    await ctx.audioWorklet.addModule("/spessasynth_processor.min.js");
+    synth = new WorkletSynthesizer(ctx);
+    const buffer = await fetch("GeneralUser.sf3").then(response => response.arrayBuffer());
+    await synth.soundBankManager.addSoundBank(buffer, "main");
+    await synth.isReady;
+    synth.connect(midiGain);
+  } catch (error) {
+    console.warn("MIDI output is unavailable:", error);
+  }
+
+  return { synth, ctx, midiGain, pcmGain, pcmSources: new Map() };
 }
 
-// Starts loading immediately on DOMContentLoaded.
-// ctx.resume() is called lazily on first note_on (requires user gesture).
 const audioReady: Promise<AudioState | null> = new Promise(resolve => {
-  const start = () => initAudio().then(resolve, err => {
-    console.warn('MidiPlayer init failed, audio will be silent:', err);
+  const start = () => initAudio().then(resolve, error => {
+    console.warn("AudioPlayer init failed, audio will be silent:", error);
     resolve(null);
   });
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
   } else {
     start();
   }
 });
 
 export function setMasterVolume(value: number): void {
-  masterVolume = value;
-  audioReady.then(s => {
-    if (s) s.gain.gain.value = value;
+  midiVolume = value;
+  audioReady.then(state => {
+    if (state) state.midiGain.gain.value = value;
   });
 }
 
-export class MidiPlayer {
-  constructor() {}
+export function setPcmVolume(value: number): void {
+  pcmVolume = value;
+  audioReady.then(state => {
+    if (state) state.pcmGain.gain.value = value;
+  });
+}
 
-  public note_on(channel_id: number, note: number, velocity: number): void {
-    if (velocity === 0) { this.note_off(channel_id, note, 0); return; }
-    audioReady.then(async s => {
-      if (!s) return;
-      if (s.ctx.state === 'suspended') await s.ctx.resume();
-      s.synth.noteOn(channel_id, note, velocity);
-    });
+export class AudioPlayer {
+  private readonly worker = new Worker(new URL("./audio-worker.ts", import.meta.url), { type: "module" });
+  private commands: Promise<void> = Promise.resolve();
+
+  constructor() {
+    this.worker.onmessage = (message: MessageEvent<WorkerOutput>) => {
+      void audioReady.then(state => {
+        if (!state) return;
+
+        const output = message.data;
+        const time = state.ctx.currentTime + Math.max(0, output.deadline - performance.timeOrigin - performance.now()) / 1000;
+
+        if (output.type === "event") {
+          if (output.event[1] === "midi") {
+            state.synth?.sendMessage(output.event[2], 0, { time });
+            return;
+          }
+
+          const [, , channels, samplingRate, samples] = output.event;
+          if (channels === 0 || samplingRate === 0) return;
+
+          const frameCount = Math.floor(samples.length / channels);
+          const buffer = state.ctx.createBuffer(channels, frameCount, samplingRate);
+          for (let channel = 0; channel < channels; channel++) {
+            const data = buffer.getChannelData(channel);
+            for (let frame = 0; frame < frameCount; frame++) {
+              data[frame] = samples[frame * channels + channel] / 32768;
+            }
+          }
+
+          const source = state.ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(state.pcmGain);
+          const sources = state.pcmSources.get(output.handle) ?? new Set<AudioBufferSourceNode>();
+          sources.add(source);
+          state.pcmSources.set(output.handle, sources);
+          source.onended = () => {
+            sources.delete(source);
+            if (sources.size === 0) state.pcmSources.delete(output.handle);
+          };
+          source.start(time);
+          return;
+        }
+
+        for (const [channel, note] of output.notes) {
+          state.synth?.sendMessage([0x80 | channel, note, 0], 0, { time });
+        }
+        for (const channel of output.channels) {
+          state.synth?.sendMessage([0xb0 | channel, 64, 0], 0, { time });
+          state.synth?.sendMessage([0xb0 | channel, 120, 0], 0, { time });
+          state.synth?.sendMessage([0xb0 | channel, 123, 0], 0, { time });
+        }
+
+        if (output.immediate) {
+          for (const source of state.pcmSources.get(output.handle) ?? []) {
+            source.stop(state.ctx.currentTime);
+          }
+        }
+      });
+    };
   }
 
-  public note_off(channel_id: number, note: number, _velocity: number): void {
-    audioReady.then(s => s?.synth.noteOff(channel_id, note));
+  public play(handle: number, duration: number, events: TransportEvent[], repeat: boolean): void {
+    const buffers = events.map(event => (event[1] === "midi" ? event[2].buffer : event[4].buffer));
+    this.commands = this.commands
+      .then(async () => {
+        const state = await audioReady;
+        if (state?.ctx.state === "suspended") await state.ctx.resume();
+        this.worker.postMessage({ type: "play", handle, duration, events, repeat }, buffers);
+      })
+      .catch(error => console.warn("Failed to start audio playback:", error));
   }
 
-  public control_change(channel_id: number, control: number, value: number): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    audioReady.then(s => s?.synth.controllerChange(channel_id, control as any, value));
-  }
-
-  public program_change(channel_id: number, program: number): void {
-    audioReady.then(s => s?.synth.programChange(channel_id, program));
+  public stop(handle: number): void {
+    this.commands = this.commands
+      .then(async () => {
+        await audioReady;
+        this.worker.postMessage({ type: "stop", handle });
+      })
+      .catch(error => console.warn("Failed to stop audio playback:", error));
   }
 }
