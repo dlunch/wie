@@ -114,13 +114,16 @@ export class AudioPlayer {
           return;
         }
 
-        for (const [channel, note] of output.notes) {
-          state.synth?.sendMessage([0x80 | channel, note, 0], 0, { time });
-        }
-        for (const channel of output.channels) {
-          state.synth?.sendMessage([0xb0 | channel, 64, 0], 0, { time });
-          state.synth?.sendMessage([0xb0 | channel, 120, 0], 0, { time });
-          state.synth?.sendMessage([0xb0 | channel, 123, 0], 0, { time });
+        const cleanupTimes = output.immediate && time > state.ctx.currentTime ? [state.ctx.currentTime, time] : [time];
+        for (const cleanupTime of cleanupTimes) {
+          for (const [channel, note] of output.notes) {
+            state.synth?.sendMessage([0x80 | channel, note, 0], 0, { time: cleanupTime });
+          }
+          for (const channel of output.channels) {
+            state.synth?.sendMessage([0xb0 | channel, 64, 0], 0, { time: cleanupTime });
+            state.synth?.sendMessage([0xb0 | channel, 120, 0], 0, { time: cleanupTime });
+            state.synth?.sendMessage([0xb0 | channel, 123, 0], 0, { time: cleanupTime });
+          }
         }
 
         if (output.immediate) {

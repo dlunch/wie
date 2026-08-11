@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 
 pub type AudioHandle = u32;
 
@@ -6,7 +6,7 @@ pub type AudioHandle = u32;
 pub enum AudioCommand {
     Play {
         handle: AudioHandle,
-        sequence: AudioSequence,
+        sequence: Arc<AudioSequence>,
         repeat: bool,
     },
     Stop {

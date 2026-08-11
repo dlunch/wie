@@ -39,11 +39,11 @@ impl wie_backend::AudioSink for AudioSink {
         match command {
             AudioCommand::Play { handle, sequence, repeat } => {
                 let events = Array::new();
-                for event in sequence.events {
+                for event in &sequence.events {
                     let value = Array::new();
                     value.push(&JsValue::from_f64(event.time as f64));
 
-                    match event.data {
+                    match &event.data {
                         AudioEventData::Midi(data) => {
                             value.push(&JsValue::from_str("midi"));
                             value.push(Uint8Array::from(data.as_slice()).as_ref());
@@ -54,8 +54,8 @@ impl wie_backend::AudioSink for AudioSink {
                             samples,
                         } => {
                             value.push(&JsValue::from_str("wave"));
-                            value.push(&JsValue::from(channels));
-                            value.push(&JsValue::from(sampling_rate));
+                            value.push(&JsValue::from(*channels));
+                            value.push(&JsValue::from(*sampling_rate));
                             value.push(Int16Array::from(samples.as_slice()).as_ref());
                         }
                     }

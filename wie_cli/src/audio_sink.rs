@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     error::Error,
     num::NonZero,
-    sync::mpsc::{Receiver, RecvTimeoutError, Sender},
+    sync::{Arc, mpsc::Receiver, mpsc::RecvTimeoutError, mpsc::Sender},
     time::{Duration, Instant},
 };
 
@@ -31,7 +31,7 @@ impl wie_backend::AudioSink for AudioSink {
 }
 
 struct Playback {
-    sequence: AudioSequence,
+    sequence: Arc<AudioSequence>,
     repeat: bool,
     started_at: Instant,
     next_event: usize,
@@ -40,7 +40,7 @@ struct Playback {
 }
 
 impl Playback {
-    fn new(sequence: AudioSequence, repeat: bool) -> Self {
+    fn new(sequence: Arc<AudioSequence>, repeat: bool) -> Self {
         Self {
             sequence,
             repeat,

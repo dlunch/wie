@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, sync::Arc, vec, vec::Vec};
 
 use smaf_player::{SmafEvent, parse_smaf};
 
@@ -11,7 +11,7 @@ pub enum AudioError {
 
 pub struct Audio {
     sink: Box<dyn AudioSink>,
-    files: BTreeMap<AudioHandle, AudioSequence>,
+    files: BTreeMap<AudioHandle, Arc<AudioSequence>>,
     playing: BTreeSet<AudioHandle>,
     last_audio_handle: AudioHandle,
 }
@@ -28,7 +28,7 @@ impl Audio {
 
     pub fn load_smaf(&mut self, data: &[u8]) -> Result<AudioHandle, AudioError> {
         let audio_handle = self.last_audio_handle;
-        let sequence = convert_smaf_events(parse_smaf(data));
+        let sequence = Arc::new(convert_smaf_events(parse_smaf(data)));
 
         self.last_audio_handle += 1;
         self.files.insert(audio_handle, sequence);
@@ -156,9 +156,24 @@ mod tests {
         audio.play(handle, true).unwrap();
 
         let commands = commands.lock().unwrap();
-        assert!(matches!(commands[0], AudioCommand::Play { repeat: false, .. }));
+        let AudioCommand::Play {
+            sequence: first_sequence,
+            repeat: false,
+            ..
+        } = &commands[0]
+        else {
+            panic!("expected initial play command");
+        };
         assert_eq!(commands[1], AudioCommand::Stop { handle });
-        assert!(matches!(commands[2], AudioCommand::Play { repeat: true, .. }));
+        let AudioCommand::Play {
+            sequence: second_sequence,
+            repeat: true,
+            ..
+        } = &commands[2]
+        else {
+            panic!("expected replay command");
+        };
+        assert!(Arc::ptr_eq(first_sequence, second_sequence));
     }
 
     #[test]

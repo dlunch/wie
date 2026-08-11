@@ -17,6 +17,7 @@ type Playback = {
   startedAt: number;
   nextEvent: number;
   lastScheduledAt: number;
+  cleanupAt: number | null;
   activeNotes: Set<number>;
   usedChannels: Set<number>;
 };
@@ -35,7 +36,7 @@ scope.onmessage = message => {
   const command = message.data;
   if (command.type === "play") {
     const oldPlayback = playbacks.get(command.handle);
-    if (oldPlayback) stopPlayback(command.handle, oldPlayback, true);
+    if (oldPlayback) stopPlayback(command.handle, oldPlayback);
 
     const now = performance.now();
     const startedAt = Math.max(now, blockedUntil.get(command.handle) ?? now);
@@ -47,12 +48,13 @@ scope.onmessage = message => {
       startedAt,
       nextEvent: 0,
       lastScheduledAt: startedAt,
+      cleanupAt: null,
       activeNotes: new Set(),
       usedChannels: new Set(),
     });
   } else {
     const playback = playbacks.get(command.handle);
-    if (playback) stopPlayback(command.handle, playback, true);
+    if (playback) stopPlayback(command.handle, playback);
   }
 
   schedule();
@@ -67,7 +69,16 @@ function schedule(): void {
   const now = performance.now();
   const horizon = now + LOOKAHEAD_MS;
 
+  for (const [handle, deadline] of blockedUntil) {
+    if (deadline <= now) blockedUntil.delete(handle);
+  }
+
   for (const [handle, playback] of playbacks) {
+    if (playback.cleanupAt !== null) {
+      if (playback.cleanupAt <= now) playbacks.delete(handle);
+      continue;
+    }
+
     while (true) {
       const event = playback.events[playback.nextEvent];
       if (event) {
@@ -84,33 +95,48 @@ function schedule(): void {
       const end = playback.startedAt + playback.duration;
       if (end > horizon) break;
 
+      playback.lastScheduledAt = Math.max(playback.lastScheduledAt, end);
       postCleanup(handle, playback, end, false);
       if (!playback.repeat || playback.duration === 0) {
-        playbacks.delete(handle);
+        if (end <= now) {
+          playbacks.delete(handle);
+        } else {
+          playback.cleanupAt = end;
+        }
         break;
       }
 
+      playback.activeNotes.clear();
+      playback.usedChannels.clear();
       playback.startedAt = Math.max(end, now);
       playback.nextEvent = 0;
       playback.lastScheduledAt = playback.startedAt;
     }
   }
 
-  let nextDeadline = Number.POSITIVE_INFINITY;
+  let nextDelay = Number.POSITIVE_INFINITY;
   for (const playback of playbacks.values()) {
-    const event = playback.events[playback.nextEvent];
-    nextDeadline = Math.min(nextDeadline, event ? playback.startedAt + event[0] : playback.startedAt + playback.duration);
+    if (playback.cleanupAt !== null) {
+      nextDelay = Math.min(nextDelay, playback.cleanupAt - now);
+    } else {
+      const event = playback.events[playback.nextEvent];
+      const deadline = event ? playback.startedAt + event[0] : playback.startedAt + playback.duration;
+      nextDelay = Math.min(nextDelay, deadline - now - LOOKAHEAD_MS);
+    }
   }
-  if (nextDeadline !== Number.POSITIVE_INFINITY) {
-    timer = setTimeout(schedule, Math.max(0, nextDeadline - performance.now() - LOOKAHEAD_MS));
+  for (const deadline of blockedUntil.values()) {
+    nextDelay = Math.min(nextDelay, deadline - now);
+  }
+  if (nextDelay !== Number.POSITIVE_INFINITY) {
+    timer = setTimeout(schedule, Math.max(0, nextDelay));
   }
 }
 
-function stopPlayback(handle: number, playback: Playback, immediate: boolean): void {
+function stopPlayback(handle: number, playback: Playback): void {
   playbacks.delete(handle);
   const deadline = Math.max(performance.now(), playback.lastScheduledAt) + 1;
   blockedUntil.set(handle, deadline);
-  postCleanup(handle, playback, deadline, immediate);
+  postCleanup(handle, playback, deadline, true);
 }
 
 function trackMidi(playback: Playback, event: TransportEvent): void {
@@ -141,6 +167,4 @@ function postCleanup(handle: number, playback: Playback, deadline: number, immed
     notes,
     immediate,
   });
-  playback.activeNotes.clear();
-  playback.usedChannels.clear();
 }
