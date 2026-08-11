@@ -100,6 +100,7 @@ impl Field for JavaReferenceField {
 
 #[derive(Debug)]
 pub struct JavaStaticReferenceField {
+    pub ptr_class: u32,
     pub word_index: u32,
 }
 

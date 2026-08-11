@@ -49,6 +49,7 @@ name = "java/lang/String"
 vtable = [
     { name = "length", descriptor = "()I", index = 10 },
     { name = "charAt", descriptor = "(I)C", index = 11 },
+    { name = "getBytes", descriptor = "()[B", index = 14 },
     { name = "substring", descriptor = "(II)Ljava/lang/String;", index = 28 },
     { name = "trim", descriptor = "()Ljava/lang/String;", index = 33 },
     { name = "toCharArray", descriptor = "()[C", index = 34 },
@@ -74,6 +75,15 @@ name = "java/lang/Thread"
 vtable = [
     { name = "start", descriptor = "()V", index = 10 },
     { name = "setPriority", descriptor = "(I)V", index = 14 },
+]
+
+[[class]]
+name = "java/util/Vector"
+vtable = [
+    { name = "size", descriptor = "()I", index = 15 },
+    { name = "elementAt", descriptor = "(I)Ljava/lang/Object;", index = 23 },
+    { name = "removeElementAt", descriptor = "(I)V", index = 27 },
+    { name = "insertElementAt", descriptor = "(Ljava/lang/Object;I)V", index = 28 },
 ]
 
 [[class]]

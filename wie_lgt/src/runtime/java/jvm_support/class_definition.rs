@@ -887,7 +887,10 @@ impl ClassDefinition for JavaClassDefinition {
                 continue;
             };
             if class.unk1 == instance.ptr_dispatch_table {
-                fields.push(Box::new(JavaStaticReferenceField { word_index }));
+                fields.push(Box::new(JavaStaticReferenceField {
+                    ptr_class: self.ptr_raw,
+                    word_index,
+                }));
             }
         }
         fields
@@ -903,8 +906,9 @@ impl ClassDefinition for JavaClassDefinition {
             )
         } else {
             let field = field.as_any().downcast_ref::<JavaStaticReferenceField>().unwrap();
+            let declaring_class = Self::from_raw(field.ptr_class, &self.core);
             (
-                self.ptr_static_fields().unwrap() + field.word_index * size_of::<LgtJvmWord>() as u32,
+                declaring_class.ptr_static_fields().unwrap() + field.word_index * size_of::<LgtJvmWord>() as u32,
                 JavaType::parse(&field.descriptor()),
             )
         };
