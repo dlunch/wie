@@ -116,6 +116,28 @@ impl BucketAllocator {
         Ok(())
     }
 
+    pub fn is_allocated(core: &ArmCore, base_address: u32, address: u32, size: u32) -> Result<bool> {
+        let bucket_index = Self::find_bucket_index(size);
+        let (slot_size, slot_count) = BUCKETS[bucket_index];
+        let header_address = base_address + region_offset(bucket_index) as u32;
+        let header_len = header_length(bucket_index) as u32;
+        let Some(offset) = address.checked_sub(header_address + header_len) else {
+            return Ok(false);
+        };
+        if offset % slot_size as u32 != 0 {
+            return Ok(false);
+        }
+
+        let slot = offset / slot_size as u32;
+        if slot >= slot_count as u32 {
+            return Ok(false);
+        }
+
+        let mut header = [0u8; 1];
+        core.read_bytes(header_address + slot / 8, &mut header)?;
+        Ok(header[0] & (1 << (slot % 8)) == 0)
+    }
+
     fn find_bucket_index(size: u32) -> usize {
         BUCKETS.iter().position(|&(s, _)| size as usize <= s).unwrap_or(BUCKETS.len() - 1)
     }

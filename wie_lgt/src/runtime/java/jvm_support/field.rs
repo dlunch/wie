@@ -97,3 +97,22 @@ impl Field for JavaReferenceField {
         FieldAccessFlags::empty()
     }
 }
+
+#[derive(Debug)]
+pub struct JavaStaticReferenceField {
+    pub word_index: u32,
+}
+
+impl Field for JavaStaticReferenceField {
+    fn name(&self) -> String {
+        format!("<static-reference-word-{}>", self.word_index)
+    }
+
+    fn descriptor(&self) -> String {
+        "Ljava/lang/Object;".into()
+    }
+
+    fn access_flags(&self) -> FieldAccessFlags {
+        FieldAccessFlags::STATIC
+    }
+}

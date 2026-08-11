@@ -26,7 +26,7 @@ use crate::runtime::{
 };
 
 use super::{
-    JavaClassInstance, JavaField, JavaMethod, JavaReferenceField, LgtJvmWord,
+    JavaClassInstance, JavaField, JavaMethod, JavaReferenceField, JavaStaticReferenceField, LgtJvmWord,
     value::JavaValueCodec,
     vtable::{JavaVtable, JavaVtableEntry},
 };
@@ -861,15 +861,53 @@ impl ClassDefinition for JavaClassDefinition {
                 }
             }
         }
+
+        // LGT AOT static storage is untyped, so conservatively retain words that
+        // point to allocated instances with an intact object-header chain.
+        for word_index in 0..descriptor.static_field_word_count {
+            let ptr_instance: u32 = read_generic(
+                &self.core,
+                self.ptr_static_fields().unwrap() + word_index * size_of::<LgtJvmWord>() as u32,
+            )
+            .unwrap();
+            if ptr_instance == 0 {
+                continue;
+            }
+            if !Allocator::is_allocated(&self.core, ptr_instance, size_of::<RawJavaClassInstance>() as u32).unwrap() {
+                continue;
+            }
+
+            let Ok(instance): Result<RawJavaClassInstance> = read_generic(&self.core, ptr_instance) else {
+                continue;
+            };
+            let Ok(ptr_class): Result<u32> = read_generic(&self.core, instance.ptr_dispatch_table) else {
+                continue;
+            };
+            let Ok(class): Result<RawJavaClass> = read_generic(&self.core, ptr_class) else {
+                continue;
+            };
+            if class.unk1 == instance.ptr_dispatch_table {
+                fields.push(Box::new(JavaStaticReferenceField { word_index }));
+            }
+        }
         fields
     }
 
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
-        let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let field_type = JavaType::parse(&field.descriptor());
-        let raw_field = field.raw().unwrap();
-        let declaring_class = Self::from_raw(raw_field.ptr_class, &self.core);
-        let address = declaring_class.ptr_static_fields().unwrap() + raw_field.word_index * size_of::<LgtJvmWord>() as u32;
+        let (address, field_type) = if let Some(field) = field.as_any().downcast_ref::<JavaField>() {
+            let raw_field = field.raw().unwrap();
+            let declaring_class = Self::from_raw(raw_field.ptr_class, &self.core);
+            (
+                declaring_class.ptr_static_fields().unwrap() + raw_field.word_index * size_of::<LgtJvmWord>() as u32,
+                JavaType::parse(&field.descriptor()),
+            )
+        } else {
+            let field = field.as_any().downcast_ref::<JavaStaticReferenceField>().unwrap();
+            (
+                self.ptr_static_fields().unwrap() + field.word_index * size_of::<LgtJvmWord>() as u32,
+                JavaType::parse(&field.descriptor()),
+            )
+        };
         let low = read_generic(&self.core, address).unwrap();
         let codec = JavaValueCodec::new(&self.core);
         Ok(if matches!(field_type, JavaType::Long | JavaType::Double) {

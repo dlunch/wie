@@ -90,6 +90,19 @@ impl ListAllocator {
         Ok(())
     }
 
+    pub fn is_allocated(core: &ArmCore, base_address: u32, base_size: u32, address: u32, size: u32) -> Result<bool> {
+        let Some(header_address) = address.checked_sub(size_of::<ListAllocationHeader>() as u32) else {
+            return Ok(false);
+        };
+        if header_address < base_address || header_address >= base_address + base_size {
+            return Ok(false);
+        }
+
+        let header: ListAllocationHeader = read_generic(core, header_address)?;
+        let allocation_size = (size as usize + size_of::<ListAllocationHeader>()).next_multiple_of(4) as u32 + CANARY_SIZE;
+        Ok(header.in_use() && header.size() == allocation_size)
+    }
+
     fn find_address(core: &mut ArmCore, base_address: u32, base_size: u32, size: u32) -> Result<u32> {
         let end = base_address + base_size;
         let mut cursor = base_address;

@@ -28,7 +28,7 @@ use self::{
     array_class_instance::JavaArrayClassInstance,
     class_definition::JavaClassDefinition,
     class_instance::JavaClassInstance,
-    field::{JavaField, JavaReferenceField},
+    field::{JavaField, JavaReferenceField, JavaStaticReferenceField},
     method::JavaMethod,
     value::JavaValueCodec,
     vtable::JavaVtableEntry,
