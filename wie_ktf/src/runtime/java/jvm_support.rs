@@ -10,7 +10,7 @@ mod name;
 mod value;
 mod vtable;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use core::mem::size_of;
 use jvm_implementation::KtfJvmImplementation;
 
@@ -22,7 +22,7 @@ use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, runtime::JavaLa
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
-use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic, write_null_terminated_table};
 
 use wipi_types::ktf::InitParam2;
 
@@ -55,6 +55,16 @@ struct KtfJvmExceptionContext {
 struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
     ptr_jvm_exception_context: u32,
+    ptr_class_interfaces: u32,
+}
+
+// AOT descriptors use ptr_interfaces for executable metadata, so Rust class relationships stay in the support context.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct KtfJvmClassInterfaceEntry {
+    ptr_class: u32,
+    ptr_interfaces: u32,
+    ptr_next: u32,
 }
 
 const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
@@ -82,6 +92,7 @@ impl KtfJvmSupport {
         let context_data = KtfJvmSupportContext {
             ptr_vtables_base: ptr_jvm_context + 12,
             ptr_jvm_exception_context,
+            ptr_class_interfaces: 0,
         };
         write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
 
@@ -197,6 +208,45 @@ impl KtfJvmSupport {
         Ok(index as _)
     }
 
+    pub fn register_class_interfaces(core: &mut ArmCore, ptr_class: u32, interfaces: &[u32]) -> Result<()> {
+        if interfaces.is_empty() {
+            return Ok(());
+        }
+
+        let ptr_interfaces = Allocator::alloc(core, ((interfaces.len() + 1) * size_of::<u32>()) as u32)?;
+        write_null_terminated_table(core, ptr_interfaces, interfaces)?;
+
+        let mut context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+        let ptr_entry = Allocator::alloc(core, size_of::<KtfJvmClassInterfaceEntry>() as u32)?;
+        write_generic(
+            core,
+            ptr_entry,
+            KtfJvmClassInterfaceEntry {
+                ptr_class,
+                ptr_interfaces,
+                ptr_next: context_data.ptr_class_interfaces,
+            },
+        )?;
+
+        context_data.ptr_class_interfaces = ptr_entry;
+        write_generic(core, SUPPORT_CONTEXT_BASE, context_data)
+    }
+
+    pub fn class_interfaces(core: &ArmCore, ptr_class: u32) -> Result<Vec<u32>> {
+        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+        let mut ptr_entry = context_data.ptr_class_interfaces;
+
+        while ptr_entry != 0 {
+            let entry: KtfJvmClassInterfaceEntry = read_generic(core, ptr_entry)?;
+            if entry.ptr_class == ptr_class {
+                return read_null_terminated_table(core, entry.ptr_interfaces);
+            }
+            ptr_entry = entry.ptr_next;
+        }
+
+        Ok(Vec::new())
+    }
+
     pub fn current_java_exception_handler(core: &mut ArmCore) -> Result<u32> {
         let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
         let exception_context: KtfJvmExceptionContext = read_generic(core, context_data.ptr_jvm_exception_context)?;
@@ -210,6 +260,7 @@ mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::sync::atomic::{AtomicBool, Ordering};
 
+    use java_constants::ClassAccessFlags;
     use jvm::{Jvm, runtime::JavaLangString};
 
     use wie_backend::{DefaultTaskRunner, System};
@@ -261,13 +312,18 @@ mod test {
 
             assert_eq!(temp, vec![5, 6, 7, 8]);
 
-            done_clone.store(true, Ordering::Relaxed);
-
             // test 64bit parameter passing
             let date = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();
             let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
 
             assert_eq!(time, 0x12345678_abcdef01);
+
+            let calendar = jvm.new_class("java/util/GregorianCalendar", "()V", ()).await.unwrap();
+            assert!(jvm.is_instance(&*calendar, "java/util/Calendar"));
+            let cloneable = jvm.resolve_class("java/lang/Cloneable").await.unwrap();
+            assert!(cloneable.definition.access_flags().contains(ClassAccessFlags::INTERFACE));
+
+            done_clone.store(true, Ordering::Relaxed);
 
             Ok(())
         });

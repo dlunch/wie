@@ -19,7 +19,10 @@ use wie_util::{
 
 use crate::runtime::java::JavaSvcFunctions;
 
-use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueCodec, vtable::JavaVtable};
+use super::{
+    KtfJvmSupport, KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueCodec,
+    vtable::JavaVtable,
+};
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
@@ -52,9 +55,18 @@ impl JavaClassDefinition {
             None
         };
 
+        let mut interfaces = Vec::with_capacity(proto.interfaces.len());
+        for name in proto.interfaces {
+            let class = jvm.resolve_class(name).await.unwrap().definition;
+            let class = class.as_any().downcast_ref::<JavaClassDefinition>().unwrap();
+
+            interfaces.push(class.ptr_raw);
+        }
+
         let field_offset_base: u32 = if let Some(x) = &parent_class { x.field_size()? as _ } else { 0 };
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
+        KtfJvmSupport::register_class_interfaces(core, ptr_raw, &interfaces)?;
 
         let mut methods = Vec::new();
         for method in proto.methods.into_iter() {
@@ -101,7 +113,7 @@ impl JavaClassDefinition {
                 ptr_fields_or_element_type: ptr_fields,
                 method_count: methods.len() as u16,
                 fields_size: field_offset as u16,
-                access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
+                access_flag: proto.access_flags.bits(),
                 unk6: 0,
                 unk7: 0,
                 unk8: 0,
@@ -292,7 +304,11 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn interface_names(&self) -> Vec<String> {
-        Vec::new() // TODO we don't store interface now
+        KtfJvmSupport::class_interfaces(&self.core, self.ptr_raw)
+            .unwrap()
+            .into_iter()
+            .map(|ptr_class| JavaClassDefinition::from_raw(ptr_class, &self.core).name().unwrap())
+            .collect()
     }
 
     async fn prepare(&self, _: &Jvm) -> JvmResult<()> {
