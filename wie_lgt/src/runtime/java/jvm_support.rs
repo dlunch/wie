@@ -457,10 +457,33 @@ mod tests {
             let string_methods = string_definition.vtable_entries(&jvm).await?;
             assert_eq!(string_methods[10].method.as_ref().unwrap().name(), "length");
             assert_eq!(string_methods[11].method.as_ref().unwrap().name(), "charAt");
+            assert_eq!(string_methods[14].method.as_ref().unwrap().name(), "getBytes");
             assert_eq!(string_methods[28].method.as_ref().unwrap().name(), "substring");
-            for index in [10usize, 11, 28] {
+            for index in [10usize, 11, 14, 28] {
                 let target: u32 = read_generic(&core, string_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, string_methods[index].method.as_ref().unwrap().target()?);
+            }
+
+            let vector_definition = jvm
+                .resolve_class("java/util/Vector")
+                .await
+                .unwrap()
+                .definition
+                .as_any()
+                .downcast_ref::<super::JavaClassDefinition>()
+                .unwrap()
+                .clone();
+            let vector_methods = vector_definition.vtable_entries(&jvm).await?;
+            for (index, name, descriptor) in [
+                (15usize, "size", "()I"),
+                (23, "elementAt", "(I)Ljava/lang/Object;"),
+                (27, "removeElementAt", "(I)V"),
+                (28, "insertElementAt", "(Ljava/lang/Object;I)V"),
+            ] {
+                let method = vector_methods[index].method.as_ref().unwrap();
+                assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
+                let target: u32 = read_generic(&core, vector_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
+                assert_eq!(target, method.target()?);
             }
 
             let reader_definition = jvm
@@ -773,6 +796,22 @@ mod tests {
                 .unwrap();
             let JavaValue::Object(Some(inherited_reference)) = static_child_definition.get_static_field(&*reference_field).unwrap() else {
                 panic!("expected inherited static reference field")
+            };
+            assert_eq!(inherited_reference.identity(), guest_reference.identity());
+
+            write_generic(&mut core, static_fields, guest_reference_raw)?;
+            static_child_definition.put_static_field(&*child_word_field, JavaValue::Int(4)).unwrap();
+            let static_reference_field = ClassDefinition::fields(&static_definition)
+                .into_iter()
+                .find(|field| {
+                    field
+                        .as_any()
+                        .downcast_ref::<super::JavaStaticReferenceField>()
+                        .is_some_and(|field| field.word_index == 0)
+                })
+                .unwrap();
+            let JavaValue::Object(Some(inherited_reference)) = static_child_definition.get_static_field(&*static_reference_field).unwrap() else {
+                panic!("expected inherited untyped static reference")
             };
             assert_eq!(inherited_reference.identity(), guest_reference.identity());
 
