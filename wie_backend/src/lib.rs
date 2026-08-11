@@ -13,7 +13,7 @@ mod task_runner;
 mod time;
 
 pub use self::{
-    audio_sink::AudioSink,
+    audio_sink::{AudioCommand, AudioEventData, AudioHandle, AudioSequence, AudioSink, TimedAudioEvent},
     database::{Database, DatabaseRepository, RecordId},
     executor::{AsyncCallable, AsyncCallableResult},
     platform::{Filesystem, Platform},

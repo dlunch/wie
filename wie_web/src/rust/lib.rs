@@ -20,7 +20,6 @@ use core::{
 };
 
 use hashbrown::HashMap;
-use rodio::{DeviceSinkBuilder, Player};
 use tracing_subscriber::{Layer, filter::LevelFilter, fmt::time::UtcTime, layer::SubscriberExt, util::SubscriberInitExt};
 use tracing_web::MakeConsoleWriter;
 use wasm_bindgen::{JsError, prelude::*};
@@ -38,7 +37,6 @@ struct WieWebPlatform {
     database_repository: DatabaseRepository,
     filesystem: WebFilesystem,
     window: WindowImpl,
-    player: Arc<Player>,
 }
 
 // XXX we're on single thread
@@ -46,12 +44,11 @@ unsafe impl Sync for WieWebPlatform {}
 unsafe impl Send for WieWebPlatform {}
 
 impl WieWebPlatform {
-    fn new(window: WindowImpl, player: Arc<Player>) -> Self {
+    fn new(window: WindowImpl) -> Self {
         Self {
             database_repository: DatabaseRepository::new(),
             filesystem: WebFilesystem::new(),
             window,
-            player,
         }
     }
 }
@@ -77,7 +74,7 @@ impl Platform for WieWebPlatform {
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
-        Box::new(AudioSink::new(self.player.clone()))
+        Box::new(AudioSink::new())
     }
 
     fn write_stdout(&self, data: &[u8]) {
@@ -112,7 +109,6 @@ pub struct WieWeb {
     emulator: Box<dyn Emulator>,
     should_redraw: Arc<AtomicBool>,
     key_events: HashMap<KeyCode, f64>,
-    player: Arc<Player>,
 }
 
 #[wasm_bindgen]
@@ -122,9 +118,7 @@ impl WieWeb {
         (move || {
             let should_redraw = Arc::new(AtomicBool::new(true));
             let window = WindowImpl::new(canvas, should_redraw.clone());
-            let output_stream = DeviceSinkBuilder::open_default_sink().unwrap();
-            let player = Arc::new(Player::connect_new(output_stream.mixer()));
-            let platform = Box::new(WieWebPlatform::new(window, player.clone()));
+            let platform = Box::new(WieWebPlatform::new(window));
             let options = Options {
                 enable_gdbserver: false,
                 profile: None,
@@ -185,7 +179,6 @@ impl WieWeb {
                 emulator,
                 should_redraw,
                 key_events: HashMap::new(),
-                player,
             })
         })()
         .map_err(|e| JsError::new(&e.to_string()))
@@ -231,7 +224,7 @@ impl WieWeb {
     }
 
     pub fn set_pcm_volume(&self, volume: f32) {
-        self.player.set_volume(volume);
+        audio_sink::set_pcm_volume(volume);
     }
 }
 

@@ -49,9 +49,7 @@ impl SmafPlayer {
 
         let audio_handle: i32 = jvm.get_field(&this, "audioHandle", "I").await?;
 
-        let system = context.system();
-
-        system.audio().play(system, audio_handle as u32, repeat).unwrap();
+        context.system().audio().play(audio_handle as u32, repeat).unwrap();
 
         Ok(())
     }

@@ -8,25 +8,19 @@ mod window;
 use core::str;
 use std::{
     collections::{HashMap, hash_map::Entry},
-    error::Error,
     fs::{self, File},
     io::{LineWriter, Write, stderr},
-    num::NonZero,
     path::PathBuf,
-    sync::{
-        Mutex,
-        mpsc::{Receiver, Sender, channel},
-    },
+    sync::{Mutex, mpsc::Sender, mpsc::channel},
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use clap::Parser;
 use midir::MidiOutput;
-use rodio::{DeviceSinkBuilder, Player, buffer::SamplesBuffer, conversions::SampleTypeConverter};
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{Emulator, Event, Filesystem, Instant, KeyCode, Options, Platform, ProfileSample, Screen, extract_zip};
+use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Instant, KeyCode, Options, Platform, ProfileSample, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
@@ -40,61 +34,22 @@ use self::{
 };
 
 struct WieCliPlatform {
-    audio_thread_tx: Sender<(u8, u32, Vec<i16>)>,
+    audio_tx: Sender<AudioCommand>,
     database_repository: DatabaseRepository,
     filesystem: CliFilesystem,
-    midi_device: Option<usize>,
     window: WindowHandle,
 }
 
 impl WieCliPlatform {
     fn new(window: WindowHandle, midi_device: Option<usize>) -> Self {
         let (tx, rx) = channel();
-        thread::spawn(|| Self::audio_thread(rx));
+        thread::spawn(move || audio_sink::run(rx, midi_device));
 
         Self {
-            audio_thread_tx: tx,
+            audio_tx: tx,
             database_repository: DatabaseRepository::new(),
             filesystem: CliFilesystem::new(),
-            midi_device,
             window,
-        }
-    }
-
-    fn audio_thread(rx: Receiver<(u8, u32, Vec<i16>)>) {
-        let default_output = DeviceSinkBuilder::open_default_sink();
-        if default_output.is_err() {
-            // do nothing if we can't open output
-            loop {
-                rx.recv().unwrap();
-            }
-        }
-
-        let output_sink = default_output.unwrap();
-        let player = Player::connect_new(output_sink.mixer());
-
-        loop {
-            let result = rx.recv();
-            if result.is_err() {
-                break;
-            }
-            let (channel, sampling_rate, wave_data) = result.unwrap();
-
-            let Some(channel_count) = NonZero::new(channel.into()) else {
-                continue;
-            };
-            let Some(sample_rate) = NonZero::new(sampling_rate) else {
-                continue;
-            };
-
-            let buffer = SamplesBuffer::new(
-                channel_count,
-                sample_rate,
-                SampleTypeConverter::new(wave_data.into_iter()).collect::<Vec<_>>(),
-            );
-
-            // TODO we should be able to play multiple audio at once
-            player.append(buffer);
         }
     }
 }
@@ -120,36 +75,7 @@ impl Platform for WieCliPlatform {
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
-        let midi_out = (|| {
-            let midi_out = MidiOutput::new("wie_cli")?;
-            let midi_ports = midi_out.ports();
-            let port_index = select_midi_output_index(midi_ports.len(), self.midi_device).ok_or_else(|| anyhow::anyhow!("No MIDI output port"))?;
-            let out_port = &midi_ports[port_index];
-            let port_name = midi_out.port_name(out_port).unwrap_or_else(|_| "<unknown>".to_string());
-
-            if let Some(requested) = self.midi_device
-                && requested != port_index
-            {
-                tracing::warn!(
-                    requested,
-                    fallback = %port_name,
-                    "Requested MIDI output index is out of range; using default"
-                );
-            }
-
-            let connection = midi_out.connect(out_port, "wie_cli")?;
-            tracing::info!(port = %port_name, "Using MIDI output");
-            Ok::<_, Box<dyn Error>>(connection)
-        })();
-        let midi_out = match midi_out {
-            Ok(connection) => Some(connection),
-            Err(error) => {
-                tracing::warn!(%error, "MIDI output is unavailable");
-                None
-            }
-        };
-
-        Box::new(AudioSink::new(midi_out, self.audio_thread_tx.clone()))
+        Box::new(AudioSink::new(self.audio_tx.clone()))
     }
 
     fn write_stdout(&self, buf: &[u8]) {
