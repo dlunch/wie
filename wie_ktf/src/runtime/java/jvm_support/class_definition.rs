@@ -52,6 +52,21 @@ impl JavaClassDefinition {
             None
         };
 
+        let mut interfaces = Vec::with_capacity(proto.interfaces.len());
+        for name in proto.interfaces {
+            let class = jvm.resolve_class(name).await.unwrap().definition;
+            let class = class.as_any().downcast_ref::<JavaClassDefinition>().unwrap();
+
+            interfaces.push(class.ptr_raw);
+        }
+        let ptr_interfaces = if interfaces.is_empty() {
+            0
+        } else {
+            let ptr_interfaces = Allocator::alloc(core, ((interfaces.len() + 1) * size_of::<u32>()) as u32)?;
+            write_null_terminated_table(core, ptr_interfaces, &interfaces)?;
+            ptr_interfaces
+        };
+
         let field_offset_base: u32 = if let Some(x) = &parent_class { x.field_size()? as _ } else { 0 };
 
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaClass>() as u32)?;
@@ -97,12 +112,12 @@ impl JavaClassDefinition {
                 unk1: 0,
                 ptr_parent_class: parent_class.map(|x| x.ptr_raw).unwrap_or(0),
                 ptr_methods,
-                ptr_interfaces: 0,
+                ptr_interfaces,
                 ptr_fields_or_element_type: ptr_fields,
                 method_count: methods.len() as u16,
                 fields_size: field_offset as u16,
-                access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
-                unk6: 0,
+                access_flag: proto.access_flags.bits(),
+                interface_count: interfaces.len() as u16,
                 unk7: 0,
                 unk8: 0,
             },
@@ -292,7 +307,13 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn interface_names(&self) -> Vec<String> {
-        Vec::new() // TODO we don't store interface now
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw).unwrap();
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor).unwrap();
+
+        (0..descriptor.interface_count)
+            .map(|index| read_generic(&self.core, descriptor.ptr_interfaces + u32::from(index) * size_of::<u32>() as u32).unwrap())
+            .map(|ptr_class| JavaClassDefinition::from_raw(ptr_class, &self.core).name().unwrap())
+            .collect()
     }
 
     async fn prepare(&self, _: &Jvm) -> JvmResult<()> {

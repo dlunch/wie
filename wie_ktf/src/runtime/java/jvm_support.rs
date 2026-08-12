@@ -210,6 +210,7 @@ mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::sync::atomic::{AtomicBool, Ordering};
 
+    use java_constants::ClassAccessFlags;
     use jvm::{Jvm, runtime::JavaLangString};
 
     use wie_backend::{DefaultTaskRunner, System};
@@ -261,13 +262,18 @@ mod test {
 
             assert_eq!(temp, vec![5, 6, 7, 8]);
 
-            done_clone.store(true, Ordering::Relaxed);
-
             // test 64bit parameter passing
             let date = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();
             let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
 
             assert_eq!(time, 0x12345678_abcdef01);
+
+            let calendar = jvm.new_class("java/util/GregorianCalendar", "()V", ()).await.unwrap();
+            assert!(jvm.is_instance(&*calendar, "java/util/Calendar"));
+            let cloneable = jvm.resolve_class("java/lang/Cloneable").await.unwrap();
+            assert!(cloneable.definition.access_flags().contains(ClassAccessFlags::INTERFACE));
+
+            done_clone.store(true, Ordering::Relaxed);
 
             Ok(())
         });
