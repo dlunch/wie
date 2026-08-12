@@ -63,7 +63,7 @@ impl JavaArrayClassDefinition {
                 method_count: 0,
                 fields_size: 0,
                 access_flag: 0x21, // ACC_PUBLIC | ACC_SUPER
-                unk6: 0,
+                interface_count: 0,
                 unk7: 0,
                 unk8: 0,
             },
