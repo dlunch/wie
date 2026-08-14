@@ -11,6 +11,8 @@ type WorkerOutput =
 type AudioState = {
   synth: WorkletSynthesizer | null;
   ctx: AudioContext;
+  clockAudioTime: number;
+  clockPerformanceTime: number;
   midiGain: GainNode;
   pcmGain: GainNode;
   pcmSources: Map<number, Set<AudioBufferSourceNode>>;
@@ -41,7 +43,15 @@ async function initAudio(): Promise<AudioState> {
     console.warn("MIDI output is unavailable:", error);
   }
 
-  return { synth, ctx, midiGain, pcmGain, pcmSources: new Map() };
+  return {
+    synth,
+    ctx,
+    clockAudioTime: ctx.currentTime,
+    clockPerformanceTime: performance.timeOrigin + performance.now(),
+    midiGain,
+    pcmGain,
+    pcmSources: new Map(),
+  };
 }
 
 const audioReady: Promise<AudioState | null> = new Promise(resolve => {
@@ -80,7 +90,7 @@ export class AudioPlayer {
         if (!state) return;
 
         const output = message.data;
-        const time = state.ctx.currentTime + Math.max(0, output.deadline - performance.timeOrigin - performance.now()) / 1000;
+        const time = Math.max(state.ctx.currentTime, state.clockAudioTime + (output.deadline - state.clockPerformanceTime) / 1000);
 
         if (output.type === "event") {
           if (output.event[1] === "midi") {
@@ -140,7 +150,11 @@ export class AudioPlayer {
     this.commands = this.commands
       .then(async () => {
         const state = await audioReady;
-        if (state?.ctx.state === "suspended") await state.ctx.resume();
+        if (state?.ctx.state === "suspended") {
+          await state.ctx.resume();
+          state.clockAudioTime = state.ctx.currentTime;
+          state.clockPerformanceTime = performance.timeOrigin + performance.now();
+        }
         this.worker.postMessage({ type: "play", handle, duration, events, repeat }, buffers);
       })
       .catch(error => console.warn("Failed to start audio playback:", error));
