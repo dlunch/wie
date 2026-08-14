@@ -52,7 +52,7 @@ impl KtfClassLoader {
         parent: ClassInstanceRef<ClassLoader>,
         binary_name: ClassInstanceRef<String>,
         ptr_jvm_context: i32,
-        ptr_jvm_exception_context: i32,
+        ptr_current_jvm_thread_context: i32,
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.KtfClassLoader::<init>({this:?}, {parent:?}, {binary_name:?})");
 
@@ -82,7 +82,7 @@ impl KtfClassLoader {
             &name_rust,
             cast_slice(&data),
             ptr_jvm_context as _,
-            ptr_jvm_exception_context as _,
+            ptr_current_jvm_thread_context as _,
         )
         .await
         .unwrap();

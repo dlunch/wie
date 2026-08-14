@@ -6,7 +6,7 @@ use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
 
-use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam1, InitParam3, InitParam4, WipiExe};
+use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam3, InitParam4, WipiExe};
 
 use crate::{
     adf::parse_bss_size,
@@ -44,7 +44,7 @@ pub async fn load_native(
     filename: &str,
     data: &[u8],
     ptr_jvm_context: u32,
-    ptr_jvm_exception_context: u32,
+    ptr_current_jvm_thread_context: u32,
 ) -> Result<ExeInterfaceFunctions> {
     let bss_size = parse_bss_size(filename)?;
 
@@ -73,9 +73,6 @@ pub async fn load_native(
 
     let ptr_param_0 = Allocator::alloc(core, size_of::<InitParam0>() as u32)?;
     write_generic(core, ptr_param_0, InitParam0 { unk: 0 })?;
-
-    let ptr_param_1 = Allocator::alloc(core, size_of::<InitParam1>() as u32)?;
-    write_generic(core, ptr_param_1, InitParam1 { ptr_jvm_exception_context })?;
 
     let param_3 = InitParam3 {
         unk1: 0,
@@ -121,7 +118,7 @@ pub async fn load_native(
     let result = core
         .run_function::<u32>(
             exe_interface_functions.fn_init,
-            &[ptr_param_0, ptr_param_1, ptr_jvm_context, ptr_param_3, ptr_param_4],
+            &[ptr_param_0, ptr_current_jvm_thread_context, ptr_jvm_context, ptr_param_3, ptr_param_4],
         )
         .await?;
 

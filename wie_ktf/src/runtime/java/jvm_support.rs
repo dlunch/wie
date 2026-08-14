@@ -11,7 +11,7 @@ mod value;
 mod vtable;
 
 use alloc::boxed::Box;
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 use jvm_implementation::KtfJvmImplementation;
 
 use bytemuck::{Pod, Zeroable};
@@ -45,7 +45,7 @@ pub type KtfJvmWord = u32;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct KtfJvmExceptionContext {
+pub struct KtfJvmThreadContext {
     unk: [u32; 8],
     current_java_exception_handler: u32,
 }
@@ -54,7 +54,7 @@ struct KtfJvmExceptionContext {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct KtfJvmSupportContext {
     ptr_vtables_base: u32,
-    ptr_jvm_exception_context: u32,
+    ptr_current_jvm_thread_context: u32,
 }
 
 const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
@@ -72,18 +72,11 @@ impl KtfJvmSupport {
         let ptr_jvm_context = Allocator::alloc(core, size_of::<InitParam2>() as u32)?;
         write_generic(core, ptr_jvm_context, jvm_context)?;
 
-        let jvm_exception_context = KtfJvmExceptionContext {
-            unk: [0; 8],
-            current_java_exception_handler: 0,
-        };
-        let ptr_jvm_exception_context = Allocator::alloc(core, size_of::<KtfJvmExceptionContext>() as u32)?;
-        write_generic(core, ptr_jvm_exception_context, jvm_exception_context)?;
-
-        let context_data = KtfJvmSupportContext {
-            ptr_vtables_base: ptr_jvm_context + 12,
-            ptr_jvm_exception_context,
-        };
-        write_generic(core, SUPPORT_CONTEXT_BASE, context_data)?;
+        write_generic(
+            core,
+            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_vtables_base) as u32,
+            ptr_jvm_context + 12,
+        )?;
 
         let protos = [wie_wipi_java::get_protos().into(), wie_midp::get_protos().into()];
         let jvm_implementation = KtfJvmImplementation::new(core);
@@ -141,7 +134,12 @@ impl KtfJvmSupport {
             .new_class(
                 "net/wie/KtfClassLoader",
                 "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
-                (system_class_loader, binary_name, ptr_jvm_context as i32, ptr_jvm_exception_context as i32),
+                (
+                    system_class_loader,
+                    binary_name,
+                    ptr_jvm_context as i32,
+                    (SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_current_jvm_thread_context) as u32) as i32,
+                ),
             )
             .await
             .unwrap();
@@ -198,26 +196,44 @@ impl KtfJvmSupport {
     }
 
     pub fn current_java_exception_handler(core: &mut ArmCore) -> Result<u32> {
-        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
-        let exception_context: KtfJvmExceptionContext = read_generic(core, context_data.ptr_jvm_exception_context)?;
+        let ptr_thread_context = Self::current_thread_context(core)?;
+        let thread_context: KtfJvmThreadContext = read_generic(core, ptr_thread_context)?;
 
-        Ok(exception_context.current_java_exception_handler)
+        Ok(thread_context.current_java_exception_handler)
+    }
+
+    pub fn set_current_thread_context(core: &mut ArmCore, ptr_thread_context: u32) -> Result<()> {
+        write_generic(
+            core,
+            SUPPORT_CONTEXT_BASE + offset_of!(KtfJvmSupportContext, ptr_current_jvm_thread_context) as u32,
+            ptr_thread_context,
+        )
+    }
+
+    pub fn current_thread_context(core: &ArmCore) -> Result<u32> {
+        let context_data: KtfJvmSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
+
+        Ok(context_data.ptr_current_jvm_thread_context)
     }
 }
 
 #[cfg(test)]
 mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
-    use core::sync::atomic::{AtomicBool, Ordering};
+    use core::{
+        mem::size_of,
+        sync::atomic::{AtomicBool, Ordering},
+    };
 
+    use bytemuck::Zeroable;
     use java_constants::ClassAccessFlags;
     use jvm::{Jvm, runtime::JavaLangString};
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
-    use wie_util::{Result, WieError};
+    use wie_util::{Result, WieError, write_generic};
 
-    use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport};
+    use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport, KtfJvmThreadContext};
 
     use test_utils::TestPlatform;
 
@@ -229,6 +245,10 @@ mod test {
         let stack = Allocator::alloc(&mut core, 0x100)?;
         context.sp = stack + 0x100;
         core.restore_context(&context);
+
+        let ptr_thread_context = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
+        write_generic(&mut core, ptr_thread_context, KtfJvmThreadContext::zeroed())?;
+        KtfJvmSupport::set_current_thread_context(&mut core, ptr_thread_context)?;
 
         let (jvm, _) = KtfJvmSupport::init(&mut core, system, None).await?;
 
