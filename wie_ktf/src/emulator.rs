@@ -1,17 +1,19 @@
-use core::pin::Pin;
+use core::{mem::size_of, pin::Pin, task::Poll};
 
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 
+use bytemuck::Zeroable;
+use futures::future::poll_fn;
 use jvm::{ClassInstance, Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::{Emulator, Event, Options, Platform, System, TaskRunner};
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
-use wie_util::{Result, WieError};
+use wie_util::{Result, WieError, write_generic};
 
 use crate::{
     adf::{KtfAdf, find_client_bin},
-    runtime::KtfJvmSupport,
+    runtime::{KtfJvmSupport, KtfJvmThreadContext},
 };
 
 pub const IMAGE_BASE: u32 = 0x100000;
@@ -22,8 +24,29 @@ struct KtfTaskRunner {
 
 #[async_trait::async_trait]
 impl TaskRunner for KtfTaskRunner {
-    async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
-        self.core.run_in_thread(async move || future.await)?.await
+    async fn run(&self, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
+        let mut core = self.core.clone();
+        let ptr_thread_context = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
+        write_generic(&mut core, ptr_thread_context, KtfJvmThreadContext::zeroed())?;
+
+        let mut poll_core = self.core.clone();
+        let result = self
+            .core
+            .run_in_thread(move || {
+                poll_fn(move |context| {
+                    // KTF's first native init argument points at this cell and dereferences it for each stack check and try block.
+                    if let Err(error) = KtfJvmSupport::set_current_thread_context(&mut poll_core, ptr_thread_context) {
+                        return Poll::Ready(Err(error));
+                    }
+
+                    future.as_mut().poll(context)
+                })
+            })?
+            .await;
+
+        Allocator::free(&mut core, ptr_thread_context, size_of::<KtfJvmThreadContext>() as u32)?;
+
+        result
     }
 }
 
@@ -151,5 +174,59 @@ impl Emulator for KtfEmulator {
                 _ => WieError::FatalError(format!("{x}\n{reg_stack}")),
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{boxed::Box, sync::Arc};
+    use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+
+    use test_utils::TestPlatform;
+    use wie_backend::{System, YieldFuture};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{Result, WieError};
+
+    use super::{KtfJvmSupport, KtfTaskRunner};
+
+    #[test]
+    fn switches_jvm_thread_context_between_tasks() -> Result<()> {
+        let mut core = ArmCore::new(false, None)?;
+        Allocator::init(&mut core)?;
+
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });
+        let contexts = Arc::new([AtomicU32::new(0), AtomicU32::new(0)]);
+        let completed = Arc::new(AtomicUsize::new(0));
+
+        for index in 0..2 {
+            let core = core.clone();
+            let contexts = contexts.clone();
+            let completed = completed.clone();
+            system.spawn(async move || {
+                let before = KtfJvmSupport::current_thread_context(&core)?;
+                YieldFuture::new().await;
+                let after = KtfJvmSupport::current_thread_context(&core)?;
+                if before != after {
+                    return Err(WieError::FatalError("KTF JVM thread context changed while the task was suspended".into()));
+                }
+
+                contexts[index].store(before, Ordering::Relaxed);
+                completed.fetch_add(1, Ordering::Relaxed);
+
+                Ok(())
+            });
+        }
+
+        while completed.load(Ordering::Relaxed) != 2 {
+            system.tick()?;
+        }
+
+        let first = contexts[0].load(Ordering::Relaxed);
+        let second = contexts[1].load(Ordering::Relaxed);
+        assert_ne!(first, 0);
+        assert_ne!(second, 0);
+        assert_ne!(first, second);
+
+        Ok(())
     }
 }
