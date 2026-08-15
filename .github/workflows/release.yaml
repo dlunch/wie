@@ -23,6 +23,7 @@ jobs:
       target_sha: ${{ steps.context.outputs.target_sha }}
       app_version: ${{ steps.context.outputs.app_version }}
       previous_tag: ${{ steps.context.outputs.previous_tag }}
+      release_tag: ${{ steps.context.outputs.release_tag }}
     steps:
       - name: Checkout target
         uses: actions/checkout@v7
@@ -441,9 +442,9 @@ jobs:
     env:
       CHANNEL: ${{ needs.context.outputs.channel }}
       GH_TOKEN: ${{ github.token }}
-      RUN_NUMBER: ${{ needs.context.outputs.run_number }}
       TARGET_SHA: ${{ needs.context.outputs.target_sha }}
       PREVIOUS_TAG: ${{ needs.context.outputs.previous_tag }}
+      RELEASE_TAG: ${{ needs.context.outputs.release_tag }}
     steps:
       - name: Checkout release scripts
         uses: actions/checkout@v7

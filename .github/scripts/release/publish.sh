@@ -3,6 +3,7 @@
 set -euo pipefail
 
 repo="repos/$GITHUB_REPOSITORY"
+tag=$RELEASE_TAG
 
 warning_body() {
   cat <<EOF
@@ -16,7 +17,6 @@ EOF
 }
 
 if [[ "$CHANNEL" == stable ]]; then
-  tag=${GITHUB_REF#refs/tags/}
   if release=$(gh api "$repo/releases/tags/$tag" 2>/dev/null); then
     release_id=$(jq -r '.id' <<< "$release")
   else
@@ -44,26 +44,27 @@ else
     exit 0
   fi
 
-  if release=$(gh api "$repo/releases/tags/nightly" 2>/dev/null); then
+  if release=$(gh api "$repo/releases/tags/$tag" 2>/dev/null); then
     release_id=$(jq -r '.id' <<< "$release")
   else
     initial_body=$(warning_body)
-    release=$(gh api --method POST "$repo/releases" -f tag_name=nightly -f target_commitish="$TARGET_SHA" -f name=nightly -f body="$initial_body" -F draft=true -F prerelease=true)
+    release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name=nightly -f body="$initial_body" -F draft=true -F prerelease=true)
     release_id=$(jq -r '.id' <<< "$release")
   fi
 
-  gh release upload nightly release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+  gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
-  if gh api "$repo/git/ref/tags/nightly" >/dev/null 2>&1; then
-    gh api --method PATCH "$repo/git/refs/tags/nightly" -f sha="$TARGET_SHA" -F force=true >/dev/null
-  else
-    gh api --method POST "$repo/git/refs" -f ref=refs/tags/nightly -f sha="$TARGET_SHA" >/dev/null
-  fi
   body="$(warning_body)
 
 ## Nightly
 
-- Target SHA: \`$TARGET_SHA\`
-- Workflow run: \`$RUN_NUMBER\`"
+- Target SHA: \`$TARGET_SHA\`"
   gh api --method PATCH "$repo/releases/$release_id" -f name=nightly -f body="$body" -F draft=false -F prerelease=true >/dev/null
+
+  while IFS= read -r previous_nightly_tag; do
+    gh release delete "$previous_nightly_tag" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY"
+  done < <(
+    gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isPrerelease \
+      --jq ".[] | select(.isPrerelease and (.tagName == \"nightly\" or (.tagName | startswith(\"nightly-\"))) and .tagName != \"$tag\") | .tagName"
+  )
 fi

@@ -7,13 +7,14 @@ previous_tag=
 
 if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
   channel=nightly
+  release_tag="nightly-${target_sha:0:12}"
   base_version=$(jq -r '.version' wie_app/tauri.conf.json)
   # MSI prerelease identifiers must be numeric and at most 65535; epoch days keep nightly versions monotonic.
   app_version="${base_version}-$(($(date -u +%s) / 86400))"
   asset_identity=nightly
   if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
     should_build=true
-  elif [[ $(git rev-parse --verify 'refs/tags/nightly^{commit}' 2>/dev/null || true) == "$target_sha" ]]; then
+  elif [[ $(git rev-parse --verify "refs/tags/${release_tag}^{commit}" 2>/dev/null || true) == "$target_sha" ]]; then
     should_build=false
   else
     should_build=true
@@ -21,6 +22,7 @@ if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
 elif [[ "$GITHUB_REF" =~ ^refs/tags/(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
   channel=stable
   tag=${BASH_REMATCH[1]}
+  release_tag=$tag
   app_version=${tag#v}
   asset_identity=$tag
   should_build=true
@@ -44,4 +46,5 @@ fi
   echo "target_sha=$target_sha"
   echo "app_version=$app_version"
   echo "previous_tag=$previous_tag"
+  echo "release_tag=$release_tag"
 } >> "$GITHUB_OUTPUT"
