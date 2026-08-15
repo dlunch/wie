@@ -22,6 +22,7 @@ jobs:
       should_build: ${{ steps.context.outputs.should_build }}
       target_sha: ${{ steps.context.outputs.target_sha }}
       app_version: ${{ steps.context.outputs.app_version }}
+      previous_tag: ${{ steps.context.outputs.previous_tag }}
     steps:
       - name: Checkout target
         uses: actions/checkout@v7
@@ -442,6 +443,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RUN_NUMBER: ${{ needs.context.outputs.run_number }}
       TARGET_SHA: ${{ needs.context.outputs.target_sha }}
+      PREVIOUS_TAG: ${{ needs.context.outputs.previous_tag }}
     steps:
       - name: Checkout release scripts
         uses: actions/checkout@v7

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 target_sha=$(git rev-parse 'HEAD^{commit}')
+previous_tag=
 
 if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
   channel=nightly
@@ -23,6 +24,13 @@ elif [[ "$GITHUB_REF" =~ ^refs/tags/(v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9]
   app_version=${tag#v}
   asset_identity=$tag
   should_build=true
+  while IFS= read -r candidate; do
+    [[ "$candidate" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || continue
+    if [[ "$candidate" == "$tag" ]]; then
+      break
+    fi
+    previous_tag=$candidate
+  done < <(git tag --list 'v*' --sort=version:refname)
 else
   echo "Unsupported release ref: $GITHUB_REF" >&2
   exit 1
@@ -35,4 +43,5 @@ fi
   echo "should_build=$should_build"
   echo "target_sha=$target_sha"
   echo "app_version=$app_version"
+  echo "previous_tag=$previous_tag"
 } >> "$GITHUB_OUTPUT"

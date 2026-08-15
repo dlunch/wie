@@ -27,7 +27,11 @@ if [[ "$CHANNEL" == stable ]]; then
 
   gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
-  notes=$(gh api --method POST "$repo/releases/generate-notes" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" --jq '.body')
+  generate_notes_args=(--method POST "$repo/releases/generate-notes" -f tag_name="$tag" -f target_commitish="$TARGET_SHA")
+  if [[ -n "$PREVIOUS_TAG" ]]; then
+    generate_notes_args+=(-f previous_tag_name="$PREVIOUS_TAG")
+  fi
+  notes=$(gh api "${generate_notes_args[@]}" --jq '.body')
   body="$(warning_body)
 
 ## Changes
