@@ -85,6 +85,8 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::CopyFrameBuffer => graphics::copy_frame_buffer.into_body(),
         WIPICSvcId::DrawImage => graphics::draw_image.into_body(),
         WIPICSvcId::CopyArea => graphics::copy_area.into_body(),
+        WIPICSvcId::DrawArc => graphics::draw_arc.into_body(),
+        WIPICSvcId::FillArc => graphics::fill_arc.into_body(),
         WIPICSvcId::DrawString => graphics::draw_string.into_body(),
         WIPICSvcId::GetRgbPixels => graphics::get_rgb_pixels.into_body(),
         WIPICSvcId::SetRgbPixels => graphics::set_rgb_pixels.into_body(),
@@ -141,6 +143,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::SetMuteState => media::set_mute_state.into_body(),
         WIPICSvcId::GetMuteState => media::get_mute_state.into_body(),
         WIPICSvcId::BackLight => misc::back_light.into_body(),
+        WIPICSvcId::Unk16 => unk16.into_body(),
     };
 
     EmulatedFunction::call(
@@ -389,6 +392,14 @@ async fn unk15(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u
     tracing::warn!("stub unk15({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     // media
+
+    Ok(0)
+}
+
+async fn unk16(_context: &mut dyn WIPICContext, a0: u32, a1: u32, a2: u32, a3: u32) -> Result<u32> {
+    tracing::warn!("stub unk16({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
+
+    // misc
 
     Ok(0)
 }

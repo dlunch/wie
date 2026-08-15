@@ -168,6 +168,8 @@ pub enum WIPICSvcId {
     CopyFrameBuffer = 0xd4,
     DrawImage = 0xd5,
     CopyArea = 0xd7,
+    DrawArc = 0xd8,
+    FillArc = 0xd9,
     DrawString = 0xda,
     GetRgbPixels = 0xdc,
     SetRgbPixels = 0xdd,
@@ -224,6 +226,7 @@ pub enum WIPICSvcId {
     SetMuteState = 0x4d1,
     GetMuteState = 0x4d2,
     BackLight = 0x578,
+    Unk16 = 0x581,
 }
 
 impl TryFrom<SvcId> for WIPICSvcId {
@@ -271,6 +274,8 @@ impl TryFrom<SvcId> for WIPICSvcId {
             0xd4 => Self::CopyFrameBuffer,
             0xd5 => Self::DrawImage,
             0xd7 => Self::CopyArea,
+            0xd8 => Self::DrawArc,
+            0xd9 => Self::FillArc,
             0xda => Self::DrawString,
             0xdc => Self::GetRgbPixels,
             0xdd => Self::SetRgbPixels,
@@ -327,6 +332,7 @@ impl TryFrom<SvcId> for WIPICSvcId {
             0x4d1 => Self::SetMuteState,
             0x4d2 => Self::GetMuteState,
             0x578 => Self::BackLight,
+            0x581 => Self::Unk16,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown LGT WIPIC SVC id {}", value.0))),
         })
     }
