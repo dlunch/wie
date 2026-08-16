@@ -70,7 +70,7 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
     tracing::trace!("load_java_class({ptr_target:#x}, {ptr_name:#x})");
 
     let name_bytes = read_null_terminated_string_bytes(core, ptr_name)?;
-    let name = encoding_rs::EUC_KR.decode(&name_bytes).0;
+    let name = String::from_utf8_lossy(&name_bytes).to_string();
     let class = jvm.resolve_class(&name).await;
 
     if let Ok(x) = class {
@@ -89,7 +89,7 @@ pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord
     tracing::warn!("java_throw({ptr_error:#x}, {a1})");
 
     let error_bytes = read_null_terminated_string_bytes(core, ptr_error)?;
-    let error = encoding_rs::EUC_KR.decode(&error_bytes).0;
+    let error = String::from_utf8_lossy(&error_bytes).to_string();
 
     let exception = match jvm.new_class(&error, "()V", ()).await {
         Ok(x) => x,
