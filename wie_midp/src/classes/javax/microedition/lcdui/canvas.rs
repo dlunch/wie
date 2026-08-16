@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::ClassAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -21,28 +21,32 @@ impl Canvas {
             parent_class: Some("javax/microedition/lcdui/Displayable"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
-                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
-                JavaMethodProto::new_abstract("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Default::default()),
-                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, Default::default()),
-                JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, Default::default()),
-                JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, Default::default()),
-                JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, Default::default()),
-                JavaMethodProto::new("setFullScreenMode", "(Z)V", Self::set_full_screen_mode, Default::default()),
-                JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new_abstract(
+                    "paint",
+                    "(Ljavax/microedition/lcdui/Graphics;)V",
+                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
+                ),
+                JavaMethodProto::new("getGameAction", "(I)I", Self::get_game_action, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("keyPressed", "(I)V", Self::key_pressed, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("keyRepeated", "(I)V", Self::key_repeated, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("keyReleased", "(I)V", Self::key_released, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("setFullScreenMode", "(Z)V", Self::set_full_screen_mode, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, MethodAccessFlags::PUBLIC),
                 // wie private methods
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
+                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "handlePaintEvent",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     Self::handle_paint_event,
-                    Default::default(),
+                    MethodAccessFlags::empty(),
                 ),
             ],
             fields: vec![],
-            access_flags: ClassAccessFlags::ABSTRACT,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 
@@ -60,7 +64,9 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?})");
 
         let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-        let _: () = jvm.invoke_virtual(&display, "repaint", "(IIII)V", (0, 0, -1, -1)).await?;
+        let _: () = jvm
+            .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
+            .await?;
 
         Ok(())
     }
@@ -77,7 +83,9 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?}, {x}, {y}, {width}, {height})");
 
         let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-        let _: () = jvm.invoke_virtual(&display, "repaint", "(IIII)V", (x, y, width, height)).await?;
+        let _: () = jvm
+            .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (x, y, width, height))
+            .await?;
 
         Ok(())
     }
@@ -87,7 +95,9 @@ impl Canvas {
 
         let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         if !display.is_null() {
-            let _: () = jvm.invoke_virtual(&display, "handlePaintEvent", "()V", ()).await?;
+            let _: () = jvm
+                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                .await?;
         }
 
         Ok(())
@@ -136,7 +146,9 @@ impl Canvas {
 
         let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         if !display.is_null() {
-            let _: () = jvm.invoke_virtual(&display, "setFullscreen", "(Z)V", (mode,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "setFullscreen", "(Z)V", (mode,))
+                .await?;
         }
 
         jvm.put_field(&mut this, "isInFullScreenMode", "Z", mode).await?;
@@ -160,9 +172,18 @@ impl Canvas {
         };
 
         let _: () = match event_type {
-            KeyboardEventType::KeyPressed => jvm.invoke_virtual(&this, "keyPressed", "(I)V", (code,)).await,
-            KeyboardEventType::KeyReleased => jvm.invoke_virtual(&this, "keyReleased", "(I)V", (code,)).await,
-            KeyboardEventType::KeyRepeated => jvm.invoke_virtual(&this, "keyRepeated", "(I)V", (code,)).await,
+            KeyboardEventType::KeyPressed => {
+                jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "keyPressed", "(I)V", (code,))
+                    .await
+            }
+            KeyboardEventType::KeyReleased => {
+                jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "keyReleased", "(I)V", (code,))
+                    .await
+            }
+            KeyboardEventType::KeyRepeated => {
+                jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "keyRepeated", "(I)V", (code,))
+                    .await
+            }
             _ => unimplemented!(),
         }?;
 
@@ -178,7 +199,13 @@ impl Canvas {
         tracing::debug!("javax.microedition.lcdui.Canvas::handlePaintEvent({this:?}, {graphics:?})");
 
         let _: () = jvm
-            .invoke_virtual(&this, "paint", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics,))
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Canvas",
+                "paint",
+                "(Ljavax/microedition/lcdui/Graphics;)V",
+                (graphics,),
+            )
             .await?;
 
         Ok(())

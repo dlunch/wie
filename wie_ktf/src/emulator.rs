@@ -140,6 +140,7 @@ impl KtfEmulator {
         let _main_class: Box<dyn ClassInstance> = jvm
             .invoke_virtual(
                 &class_loader,
+                "net/wie/KtfClassLoader",
                 "loadClass",
                 "(Ljava/lang/String;)Ljava/lang/Class;",
                 (main_class_name_java.clone(),),

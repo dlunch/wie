@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -18,13 +19,18 @@ impl Alert {
             parent_class: Some("javax/microedition/lcdui/Screen"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
-                JavaMethodProto::new("setType", "(Ljavax/microedition/lcdui/AlertType;)V", Self::set_type, Default::default()),
-                JavaMethodProto::new("setTimeout", "(I)V", Self::set_timeout, Default::default()),
-                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "setType",
+                    "(Ljavax/microedition/lcdui/AlertType;)V",
+                    Self::set_type,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("setTimeout", "(I)V", Self::set_timeout, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

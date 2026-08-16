@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::{
     io::{DataInputStream, DataOutputStream, FileDescriptor, InputStream, OutputStream},
     lang::String,
@@ -43,47 +44,52 @@ impl File {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default()),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, Default::default()),
-                JavaMethodProto::new("write", "([B)I", Self::write, Default::default()),
-                JavaMethodProto::new("write", "([BII)I", Self::write_with_offset_length, Default::default()),
-                JavaMethodProto::new("read", "([B)I", Self::read, Default::default()),
-                JavaMethodProto::new("read", "([BII)I", Self::read_with_offset_length, Default::default()),
-                JavaMethodProto::new("seek", "(I)V", Self::seek, Default::default()),
-                JavaMethodProto::new("close", "()V", Self::close, Default::default()),
-                JavaMethodProto::new("sizeOf", "()I", Self::size_of, Default::default()),
-                JavaMethodProto::new("openInputStream", "()Ljava/io/InputStream;", Self::open_input_stream, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init_with_flag, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("write", "([B)I", Self::write, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("write", "([BII)I", Self::write_with_offset_length, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("read", "([B)I", Self::read, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("read", "([BII)I", Self::read_with_offset_length, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("seek", "(I)V", Self::seek, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("sizeOf", "()I", Self::size_of, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "openInputStream",
+                    "()Ljava/io/InputStream;",
+                    Self::open_input_stream,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "openDataInputStream",
                     "()Ljava/io/DataInputStream;",
                     Self::open_data_input_stream,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "openOutputStream",
                     "()Ljava/io/OutputStream;",
                     Self::open_output_stream,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "openDataOutputStream",
                     "()Ljava/io/DataOutputStream;",
                     Self::open_data_output_stream,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("write", "(I)I", Self::write_byte, Default::default()),
-                JavaMethodProto::new("read", "()I", Self::read_byte, Default::default()),
-                JavaMethodProto::new("tell", "()I", Self::tell, Default::default()),
+                JavaMethodProto::new("write", "(I)I", Self::write_byte, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("read", "()I", Self::read_byte, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("tell", "()I", Self::tell, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("file", "Ljava/io/File;", Default::default()),
-                JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", Default::default()),
-                JavaFieldProto::new("inputStream", "Ljava/io/InputStream;", Default::default()),
-                JavaFieldProto::new("mode", "I", Default::default()),
-                JavaFieldProto::new("closed", "Z", Default::default()),
-                JavaFieldProto::new("outputStreamOpen", "Z", Default::default()),
+                JavaFieldProto::new("file", "Ljava/io/File;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("raf", "Ljava/io/RandomAccessFile;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("inputStream", "Ljava/io/InputStream;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("mode", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("closed", "Z", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("outputStreamOpen", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -138,10 +144,12 @@ impl File {
         let raf = raf.unwrap();
 
         if mode == Mode::WRITE_TRUNC {
-            let _: () = jvm.invoke_virtual(&raf, "setLength", "(J)V", (0i64,)).await?;
+            let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "setLength", "(J)V", (0i64,)).await?;
         }
 
-        let descriptor: ClassInstanceRef<FileDescriptor> = jvm.invoke_virtual(&raf, "getFD", "()Ljava/io/FileDescriptor;", ()).await?;
+        let descriptor: ClassInstanceRef<FileDescriptor> = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "getFD", "()Ljava/io/FileDescriptor;", ())
+            .await?;
         let input_stream: ClassInstanceRef<InputStream> = jvm
             .new_class("java/io/FileInputStream", "(Ljava/io/FileDescriptor;)V", (descriptor,))
             .await?
@@ -160,7 +168,8 @@ impl File {
     async fn write(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
         let length = jvm.array_length(&buf).await? as i32;
 
-        jvm.invoke_virtual(&this, "write", "([BII)I", (buf, 0, length)).await
+        jvm.invoke_virtual(&this, "org/kwis/msp/io/File", "write", "([BII)I", (buf, 0, length))
+            .await
     }
 
     async fn write_with_offset_length(
@@ -174,7 +183,9 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::write({this:?}, {buf:?}, {offset:?}, {len:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (buf, offset, len)).await?;
+        let _: () = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buf, offset, len))
+            .await?;
 
         Ok(0)
     }
@@ -183,7 +194,9 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::seek({this:?}, {pos:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let _: () = jvm.invoke_virtual(&raf, "seek", "(J)V", (pos as i64,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "seek", "(J)V", (pos as i64,))
+            .await?;
 
         Ok(())
     }
@@ -191,7 +204,8 @@ impl File {
     async fn read(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, buf: ClassInstanceRef<Array<i8>>) -> JvmResult<i32> {
         let length = jvm.array_length(&buf).await? as i32;
 
-        jvm.invoke_virtual(&this, "read", "([BII)I", (buf, 0, length)).await
+        jvm.invoke_virtual(&this, "org/kwis/msp/io/File", "read", "([BII)I", (buf, 0, length))
+            .await
     }
 
     async fn read_with_offset_length(
@@ -205,7 +219,9 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::read({this:?}, {buf:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let read = jvm.invoke_virtual(&raf, "read", "([BII)I", (buf, offset, length)).await?;
+        let read = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (buf, offset, length))
+            .await?;
 
         Ok(read)
     }
@@ -219,7 +235,7 @@ impl File {
         }
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let _: () = jvm.invoke_virtual(&raf, "close", "()V", ()).await?;
+        let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "close", "()V", ()).await?;
         jvm.put_field(&mut this, "closed", "Z", true).await?;
 
         Ok(())
@@ -229,7 +245,7 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::sizeOf({this:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
+        let length: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "length", "()J", ()).await?;
 
         Ok(length as _)
     }
@@ -250,7 +266,9 @@ impl File {
     async fn open_data_input_stream(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<DataInputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openDataInputStream({this:?})");
 
-        let input_stream: ClassInstanceRef<InputStream> = jvm.invoke_virtual(&this, "openInputStream", "()Ljava/io/InputStream;", ()).await?;
+        let input_stream: ClassInstanceRef<InputStream> = jvm
+            .invoke_virtual(&this, "org/kwis/msp/io/File", "openInputStream", "()Ljava/io/InputStream;", ())
+            .await?;
         let data_input_stream = jvm
             .new_class("java/io/DataInputStream", "(Ljava/io/InputStream;)V", (input_stream,))
             .await?;
@@ -291,7 +309,9 @@ impl File {
     ) -> JvmResult<ClassInstanceRef<DataOutputStream>> {
         tracing::debug!("org.kwis.msp.io.File::openDataOutputStream({this:?})");
 
-        let output_stream: ClassInstanceRef<OutputStream> = jvm.invoke_virtual(&this, "openOutputStream", "()Ljava/io/OutputStream;", ()).await?;
+        let output_stream: ClassInstanceRef<OutputStream> = jvm
+            .invoke_virtual(&this, "org/kwis/msp/io/File", "openOutputStream", "()Ljava/io/OutputStream;", ())
+            .await?;
         let data_output_stream = jvm
             .new_class("java/io/DataOutputStream", "(Ljava/io/OutputStream;)V", (output_stream,))
             .await?;
@@ -306,7 +326,9 @@ impl File {
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (buffer, 0, 1)).await?;
+        let _: () = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buffer, 0, 1))
+            .await?;
 
         Ok(1)
     }
@@ -316,7 +338,9 @@ impl File {
 
         let buffer = jvm.instantiate_array("B", 1).await?;
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let read: i32 = jvm.invoke_virtual(&raf, "read", "([BII)I", (buffer.clone(), 0, 1)).await?;
+        let read: i32 = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (buffer.clone(), 0, 1))
+            .await?;
         if read <= 0 {
             return Ok(-1);
         }
@@ -331,7 +355,7 @@ impl File {
         tracing::debug!("org.kwis.msp.io.File::tell({this:?})");
 
         let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let position: i64 = jvm.invoke_virtual(&raf, "getFilePointer", "()J", ()).await?;
+        let position: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "getFilePointer", "()J", ()).await?;
 
         Ok(position as i32)
     }
@@ -364,78 +388,89 @@ mod test {
                     .await?
                     .into();
 
-                let initial: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
+                let initial: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "tell", "()I", ()).await?;
                 assert_eq!(initial, 0);
 
-                let written: i32 = jvm.invoke_virtual(&file, "write", "(I)I", (0xfe,)).await?;
+                let written: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "write", "(I)I", (0xfe,)).await?;
                 assert_eq!(written, 1);
-                let after_write: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
+                let after_write: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "tell", "()I", ()).await?;
                 assert_eq!(after_write, 1);
 
-                let _: () = jvm.invoke_virtual(&file, "seek", "(I)V", (0,)).await?;
-                let value: i32 = jvm.invoke_virtual(&file, "read", "()I", ()).await?;
-                let eof: i32 = jvm.invoke_virtual(&file, "read", "()I", ()).await?;
+                let _: () = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "seek", "(I)V", (0,)).await?;
+                let value: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "read", "()I", ()).await?;
+                let eof: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "read", "()I", ()).await?;
                 assert_eq!(value, 0xfe);
                 assert_eq!(eof, -1);
 
-                let _: () = jvm.invoke_virtual(&file, "seek", "(I)V", (1,)).await?;
-                let output: ClassInstanceRef<OutputStream> = jvm.invoke_virtual(&file, "openOutputStream", "()Ljava/io/OutputStream;", ()).await?;
-                let _: () = jvm.invoke_virtual(&output, "write", "(I)V", (0xab,)).await?;
-                let after_output_write: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
+                let _: () = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "seek", "(I)V", (1,)).await?;
+                let output: ClassInstanceRef<OutputStream> = jvm
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "openOutputStream", "()Ljava/io/OutputStream;", ())
+                    .await?;
+                let _: () = jvm.invoke_virtual(&output, "java/io/OutputStream", "write", "(I)V", (0xab,)).await?;
+                let after_output_write: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "tell", "()I", ()).await?;
                 assert_eq!(after_output_write, 2);
 
                 let second_open: JvmResult<ClassInstanceRef<DataOutputStream>> = jvm
-                    .invoke_virtual(&file, "openDataOutputStream", "()Ljava/io/DataOutputStream;", ())
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "openDataOutputStream", "()Ljava/io/DataOutputStream;", ())
                     .await;
                 let Err(JavaError::JavaException(exception)) = second_open else {
                     panic!("concurrent data output stream opened");
                 };
                 assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
-                let _: () = jvm.invoke_virtual(&output, "close", "()V", ()).await?;
-                let closed_write: JvmResult<()> = jvm.invoke_virtual(&output, "write", "(I)V", (0xff,)).await;
+                let _: () = jvm.invoke_virtual(&output, "java/io/OutputStream", "close", "()V", ()).await?;
+                let closed_write: JvmResult<()> = jvm.invoke_virtual(&output, "java/io/OutputStream", "write", "(I)V", (0xff,)).await;
                 let Err(JavaError::JavaException(exception)) = closed_write else {
                     panic!("closed output stream accepted a write");
                 };
                 assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
                 let data_output: ClassInstanceRef<DataOutputStream> = jvm
-                    .invoke_virtual(&file, "openDataOutputStream", "()Ljava/io/DataOutputStream;", ())
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "openDataOutputStream", "()Ljava/io/DataOutputStream;", ())
                     .await?;
-                let _: () = jvm.invoke_virtual(&output, "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&output, "java/io/OutputStream", "close", "()V", ()).await?;
 
-                let second_open: JvmResult<ClassInstanceRef<OutputStream>> =
-                    jvm.invoke_virtual(&file, "openOutputStream", "()Ljava/io/OutputStream;", ()).await;
+                let second_open: JvmResult<ClassInstanceRef<OutputStream>> = jvm
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "openOutputStream", "()Ljava/io/OutputStream;", ())
+                    .await;
                 let Err(JavaError::JavaException(exception)) = second_open else {
                     panic!("closed old stream released the active data output stream");
                 };
                 assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
-                let _: () = jvm.invoke_virtual(&data_output, "writeByte", "(I)V", (0xcd,)).await?;
-                let after_data_output_write: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
-                assert_eq!(after_data_output_write, 3);
-                let _: () = jvm.invoke_virtual(&data_output, "close", "()V", ()).await?;
-
-                let _: () = jvm.invoke_virtual(&file, "seek", "(I)V", (0,)).await?;
-                let data_input: ClassInstanceRef<DataInputStream> = jvm
-                    .invoke_virtual(&file, "openDataInputStream", "()Ljava/io/DataInputStream;", ())
+                let _: () = jvm
+                    .invoke_virtual(&data_output, "java/io/DataOutputStream", "writeByte", "(I)V", (0xcd,))
                     .await?;
-                let prefix: i32 = jvm.invoke_virtual(&data_input, "readUnsignedShort", "()I", ()).await?;
+                let after_data_output_write: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "tell", "()I", ()).await?;
+                assert_eq!(after_data_output_write, 3);
+                let _: () = jvm.invoke_virtual(&data_output, "java/io/DataOutputStream", "close", "()V", ()).await?;
+
+                let _: () = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "seek", "(I)V", (0,)).await?;
+                let data_input: ClassInstanceRef<DataInputStream> = jvm
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "openDataInputStream", "()Ljava/io/DataInputStream;", ())
+                    .await?;
+                let prefix: i32 = jvm
+                    .invoke_virtual(&data_input, "java/io/DataInputStream", "readUnsignedShort", "()I", ())
+                    .await?;
                 assert_eq!(prefix, 0xfeab);
-                let after_input_read: i32 = jvm.invoke_virtual(&file, "tell", "()I", ()).await?;
+                let after_input_read: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "tell", "()I", ()).await?;
                 assert_eq!(after_input_read, 2);
-                let trailing: i32 = jvm.invoke_virtual(&file, "read", "()I", ()).await?;
+                let trailing: i32 = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "read", "()I", ()).await?;
                 assert_eq!(trailing, 0xcd);
 
-                let reopened: ClassInstanceRef<OutputStream> = jvm.invoke_virtual(&file, "openOutputStream", "()Ljava/io/OutputStream;", ()).await?;
-                let _: () = jvm.invoke_virtual(&reopened, "close", "()V", ()).await?;
+                let reopened: ClassInstanceRef<OutputStream> = jvm
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "openOutputStream", "()Ljava/io/OutputStream;", ())
+                    .await?;
+                let _: () = jvm.invoke_virtual(&reopened, "java/io/OutputStream", "close", "()V", ()).await?;
 
-                let _: () = jvm.invoke_virtual(&file, "seek", "(I)V", (0,)).await?;
+                let _: () = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "seek", "(I)V", (0,)).await?;
                 let bytes = jvm.instantiate_array("B", 3).await?;
-                let read: i32 = jvm.invoke_virtual(&file, "read", "([B)I", (bytes.clone(),)).await?;
+                let read: i32 = jvm
+                    .invoke_virtual(&file, "org/kwis/msp/io/File", "read", "([B)I", (bytes.clone(),))
+                    .await?;
                 assert_eq!(read, 3);
                 assert_eq!(jvm.load_array::<i8>(&bytes, 0, 3).await?, [-2i8, -85, -51]);
-                let _: () = jvm.invoke_virtual(&file, "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&file, "org/kwis/msp/io/File", "close", "()V", ()).await?;
 
                 Ok(())
             },
@@ -456,22 +491,29 @@ mod test {
                     )
                     .await?
                     .into();
-                let _: i32 = jvm.invoke_virtual(&writable, "write", "(I)I", (1,)).await?;
-                let _: () = jvm.invoke_virtual(&writable, "close", "()V", ()).await?;
+                let _: i32 = jvm.invoke_virtual(&writable, "org/kwis/msp/io/File", "write", "(I)I", (1,)).await?;
+                let _: () = jvm.invoke_virtual(&writable, "org/kwis/msp/io/File", "close", "()V", ()).await?;
 
                 let read_only: ClassInstanceRef<File> = jvm
                     .new_class("org/kwis/msp/io/File", "(Ljava/lang/String;I)V", (filename, Mode::READ_ONLY as i32))
                     .await?
                     .into();
-                let output: JvmResult<ClassInstanceRef<OutputStream>> =
-                    jvm.invoke_virtual(&read_only, "openOutputStream", "()Ljava/io/OutputStream;", ()).await;
+                let output: JvmResult<ClassInstanceRef<OutputStream>> = jvm
+                    .invoke_virtual(&read_only, "org/kwis/msp/io/File", "openOutputStream", "()Ljava/io/OutputStream;", ())
+                    .await;
                 let Err(JavaError::JavaException(exception)) = output else {
                     panic!("read-only file opened an output stream");
                 };
                 assert!(jvm.is_instance(&*exception, "java/io/IOException"));
 
                 let data_output: JvmResult<ClassInstanceRef<DataOutputStream>> = jvm
-                    .invoke_virtual(&read_only, "openDataOutputStream", "()Ljava/io/DataOutputStream;", ())
+                    .invoke_virtual(
+                        &read_only,
+                        "org/kwis/msp/io/File",
+                        "openDataOutputStream",
+                        "()Ljava/io/DataOutputStream;",
+                        (),
+                    )
                     .await;
                 let Err(JavaError::JavaException(exception)) = data_output else {
                     panic!("read-only file opened a data output stream");
@@ -483,11 +525,12 @@ mod test {
                     .new_class("org/kwis/msp/io/File", "(Ljava/lang/String;I)V", (filename, Mode::WRITE_TRUNC as i32))
                     .await?
                     .into();
-                let _: () = jvm.invoke_virtual(&closed, "close", "()V", ()).await?;
-                let _: () = jvm.invoke_virtual(&closed, "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&closed, "org/kwis/msp/io/File", "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&closed, "org/kwis/msp/io/File", "close", "()V", ()).await?;
 
-                let output: JvmResult<ClassInstanceRef<OutputStream>> =
-                    jvm.invoke_virtual(&closed, "openOutputStream", "()Ljava/io/OutputStream;", ()).await;
+                let output: JvmResult<ClassInstanceRef<OutputStream>> = jvm
+                    .invoke_virtual(&closed, "org/kwis/msp/io/File", "openOutputStream", "()Ljava/io/OutputStream;", ())
+                    .await;
                 let Err(JavaError::JavaException(exception)) = output else {
                     panic!("closed file opened an output stream");
                 };

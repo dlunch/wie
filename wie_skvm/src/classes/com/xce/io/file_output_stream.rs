@@ -68,10 +68,12 @@ impl FileOutputStream {
         let file: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, WRITE)).await?.into();
         if truncate {
             let raf = XFile::raf(jvm, file.clone()).await?;
-            let _: () = jvm.invoke_virtual(&raf, "setLength", "(J)V", (0_i64,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&raf, "java/io/RandomAccessFile", "setLength", "(J)V", (0_i64,))
+                .await?;
         }
         let whence = if !truncate && existed { SEEK_END } else { SEEK_SET };
-        let _: i32 = jvm.invoke_virtual(&file, "seek", "(II)I", (0, whence)).await?;
+        let _: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "seek", "(II)I", (0, whence)).await?;
         jvm.put_field(&mut this, "file", "Lcom/xce/io/XFile;", file).await?;
 
         Ok(())
@@ -126,7 +128,7 @@ impl FileOutputStream {
         let mut buffer = jvm.instantiate_array("B", 1).await?;
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
         let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
-        let _: i32 = jvm.invoke_virtual(&file, "write", "([BII)I", (buffer, 0, 1)).await?;
+        let _: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (buffer, 0, 1)).await?;
 
         Ok(())
     }
@@ -153,7 +155,9 @@ impl FileOutputStream {
         }
 
         let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
-        let _: i32 = jvm.invoke_virtual(&file, "write", "([BII)I", (buffer, offset, length)).await?;
+        let _: i32 = jvm
+            .invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (buffer, offset, length))
+            .await?;
 
         Ok(())
     }
@@ -162,7 +166,7 @@ impl FileOutputStream {
         tracing::debug!("com.xce.io.FileOutputStream::close({this:?})");
 
         let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
-        let _: () = jvm.invoke_virtual(&file, "close", "()V", ()).await?;
+        let _: () = jvm.invoke_virtual(&file, "com/xce/io/XFile", "close", "()V", ()).await?;
 
         Ok(())
     }
@@ -171,7 +175,7 @@ impl FileOutputStream {
         tracing::debug!("com.xce.io.FileOutputStream::flush({this:?})");
 
         let file: ClassInstanceRef<XFile> = jvm.get_field(&this, "file", "Lcom/xce/io/XFile;").await?;
-        let _: () = jvm.invoke_virtual(&file, "flush", "()V", ()).await?;
+        let _: () = jvm.invoke_virtual(&file, "com/xce/io/XFile", "flush", "()V", ()).await?;
 
         Ok(())
     }

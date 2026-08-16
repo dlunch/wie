@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -20,65 +20,75 @@ impl Image {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init_empty, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init_empty, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init, MethodAccessFlags::PRIVATE),
                 JavaMethodProto::new(
                     "loadImage",
                     "(Ljava/lang/String;Lorg/kwis/msp/lcdui/ImageObserver;)Lorg/kwis/msp/lcdui/Image;",
                     Self::load_image,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(II)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image_from_name,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "([BII)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image_from_data,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(Lorg/kwis/msp/lcdui/Image;)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_image_from_image,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", Self::get_graphics, Default::default()),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
-                JavaMethodProto::new("isMutable", "()Z", Self::is_mutable, Default::default()),
-                JavaMethodProto::new("isAnimated", "()Z", Self::is_animated, Default::default()),
-                JavaMethodProto::new("play", "(Lorg/kwis/msp/lcdui/ImageObserver;)V", Self::play, Default::default()),
-                JavaMethodProto::new("stop", "()V", Self::stop, Default::default()),
+                JavaMethodProto::new(
+                    "getGraphics",
+                    "()Lorg/kwis/msp/lcdui/Graphics;",
+                    Self::get_graphics,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isMutable", "()Z", Self::is_mutable, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isAnimated", "()Z", Self::is_animated, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("play", "(Lorg/kwis/msp/lcdui/ImageObserver;)V", Self::play, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("stop", "()V", Self::stop, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "stopImage",
                     "(Lorg/kwis/msp/lcdui/ImageObserver;)V",
                     Self::stop_image,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;IIIIIIII)V", Self::draw_image, Default::default()),
+                JavaMethodProto::new(
+                    "drawImage",
+                    "(Lorg/kwis/msp/lcdui/Image;IIIIIIII)V",
+                    Self::draw_image,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "createSubImage",
                     "(IIIIZ)Lorg/kwis/msp/lcdui/Image;",
                     Self::create_sub_image,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("setTransparentColor", "(I)V", Self::set_transparent_color, Default::default()),
+                JavaMethodProto::new("setTransparentColor", "(I)V", Self::set_transparent_color, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("midpImage", "Ljavax/microedition/lcdui/Image;", Default::default()),
-                JavaFieldProto::new("mutable", "Z", Default::default()),
+                JavaFieldProto::new("midpImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("mutable", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -202,7 +212,13 @@ impl Image {
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 
         let midp_graphics: ClassInstanceRef<MidpGraphics> = jvm
-            .invoke_virtual(&midp_image, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+            .invoke_virtual(
+                &midp_image,
+                "javax/microedition/lcdui/Image",
+                "getGraphics",
+                "()Ljavax/microedition/lcdui/Graphics;",
+                (),
+            )
             .await?;
 
         let instance = jvm
@@ -217,7 +233,8 @@ impl Image {
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 
-        jvm.invoke_virtual(&midp_image, "getWidth", "()I", ()).await
+        jvm.invoke_virtual(&midp_image, "javax/microedition/lcdui/Image", "getWidth", "()I", ())
+            .await
     }
 
     async fn get_height(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<i32> {
@@ -225,7 +242,8 @@ impl Image {
 
         let midp_image: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
 
-        jvm.invoke_virtual(&midp_image, "getHeight", "()I", ()).await
+        jvm.invoke_virtual(&midp_image, "javax/microedition/lcdui/Image", "getHeight", "()I", ())
+            .await
     }
 
     async fn is_mutable(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Image>) -> JvmResult<bool> {
@@ -284,10 +302,17 @@ impl Image {
         let target: ClassInstanceRef<MidpImage> = jvm.get_field(&this, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
         let source: ClassInstanceRef<MidpImage> = jvm.get_field(&image, "midpImage", "Ljavax/microedition/lcdui/Image;").await?;
         let graphics: ClassInstanceRef<MidpGraphics> = jvm
-            .invoke_virtual(&target, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+            .invoke_virtual(
+                &target,
+                "javax/microedition/lcdui/Image",
+                "getGraphics",
+                "()Ljavax/microedition/lcdui/Graphics;",
+                (),
+            )
             .await?;
         jvm.invoke_virtual(
             &graphics,
+            "javax/microedition/lcdui/Graphics",
             "drawRegion",
             "(Ljavax/microedition/lcdui/Image;IIIIIIII)V",
             [
@@ -355,7 +380,10 @@ mod test {
             let target: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 1))
                 .await?;
-            assert!(jvm.invoke_virtual::<_, bool>(&source, "isMutable", "()Z", ()).await?);
+            assert!(
+                jvm.invoke_virtual::<_, bool>(&source, "org/kwis/msp/lcdui/Image", "isMutable", "()Z", ())
+                    .await?
+            );
 
             let clone: ClassInstanceRef<Image> = jvm
                 .invoke_static(
@@ -365,15 +393,28 @@ mod test {
                     (source.clone(),),
                 )
                 .await?;
-            assert!(!jvm.invoke_virtual::<_, bool>(&clone, "isMutable", "()Z", ()).await?);
-            assert!(!jvm.invoke_virtual::<_, bool>(&source, "isAnimated", "()Z", ()).await?);
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&clone, "org/kwis/msp/lcdui/Image", "isMutable", "()Z", ())
+                    .await?
+            );
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&source, "org/kwis/msp/lcdui/Image", "isAnimated", "()Z", ())
+                    .await?
+            );
 
-            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&source, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&source, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                .await?;
             let _: () = jvm
                 .invoke_virtual(
                     &target,
+                    "org/kwis/msp/lcdui/Image",
                     "drawImage",
                     "(Lorg/kwis/msp/lcdui/Image;IIIIIIII)V",
                     [

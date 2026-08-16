@@ -20,38 +20,51 @@ impl Jlet {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
                     "getActiveJlet",
                     "()Lorg/kwis/msp/lcdui/Jlet;",
                     Self::get_active_jlet,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getEventQueue",
                     "()Lorg/kwis/msp/lcdui/EventQueue;",
                     Self::get_event_queue,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
                 JavaMethodProto::new(
                     "getAppProperty",
                     "(Ljava/lang/String;)Ljava/lang/String;",
                     Self::get_app_property,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
-                JavaMethodProto::new("notifyDestroyed", "()V", Self::notify_destroyed, Default::default()),
-                JavaMethodProto::new_abstract("startApp", "([Ljava/lang/String;)V", MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("pauseApp", "()V", MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("resumeApp", "()V", MethodAccessFlags::ABSTRACT),
-                JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new(
+                    "notifyDestroyed",
+                    "()V",
+                    Self::notify_destroyed,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new_abstract(
+                    "startApp",
+                    "([Ljava/lang/String;)V",
+                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
+                ),
+                JavaMethodProto::new_abstract("pauseApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("resumeApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new_abstract("destroyApp", "(Z)V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
             ],
             fields: vec![
-                JavaFieldProto::new("wipiMidlet", "Lnet/wie/WIPIMIDlet;", Default::default()),
-                JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
-                JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", Default::default()),
-                JavaFieldProto::new("currentJlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("wipiMidlet", "Lnet/wie/WIPIMIDlet;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("dis", "Lorg/kwis/msp/lcdui/Display;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("eq", "Lorg/kwis/msp/lcdui/EventQueue;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new(
+                    "currentJlet",
+                    "Lorg/kwis/msp/lcdui/Jlet;",
+                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
+                ),
             ],
-            access_flags: ClassAccessFlags::ABSTRACT,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 
@@ -65,7 +78,13 @@ impl Jlet {
             .await?;
         jvm.put_field(&mut this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;", midlet.clone()).await?;
         let _: () = jvm
-            .invoke_virtual(&midlet, "setCurrentJlet", "(Lorg/kwis/msp/lcdui/Jlet;)V", (this.clone(),))
+            .invoke_virtual(
+                &midlet,
+                "net/wie/WIPIMIDlet",
+                "setCurrentJlet",
+                "(Lorg/kwis/msp/lcdui/Jlet;)V",
+                (this.clone(),),
+            )
             .await?;
 
         let display = jvm
@@ -118,7 +137,13 @@ impl Jlet {
 
         let midlet = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
         let value = jvm
-            .invoke_virtual(&midlet, "getAppProperty", "(Ljava/lang/String;)Ljava/lang/String;", (key,))
+            .invoke_virtual(
+                &midlet,
+                "net/wie/WIPIMIDlet",
+                "getAppProperty",
+                "(Ljava/lang/String;)Ljava/lang/String;",
+                (key,),
+            )
             .await?;
 
         Ok(value)
@@ -128,9 +153,11 @@ impl Jlet {
         tracing::debug!("org.kwis.msp.lcdui.Jlet::notifyDestroyed({this:?})");
 
         let midlet: ClassInstanceRef<MIDlet> = jvm.get_field(&this, "wipiMidlet", "Lnet/wie/WIPIMIDlet;").await?;
-        let _: () = jvm.invoke_virtual(&midlet, "notifyDestroyed", "()V", ()).await?;
+        let _: () = jvm.invoke_virtual(&midlet, "net/wie/WIPIMIDlet", "notifyDestroyed", "()V", ()).await?;
 
-        let _: () = jvm.invoke_virtual(&this, "destroyApp", "(Z)V", (false,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&this, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (false,))
+            .await?;
 
         Ok(())
     }

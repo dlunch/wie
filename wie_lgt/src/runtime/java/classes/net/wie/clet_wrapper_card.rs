@@ -2,6 +2,7 @@ use alloc::{string::ToString, vec};
 
 use futures::TryFutureExt;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_midp::classes::javax::microedition::lcdui::Graphics;
@@ -18,16 +19,16 @@ impl CletWrapperCard {
             parent_class: Some("org/kwis/msp/lcdui/Card"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(II)V", Self::init, Default::default()),
-                JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, Default::default()),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
-                JavaMethodProto::new("notifyEvent", "(III)V", Self::notify_event, Default::default()),
+                JavaMethodProto::new("<init>", "(II)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("notifyEvent", "(III)V", Self::notify_event, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("paintClet", "I", Default::default()),
-                JavaFieldProto::new("handleCletEvent", "I", Default::default()),
+                JavaFieldProto::new("paintClet", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

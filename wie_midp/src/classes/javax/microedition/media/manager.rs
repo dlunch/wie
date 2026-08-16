@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::{io::InputStream, lang::String};
 use jvm::{ClassInstanceRef, Jvm, Result, runtime::JavaLangString};
 
@@ -22,10 +22,10 @@ impl Manager {
                 "createPlayer",
                 "(Ljava/io/InputStream;Ljava/lang/String;)Ljavax/microedition/media/Player;",
                 Self::create_player,
-                MethodAccessFlags::STATIC,
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             )],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
         }
     }
 

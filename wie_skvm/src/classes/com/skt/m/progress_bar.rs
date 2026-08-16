@@ -80,15 +80,39 @@ mod test {
             let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "Loading").await?.into();
             let progress_bar: ClassInstanceRef<ProgressBar> = jvm.new_class("com/skt/m/ProgressBar", "(Ljava/lang/String;)V", (name,)).await?.into();
 
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&progress_bar, "getMaxValue", "()I", ()).await?, 100);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&progress_bar, "getValue", "()I", ()).await?, 0);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&progress_bar, "com/skt/m/ProgressBar", "getMaxValue", "()I", ())
+                    .await?,
+                100
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&progress_bar, "com/skt/m/ProgressBar", "getValue", "()I", ())
+                    .await?,
+                0
+            );
 
-            let _: () = jvm.invoke_virtual(&progress_bar, "setValue", "(I)V", (125,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&progress_bar, "getValue", "()I", ()).await?, 100);
+            let _: () = jvm
+                .invoke_virtual(&progress_bar, "com/skt/m/ProgressBar", "setValue", "(I)V", (125,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&progress_bar, "com/skt/m/ProgressBar", "getValue", "()I", ())
+                    .await?,
+                100
+            );
 
-            let _: () = jvm.invoke_virtual(&progress_bar, "setMaxValue", "(I)V", (40,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&progress_bar, "getMaxValue", "()I", ()).await?, 40);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&progress_bar, "getValue", "()I", ()).await?, 40);
+            let _: () = jvm
+                .invoke_virtual(&progress_bar, "com/skt/m/ProgressBar", "setMaxValue", "(I)V", (40,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&progress_bar, "com/skt/m/ProgressBar", "getMaxValue", "()I", ())
+                    .await?,
+                40
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&progress_bar, "com/skt/m/ProgressBar", "getValue", "()I", ())
+                    .await?,
+                40
+            );
             Ok(())
         });
 

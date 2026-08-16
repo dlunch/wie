@@ -99,16 +99,28 @@ impl KtfJvmSupport {
             .new_class("java/util/jar/JarFile", "(Ljava/lang/String;)V", (jar_name_java,))
             .await
             .unwrap();
-        let entries: ClassInstanceRef<Enumeration> = jvm.invoke_virtual(&jar_file, "entries", "()Ljava/util/Enumeration;", []).await.unwrap();
+        let entries: ClassInstanceRef<Enumeration> = jvm
+            .invoke_virtual(&jar_file, "java/util/jar/JarFile", "entries", "()Ljava/util/Enumeration;", [])
+            .await
+            .unwrap();
 
         let binary_name = loop {
-            let has_more_elements: bool = jvm.invoke_virtual(&entries, "hasMoreElements", "()Z", []).await.unwrap();
+            let has_more_elements: bool = jvm
+                .invoke_virtual(&entries, "java/util/Enumeration", "hasMoreElements", "()Z", [])
+                .await
+                .unwrap();
             if !has_more_elements {
                 return Err(WieError::FatalError("client.bin not found".into()));
             }
 
-            let entry: ClassInstanceRef<JarEntry> = jvm.invoke_virtual(&entries, "nextElement", "()Ljava/lang/Object;", []).await.unwrap();
-            let name = jvm.invoke_virtual(&entry, "getName", "()Ljava/lang/String;", []).await.unwrap();
+            let entry: ClassInstanceRef<JarEntry> = jvm
+                .invoke_virtual(&entries, "java/util/Enumeration", "nextElement", "()Ljava/lang/Object;", [])
+                .await
+                .unwrap();
+            let name = jvm
+                .invoke_virtual(&entry, "java/util/jar/JarEntry", "getName", "()Ljava/lang/String;", [])
+                .await
+                .unwrap();
             let name_rust = JavaLangString::to_rust_string(&jvm, &name).await.unwrap();
 
             if name_rust.starts_with("client.bin") {
@@ -270,7 +282,13 @@ mod test {
             let string2 = JavaLangString::from_rust_string(&jvm, "test2").await.unwrap();
 
             let string3 = jvm
-                .invoke_virtual(&string1, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [string2.into()])
+                .invoke_virtual(
+                    &string1,
+                    "java/lang/String",
+                    "concat",
+                    "(Ljava/lang/String;)Ljava/lang/String;",
+                    [string2.into()],
+                )
                 .await
                 .unwrap();
 
@@ -284,7 +302,7 @@ mod test {
 
             // test 64bit parameter passing
             let date = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();
-            let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
+            let time: i64 = jvm.invoke_virtual(&date, "java/util/Date", "getTime", "()J", ()).await.unwrap();
 
             assert_eq!(time, 0x12345678_abcdef01);
 

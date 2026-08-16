@@ -168,9 +168,17 @@ impl XFile {
         jvm.put_field(&mut this, "offset", "I", 0).await?;
 
         if mode == READ_RESOURCE {
-            let class = jvm.invoke_virtual(&this, "getClass", "()Ljava/lang/Class;", ()).await?;
+            let class = jvm
+                .invoke_virtual(&this, "com/xce/io/XFile", "getClass", "()Ljava/lang/Class;", ())
+                .await?;
             let resource_stream: ClassInstanceRef<InputStream> = jvm
-                .invoke_virtual(&class, "getResourceAsStream", "(Ljava/lang/String;)Ljava/io/InputStream;", (name,))
+                .invoke_virtual(
+                    &class,
+                    "java/lang/Class",
+                    "getResourceAsStream",
+                    "(Ljava/lang/String;)Ljava/io/InputStream;",
+                    (name,),
+                )
                 .await?;
             if resource_stream.is_null() {
                 return Err(jvm.exception("java/io/IOException", "Resource not found").await);
@@ -200,7 +208,9 @@ impl XFile {
                 .new_class("java/io/RandomAccessFile", "(Ljava/io/File;Ljava/lang/String;)V", (file, file_mode))
                 .await?
                 .into();
-            let descriptor: ClassInstanceRef<FileDescriptor> = jvm.invoke_virtual(&raf, "getFD", "()Ljava/io/FileDescriptor;", ()).await?;
+            let descriptor: ClassInstanceRef<FileDescriptor> = jvm
+                .invoke_virtual(&raf, "java/io/RandomAccessFile", "getFD", "()Ljava/io/FileDescriptor;", ())
+                .await?;
             let fd: i32 = jvm.get_field(&descriptor, "fd", "I").await?;
 
             jvm.put_field(&mut this, "type", "I", NORMAL).await?;
@@ -241,7 +251,7 @@ impl XFile {
         }
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
-        let exists = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
+        let exists = jvm.invoke_virtual(&file, "java/io/File", "exists", "()Z", ()).await?;
 
         Ok(exists)
     }
@@ -258,11 +268,11 @@ impl XFile {
         }
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
-        let exists: bool = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
+        let exists: bool = jvm.invoke_virtual(&file, "java/io/File", "exists", "()Z", ()).await?;
         if !exists {
             return Err(jvm.exception("java/io/IOException", "File not found").await);
         }
-        let size: i64 = jvm.invoke_virtual(&file, "length", "()J", ()).await?;
+        let size: i64 = jvm.invoke_virtual(&file, "java/io/File", "length", "()J", ()).await?;
         if size < 0 || size > i32::MAX as i64 {
             return Err(jvm.exception("java/io/IOException", "File is too large").await);
         }
@@ -282,7 +292,7 @@ impl XFile {
         }
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
-        let deleted: bool = jvm.invoke_virtual(&file, "delete", "()Z", ()).await?;
+        let deleted: bool = jvm.invoke_virtual(&file, "java/io/File", "delete", "()Z", ()).await?;
         if !deleted {
             return Err(jvm.exception("java/io/IOException", "Unable to delete file").await);
         }
@@ -303,13 +313,13 @@ impl XFile {
             if is.is_null() {
                 return Err(jvm.exception("java/io/IOException", "File is not open for reading").await);
             }
-            let available = jvm.invoke_virtual(&is, "available", "()I", ()).await?;
+            let available = jvm.invoke_virtual(&is, "java/io/InputStream", "available", "()I", ()).await?;
 
             Ok(available)
         } else {
             let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-            let file_length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
-            let file_pointer: i64 = jvm.invoke_virtual(&raf, "getFilePointer", "()J", ()).await?;
+            let file_length: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "length", "()J", ()).await?;
+            let file_pointer: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "getFilePointer", "()J", ()).await?;
 
             Ok((file_length - file_pointer).clamp(0, i32::MAX as i64) as i32)
         }
@@ -344,14 +354,16 @@ impl XFile {
                 return Err(jvm.exception("java/io/IOException", "File is not open for reading").await);
             }
 
-            jvm.invoke_virtual(&is, "read", "([BII)I", (data, offset, length)).await?
+            jvm.invoke_virtual(&is, "java/io/InputStream", "read", "([BII)I", (data, offset, length))
+                .await?
         } else {
             if mode != READ && mode != READ_WRITE {
                 return Err(jvm.exception("java/io/IOException", "File is not open for reading").await);
             }
             let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
 
-            jvm.invoke_virtual(&raf, "read", "([BII)I", (data, offset, length)).await?
+            jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "read", "([BII)I", (data, offset, length))
+                .await?
         };
 
         if read > 0 {
@@ -390,13 +402,17 @@ impl XFile {
             if os.is_null() {
                 return Err(jvm.exception("java/io/IOException", "File is not open for writing").await);
             }
-            let _: () = jvm.invoke_virtual(&os, "write", "([BII)V", (data, offset, length)).await?;
+            let _: () = jvm
+                .invoke_virtual(&os, "java/io/OutputStream", "write", "([BII)V", (data, offset, length))
+                .await?;
         } else {
             if mode != WRITE && mode != READ_WRITE {
                 return Err(jvm.exception("java/io/IOException", "File is not open for writing").await);
             }
             let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-            let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (data, offset, length)).await?;
+            let _: () = jvm
+                .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (data, offset, length))
+                .await?;
         }
 
         let old_offset: i32 = jvm.get_field(&this, "offset", "I").await?;
@@ -414,10 +430,10 @@ impl XFile {
             return Ok(());
         } else if mode == READ_RESOURCE {
             let is: ClassInstanceRef<InputStream> = jvm.get_field(&this, "is", "Ljava/io/InputStream;").await?;
-            let _: () = jvm.invoke_virtual(&is, "close", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&is, "java/io/InputStream", "close", "()V", ()).await?;
         } else {
             let raf = jvm.get_field(&this, "raf", "Ljava/io/RandomAccessFile;").await?;
-            let _: () = jvm.invoke_virtual(&raf, "close", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "close", "()V", ()).await?;
         }
 
         Ok(())
@@ -432,7 +448,7 @@ impl XFile {
             if os.is_null() {
                 return Err(jvm.exception("java/io/IOException", "File is not open for writing").await);
             }
-            let _: () = jvm.invoke_virtual(&os, "flush", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&os, "java/io/OutputStream", "flush", "()V", ()).await?;
         }
 
         Ok(())
@@ -451,11 +467,11 @@ impl XFile {
         let new_pos = match whence {
             SEEK_SET => Some(n as i64),
             SEEK_CUR => {
-                let current: i64 = jvm.invoke_virtual(&raf, "getFilePointer", "()J", ()).await?;
+                let current: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "getFilePointer", "()J", ()).await?;
                 current.checked_add(n as i64)
             }
             SEEK_END => {
-                let length: i64 = jvm.invoke_virtual(&raf, "length", "()J", ()).await?;
+                let length: i64 = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "length", "()J", ()).await?;
                 length.checked_add(n as i64)
             }
             _ => return Err(jvm.exception("java/io/IOException", "Invalid whence").await),
@@ -467,7 +483,7 @@ impl XFile {
             return Err(jvm.exception("java/io/IOException", "Invalid seek position").await);
         }
 
-        let _: () = jvm.invoke_virtual(&raf, "seek", "(J)V", (new_pos,)).await?;
+        let _: () = jvm.invoke_virtual(&raf, "java/io/RandomAccessFile", "seek", "(J)V", (new_pos,)).await?;
         jvm.put_field(&mut this, "offset", "I", new_pos as i32).await?;
 
         Ok(new_pos as i32)
@@ -554,14 +570,16 @@ mod tests {
 
                 let mut source = jvm.instantiate_array("B", 4).await?;
                 jvm.store_array(&mut source, 0, [10_i8, 20, 30, 40]).await?;
-                let written: i32 = jvm.invoke_virtual(&file, "write", "([BII)I", (source, 1, 2)).await?;
+                let written: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (source, 1, 2)).await?;
                 assert_eq!(written, 2);
 
-                let position: i32 = jvm.invoke_virtual(&file, "seek", "(II)I", (0, seek_set)).await?;
+                let position: i32 = jvm.invoke_virtual(&file, "com/xce/io/XFile", "seek", "(II)I", (0, seek_set)).await?;
                 assert_eq!(position, 0);
 
                 let target: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 4).await?.into();
-                let read: i32 = jvm.invoke_virtual(&file, "read", "([BII)I", (target.clone(), 1, 2)).await?;
+                let read: i32 = jvm
+                    .invoke_virtual(&file, "com/xce/io/XFile", "read", "([BII)I", (target.clone(), 1, 2))
+                    .await?;
                 assert_eq!(read, 2);
                 assert_eq!(jvm.load_array::<i8>(&target, 0, 4).await?, [0, 20, 30, 0]);
 
@@ -584,31 +602,56 @@ mod tests {
                     .into();
                 let mut source = jvm.instantiate_array("B", 4).await?;
                 jvm.store_array(&mut source, 0, [1_i8, 2, 3, 4]).await?;
-                let _: () = jvm.invoke_virtual(&output, "write", "([BII)V", (source, 1, 2)).await?;
-                let _: () = jvm.invoke_virtual(&output, "flush", "()V", ()).await?;
-                let _: () = jvm.invoke_virtual(&output, "close", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&output, "com/xce/io/FileOutputStream", "write", "([BII)V", (source, 1, 2))
+                    .await?;
+                let _: () = jvm.invoke_virtual(&output, "com/xce/io/FileOutputStream", "flush", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&output, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
 
                 let append_output: ClassInstanceRef<FileOutputStream> = jvm
                     .new_class("com/xce/io/FileOutputStream", "(Ljava/lang/String;Z)V", (name.clone(), false))
                     .await?
                     .into();
-                let _: () = jvm.invoke_virtual(&append_output, "write", "(I)V", (4,)).await?;
-                let _: () = jvm.invoke_virtual(&append_output, "close", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&append_output, "com/xce/io/FileOutputStream", "write", "(I)V", (4,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&append_output, "com/xce/io/FileOutputStream", "close", "()V", ())
+                    .await?;
 
                 let input: ClassInstanceRef<FileInputStream> = jvm
                     .new_class("com/xce/io/FileInputStream", "(Ljava/lang/String;)V", (name,))
                     .await?
                     .into();
-                assert!(jvm.invoke_virtual::<_, bool>(&input, "markSupported", "()Z", ()).await?);
-                let _: () = jvm.invoke_virtual(&input, "mark", "(I)V", (8,)).await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "()I", ()).await?, 2);
-                let _: () = jvm.invoke_virtual(&input, "reset", "()V", ()).await?;
-                assert_eq!(jvm.invoke_virtual::<_, i64>(&input, "skip", "(J)J", (1_i64,)).await?, 1);
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&input, "com/xce/io/FileInputStream", "markSupported", "()Z", ())
+                        .await?
+                );
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (8,)).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    2
+                );
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i64>(&input, "com/xce/io/FileInputStream", "skip", "(J)J", (1_i64,))
+                        .await?,
+                    1
+                );
 
                 let target: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 2).await?.into();
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "([B)I", (target.clone(),)).await?, 2);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "([B)I", (target.clone(),))
+                        .await?,
+                    2
+                );
                 assert_eq!(jvm.load_array::<i8>(&target, 0, 2).await?, [3, 4]);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "()I", ()).await?, -1);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    -1
+                );
 
                 Ok(())
             },
@@ -630,14 +673,16 @@ mod tests {
                     .into();
                 let data: ClassInstanceRef<Array<i8>> = jvm.instantiate_array("B", 2).await?.into();
 
-                let range_result: JvmResult<i32> = jvm.invoke_virtual(&file, "read", "([BII)I", (data, i32::MAX, 1)).await;
+                let range_result: JvmResult<i32> = jvm
+                    .invoke_virtual(&file, "com/xce/io/XFile", "read", "([BII)I", (data, i32::MAX, 1))
+                    .await;
                 let Err(JavaError::JavaException(exception)) = range_result else {
                     panic!("XFile.read accepted an invalid range");
                 };
                 assert!(jvm.is_instance(&*exception, "java/lang/IndexOutOfBoundsException"));
 
                 let null_data = ClassInstanceRef::<Array<i8>>::new(None);
-                let null_result: JvmResult<i32> = jvm.invoke_virtual(&file, "write", "([BII)I", (null_data, 0, 1)).await;
+                let null_result: JvmResult<i32> = jvm.invoke_virtual(&file, "com/xce/io/XFile", "write", "([BII)I", (null_data, 0, 1)).await;
                 let Err(JavaError::JavaException(exception)) = null_result else {
                     panic!("XFile.write accepted null");
                 };
@@ -660,14 +705,20 @@ mod tests {
                     .new_class("com/xce/io/FileOutputStream", "(Ljava/lang/String;Z)V", (name.clone(), false))
                     .await?
                     .into();
-                let _: () = jvm.invoke_virtual(&output, "write", "(I)V", (0xAB,)).await?;
-                let _: () = jvm.invoke_virtual(&output, "close", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&output, "com/xce/io/FileOutputStream", "write", "(I)V", (0xAB,))
+                    .await?;
+                let _: () = jvm.invoke_virtual(&output, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
 
                 let input: ClassInstanceRef<FileInputStream> = jvm
                     .new_class("com/xce/io/FileInputStream", "(Ljava/lang/String;)V", (name,))
                     .await?
                     .into();
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "()I", ()).await?, 0xAB);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    0xAB
+                );
 
                 Ok(())
             },
@@ -725,18 +776,29 @@ mod tests {
             Box::new([Box::new([XFile::as_proto(), FileInputStream::as_proto(), FileOutputStream::as_proto()])]),
             |jvm| async move {
                 let input: ClassInstanceRef<FileInputStream> = jvm.new_class("com/xce/io/FileInputStream", "(I)V", (0,)).await?.into();
-                assert!(jvm.invoke_virtual::<_, bool>(&input, "markSupported", "()Z", ()).await?);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "available", "()I", ()).await?, 0);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "()I", ()).await?, -1);
-                let _: () = jvm.invoke_virtual(&input, "mark", "(I)V", (1,)).await?;
-                let _: () = jvm.invoke_virtual(&input, "reset", "()V", ()).await?;
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&input, "com/xce/io/FileInputStream", "markSupported", "()Z", ())
+                        .await?
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "available", "()I", ())
+                        .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    -1
+                );
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (1,)).await?;
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
 
                 let first: ClassInstanceRef<FileOutputStream> = jvm.new_class("com/xce/io/FileOutputStream", "(I)V", (1,)).await?.into();
-                let _: () = jvm.invoke_virtual(&first, "write", "(I)V", (1,)).await?;
-                let _: () = jvm.invoke_virtual(&first, "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&first, "com/xce/io/FileOutputStream", "write", "(I)V", (1,)).await?;
+                let _: () = jvm.invoke_virtual(&first, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
                 let second: ClassInstanceRef<FileOutputStream> = jvm.new_class("com/xce/io/FileOutputStream", "(I)V", (1,)).await?.into();
-                let _: () = jvm.invoke_virtual(&second, "write", "(I)V", (2,)).await?;
-                let _: () = jvm.invoke_virtual(&second, "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&second, "com/xce/io/FileOutputStream", "write", "(I)V", (2,)).await?;
+                let _: () = jvm.invoke_virtual(&second, "com/xce/io/FileOutputStream", "close", "()V", ()).await?;
 
                 Ok(())
             },
@@ -753,7 +815,7 @@ mod tests {
                 let write: i32 = jvm.get_static_field("com/xce/io/XFile", "WRITE", "I").await?;
                 let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "write-only.dat").await?.into();
                 let write_only: ClassInstanceRef<XFile> = jvm.new_class("com/xce/io/XFile", "(Ljava/lang/String;I)V", (name, write)).await?.into();
-                let available_result: JvmResult<i32> = jvm.invoke_virtual(&write_only, "available", "()I", ()).await;
+                let available_result: JvmResult<i32> = jvm.invoke_virtual(&write_only, "com/xce/io/XFile", "available", "()I", ()).await;
                 let Err(JavaError::JavaException(exception)) = available_result else {
                     panic!("write-only XFile reported readable bytes");
                 };
@@ -770,8 +832,10 @@ mod tests {
 
                 let mut one_byte = jvm.instantiate_array("B", 1).await?;
                 jvm.store_array(&mut one_byte, 0, [1_i8]).await?;
-                let _: i32 = jvm.invoke_virtual(&write_only, "write", "([BII)I", (one_byte, 0, 1)).await?;
-                let _: () = jvm.invoke_virtual(&write_only, "close", "()V", ()).await?;
+                let _: i32 = jvm
+                    .invoke_virtual(&write_only, "com/xce/io/XFile", "write", "([BII)I", (one_byte, 0, 1))
+                    .await?;
+                let _: () = jvm.invoke_virtual(&write_only, "com/xce/io/XFile", "close", "()V", ()).await?;
 
                 let read: i32 = jvm.get_static_field("com/xce/io/XFile", "READ", "I").await?;
                 let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "write-only.dat").await?.into();
@@ -797,12 +861,20 @@ mod tests {
                     .new_class("com/xce/io/FileInputStream", "(Lcom/xce/io/XFile;)V", (resource.clone(),))
                     .await?
                     .into();
-                let _: () = jvm.invoke_virtual(&input, "mark", "(I)V", (2,)).await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "()I", ()).await?, 7);
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "mark", "(I)V", (2,)).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    7
+                );
                 assert_eq!(jvm.get_field::<i32>(&resource, "offset", "I").await?, 1);
-                let _: () = jvm.invoke_virtual(&input, "reset", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&input, "com/xce/io/FileInputStream", "reset", "()V", ()).await?;
                 assert_eq!(jvm.get_field::<i32>(&resource, "offset", "I").await?, 0);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&input, "read", "()I", ()).await?, 7);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&input, "com/xce/io/FileInputStream", "read", "()I", ())
+                        .await?,
+                    7
+                );
 
                 Ok(())
             },

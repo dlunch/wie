@@ -173,7 +173,13 @@ mod tests {
                     )
                     .await?;
                 let graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(&image, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+                    .invoke_virtual(
+                        &image,
+                        "javax/microedition/lcdui/Image",
+                        "getGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
                     .await?;
                 let name: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "triangle").await?.into();
                 let object: ClassInstanceRef<Object3D> = jvm.new_class("com/skt/m3d/Object3D", "(Ljava/lang/String;)V", (name,)).await?.into();

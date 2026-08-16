@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::{io::File as JavaFile, lang::String, util::Vector};
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -17,61 +17,131 @@ impl FileSystem {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("isFile", "(Ljava/lang/String;)Z", Self::is_file, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("isDirectory", "(Ljava/lang/String;I)Z", Self::is_directory, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("exists", "(Ljava/lang/String;)Z", Self::exists, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("exists", "(Ljava/lang/String;I)Z", Self::exists_with_flag, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("mkdir", "(Ljava/lang/String;I)V", Self::mkdir, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("getMaxFilenameLength", "()I", Self::get_max_filename_length, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("list", "(Ljava/lang/String;)Ljava/util/Vector;", Self::list, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "isFile",
+                    "(Ljava/lang/String;)Z",
+                    Self::is_file,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "isDirectory",
+                    "(Ljava/lang/String;I)Z",
+                    Self::is_directory,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "exists",
+                    "(Ljava/lang/String;)Z",
+                    Self::exists,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "exists",
+                    "(Ljava/lang/String;I)Z",
+                    Self::exists_with_flag,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "mkdir",
+                    "(Ljava/lang/String;I)V",
+                    Self::mkdir,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "getMaxFilenameLength",
+                    "()I",
+                    Self::get_max_filename_length,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "list",
+                    "(Ljava/lang/String;)Ljava/util/Vector;",
+                    Self::list,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new(
                     "list",
                     "(Ljava/lang/String;I)Ljava/util/Vector;",
                     Self::list_with_flag,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("remove", "(Ljava/lang/String;)V", Self::remove, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("remove", "(Ljava/lang/String;I)V", Self::remove_with_flag, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("mkdir", "(Ljava/lang/String;)V", Self::mkdir_without_flag, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("rmdir", "(Ljava/lang/String;)V", Self::rmdir, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("rmdir", "(Ljava/lang/String;I)V", Self::rmdir_with_flag, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("toCString", "(Ljava/lang/String;)[B", Self::to_c_string, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("isFile", "(Ljava/lang/String;I)Z", Self::is_file_with_flag, MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "remove",
+                    "(Ljava/lang/String;)V",
+                    Self::remove,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "remove",
+                    "(Ljava/lang/String;I)V",
+                    Self::remove_with_flag,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "mkdir",
+                    "(Ljava/lang/String;)V",
+                    Self::mkdir_without_flag,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "rmdir",
+                    "(Ljava/lang/String;)V",
+                    Self::rmdir,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "rmdir",
+                    "(Ljava/lang/String;I)V",
+                    Self::rmdir_with_flag,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "toCString",
+                    "(Ljava/lang/String;)[B",
+                    Self::to_c_string,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "isFile",
+                    "(Ljava/lang/String;I)Z",
+                    Self::is_file_with_flag,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new(
                     "isDirectory",
                     "(Ljava/lang/String;)Z",
                     Self::is_directory_without_flag,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getCreationTime",
                     "(Ljava/lang/String;)I",
                     Self::get_creation_time,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getCreationTime",
                     "(Ljava/lang/String;I)I",
                     Self::get_creation_time_with_flag,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "rename",
                     "(Ljava/lang/String;Ljava/lang/String;)V",
                     Self::rename,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "rename",
                     "(Ljava/lang/String;Ljava/lang/String;I)V",
                     Self::rename_with_flag,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -85,7 +155,7 @@ impl FileSystem {
         tracing::debug!("org.kwis.msp.io.FileSystem::is_file({name:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
-        let is_file = jvm.invoke_virtual(&file, "isFile", "()Z", ()).await?;
+        let is_file = jvm.invoke_virtual(&file, "java/io/File", "isFile", "()Z", ()).await?;
 
         Ok(is_file)
     }
@@ -94,7 +164,7 @@ impl FileSystem {
         tracing::debug!("org.kwis.msp.io.FileSystem::isDirectory({name:?}, {flag:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
-        let is_directory = jvm.invoke_virtual(&file, "isDirectory", "()Z", ()).await?;
+        let is_directory = jvm.invoke_virtual(&file, "java/io/File", "isDirectory", "()Z", ()).await?;
 
         Ok(is_directory)
     }
@@ -110,7 +180,7 @@ impl FileSystem {
         tracing::debug!("org.kwis.msp.io.FileSystem::exists({name:?}, {flag:?})");
 
         let file = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?;
-        let exists = jvm.invoke_virtual(&file, "exists", "()Z", ()).await?;
+        let exists = jvm.invoke_virtual(&file, "java/io/File", "exists", "()Z", ()).await?;
 
         Ok(exists)
     }
@@ -191,7 +261,7 @@ impl FileSystem {
         tracing::debug!("org.kwis.msp.io.FileSystem::isDirectory({name:?})");
 
         let file: ClassInstanceRef<JavaFile> = jvm.new_class("java/io/File", "(Ljava/lang/String;)V", (name,)).await?.into();
-        jvm.invoke_virtual(&file, "isDirectory", "()Z", ()).await
+        jvm.invoke_virtual(&file, "java/io/File", "isDirectory", "()Z", ()).await
     }
 
     async fn get_creation_time(_: &Jvm, _: &mut WieJvmContext, name: ClassInstanceRef<String>) -> JvmResult<i32> {

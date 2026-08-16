@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -17,15 +17,15 @@ impl Component {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
-                JavaMethodProto::new("focusNotify", "(Z)V", Self::focus_notify, Default::default()),
-                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
-                JavaMethodProto::new("configure", "(IIIII)V", Self::configure, Default::default()),
-                JavaMethodProto::new("setFocus", "()V", Self::set_focus, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("focusNotify", "(Z)V", Self::focus_notify, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("configure", "(IIIII)V", Self::configure, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setFocus", "()V", Self::set_focus, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 

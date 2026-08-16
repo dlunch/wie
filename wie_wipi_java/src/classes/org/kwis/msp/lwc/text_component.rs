@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -16,16 +17,16 @@ impl TextComponent {
             parent_class: Some("org/kwis/msp/lwc/Component"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, Default::default()),
-                JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, Default::default()),
-                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setMaxLength", "(I)V", Self::set_max_length, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("m_cPos", "I", Default::default()),
-                JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", Default::default()),
+                JavaFieldProto::new("m_cPos", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("imHandler", "Lorg/kwis/msp/lcdui/InputMethodHandler;", FieldAccessFlags::PROTECTED),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 

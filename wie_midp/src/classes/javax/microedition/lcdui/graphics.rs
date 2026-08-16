@@ -5,7 +5,7 @@ use bytemuck::cast_vec;
 use jvm::{Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 
 use wie_backend::canvas::{ArgbPixel, Canvas as BackendCanvas, Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
@@ -59,64 +59,74 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Image;)V", Self::init_with_image, Default::default()),
-                JavaMethodProto::new("reset", "()V", Self::reset, Default::default()),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljavax/microedition/lcdui/Image;)V",
+                    Self::init_with_image,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new("reset", "()V", Self::reset, MethodAccessFlags::empty()),
                 // WIPI wrapper bridge only; this is not part of the MIDP Graphics API.
                 JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, Default::default()),
-                JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
-                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
-                JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, Default::default()),
-                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
-                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, Default::default()),
-                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, Default::default()),
-                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
-                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
-                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, Default::default()),
-                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, Default::default()),
-                JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
-                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, Default::default()),
-                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
-                JavaMethodProto::new("drawSubstring", "(Ljava/lang/String;IIIII)V", Self::draw_substring, Default::default()),
+                JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setColor", "(I)V", Self::set_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "drawSubstring",
+                    "(Ljava/lang/String;IIIII)V",
+                    Self::draw_substring,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "drawImage",
                     "(Ljavax/microedition/lcdui/Image;III)V",
                     Self::draw_image,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "drawRegion",
                     "(Ljavax/microedition/lcdui/Image;IIIIIIII)V",
                     Self::draw_region,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
-                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, Default::default()),
-                JavaMethodProto::new("getColor", "()I", Self::get_color, Default::default()),
-                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, Default::default()),
-                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, Default::default()),
-                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, Default::default()),
-                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, Default::default()),
-                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, Default::default()),
-                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
-                JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
-                JavaMethodProto::new("drawRGB", "([IIIIIIIZ)V", Self::draw_rgb, Default::default()),
-                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
+                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getColor", "()I", Self::get_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("translate", "(II)V", Self::translate, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawRGB", "([IIIIIIIZ)V", Self::draw_rgb, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", Default::default()),
-                JavaFieldProto::new("width", "I", Default::default()),
-                JavaFieldProto::new("height", "I", Default::default()),
-                JavaFieldProto::new("clipX", "I", Default::default()),
-                JavaFieldProto::new("clipY", "I", Default::default()),
-                JavaFieldProto::new("clipWidth", "I", Default::default()),
-                JavaFieldProto::new("clipHeight", "I", Default::default()),
-                JavaFieldProto::new("translateX", "I", Default::default()),
-                JavaFieldProto::new("translateY", "I", Default::default()),
-                JavaFieldProto::new("color", "I", Default::default()),
-                JavaFieldProto::new("xorMode", "Z", Default::default()),
+                JavaFieldProto::new("img", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("width", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("height", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("clipX", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("clipY", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("clipWidth", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("clipHeight", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("translateX", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("translateY", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("color", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("xorMode", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -125,15 +135,19 @@ impl Graphics {
 
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
-        let width: i32 = jvm.invoke_virtual(&image, "getWidth", "()I", ()).await?;
-        let height: i32 = jvm.invoke_virtual(&image, "getHeight", "()I", ()).await?;
+        let width: i32 = jvm
+            .invoke_virtual(&image, "javax/microedition/lcdui/Image", "getWidth", "()I", ())
+            .await?;
+        let height: i32 = jvm
+            .invoke_virtual(&image, "javax/microedition/lcdui/Image", "getHeight", "()I", ())
+            .await?;
 
         jvm.put_field(&mut this, "img", "Ljavax/microedition/lcdui/Image;", image).await?;
 
         jvm.put_field(&mut this, "width", "I", width).await?;
         jvm.put_field(&mut this, "height", "I", height).await?;
 
-        let _: () = jvm.invoke_virtual(&this, "reset", "()V", ()).await?;
+        let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Graphics", "reset", "()V", ()).await?;
 
         Ok(())
     }
@@ -941,9 +955,13 @@ mod test {
                 )
                 .await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x00ff00,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x00ff00,))
+                .await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
 
@@ -954,11 +972,21 @@ mod test {
             assert_eq!(backend_image.colors()[0].g, 0xff);
             assert_eq!(backend_image.colors()[0].b, 0x00);
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xf00faa,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (true,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xf00faa,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (true,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
             let color = backend_image.get_pixel(0, 0);
@@ -966,15 +994,29 @@ mod test {
             assert_eq!(color.g, 0x34 ^ 0x0f);
             assert_eq!(color.b, 0x56 ^ 0xaa);
 
-            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (false,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (true,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (false,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (true,))
+                .await?;
 
             let mut rgb_data = jvm.instantiate_array("I", 1).await?;
             jvm.store_array(&mut rgb_data, 0, vec![0x00ff0000i32]).await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "drawRGB", "([IIIIIIIZ)V", (rgb_data, 0, 1, 0, 0, 1, 1, true))
+                .invoke_virtual(
+                    &graphics,
+                    "javax/microedition/lcdui/Graphics",
+                    "drawRGB",
+                    "([IIIIIIIZ)V",
+                    (rgb_data, 0, 1, 0, 0, 1, 1, true),
+                )
                 .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
@@ -1013,17 +1055,31 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (10, 10)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 5, 5)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (10, 10))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 5, 5))
+                .await?;
 
-            let clip_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
-            let clip_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
+            let clip_x: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+                .await?;
+            let clip_y: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+                .await?;
             assert_eq!(clip_x, 0);
             assert_eq!(clip_y, 0);
 
-            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (-10, -10)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (-10, -10))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
             for (x, y) in [(10, 10), (14, 14)] {
@@ -1044,22 +1100,42 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 20, 20)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (10, 10)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "clipRect", "(IIII)V", (0, 0, 5, 5)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 20, 20))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (10, 10))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "clipRect", "(IIII)V", (0, 0, 5, 5))
+                .await?;
 
-            let clip_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
-            let clip_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
-            let clip_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
-            let clip_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
+            let clip_x: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+                .await?;
+            let clip_y: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+                .await?;
+            let clip_width: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+                .await?;
+            let clip_height: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+                .await?;
             assert_eq!(clip_x, 0);
             assert_eq!(clip_y, 0);
             assert_eq!(clip_width, 5);
             assert_eq!(clip_height, 5);
 
-            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (-10, -10)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (-10, -10))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
             let color = backend_image.get_pixel(10, 10);
@@ -1078,10 +1154,18 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 5, 5)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "clipRect", "(IIII)V", (20, 20, 5, 5)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 5, 5))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "clipRect", "(IIII)V", (20, 20, 5, 5))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
             for (x, y) in [(0, 0), (2, 2), (21, 21)] {
@@ -1098,15 +1182,25 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, -5, -5)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, -5, -5))
+                .await?;
 
-            let clip_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
-            let clip_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
+            let clip_width: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+                .await?;
+            let clip_height: i32 = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+                .await?;
             assert_eq!(clip_width, 0);
             assert_eq!(clip_height, 0);
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 100, 100)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 100, 100))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
             for (x, y) in [(0, 0), (50, 50)] {
@@ -1123,9 +1217,13 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0xff0000,)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xff0000,))
+                .await?;
             // MIDP: drawRect(2, 2, 0, 3) draws a 1px-wide, 4px-tall vertical line
-            let _: () = jvm.invoke_virtual(&graphics, "drawRect", "(IIII)V", (2, 2, 0, 3)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "drawRect", "(IIII)V", (2, 2, 0, 3))
+                .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;
             for y in 2..=5 {
@@ -1146,12 +1244,20 @@ mod test {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let (image, graphics) = new_graphics(&jvm).await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (10, 10)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (10, 10))
+                .await?;
 
             let mut rgb_data = jvm.instantiate_array("I", 1).await?;
             jvm.store_array(&mut rgb_data, 0, vec![0x00ff0000i32]).await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "drawRGB", "([IIIIIIIZ)V", (rgb_data, 0, 1, 0, 0, 1, 1, false))
+                .invoke_virtual(
+                    &graphics,
+                    "javax/microedition/lcdui/Graphics",
+                    "drawRGB",
+                    "([IIIIIIIZ)V",
+                    (rgb_data, 0, 1, 0, 0, 1, 1, false),
+                )
                 .await?;
 
             let backend_image = Image::image(&jvm, &image).await?;

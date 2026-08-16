@@ -92,7 +92,11 @@ impl WIPICContext for LgtWIPICContext {
         let stream = JavaLangClassLoader::get_resource_as_stream(&self.jvm, &class_loader, name).await.unwrap();
 
         if let Some(stream) = stream {
-            let available: i32 = self.jvm.invoke_virtual(&stream, "available", "()I", ()).await.unwrap();
+            let available: i32 = self
+                .jvm
+                .invoke_virtual(&stream, "java/io/InputStream", "available", "()I", ())
+                .await
+                .unwrap();
             return Ok(Some(available as _));
         }
         self.jvm.collect_garbage().unwrap();

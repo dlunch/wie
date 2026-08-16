@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::Runnable;
 use jvm::{ClassInstanceRef, JavaError, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -22,47 +22,47 @@ impl Display {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "setCurrent",
                     "(Ljavax/microedition/lcdui/Displayable;)V",
                     Self::set_current,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "getCurrent",
                     "()Ljavax/microedition/lcdui/Displayable;",
                     Self::get_current,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
-                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
-                JavaMethodProto::new("vibrate", "(I)Z", Self::vibrate, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::empty()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::empty()),
+                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("vibrate", "(I)Z", Self::vibrate, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
                     Self::get_display,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 // wie private methods...
-                JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, Default::default()),
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
-                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
-                JavaMethodProto::new("setFullscreen", "(Z)V", Self::set_fullscreen, Default::default()),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, Default::default()),
-                JavaMethodProto::new("disablePaint", "()V", Self::disable_paint, Default::default()),
+                JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, MethodAccessFlags::empty()),
+                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
+                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::empty()),
+                JavaMethodProto::new("setFullscreen", "(Z)V", Self::set_fullscreen, MethodAccessFlags::empty()),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, MethodAccessFlags::empty()),
+                JavaMethodProto::new("disablePaint", "()V", Self::disable_paint, MethodAccessFlags::empty()),
             ],
             fields: vec![
-                JavaFieldProto::new("isInFullScreenMode", "Z", Default::default()),
-                JavaFieldProto::new("currentDisplayable", "Ljavax/microedition/lcdui/Displayable;", Default::default()),
-                JavaFieldProto::new("screenImage", "Ljavax/microedition/lcdui/Image;", Default::default()),
-                JavaFieldProto::new("screenGraphics", "Ljavax/microedition/lcdui/Graphics;", Default::default()),
-                JavaFieldProto::new("width", "I", Default::default()),
-                JavaFieldProto::new("height", "I", Default::default()),
-                JavaFieldProto::new("paintDisabled", "Z", Default::default()),
+                JavaFieldProto::new("isInFullScreenMode", "Z", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("currentDisplayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("screenImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("screenGraphics", "Ljavax/microedition/lcdui/Graphics;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("width", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("height", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("paintDisabled", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -89,7 +89,13 @@ impl Display {
             )
             .await?;
         let screen_graphics: ClassInstanceRef<Graphics> = jvm
-            .invoke_virtual(&screen_image, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+            .invoke_virtual(
+                &screen_image,
+                "javax/microedition/lcdui/Image",
+                "getGraphics",
+                "()Ljavax/microedition/lcdui/Graphics;",
+                (),
+            )
             .await?;
 
         jvm.put_field(&mut this, "screenImage", "Ljavax/microedition/lcdui/Image;", screen_image)
@@ -128,7 +134,7 @@ impl Display {
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
         let _: () = jvm
-            .invoke_virtual(&event_queue, "callSerially", "(Ljava/lang/Runnable;)V", (event,))
+            .invoke_virtual(&event_queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (event,))
             .await?;
 
         Ok(())
@@ -148,7 +154,13 @@ impl Display {
 
         if !old_displayable.is_null() {
             let _: () = jvm
-                .invoke_virtual(&old_displayable, "setDisplay", "(Ljavax/microedition/lcdui/Display;)V", (None,))
+                .invoke_virtual(
+                    &old_displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "setDisplay",
+                    "(Ljavax/microedition/lcdui/Display;)V",
+                    (None,),
+                )
                 .await?;
         }
 
@@ -161,7 +173,13 @@ impl Display {
         .await?;
 
         let _: () = jvm
-            .invoke_virtual(&displayable, "setDisplay", "(Ljavax/microedition/lcdui/Display;)V", (this.clone(),))
+            .invoke_virtual(
+                &displayable,
+                "javax/microedition/lcdui/Displayable",
+                "setDisplay",
+                "(Ljavax/microedition/lcdui/Display;)V",
+                (this.clone(),),
+            )
             .await?;
 
         let fullscreen_mode: bool = jvm.get_field(&displayable, "isInFullScreenMode", "Z").await?;
@@ -170,7 +188,9 @@ impl Display {
         let width: i32 = jvm.get_field(&this, "width", "I").await?;
         let height: i32 = jvm.get_field(&this, "height", "I").await?;
 
-        let _: () = jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
+        let _: () = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, width, height))
+            .await?;
 
         Ok(())
     }
@@ -228,7 +248,13 @@ impl Display {
 
         if !current_displayable.is_null() {
             let result: JvmResult<()> = jvm
-                .invoke_virtual(&current_displayable, "handleKeyEvent", "(II)V", (event_type, code))
+                .invoke_virtual(
+                    &current_displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "handleKeyEvent",
+                    "(II)V",
+                    (event_type, code),
+                )
                 .await;
 
             if let Err(x) = result {
@@ -254,12 +280,15 @@ impl Display {
             let result: JvmResult<()> = jvm
                 .invoke_virtual(
                     &current_displayable,
+                    "javax/microedition/lcdui/Displayable",
                     "handlePaintEvent",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     (screen_graphics.clone(),),
                 )
                 .await;
-            let _: () = jvm.invoke_virtual(&screen_graphics, "reset", "()V", ()).await?;
+            let _: () = jvm
+                .invoke_virtual(&screen_graphics, "javax/microedition/lcdui/Graphics", "reset", "()V", ())
+                .await?;
 
             if let Err(x) = result {
                 Self::handle_exception(jvm, x).await?;
@@ -301,7 +330,13 @@ impl Display {
 
         if !current_displayable.is_null() {
             let result: JvmResult<()> = jvm
-                .invoke_virtual(&current_displayable, "handleNotifyEvent", "(III)V", (r#type, param1, param2))
+                .invoke_virtual(
+                    &current_displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "handleNotifyEvent",
+                    "(III)V",
+                    (r#type, param1, param2),
+                )
                 .await;
 
             if let Err(x) = result {
@@ -329,10 +364,12 @@ impl Display {
             .await?;
 
         let _: () = jvm
-            .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
+            .invoke_virtual(&x, "java/lang/Throwable", "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
             .await?;
 
-        let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await?;
+        let trace = jvm
+            .invoke_virtual(&string_writer, "java/io/StringWriter", "toString", "()Ljava/lang/String;", [])
+            .await?;
         let trace = JavaLangString::to_rust_string(jvm, &trace).await?;
 
         tracing::warn!("Exception while event handling: {trace}");

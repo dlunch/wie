@@ -83,9 +83,10 @@ impl XTextField {
     }
 
     async fn truncate_text(jvm: &Jvm, text: ClassInstanceRef<String>, max_size: i32) -> JvmResult<ClassInstanceRef<String>> {
-        let length: i32 = jvm.invoke_virtual(&text, "length", "()I", ()).await?;
+        let length: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
         if length > max_size {
-            jvm.invoke_virtual(&text, "substring", "(II)Ljava/lang/String;", (0, max_size)).await
+            jvm.invoke_virtual(&text, "java/lang/String", "substring", "(II)Ljava/lang/String;", (0, max_size))
+                .await
         } else {
             Ok(text)
         }
@@ -108,7 +109,7 @@ impl XTextField {
         tracing::debug!("com.xce.lcdui.XTextField::inputChar({this:?}, {key})");
 
         let text: ClassInstanceRef<String> = jvm.get_field(&this, "text", "Ljava/lang/String;").await?;
-        let length: i32 = jvm.invoke_virtual(&text, "length", "()I", ()).await?;
+        let length: i32 = jvm.invoke_virtual(&text, "java/lang/String", "length", "()I", ()).await?;
         let max_size: i32 = jvm.get_field(&this, "maxSize", "I").await?;
         if length >= max_size {
             return Ok(());
@@ -116,7 +117,13 @@ impl XTextField {
 
         let char_string: ClassInstanceRef<String> = jvm.invoke_static("java/lang/String", "valueOf", "(C)Ljava/lang/String;", (key,)).await?;
         let text: ClassInstanceRef<String> = jvm
-            .invoke_virtual(&text, "concat", "(Ljava/lang/String;)Ljava/lang/String;", (char_string,))
+            .invoke_virtual(
+                &text,
+                "java/lang/String",
+                "concat",
+                "(Ljava/lang/String;)Ljava/lang/String;",
+                (char_string,),
+            )
             .await?;
         jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await
     }
@@ -186,17 +193,45 @@ impl XTextField {
         let y: i32 = jvm.get_field(&this, "y", "I").await?;
         let width: i32 = jvm.get_field(&this, "width", "I").await?;
         let height: i32 = jvm.get_field(&this, "height", "I").await?;
-        let clip_x: i32 = jvm.invoke_virtual(&graphics, "getClipX", "()I", ()).await?;
-        let clip_y: i32 = jvm.invoke_virtual(&graphics, "getClipY", "()I", ()).await?;
-        let clip_width: i32 = jvm.invoke_virtual(&graphics, "getClipWidth", "()I", ()).await?;
-        let clip_height: i32 = jvm.invoke_virtual(&graphics, "getClipHeight", "()I", ()).await?;
+        let clip_x: i32 = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+            .await?;
+        let clip_y: i32 = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+            .await?;
+        let clip_width: i32 = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+            .await?;
+        let clip_height: i32 = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+            .await?;
 
-        let _: () = jvm.invoke_virtual(&graphics, "clipRect", "(IIII)V", (x, y, width, height)).await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "clipRect",
+                "(IIII)V",
+                (x, y, width, height),
+            )
+            .await?;
         let draw_result: JvmResult<()> = jvm
-            .invoke_virtual(&graphics, "drawString", "(Ljava/lang/String;III)V", (text, x, y, 20))
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "drawString",
+                "(Ljava/lang/String;III)V",
+                (text, x, y, 20),
+            )
             .await;
         let restore_result: JvmResult<()> = jvm
-            .invoke_virtual(&graphics, "setClip", "(IIII)V", (clip_x, clip_y, clip_width, clip_height))
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "setClip",
+                "(IIII)V",
+                (clip_x, clip_y, clip_width, clip_height),
+            )
             .await;
         draw_result?;
         restore_result
@@ -210,7 +245,8 @@ impl XTextField {
         let y: i32 = jvm.get_field(&this, "y", "I").await?;
         let width: i32 = jvm.get_field(&this, "width", "I").await?;
         let height: i32 = jvm.get_field(&this, "height", "I").await?;
-        jvm.invoke_virtual(&canvas, "repaint", "(IIII)V", (x, y, width, height)).await
+        jvm.invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "repaint", "(IIII)V", (x, y, width, height))
+            .await
     }
 
     async fn set_max_size(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max_size: i32) -> JvmResult<()> {
@@ -357,10 +393,18 @@ mod tests {
             _y: i32,
             _anchor: i32,
         ) -> JvmResult<()> {
-            let clip_x: i32 = jvm.invoke_virtual(&this, "getClipX", "()I", ()).await?;
-            let clip_y: i32 = jvm.invoke_virtual(&this, "getClipY", "()I", ()).await?;
-            let clip_width: i32 = jvm.invoke_virtual(&this, "getClipWidth", "()I", ()).await?;
-            let clip_height: i32 = jvm.invoke_virtual(&this, "getClipHeight", "()I", ()).await?;
+            let clip_x: i32 = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+                .await?;
+            let clip_y: i32 = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+                .await?;
+            let clip_width: i32 = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+                .await?;
+            let clip_height: i32 = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+                .await?;
             jvm.put_field(&mut this, "observedClipX", "I", clip_x).await?;
             jvm.put_field(&mut this, "observedClipY", "I", clip_y).await?;
             jvm.put_field(&mut this, "observedClipWidth", "I", clip_width).await?;
@@ -387,56 +431,85 @@ mod tests {
                     .await?
                     .into();
 
-                let max_size: i32 = jvm.invoke_virtual(&field, "getMaxSize", "()I", ()).await?;
-                let focused: bool = jvm.invoke_virtual(&field, "hasFocus", "()Z", ()).await?;
+                let max_size: i32 = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "getMaxSize", "()I", ()).await?;
+                let focused: bool = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "hasFocus", "()Z", ()).await?;
                 assert_eq!(max_size, 5);
                 assert!(!focused);
 
-                let _: () = jvm.invoke_virtual(&field, "keyPressed", "(I)V", ('z' as i32,)).await?;
-                let text: ClassInstanceRef<String> = jvm.invoke_virtual(&field, "getText", "()Ljava/lang/String;", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", ('z' as i32,))
+                    .await?;
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abc");
 
-                let _: () = jvm.invoke_virtual(&field, "setFocus", "(Z)V", (true,)).await?;
-                let _: () = jvm.invoke_virtual(&field, "setBounds", "(IIII)V", (3, 5, 40, 12)).await?;
-                let _: () = jvm.invoke_virtual(&field, "keyPressed", "(I)V", ('d' as i32,)).await?;
-                let _: () = jvm.invoke_virtual(&field, "keyRepeated", "(I)V", ('e' as i32,)).await?;
-                let _: () = jvm.invoke_virtual(&field, "inputChar", "(C)V", ('f' as JavaChar,)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setFocus", "(Z)V", (true,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setBounds", "(IIII)V", (3, 5, 40, 12))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "keyPressed", "(I)V", ('d' as i32,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "keyRepeated", "(I)V", ('e' as i32,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "inputChar", "(C)V", ('f' as JavaChar,))
+                    .await?;
 
-                let text: ClassInstanceRef<String> = jvm.invoke_virtual(&field, "getText", "()Ljava/lang/String;", ()).await?;
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "abcde");
-                assert!(jvm.invoke_virtual::<_, bool>(&field, "hasFocus", "()Z", ()).await?);
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&field, "com/xce/lcdui/XTextField", "hasFocus", "()Z", ())
+                        .await?
+                );
 
                 for bounds in [(9, 8, -1, 4), (7, 6, 4, -1)] {
-                    let bounds_result: JvmResult<()> = jvm.invoke_virtual(&field, "setBounds", "(IIII)V", bounds).await;
+                    let bounds_result: JvmResult<()> = jvm
+                        .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setBounds", "(IIII)V", bounds)
+                        .await;
                     let Err(JavaError::JavaException(exception)) = bounds_result else {
                         panic!("XTextField.setBounds accepted a negative size");
                     };
                     assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
                 }
 
-                let _: () = jvm.invoke_virtual(&field, "setMaxSize", "(I)V", (3,)).await?;
+                let _: () = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "setMaxSize", "(I)V", (3,)).await?;
                 let replacement: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "wxyz").await?.into();
-                let _: () = jvm.invoke_virtual(&field, "setText", "(Ljava/lang/String;)V", (replacement,)).await?;
-                let text: ClassInstanceRef<String> = jvm.invoke_virtual(&field, "getText", "()Ljava/lang/String;", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (replacement,))
+                    .await?;
+                let text: ClassInstanceRef<String> = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "getText", "()Ljava/lang/String;", ())
+                    .await?;
                 assert_eq!(JavaLangString::to_rust_string(&jvm, &text).await?, "wxy");
 
-                let _: () = jvm.invoke_virtual(&field, "repaint", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "repaint", "()V", ()).await?;
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintCount", "I").await?, 1);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintX", "I").await?, 3);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintY", "I").await?, 5);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintWidth", "I").await?, 40);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintHeight", "I").await?, 12);
 
-                let _: () = jvm.invoke_virtual(&field, "setBounds", "(IIII)V", (1, 2, 0, 0)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setBounds", "(IIII)V", (1, 2, 0, 0))
+                    .await?;
 
-                let negative_result: JvmResult<()> = jvm.invoke_virtual(&field, "setMaxSize", "(I)V", (-1,)).await;
+                let negative_result: JvmResult<()> = jvm.invoke_virtual(&field, "com/xce/lcdui/XTextField", "setMaxSize", "(I)V", (-1,)).await;
                 let Err(JavaError::JavaException(exception)) = negative_result else {
                     panic!("XTextField.setMaxSize accepted a negative value");
                 };
                 assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
 
                 let null_text = ClassInstanceRef::<String>::new(None);
-                let null_result: JvmResult<()> = jvm.invoke_virtual(&field, "setText", "(Ljava/lang/String;)V", (null_text,)).await;
+                let null_result: JvmResult<()> = jvm
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setText", "(Ljava/lang/String;)V", (null_text,))
+                    .await;
                 let Err(JavaError::JavaException(exception)) = null_result else {
                     panic!("XTextField.setText accepted null");
                 };
@@ -469,20 +542,46 @@ mod tests {
                     .into();
                 let graphics: ClassInstanceRef<Graphics> = jvm.new_class("javax/microedition/lcdui/TrackingGraphics", "()V", ()).await?.into();
 
-                let _: () = jvm.invoke_virtual(&field, "setBounds", "(IIII)V", (3, 5, 4, 6)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (1, 2, 10, 11)).await?;
                 let _: () = jvm
-                    .invoke_virtual(&field, "paint", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics.clone(),))
+                    .invoke_virtual(&field, "com/xce/lcdui/XTextField", "setBounds", "(IIII)V", (3, 5, 4, 6))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (1, 2, 10, 11))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &field,
+                        "com/xce/lcdui/XTextField",
+                        "paint",
+                        "(Ljavax/microedition/lcdui/Graphics;)V",
+                        (graphics.clone(),),
+                    )
                     .await?;
 
                 assert_eq!(jvm.get_field::<i32>(&graphics, "observedClipX", "I").await?, 3);
                 assert_eq!(jvm.get_field::<i32>(&graphics, "observedClipY", "I").await?, 5);
                 assert_eq!(jvm.get_field::<i32>(&graphics, "observedClipWidth", "I").await?, 4);
                 assert_eq!(jvm.get_field::<i32>(&graphics, "observedClipHeight", "I").await?, 6);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipX", "()I", ()).await?, 1);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipY", "()I", ()).await?, 2);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipWidth", "()I", ()).await?, 10);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipHeight", "()I", ()).await?, 11);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+                        .await?,
+                    1
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+                        .await?,
+                    2
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+                        .await?,
+                    10
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+                        .await?,
+                    11
+                );
 
                 Ok(())
             },

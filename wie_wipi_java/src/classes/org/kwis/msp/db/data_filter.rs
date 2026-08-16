@@ -14,9 +14,13 @@ impl DataFilter {
             name: "org/kwis/msp/db/DataFilter",
             parent_class: None,
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract("filter", "([B)Z", MethodAccessFlags::ABSTRACT)],
+            methods: vec![JavaMethodProto::new_abstract(
+                "filter",
+                "([B)Z",
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
+            )],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }

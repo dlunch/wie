@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -15,11 +16,11 @@ impl AnnunciatorComponent {
             parent_class: Some("org/kwis/msp/lwc/ShellComponent"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Z)V", Self::init, Default::default()),
-                JavaMethodProto::new("show", "()V", Self::show, Default::default()),
+                JavaMethodProto::new("<init>", "(Z)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("show", "()V", Self::show, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

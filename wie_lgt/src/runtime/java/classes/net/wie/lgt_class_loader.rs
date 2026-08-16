@@ -6,7 +6,7 @@ use alloc::{
 use core::mem::size_of;
 
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use java_constants::FieldAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::{
     lang::{Class, ClassLoader, String},
     util::Vector,
@@ -31,15 +31,24 @@ impl LgtClassLoader {
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;I)V", Self::init, Default::default()),
-                JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;I)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "findClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    Self::find_class,
+                    MethodAccessFlags::PROTECTED,
+                ),
             ],
             fields: vec![
-                JavaFieldProto::new("generatedClasses", "I", Default::default()),
-                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
-                JavaFieldProto::new("instance", "Lnet/wie/LgtClassLoader;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("generatedClasses", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new(
+                    "instance",
+                    "Lnet/wie/LgtClassLoader;",
+                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
+                ),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

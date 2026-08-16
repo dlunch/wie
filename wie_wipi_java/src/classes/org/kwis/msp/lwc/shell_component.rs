@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -16,19 +17,19 @@ impl ShellComponent {
             parent_class: Some("org/kwis/msp/lwc/ContainerComponent"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_size, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_size, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "setWorkComponent",
                     "(Lorg/kwis/msp/lwc/Component;)V",
                     Self::set_work_component,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("show", "()V", Self::show, Default::default()),
-                JavaMethodProto::new("hide", "()V", Self::hide, Default::default()),
+                JavaMethodProto::new("show", "()V", Self::show, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("hide", "()V", Self::hide, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

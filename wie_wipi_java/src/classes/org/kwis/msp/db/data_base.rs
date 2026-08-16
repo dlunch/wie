@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -20,59 +20,79 @@ impl DataBase {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/rms/RecordStore;)V", Self::init, Default::default()),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljavax/microedition/rms/RecordStore;)V",
+                    Self::init,
+                    MethodAccessFlags::PRIVATE,
+                ),
                 JavaMethodProto::new(
                     "openDataBase",
                     "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
                     Self::open_data_base,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "openDataBase",
                     "(Ljava/lang/String;IZI)Lorg/kwis/msp/db/DataBase;",
                     Self::open_data_base_with_flags,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, Default::default()),
-                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, Default::default()),
-                JavaMethodProto::new("insertRecord", "([B)I", Self::insert_record, Default::default()),
-                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, Default::default()),
-                JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, Default::default()),
-                JavaMethodProto::new("updateRecord", "(I[B)V", Self::update_record, Default::default()),
-                JavaMethodProto::new("updateRecord", "(I[BII)V", Self::update_record_with_offset, Default::default()),
+                JavaMethodProto::new("getNumberOfRecords", "()I", Self::get_number_of_records, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("closeDataBase", "()V", Self::close_data_base, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("insertRecord", "([B)I", Self::insert_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("insertRecord", "([BII)I", Self::insert_record_with_offset, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("selectRecord", "(I)[B", Self::select_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("updateRecord", "(I[B)V", Self::update_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("updateRecord", "(I[BII)V", Self::update_record_with_offset, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "deleteDataBase",
                     "(Ljava/lang/String;)V",
                     Self::delete_data_base,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "deleteDataBase",
                     "(Ljava/lang/String;I)V",
                     Self::delete_data_base_with_flag,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("deleteRecord", "(I)V", Self::delete_record, Default::default()),
-                JavaMethodProto::new("selectRecord", "(I[BI)V", Self::select_record_into, Default::default()),
+                JavaMethodProto::new("deleteRecord", "(I)V", Self::delete_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("selectRecord", "(I[BI)V", Self::select_record_into, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "sortRecord",
                     "(Lorg/kwis/msp/db/DataFilter;Lorg/kwis/msp/db/DataComparator;)[I",
                     Self::sort_record,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("listDataBases", "()[Ljava/lang/String;", Self::list_data_bases, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("getAccessMode", "(Ljava/lang/String;)I", Self::get_access_mode, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("getDataBaseName", "()Ljava/lang/String;", Self::get_data_base_name, Default::default()),
-                JavaMethodProto::new("getDataBaseSize", "()I", Self::get_data_base_size, Default::default()),
-                JavaMethodProto::new("getRecordSize", "()I", Self::get_record_size, Default::default()),
-                JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, Default::default()),
-                JavaMethodProto::new("getLastModified", "()J", Self::get_last_modified, Default::default()),
+                JavaMethodProto::new(
+                    "listDataBases",
+                    "()[Ljava/lang/String;",
+                    Self::list_data_bases,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getAccessMode",
+                    "(Ljava/lang/String;)I",
+                    Self::get_access_mode,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getDataBaseName",
+                    "()Ljava/lang/String;",
+                    Self::get_data_base_name,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("getDataBaseSize", "()I", Self::get_data_base_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRecordSize", "()I", Self::get_record_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getLastModified", "()J", Self::get_last_modified, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("recordStore", "Ljavax/microedition/rms/RecordStore;", Default::default()),
-                JavaFieldProto::new("recordSize", "I", Default::default()),
+                JavaFieldProto::new("recordStore", "Ljavax/microedition/rms/RecordStore;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("recordSize", "I", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
     async fn init(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, record_store: ClassInstanceRef<RecordStore>) -> JvmResult<()> {
@@ -140,14 +160,16 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::getNumberOfRecords({this:?})");
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        jvm.invoke_virtual(&record_store, "getNumRecords", "()I", ()).await
+        jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
+            .await
     }
 
     async fn close_data_base(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<DataBase>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.db.DataBase::closeDataBase({this:?})");
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        jvm.invoke_virtual(&record_store, "closeRecordStore", "()V", ()).await
+        jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "closeRecordStore", "()V", ())
+            .await
     }
 
     async fn insert_record(
@@ -159,7 +181,9 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::insertRecord({this:?}, {data:?})");
 
         let length = jvm.array_length(&data).await? as i32;
-        let result = jvm.invoke_virtual(&this, "insertRecord", "([BII)I", (data, 0, length)).await?;
+        let result = jvm
+            .invoke_virtual(&this, "org/kwis/msp/db/DataBase", "insertRecord", "([BII)I", (data, 0, length))
+            .await?;
 
         Ok(result)
     }
@@ -176,7 +200,13 @@ impl DataBase {
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         let record_id = jvm
-            .invoke_virtual(&record_store, "addRecord", "([BII)I", (data, offset, num_bytes))
+            .invoke_virtual(
+                &record_store,
+                "javax/microedition/rms/RecordStore",
+                "addRecord",
+                "([BII)I",
+                (data, offset, num_bytes),
+            )
             .await?;
 
         Ok(DataBase::to_wipi_record_id(record_id))
@@ -188,7 +218,9 @@ impl DataBase {
         let record_id = DataBase::to_midp_record_id(record_id);
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        let result = jvm.invoke_virtual(&record_store, "getRecord", "(I)[B", (record_id,)).await;
+        let result = jvm
+            .invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
+            .await;
 
         // TODO check exception type
         if result.is_err() {
@@ -210,7 +242,13 @@ impl DataBase {
         let length = jvm.array_length(&data).await? as i32;
 
         let _: () = jvm
-            .invoke_virtual(&this, "updateRecord", "(I[BII)V", (record_id, data, 0, length))
+            .invoke_virtual(
+                &this,
+                "org/kwis/msp/db/DataBase",
+                "updateRecord",
+                "(I[BII)V",
+                (record_id, data, 0, length),
+            )
             .await?;
 
         Ok(())
@@ -231,7 +269,13 @@ impl DataBase {
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
         let _: () = jvm
-            .invoke_virtual(&record_store, "setRecord", "(I[BII)V", (record_id, data, offset, num_bytes))
+            .invoke_virtual(
+                &record_store,
+                "javax/microedition/rms/RecordStore",
+                "setRecord",
+                "(I[BII)V",
+                (record_id, data, offset, num_bytes),
+            )
             .await?;
 
         Ok(())
@@ -263,7 +307,9 @@ impl DataBase {
 
         let record_id = DataBase::to_midp_record_id(record_id);
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        let result: JvmResult<()> = jvm.invoke_virtual(&record_store, "deleteRecord", "(I)V", (record_id,)).await;
+        let result: JvmResult<()> = jvm
+            .invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (record_id,))
+            .await;
         if result.is_err() {
             return Err(jvm.exception("org/kwis/msp/db/DataBaseRecordException", "Record not found").await);
         }
@@ -283,7 +329,9 @@ impl DataBase {
 
         let record_id = DataBase::to_midp_record_id(record_id);
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        let record_size: JvmResult<i32> = jvm.invoke_virtual(&record_store, "getRecordSize", "(I)I", (record_id,)).await;
+        let record_size: JvmResult<i32> = jvm
+            .invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getRecordSize", "(I)I", (record_id,))
+            .await;
         let record_size = match record_size {
             Ok(record_size) => record_size,
             Err(_) => return Err(jvm.exception("org/kwis/msp/db/DataBaseRecordException", "Record not found").await),
@@ -297,7 +345,13 @@ impl DataBase {
         }
 
         let _: i32 = jvm
-            .invoke_virtual(&record_store, "getRecord", "(I[BI)I", (record_id, buffer, offset))
+            .invoke_virtual(
+                &record_store,
+                "javax/microedition/rms/RecordStore",
+                "getRecord",
+                "(I[BI)I",
+                (record_id, buffer, offset),
+            )
             .await?;
 
         Ok(())
@@ -351,7 +405,8 @@ impl DataBase {
         tracing::debug!("org.kwis.msp.db.DataBase::getSizeAvailable({this:?})");
 
         let record_store = jvm.get_field(&this, "recordStore", "Ljavax/microedition/rms/RecordStore;").await?;
-        jvm.invoke_virtual(&record_store, "getSizeAvailable", "()I", ()).await
+        jvm.invoke_virtual(&record_store, "javax/microedition/rms/RecordStore", "getSizeAvailable", "()I", ())
+            .await
     }
 
     async fn get_last_modified(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i64> {
@@ -396,33 +451,53 @@ mod test {
                 )
                 .await?;
 
-            let database_name: ClassInstanceRef<String> = jvm.invoke_virtual(&database, "getDataBaseName", "()Ljava/lang/String;", ()).await?;
+            let database_name: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getDataBaseName", "()Ljava/lang/String;", ())
+                .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &database_name).await?.as_str(), "storage-handset");
 
-            let record_size: i32 = jvm.invoke_virtual(&database, "getRecordSize", "()I", ()).await?;
+            let record_size: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getRecordSize", "()I", ())
+                .await?;
             assert_eq!(record_size, 32);
 
             let mut record = jvm.instantiate_array("B", 3).await?;
             jvm.store_array(&mut record, 0, [1i8, 2, 3]).await?;
-            let record_id: i32 = jvm.invoke_virtual(&database, "insertRecord", "([B)I", (record,)).await?;
+            let record_id: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "insertRecord", "([B)I", (record,))
+                .await?;
 
             let mut buffer = jvm.instantiate_array("B", 5).await?;
             jvm.store_array(&mut buffer, 0, [9i8; 5]).await?;
             let _: () = jvm
-                .invoke_virtual(&database, "selectRecord", "(I[BI)V", (record_id, buffer.clone(), 1))
+                .invoke_virtual(
+                    &database,
+                    "org/kwis/msp/db/DataBase",
+                    "selectRecord",
+                    "(I[BI)V",
+                    (record_id, buffer.clone(), 1),
+                )
                 .await?;
             assert_eq!(jvm.load_array::<i8>(&buffer, 0, 5).await?, [9i8, 1, 2, 3, 9]);
 
             let short_buffer = jvm.instantiate_array("B", 3).await?;
             let short_result: JvmResult<()> = jvm
-                .invoke_virtual(&database, "selectRecord", "(I[BI)V", (record_id, short_buffer, 1))
+                .invoke_virtual(
+                    &database,
+                    "org/kwis/msp/db/DataBase",
+                    "selectRecord",
+                    "(I[BI)V",
+                    (record_id, short_buffer, 1),
+                )
                 .await;
             let Err(JavaError::JavaException(exception)) = short_result else {
                 panic!("selectRecord accepted a buffer smaller than the record");
             };
             assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
 
-            let missing_result: JvmResult<()> = jvm.invoke_virtual(&database, "selectRecord", "(I[BI)V", (99, buffer.clone(), 0)).await;
+            let missing_result: JvmResult<()> = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "selectRecord", "(I[BI)V", (99, buffer.clone(), 0))
+                .await;
             let Err(JavaError::JavaException(exception)) = missing_result else {
                 panic!("selectRecord accepted an unknown record ID");
             };
@@ -431,6 +506,7 @@ mod test {
             let sorted: ClassInstanceRef<Array<i32>> = jvm
                 .invoke_virtual(
                     &database,
+                    "org/kwis/msp/db/DataBase",
                     "sortRecord",
                     "(Lorg/kwis/msp/db/DataFilter;Lorg/kwis/msp/db/DataComparator;)[I",
                     (ClassInstanceRef::<()>::new(None), ClassInstanceRef::<()>::new(None)),
@@ -446,9 +522,15 @@ mod test {
             let access_mode: i32 = jvm
                 .invoke_static("org/kwis/msp/db/DataBase", "getAccessMode", "(Ljava/lang/String;)I", (name.clone(),))
                 .await?;
-            let database_size: i32 = jvm.invoke_virtual(&database, "getDataBaseSize", "()I", ()).await?;
-            let size_available: i32 = jvm.invoke_virtual(&database, "getSizeAvailable", "()I", ()).await?;
-            let last_modified: i64 = jvm.invoke_virtual(&database, "getLastModified", "()J", ()).await?;
+            let database_size: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getDataBaseSize", "()I", ())
+                .await?;
+            let size_available: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getSizeAvailable", "()I", ())
+                .await?;
+            let last_modified: i64 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getLastModified", "()J", ())
+                .await?;
             assert_eq!(access_mode, 0);
             assert_eq!(database_size, 0);
             assert_eq!(size_available, 1_000_000);
@@ -477,36 +559,54 @@ mod test {
 
             let mut first = jvm.instantiate_array("B", 2).await?;
             jvm.store_array(&mut first, 0, [1i8, 2]).await?;
-            let first_id: i32 = jvm.invoke_virtual(&database, "insertRecord", "([B)I", (first,)).await?;
+            let first_id: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "insertRecord", "([B)I", (first,))
+                .await?;
 
             let mut second = jvm.instantiate_array("B", 2).await?;
             jvm.store_array(&mut second, 0, [3i8, 4]).await?;
-            let second_id: i32 = jvm.invoke_virtual(&database, "insertRecord", "([B)I", (second,)).await?;
+            let second_id: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "insertRecord", "([B)I", (second,))
+                .await?;
             assert_eq!((first_id, second_id), (0, 1));
 
-            let count: i32 = jvm.invoke_virtual(&database, "getNumberOfRecords", "()I", ()).await?;
+            let count: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getNumberOfRecords", "()I", ())
+                .await?;
             assert_eq!(count, 2);
 
-            let _: () = jvm.invoke_virtual(&database, "deleteRecord", "(I)V", (first_id,)).await?;
-            let count: i32 = jvm.invoke_virtual(&database, "getNumberOfRecords", "()I", ()).await?;
+            let _: () = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "deleteRecord", "(I)V", (first_id,))
+                .await?;
+            let count: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getNumberOfRecords", "()I", ())
+                .await?;
             assert_eq!(count, 1);
 
-            let deleted: JvmResult<ClassInstanceRef<Array<i8>>> = jvm.invoke_virtual(&database, "selectRecord", "(I)[B", (first_id,)).await;
+            let deleted: JvmResult<ClassInstanceRef<Array<i8>>> = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "selectRecord", "(I)[B", (first_id,))
+                .await;
             let Err(JavaError::JavaException(exception)) = deleted else {
                 panic!("deleted WIPI record lookup succeeded");
             };
             assert!(jvm.is_instance(&*exception, "org/kwis/msp/db/DataBaseRecordException"));
 
-            let remaining: ClassInstanceRef<Array<i8>> = jvm.invoke_virtual(&database, "selectRecord", "(I)[B", (second_id,)).await?;
+            let remaining: ClassInstanceRef<Array<i8>> = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "selectRecord", "(I)[B", (second_id,))
+                .await?;
             assert_eq!(jvm.load_array::<i8>(&remaining, 0, 2).await?, [3i8, 4]);
 
-            let unknown: JvmResult<()> = jvm.invoke_virtual(&database, "deleteRecord", "(I)V", (99,)).await;
+            let unknown: JvmResult<()> = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "deleteRecord", "(I)V", (99,))
+                .await;
             let Err(JavaError::JavaException(exception)) = unknown else {
                 panic!("unknown WIPI record deletion succeeded");
             };
             assert!(jvm.is_instance(&*exception, "org/kwis/msp/db/DataBaseRecordException"));
 
-            let count: i32 = jvm.invoke_virtual(&database, "getNumberOfRecords", "()I", ()).await?;
+            let count: i32 = jvm
+                .invoke_virtual(&database, "org/kwis/msp/db/DataBase", "getNumberOfRecords", "()I", ())
+                .await?;
             assert_eq!(count, 1);
 
             Ok(())

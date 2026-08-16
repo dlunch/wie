@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{FieldAccessFlags, MethodAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
@@ -19,45 +19,55 @@ impl Font {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Font;)V", Self::init, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
-                JavaMethodProto::new("getBaselinePosition", "()I", Self::get_baseline_position, Default::default()),
-                JavaMethodProto::new("getFace", "()I", Self::get_face, Default::default()),
-                JavaMethodProto::new("getSize", "()I", Self::get_size, Default::default()),
-                JavaMethodProto::new("getStyle", "()I", Self::get_style, Default::default()),
-                JavaMethodProto::new("isBold", "()Z", Self::is_bold, Default::default()),
-                JavaMethodProto::new("isItalic", "()Z", Self::is_italic, Default::default()),
-                JavaMethodProto::new("isPlain", "()Z", Self::is_plain, Default::default()),
-                JavaMethodProto::new("isUnderlined", "()Z", Self::is_underlined, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljavax/microedition/lcdui/Font;)V", Self::init, MethodAccessFlags::PRIVATE),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBaselinePosition", "()I", Self::get_baseline_position, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getFace", "()I", Self::get_face, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getSize", "()I", Self::get_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getStyle", "()I", Self::get_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isBold", "()Z", Self::is_bold, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isItalic", "()Z", Self::is_italic, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isPlain", "()Z", Self::is_plain, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isUnderlined", "()Z", Self::is_underlined, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getDefaultFont",
                     "()Lorg/kwis/msp/lcdui/Font;",
                     Self::get_default_font,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getFont", "(III)Lorg/kwis/msp/lcdui/Font;", Self::get_font, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
-                JavaMethodProto::new("substringWidth", "(Ljava/lang/String;II)I", Self::substring_width, Default::default()),
-                JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
-                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, Default::default()),
+                JavaMethodProto::new(
+                    "getFont",
+                    "(III)Lorg/kwis/msp/lcdui/Font;",
+                    Self::get_font,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "substringWidth",
+                    "(Ljava/lang/String;II)I",
+                    Self::substring_width,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("charWidth", "(C)I", Self::char_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("midpFont", "Ljavax/microedition/lcdui/Font;", Default::default()),
-                JavaFieldProto::new("face", "I", Default::default()),
-                JavaFieldProto::new("style", "I", Default::default()),
-                JavaFieldProto::new("size", "I", Default::default()),
-                JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("FACE_PROPORTIONAL", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_BOLD", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_ITALIC", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_UNDERLINED", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("SIZE_MEDIUM", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("SIZE_LARGE", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("midpFont", "Ljavax/microedition/lcdui/Font;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("face", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("style", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("size", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("FACE_PROPORTIONAL", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_BOLD", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_ITALIC", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("STYLE_UNDERLINED", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_MEDIUM", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("SIZE_LARGE", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -107,7 +117,8 @@ impl Font {
         tracing::debug!("org.kwis.msp.lcdui.Font::getHeight");
 
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
-        jvm.invoke_virtual(&midp_font, "getHeight", "()I", ()).await
+        jvm.invoke_virtual(&midp_font, "javax/microedition/lcdui/Font", "getHeight", "()I", ())
+            .await
     }
 
     async fn get_baseline_position(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -202,7 +213,14 @@ impl Font {
         tracing::debug!("org.kwis.msp.lcdui.Font::stringWidth({string:?})");
 
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
-        jvm.invoke_virtual(&midp_font, "stringWidth", "(Ljava/lang/String;)I", (string,)).await
+        jvm.invoke_virtual(
+            &midp_font,
+            "javax/microedition/lcdui/Font",
+            "stringWidth",
+            "(Ljava/lang/String;)I",
+            (string,),
+        )
+        .await
     }
 
     async fn substring_width(
@@ -216,15 +234,22 @@ impl Font {
         tracing::debug!("org.kwis.msp.lcdui.Font::substringWidth({string:?}, {offset:?}, {len:?})");
 
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
-        jvm.invoke_virtual(&midp_font, "substringWidth", "(Ljava/lang/String;II)I", (string, offset, len))
-            .await
+        jvm.invoke_virtual(
+            &midp_font,
+            "javax/microedition/lcdui/Font",
+            "substringWidth",
+            "(Ljava/lang/String;II)I",
+            (string, offset, len),
+        )
+        .await
     }
 
     async fn char_width(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Font::charWidth({char:?})");
 
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
-        jvm.invoke_virtual(&midp_font, "charWidth", "(C)I", (char,)).await
+        jvm.invoke_virtual(&midp_font, "javax/microedition/lcdui/Font", "charWidth", "(C)I", (char,))
+            .await
     }
 
     async fn chars_width(
@@ -238,7 +263,8 @@ impl Font {
         tracing::debug!("org.kwis.msp.lcdui.Font::charsWidth({chars:?}, {offset:?}, {len:?})");
 
         let midp_font = jvm.get_field(&this, "midpFont", "Ljavax/microedition/lcdui/Font;").await?;
-        jvm.invoke_virtual(&midp_font, "charsWidth", "([CII)I", (chars, offset, len)).await
+        jvm.invoke_virtual(&midp_font, "javax/microedition/lcdui/Font", "charsWidth", "([CII)I", (chars, offset, len))
+            .await
     }
 
     pub async fn midp_font(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<MidpFont>> {
@@ -268,14 +294,42 @@ mod test {
                 )
                 .await?;
 
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&font, "getFace", "()I", ()).await?, 32);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&font, "getStyle", "()I", ()).await?, 7);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&font, "getSize", "()I", ()).await?, 16);
-            assert!(jvm.invoke_virtual::<_, bool>(&font, "isBold", "()Z", ()).await?);
-            assert!(jvm.invoke_virtual::<_, bool>(&font, "isItalic", "()Z", ()).await?);
-            assert!(jvm.invoke_virtual::<_, bool>(&font, "isUnderlined", "()Z", ()).await?);
-            assert!(!jvm.invoke_virtual::<_, bool>(&font, "isPlain", "()Z", ()).await?);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&font, "getBaselinePosition", "()I", ()).await?, 0);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&font, "org/kwis/msp/lcdui/Font", "getFace", "()I", ())
+                    .await?,
+                32
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&font, "org/kwis/msp/lcdui/Font", "getStyle", "()I", ())
+                    .await?,
+                7
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&font, "org/kwis/msp/lcdui/Font", "getSize", "()I", ())
+                    .await?,
+                16
+            );
+            assert!(
+                jvm.invoke_virtual::<_, bool>(&font, "org/kwis/msp/lcdui/Font", "isBold", "()Z", ())
+                    .await?
+            );
+            assert!(
+                jvm.invoke_virtual::<_, bool>(&font, "org/kwis/msp/lcdui/Font", "isItalic", "()Z", ())
+                    .await?
+            );
+            assert!(
+                jvm.invoke_virtual::<_, bool>(&font, "org/kwis/msp/lcdui/Font", "isUnderlined", "()Z", ())
+                    .await?
+            );
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&font, "org/kwis/msp/lcdui/Font", "isPlain", "()Z", ())
+                    .await?
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&font, "org/kwis/msp/lcdui/Font", "getBaselinePosition", "()I", ())
+                    .await?,
+                0
+            );
 
             Ok(())
         })

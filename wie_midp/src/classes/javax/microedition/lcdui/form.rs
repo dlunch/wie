@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -18,12 +19,12 @@ impl Form {
             parent_class: Some("javax/microedition/lcdui/Screen"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
-                JavaMethodProto::new("append", "(Ljavax/microedition/lcdui/Item;)I", Self::append, Default::default()),
-                JavaMethodProto::new("append", "(Ljava/lang/String;)I", Self::append_string, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("append", "(Ljavax/microedition/lcdui/Item;)I", Self::append, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("append", "(Ljava/lang/String;)I", Self::append_string, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

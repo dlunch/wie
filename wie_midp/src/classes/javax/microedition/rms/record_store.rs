@@ -3,7 +3,7 @@ use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
 use bytemuck::cast_vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -20,38 +20,38 @@ impl RecordStore {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
-                JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, Default::default()),
-                JavaMethodProto::new("deleteRecord", "(I)V", Self::delete_record, Default::default()),
-                JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, Default::default()),
-                JavaMethodProto::new("getNextRecordID", "()I", Self::get_next_record_id, Default::default()),
-                JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, Default::default()),
-                JavaMethodProto::new("getRecord", "(I[BI)I", Self::get_record_array, Default::default()),
-                JavaMethodProto::new("getRecordSize", "(I)I", Self::get_record_size, Default::default()),
-                JavaMethodProto::new("setRecord", "(I[BII)V", Self::set_record, Default::default()),
-                JavaMethodProto::new("getNumRecords", "()I", Self::get_num_records, Default::default()),
-                JavaMethodProto::new("closeRecordStore", "()V", Self::close_record_store, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PRIVATE),
+                JavaMethodProto::new("addRecord", "([BII)I", Self::add_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("deleteRecord", "(I)V", Self::delete_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getSizeAvailable", "()I", Self::get_size_available, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getNextRecordID", "()I", Self::get_next_record_id, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRecord", "(I)[B", Self::get_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRecord", "(I[BI)I", Self::get_record_array, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRecordSize", "(I)I", Self::get_record_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setRecord", "(I[BII)V", Self::set_record, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getNumRecords", "()I", Self::get_num_records, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("closeRecordStore", "()V", Self::close_record_store, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "openRecordStore",
                     "(Ljava/lang/String;Z)Ljavax/microedition/rms/RecordStore;",
                     Self::open_record_store,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "deleteRecordStore",
                     "(Ljava/lang/String;)V",
                     Self::delete_record_store,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "listRecordStores",
                     "()[Ljava/lang/String;",
                     Self::list_record_stores,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
-            fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", Default::default())],
-            access_flags: Default::default(),
+            fields: vec![JavaFieldProto::new("dbName", "Ljava/lang/String;", FieldAccessFlags::PRIVATE)],
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -276,23 +276,35 @@ mod test {
 
             let mut data = jvm.instantiate_array("B", 2).await?;
             jvm.store_array(&mut data, 0, [1i8, 2]).await?;
-            let record_id: i32 = jvm.invoke_virtual(&store, "addRecord", "([BII)I", (data, 0, 2)).await?;
+            let record_id: i32 = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "addRecord", "([BII)I", (data, 0, 2))
+                .await?;
             assert_eq!(record_id, 1);
 
-            let count: i32 = jvm.invoke_virtual(&store, "getNumRecords", "()I", ()).await?;
+            let count: i32 = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
+                .await?;
             assert_eq!(count, 1);
 
-            let _: () = jvm.invoke_virtual(&store, "deleteRecord", "(I)V", (record_id,)).await?;
-            let count: i32 = jvm.invoke_virtual(&store, "getNumRecords", "()I", ()).await?;
+            let _: () = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (record_id,))
+                .await?;
+            let count: i32 = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getNumRecords", "()I", ())
+                .await?;
             assert_eq!(count, 0);
 
-            let deleted: JvmResult<ClassInstanceRef<Array<i8>>> = jvm.invoke_virtual(&store, "getRecord", "(I)[B", (record_id,)).await;
+            let deleted: JvmResult<ClassInstanceRef<Array<i8>>> = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "getRecord", "(I)[B", (record_id,))
+                .await;
             let Err(JavaError::JavaException(exception)) = deleted else {
                 panic!("deleted record lookup succeeded");
             };
             assert!(jvm.is_instance(&*exception, "javax/microedition/rms/InvalidRecordIDException"));
 
-            let unknown: JvmResult<()> = jvm.invoke_virtual(&store, "deleteRecord", "(I)V", (99,)).await;
+            let unknown: JvmResult<()> = jvm
+                .invoke_virtual(&store, "javax/microedition/rms/RecordStore", "deleteRecord", "(I)V", (99,))
+                .await;
             let Err(JavaError::JavaException(exception)) = unknown else {
                 panic!("unknown record deletion succeeded");
             };

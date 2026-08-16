@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -16,13 +16,13 @@ impl BackLight {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("alwaysOn", "()V", Self::always_on, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("on", "(III)V", Self::on, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("off", "()V", Self::off, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("before", "()V", Self::before, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("alwaysOn", "()V", Self::always_on, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("on", "(III)V", Self::on, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("off", "()V", Self::off, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("before", "()V", Self::before, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

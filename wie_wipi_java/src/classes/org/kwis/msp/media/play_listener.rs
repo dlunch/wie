@@ -14,7 +14,7 @@ impl PlayListener {
             interfaces: vec![],
             methods: vec![],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }

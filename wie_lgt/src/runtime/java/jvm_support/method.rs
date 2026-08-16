@@ -257,7 +257,7 @@ mod tests {
     };
 
     use java_class_proto::{JavaClassProto, JavaMethodProto};
-    use java_constants::MethodAccessFlags;
+    use java_constants::{ClassAccessFlags, MethodAccessFlags};
     use jvm::{JavaError, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
     use spin::Mutex;
 
@@ -341,9 +341,14 @@ mod tests {
                         name: "net/wie/test/RustBridge",
                         parent_class: Some("java/lang/Object"),
                         interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("wide", "(JD)J", rust_wide_bridge, MethodAccessFlags::STATIC)],
+                        methods: vec![JavaMethodProto::new(
+                            "wide",
+                            "(JD)J",
+                            rust_wide_bridge,
+                            MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                        )],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(observed.clone()),
                 )
@@ -420,9 +425,13 @@ mod tests {
                         name: "net/wie/test/AbstractMethod",
                         parent_class: Some("java/lang/Object"),
                         interfaces: vec![],
-                        methods: vec![JavaMethodProto::new_abstract("call", "()V", MethodAccessFlags::ABSTRACT)],
+                        methods: vec![JavaMethodProto::new_abstract(
+                            "call",
+                            "()V",
+                            MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
+                        )],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
                     },
                     Box::new(()),
                 )

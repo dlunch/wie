@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::io::InputStream;
 use jvm::{ClassInstanceRef, Jvm, Result, runtime::JavaIoInputStream};
 
@@ -16,14 +17,14 @@ impl SmafPlayer {
             parent_class: Some("java/lang/Object"),
             interfaces: vec!["javax/microedition/media/Player"],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/io/InputStream;)V", Self::init, Default::default()),
-                JavaMethodProto::new("start", "()V", Self::start, Default::default()),
-                JavaMethodProto::new("start", "(Z)V", Self::start_with_repeat, Default::default()),
-                JavaMethodProto::new("stop", "()V", Self::stop, Default::default()),
-                JavaMethodProto::new("close", "()V", Self::close, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/io/InputStream;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("start", "()V", Self::start, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("start", "(Z)V", Self::start_with_repeat, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("stop", "()V", Self::stop, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
             ],
-            fields: vec![JavaFieldProto::new("audioHandle", "I", Default::default())],
-            access_flags: Default::default(),
+            fields: vec![JavaFieldProto::new("audioHandle", "I", FieldAccessFlags::PRIVATE)],
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

@@ -188,7 +188,7 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let _: bool = jvm
-        .invoke_virtual(&native_strings, "add", "(Ljava/lang/Object;)Z", (value.clone(),))
+        .invoke_virtual(&native_strings, "java/util/Vector", "add", "(Ljava/lang/Object;)Z", (value.clone(),))
         .await
         .map_err(|JavaError::JavaException(instance)| WieError::JavaException(LgtJvmSupport::class_instance_raw(&*instance)))?;
     let value = LgtJvmSupport::class_instance_raw(&*value);

@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -16,17 +17,17 @@ impl Command {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init, Default::default()),
-                JavaMethodProto::new("getLabel", "()Ljava/lang/String;", Self::get_label, Default::default()),
-                JavaMethodProto::new("getCommandType", "()I", Self::get_command_type, Default::default()),
-                JavaMethodProto::new("getPriority", "()I", Self::get_priority, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getLabel", "()Ljava/lang/String;", Self::get_label, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getCommandType", "()I", Self::get_command_type, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getPriority", "()I", Self::get_priority, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("label", "Ljava/lang/String;", Default::default()),
-                JavaFieldProto::new("commandType", "I", Default::default()),
-                JavaFieldProto::new("priority", "I", Default::default()),
+                JavaFieldProto::new("label", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("commandType", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("priority", "I", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

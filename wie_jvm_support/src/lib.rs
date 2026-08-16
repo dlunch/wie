@@ -75,11 +75,14 @@ impl JvmSupport {
                     .unwrap();
 
                 let _: () = jvm
-                    .invoke_virtual(&x, "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
+                    .invoke_virtual(&x, "java/lang/Throwable", "printStackTrace", "(Ljava/io/PrintWriter;)V", (print_writer,))
                     .await
                     .unwrap();
 
-                let trace = jvm.invoke_virtual(&string_writer, "toString", "()Ljava/lang/String;", []).await.unwrap();
+                let trace = jvm
+                    .invoke_virtual(&string_writer, "java/io/StringWriter", "toString", "()Ljava/lang/String;", [])
+                    .await
+                    .unwrap();
 
                 WieError::FatalError(format!("\n{}", JavaLangString::to_rust_string(jvm, &trace).await.unwrap()))
             }

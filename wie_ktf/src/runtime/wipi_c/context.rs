@@ -104,7 +104,7 @@ impl WIPICContext for KtfWIPICContext {
 
         let result = match stream {
             Some(stream) => {
-                let available: i32 = match self.jvm.invoke_virtual(&stream, "available", "()I", ()).await {
+                let available: i32 = match self.jvm.invoke_virtual(&stream, "java/io/InputStream", "available", "()I", ()).await {
                     Ok(available) => available,
                     Err(err) => return Err(JvmSupport::to_wie_err(&self.jvm, err).await),
                 };

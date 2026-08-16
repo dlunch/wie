@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -15,9 +16,14 @@ impl TextBoxComponent {
             name: "org/kwis/msp/lwc/TextBoxComponent",
             parent_class: Some("org/kwis/msp/lwc/TextComponent"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init, Default::default())],
+            methods: vec![JavaMethodProto::new(
+                "<init>",
+                "(Ljava/lang/String;I)V",
+                Self::init,
+                MethodAccessFlags::PUBLIC,
+            )],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
