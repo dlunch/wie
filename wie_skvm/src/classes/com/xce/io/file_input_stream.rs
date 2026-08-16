@@ -14,25 +14,23 @@ pub struct FileInputStream;
 
 impl FileInputStream {
     pub fn as_proto() -> WieJavaClassProto {
-        let public = MethodAccessFlags::PUBLIC;
-
         WieJavaClassProto {
             name: "com/xce/io/FileInputStream",
             parent_class: Some("java/io/InputStream"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, public),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, public),
-                JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, public),
-                JavaMethodProto::new("available", "()I", Self::available, public),
-                JavaMethodProto::new("close", "()V", Self::close, public),
-                JavaMethodProto::new("mark", "(I)V", Self::mark, public),
-                JavaMethodProto::new("markSupported", "()Z", Self::mark_supported, public),
-                JavaMethodProto::new("read", "()I", Self::read_byte, public),
-                JavaMethodProto::new("read", "([B)I", Self::read_array_full, public),
-                JavaMethodProto::new("read", "([BII)I", Self::read_array, public),
-                JavaMethodProto::new("reset", "()V", Self::reset, public),
-                JavaMethodProto::new("skip", "(J)J", Self::skip, public),
+                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("available", "()I", Self::available, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("mark", "(I)V", Self::mark, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("markSupported", "()Z", Self::mark_supported, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("read", "()I", Self::read_byte, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("read", "([B)I", Self::read_array_full, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("read", "([BII)I", Self::read_array, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("reset", "()V", Self::reset, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("skip", "(J)J", Self::skip, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
                 JavaFieldProto::new("file", "Lcom/xce/io/XFile;", FieldAccessFlags::PRIVATE),

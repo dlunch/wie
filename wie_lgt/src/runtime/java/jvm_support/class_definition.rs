@@ -283,12 +283,11 @@ impl JavaClassDefinition {
         let ptr_vtable = JavaVtable::allocate(core, virtual_methods.len())?;
         JavaVtable::write(core, ptr_vtable, ptr_raw, &virtual_methods)?;
         let ptr_descriptor = Allocator::alloc(core, size_of::<RawJavaClassDescriptor>() as u32)?;
-        let access_flags = ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL;
         write_generic(
             core,
             ptr_descriptor,
             RawJavaClassDescriptor {
-                access_flags: access_flags.bits() as u32,
+                access_flags: (ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL).bits() as u32,
                 ptr_next_class: 0,
                 ptr_name,
                 ptr_vtable: 0,

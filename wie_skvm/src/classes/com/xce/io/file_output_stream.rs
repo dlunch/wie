@@ -14,21 +14,19 @@ pub struct FileOutputStream;
 
 impl FileOutputStream {
     pub fn as_proto() -> WieJavaClassProto {
-        let public = MethodAccessFlags::PUBLIC;
-
         WieJavaClassProto {
             name: "com/xce/io/FileOutputStream",
             parent_class: Some("java/io/OutputStream"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, public),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, public),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;Z)V", Self::init_with_truncate, public),
-                JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, public),
-                JavaMethodProto::new("close", "()V", Self::close, public),
-                JavaMethodProto::new("flush", "()V", Self::flush, public),
-                JavaMethodProto::new("write", "([BII)V", Self::write_array, public),
-                JavaMethodProto::new("write", "(I)V", Self::write, public),
+                JavaMethodProto::new("<init>", "(I)V", Self::init_with_fd, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;Z)V", Self::init_with_truncate, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Lcom/xce/io/XFile;)V", Self::init_with_file, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("flush", "()V", Self::flush, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("write", "([BII)V", Self::write_array, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("write", "(I)V", Self::write, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![JavaFieldProto::new("file", "Lcom/xce/io/XFile;", FieldAccessFlags::PROTECTED)],
             access_flags: ClassAccessFlags::PUBLIC,

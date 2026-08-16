@@ -21,27 +21,49 @@ pub struct PhoneBook;
 
 impl PhoneBook {
     pub fn as_proto() -> WieJavaClassProto {
-        let public_static = MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC;
-        let public_static_final = FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL;
-
         WieJavaClassProto {
             name: "com/skt/m/PhoneBook",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("findRecord", "(ILjava/lang/String;)V", Self::find_record, public_static),
-                JavaMethodProto::new("first", "()V", Self::first, public_static),
-                JavaMethodProto::new("getField", "(II)Ljava/lang/String;", Self::get_field, public_static),
-                JavaMethodProto::new("getGroupNames", "()[Ljava/lang/String;", Self::get_group_names, public_static),
-                JavaMethodProto::new("getMaxRecordID", "()I", Self::get_max_record_id, public_static),
-                JavaMethodProto::new("getRecord", "(I)[Ljava/lang/String;", Self::get_record, public_static),
-                JavaMethodProto::new("isUsed", "(I)Z", Self::is_used, public_static),
-                JavaMethodProto::new("next", "()I", Self::next, public_static),
+                JavaMethodProto::new(
+                    "findRecord",
+                    "(ILjava/lang/String;)V",
+                    Self::find_record,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("first", "()V", Self::first, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "getField",
+                    "(II)Ljava/lang/String;",
+                    Self::get_field,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getGroupNames",
+                    "()[Ljava/lang/String;",
+                    Self::get_group_names,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getMaxRecordID",
+                    "()I",
+                    Self::get_max_record_id,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getRecord",
+                    "(I)[Ljava/lang/String;",
+                    Self::get_record,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("isUsed", "(I)Z", Self::is_used, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("next", "()I", Self::next, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
             ],
             fields: ["ALL", "NAME", "GROUP", "HANDPHONE", "HOME", "OFFICE", "EMAIL", "MEMO"]
                 .into_iter()
-                .map(|name| JavaFieldProto::new(name, "I", public_static_final))
+                .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
                 .collect(),
             access_flags: ClassAccessFlags::PUBLIC,
         }

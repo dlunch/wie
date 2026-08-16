@@ -14,8 +14,6 @@ pub struct Graphics3D;
 
 impl Graphics3D {
     pub fn as_proto() -> WieJavaClassProto {
-        let public_static = MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC;
-
         WieJavaClassProto {
             name: "com/skt/m3d/Graphics3D",
             parent_class: Some("java/lang/Object"),
@@ -23,24 +21,54 @@ impl Graphics3D {
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("clearZBuffer", "()V", Self::clear_z_buffer, public_static),
-                JavaMethodProto::new("destroyZBuffer", "()V", Self::destroy_z_buffer, public_static),
+                JavaMethodProto::new(
+                    "clearZBuffer",
+                    "()V",
+                    Self::clear_z_buffer,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "destroyZBuffer",
+                    "()V",
+                    Self::destroy_z_buffer,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new(
                     "drawWireframe",
                     "(Ljavax/microedition/lcdui/Graphics;Lcom/skt/m3d/Object3D;)V",
                     Self::draw_wireframe,
-                    public_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("isBackfaceCulled", "()Z", Self::is_backface_culled, public_static),
-                JavaMethodProto::new("isZBufferEnabled", "()Z", Self::is_z_buffer_enabled, public_static),
+                JavaMethodProto::new(
+                    "isBackfaceCulled",
+                    "()Z",
+                    Self::is_backface_culled,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "isZBufferEnabled",
+                    "()Z",
+                    Self::is_z_buffer_enabled,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new(
                     "render",
                     "(Ljavax/microedition/lcdui/Graphics;Lcom/skt/m3d/Object3D;)V",
                     Self::render,
-                    public_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("setBackfaceCulled", "(Z)V", Self::set_backface_culled, public_static),
-                JavaMethodProto::new("setZBufferEnabled", "(Z)V", Self::set_z_buffer_enabled, public_static),
+                JavaMethodProto::new(
+                    "setBackfaceCulled",
+                    "(Z)V",
+                    Self::set_backface_culled,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "setZBufferEnabled",
+                    "(Z)V",
+                    Self::set_z_buffer_enabled,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![
                 JavaFieldProto::new("backfaceCulled", "Z", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),

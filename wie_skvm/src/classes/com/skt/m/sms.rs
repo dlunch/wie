@@ -14,19 +14,42 @@ pub struct SMS;
 
 impl SMS {
     pub fn as_proto() -> WieJavaClassProto {
-        let public_static = MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC;
-
         WieJavaClassProto {
             name: "com/skt/m/SMS",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("get", "(I)Lcom/skt/m/SMSMessage;", Self::get, public_static),
-                JavaMethodProto::new("get", "(ILcom/skt/m/SMSMessage;)Z", Self::get_into_message, public_static),
-                JavaMethodProto::new("getSMSListener", "()Lcom/skt/m/SMSListener;", Self::get_sms_listener, public_static),
-                JavaMethodProto::new("send", "(Ljava/lang/String;Lcom/skt/m/SMSMessage;)Z", Self::send, public_static),
-                JavaMethodProto::new("setSMSListener", "(Lcom/skt/m/SMSListener;)V", Self::set_sms_listener, public_static),
+                JavaMethodProto::new(
+                    "get",
+                    "(I)Lcom/skt/m/SMSMessage;",
+                    Self::get,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "get",
+                    "(ILcom/skt/m/SMSMessage;)Z",
+                    Self::get_into_message,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getSMSListener",
+                    "()Lcom/skt/m/SMSListener;",
+                    Self::get_sms_listener,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "send",
+                    "(Ljava/lang/String;Lcom/skt/m/SMSMessage;)Z",
+                    Self::send,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "setSMSListener",
+                    "(Lcom/skt/m/SMSListener;)V",
+                    Self::set_sms_listener,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![JavaFieldProto::new(
                 "listener",

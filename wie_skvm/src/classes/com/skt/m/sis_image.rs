@@ -13,10 +13,6 @@ pub struct SISImage;
 
 impl SISImage {
     pub fn as_proto() -> WieJavaClassProto {
-        let public = MethodAccessFlags::PUBLIC;
-        let public_static = MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC;
-        let public_static_final = FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL;
-
         WieJavaClassProto {
             name: "com/skt/m/SISImage",
             parent_class: Some("java/lang/Object"),
@@ -24,36 +20,71 @@ impl SISImage {
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PRIVATE),
-                JavaMethodProto::new("createBuffer", "(II)V", Self::create_buffer, public_static),
+                JavaMethodProto::new(
+                    "createBuffer",
+                    "(II)V",
+                    Self::create_buffer,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new(
                     "createSISImage",
                     "([BII)Lcom/skt/m/SISImage;",
                     Self::create_sis_image_from_data,
-                    public_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createSISImage",
                     "(Ljava/lang/String;)Lcom/skt/m/SISImage;",
                     Self::create_sis_image_from_name,
-                    public_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("freeBuffer", "()V", Self::free_buffer, public_static),
-                JavaMethodProto::new("getRequiredBufferSize", "([BII)I", Self::get_required_buffer_size, public_static),
-                JavaMethodProto::new("getBestID", "()I", Self::get_best_id, public),
-                JavaMethodProto::new("getDelay", "(I)I", Self::get_delay, public),
-                JavaMethodProto::new("getFrame", "(I)Ljavax/microedition/lcdui/Image;", Self::get_frame, public),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, public),
-                JavaMethodProto::new("getImageLevel", "()I", Self::get_image_level, public),
-                JavaMethodProto::new("getMaxFrameID", "()I", Self::get_max_frame_id, public),
-                JavaMethodProto::new("getMaxObjectID", "()I", Self::get_max_object_id, public),
-                JavaMethodProto::new("getObject", "(IZ)Ljavax/microedition/lcdui/Image;", Self::get_object, public),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, public),
-                JavaMethodProto::new("paintFrame", "(Ljavax/microedition/lcdui/Graphics;III)V", Self::paint_frame, public),
-                JavaMethodProto::new("paintObject", "(Ljavax/microedition/lcdui/Graphics;IIIZ)V", Self::paint_object, public),
+                JavaMethodProto::new(
+                    "freeBuffer",
+                    "()V",
+                    Self::free_buffer,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getRequiredBufferSize",
+                    "([BII)I",
+                    Self::get_required_buffer_size,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("getBestID", "()I", Self::get_best_id, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getDelay", "(I)I", Self::get_delay, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getFrame",
+                    "(I)Ljavax/microedition/lcdui/Image;",
+                    Self::get_frame,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getImageLevel", "()I", Self::get_image_level, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getMaxFrameID", "()I", Self::get_max_frame_id, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getMaxObjectID", "()I", Self::get_max_object_id, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getObject",
+                    "(IZ)Ljavax/microedition/lcdui/Image;",
+                    Self::get_object,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "paintFrame",
+                    "(Ljavax/microedition/lcdui/Graphics;III)V",
+                    Self::paint_frame,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
+                    "paintObject",
+                    "(Ljavax/microedition/lcdui/Graphics;IIIZ)V",
+                    Self::paint_object,
+                    MethodAccessFlags::PUBLIC,
+                ),
             ],
             fields: ["IMG_LEVEL_BW", "IMG_LEVEL_4G", "IMG_LEVEL_256C"]
                 .into_iter()
-                .map(|name| JavaFieldProto::new(name, "I", public_static_final))
+                .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
                 .collect(),
             access_flags: ClassAccessFlags::PUBLIC,
         }

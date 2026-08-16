@@ -18,10 +18,6 @@ impl Graphics2D {
     const DRAW_XOR: i32 = 3;
 
     pub fn as_proto() -> WieJavaClassProto {
-        let public = MethodAccessFlags::PUBLIC;
-        let public_static = MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC;
-        let public_static_field = FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL;
-
         WieJavaClassProto {
             name: "com/skt/m/Graphics2D",
             parent_class: Some("java/lang/Object"),
@@ -33,27 +29,53 @@ impl Graphics2D {
                     "getGraphics2D",
                     "(Ljavax/microedition/lcdui/Graphics;)Lcom/skt/m/Graphics2D;",
                     Self::get_graphics2d,
-                    public_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("captureLCD", "(IIII)Ljavax/microedition/lcdui/Image;", Self::capture_lcd, public_static),
-                JavaMethodProto::new("drawImage", "(IILjavax/microedition/lcdui/Image;IIIII)V", Self::draw_image, public),
+                JavaMethodProto::new(
+                    "captureLCD",
+                    "(IIII)Ljavax/microedition/lcdui/Image;",
+                    Self::capture_lcd,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "drawImage",
+                    "(IILjavax/microedition/lcdui/Image;IIIII)V",
+                    Self::draw_image,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "createMaskableImage",
                     "(II)Ljavax/microedition/lcdui/Image;",
                     Self::create_maskable_image,
-                    public_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("getPixel", "(II)I", Self::get_pixel, public),
-                JavaMethodProto::new("getPixelMask", "(II)Z", Self::get_pixel_mask, public),
-                JavaMethodProto::new("invertRect", "(IIII)V", Self::invert_rect, public),
-                JavaMethodProto::new("setPixel", "(III)V", Self::set_pixel, public),
-                JavaMethodProto::new("setPixelMask", "(IIZ)V", Self::set_pixel_mask, public),
+                JavaMethodProto::new("getPixel", "(II)I", Self::get_pixel, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getPixelMask", "(II)Z", Self::get_pixel_mask, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("invertRect", "(IIII)V", Self::invert_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setPixel", "(III)V", Self::set_pixel, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setPixelMask", "(IIZ)V", Self::set_pixel_mask, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("DRAW_COPY", "I", public_static_field),
-                JavaFieldProto::new("DRAW_AND", "I", public_static_field),
-                JavaFieldProto::new("DRAW_OR", "I", public_static_field),
-                JavaFieldProto::new("DRAW_XOR", "I", public_static_field),
+                JavaFieldProto::new(
+                    "DRAW_COPY",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "DRAW_AND",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "DRAW_OR",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "DRAW_XOR",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
                 JavaFieldProto::new("graphics", "Ljavax/microedition/lcdui/Graphics;", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,

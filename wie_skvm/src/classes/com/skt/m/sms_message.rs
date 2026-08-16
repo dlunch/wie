@@ -17,8 +17,6 @@ pub struct SMSMessage;
 
 impl SMSMessage {
     pub fn as_proto() -> WieJavaClassProto {
-        let public_static_final = FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL;
-
         WieJavaClassProto {
             name: "com/skt/m/SMSMessage",
             parent_class: Some("java/lang/Object"),
@@ -50,10 +48,26 @@ impl SMSMessage {
                 JavaMethodProto::new("getURL", "()Ljava/lang/String;", Self::get_url, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("APPLICATION_DATA", "I", public_static_final),
-                JavaFieldProto::new("DOWNLOAD_NOTIFICATION", "I", public_static_final),
-                JavaFieldProto::new("SHORT_MESSAGE", "I", public_static_final),
-                JavaFieldProto::new("UNKNOWN", "I", public_static_final),
+                JavaFieldProto::new(
+                    "APPLICATION_DATA",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "DOWNLOAD_NOTIFICATION",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "SHORT_MESSAGE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "UNKNOWN",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
                 JavaFieldProto::new("type", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("shortMessage", "[B", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("sender", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
