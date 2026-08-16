@@ -19,7 +19,7 @@ impl EventQueue {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, MethodAccessFlags::PRIVATE),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, MethodAccessFlags::empty()),
                 JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("postEvent", "([I)Z", Self::post_event, MethodAccessFlags::PUBLIC),

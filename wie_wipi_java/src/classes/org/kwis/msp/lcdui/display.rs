@@ -28,7 +28,7 @@ impl Display {
                     "<init>",
                     "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
                     Self::init,
-                    MethodAccessFlags::PRIVATE,
+                    MethodAccessFlags::empty(),
                 ),
                 JavaMethodProto::new(
                     "getDisplay",
