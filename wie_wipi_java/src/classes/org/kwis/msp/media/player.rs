@@ -102,9 +102,7 @@ impl Player {
         let player = Clip::player(jvm, &clip).await?;
 
         if !player.is_null() {
-            let _: () = jvm
-                .invoke_virtual(&player, "javax/microedition/media/Player", "start", "(Z)V", (repeat,))
-                .await?;
+            let _: () = jvm.invoke_virtual(&player, "net/wie/SmafPlayer", "start", "(Z)V", (repeat,)).await?;
 
             Ok(true)
         } else {
@@ -178,25 +176,24 @@ mod test {
     }
 
     #[test]
-    fn test_clip_compatibility_overloads_remain() -> Result<()> {
+    fn test_clip_playback_uses_repeat_overload() -> Result<()> {
         run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
             let r#type: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "audio/test").await?.into();
-            let clip: ClassInstanceRef<Clip> = jvm.new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;)V", (r#type,)).await?.into();
+            let data = jvm.instantiate_array("B", 0).await?;
+            let clip: ClassInstanceRef<Clip> = jvm
+                .new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;[B)V", (r#type, data))
+                .await?
+                .into();
 
             let played: bool = jvm
-                .invoke_static(
-                    "org/kwis/msp/media/Player",
-                    "play",
-                    "(Lorg/kwis/msp/media/Clip;Z)Z",
-                    (clip.clone(), false),
-                )
+                .invoke_static("org/kwis/msp/media/Player", "play", "(Lorg/kwis/msp/media/Clip;Z)Z", (clip.clone(), true))
                 .await?;
             let stopped: bool = jvm
                 .invoke_static("org/kwis/msp/media/Player", "stop", "(Lorg/kwis/msp/media/Clip;)Z", (clip,))
                 .await?;
 
-            assert!(!played);
-            assert!(!stopped);
+            assert!(played);
+            assert!(stopped);
 
             Ok(())
         })
