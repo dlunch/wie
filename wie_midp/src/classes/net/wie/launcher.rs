@@ -52,8 +52,9 @@ impl Launcher {
         tracing::debug!("net.wie.Launcher::startMIDlet({midlet:?})");
 
         // run startApp
-        let class_name = midlet.class_definition().name();
-        let _: () = jvm.invoke_virtual(&midlet, &class_name, "startApp", "()V", (None,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&midlet, "javax/microedition/midlet/MIDlet", "startApp", "()V", ())
+            .await?;
 
         // spawn event loop
         context.spawn(jvm, Box::new(EventLoopRunner))?;

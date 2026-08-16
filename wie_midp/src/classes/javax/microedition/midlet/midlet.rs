@@ -26,11 +26,7 @@ impl MIDlet {
                     Self::get_app_property,
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
-                JavaMethodProto::new_abstract(
-                    "startApp",
-                    "([Ljava/lang/String;)V",
-                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
-                ),
+                JavaMethodProto::new_abstract("startApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
                 JavaMethodProto::new(
                     "notifyDestroyed",
                     "()V",

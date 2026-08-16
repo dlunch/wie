@@ -15,7 +15,7 @@ impl Screen {
             name: "javax/microedition/lcdui/Screen",
             parent_class: Some("javax/microedition/lcdui/Displayable"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty())],
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED)],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }

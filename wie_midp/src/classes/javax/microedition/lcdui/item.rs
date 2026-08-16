@@ -15,7 +15,7 @@ impl Item {
             name: "javax/microedition/lcdui/Item",
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty())],
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED)],
             fields: vec![],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
