@@ -1,7 +1,7 @@
 use alloc::{string::String as RustString, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{FieldAccessFlags, MethodAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -19,38 +19,83 @@ impl Font {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
-                JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, Default::default()),
-                JavaMethodProto::new("substringWidth", "(Ljava/lang/String;II)I", Self::substring_width, Default::default()),
-                JavaMethodProto::new("charWidth", "(C)I", Self::char_width, Default::default()),
-                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::empty()),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("stringWidth", "(Ljava/lang/String;)I", Self::string_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "substringWidth",
+                    "(Ljava/lang/String;II)I",
+                    Self::substring_width,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("charWidth", "(C)I", Self::char_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("charsWidth", "([CII)I", Self::chars_width, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getFont",
                     "(III)Ljavax/microedition/lcdui/Font;",
                     Self::get_font,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getDefaultFont",
                     "()Ljavax/microedition/lcdui/Font;",
                     Self::get_default_font,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("FACE_SYSTEM", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("FACE_MONOSPACE", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("FACE_PROPORTIONAL", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_PLAIN", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_BOLD", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_ITALIC", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("STYLE_UNDERLINED", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("SIZE_SMALL", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("SIZE_MEDIUM", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("SIZE_LARGE", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new(
+                    "FACE_SYSTEM",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "FACE_MONOSPACE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "FACE_PROPORTIONAL",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "STYLE_PLAIN",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "STYLE_BOLD",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "STYLE_ITALIC",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "STYLE_UNDERLINED",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "SIZE_SMALL",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "SIZE_MEDIUM",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "SIZE_LARGE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::FINAL,
         }
     }
 

@@ -14,9 +14,13 @@ impl DataComparator {
             name: "org/kwis/msp/db/DataComparator",
             parent_class: None,
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new_abstract("compare", "([B[B)I", MethodAccessFlags::ABSTRACT)],
+            methods: vec![JavaMethodProto::new_abstract(
+                "compare",
+                "([B[B)I",
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
+            )],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }

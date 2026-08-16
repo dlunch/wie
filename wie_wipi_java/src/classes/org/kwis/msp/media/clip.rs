@@ -3,6 +3,7 @@ use alloc::vec;
 use bytemuck::cast_vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaIoInputStream};
 
@@ -21,37 +22,37 @@ impl Clip {
             parent_class: Some("org/kwis/msp/media/BaseClip"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init_with_data, Default::default()),
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init_with_data_size, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;[B)V", Self::init_with_data, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;I)V", Self::init_with_data_size, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "<init>",
                     "(Ljava/lang/String;Ljava/lang/String;)V",
                     Self::init_with_resource,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("setVolume", "(I)Z", Self::set_volume, Default::default()),
+                JavaMethodProto::new("setVolume", "(I)Z", Self::set_volume, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "setListener",
                     "(Lorg/kwis/msp/media/PlayListener;)V",
                     Self::set_listener,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("setBuffer", "([BI)V", Self::set_buffer, Default::default()),
-                JavaMethodProto::new("getType", "()Ljava/lang/String;", Self::get_type, Default::default()),
-                JavaMethodProto::new("setPosition", "(I)Z", Self::set_position, Default::default()),
-                JavaMethodProto::new("getPosition", "()I", Self::get_position, Default::default()),
-                JavaMethodProto::new("setStopTime", "(I)Z", Self::set_stop_time, Default::default()),
-                JavaMethodProto::new("getStopTime", "()I", Self::get_stop_time, Default::default()),
-                JavaMethodProto::new("getVolume", "()I", Self::get_volume, Default::default()),
+                JavaMethodProto::new("setBuffer", "([BI)V", Self::set_buffer, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getType", "()Ljava/lang/String;", Self::get_type, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setPosition", "(I)Z", Self::set_position, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getPosition", "()I", Self::get_position, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setStopTime", "(I)Z", Self::set_stop_time, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getStopTime", "()I", Self::get_stop_time, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getVolume", "()I", Self::get_volume, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("position", "I", Default::default()),
-                JavaFieldProto::new("stopTime", "I", Default::default()),
-                JavaFieldProto::new("type", "Ljava/lang/String;", Default::default()),
-                JavaFieldProto::new("volume", "I", Default::default()),
+                JavaFieldProto::new("position", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("stopTime", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("type", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("volume", "I", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -73,10 +74,13 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::<init>({this:?}, {type:?}, {resource_name:?})");
 
-        let class = jvm.invoke_virtual(&r#type, "getClass", "()Ljava/lang/Class;", ()).await?;
+        let class = jvm
+            .invoke_virtual(&r#type, "java/lang/String", "getClass", "()Ljava/lang/Class;", ())
+            .await?;
         let resource_stream = jvm
             .invoke_virtual(
                 &class,
+                "java/lang/Class",
                 "getResourceAsStream",
                 "(Ljava/lang/String;)Ljava/io/InputStream;",
                 (resource_name.clone(),),
@@ -114,7 +118,9 @@ impl Clip {
             .await?;
         let length = jvm.array_length(&data).await?;
 
-        let _: () = jvm.invoke_virtual(&this, "setBuffer", "([BI)V", (data, length as i32)).await?;
+        let _: () = jvm
+            .invoke_virtual(&this, "org/kwis/msp/media/Clip", "setBuffer", "([BI)V", (data, length as i32))
+            .await?;
 
         Ok(())
     }
@@ -164,7 +170,9 @@ impl Clip {
     ) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.media.Clip::setBuffer({this:?}, {buffer:?}, {size})");
 
-        let _: i32 = jvm.invoke_virtual(&this, "putData", "([BII)I", (buffer, 0, size)).await?;
+        let _: i32 = jvm
+            .invoke_virtual(&this, "org/kwis/msp/media/Clip", "putData", "([BII)I", (buffer, 0, size))
+            .await?;
 
         Ok(())
     }
@@ -231,12 +239,16 @@ mod test {
             let r#type = JavaLangString::from_rust_string(&jvm, "audio/test").await?;
             let clip: ClassInstanceRef<Clip> = jvm.new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;)V", (r#type,)).await?.into();
 
-            let initial_position: i32 = jvm.invoke_virtual(&clip, "getPosition", "()I", ()).await?;
-            let initial_stop_time: i32 = jvm.invoke_virtual(&clip, "getStopTime", "()I", ()).await?;
-            let position_set: bool = jvm.invoke_virtual(&clip, "setPosition", "(I)Z", (-17,)).await?;
-            let stop_time_set: bool = jvm.invoke_virtual(&clip, "setStopTime", "(I)Z", (i32::MAX,)).await?;
-            let position: i32 = jvm.invoke_virtual(&clip, "getPosition", "()I", ()).await?;
-            let stop_time: i32 = jvm.invoke_virtual(&clip, "getStopTime", "()I", ()).await?;
+            let initial_position: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getPosition", "()I", ()).await?;
+            let initial_stop_time: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getStopTime", "()I", ()).await?;
+            let position_set: bool = jvm
+                .invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setPosition", "(I)Z", (-17,))
+                .await?;
+            let stop_time_set: bool = jvm
+                .invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setStopTime", "(I)Z", (i32::MAX,))
+                .await?;
+            let position: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getPosition", "()I", ()).await?;
+            let stop_time: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getStopTime", "()I", ()).await?;
 
             assert_eq!(initial_position, 0);
             assert_eq!(initial_stop_time, 0);
@@ -266,8 +278,12 @@ mod test {
                 .await?
                 .into();
 
-            let returned_string_type: ClassInstanceRef<String> = jvm.invoke_virtual(&string_clip, "getType", "()Ljava/lang/String;", ()).await?;
-            let returned_data_type: ClassInstanceRef<String> = jvm.invoke_virtual(&data_clip, "getType", "()Ljava/lang/String;", ()).await?;
+            let returned_string_type: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&string_clip, "org/kwis/msp/media/Clip", "getType", "()Ljava/lang/String;", ())
+                .await?;
+            let returned_data_type: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&data_clip, "org/kwis/msp/media/Clip", "getType", "()Ljava/lang/String;", ())
+                .await?;
 
             assert_eq!(JavaLangString::to_rust_string(&jvm, &returned_string_type).await?, "audio/string");
             assert_eq!(JavaLangString::to_rust_string(&jvm, &returned_data_type).await?, "audio/data");
@@ -287,17 +303,21 @@ mod test {
                 .await?
                 .into();
 
-            let second_initial_volume: i32 = jvm.invoke_virtual(&second_clip, "getVolume", "()I", ()).await?;
+            let second_initial_volume: i32 = jvm
+                .invoke_virtual(&second_clip, "org/kwis/msp/media/Clip", "getVolume", "()I", ())
+                .await?;
 
-            let minimum_set: bool = jvm.invoke_virtual(&clip, "setVolume", "(I)Z", (0,)).await?;
-            let minimum_volume: i32 = jvm.invoke_virtual(&clip, "getVolume", "()I", ()).await?;
-            let maximum_set: bool = jvm.invoke_virtual(&clip, "setVolume", "(I)Z", (100,)).await?;
-            let maximum_volume: i32 = jvm.invoke_virtual(&clip, "getVolume", "()I", ()).await?;
-            let below_minimum_set: bool = jvm.invoke_virtual(&clip, "setVolume", "(I)Z", (-1,)).await?;
-            let volume_after_below_minimum: i32 = jvm.invoke_virtual(&clip, "getVolume", "()I", ()).await?;
-            let above_maximum_set: bool = jvm.invoke_virtual(&clip, "setVolume", "(I)Z", (101,)).await?;
-            let volume_after_above_maximum: i32 = jvm.invoke_virtual(&clip, "getVolume", "()I", ()).await?;
-            let second_final_volume: i32 = jvm.invoke_virtual(&second_clip, "getVolume", "()I", ()).await?;
+            let minimum_set: bool = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setVolume", "(I)Z", (0,)).await?;
+            let minimum_volume: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getVolume", "()I", ()).await?;
+            let maximum_set: bool = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setVolume", "(I)Z", (100,)).await?;
+            let maximum_volume: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getVolume", "()I", ()).await?;
+            let below_minimum_set: bool = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setVolume", "(I)Z", (-1,)).await?;
+            let volume_after_below_minimum: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getVolume", "()I", ()).await?;
+            let above_maximum_set: bool = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "setVolume", "(I)Z", (101,)).await?;
+            let volume_after_above_maximum: i32 = jvm.invoke_virtual(&clip, "org/kwis/msp/media/Clip", "getVolume", "()I", ()).await?;
+            let second_final_volume: i32 = jvm
+                .invoke_virtual(&second_clip, "org/kwis/msp/media/Clip", "getVolume", "()I", ())
+                .await?;
 
             assert_eq!(second_initial_volume, 0);
             assert!(minimum_set);

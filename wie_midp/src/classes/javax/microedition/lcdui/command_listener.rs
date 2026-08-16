@@ -2,7 +2,7 @@ use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
 
-use java_constants::ClassAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use wie_jvm_support::WieJavaClassProto;
 
 // interface javax.microedition.lcdui.CommandListener
@@ -17,10 +17,10 @@ impl CommandListener {
             methods: vec![JavaMethodProto::new_abstract(
                 "commandAction",
                 "(Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
-                Default::default(),
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
             )],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }

@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -16,15 +16,35 @@ impl Volume {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("set", "(I)V", Self::set, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("get", "()I", Self::get, MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC),
-                JavaMethodProto::new("setMute", "(IZ)V", Self::set_mute, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("getMute", "(I)Z", Self::get_mute, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("setDefaultVolume", "(II)Z", Self::set_default_volume, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("getDefaultVolume", "(I)I", Self::get_default_volume, MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "set",
+                    "(I)V",
+                    Self::set,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "get",
+                    "()I",
+                    Self::get,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("setMute", "(IZ)V", Self::set_mute, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new("getMute", "(I)Z", Self::get_mute, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "setDefaultVolume",
+                    "(II)Z",
+                    Self::set_default_volume,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "getDefaultVolume",
+                    "(I)I",
+                    Self::get_default_volume,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

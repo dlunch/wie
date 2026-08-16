@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::io::RandomAccessFile;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -18,15 +19,15 @@ impl WIPIFileOutputStream {
             parent_class: Some("java/io/OutputStream"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/io/File;)V", Self::init, Default::default()),
-                JavaMethodProto::new("write", "(I)V", Self::write, Default::default()),
-                JavaMethodProto::new("close", "()V", Self::close, Default::default()),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/io/File;)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("write", "(I)V", Self::write, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("close", "()V", Self::close, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("file", "Lorg/kwis/msp/io/File;", Default::default()),
-                JavaFieldProto::new("closed", "Z", Default::default()),
+                JavaFieldProto::new("file", "Lorg/kwis/msp/io/File;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("closed", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -54,7 +55,9 @@ impl WIPIFileOutputStream {
         jvm.store_array(&mut buffer, 0, [byte as i8]).await?;
 
         let raf: ClassInstanceRef<RandomAccessFile> = jvm.get_field(&file, "raf", "Ljava/io/RandomAccessFile;").await?;
-        let _: () = jvm.invoke_virtual(&raf, "write", "([BII)V", (buffer, 0, 1)).await?;
+        let _: () = jvm
+            .invoke_virtual(&raf, "java/io/RandomAccessFile", "write", "([BII)V", (buffer, 0, 1))
+            .await?;
 
         Ok(())
     }

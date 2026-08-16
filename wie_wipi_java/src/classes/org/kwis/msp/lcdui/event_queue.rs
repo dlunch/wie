@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -19,14 +19,19 @@ impl EventQueue {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, Default::default()),
-                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, Default::default()),
-                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
-                JavaMethodProto::new("postEvent", "([I)Z", Self::post_event, Default::default()),
-                JavaMethodProto::new("postEvent", "(I[I)V", Self::post_event_static, MethodAccessFlags::STATIC),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Jlet;)V", Self::init, MethodAccessFlags::empty()),
+                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("postEvent", "([I)Z", Self::post_event, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "postEvent",
+                    "(I[I)V",
+                    Self::post_event_static,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
             ],
-            fields: vec![JavaFieldProto::new("wieEventQueue", "Lnet/wie/EventQueue;", Default::default())],
-            access_flags: Default::default(),
+            fields: vec![JavaFieldProto::new("wieEventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE)],
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -52,7 +57,9 @@ impl EventQueue {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::getNextEvent({this:?}, {event:?})");
 
         let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lnet/wie/EventQueue;").await?;
-        let _: () = jvm.invoke_virtual(&wie_event_queue, "getNextEvent", "([I)V", (event,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&wie_event_queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event,))
+            .await?;
 
         Ok(())
     }
@@ -66,7 +73,9 @@ impl EventQueue {
         tracing::debug!("org.kwis.msp.lcdui.EventQueue::dispatchEvent({this:?}, {event:?})");
 
         let wie_event_queue = jvm.get_field(&this, "wieEventQueue", "Lnet/wie/EventQueue;").await?;
-        let _: () = jvm.invoke_virtual(&wie_event_queue, "dispatchEvent", "([I)V", (event,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&wie_event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event,))
+            .await?;
 
         Ok(())
     }
@@ -103,7 +112,10 @@ mod test {
                 .into();
             let event = jvm.instantiate_array("I", 4).await?;
 
-            assert!(!jvm.invoke_virtual::<_, bool>(&queue, "postEvent", "([I)Z", (event.clone(),)).await?);
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&queue, "org/kwis/msp/lcdui/EventQueue", "postEvent", "([I)Z", (event.clone(),))
+                    .await?
+            );
             let _: () = jvm
                 .invoke_static("org/kwis/msp/lcdui/EventQueue", "postEvent", "(I[I)V", (1, event))
                 .await?;

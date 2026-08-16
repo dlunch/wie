@@ -17,10 +17,10 @@ impl ImageObserver {
             methods: vec![JavaMethodProto::new_abstract(
                 "notify",
                 "(Lorg/kwis/msp/lcdui/Image;I)V",
-                MethodAccessFlags::ABSTRACT,
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
             )],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }

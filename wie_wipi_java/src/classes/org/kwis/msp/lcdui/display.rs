@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::{Object, Runnable, String};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -28,88 +28,133 @@ impl Display {
                     "<init>",
                     "(Lorg/kwis/msp/lcdui/Jlet;Lorg/kwis/msp/lcdui/DisplayProxy;)V",
                     Self::init,
-                    Default::default(),
+                    MethodAccessFlags::empty(),
                 ),
                 JavaMethodProto::new(
                     "getDisplay",
                     "(Ljava/lang/String;)Lorg/kwis/msp/lcdui/Display;",
                     Self::get_display,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC | MethodAccessFlags::FINAL,
                 ),
                 JavaMethodProto::new(
                     "getDefaultDisplay",
                     "()Lorg/kwis/msp/lcdui/Display;",
                     Self::get_default_display,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
-                JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, Default::default()),
-                JavaMethodProto::new("getDockedCard", "()Lorg/kwis/msp/lcdui/Card;", Self::get_docked_card, Default::default()),
+                JavaMethodProto::new("isDoubleBuffered", "()Z", Self::is_double_buffered, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getDockedCard",
+                    "()Lorg/kwis/msp/lcdui/Card;",
+                    Self::get_docked_card,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "setDockedCard",
                     "(Lorg/kwis/msp/lcdui/Card;I)V",
                     Self::set_docked_card,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", Self::push_card, Default::default()),
-                JavaMethodProto::new("popCard", "()Lorg/kwis/msp/lcdui/Card;", Self::pop_card, Default::default()),
-                JavaMethodProto::new("removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", Self::remove_card, Default::default()),
-                JavaMethodProto::new("countCard", "()I", Self::count_card, Default::default()),
-                JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, Default::default()),
+                JavaMethodProto::new(
+                    "pushCard",
+                    "(Lorg/kwis/msp/lcdui/Card;)V",
+                    Self::push_card,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
+                    "popCard",
+                    "()Lorg/kwis/msp/lcdui/Card;",
+                    Self::pop_card,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
+                    "removeCard",
+                    "(Lorg/kwis/msp/lcdui/Card;)Z",
+                    Self::remove_card,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new("countCard", "()I", Self::count_card, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
+                JavaMethodProto::new("removeAllCards", "()V", Self::remove_all_cards, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "addJletEventListener",
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::add_jlet_event_listener,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
-                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
+                JavaMethodProto::new(
+                    "callSerially",
+                    "(Ljava/lang/Runnable;)V",
+                    Self::call_serially,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
                 JavaMethodProto::new(
                     "callSerially",
                     "(Ljava/lang/Runnable;I)V",
                     Self::call_serially_with_timeout,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
-                JavaMethodProto::new("isColor", "()Z", Self::is_color, Default::default()),
-                JavaMethodProto::new("numColors", "()I", Self::num_colors, Default::default()),
-                JavaMethodProto::new("hasPointerEvents", "()Z", Self::has_pointer_events, Default::default()),
-                JavaMethodProto::new("hasPointerMotionEvents", "()Z", Self::has_pointer_motion_events, Default::default()),
-                JavaMethodProto::new("hasRepeatEvents", "()Z", Self::has_repeat_events, Default::default()),
-                JavaMethodProto::new("getKeyName", "(I)Ljava/lang/String;", Self::get_key_name, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("getBitsPerPixel", "()I", Self::get_bits_per_pixel, Default::default()),
-                JavaMethodProto::new("flush", "()V", Self::flush, Default::default()),
+                JavaMethodProto::new("isColor", "()Z", Self::is_color, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
+                JavaMethodProto::new("numColors", "()I", Self::num_colors, MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL),
+                JavaMethodProto::new(
+                    "hasPointerEvents",
+                    "()Z",
+                    Self::has_pointer_events,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
+                    "hasPointerMotionEvents",
+                    "()Z",
+                    Self::has_pointer_motion_events,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
+                    "hasRepeatEvents",
+                    "()Z",
+                    Self::has_repeat_events,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
+                JavaMethodProto::new(
+                    "getKeyName",
+                    "(I)Ljava/lang/String;",
+                    Self::get_key_name,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new("getBitsPerPixel", "()I", Self::get_bits_per_pixel, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("flush", "()V", Self::flush, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "removeJletEventListener",
                     "(Lorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::remove_jlet_event_listener,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "grabKey",
                     "(ILorg/kwis/msp/lcdui/JletEventListener;)V",
                     Self::grab_key,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("ungrabKey", "(I)V", Self::ungrab_key, Default::default()),
+                JavaMethodProto::new("ungrabKey", "(I)V", Self::ungrab_key, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getGameAction",
                     "(I)I",
                     Self::get_game_action,
-                    MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "getKeyCode",
                     "(I)I",
                     Self::get_key_code,
-                    MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::NATIVE | MethodAccessFlags::STATIC,
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
-                JavaFieldProto::new("cardCanvas", "Lnet/wie/CardCanvas;", Default::default()),
-                JavaFieldProto::new("dockedCard", "Lorg/kwis/msp/lcdui/Card;", Default::default()),
+                JavaFieldProto::new("midpDisplay", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("cardCanvas", "Lnet/wie/CardCanvas;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("dockedCard", "Lorg/kwis/msp/lcdui/Card;", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -141,7 +186,13 @@ impl Display {
             .await?;
 
         let _: () = jvm
-            .invoke_virtual(&midp_display, "setCurrent", "(Ljavax/microedition/lcdui/Displayable;)V", (card_canvas,))
+            .invoke_virtual(
+                &midp_display,
+                "javax/microedition/lcdui/Display",
+                "setCurrent",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (card_canvas,),
+            )
             .await?;
 
         Ok(())
@@ -197,14 +248,17 @@ impl Display {
 
         let canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
 
-        jvm.invoke_virtual(&canvas, "isDoubleBuffered", "()Z", ()).await
+        jvm.invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "isDoubleBuffered", "()Z", ())
+            .await
     }
 
     async fn push_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, c: ClassInstanceRef<Card>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::pushCard({this:?}, {c:?})");
 
         let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
-        let _: () = jvm.invoke_virtual(&card_canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (c,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&card_canvas, "net/wie/CardCanvas", "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (c,))
+            .await?;
 
         Ok(())
     }
@@ -213,14 +267,15 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::popCard({this:?})");
 
         let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
-        jvm.invoke_virtual(&card_canvas, "popCard", "()Lorg/kwis/msp/lcdui/Card;", ()).await
+        jvm.invoke_virtual(&card_canvas, "net/wie/CardCanvas", "popCard", "()Lorg/kwis/msp/lcdui/Card;", ())
+            .await
     }
 
     async fn remove_card(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, card: ClassInstanceRef<Card>) -> JvmResult<bool> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeCard({this:?}, {card:?})");
 
         let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
-        jvm.invoke_virtual(&card_canvas, "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", (card,))
+        jvm.invoke_virtual(&card_canvas, "net/wie/CardCanvas", "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", (card,))
             .await
     }
 
@@ -228,14 +283,16 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::countCard({this:?})");
 
         let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
-        jvm.invoke_virtual(&card_canvas, "countCard", "()I", ()).await
+        jvm.invoke_virtual(&card_canvas, "net/wie/CardCanvas", "countCard", "()I", ()).await
     }
 
     async fn remove_all_cards(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Display::removeAllCards({this:?})");
 
         let card_canvas = jvm.get_field(&this, "cardCanvas", "Lnet/wie/CardCanvas;").await?;
-        let _: () = jvm.invoke_virtual(&card_canvas, "removeAllCards", "()V", ()).await?;
+        let _: () = jvm
+            .invoke_virtual(&card_canvas, "net/wie/CardCanvas", "removeAllCards", "()V", ())
+            .await?;
 
         Ok(())
     }
@@ -255,7 +312,9 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::getWidth({this:?})");
 
         let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-        let width: i32 = jvm.invoke_virtual(&midp_display, "getWidth", "()I", ()).await?;
+        let width: i32 = jvm
+            .invoke_virtual(&midp_display, "javax/microedition/lcdui/Display", "getWidth", "()I", ())
+            .await?;
 
         Ok(width)
     }
@@ -264,7 +323,9 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::getHeight({this:?})");
 
         let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-        let height: i32 = jvm.invoke_virtual(&midp_display, "getHeight", "()I", ()).await?;
+        let height: i32 = jvm
+            .invoke_virtual(&midp_display, "javax/microedition/lcdui/Display", "getHeight", "()I", ())
+            .await?;
 
         Ok(height)
     }
@@ -273,7 +334,15 @@ impl Display {
         tracing::debug!("org.kwis.msp.lcdui.Display::callSerially({this:?}, {r:?})");
 
         let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&this, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-        let _: () = jvm.invoke_virtual(&midp_display, "callSerially", "(Ljava/lang/Runnable;)V", (r,)).await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &midp_display,
+                "javax/microedition/lcdui/Display",
+                "callSerially",
+                "(Ljava/lang/Runnable;)V",
+                (r,),
+            )
+            .await?;
 
         Ok(())
     }

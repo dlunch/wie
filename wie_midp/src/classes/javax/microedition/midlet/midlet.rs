@@ -1,7 +1,7 @@
 use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -19,21 +19,30 @@ impl MIDlet {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
                     "getAppProperty",
                     "(Ljava/lang/String;)Ljava/lang/String;",
                     Self::get_app_property,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
                 ),
-                JavaMethodProto::new_abstract("startApp", "([Ljava/lang/String;)V", Default::default()),
-                JavaMethodProto::new("notifyDestroyed", "()V", Self::notify_destroyed, Default::default()),
+                JavaMethodProto::new_abstract("startApp", "()V", MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT),
+                JavaMethodProto::new(
+                    "notifyDestroyed",
+                    "()V",
+                    Self::notify_destroyed,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::FINAL,
+                ),
             ],
             fields: vec![
-                JavaFieldProto::new("currentMIDlet", "Ljavax/microedition/midlet/MIDlet;", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("display", "Ljavax/microedition/lcdui/Display;", Default::default()),
+                JavaFieldProto::new(
+                    "currentMIDlet",
+                    "Ljavax/microedition/midlet/MIDlet;",
+                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
+                ),
+                JavaFieldProto::new("display", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: ClassAccessFlags::ABSTRACT,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 

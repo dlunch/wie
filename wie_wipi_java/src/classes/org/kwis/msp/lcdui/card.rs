@@ -1,7 +1,7 @@
 use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, MethodAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -19,51 +19,70 @@ impl Card {
             parent_class: Some("java/lang/Object"),
             interfaces: vec!["org/kwis/msp/lcdui/JletEventListener"],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("<init>", "(I)V", Self::init_int, Default::default()),
-                JavaMethodProto::new("<init>", "(Z)V", Self::init_transparent, Default::default()),
-                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_bounds, Default::default()),
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init_with_display, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(I)V", Self::init_int, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(Z)V", Self::init_transparent, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("<init>", "(IIII)V", Self::init_with_bounds, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Lorg/kwis/msp/lcdui/Display;)V",
+                    Self::init_with_display,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new(
                     "<init>",
                     "(Lorg/kwis/msp/lcdui/Display;IIII)V",
                     Self::init_with_display_and_bounds,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "<init>",
                     "(Lorg/kwis/msp/lcdui/Display;IIIIZ)V",
                     Self::init_with_display_bounds_and_transparency,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
-                JavaMethodProto::new("move", "(II)V", Self::move_card, Default::default()),
-                JavaMethodProto::new("resize", "(II)V", Self::resize, Default::default()),
-                JavaMethodProto::new("getX", "()I", Self::get_x, Default::default()),
-                JavaMethodProto::new("getY", "()I", Self::get_y, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("move", "(II)V", Self::move_card, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("resize", "(II)V", Self::resize, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getX", "()I", Self::get_x, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getY", "()I", Self::get_y, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("pointerNotify", "(III)Z", Self::pointer_notify, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("getDisplay", "()Lorg/kwis/msp/lcdui/Display;", Self::get_display, Default::default()),
-                JavaMethodProto::new("isShown", "()Z", Self::is_shown, Default::default()),
-                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, Default::default()),
-                JavaMethodProto::new("repaint", "()V", Self::repaint, Default::default()),
-                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, Default::default()),
-                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
-                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
-                JavaMethodProto::new_abstract("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Default::default()),
+                JavaMethodProto::new(
+                    "getDisplay",
+                    "()Lorg/kwis/msp/lcdui/Display;",
+                    Self::get_display,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("isShown", "()Z", Self::is_shown, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("repaint", "(IIII)V", Self::repaint_with_area, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("repaint", "()V", Self::repaint, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new_abstract(
+                    "paint",
+                    "(Lorg/kwis/msp/lcdui/Graphics;)V",
+                    MethodAccessFlags::PROTECTED | MethodAccessFlags::ABSTRACT,
+                ),
                 // wie private
-                JavaMethodProto::new("setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", Self::set_canvas, Default::default()),
+                JavaMethodProto::new(
+                    "setCanvas",
+                    "(Ljavax/microedition/lcdui/Canvas;)V",
+                    Self::set_canvas,
+                    MethodAccessFlags::PRIVATE,
+                ),
             ],
             fields: vec![
-                JavaFieldProto::new("canvas", "Ljavax/microedition/lcdui/Canvas;", Default::default()),
-                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", Default::default()),
-                JavaFieldProto::new("x", "I", Default::default()),
-                JavaFieldProto::new("y", "I", Default::default()),
-                JavaFieldProto::new("w", "I", Default::default()),
-                JavaFieldProto::new("h", "I", Default::default()),
-                JavaFieldProto::new("transparent", "Z", Default::default()),
+                JavaFieldProto::new("canvas", "Ljavax/microedition/lcdui/Canvas;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("display", "Lorg/kwis/msp/lcdui/Display;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("x", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("y", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("w", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("h", "I", FieldAccessFlags::PROTECTED),
+                JavaFieldProto::new("transparent", "Z", FieldAccessFlags::PROTECTED),
             ],
-            access_flags: ClassAccessFlags::ABSTRACT,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 
@@ -106,8 +125,8 @@ impl Card {
             return Err(jvm.exception("java/lang/NullPointerException", "display is null").await);
         }
 
-        let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", []).await?;
-        let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", []).await?;
+        let width: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getWidth", "()I", []).await?;
+        let height: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getHeight", "()I", []).await?;
         let _: () = jvm
             .invoke_special(
                 &this,
@@ -156,8 +175,8 @@ impl Card {
             return Err(jvm.exception("java/lang/NullPointerException", "display is null").await);
         }
 
-        let width: i32 = jvm.invoke_virtual(&display, "getWidth", "()I", []).await?;
-        let height: i32 = jvm.invoke_virtual(&display, "getHeight", "()I", []).await?;
+        let width: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getWidth", "()I", []).await?;
+        let height: i32 = jvm.invoke_virtual(&display, "org/kwis/msp/lcdui/Display", "getHeight", "()I", []).await?;
         let _: () = jvm
             .invoke_special(
                 &this,
@@ -302,7 +321,9 @@ impl Card {
         let width: i32 = jvm.get_field(&this, "w", "I").await?;
         let height: i32 = jvm.get_field(&this, "h", "I").await?;
 
-        let _: () = jvm.invoke_virtual(&this, "repaint", "(IIII)V", (0, 0, width, height)).await?;
+        let _: () = jvm
+            .invoke_virtual(&this, "org/kwis/msp/lcdui/Card", "repaint", "(IIII)V", (0, 0, width, height))
+            .await?;
 
         Ok(())
     }
@@ -339,6 +360,7 @@ impl Card {
         let _: () = jvm
             .invoke_virtual(
                 &canvas,
+                "javax/microedition/lcdui/Canvas",
                 "repaint",
                 "(IIII)V",
                 (
@@ -358,7 +380,9 @@ impl Card {
 
         let canvas: ClassInstanceRef<Canvas> = jvm.get_field(&this, "canvas", "Ljavax/microedition/lcdui/Canvas;").await?;
         if !canvas.is_null() {
-            let _: () = jvm.invoke_virtual(&canvas, "serviceRepaints", "()V", ()).await?;
+            let _: () = jvm
+                .invoke_virtual(&canvas, "javax/microedition/lcdui/Canvas", "serviceRepaints", "()V", ())
+                .await?;
         }
 
         Ok(())
@@ -388,6 +412,7 @@ mod test {
     use alloc::{boxed::Box, vec, vec::Vec};
 
     use java_class_proto::{JavaFieldProto, JavaMethodProto};
+    use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
     use test_utils::run_jvm_test;
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -409,21 +434,26 @@ mod test {
                 parent_class: Some("org/kwis/msp/lcdui/Card"),
                 interfaces: vec![],
                 methods: vec![
-                    JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;IIIIZ)V", Self::init, Default::default()),
-                    JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init_with_display, Default::default()),
-                    JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, Default::default()),
-                    JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, Default::default()),
-                    JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, Default::default()),
-                    JavaMethodProto::new("notifyEvent", "(III)V", Self::notify_event, Default::default()),
+                    JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;IIIIZ)V", Self::init, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new(
+                        "<init>",
+                        "(Lorg/kwis/msp/lcdui/Display;)V",
+                        Self::init_with_display,
+                        MethodAccessFlags::PUBLIC,
+                    ),
+                    JavaMethodProto::new("paint", "(Lorg/kwis/msp/lcdui/Graphics;)V", Self::paint, MethodAccessFlags::PROTECTED),
+                    JavaMethodProto::new("showNotify", "(Z)V", Self::show_notify, MethodAccessFlags::PROTECTED),
+                    JavaMethodProto::new("keyNotify", "(II)Z", Self::key_notify, MethodAccessFlags::PROTECTED),
+                    JavaMethodProto::new("notifyEvent", "(III)V", Self::notify_event, MethodAccessFlags::PUBLIC),
                 ],
                 fields: vec![
-                    JavaFieldProto::new("showCount", "I", Default::default()),
-                    JavaFieldProto::new("hideCount", "I", Default::default()),
-                    JavaFieldProto::new("keyCount", "I", Default::default()),
-                    JavaFieldProto::new("notifyCount", "I", Default::default()),
-                    JavaFieldProto::new("paintCount", "I", Default::default()),
+                    JavaFieldProto::new("showCount", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("hideCount", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("keyCount", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("notifyCount", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
                 ],
-                access_flags: Default::default(),
+                access_flags: ClassAccessFlags::PUBLIC,
             }
         }
 
@@ -467,25 +497,66 @@ mod test {
             let y: i32 = jvm.get_field(&this, "y", "I").await?;
             let width: i32 = jvm.get_field(&this, "w", "I").await?;
             let height: i32 = jvm.get_field(&this, "h", "I").await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateX", "()I", ()).await?, x);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateY", "()I", ()).await?, y);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getColor", "()I", ()).await?, 0);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 255);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 0);
-            assert!(!jvm.invoke_virtual::<_, bool>(&graphics, "isXORMode", "()Z", ()).await?);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getTranslateX", "()I", ())
+                    .await?,
+                x
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getTranslateY", "()I", ())
+                    .await?,
+                y
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ())
+                    .await?,
+                0
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getAlpha", "()I", ())
+                    .await?,
+                255
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getStrokeStyle", "()I", ())
+                    .await?,
+                0
+            );
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&graphics, "org/kwis/msp/lcdui/Graphics", "isXORMode", "()Z", ())
+                    .await?
+            );
 
             let transparent: bool = jvm.get_field(&this, "transparent", "Z").await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "setColor", "(I)V", (if transparent { 0xff0000 } else { 0x00ff00 },))
+                .invoke_virtual(
+                    &graphics,
+                    "org/kwis/msp/lcdui/Graphics",
+                    "setColor",
+                    "(I)V",
+                    (if transparent { 0xff0000 } else { 0x00ff00 },),
+                )
                 .await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, width, height)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, width, height))
+                .await?;
 
             if transparent {
-                let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (7, 8)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 1, 1)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setAlpha", "(I)V", (0,)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setStrokeStyle", "(I)V", (1,)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (true,)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "translate", "(II)V", (7, 8))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 1, 1))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setAlpha", "(I)V", (0,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setStrokeStyle", "(I)V", (1,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setXORMode", "(Z)V", (true,))
+                    .await?;
             }
 
             Ok(())
@@ -521,18 +592,23 @@ mod test {
                 parent_class: Some("javax/microedition/lcdui/Canvas"),
                 interfaces: vec![],
                 methods: vec![
-                    JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                    JavaMethodProto::new("paint", "(Ljavax/microedition/lcdui/Graphics;)V", Self::paint, Default::default()),
-                    JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, Default::default()),
+                    JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                    JavaMethodProto::new(
+                        "paint",
+                        "(Ljavax/microedition/lcdui/Graphics;)V",
+                        Self::paint,
+                        MethodAccessFlags::PROTECTED,
+                    ),
+                    JavaMethodProto::new("repaint", "(IIII)V", Self::repaint, MethodAccessFlags::PUBLIC),
                 ],
                 fields: vec![
-                    JavaFieldProto::new("repaintX", "I", Default::default()),
-                    JavaFieldProto::new("repaintY", "I", Default::default()),
-                    JavaFieldProto::new("repaintWidth", "I", Default::default()),
-                    JavaFieldProto::new("repaintHeight", "I", Default::default()),
-                    JavaFieldProto::new("repaintCount", "I", Default::default()),
+                    JavaFieldProto::new("repaintX", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("repaintY", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("repaintWidth", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("repaintHeight", "I", FieldAccessFlags::PRIVATE),
+                    JavaFieldProto::new("repaintCount", "I", FieldAccessFlags::PRIVATE),
                 ],
-                access_flags: Default::default(),
+                access_flags: ClassAccessFlags::PUBLIC,
             }
         }
 
@@ -578,28 +654,75 @@ mod test {
                     .await?
                     .into();
 
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getX", "()I", ()).await?, 3);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getY", "()I", ()).await?, 4);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getWidth", "()I", ()).await?, 20);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getHeight", "()I", ()).await?, 30);
-
-                let returned_display: ClassInstanceRef<Display> =
-                    jvm.invoke_virtual(&card, "getDisplay", "()Lorg/kwis/msp/lcdui/Display;", ()).await?;
-                assert!(
-                    jvm.invoke_virtual::<_, bool>(&returned_display, "equals", "(Ljava/lang/Object;)Z", (display.clone(),))
-                        .await?
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getX", "()I", ()).await?,
+                    3
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getY", "()I", ()).await?,
+                    4
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getWidth", "()I", ())
+                        .await?,
+                    20
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getHeight", "()I", ())
+                        .await?,
+                    30
                 );
 
-                let _: () = jvm.invoke_virtual(&card, "move", "(II)V", (-5, 7)).await?;
-                let _: () = jvm.invoke_virtual(&card, "resize", "(II)V", (40, 50)).await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getX", "()I", ()).await?, -5);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getY", "()I", ()).await?, 7);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getWidth", "()I", ()).await?, 40);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getHeight", "()I", ()).await?, 50);
+                let returned_display: ClassInstanceRef<Display> = jvm
+                    .invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "getDisplay", "()Lorg/kwis/msp/lcdui/Display;", ())
+                    .await?;
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(
+                        &returned_display,
+                        "org/kwis/msp/lcdui/Display",
+                        "equals",
+                        "(Ljava/lang/Object;)Z",
+                        (display.clone(),)
+                    )
+                    .await?
+                );
 
-                assert!(jvm.invoke_virtual::<_, ()>(&card, "resize", "(II)V", (0, 10)).await.is_err());
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getWidth", "()I", ()).await?, 40);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&card, "getHeight", "()I", ()).await?, 50);
+                let _: () = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "move", "(II)V", (-5, 7)).await?;
+                let _: () = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "resize", "(II)V", (40, 50)).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getX", "()I", ()).await?,
+                    -5
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getY", "()I", ()).await?,
+                    7
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getWidth", "()I", ())
+                        .await?,
+                    40
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getHeight", "()I", ())
+                        .await?,
+                    50
+                );
+
+                assert!(
+                    jvm.invoke_virtual::<_, ()>(&card, "org/kwis/msp/lcdui/Card", "resize", "(II)V", (0, 10))
+                        .await
+                        .is_err()
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getWidth", "()I", ())
+                        .await?,
+                    40
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&card, "org/kwis/msp/lcdui/Card", "getHeight", "()I", ())
+                        .await?,
+                    50
+                );
 
                 let invalid_size: JvmResult<ClassInstanceRef<TestCard>> = jvm
                     .new_class(
@@ -633,6 +756,7 @@ mod test {
                 let _: () = jvm
                     .invoke_virtual(
                         &midp_display,
+                        "javax/microedition/lcdui/Display",
                         "setCurrent",
                         "(Ljavax/microedition/lcdui/Displayable;)V",
                         (canvas.clone(),),
@@ -653,79 +777,171 @@ mod test {
                     .into();
 
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", [None.into()])
+                    .invoke_virtual(&canvas, "net/wie/CardCanvas", "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", [None.into()])
                     .await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&canvas, "countCard", "()I", ()).await?, 0);
-                assert!(!jvm.invoke_virtual::<_, bool>(&first, "isShown", "()Z", ()).await?);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&canvas, "net/wie/CardCanvas", "countCard", "()I", ())
+                        .await?,
+                    0
+                );
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&first, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
 
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (first.clone(),))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (first.clone(),),
+                    )
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (first.clone(),))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (first.clone(),),
+                    )
                     .await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&canvas, "countCard", "()I", ()).await?, 1);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&canvas, "net/wie/CardCanvas", "countCard", "()I", ())
+                        .await?,
+                    1
+                );
                 assert_eq!(jvm.get_field::<i32>(&first, "showCount", "I").await?, 1);
-                assert!(jvm.invoke_virtual::<_, bool>(&first, "isShown", "()Z", ()).await?);
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&first, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
                 let paint_count: i32 = jvm.get_field(&first, "paintCount", "I").await?;
-                let _: () = jvm.invoke_virtual(&first, "serviceRepaints", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&first, "org/kwis/msp/lcdui/Card", "serviceRepaints", "()V", ())
+                    .await?;
                 assert_eq!(jvm.get_field::<i32>(&first, "paintCount", "I").await?, paint_count + 1);
 
                 let other_canvas: ClassInstanceRef<CardCanvas> = jvm.new_class("net/wie/CardCanvas", "()V", ()).await?.into();
                 let _: () = jvm
-                    .invoke_virtual(&other_canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (first.clone(),))
+                    .invoke_virtual(
+                        &other_canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (first.clone(),),
+                    )
                     .await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&other_canvas, "countCard", "()I", ()).await?, 0);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&other_canvas, "net/wie/CardCanvas", "countCard", "()I", ())
+                        .await?,
+                    0
+                );
 
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (second.clone(),))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (second.clone(),),
+                    )
                     .await?;
-                let _: () = jvm.invoke_virtual(&canvas, "keyPressed", "(I)V", (42,)).await?;
-                let _: () = jvm.invoke_virtual(&canvas, "handleNotifyEvent", "(III)V", (1, 2, 3)).await?;
+                let _: () = jvm.invoke_virtual(&canvas, "net/wie/CardCanvas", "keyPressed", "(I)V", (42,)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&canvas, "net/wie/CardCanvas", "handleNotifyEvent", "(III)V", (1, 2, 3))
+                    .await?;
                 assert_eq!(jvm.get_field::<i32>(&first, "keyCount", "I").await?, 0);
                 assert_eq!(jvm.get_field::<i32>(&first, "notifyCount", "I").await?, 0);
                 assert_eq!(jvm.get_field::<i32>(&second, "keyCount", "I").await?, 1);
                 assert_eq!(jvm.get_field::<i32>(&second, "notifyCount", "I").await?, 1);
-                let popped: ClassInstanceRef<TestCard> = jvm.invoke_virtual(&canvas, "popCard", "()Lorg/kwis/msp/lcdui/Card;", ()).await?;
+                let popped: ClassInstanceRef<TestCard> = jvm
+                    .invoke_virtual(&canvas, "net/wie/CardCanvas", "popCard", "()Lorg/kwis/msp/lcdui/Card;", ())
+                    .await?;
                 assert!(
-                    jvm.invoke_virtual::<_, bool>(&popped, "equals", "(Ljava/lang/Object;)Z", (second.clone(),))
+                    jvm.invoke_virtual::<_, bool>(&popped, "org/kwis/msp/lcdui/Card", "equals", "(Ljava/lang/Object;)Z", (second.clone(),))
                         .await?
                 );
-                assert!(!jvm.invoke_virtual::<_, bool>(&second, "isShown", "()Z", ()).await?);
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&second, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
                 assert_eq!(jvm.get_field::<i32>(&second, "hideCount", "I").await?, 1);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&canvas, "countCard", "()I", ()).await?, 1);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&canvas, "net/wie/CardCanvas", "countCard", "()I", ())
+                        .await?,
+                    1
+                );
 
                 assert!(
-                    !jvm.invoke_virtual::<_, bool>(&canvas, "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", [None.into()])
+                    !jvm.invoke_virtual::<_, bool>(&canvas, "net/wie/CardCanvas", "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", [None.into()])
                         .await?
                 );
                 assert!(
-                    !jvm.invoke_virtual::<_, bool>(&canvas, "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", (second.clone(),),)
-                        .await?
+                    !jvm.invoke_virtual::<_, bool>(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "removeCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)Z",
+                        (second.clone(),),
+                    )
+                    .await?
                 );
                 assert!(
-                    jvm.invoke_virtual::<_, bool>(&canvas, "removeCard", "(Lorg/kwis/msp/lcdui/Card;)Z", (first.clone(),))
+                    jvm.invoke_virtual::<_, bool>(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "removeCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)Z",
+                        (first.clone(),)
+                    )
+                    .await?
+                );
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&first, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
                         .await?
                 );
-                assert!(!jvm.invoke_virtual::<_, bool>(&first, "isShown", "()Z", ()).await?);
                 assert_eq!(jvm.get_field::<i32>(&first, "hideCount", "I").await?, 1);
 
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (first.clone(),))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (first.clone(),),
+                    )
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (second.clone(),))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (second.clone(),),
+                    )
                     .await?;
-                let _: () = jvm.invoke_virtual(&canvas, "removeAllCards", "()V", ()).await?;
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&canvas, "countCard", "()I", ()).await?, 0);
-                assert!(!jvm.invoke_virtual::<_, bool>(&first, "isShown", "()Z", ()).await?);
-                assert!(!jvm.invoke_virtual::<_, bool>(&second, "isShown", "()Z", ()).await?);
+                let _: () = jvm.invoke_virtual(&canvas, "net/wie/CardCanvas", "removeAllCards", "()V", ()).await?;
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&canvas, "net/wie/CardCanvas", "countCard", "()I", ())
+                        .await?,
+                    0
+                );
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&first, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&second, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
                 assert_eq!(jvm.get_field::<i32>(&first, "showCount", "I").await?, 2);
                 assert_eq!(jvm.get_field::<i32>(&first, "hideCount", "I").await?, 2);
                 assert_eq!(jvm.get_field::<i32>(&second, "showCount", "I").await?, 2);
                 assert_eq!(jvm.get_field::<i32>(&second, "hideCount", "I").await?, 2);
                 assert!(
-                    jvm.invoke_virtual::<_, ClassInstanceRef<TestCard>>(&canvas, "popCard", "()Lorg/kwis/msp/lcdui/Card;", ())
+                    jvm.invoke_virtual::<_, ClassInstanceRef<TestCard>>(&canvas, "net/wie/CardCanvas", "popCard", "()Lorg/kwis/msp/lcdui/Card;", (),)
                         .await?
                         .is_null()
                 );
@@ -748,22 +964,37 @@ mod test {
                     .into();
                 let canvas: ClassInstanceRef<TestCanvas> = jvm.new_class("test/TestCanvas", "()V", ()).await?.into();
                 let _: () = jvm
-                    .invoke_virtual(&card, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (canvas.clone(),))
+                    .invoke_virtual(
+                        &card,
+                        "org/kwis/msp/lcdui/Card",
+                        "setCanvas",
+                        "(Ljavax/microedition/lcdui/Canvas;)V",
+                        (canvas.clone(),),
+                    )
                     .await?;
-                assert!(jvm.invoke_virtual::<_, bool>(&card, "isShown", "()Z", ()).await?);
+                assert!(
+                    jvm.invoke_virtual::<_, bool>(&card, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
 
-                let _: () = jvm.invoke_virtual(&card, "repaint", "(IIII)V", (-5, 5, 20, 50)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "repaint", "(IIII)V", (-5, 5, 20, 50))
+                    .await?;
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintX", "I").await?, 10);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintY", "I").await?, 25);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintWidth", "I").await?, 15);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintHeight", "I").await?, 35);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintCount", "I").await?, 1);
 
-                let _: () = jvm.invoke_virtual(&card, "repaint", "(IIII)V", (40, 0, 5, 5)).await?;
-                let _: () = jvm.invoke_virtual(&card, "repaint", "(IIII)V", (0, 0, -1, 5)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "repaint", "(IIII)V", (40, 0, 5, 5))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "repaint", "(IIII)V", (0, 0, -1, 5))
+                    .await?;
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintCount", "I").await?, 1);
 
-                let _: () = jvm.invoke_virtual(&card, "repaint", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "repaint", "()V", ()).await?;
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintX", "I").await?, 10);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintY", "I").await?, 20);
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintWidth", "I").await?, 30);
@@ -771,10 +1002,19 @@ mod test {
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintCount", "I").await?, 2);
 
                 let _: () = jvm
-                    .invoke_virtual(&card, "setCanvas", "(Ljavax/microedition/lcdui/Canvas;)V", (None,))
+                    .invoke_virtual(
+                        &card,
+                        "org/kwis/msp/lcdui/Card",
+                        "setCanvas",
+                        "(Ljavax/microedition/lcdui/Canvas;)V",
+                        (None,),
+                    )
                     .await?;
-                let _: () = jvm.invoke_virtual(&card, "repaint", "()V", ()).await?;
-                assert!(!jvm.invoke_virtual::<_, bool>(&card, "isShown", "()Z", ()).await?);
+                let _: () = jvm.invoke_virtual(&card, "org/kwis/msp/lcdui/Card", "repaint", "()V", ()).await?;
+                assert!(
+                    !jvm.invoke_virtual::<_, bool>(&card, "org/kwis/msp/lcdui/Card", "isShown", "()Z", ())
+                        .await?
+                );
                 assert_eq!(jvm.get_field::<i32>(&canvas, "repaintCount", "I").await?, 2);
 
                 Ok(())
@@ -793,6 +1033,7 @@ mod test {
                 let _: () = jvm
                     .invoke_virtual(
                         &midp_display,
+                        "javax/microedition/lcdui/Display",
                         "setCurrent",
                         "(Ljavax/microedition/lcdui/Displayable;)V",
                         (canvas.clone(),),
@@ -812,10 +1053,16 @@ mod test {
                     .await?
                     .into();
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (mutating_card,))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "pushCard",
+                        "(Lorg/kwis/msp/lcdui/Card;)V",
+                        (mutating_card,),
+                    )
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (drawing_card,))
+                    .invoke_virtual(&canvas, "net/wie/CardCanvas", "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (drawing_card,))
                     .await?;
 
                 let image: ClassInstanceRef<MidpImage> = jvm
@@ -827,23 +1074,69 @@ mod test {
                     )
                     .await?;
                 let graphics: ClassInstanceRef<MidpGraphics> = jvm
-                    .invoke_virtual(&image, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+                    .invoke_virtual(
+                        &image,
+                        "javax/microedition/lcdui/Image",
+                        "getGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
                     .await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x0000ff,)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (4, 4)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (-2, -3, 4, 3)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x0000ff,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (4, 4))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (-2, -3, 4, 3))
+                    .await?;
 
                 let _: () = jvm
-                    .invoke_virtual(&canvas, "paint", "(Ljavax/microedition/lcdui/Graphics;)V", (graphics.clone(),))
+                    .invoke_virtual(
+                        &canvas,
+                        "net/wie/CardCanvas",
+                        "paint",
+                        "(Ljavax/microedition/lcdui/Graphics;)V",
+                        (graphics.clone(),),
+                    )
                     .await?;
 
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateX", "()I", ()).await?, 0);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getTranslateY", "()I", ()).await?, 0);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipX", "()I", ()).await?, 0);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipY", "()I", ()).await?, 0);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipWidth", "()I", ()).await?, 10);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getClipHeight", "()I", ()).await?, 10);
-                assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getColor", "()I", ()).await?, 0);
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getTranslateX", "()I", ())
+                        .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getTranslateY", "()I", ())
+                        .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+                        .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+                        .await?,
+                    0
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+                        .await?,
+                    10
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+                        .await?,
+                    10
+                );
+                assert_eq!(
+                    jvm.invoke_virtual::<_, i32>(&graphics, "javax/microedition/lcdui/Graphics", "getColor", "()I", ())
+                        .await?,
+                    0
+                );
 
                 let backend_image = MidpImage::image(&jvm, &image).await?;
                 let outside = backend_image.get_pixel(0, 0);

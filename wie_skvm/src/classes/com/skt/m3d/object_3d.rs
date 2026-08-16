@@ -183,7 +183,9 @@ mod tests {
                 .await?
                 .into();
 
-            let returned_name: ClassInstanceRef<String> = jvm.invoke_virtual(&object, "getName", "()Ljava/lang/String;", ()).await?;
+            let returned_name: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "getName", "()Ljava/lang/String;", ())
+                .await?;
             assert_eq!(
                 returned_name.instance.as_ref().map(|instance| instance.identity()),
                 initial_name.instance.as_ref().map(|instance| instance.identity())
@@ -191,28 +193,39 @@ mod tests {
 
             let renamed: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "renamed").await?.into();
             let _: () = jvm
-                .invoke_virtual(&object, "setName", "(Ljava/lang/String;)V", (renamed.clone(),))
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "setName", "(Ljava/lang/String;)V", (renamed.clone(),))
                 .await?;
-            let returned_name: ClassInstanceRef<String> = jvm.invoke_virtual(&object, "getName", "()Ljava/lang/String;", ()).await?;
+            let returned_name: ClassInstanceRef<String> = jvm
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "getName", "()Ljava/lang/String;", ())
+                .await?;
             assert_eq!(
                 returned_name.instance.as_ref().map(|instance| instance.identity()),
                 renamed.instance.as_ref().map(|instance| instance.identity())
             );
 
-            let _: () = jvm.invoke_virtual(&object, "addVertex", "(III)V", (1, 2, 3)).await?;
-            let _: () = jvm.invoke_virtual(&object, "addTriangle", "(IIII)V", (0, 1, 2, 0xff00ff)).await?;
-            let _: () = jvm.invoke_virtual(&object, "rotate", "(III)V", (10, 20, 30)).await?;
-            let _: () = jvm.invoke_virtual(&object, "translate", "(III)V", (40, 50, 60)).await?;
-            let _: () = jvm.invoke_virtual(&object, "scale", "(III)V", (2, 3, 4)).await?;
+            let _: () = jvm
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "addVertex", "(III)V", (1, 2, 3))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "addTriangle", "(IIII)V", (0, 1, 2, 0xff00ff))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "rotate", "(III)V", (10, 20, 30))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&object, "com/skt/m3d/Object3D", "translate", "(III)V", (40, 50, 60))
+                .await?;
+            let _: () = jvm.invoke_virtual(&object, "com/skt/m3d/Object3D", "scale", "(III)V", (2, 3, 4)).await?;
 
-            let row_0: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "getMatrixRow0", "()[I", ()).await?;
-            let row_1: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "getMatrixRow1", "()[I", ()).await?;
-            let row_2: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "getMatrixRow2", "()[I", ()).await?;
+            let row_0: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "com/skt/m3d/Object3D", "getMatrixRow0", "()[I", ()).await?;
+            let row_1: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "com/skt/m3d/Object3D", "getMatrixRow1", "()[I", ()).await?;
+            let row_2: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "com/skt/m3d/Object3D", "getMatrixRow2", "()[I", ()).await?;
             assert_eq!(jvm.load_array::<i32>(&row_0, 0, 4).await?, [MATRIX_SCALE, 0, 0, 0]);
             assert_eq!(jvm.load_array::<i32>(&row_1, 0, 4).await?, [0, MATRIX_SCALE, 0, 0]);
             assert_eq!(jvm.load_array::<i32>(&row_2, 0, 4).await?, [0, 0, MATRIX_SCALE, 0]);
 
-            let another_row_0: ClassInstanceRef<Array<i32>> = jvm.invoke_virtual(&object, "getMatrixRow0", "()[I", ()).await?;
+            let another_row_0: ClassInstanceRef<Array<i32>> =
+                jvm.invoke_virtual(&object, "com/skt/m3d/Object3D", "getMatrixRow0", "()[I", ()).await?;
             assert_ne!(
                 another_row_0.instance.as_ref().map(|instance| instance.identity()),
                 row_0.instance.as_ref().map(|instance| instance.identity())

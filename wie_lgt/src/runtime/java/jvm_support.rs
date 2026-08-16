@@ -282,7 +282,7 @@ mod tests {
     };
 
     use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-    use java_constants::FieldAccessFlags;
+    use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use java_runtime::classes::java::lang::String;
     use jvm::{Array, ClassDefinition, ClassInstance, ClassInstanceRef, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
     use wipi_types::lgt::java::{
@@ -367,15 +367,21 @@ mod tests {
             let first = JavaLangString::from_rust_string(&jvm, "lgt").await.unwrap();
             let second = JavaLangString::from_rust_string(&jvm, "-native").await.unwrap();
             let combined = jvm
-                .invoke_virtual(&first, "concat", "(Ljava/lang/String;)Ljava/lang/String;", [second.into()])
+                .invoke_virtual(
+                    &first,
+                    "java/lang/String",
+                    "concat",
+                    "(Ljava/lang/String;)Ljava/lang/String;",
+                    [second.into()],
+                )
                 .await
                 .unwrap();
             assert_eq!(JavaLangString::to_rust_string(&jvm, &combined).await.unwrap(), "lgt-native");
-            let invalid_char: JvmResult<u16> = jvm.invoke_virtual(&first, "charAt", "(I)C", (i32::MAX,)).await;
+            let invalid_char: JvmResult<u16> = jvm.invoke_virtual(&first, "java/lang/String", "charAt", "(I)C", (i32::MAX,)).await;
             assert!(invalid_char.is_err());
 
             let date: Box<dyn ClassInstance> = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();
-            let time: i64 = jvm.invoke_virtual(&date, "getTime", "()J", ()).await.unwrap();
+            let time: i64 = jvm.invoke_virtual(&date, "java/util/Date", "getTime", "()J", ()).await.unwrap();
             assert_eq!(time, 0x12345678_abcdef01);
 
             let native_date = date.as_any().downcast_ref::<JavaClassInstance>().unwrap();
@@ -534,7 +540,10 @@ mod tests {
                 .await
                 .unwrap();
             let chars = jvm.instantiate_array("C", input.len()).await.unwrap();
-            let read: i32 = jvm.invoke_virtual(&reader, "read", "([C)I", (chars.clone(),)).await.unwrap();
+            let read: i32 = jvm
+                .invoke_virtual(&reader, "java/io/Reader", "read", "([C)I", (chars.clone(),))
+                .await
+                .unwrap();
             assert!(read > 0 && read as usize <= input.len());
             assert_eq!(
                 jvm.load_array::<u16>(&chars, 0, read as usize).await.unwrap(),
@@ -548,9 +557,9 @@ mod tests {
                         name: "net/wie/test/Base",
                         parent_class: Some("java/lang/Object"),
                         interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("value", "()I", base_value, Default::default())],
+                        methods: vec![JavaMethodProto::new("value", "()I", base_value, MethodAccessFlags::PUBLIC)],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -569,9 +578,9 @@ mod tests {
                         name: "net/wie/test/Child",
                         parent_class: Some("net/wie/test/Base"),
                         interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("value", "()I", child_value, Default::default())],
+                        methods: vec![JavaMethodProto::new("value", "()I", child_value, MethodAccessFlags::PUBLIC)],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -580,7 +589,7 @@ mod tests {
             jvm.register_class(child_class, None).await.unwrap();
 
             let child = jvm.instantiate_class("net/wie/test/Child").await.unwrap();
-            let value: i32 = jvm.invoke_virtual(&child, "value", "()I", ()).await.unwrap();
+            let value: i32 = jvm.invoke_virtual(&child, "net/wie/test/Base", "value", "()I", ()).await.unwrap();
             assert_eq!(value, 2);
 
             let interface_class = implementation
@@ -592,7 +601,7 @@ mod tests {
                         interfaces: vec!["java/lang/Runnable", "java/lang/Cloneable"],
                         methods: vec![],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -617,13 +626,13 @@ mod tests {
                         parent_class: Some("org/kwis/msp/lcdui/Jlet"),
                         interfaces: vec![],
                         methods: vec![
-                            JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", jlet_start, Default::default()),
-                            JavaMethodProto::new("pauseApp", "()V", jlet_pause, Default::default()),
-                            JavaMethodProto::new("resumeApp", "()V", jlet_resume, Default::default()),
-                            JavaMethodProto::new("destroyApp", "(Z)V", jlet_destroy, Default::default()),
+                            JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", jlet_start, MethodAccessFlags::PROTECTED),
+                            JavaMethodProto::new("pauseApp", "()V", jlet_pause, MethodAccessFlags::PROTECTED),
+                            JavaMethodProto::new("resumeApp", "()V", jlet_resume, MethodAccessFlags::PROTECTED),
+                            JavaMethodProto::new("destroyApp", "(Z)V", jlet_destroy, MethodAccessFlags::PROTECTED),
                         ],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -651,9 +660,9 @@ mod tests {
                         name: "net/wie/test/DeepJlet",
                         parent_class: Some("net/wie/test/DirectJlet"),
                         interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("pauseApp", "()V", deep_jlet_pause, Default::default())],
+                        methods: vec![JavaMethodProto::new("pauseApp", "()V", deep_jlet_pause, MethodAccessFlags::PROTECTED)],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -687,11 +696,11 @@ mod tests {
                         interfaces: vec![],
                         methods: vec![],
                         fields: vec![
-                            JavaFieldProto::new("word", "I", FieldAccessFlags::STATIC),
-                            JavaFieldProto::new("wide", "J", FieldAccessFlags::STATIC),
-                            JavaFieldProto::new("reference", "Ljava/lang/String;", FieldAccessFlags::STATIC),
+                            JavaFieldProto::new("word", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                            JavaFieldProto::new("wide", "J", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                            JavaFieldProto::new("reference", "Ljava/lang/String;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
                         ],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -782,8 +791,8 @@ mod tests {
                         parent_class: Some("net/wie/test/StaticStorage"),
                         interfaces: vec![],
                         methods: vec![],
-                        fields: vec![JavaFieldProto::new("word", "I", FieldAccessFlags::STATIC)],
-                        access_flags: Default::default(),
+                        fields: vec![JavaFieldProto::new("word", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC)],
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -837,14 +846,14 @@ mod tests {
                         interfaces: vec![],
                         methods: vec![],
                         fields: vec![
-                            JavaFieldProto::new("f0", "I", Default::default()),
-                            JavaFieldProto::new("f1", "I", Default::default()),
-                            JavaFieldProto::new("f2", "I", Default::default()),
-                            JavaFieldProto::new("f3", "I", Default::default()),
-                            JavaFieldProto::new("f4", "I", Default::default()),
-                            JavaFieldProto::new("f5", "I", Default::default()),
+                            JavaFieldProto::new("f0", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("f1", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("f2", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("f3", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("f4", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("f5", "I", FieldAccessFlags::PRIVATE),
                         ],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -860,11 +869,11 @@ mod tests {
                         interfaces: vec![],
                         methods: vec![],
                         fields: vec![
-                            JavaFieldProto::new("own0", "I", Default::default()),
-                            JavaFieldProto::new("own1", "I", Default::default()),
-                            JavaFieldProto::new("static0", "I", FieldAccessFlags::STATIC),
+                            JavaFieldProto::new("own0", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("own1", "I", FieldAccessFlags::PRIVATE),
+                            JavaFieldProto::new("static0", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
                         ],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -924,13 +933,13 @@ mod tests {
                         parent_class: Some("org/kwis/msp/lcdui/JletWrapper"),
                         interfaces: vec![],
                         methods: vec![
-                            JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", jlet_start, Default::default()),
-                            JavaMethodProto::new("pauseApp", "()V", jlet_pause, Default::default()),
-                            JavaMethodProto::new("resumeApp", "()V", jlet_resume, Default::default()),
-                            JavaMethodProto::new("destroyApp", "(Z)V", jlet_destroy, Default::default()),
+                            JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", jlet_start, MethodAccessFlags::PROTECTED),
+                            JavaMethodProto::new("pauseApp", "()V", jlet_pause, MethodAccessFlags::PROTECTED),
+                            JavaMethodProto::new("resumeApp", "()V", jlet_resume, MethodAccessFlags::PROTECTED),
+                            JavaMethodProto::new("destroyApp", "(Z)V", jlet_destroy, MethodAccessFlags::PROTECTED),
                         ],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -1011,9 +1020,9 @@ mod tests {
                         name: "net/wie/test/GeneratedInputStream",
                         parent_class: Some("java/io/InputStream"),
                         interfaces: vec![],
-                        methods: vec![JavaMethodProto::new("read", "()I", base_value, Default::default())],
+                        methods: vec![JavaMethodProto::new("read", "()I", base_value, MethodAccessFlags::PUBLIC)],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -1044,7 +1053,7 @@ mod tests {
             let linked_definition = linked_class.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
             assert_ne!(linked_definition.descriptor()?.ptr_methods, 0);
             let instance = jvm.instantiate_class("net/wie/test/GeneratedInputStream").await.unwrap();
-            let value: i32 = jvm.invoke_virtual(&instance, "read", "()I", ()).await.unwrap();
+            let value: i32 = jvm.invoke_virtual(&instance, "java/io/InputStream", "read", "()I", ()).await.unwrap();
             assert_eq!(value, 1);
 
             let generated_class = implementation
@@ -1054,9 +1063,9 @@ mod tests {
                         name: "net/wie/test/GeneratedRunnable",
                         parent_class: Some("java/lang/Object"),
                         interfaces: vec!["java/lang/Runnable"],
-                        methods: vec![JavaMethodProto::new("run", "()V", jlet_pause, Default::default())],
+                        methods: vec![JavaMethodProto::new("run", "()V", jlet_pause, MethodAccessFlags::PUBLIC)],
                         fields: vec![],
-                        access_flags: Default::default(),
+                        access_flags: ClassAccessFlags::PUBLIC,
                     },
                     Box::new(()),
                 )
@@ -1120,7 +1129,9 @@ mod tests {
             let runnable_definition = runnable.definition.as_any().downcast_ref::<super::JavaClassDefinition>().unwrap();
             assert_eq!(reference.ptr_class_or_name, runnable_definition.ptr_raw);
             let instance = jvm.instantiate_class("net/wie/test/GeneratedRunnable").await.unwrap();
-            jvm.invoke_virtual::<_, ()>(&instance, "run", "()V", ()).await.unwrap();
+            jvm.invoke_virtual::<_, ()>(&instance, "java/lang/Runnable", "run", "()V", ())
+                .await
+                .unwrap();
 
             done_clone.store(true, Ordering::Relaxed);
             Ok(())

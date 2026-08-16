@@ -92,6 +92,7 @@ impl J2MEEmulator {
             let resource_stream = jvm
                 .invoke_virtual(
                     &class_loader,
+                    "java/lang/ClassLoader",
                     "getResourceAsStream",
                     "(Ljava/lang/String;)Ljava/io/InputStream;",
                     (resource_name.clone(),),

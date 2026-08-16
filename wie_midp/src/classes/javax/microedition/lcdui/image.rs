@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use bytemuck::cast_vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{
     Array, ArrayRawBufferMut, ClassInstanceRef, Jvm, Result as JvmResult,
@@ -28,47 +28,47 @@ impl Image {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(II[BI)V", Self::init, Default::default()),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("<init>", "(II[BI)V", Self::init, MethodAccessFlags::empty()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getGraphics",
                     "()Ljavax/microedition/lcdui/Graphics;",
                     Self::get_graphics,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(II)Ljavax/microedition/lcdui/Image;",
                     Self::create_image,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "([BII)Ljavax/microedition/lcdui/Image;",
                     Self::create_image_from_data,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(Ljava/lang/String;)Ljavax/microedition/lcdui/Image;",
                     Self::create_image_from_name,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "createImage",
                     "(Ljavax/microedition/lcdui/Image;)Ljavax/microedition/lcdui/Image;",
                     Self::create_image_from_image,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("w", "I", Default::default()),
-                JavaFieldProto::new("h", "I", Default::default()),
-                JavaFieldProto::new("imgData", "[B", Default::default()),
-                JavaFieldProto::new("bpl", "I", Default::default()),
+                JavaFieldProto::new("w", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("h", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("imgData", "[B", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("bpl", "I", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

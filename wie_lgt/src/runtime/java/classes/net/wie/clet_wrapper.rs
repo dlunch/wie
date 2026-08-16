@@ -2,7 +2,7 @@ use alloc::{string::ToString, vec};
 
 use futures::TryFutureExt;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use java_constants::FieldAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -20,18 +20,18 @@ impl CletWrapper {
             parent_class: Some("org/kwis/msp/lcdui/Jlet"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", Self::start_app, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("startApp", "([Ljava/lang/String;)V", Self::start_app, MethodAccessFlags::PROTECTED),
             ],
             fields: vec![
-                JavaFieldProto::new("startClet", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("pauseClet", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("resumeClet", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("destroyClet", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("paintClet", "I", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("startClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("pauseClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("resumeClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("destroyClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("paintClet", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("handleCletEvent", "I", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -60,7 +60,13 @@ impl CletWrapper {
             .await?;
         let clet_wrapper_card = jvm.new_class("net/wie/CletWrapperCard", "(II)V", (paint_clet, handle_clet_event)).await?;
         let _: () = jvm
-            .invoke_virtual(&display, "pushCard", "(Lorg/kwis/msp/lcdui/Card;)V", (clet_wrapper_card,))
+            .invoke_virtual(
+                &display,
+                "org/kwis/msp/lcdui/Display",
+                "pushCard",
+                "(Lorg/kwis/msp/lcdui/Card;)V",
+                (clet_wrapper_card,),
+            )
             .await?;
 
         context

@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -19,10 +20,10 @@ impl TextBox {
                 "<init>",
                 "(Ljava/lang/String;Ljava/lang/String;II)V",
                 Self::init,
-                Default::default(),
+                MethodAccessFlags::PUBLIC,
             )],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

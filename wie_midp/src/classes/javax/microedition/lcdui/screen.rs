@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -14,9 +15,9 @@ impl Screen {
             name: "javax/microedition/lcdui/Screen",
             parent_class: Some("javax/microedition/lcdui/Displayable"),
             interfaces: vec![],
-            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, Default::default())],
+            methods: vec![JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED)],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 

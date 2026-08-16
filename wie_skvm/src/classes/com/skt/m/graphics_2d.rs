@@ -335,7 +335,13 @@ mod test {
                     )
                     .await?;
                 let graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(&target, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+                    .invoke_virtual(
+                        &target,
+                        "javax/microedition/lcdui/Image",
+                        "getGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
                     .await?;
                 let graphics_2d: ClassInstanceRef<Graphics2D> = jvm
                     .invoke_static(
@@ -346,11 +352,21 @@ mod test {
                     )
                     .await?;
 
-                let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (1, 0)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "setClip", "(IIII)V", (0, 0, 2, 1)).await?;
-                let _: () = jvm.invoke_virtual(&graphics_2d, "setPixel", "(III)V", (0, 0, 0x123456)).await?;
-                let _: () = jvm.invoke_virtual(&graphics_2d, "setPixel", "(III)V", (2, 0, 0xffffff)).await?;
-                let pixel: i32 = jvm.invoke_virtual(&graphics_2d, "getPixel", "(II)I", (0, 0)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (1, 0))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setClip", "(IIII)V", (0, 0, 2, 1))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "setPixel", "(III)V", (0, 0, 0x123456))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "setPixel", "(III)V", (2, 0, 0xffffff))
+                    .await?;
+                let pixel: i32 = jvm
+                    .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "getPixel", "(II)I", (0, 0))
+                    .await?;
                 assert_eq!(pixel, 0x123456);
 
                 let source: ClassInstanceRef<Image> = jvm
@@ -362,18 +378,33 @@ mod test {
                     )
                     .await?;
                 let source_graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(&source, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+                    .invoke_virtual(
+                        &source,
+                        "javax/microedition/lcdui/Image",
+                        "getGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
                     .await?;
-                let _: () = jvm.invoke_virtual(&source_graphics, "setColor", "(I)V", (0xf00faa,)).await?;
-                let _: () = jvm.invoke_virtual(&source_graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
-                let _: () = jvm.invoke_virtual(&source_graphics, "setColor", "(I)V", (0xabcdef,)).await?;
-                let _: () = jvm.invoke_virtual(&source_graphics, "fillRect", "(IIII)V", (1, 0, 1, 1)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&source_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xf00faa,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&source_graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&source_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xabcdef,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&source_graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (1, 0, 1, 1))
+                    .await?;
 
                 let copy_mode: i32 = jvm.get_static_field("com/skt/m/Graphics2D", "DRAW_COPY", "I").await?;
                 let xor_mode: i32 = jvm.get_static_field("com/skt/m/Graphics2D", "DRAW_XOR", "I").await?;
                 let _: () = jvm
                     .invoke_virtual(
                         &graphics_2d,
+                        "com/skt/m/Graphics2D",
                         "drawImage",
                         "(IILjavax/microedition/lcdui/Image;IIIII)V",
                         (0, 0, source.clone(), 0, 0, 2, 1, copy_mode),
@@ -382,6 +413,7 @@ mod test {
                 let _: () = jvm
                     .invoke_virtual(
                         &graphics_2d,
+                        "com/skt/m/Graphics2D",
                         "drawImage",
                         "(IILjavax/microedition/lcdui/Image;IIIII)V",
                         (0, 0, source, 0, 0, 1, 1, xor_mode),
@@ -398,15 +430,21 @@ mod test {
                 let clipped = target_image.get_pixel(3, 0);
                 assert_eq!((clipped.r, clipped.g, clipped.b), (0, 0, 0));
 
-                let _: () = jvm.invoke_virtual(&graphics_2d, "invertRect", "(IIII)V", (0, 0, 4, 1)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "invertRect", "(IIII)V", (0, 0, 4, 1))
+                    .await?;
                 let target_image = Image::image(&jvm, &target).await?;
                 let inverted = target_image.get_pixel(1, 0);
                 assert_eq!((inverted.r, inverted.g, inverted.b), (0xff, 0xff, 0xff));
                 let outside_clip = target_image.get_pixel(3, 0);
                 assert_eq!((outside_clip.r, outside_clip.g, outside_clip.b), (0, 0, 0));
 
-                let _: () = jvm.invoke_virtual(&graphics_2d, "invertRect", "(IIII)V", (0, 0, 0, 1)).await?;
-                let negative_size: JvmResult<()> = jvm.invoke_virtual(&graphics_2d, "invertRect", "(IIII)V", (0, 0, -1, 1)).await;
+                let _: () = jvm
+                    .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "invertRect", "(IIII)V", (0, 0, 0, 1))
+                    .await?;
+                let negative_size: JvmResult<()> = jvm
+                    .invoke_virtual(&graphics_2d, "com/skt/m/Graphics2D", "invertRect", "(IIII)V", (0, 0, -1, 1))
+                    .await;
                 let Err(JavaError::JavaException(exception)) = negative_size else {
                     panic!("Graphics2D.invertRect accepted a negative width");
                 };
@@ -443,21 +481,27 @@ mod test {
                 let sis_image: ClassInstanceRef<SISImage> = jvm
                     .invoke_static("com/skt/m/SISImage", "createSISImage", "([BII)Lcom/skt/m/SISImage;", (data.clone(), 0, 3))
                     .await?;
-                let max_frame_id: i32 = jvm.invoke_virtual(&sis_image, "getMaxFrameID", "()I", ()).await?;
-                let max_object_id: i32 = jvm.invoke_virtual(&sis_image, "getMaxObjectID", "()I", ()).await?;
+                let max_frame_id: i32 = jvm.invoke_virtual(&sis_image, "com/skt/m/SISImage", "getMaxFrameID", "()I", ()).await?;
+                let max_object_id: i32 = jvm.invoke_virtual(&sis_image, "com/skt/m/SISImage", "getMaxObjectID", "()I", ()).await?;
                 assert_eq!((max_frame_id, max_object_id), (0, 0));
 
                 let frame: ClassInstanceRef<Image> = jvm
-                    .invoke_virtual(&sis_image, "getFrame", "(I)Ljavax/microedition/lcdui/Image;", (0,))
+                    .invoke_virtual(&sis_image, "com/skt/m/SISImage", "getFrame", "(I)Ljavax/microedition/lcdui/Image;", (0,))
                     .await?;
                 let object: ClassInstanceRef<Image> = jvm
-                    .invoke_virtual(&sis_image, "getObject", "(IZ)Ljavax/microedition/lcdui/Image;", (0, false))
+                    .invoke_virtual(
+                        &sis_image,
+                        "com/skt/m/SISImage",
+                        "getObject",
+                        "(IZ)Ljavax/microedition/lcdui/Image;",
+                        (0, false),
+                    )
                     .await?;
                 assert!(frame.is_null());
                 assert!(object.is_null());
 
                 let invalid_frame: JvmResult<ClassInstanceRef<Image>> = jvm
-                    .invoke_virtual(&sis_image, "getFrame", "(I)Ljavax/microedition/lcdui/Image;", (1,))
+                    .invoke_virtual(&sis_image, "com/skt/m/SISImage", "getFrame", "(I)Ljavax/microedition/lcdui/Image;", (1,))
                     .await;
                 let Err(JavaError::JavaException(exception)) = invalid_frame else {
                     panic!("SISImage.getFrame accepted an out-of-range ID");
@@ -465,7 +509,13 @@ mod test {
                 assert!(jvm.is_instance(&*exception, "java/lang/IllegalArgumentException"));
 
                 let invalid_object: JvmResult<ClassInstanceRef<Image>> = jvm
-                    .invoke_virtual(&sis_image, "getObject", "(IZ)Ljavax/microedition/lcdui/Image;", (-1, false))
+                    .invoke_virtual(
+                        &sis_image,
+                        "com/skt/m/SISImage",
+                        "getObject",
+                        "(IZ)Ljavax/microedition/lcdui/Image;",
+                        (-1, false),
+                    )
                     .await;
                 let Err(JavaError::JavaException(exception)) = invalid_object else {
                     panic!("SISImage.getObject accepted an out-of-range ID");
@@ -481,11 +531,18 @@ mod test {
                     )
                     .await?;
                 let graphics: ClassInstanceRef<Graphics> = jvm
-                    .invoke_virtual(&target, "getGraphics", "()Ljavax/microedition/lcdui/Graphics;", ())
+                    .invoke_virtual(
+                        &target,
+                        "javax/microedition/lcdui/Image",
+                        "getGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
                     .await?;
                 let _: () = jvm
                     .invoke_virtual(
                         &sis_image,
+                        "com/skt/m/SISImage",
                         "paintFrame",
                         "(Ljavax/microedition/lcdui/Graphics;III)V",
                         (graphics.clone(), 0, 0, 0),
@@ -495,6 +552,7 @@ mod test {
                 let invalid_frame: JvmResult<()> = jvm
                     .invoke_virtual(
                         &sis_image,
+                        "com/skt/m/SISImage",
                         "paintFrame",
                         "(Ljavax/microedition/lcdui/Graphics;III)V",
                         (graphics.clone(), 1, 0, 0),
@@ -508,6 +566,7 @@ mod test {
                 let invalid_object: JvmResult<()> = jvm
                     .invoke_virtual(
                         &sis_image,
+                        "com/skt/m/SISImage",
                         "paintObject",
                         "(Ljavax/microedition/lcdui/Graphics;IIIZ)V",
                         (graphics.clone(), 1, 0, 0, false),
@@ -520,6 +579,7 @@ mod test {
                 let _: () = jvm
                     .invoke_virtual(
                         &sis_image,
+                        "com/skt/m/SISImage",
                         "paintObject",
                         "(Ljavax/microedition/lcdui/Graphics;IIIZ)V",
                         (graphics, 0, 0, 0, false),

@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -18,16 +18,51 @@ impl Player {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("pause", "(Lorg/kwis/msp/media/BaseClip;)Z", Self::pause, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("stop", "(Lorg/kwis/msp/media/BaseClip;)Z", Self::stop, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("resume", "(Lorg/kwis/msp/media/BaseClip;)Z", Self::resume, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("play", "(Lorg/kwis/msp/media/BaseClip;Z)Z", Self::play, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("record", "(Lorg/kwis/msp/media/BaseClip;)Z", Self::record, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("play", "(Lorg/kwis/msp/media/Clip;Z)Z", Self::play_clip, MethodAccessFlags::STATIC),
-                JavaMethodProto::new("stop", "(Lorg/kwis/msp/media/Clip;)Z", Self::stop_clip, MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "pause",
+                    "(Lorg/kwis/msp/media/BaseClip;)Z",
+                    Self::pause,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "stop",
+                    "(Lorg/kwis/msp/media/BaseClip;)Z",
+                    Self::stop,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "resume",
+                    "(Lorg/kwis/msp/media/BaseClip;)Z",
+                    Self::resume,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "play",
+                    "(Lorg/kwis/msp/media/BaseClip;Z)Z",
+                    Self::play,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "record",
+                    "(Lorg/kwis/msp/media/BaseClip;)Z",
+                    Self::record,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "play",
+                    "(Lorg/kwis/msp/media/Clip;Z)Z",
+                    Self::play_clip,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
+                JavaMethodProto::new(
+                    "stop",
+                    "(Lorg/kwis/msp/media/Clip;)Z",
+                    Self::stop_clip,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -67,7 +102,7 @@ impl Player {
         let player = Clip::player(jvm, &clip).await?;
 
         if !player.is_null() {
-            let _: () = jvm.invoke_virtual(&player, "start", "(Z)V", (repeat,)).await?;
+            let _: () = jvm.invoke_virtual(&player, "net/wie/SmafPlayer", "start", "(Z)V", (repeat,)).await?;
 
             Ok(true)
         } else {
@@ -81,7 +116,7 @@ impl Player {
         let player = Clip::player(jvm, &clip).await?;
 
         if !player.is_null() {
-            let _: () = jvm.invoke_virtual(&player, "stop", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&player, "javax/microedition/media/Player", "stop", "()V", ()).await?;
 
             return Ok(true);
         }
@@ -141,25 +176,24 @@ mod test {
     }
 
     #[test]
-    fn test_clip_compatibility_overloads_remain() -> Result<()> {
+    fn test_clip_playback_uses_repeat_overload() -> Result<()> {
         run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
             let r#type: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "audio/test").await?.into();
-            let clip: ClassInstanceRef<Clip> = jvm.new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;)V", (r#type,)).await?.into();
+            let data = jvm.instantiate_array("B", 0).await?;
+            let clip: ClassInstanceRef<Clip> = jvm
+                .new_class("org/kwis/msp/media/Clip", "(Ljava/lang/String;[B)V", (r#type, data))
+                .await?
+                .into();
 
             let played: bool = jvm
-                .invoke_static(
-                    "org/kwis/msp/media/Player",
-                    "play",
-                    "(Lorg/kwis/msp/media/Clip;Z)Z",
-                    (clip.clone(), false),
-                )
+                .invoke_static("org/kwis/msp/media/Player", "play", "(Lorg/kwis/msp/media/Clip;Z)Z", (clip.clone(), true))
                 .await?;
             let stopped: bool = jvm
                 .invoke_static("org/kwis/msp/media/Player", "stop", "(Lorg/kwis/msp/media/Clip;)Z", (clip,))
                 .await?;
 
-            assert!(!played);
-            assert!(!stopped);
+            assert!(played);
+            assert!(stopped);
 
             Ok(())
         })

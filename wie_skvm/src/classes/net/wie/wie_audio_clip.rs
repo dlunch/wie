@@ -138,17 +138,21 @@ mod test {
                 (data.clone(), 0, 3),
                 (data.clone(), 1, 2),
             ] {
-                let _: () = jvm.invoke_virtual(&clip, "open", "([BII)V", (array, offset, length)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&clip, "net/wie/WieAudioClip", "open", "([BII)V", (array, offset, length))
+                    .await?;
             }
-            let _: () = jvm.invoke_virtual(&clip, "play", "()V", ()).await?;
-            let _: () = jvm.invoke_virtual(&clip, "loop", "()V", ()).await?;
-            let _: () = jvm.invoke_virtual(&clip, "pause", "()V", ()).await?;
-            let _: () = jvm.invoke_virtual(&clip, "resume", "()V", ()).await?;
-            let _: () = jvm.invoke_virtual(&clip, "stop", "()V", ()).await?;
-            let _: () = jvm.invoke_virtual(&clip, "close", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&clip, "net/wie/WieAudioClip", "play", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&clip, "net/wie/WieAudioClip", "loop", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&clip, "net/wie/WieAudioClip", "pause", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&clip, "net/wie/WieAudioClip", "resume", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&clip, "net/wie/WieAudioClip", "stop", "()V", ()).await?;
+            let _: () = jvm.invoke_virtual(&clip, "net/wie/WieAudioClip", "close", "()V", ()).await?;
 
             for (offset, length) in [(-1, 1), (0, -1), (3, 1), (2, 2)] {
-                let invalid: JvmResult<()> = jvm.invoke_virtual(&clip, "open", "([BII)V", (data.clone(), offset, length)).await;
+                let invalid: JvmResult<()> = jvm
+                    .invoke_virtual(&clip, "net/wie/WieAudioClip", "open", "([BII)V", (data.clone(), offset, length))
+                    .await;
                 let Err(JavaError::JavaException(exception)) = invalid else {
                     panic!("AudioClip.open accepted invalid range ({offset}, {length})");
                 };
@@ -156,7 +160,9 @@ mod test {
             }
 
             let null_data = ClassInstanceRef::<Array<i8>>::new(None);
-            let null_result: JvmResult<()> = jvm.invoke_virtual(&clip, "open", "([BII)V", (null_data, 0, 0)).await;
+            let null_result: JvmResult<()> = jvm
+                .invoke_virtual(&clip, "net/wie/WieAudioClip", "open", "([BII)V", (null_data, 0, 0))
+                .await;
             let Err(JavaError::JavaException(exception)) = null_result else {
                 panic!("AudioClip.open accepted a null byte array");
             };

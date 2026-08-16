@@ -15,7 +15,7 @@ impl JletWrapper {
             interfaces: vec![],
             methods: vec![],
             fields: vec![],
-            access_flags: ClassAccessFlags::ABSTRACT,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 }

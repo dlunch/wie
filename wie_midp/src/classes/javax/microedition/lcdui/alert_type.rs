@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::FieldAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -16,17 +16,37 @@ impl AlertType {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, Default::default()),
-                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, Default::default()),
+                JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PRIVATE),
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
             ],
             fields: vec![
-                JavaFieldProto::new("ALARM", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("CONFIRMATION", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("ERROR", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("INFO", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("WARNING", "Ljavax/microedition/lcdui/AlertType;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new(
+                    "ALARM",
+                    "Ljavax/microedition/lcdui/AlertType;",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "CONFIRMATION",
+                    "Ljavax/microedition/lcdui/AlertType;",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "ERROR",
+                    "Ljavax/microedition/lcdui/AlertType;",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "INFO",
+                    "Ljavax/microedition/lcdui/AlertType;",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "WARNING",
+                    "Ljavax/microedition/lcdui/AlertType;",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

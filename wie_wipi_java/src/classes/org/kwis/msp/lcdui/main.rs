@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -20,10 +20,10 @@ impl Main {
                 "main",
                 "([Ljava/lang/String;)V",
                 Self::main,
-                MethodAccessFlags::STATIC,
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             )],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 

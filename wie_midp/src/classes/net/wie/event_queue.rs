@@ -2,7 +2,7 @@ use alloc::{string::ToString, vec, vec::Vec};
 
 use futures::TryFutureExt;
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{FieldAccessFlags, MethodAccessFlags};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::Runnable;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
@@ -156,22 +156,22 @@ impl EventQueue {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, Default::default()),
-                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, Default::default()),
-                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "getEventQueue",
                     "()Lnet/wie/EventQueue;",
                     Self::get_event_queue,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::STATIC),
-                JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", Default::default()),
+                JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
+                JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -244,10 +244,14 @@ impl EventQueue {
                 break;
             } else {
                 let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
-                if !jvm.invoke_virtual(&call_serially_events, "isEmpty", "()Z", ()).await? {
-                    let event: ClassInstanceRef<Runnable> =
-                        jvm.invoke_virtual(&call_serially_events, "remove", "(I)Ljava/lang/Object;", (0,)).await?;
-                    let _: () = jvm.invoke_virtual(&event, "run", "()V", ()).await?;
+                if !jvm
+                    .invoke_virtual(&call_serially_events, "java/util/Vector", "isEmpty", "()Z", ())
+                    .await?
+                {
+                    let event: ClassInstanceRef<Runnable> = jvm
+                        .invoke_virtual(&call_serially_events, "java/util/Vector", "remove", "(I)Ljava/lang/Object;", (0,))
+                        .await?;
+                    let _: () = jvm.invoke_virtual(&event, "java/lang/Runnable", "run", "()V", ()).await?;
                 }
 
                 context.system().sleep(16).await; // TODO we need to wait for events
@@ -297,7 +301,9 @@ impl EventQueue {
 
         match event_kind {
             EventQueueEvent::RepaintEvent => {
-                let _: () = jvm.invoke_virtual(&display, "handlePaintEvent", "()V", ()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                    .await?;
             }
             EventQueueEvent::KeyEvent => {
                 let event_type = if let Some(event_type) = KeyboardEventType::from_raw(event[1]) {
@@ -307,7 +313,15 @@ impl EventQueue {
                 };
                 let code = event[2];
 
-                let _: () = jvm.invoke_virtual(&display, "handleKeyEvent", "(II)V", (event_type as i32, code)).await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "handleKeyEvent",
+                        "(II)V",
+                        (event_type as i32, code),
+                    )
+                    .await?;
             }
             EventQueueEvent::NotifyEvent => {
                 let r#type = event[1];
@@ -315,7 +329,13 @@ impl EventQueue {
                 let param2 = event[3];
 
                 let _: () = jvm
-                    .invoke_virtual(&display, "handleNotifyEvent", "(III)V", (r#type, param1, param2))
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "handleNotifyEvent",
+                        "(III)V",
+                        (r#type, param1, param2),
+                    )
                     .await?;
             }
         }
@@ -349,7 +369,13 @@ impl EventQueue {
         tracing::debug!("net.wie.EventQueue::callSerially({this:?}, {event:?})");
 
         let call_serially_events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
-        jvm.invoke_virtual(&call_serially_events, "addElement", "(Ljava/lang/Object;)V", [event.into()])
-            .await
+        jvm.invoke_virtual(
+            &call_serially_events,
+            "java/util/Vector",
+            "addElement",
+            "(Ljava/lang/Object;)V",
+            [event.into()],
+        )
+        .await
     }
 }

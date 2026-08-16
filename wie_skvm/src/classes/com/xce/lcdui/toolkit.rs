@@ -237,11 +237,13 @@ impl Toolkit {
         jvm.put_static_field("com/xce/lcdui/Toolkit", "DEFAULT_FONT", "Ljavax/microedition/lcdui/Font;", font.clone())
             .await?;
 
-        let font_height: i32 = jvm.invoke_virtual(&font, "getHeight", "()I", ()).await?;
+        let font_height: i32 = jvm.invoke_virtual(&font, "javax/microedition/lcdui/Font", "getHeight", "()I", ()).await?;
         jvm.put_static_field("com/xce/lcdui/Toolkit", "FONT_HEIGHT", "I", font_height).await?;
         jvm.put_static_field("com/xce/lcdui/Toolkit", "FONT_GAP", "I", 0).await?;
 
-        let max_char_width: i32 = jvm.invoke_virtual(&font, "charWidth", "(C)I", ('W' as u16,)).await?;
+        let max_char_width: i32 = jvm
+            .invoke_virtual(&font, "javax/microedition/lcdui/Font", "charWidth", "(C)I", ('W' as u16,))
+            .await?;
         jvm.put_static_field("com/xce/lcdui/Toolkit", "MAX_CHARWIDTH", "I", max_char_width)
             .await?;
 
@@ -300,11 +302,11 @@ impl Toolkit {
 
         let image_data = match JavaIoInputStream::read_until_end(jvm, &stream).await {
             Ok(image_data) => {
-                let _: () = jvm.invoke_virtual(&stream, "close", "()V", ()).await?;
+                let _: () = jvm.invoke_virtual(&stream, "java/io/InputStream", "close", "()V", ()).await?;
                 image_data
             }
             Err(error) => {
-                let _: JvmResult<()> = jvm.invoke_virtual(&stream, "close", "()V", ()).await;
+                let _: JvmResult<()> = jvm.invoke_virtual(&stream, "java/io/InputStream", "close", "()V", ()).await;
                 return Err(error);
             }
         };
@@ -367,11 +369,17 @@ impl Toolkit {
         let font: ClassInstanceRef<Font> = jvm
             .get_static_field("com/xce/lcdui/Toolkit", "DEFAULT_FONT", "Ljavax/microedition/lcdui/Font;")
             .await?;
-        let string_length: i32 = jvm.invoke_virtual(&string, "length", "()I", ()).await?;
+        let string_length: i32 = jvm.invoke_virtual(&string, "java/lang/String", "length", "()I", ()).await?;
         let mut fitting_length = 0;
         for length in 1..=string_length {
             let width: i32 = jvm
-                .invoke_virtual(&font, "substringWidth", "(Ljava/lang/String;II)I", (string.clone(), 0, length))
+                .invoke_virtual(
+                    &font,
+                    "javax/microedition/lcdui/Font",
+                    "substringWidth",
+                    "(Ljava/lang/String;II)I",
+                    (string.clone(), 0, length),
+                )
                 .await?;
             if width > max_width {
                 break;
@@ -506,7 +514,15 @@ mod tests {
                 let font = jvm
                     .get_static_field("com/xce/lcdui/Toolkit", "DEFAULT_FONT", "Ljavax/microedition/lcdui/Font;")
                     .await?;
-                let width: i32 = jvm.invoke_virtual(&font, "stringWidth", "(Ljava/lang/String;)I", (text.clone(),)).await?;
+                let width: i32 = jvm
+                    .invoke_virtual(
+                        &font,
+                        "javax/microedition/lcdui/Font",
+                        "stringWidth",
+                        "(Ljava/lang/String;)I",
+                        (text.clone(),),
+                    )
+                    .await?;
                 let split: i32 = jvm
                     .invoke_static("com/xce/lcdui/Toolkit", "splitString", "(Ljava/lang/String;I)I", (text, width))
                     .await?;

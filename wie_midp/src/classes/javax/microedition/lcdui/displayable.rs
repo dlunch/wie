@@ -1,6 +1,7 @@
 use alloc::{format, vec};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -17,42 +18,42 @@ impl Displayable {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
                     "addCommand",
                     "(Ljavax/microedition/lcdui/Command;)V",
                     Self::add_command,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new(
                     "setCommandListener",
                     "(Ljavax/microedition/lcdui/CommandListener;)V",
                     Self::set_command_listener,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
-                JavaMethodProto::new("getWidth", "()I", Self::get_width, Default::default()),
-                JavaMethodProto::new("getHeight", "()I", Self::get_height, Default::default()),
+                JavaMethodProto::new("getWidth", "()I", Self::get_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getHeight", "()I", Self::get_height, MethodAccessFlags::PUBLIC),
                 // wie private methods...
                 JavaMethodProto::new(
                     "setDisplay",
                     "(Ljavax/microedition/lcdui/Display;)V",
                     Self::set_display,
-                    Default::default(),
+                    MethodAccessFlags::empty(),
                 ),
-                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, Default::default()),
+                JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "handlePaintEvent",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     Self::handle_paint_event,
-                    Default::default(),
+                    MethodAccessFlags::empty(),
                 ),
-                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, Default::default()),
+                JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::PROTECTED),
             ],
             fields: vec![
-                JavaFieldProto::new("currentDisplay", "Ljavax/microedition/lcdui/Display;", Default::default()),
-                JavaFieldProto::new("isInFullScreenMode", "Z", Default::default()),
+                JavaFieldProto::new("currentDisplay", "Ljavax/microedition/lcdui/Display;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("isInFullScreenMode", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 
@@ -109,7 +110,8 @@ impl Displayable {
         let width = if display.is_null() {
             context.system().platform().screen().width() as i32
         } else {
-            jvm.invoke_virtual(&display, "getWidth", "()I", ()).await?
+            jvm.invoke_virtual(&display, "javax/microedition/lcdui/Display", "getWidth", "()I", ())
+                .await?
         };
 
         Ok(width)
@@ -122,7 +124,8 @@ impl Displayable {
         let height = if display.is_null() {
             context.system().platform().screen().height() as i32
         } else {
-            jvm.invoke_virtual(&display, "getHeight", "()I", ()).await?
+            jvm.invoke_virtual(&display, "javax/microedition/lcdui/Display", "getHeight", "()I", ())
+                .await?
         };
 
         Ok(height)

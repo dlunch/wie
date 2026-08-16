@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -19,17 +19,22 @@ impl ContainerComponent {
             interfaces: vec![],
             methods: vec![
                 JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PROTECTED),
-                JavaMethodProto::new("addComponent", "(Lorg/kwis/msp/lwc/Component;)I", Self::add_component, Default::default()),
-                JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component_index, Default::default()),
+                JavaMethodProto::new(
+                    "addComponent",
+                    "(Lorg/kwis/msp/lwc/Component;)I",
+                    Self::add_component,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("removeComponent", "(I)V", Self::remove_component_index, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "removeComponent",
                     "(Lorg/kwis/msp/lwc/Component;)V",
                     Self::remove_component,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
 

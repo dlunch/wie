@@ -1,7 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::JavaMethodProto;
-use java_constants::ClassAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use wie_jvm_support::WieJavaClassProto;
 
 // interface org.kwis.msp.lwc.EventListener
@@ -16,10 +16,10 @@ impl EventListener {
             methods: vec![JavaMethodProto::new_abstract(
                 "eventNotify",
                 "(IIIILjava/lang/Object;)Z",
-                Default::default(),
+                MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
             )],
             fields: vec![],
-            access_flags: ClassAccessFlags::INTERFACE,
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }
 }

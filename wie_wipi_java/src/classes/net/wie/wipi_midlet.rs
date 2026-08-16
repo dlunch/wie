@@ -1,6 +1,7 @@
 use alloc::vec;
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -17,19 +18,19 @@ impl WIPIMIDlet {
             parent_class: Some("javax/microedition/midlet/MIDlet"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "()V", Self::init, Default::default()),
-                JavaMethodProto::new("startApp", "()V", Self::start_app, Default::default()),
-                JavaMethodProto::new("pauseApp", "()V", Self::pause_app, Default::default()),
-                JavaMethodProto::new("destroyApp", "(Z)V", Self::destroy_app, Default::default()),
+                JavaMethodProto::new("<init>", "()V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("startApp", "()V", Self::start_app, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("pauseApp", "()V", Self::pause_app, MethodAccessFlags::PROTECTED),
+                JavaMethodProto::new("destroyApp", "(Z)V", Self::destroy_app, MethodAccessFlags::PROTECTED),
                 JavaMethodProto::new(
                     "setCurrentJlet",
                     "(Lorg/kwis/msp/lcdui/Jlet;)V",
                     Self::set_current_jlet,
-                    Default::default(),
+                    MethodAccessFlags::PUBLIC,
                 ),
             ],
-            fields: vec![JavaFieldProto::new("jlet", "Lorg/kwis/msp/lcdui/Jlet;", Default::default())],
-            access_flags: Default::default(),
+            fields: vec![JavaFieldProto::new("jlet", "Lorg/kwis/msp/lcdui/Jlet;", FieldAccessFlags::PRIVATE)],
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -60,7 +61,9 @@ impl WIPIMIDlet {
         let args_array = jvm.instantiate_array("Ljava/lang/String;", 0).await?;
 
         let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
-        let _: () = jvm.invoke_virtual(&jlet, "startApp", "([Ljava/lang/String;)V", (args_array,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "startApp", "([Ljava/lang/String;)V", (args_array,))
+            .await?;
 
         Ok(())
     }
@@ -69,7 +72,7 @@ impl WIPIMIDlet {
         tracing::debug!("net.wie.WIPIMIDlet::pauseApp({this:?})");
 
         let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
-        let _: () = jvm.invoke_virtual(&jlet, "pauseApp", "()V", ()).await?;
+        let _: () = jvm.invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "pauseApp", "()V", ()).await?;
 
         Ok(())
     }
@@ -78,7 +81,9 @@ impl WIPIMIDlet {
         tracing::debug!("net.wie.WIPIMIDlet::destroyApp({this:?}, {unconditional:?})");
 
         let jlet = jvm.get_field(&this, "jlet", "Lorg/kwis/msp/lcdui/Jlet;").await?;
-        let _: () = jvm.invoke_virtual(&jlet, "destroyApp", "(Z)V", (unconditional,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&jlet, "org/kwis/msp/lcdui/Jlet", "destroyApp", "(Z)V", (unconditional,))
+            .await?;
 
         Ok(())
     }

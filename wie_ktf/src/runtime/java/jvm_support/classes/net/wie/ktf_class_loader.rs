@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec};
 
 use bytemuck::cast_slice;
 use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use java_constants::FieldAccessFlags;
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::{Class, ClassLoader, String};
 use jvm::{
     ClassInstanceRef, Jvm, Result as JvmResult,
@@ -33,15 +33,29 @@ impl KtfClassLoader {
             parent_class: Some("java/lang/ClassLoader"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V", Self::init, Default::default()),
-                JavaMethodProto::new("findClass", "(Ljava/lang/String;)Ljava/lang/Class;", Self::find_class, Default::default()),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljava/lang/ClassLoader;Ljava/lang/String;II)V",
+                    Self::init,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
+                    "findClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    Self::find_class,
+                    MethodAccessFlags::PROTECTED,
+                ),
             ],
             fields: vec![
-                JavaFieldProto::new("fnGetClass", "I", Default::default()),
-                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", Default::default()),
-                JavaFieldProto::new("instance", "Lnet/wie/KtfClassLoader;", FieldAccessFlags::STATIC),
+                JavaFieldProto::new("fnGetClass", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new(
+                    "instance",
+                    "Lnet/wie/KtfClassLoader;",
+                    FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC,
+                ),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -69,7 +83,13 @@ impl KtfClassLoader {
         // load client.bin
         let name_rust = JavaLangString::to_rust_string(jvm, &binary_name).await.unwrap();
         let data_stream = jvm
-            .invoke_virtual(&this, "getResourceAsStream", "(Ljava/lang/String;)Ljava/io/InputStream;", (binary_name,))
+            .invoke_virtual(
+                &this,
+                "net/wie/KtfClassLoader",
+                "getResourceAsStream",
+                "(Ljava/lang/String;)Ljava/io/InputStream;",
+                (binary_name,),
+            )
             .await
             .unwrap();
         let data = JavaIoInputStream::read_until_end(jvm, &data_stream).await.unwrap();

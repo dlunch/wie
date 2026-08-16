@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec};
 
 use java_class_proto::{JavaMethodProto, MethodBody};
-use java_constants::MethodAccessFlags;
+use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
 
@@ -19,16 +19,21 @@ impl Launcher {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("start", "(Ljava/lang/String;)V", Self::start, MethodAccessFlags::STATIC),
+                JavaMethodProto::new(
+                    "start",
+                    "(Ljava/lang/String;)V",
+                    Self::start,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new(
                     "startMIDlet",
                     "(Ljavax/microedition/midlet/MIDlet;)V",
                     Self::start_midlet,
-                    MethodAccessFlags::STATIC,
+                    MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
             ],
             fields: vec![],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -47,7 +52,9 @@ impl Launcher {
         tracing::debug!("net.wie.Launcher::startMIDlet({midlet:?})");
 
         // run startApp
-        let _: () = jvm.invoke_virtual(&midlet, "startApp", "()V", (None,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&midlet, "javax/microedition/midlet/MIDlet", "startApp", "()V", ())
+            .await?;
 
         // spawn event loop
         context.spawn(jvm, Box::new(EventLoopRunner))?;
@@ -70,8 +77,12 @@ impl MethodBody<JavaError, WieJvmContext> for EventLoopRunner {
 
         let event = jvm.instantiate_array("I", 4).await?;
         loop {
-            let _: () = jvm.invoke_virtual(&event_queue, "getNextEvent", "([I)V", (event.clone(),)).await?;
-            let _: () = jvm.invoke_virtual(&event_queue, "dispatchEvent", "([I)V", (event.clone(),)).await?;
+            let _: () = jvm
+                .invoke_virtual(&event_queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
+                .await?;
         }
     }
 }

@@ -3,6 +3,7 @@ use alloc::vec;
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
 use java_class_proto::{JavaFieldProto, JavaMethodProto};
+use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -21,69 +22,79 @@ impl Graphics {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
-                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init, Default::default()),
+                JavaMethodProto::new("<init>", "(Lorg/kwis/msp/lcdui/Display;)V", Self::init, MethodAccessFlags::PRIVATE),
                 JavaMethodProto::new(
                     "<init>",
                     "(Ljavax/microedition/lcdui/Graphics;)V",
                     Self::init_with_midp_graphics,
-                    Default::default(),
+                    MethodAccessFlags::PRIVATE,
                 ),
-                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, Default::default()),
-                JavaMethodProto::new("copyArea", "(IIIIII)V", Self::copy_area, Default::default()),
-                JavaMethodProto::new("setColor", "(I)V", Self::set_color, Default::default()),
-                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, Default::default()),
-                JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, Default::default()),
-                JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, Default::default()),
-                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, Default::default()),
-                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, Default::default()),
-                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, Default::default()),
-                JavaMethodProto::new("fillPolygon", "([I[I)V", Self::fill_polygon, Default::default()),
-                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, Default::default()),
-                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, Default::default()),
-                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, Default::default()),
-                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, Default::default()),
-                JavaMethodProto::new("drawPolygon", "([I[I)V", Self::draw_polygon, Default::default()),
-                JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, Default::default()),
-                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, Default::default()),
-                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, Default::default()),
-                JavaMethodProto::new("drawSubstring", "(Ljava/lang/String;IIIII)V", Self::draw_substring, Default::default()),
-                JavaMethodProto::new("drawImage", "(Lorg/kwis/msp/lcdui/Image;III)V", Self::draw_image, Default::default()),
-                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, Default::default()),
-                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, Default::default()),
-                JavaMethodProto::new("getColor", "()I", Self::get_color, Default::default()),
-                JavaMethodProto::new("getBlueComponent", "()I", Self::get_blue_component, Default::default()),
-                JavaMethodProto::new("getGrayScale", "()I", Self::get_gray_scale, Default::default()),
-                JavaMethodProto::new("getGreenComponent", "()I", Self::get_green_component, Default::default()),
-                JavaMethodProto::new("getRedComponent", "()I", Self::get_red_component, Default::default()),
-                JavaMethodProto::new("getStrokeStyle", "()I", Self::get_stroke_style, Default::default()),
-                JavaMethodProto::new("setStrokeStyle", "(I)V", Self::set_stroke_style, Default::default()),
-                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, Default::default()),
-                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, Default::default()),
-                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, Default::default()),
-                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, Default::default()),
-                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, Default::default()),
-                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, Default::default()),
-                JavaMethodProto::new("translate", "(II)V", Self::translate, Default::default()),
-                JavaMethodProto::new("setPixel", "(II)V", Self::set_pixel, Default::default()),
-                JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, Default::default()),
-                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, Default::default()),
-                JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, Default::default()),
-                JavaMethodProto::new("getPixel", "(II)I", Self::get_pixel, Default::default()),
-                JavaMethodProto::new("getPixels", "(IIII[BII)V", Self::get_pixels, Default::default()),
-                JavaMethodProto::new("setPixels", "(IIII[BII)V", Self::set_pixels, Default::default()),
-                JavaMethodProto::new("reset", "()V", Self::reset, Default::default()),
-                JavaMethodProto::new("getAlpha", "()I", Self::get_alpha, Default::default()),
-                JavaMethodProto::new("isXORMode", "()Z", Self::is_xor_mode, Default::default()),
-                JavaMethodProto::new("encodeImage", "(IIII)[B", Self::encode_image, Default::default()),
-                JavaMethodProto::new("getRGBPixels", "(IIII[III)V", Self::get_rgb_pixels, Default::default()),
+                JavaMethodProto::new("getFont", "()Lorg/kwis/msp/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("copyArea", "(IIIIII)V", Self::copy_area, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setColor", "(I)V", Self::set_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setColor", "(III)V", Self::set_color_by_rgb, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setFont", "(Lorg/kwis/msp/lcdui/Font;)V", Self::set_font, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setAlpha", "(I)V", Self::set_alpha, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillRect", "(IIII)V", Self::fill_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillRoundRect", "(IIIIII)V", Self::fill_round_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillArc", "(IIIIII)V", Self::fill_arc, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("fillPolygon", "([I[I)V", Self::fill_polygon, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawLine", "(IIII)V", Self::draw_line, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawRect", "(IIII)V", Self::draw_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawRoundRect", "(IIIIII)V", Self::draw_round_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawArc", "(IIIIII)V", Self::draw_arc, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawPolygon", "([I[I)V", Self::draw_polygon, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawChar", "(CIII)V", Self::draw_char, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawChars", "([CIIIII)V", Self::draw_chars, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("drawString", "(Ljava/lang/String;III)V", Self::draw_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "drawSubstring",
+                    "(Ljava/lang/String;IIIII)V",
+                    Self::draw_substring,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new(
+                    "drawImage",
+                    "(Lorg/kwis/msp/lcdui/Image;III)V",
+                    Self::draw_image,
+                    MethodAccessFlags::PUBLIC,
+                ),
+                JavaMethodProto::new("setClip", "(IIII)V", Self::set_clip, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("clipRect", "(IIII)V", Self::clip_rect, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getColor", "()I", Self::get_color, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getBlueComponent", "()I", Self::get_blue_component, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getGrayScale", "()I", Self::get_gray_scale, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getGreenComponent", "()I", Self::get_green_component, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRedComponent", "()I", Self::get_red_component, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getStrokeStyle", "()I", Self::get_stroke_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setStrokeStyle", "(I)V", Self::set_stroke_style, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipX", "()I", Self::get_clip_x, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipY", "()I", Self::get_clip_y, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipWidth", "()I", Self::get_clip_width, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getClipHeight", "()I", Self::get_clip_height, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getTranslateX", "()I", Self::get_translate_x, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getTranslateY", "()I", Self::get_translate_y, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("translate", "(II)V", Self::translate, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setPixel", "(II)V", Self::set_pixel, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setRGBPixels", "(IIII[III)V", Self::set_rgb_pixels, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setGrayScale", "(I)V", Self::set_gray_scale, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setXORMode", "(Z)V", Self::set_xor_mode, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getPixel", "(II)I", Self::get_pixel, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getPixels", "(IIII[BII)V", Self::get_pixels, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setPixels", "(IIII[BII)V", Self::set_pixels, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("reset", "()V", Self::reset, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getAlpha", "()I", Self::get_alpha, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("isXORMode", "()Z", Self::is_xor_mode, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("encodeImage", "(IIII)[B", Self::encode_image, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getRGBPixels", "(IIII[III)V", Self::get_rgb_pixels, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
-                JavaFieldProto::new("midpGraphics", "Ljavax/microedition/lcdui/Graphics;", Default::default()),
-                JavaFieldProto::new("alpha", "I", Default::default()),
-                JavaFieldProto::new("strokeStyle", "I", Default::default()),
-                JavaFieldProto::new("xorMode", "Z", Default::default()),
+                JavaFieldProto::new("midpGraphics", "Ljavax/microedition/lcdui/Graphics;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("alpha", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("strokeStyle", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("xorMode", "Z", FieldAccessFlags::PRIVATE),
             ],
-            access_flags: Default::default(),
+            access_flags: ClassAccessFlags::PUBLIC,
         }
     }
 
@@ -130,7 +141,13 @@ impl Graphics {
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         let midp_font: ClassInstanceRef<MidpFont> = jvm
-            .invoke_virtual(&midp_graphics, "getFont", "()Ljavax/microedition/lcdui/Font;", ())
+            .invoke_virtual(
+                &midp_graphics,
+                "javax/microedition/lcdui/Graphics",
+                "getFont",
+                "()Ljavax/microedition/lcdui/Font;",
+                (),
+            )
             .await?;
 
         Ok(jvm
@@ -160,8 +177,12 @@ impl Graphics {
         let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
         let mut canvas = MidpImage::canvas(jvm, &image).await?;
 
-        let translate_x: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateX", "()I", ()).await?;
-        let translate_y: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateY", "()I", ()).await?;
+        let translate_x: i32 = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateX", "()I", ())
+            .await?;
+        let translate_y: i32 = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateY", "()I", ())
+            .await?;
         let clip = MidpGraphics::clip(jvm, &midp_graphics).await?;
 
         canvas.copy_area(
@@ -180,14 +201,16 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({this:?}, {color})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "setColor", "(I)V", (color,)).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (color,))
+            .await
     }
 
     async fn set_color_by_rgb(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, r: i32, g: i32, b: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setColor({this:?}, {r}, {g}, {b})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "setColor", "(III)V", (r, g, b)).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(III)V", (r, g, b))
+            .await
     }
 
     async fn set_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
@@ -196,15 +219,23 @@ impl Graphics {
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         let midp_font = Font::midp_font(jvm, &font).await?;
 
-        jvm.invoke_virtual(&midp_graphics, "setFont", "(Ljavax/microedition/lcdui/Font;)V", (midp_font,))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "setFont",
+            "(Ljavax/microedition/lcdui/Font;)V",
+            (midp_font,),
+        )
+        .await
     }
 
     async fn set_alpha(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, alpha: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setAlpha({this:?}, {alpha})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        let _: () = jvm.invoke_virtual(&midp_graphics, "setXORMode", "(Z)V", (false,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (false,))
+            .await?;
         jvm.put_field(&mut this, "alpha", "I", if alpha == 0 { 0 } else { 255 }).await?;
         jvm.put_field(&mut this, "xorMode", "Z", false).await?;
 
@@ -223,7 +254,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRect({this:?}, {x}, {y}, {width}, {height})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "fillRect", "(IIII)V", (x, y, width, height)).await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "fillRect",
+            "(IIII)V",
+            (x, y, width, height),
+        )
+        .await
     }
 
     async fn fill_round_rect(
@@ -240,8 +278,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillRoundRect({this:?}, {x}, {y}, {width}, {height}, {arc_width}, {arc_height})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "fillRoundRect", "(IIIIII)V", (x, y, width, height, arc_width, arc_height))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "fillRoundRect",
+            "(IIIIII)V",
+            (x, y, width, height, arc_width, arc_height),
+        )
+        .await
     }
 
     async fn fill_arc(
@@ -258,8 +302,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::fillArc({this:?}, {x}, {y}, {width}, {height}, {start_angle}, {arc_angle})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "fillArc", "(IIIIII)V", (x, y, width, height, start_angle, arc_angle))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "fillArc",
+            "(IIIIII)V",
+            (x, y, width, height, start_angle, arc_angle),
+        )
+        .await
     }
 
     async fn fill_polygon(
@@ -278,7 +328,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawLine({this:?}, {x1}, {y1}, {x2}, {y2})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawLine", "(IIII)V", (x1, y1, x2, y2)).await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawLine",
+            "(IIII)V",
+            (x1, y1, x2, y2),
+        )
+        .await
     }
 
     async fn draw_rect(
@@ -293,7 +350,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRect({this:?}, {x}, {y}, {width}, {height})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawRect", "(IIII)V", (x, y, width, height)).await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawRect",
+            "(IIII)V",
+            (x, y, width, height),
+        )
+        .await
     }
 
     async fn draw_round_rect(
@@ -310,8 +374,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawRoundRect({this:?}, {x}, {y}, {width}, {height}, {arc_width}, {arc_height})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawRoundRect", "(IIIIII)V", (x, y, width, height, arc_width, arc_height))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawRoundRect",
+            "(IIIIII)V",
+            (x, y, width, height, arc_width, arc_height),
+        )
+        .await
     }
 
     async fn draw_arc(
@@ -328,8 +398,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawArc({this:?}, {x}, {y}, {width}, {height}, {start_angle}, {arc_angle})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawArc", "(IIIIII)V", (x, y, width, height, start_angle, arc_angle))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawArc",
+            "(IIIIII)V",
+            (x, y, width, height, start_angle, arc_angle),
+        )
+        .await
     }
 
     async fn draw_polygon(
@@ -356,7 +432,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawChar({this:?}, {ch:?}, {x}, {y}, {anchor})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawChar", "(CIII)V", (ch, x, y, anchor)).await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawChar",
+            "(CIII)V",
+            (ch, x, y, anchor),
+        )
+        .await
     }
 
     async fn draw_chars(
@@ -373,8 +456,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::drawChars({this:?}, {chars:?}, {offset}, {length}, {x}, {y}, {anchor})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawChars", "([CIIIII)V", (chars, offset, length, x, y, anchor))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawChars",
+            "([CIIIII)V",
+            (chars, offset, length, x, y, anchor),
+        )
+        .await
     }
 
     async fn draw_string(
@@ -394,8 +483,14 @@ impl Graphics {
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
 
-        jvm.invoke_virtual(&midp_graphics, "drawString", "(Ljava/lang/String;III)V", (string, x, y, anchor))
-            .await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "drawString",
+            "(Ljava/lang/String;III)V",
+            (string, x, y, anchor),
+        )
+        .await
     }
 
     async fn draw_substring(
@@ -415,6 +510,7 @@ impl Graphics {
 
         jvm.invoke_virtual(
             &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
             "drawSubstring",
             "(Ljava/lang/String;IIIII)V",
             (string, offset, len, x, y, anchor),
@@ -442,6 +538,7 @@ impl Graphics {
 
         jvm.invoke_virtual(
             &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
             "drawImage",
             "(Ljavax/microedition/lcdui/Image;III)V",
             (midp_image, x, y, anchor),
@@ -461,7 +558,14 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setClip({this:?}, {x}, {y}, {width}, {height})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "setClip", "(IIII)V", (x, y, width, height)).await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "setClip",
+            "(IIII)V",
+            (x, y, width, height),
+        )
+        .await
     }
 
     async fn clip_rect(
@@ -476,41 +580,49 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::clipRect({this:?}, {x}, {y}, {width}, {height})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "clipRect", "(IIII)V", (x, y, width, height)).await
+        jvm.invoke_virtual(
+            &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
+            "clipRect",
+            "(IIII)V",
+            (x, y, width, height),
+        )
+        .await
     }
 
     async fn get_color(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getColor({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getColor", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getColor", "()I", ())
+            .await
     }
 
     async fn get_blue_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getBlueComponent({this:?})");
 
-        let color: i32 = jvm.invoke_virtual(&this, "getColor", "()I", ()).await?;
+        let color: i32 = jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ()).await?;
         Ok(color & 0xff)
     }
 
     async fn get_gray_scale(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getGrayScale({this:?})");
 
-        let color: i32 = jvm.invoke_virtual(&this, "getColor", "()I", ()).await?;
+        let color: i32 = jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ()).await?;
         Ok((((color >> 16) & 0xff) + ((color >> 8) & 0xff) + (color & 0xff)) / 3)
     }
 
     async fn get_green_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getGreenComponent({this:?})");
 
-        let color: i32 = jvm.invoke_virtual(&this, "getColor", "()I", ()).await?;
+        let color: i32 = jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ()).await?;
         Ok((color >> 8) & 0xff)
     }
 
     async fn get_red_component(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getRedComponent({this:?})");
 
-        let color: i32 = jvm.invoke_virtual(&this, "getColor", "()I", ()).await?;
+        let color: i32 = jvm.invoke_virtual(&this, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ()).await?;
         Ok((color >> 16) & 0xff)
     }
 
@@ -534,56 +646,64 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipX({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getClipX", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipX", "()I", ())
+            .await
     }
 
     async fn get_clip_y(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipY({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getClipY", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipY", "()I", ())
+            .await
     }
 
     async fn get_clip_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipWidth({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getClipWidth", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipWidth", "()I", ())
+            .await
     }
 
     async fn get_clip_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getClipHeight({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getClipHeight", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getClipHeight", "()I", ())
+            .await
     }
 
     async fn get_translate_x(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getTranslateX({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getTranslateX", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateX", "()I", ())
+            .await
     }
 
     async fn get_translate_y(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::getTranslateY({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "getTranslateY", "()I", ()).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateY", "()I", ())
+            .await
     }
 
     async fn translate(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::translate({this:?}, {x}, {y})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "translate", "(II)V", (x, y)).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "translate", "(II)V", (x, y))
+            .await
     }
 
     async fn set_pixel(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, x: i32, y: i32) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setPixel({this:?}, {x}, {y})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "drawLine", "(IIII)V", (x, y, x, y)).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "drawLine", "(IIII)V", (x, y, x, y))
+            .await
     }
 
     async fn set_rgb_pixels(
@@ -604,6 +724,7 @@ impl Graphics {
 
         jvm.invoke_virtual(
             &midp_graphics,
+            "javax/microedition/lcdui/Graphics",
             "drawRGB",
             "([IIIIIIIZ)V",
             (rgb_pixels, offset, bpl, x, y, width, height, true),
@@ -615,14 +736,17 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::SetGrayScale({this:?}, {value})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        jvm.invoke_virtual(&midp_graphics, "setGrayScale", "(I)V", (value,)).await
+        jvm.invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setGrayScale", "(I)V", (value,))
+            .await
     }
 
     async fn set_xor_mode(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, xor_mode: bool) -> JvmResult<()> {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::setXORMode({this:?}, {xor_mode})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        let _: () = jvm.invoke_virtual(&midp_graphics, "setXORMode", "(Z)V", (xor_mode,)).await?;
+        let _: () = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "setXORMode", "(Z)V", (xor_mode,))
+            .await?;
         jvm.put_field(&mut this, "xorMode", "Z", xor_mode).await
     }
 
@@ -632,8 +756,12 @@ impl Graphics {
         let mut midp_graphics: ClassInstanceRef<MidpGraphics> = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
         let image = MidpGraphics::image(jvm, &mut midp_graphics).await?;
         let backend_image = MidpImage::image(jvm, &image).await?;
-        let translate_x: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateX", "()I", ()).await?;
-        let translate_y: i32 = jvm.invoke_virtual(&midp_graphics, "getTranslateY", "()I", ()).await?;
+        let translate_x: i32 = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateX", "()I", ())
+            .await?;
+        let translate_y: i32 = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "getTranslateY", "()I", ())
+            .await?;
         let Some(x) = x.checked_add(translate_x) else {
             return Ok(0);
         };
@@ -686,7 +814,9 @@ impl Graphics {
         tracing::debug!("org.kwis.msp.lcdui.Graphics::reset({this:?})");
 
         let midp_graphics = jvm.get_field(&this, "midpGraphics", "Ljavax/microedition/lcdui/Graphics;").await?;
-        let _: () = jvm.invoke_virtual(&midp_graphics, "reset", "()V", ()).await?;
+        let _: () = jvm
+            .invoke_virtual(&midp_graphics, "javax/microedition/lcdui/Graphics", "reset", "()V", ())
+            .await?;
         jvm.put_field(&mut this, "alpha", "I", 255).await?;
         jvm.put_field(&mut this, "strokeStyle", "I", 0).await?;
         jvm.put_field(&mut this, "xorMode", "Z", false).await?;
@@ -800,15 +930,23 @@ mod test {
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (4, 1))
                 .await?;
 
-            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
 
             let colors = [0xff0000, 0x00ff00, 0x0000ff, 0x000000];
             for (x, color) in colors.into_iter().enumerate() {
-                let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (color,)).await?;
-                let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (x as i32, 0, 1, 1)).await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (color,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (x as i32, 0, 1, 1))
+                    .await?;
             }
 
-            let _: () = jvm.invoke_virtual(&graphics, "copyArea", "(IIIIII)V", (1, 0, 0, 0, 3, 1)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "copyArea", "(IIIIII)V", (1, 0, 0, 0, 3, 1))
+                .await?;
 
             let midp_image = Image::midp_image(&jvm, &image).await?;
             let backend_image = MidpImage::image(&jvm, &midp_image).await?;
@@ -833,14 +971,32 @@ mod test {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 1))
                 .await?;
-            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                .await?;
 
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (0, 0)).await?, 0x123456);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (-1, 0)).await?, 0);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (2, 0)).await?, 0);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (0, 0))
+                    .await?,
+                0x123456
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (-1, 0))
+                    .await?,
+                0
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (2, 0))
+                    .await?,
+                0
+            );
 
             Ok(())
         })
@@ -852,17 +1008,37 @@ mod test {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 1))
                 .await?;
-            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (0, 0, 1, 1)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x654321,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "fillRect", "(IIII)V", (1, 0, 1, 1)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x654321,))
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (1, 0, 1, 1))
+                .await?;
 
-            let _: () = jvm.invoke_virtual(&graphics, "translate", "(II)V", (1, 0)).await?;
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "translate", "(II)V", (1, 0))
+                .await?;
 
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (0, 0)).await?, 0x654321);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getPixel", "(II)I", (1, 0)).await?, 0);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (0, 0))
+                    .await?,
+                0x654321
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (1, 0))
+                    .await?,
+                0
+            );
 
             Ok(())
         })
@@ -874,13 +1050,21 @@ mod test {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (1, 1))
                 .await?;
-            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
             let string: ClassInstanceRef<String> = None.into();
 
             assert!(
-                jvm.invoke_virtual::<_, ()>(&graphics, "drawString", "(Ljava/lang/String;III)V", (string, 0, 0, 0))
-                    .await
-                    .is_err()
+                jvm.invoke_virtual::<_, ()>(
+                    &graphics,
+                    "org/kwis/msp/lcdui/Graphics",
+                    "drawString",
+                    "(Ljava/lang/String;III)V",
+                    (string, 0, 0, 0)
+                )
+                .await
+                .is_err()
             );
 
             Ok(())
@@ -893,37 +1077,119 @@ mod test {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 2))
                 .await?;
-            let graphics: ClassInstanceRef<Graphics> = jvm.invoke_virtual(&image, "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ()).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
+                .await?;
 
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 255);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 0);
-            assert!(!jvm.invoke_virtual::<_, bool>(&graphics, "isXORMode", "()Z", ()).await?);
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getAlpha", "()I", ())
+                    .await?,
+                255
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getStrokeStyle", "()I", ())
+                    .await?,
+                0
+            );
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&graphics, "org/kwis/msp/lcdui/Graphics", "isXORMode", "()Z", ())
+                    .await?
+            );
 
-            let _: () = jvm.invoke_virtual(&graphics, "setStrokeStyle", "(I)V", (1,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 1);
-            assert!(jvm.invoke_virtual::<_, ()>(&graphics, "setStrokeStyle", "(I)V", (2,)).await.is_err());
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 1);
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setStrokeStyle", "(I)V", (1,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getStrokeStyle", "()I", ())
+                    .await?,
+                1
+            );
+            assert!(
+                jvm.invoke_virtual::<_, ()>(&graphics, "org/kwis/msp/lcdui/Graphics", "setStrokeStyle", "(I)V", (2,))
+                    .await
+                    .is_err()
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getStrokeStyle", "()I", ())
+                    .await?,
+                1
+            );
 
-            let _: () = jvm.invoke_virtual(&graphics, "setXORMode", "(Z)V", (true,)).await?;
-            assert!(jvm.invoke_virtual::<_, bool>(&graphics, "isXORMode", "()Z", ()).await?);
-            let _: () = jvm.invoke_virtual(&graphics, "setAlpha", "(I)V", (0,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 0);
-            assert!(!jvm.invoke_virtual::<_, bool>(&graphics, "isXORMode", "()Z", ()).await?);
-            let _: () = jvm.invoke_virtual(&graphics, "setAlpha", "(I)V", (42,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 255);
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setXORMode", "(Z)V", (true,))
+                .await?;
+            assert!(
+                jvm.invoke_virtual::<_, bool>(&graphics, "org/kwis/msp/lcdui/Graphics", "isXORMode", "()Z", ())
+                    .await?
+            );
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setAlpha", "(I)V", (0,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getAlpha", "()I", ())
+                    .await?,
+                0
+            );
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&graphics, "org/kwis/msp/lcdui/Graphics", "isXORMode", "()Z", ())
+                    .await?
+            );
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setAlpha", "(I)V", (42,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getAlpha", "()I", ())
+                    .await?,
+                255
+            );
 
-            let _: () = jvm.invoke_virtual(&graphics, "setColor", "(I)V", (0x123456,)).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getRedComponent", "()I", ()).await?, 0x12);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getGreenComponent", "()I", ()).await?, 0x34);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getBlueComponent", "()I", ()).await?, 0x56);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getGrayScale", "()I", ()).await?, 0x34);
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
+                .await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getRedComponent", "()I", ())
+                    .await?,
+                0x12
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getGreenComponent", "()I", ())
+                    .await?,
+                0x34
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getBlueComponent", "()I", ())
+                    .await?,
+                0x56
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getGrayScale", "()I", ())
+                    .await?,
+                0x34
+            );
 
-            let _: () = jvm.invoke_virtual(&graphics, "setStrokeStyle", "(I)V", (1,)).await?;
-            let _: () = jvm.invoke_virtual(&graphics, "reset", "()V", ()).await?;
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getColor", "()I", ()).await?, 0);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getAlpha", "()I", ()).await?, 255);
-            assert_eq!(jvm.invoke_virtual::<_, i32>(&graphics, "getStrokeStyle", "()I", ()).await?, 0);
-            assert!(!jvm.invoke_virtual::<_, bool>(&graphics, "isXORMode", "()Z", ()).await?);
+            let _: () = jvm
+                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setStrokeStyle", "(I)V", (1,))
+                .await?;
+            let _: () = jvm.invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "reset", "()V", ()).await?;
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getColor", "()I", ())
+                    .await?,
+                0
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getAlpha", "()I", ())
+                    .await?,
+                255
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getStrokeStyle", "()I", ())
+                    .await?,
+                0
+            );
+            assert!(
+                !jvm.invoke_virtual::<_, bool>(&graphics, "org/kwis/msp/lcdui/Graphics", "isXORMode", "()Z", ())
+                    .await?
+            );
 
             Ok(())
         })
