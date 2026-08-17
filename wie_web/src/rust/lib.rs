@@ -11,8 +11,10 @@ mod window;
 use alloc::{
     borrow::ToOwned,
     boxed::Box,
+    collections::BTreeMap,
     string::{String, ToString},
     sync::Arc,
+    vec::Vec,
 };
 use core::{
     str,
@@ -32,6 +34,32 @@ use wie_lgt::LgtEmulator;
 use wie_skt::SktEmulator;
 
 use self::{audio_sink::AudioSink, database::DatabaseRepository, filesystem::WebFilesystem, window::WindowImpl};
+
+enum ArchivePlatform {
+    Ktf,
+    Lgt,
+    Skt,
+}
+
+fn parse_archive(buf: &[u8]) -> anyhow::Result<(ArchivePlatform, BTreeMap<String, Vec<u8>>)> {
+    let files = extract_zip(buf)?;
+
+    if !files.keys().any(|name| name.to_ascii_lowercase().ends_with(".jar")) {
+        anyhow::bail!("Archive does not contain a JAR file");
+    }
+
+    let platform = if KtfEmulator::loadable_archive(&files) {
+        ArchivePlatform::Ktf
+    } else if LgtEmulator::loadable_archive(&files) {
+        ArchivePlatform::Lgt
+    } else if SktEmulator::loadable_archive(&files) {
+        ArchivePlatform::Skt
+    } else {
+        anyhow::bail!("Unknown archive format");
+    };
+
+    Ok((platform, files))
+}
 
 struct WieWebPlatform {
     database_repository: DatabaseRepository,
@@ -111,6 +139,11 @@ pub struct WieWeb {
     key_events: HashMap<KeyCode, f64>,
 }
 
+#[wasm_bindgen(js_name = validateArchive)]
+pub fn validate_archive(buf: &[u8]) -> Result<(), JsError> {
+    parse_archive(buf).map(|_| ()).map_err(|error| JsError::new(&error.to_string()))
+}
+
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
@@ -124,19 +157,15 @@ impl WieWeb {
                 profile: None,
             };
 
-            let emulator: Box<dyn Emulator> = if filename.ends_with("zip") {
-                let files = extract_zip(buf).unwrap();
+            let emulator: Box<dyn Emulator> = if filename.to_ascii_lowercase().ends_with(".zip") {
+                let (archive_platform, files) = parse_archive(buf)?;
 
-                if KtfEmulator::loadable_archive(&files) {
-                    Box::new(KtfEmulator::from_archive(platform, files, options)?)
-                } else if LgtEmulator::loadable_archive(&files) {
-                    Box::new(LgtEmulator::from_archive(platform, files, options)?)
-                } else if SktEmulator::loadable_archive(&files) {
-                    Box::new(SktEmulator::from_archive(platform, files)?)
-                } else {
-                    anyhow::bail!("Unknown archive format");
+                match archive_platform {
+                    ArchivePlatform::Ktf => Box::new(KtfEmulator::from_archive(platform, files, options)?),
+                    ArchivePlatform::Lgt => Box::new(LgtEmulator::from_archive(platform, files, options)?),
+                    ArchivePlatform::Skt => Box::new(SktEmulator::from_archive(platform, files)?),
                 }
-            } else if filename.ends_with("jar") {
+            } else if filename.to_ascii_lowercase().ends_with(".jar") {
                 let filename_without_path = filename[filename.rfind('/').unwrap_or(0) + 1..].to_owned();
                 let filename_without_ext = filename_without_path.trim_end_matches(".jar");
 
