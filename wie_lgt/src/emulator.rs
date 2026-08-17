@@ -39,11 +39,14 @@ impl LgtEmulator {
 
         tracing::info!("Loading app {}, pid {}, mclass {}", app_info.aid, app_info.pid, app_info.mclass);
 
-        let jar_filename = format!("{}.jar", app_info.aid);
+        let jar_filename = files
+            .iter()
+            .find_map(|(filename, data)| (filename.ends_with(".jar") && Self::loadable_jar(data)).then_some(filename))
+            .ok_or_else(|| WieError::FatalError("Missing LGT application JAR containing binary.mod".into()))?;
 
         Self::load(
             platform,
-            &jar_filename,
+            jar_filename,
             &app_info.pid,
             &app_info.aid,
             Some(app_info.mclass),
@@ -113,13 +116,20 @@ impl LgtEmulator {
     async fn do_start(core: &mut ArmCore, system: &mut System, jar_filename: String, _main_class_name: Option<String>) -> Result<()> {
         let jvm = LgtJvmSupport::init(core, system, Some(&jar_filename)).await?;
 
-        let class_loader = JavaLangClassLoader::get_system_class_loader(&jvm).await.unwrap();
-        let stream = JavaLangClassLoader::get_resource_as_stream(&jvm, &class_loader, "binary.mod")
-            .await
-            .unwrap()
-            .unwrap();
+        let class_loader = match JavaLangClassLoader::get_system_class_loader(&jvm).await {
+            Ok(class_loader) => class_loader,
+            Err(error) => return Err(JvmSupport::to_wie_err(&jvm, error).await),
+        };
+        let stream = match JavaLangClassLoader::get_resource_as_stream(&jvm, &class_loader, "binary.mod").await {
+            Ok(Some(stream)) => stream,
+            Ok(None) => return Err(WieError::FatalError(format!("Missing binary.mod in {jar_filename}"))),
+            Err(error) => return Err(JvmSupport::to_wie_err(&jvm, error).await),
+        };
 
-        let binary_mod = JavaIoInputStream::read_until_end(&jvm, &stream).await.unwrap();
+        let binary_mod = match JavaIoInputStream::read_until_end(&jvm, &stream).await {
+            Ok(binary_mod) => binary_mod,
+            Err(error) => return Err(JvmSupport::to_wie_err(&jvm, error).await),
+        };
 
         if let Err(error) = load_native(core, system, &jvm, &jar_filename, &binary_mod).await {
             return Err(match error {
