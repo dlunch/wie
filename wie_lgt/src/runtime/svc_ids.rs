@@ -348,13 +348,16 @@ impl From<WIPICSvcId> for u32 {
 #[repr(u32)]
 pub enum StdlibSvcId {
     Unk2 = 0x3f6,
+    Sprintf = 0x3f7,
     Atoi = 0x3fb,
+    Rand = 0x403,
+    Srand = 0x404,
     Strcpy = 0x405,
     Strncpy = 0x406,
     Strcat = 0x407,
     Strcmp = 0x409,
     Unk4 = 0x40a,
-    Unk5 = 0x410,
+    Strstr = 0x410,
     Strlen = 0x411,
     Memcpy = 0x414,
     Memset = 0x418,
