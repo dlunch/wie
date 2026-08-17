@@ -5,18 +5,13 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::{
-    future::{Ready, ready},
-    iter,
-};
+use core::iter;
 
 use bytemuck::{Pod, Zeroable};
 
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
-use wie_util::{
-    ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
-};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 
@@ -236,8 +231,8 @@ pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: W
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn sprintk<C: ByteRead + ByteWrite + Send + Sync + ?Sized>(
-    context: &mut C,
+pub async fn sprintk(
+    context: &mut dyn WIPICContext,
     dest: WIPICWord,
     ptr_format: WIPICWord,
     a0: WIPICWord,
@@ -246,16 +241,15 @@ pub fn sprintk<C: ByteRead + ByteWrite + Send + Sync + ?Sized>(
     a3: WIPICWord,
     a4: WIPICWord,
     a5: WIPICWord,
-) -> Ready<Result<WIPICWord>> {
+) -> Result<WIPICWord> {
     tracing::debug!("MC_knlSprintk({dest:#x}, {ptr_format:#x}, {a1}, {a2}, {a3}, {a4}, {a5})",);
 
-    let result = read_null_terminated_string_bytes(context, ptr_format).and_then(|format_string| {
-        let result = sprintf(context, &format_string, &[a0, a1, a2, a3, a4, a5])?;
-        write_null_terminated_string_bytes(context, dest, &result)?;
-        Ok(result.len() as _)
-    });
+    let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
+    let result = sprintf(context, &format_string, &[a0, a1, a2, a3, a4, a5])?;
 
-    ready(result)
+    write_null_terminated_string_bytes(context, dest, &result)?;
+
+    Ok(result.len() as _)
 }
 
 pub async fn get_total_memory(_context: &mut dyn WIPICContext) -> Result<i32> {
@@ -302,11 +296,11 @@ pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWor
 
 #[cfg(test)]
 mod test {
-    use alloc::string::String;
+    use alloc::{boxed::Box, string::String};
 
     use wie_util::{ByteRead, ByteWrite, Result, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
 
-    use crate::{WIPICContext, context::test::TestContext};
+    use crate::{WIPICContext, context::test::TestContext, method::MethodImpl};
 
     use super::{alloc, calloc, free, get_resource, get_resource_id, get_system_property, sprintk};
 
@@ -314,16 +308,24 @@ mod test {
     async fn test_sprintk() -> Result<()> {
         let mut context = TestContext::new();
 
+        let sprintk = sprintk.into_body();
+
         let format = context.alloc_raw(10).unwrap();
         let dest = context.alloc_raw(10).unwrap();
 
         write_null_terminated_string_bytes(&mut context, format, "%d".as_bytes()).unwrap();
-        sprintk(&mut context, dest, format, 1234, 0, 0, 0, 0, 0).await.unwrap();
+        sprintk
+            .call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0, 0, 0, 0]))
+            .await
+            .unwrap();
         let result = read_null_terminated_string_bytes(&context, dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "1234");
 
         write_null_terminated_string_bytes(&mut context, format, "test %02d".as_bytes()).unwrap();
-        sprintk(&mut context, dest, format, 1, 0, 0, 0, 0, 0).await.unwrap();
+        sprintk
+            .call(&mut context, Box::new([dest, format, 1, 0, 0, 0, 0, 0, 0, 0]))
+            .await
+            .unwrap();
         let result = read_null_terminated_string_bytes(&context, dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "test 01");
 

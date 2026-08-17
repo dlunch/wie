@@ -55,10 +55,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::GetFramebufferBpl => graphics::get_framebuffer_bpl.into_body(),
         WIPICSvcId::GetFramebufferBpp => graphics::get_framebuffer_bpp.into_body(),
         WIPICSvcId::Printk => kernel::printk.into_body(),
-        WIPICSvcId::Sprintk => (|context: &mut dyn WIPICContext, dest, ptr_format, a0, a1, a2, a3, a4, a5| {
-            kernel::sprintk(context, dest, ptr_format, a0, a1, a2, a3, a4, a5)
-        })
-        .into_body(),
+        WIPICSvcId::Sprintk => kernel::sprintk.into_body(),
         WIPICSvcId::Unk13 => unk13.into_body(),
         WIPICSvcId::Unk1 => unk1.into_body(),
         WIPICSvcId::Exit => kernel::exit.into_body(),

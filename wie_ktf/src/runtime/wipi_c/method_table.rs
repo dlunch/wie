@@ -363,12 +363,7 @@ pub fn get_method_body(table_id: WIPICTableId, function_id: u16) -> Option<WIPIC
     match table_id {
         WIPICTableId::Kernel => match WIPICKernelMethodId::try_from(function_id).ok()? {
             WIPICKernelMethodId::Printk => Some(kernel::printk.into_body()),
-            WIPICKernelMethodId::Sprintk => Some(
-                (|context: &mut dyn WIPICContext, dest, ptr_format, a0, a1, a2, a3, a4, a5| {
-                    kernel::sprintk(context, dest, ptr_format, a0, a1, a2, a3, a4, a5)
-                })
-                .into_body(),
-            ),
+            WIPICKernelMethodId::Sprintk => Some(kernel::sprintk.into_body()),
             WIPICKernelMethodId::GetExecNames => Some(gen_stub(2, "MC_knlGetExecNames")),
             WIPICKernelMethodId::Execute => Some(gen_stub(3, "MC_knlExecute")),
             WIPICKernelMethodId::Mexecute => Some(gen_stub(4, "MC_knlMExecute")),
