@@ -31,7 +31,44 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
         }
     }
 
-    core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, system)
+    let ptr_random_state = Allocator::alloc(core, size_of::<u32>() as u32)?;
+    write_generic(core, ptr_random_state, 1u32)?;
+
+    core.register_svc_handler(
+        SVC_CATEGORY_STDLIB,
+        handle_stdlib_svc,
+        &StdlibContext {
+            system: system.clone(),
+            ptr_random_state,
+        },
+    )
+}
+
+async fn srand(core: &mut ArmCore, ptr_random_state: &mut u32, seed: u32) -> Result<()> {
+    tracing::debug!("srand({seed:#x})");
+
+    write_generic(core, *ptr_random_state, seed)
+}
+
+async fn rand(core: &mut ArmCore, ptr_random_state: &mut u32) -> Result<u32> {
+    tracing::debug!("rand()");
+
+    let state: u32 = read_generic(core, *ptr_random_state)?;
+    let state = state.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+    write_generic(core, *ptr_random_state, state)?;
+
+    Ok((state >> 16) & 0x7fff)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn sprintf(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_format: u32, a0: u32, a1: u32, a2: u32, a3: u32, a4: u32, a5: u32) -> Result<u32> {
+    tracing::debug!("sprintf({ptr_dst:#x}, {ptr_format:#x}, {a0:#x}, {a1:#x}, {a2:#x}, {a3:#x}, {a4:#x}, {a5:#x})");
+
+    let format = read_null_terminated_string_bytes(core, ptr_format)?;
+    let result = kernel::sprintf(core, &format, &[a0, a1, a2, a3, a4, a5])?;
+    write_null_terminated_string_bytes(core, ptr_dst, &result)?;
+
+    Ok(result.len() as u32)
 }
 
 async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
