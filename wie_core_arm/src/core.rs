@@ -286,7 +286,7 @@ impl ArmCore {
         loop {
             let result = {
                 let mut inner = self.inner.lock();
-                inner.engine.run(RUN_FUNCTION_LR, 1000)?
+                inner.engine.run(RUN_FUNCTION_LR, 10_000)?
             };
 
             self.sample_profile();
