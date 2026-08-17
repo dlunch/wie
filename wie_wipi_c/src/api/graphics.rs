@@ -1,18 +1,18 @@
 mod framebuffer;
 mod grp_context;
 mod image;
+pub mod primitives;
 
 pub use framebuffer::FrameBuffer;
+pub use image::decode_image_framebuffer;
 
 use core::mem::size_of;
 
-use alloc::vec;
-
 use wie_backend::{
     Event,
-    canvas::{Clip, Color, PixelType, Rgb8Pixel, Rgb565Pixel, TextAlignment, string_width},
+    canvas::{Clip, Color, PixelType, Rgb565Pixel, string_width},
 };
-use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic};
+use wie_util::{Result, read_generic, write_generic};
 
 use wipi_types::wipic::{WIPICDisplayInfo, WIPICFramebuffer, WIPICGraphicsContext, WIPICImage, WIPICIndirectPtr, WIPICWord};
 
@@ -106,9 +106,10 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst_fb)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
 
-    let mut canvas = framebuffer.canvas(context)?;
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.put_pixel(
+    primitives::put_pixel(
+        context,
+        &framebuffer,
         x as _,
         y as _,
         color,
@@ -118,10 +119,7 @@ pub async fn put_pixel(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
             width: framebuffer.0.width,
             height: framebuffer.0.height,
         },
-    );
-    canvas.flush()?;
-
-    Ok(())
+    )
 }
 
 pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr, x: i32, y: i32, w: i32, h: i32, p_gctx: WIPICWord) -> Result<()> {
@@ -133,8 +131,6 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst_fb)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: x as _,
         y: y as _,
@@ -143,10 +139,7 @@ pub async fn fill_rect(context: &mut dyn WIPICContext, dst_fb: WIPICIndirectPtr,
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.fill_rect(x as _, y as _, w as _, h as _, color, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::fill_rect(context, &framebuffer, x, y, w as u32, h as u32, color, clip)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -169,8 +162,6 @@ pub async fn draw_arc(
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: x as _,
         y: y as _,
@@ -179,10 +170,7 @@ pub async fn draw_arc(
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::draw_arc(context, &framebuffer, x, y, w as u32, h as u32, start_angle, arc_angle, color, clip)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -205,8 +193,6 @@ pub async fn fill_arc(
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, p_gctx)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: x as _,
         y: y as _,
@@ -215,10 +201,7 @@ pub async fn fill_arc(
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.fill_arc(x as _, y as _, w as _, h as _, start_angle, arc_angle, color, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::fill_arc(context, &framebuffer, x, y, w as u32, h as u32, start_angle, arc_angle, color, clip)
 }
 
 pub async fn create_image(
@@ -270,8 +253,6 @@ pub async fn draw_image(
     let image: WIPICImage = read_generic(context, context.data_ptr(image)?)?;
 
     let src_image = FrameBuffer(image.img).image(context)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: dx as _,
         y: dy as _,
@@ -279,10 +260,7 @@ pub async fn draw_image(
         height: h as _,
     };
 
-    canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::draw_image(context, &framebuffer, dx, dy, w as u32, h as u32, &*src_image, sx, sy, clip)
 }
 
 pub async fn flush_lcd(
@@ -382,9 +360,6 @@ pub async fn copy_area(
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
 
-    let image = framebuffer.image(context)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: dx as _,
         y: dy as _,
@@ -392,10 +367,7 @@ pub async fn copy_area(
         height: h as _,
     };
 
-    canvas.draw(dx as _, dy as _, w as _, h as _, &*image, x as _, y as _, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::copy_area(context, &framebuffer, dx, dy, w as u32, h as u32, x, y, clip)
 }
 
 pub async fn create_offscreen_framebuffer(context: &mut dyn WIPICContext, w: i32, h: i32) -> Result<WIPICIndirectPtr> {
@@ -439,9 +411,6 @@ pub async fn copy_frame_buffer(
     let src_framebuffer = FrameBuffer(read_generic(context, context.data_ptr(src)?)?);
     let dst_framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
 
-    let src_image = src_framebuffer.image(context)?;
-    let mut dst_canvas = dst_framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: dx as _,
         y: dy as _,
@@ -449,10 +418,7 @@ pub async fn copy_frame_buffer(
         height: h as _,
     };
 
-    dst_canvas.draw(dx as _, dy as _, w as _, h as _, &*src_image, sx as _, sy as _, clip);
-    dst_canvas.flush()?;
-
-    Ok(())
+    primitives::copy_framebuffer(context, &dst_framebuffer, dx, dy, w as u32, h as u32, &src_framebuffer, sx, sy, clip)
 }
 
 pub async fn get_font(_: &mut dyn WIPICContext, face: i32, size: i32, style: i32) -> Result<i32> {
@@ -482,18 +448,10 @@ pub async fn get_font_descent(_: &mut dyn WIPICContext, font: i32) -> Result<i32
 pub async fn get_string_width(context: &mut dyn WIPICContext, font: i32, ptr_string: WIPICWord, length: i32) -> Result<i32> {
     tracing::debug!("MC_grpGetStringWidth({font}, {ptr_string:#x}, {length})");
 
-    let bytes = if length == -1 {
-        read_null_terminated_string_bytes(context, ptr_string)?
-    } else {
-        let mut bytes = vec![0u8; length as usize];
-        context.read_bytes(ptr_string, &mut bytes)?;
-
-        bytes
+    let Some(string) = primitives::read_text(context, ptr_string, length)? else {
+        return Ok(0);
     };
-
-    let s = encoding_rs::EUC_KR.decode(&bytes).0;
-
-    Ok(string_width(&s, 10.0) as i32)
+    Ok(string_width(&string, 10.0) as i32)
 }
 
 pub async fn draw_string(
@@ -507,16 +465,9 @@ pub async fn draw_string(
 ) -> Result<()> {
     tracing::debug!("MC_grpDrawString({:#x}, {x}, {y}, {ptr_string:#x}, {length}, {pgc:#x})", dst.0);
 
-    let bytes = if length == -1 {
-        read_null_terminated_string_bytes(context, ptr_string)?
-    } else {
-        let mut bytes = vec![0u8; length as usize];
-        context.read_bytes(ptr_string, &mut bytes)?;
-
-        bytes
+    let Some(string) = primitives::read_text(context, ptr_string, length)? else {
+        return Ok(());
     };
-
-    let s = encoding_rs::EUC_KR.decode(&bytes).0;
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
@@ -528,12 +479,8 @@ pub async fn draw_string(
         height: framebuffer.0.height,
     };
 
-    let mut canvas = framebuffer.canvas(context)?;
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_text(&s, x, y, TextAlignment::Left, color, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::draw_text(context, &framebuffer, &string, x, y, color, clip)
 }
 
 pub async fn repaint(context: &mut dyn WIPICContext, lcd: i32, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
@@ -558,52 +505,12 @@ pub async fn get_rgb_pixels(
     ipl: i32,
 ) -> Result<()> {
     tracing::debug!("MC_grpGetRGBPixels({:#x}, {x}, {y}, {w}, {h}, {pd:#x}, {ipl})", src.0);
-
-    let row_bytes = match (w as i64).checked_mul(4) {
-        Some(n) if w > 0 && h > 0 => n as i32,
-        _ => return Ok(()),
-    };
-    if ipl < row_bytes {
-        tracing::warn!("MC_grpGetRGBPixels: invalid ipl {ipl} (need >= {row_bytes})");
+    if w <= 0 || h <= 0 {
         return Ok(());
     }
-
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(src)?)?);
     let image = framebuffer.image(context)?;
-
-    let mut row = vec![0u8; row_bytes as usize];
-    for dy in 0..h {
-        for dx in 0..w {
-            let sx = x + dx;
-            let sy = y + dy;
-            let color = if sx < 0 || sy < 0 || sx >= image.width() as i32 || sy >= image.height() as i32 {
-                Color { a: 0, r: 0, g: 0, b: 0 }
-            } else {
-                image.get_pixel(sx, sy)
-            };
-            // WIPI spec: pixels are 0x00RRGGBB (top byte zero).
-            let rgb = Rgb8Pixel::from_color(color);
-            let off = (dx as usize) * 4;
-            row[off..off + 4].copy_from_slice(&rgb.to_le_bytes());
-        }
-        let row_offset = match (dy as u32).checked_mul(ipl as u32) {
-            Some(n) => n,
-            None => {
-                tracing::warn!("MC_grpGetRGBPixels: row offset overflow (dy={dy}, ipl={ipl})");
-                return Ok(());
-            }
-        };
-        let dst_addr = match pd.checked_add(row_offset) {
-            Some(n) => n,
-            None => {
-                tracing::warn!("MC_grpGetRGBPixels: destination address overflow (pd={pd:#x}, row_offset={row_offset})");
-                return Ok(());
-            }
-        };
-        context.write_bytes(dst_addr, &row)?;
-    }
-
-    Ok(())
+    primitives::get_rgb_pixels(context, &*image, x, y, w, h, pd, ipl)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -619,69 +526,18 @@ pub async fn set_rgb_pixels(
     _pgc: WIPICWord,
 ) -> Result<()> {
     tracing::debug!("MC_grpSetRGBPixels({:#x}, {x}, {y}, {w}, {h}, {psrc:#x}, {ibpl})", dst.0);
-
     if w <= 0 || h <= 0 {
         return Ok(());
     }
-    let row_bytes = match (w as usize).checked_mul(4) {
-        Some(n) => n,
-        None => {
-            tracing::warn!("MC_grpSetRGBPixels: row size overflow (w={w})");
-            return Ok(());
-        }
-    };
-    if ibpl < row_bytes as i32 {
-        tracing::warn!("MC_grpSetRGBPixels: invalid ibpl {ibpl} (need >= {row_bytes})");
-        return Ok(());
-    }
-    let total_bytes = match row_bytes.checked_mul(h as usize) {
-        Some(n) => n,
-        None => {
-            tracing::warn!("MC_grpSetRGBPixels: total size overflow (w={w}, h={h})");
-            return Ok(());
-        }
-    };
-
-    let mut buf = vec![0u8; total_bytes];
-    for dy in 0..h {
-        let off = (dy as usize) * row_bytes;
-        let row_offset = match (dy as u32).checked_mul(ibpl as u32) {
-            Some(n) => n,
-            None => {
-                tracing::warn!("MC_grpSetRGBPixels: row offset overflow (dy={dy}, ibpl={ibpl})");
-                return Ok(());
-            }
-        };
-        let src_addr = match psrc.checked_add(row_offset) {
-            Some(n) => n,
-            None => {
-                tracing::warn!("MC_grpSetRGBPixels: source address overflow (psrc={psrc:#x}, row_offset={row_offset})");
-                return Ok(());
-            }
-        };
-        context.read_bytes(src_addr, &mut buf[off..off + row_bytes])?;
-    }
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
-    let mut canvas = framebuffer.canvas(context)?;
     let clip = Clip {
         x: 0,
         y: 0,
         width: framebuffer.0.width,
         height: framebuffer.0.height,
     };
-    for dy in 0..h {
-        for dx in 0..w {
-            let off = ((dy as usize) * (w as usize) + dx as usize) * 4;
-            // WIPI spec: pixels are 0x00RRGGBB.
-            let rgb = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
-            let color = Rgb8Pixel::to_color(rgb);
-            canvas.put_pixel(x + dx, y + dy, color, clip);
-        }
-    }
-    canvas.flush()?;
-
-    Ok(())
+    primitives::set_rgb_pixels(context, &framebuffer, x, y, w, h, psrc, ibpl, clip)
 }
 
 pub async fn get_image_framebuffer(_context: &mut dyn WIPICContext, image: WIPICIndirectPtr) -> Result<WIPICIndirectPtr> {
@@ -716,8 +572,6 @@ pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x:
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: x as _,
         y: y as _,
@@ -726,10 +580,7 @@ pub async fn draw_rect(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x:
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_rect(x as _, y as _, w as _, h as _, color, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::draw_rect(context, &framebuffer, x, y, w as u32, h as u32, color, clip)
 }
 
 pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1: i32, y1: i32, x2: i32, y2: i32, pgc: WIPICWord) -> Result<()> {
@@ -737,8 +588,6 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1
 
     let framebuffer = FrameBuffer(read_generic(context, context.data_ptr(dst)?)?);
     let gctx: WIPICGraphicsContext = read_generic(context, pgc)?;
-    let mut canvas = framebuffer.canvas(context)?;
-
     let clip = Clip {
         x: 0,
         y: 0,
@@ -747,10 +596,7 @@ pub async fn draw_line(context: &mut dyn WIPICContext, dst: WIPICIndirectPtr, x1
     };
 
     let color = framebuffer.pixel_to_color(gctx.fgpxl);
-    canvas.draw_line(x1 as _, y1 as _, x2 as _, y2 as _, color, clip);
-    canvas.flush()?;
-
-    Ok(())
+    primitives::draw_line(context, &framebuffer, x1, y1, x2, y2, color, clip)
 }
 
 pub async fn post_event(context: &mut dyn WIPICContext, id: i32, r#type: i32, param1: i32, param2: i32) -> Result<i32> {

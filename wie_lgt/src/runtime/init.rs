@@ -25,12 +25,14 @@ fn register_init_svc_handler(core: &mut ArmCore, ptr_jar_path: u32) -> Result<()
 async fn handle_init_svc(core: &mut ArmCore, ptr_jar_path: &mut u32, id: SvcId) -> Result<JumpTo> {
     let (_, lr) = core.read_pc_lr()?;
     match InitSvcId::try_from(id)? {
-        InitSvcId::GetImportTable => EmulatedFunction::call(&get_import_table, core, &mut ()).await?.write(core, lr)?,
-        InitSvcId::GetImportFunction => get_import_function(core, core.read_param(0)?, core.read_param(1)?)
+        InitSvcId::ImportTable => EmulatedFunction::call(&get_import_table, core, &mut ()).await?.write(core, lr)?,
+        InitSvcId::ImportFunction => get_import_function(core, core.read_param(0)?, core.read_param(1)?)
             .await?
             .write(core, lr)?,
-        InitSvcId::Unk0 => EmulatedFunction::call(&unk0, core, &mut ()).await?.write(core, lr)?,
-        InitSvcId::GetApplicationJarPath => EmulatedFunction::call(&get_application_jar_path, core, ptr_jar_path)
+        InitSvcId::SetDisplayProperty => EmulatedFunction::call(&super::wipi_c::graphics::set_display_property, core, &mut ())
+            .await?
+            .write(core, lr)?,
+        InitSvcId::ApplicationJarPath => EmulatedFunction::call(&get_application_jar_path, core, ptr_jar_path)
             .await?
             .write(core, lr)?,
     }
@@ -61,8 +63,8 @@ pub async fn load_native(core: &mut ArmCore, system: &mut System, jvm: &Jvm, jar
     write_generic(core, ptr_init_param_1, init_param_1)?;
 
     let init_param_2 = InitParam2 {
-        fn_get_import_table: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetImportTable)?,
-        fn_get_import_function: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetImportFunction)?,
+        fn_get_import_table: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::ImportTable)?,
+        fn_get_import_function: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::ImportFunction)?,
         fn_unk3: 0,
         fn_unk4: 0,
     };
@@ -106,8 +108,8 @@ async fn get_import_function(core: &mut ArmCore, import_table: u32, function_ind
     }
 
     Ok(match (import_table, function_index) {
-        (0x1f8, 0x16) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::Unk0)?,
-        (0x1f8, 0x17) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::GetApplicationJarPath)?,
+        (0x1f8, 0x16) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::SetDisplayProperty)?,
+        (0x1f8, 0x17) => core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::ApplicationJarPath)?,
         (0x1fc, 0x03) => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk1)?,
         (0x1ff, 0x03) => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk2)?,
         (0x201, 0x03) => core.make_svc_stub(SVC_CATEGORY_JAVA_SYSTEM, JavaSystemSvcId::Unk3)?,
@@ -158,12 +160,6 @@ fn load_executable(core: &mut ArmCore, data: &[u8]) -> Result<u32> {
     tracing::debug!("Entrypoint: {:#x}", elf.ehdr.e_entry);
 
     Ok(elf.ehdr.e_entry as u32)
-}
-
-async fn unk0(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u32) -> Result<()> {
-    tracing::warn!("clet_unk0({a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
-
-    Ok(())
 }
 
 async fn get_application_jar_path(core: &mut ArmCore, ptr_jar_path: &mut u32, _a0: u32, _capacity: u32, path_output: u32) -> Result<u32> {
