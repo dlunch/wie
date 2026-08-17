@@ -40,10 +40,19 @@ struct LgtDisplayProperties {
     use_annunciator: u32,
 }
 
-const _: [(); 16] = [(); size_of::<LgtFramebuffer>()];
-const _: [(); 20] = [(); size_of::<LgtGraphicsView>()];
-const _: [(); 8] = [(); size_of::<LgtImage>()];
-const _: [(); 56] = [(); size_of::<LgtGraphicsContext>()];
+// These records are read directly by the LGT native graphics code. Keep the
+// guest ABI sizes explicit so an accidental Rust layout change fails at build time.
+const LGT_FRAMEBUFFER_SIZE: usize = 16;
+const LGT_GRAPHICS_VIEW_SIZE: usize = 20;
+const LGT_IMAGE_SIZE: usize = 8;
+const LGT_GRAPHICS_CONTEXT_SIZE: usize = 56;
+
+const _: () = {
+    assert!(size_of::<LgtFramebuffer>() == LGT_FRAMEBUFFER_SIZE);
+    assert!(size_of::<LgtGraphicsView>() == LGT_GRAPHICS_VIEW_SIZE);
+    assert!(size_of::<LgtImage>() == LGT_IMAGE_SIZE);
+    assert!(size_of::<LgtGraphicsContext>() == LGT_GRAPHICS_CONTEXT_SIZE);
+};
 
 struct ResolvedFramebuffer {
     framebuffer: FrameBuffer,
