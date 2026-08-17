@@ -397,6 +397,14 @@ mod tests {
             let mut shorts = jvm.instantiate_array("S", 10).await.unwrap();
             jvm.store_array(&mut shorts, 0, (0..10i16).collect::<Vec<_>>()).await.unwrap();
             assert_eq!(jvm.load_array::<i16>(&shorts, 5, 4).await.unwrap(), vec![5, 6, 7, 8]);
+            let short_instance_raw = LgtJvmSupport::class_instance_raw(&*shorts);
+            let short_instance: RawJavaClassInstance = read_generic(&core, short_instance_raw)?;
+            let mut short_value = [0; 2];
+            core.read_bytes(short_instance.ptr_fields + 6, &mut short_value)?;
+            assert_eq!(short_value, 1i16.to_le_bytes());
+            let mut short_padding = [0; 4];
+            core.read_bytes(short_instance.ptr_fields + 24, &mut short_padding)?;
+            assert_eq!(short_padding, [0; 4]);
             let short_array_definition = shorts
                 .class_definition()
                 .as_any()
@@ -417,6 +425,14 @@ mod tests {
             let mut longs = jvm.instantiate_array("J", long_values.len()).await.unwrap();
             jvm.store_array(&mut longs, 0, long_values.clone()).await.unwrap();
             assert_eq!(jvm.load_array::<i64>(&longs, 0, long_values.len()).await.unwrap(), long_values);
+            let long_instance_raw = LgtJvmSupport::class_instance_raw(&*longs);
+            let long_instance: RawJavaClassInstance = read_generic(&core, long_instance_raw)?;
+            let mut long_padding = [0; 4];
+            core.read_bytes(long_instance.ptr_fields + 4, &mut long_padding)?;
+            assert_eq!(long_padding, [0; 4]);
+            let mut first_long = [0; 8];
+            core.read_bytes(long_instance.ptr_fields + 8, &mut first_long)?;
+            assert_eq!(first_long, i64::MIN.to_le_bytes());
             let mut raw_long = [0; 8];
             longs.as_array_instance().unwrap().raw_buffer().unwrap().read(2, &mut raw_long).unwrap();
             assert_eq!(raw_long, 0x12345678_9abcdef0u64.to_le_bytes());
@@ -427,6 +443,11 @@ mod tests {
             jvm.store_array(&mut references, 0, vec![object]).await.unwrap();
             let loaded: Vec<ClassInstanceRef<String>> = jvm.load_array(&references, 0, 1).await.unwrap();
             assert_eq!(loaded[0].identity(), expected_identity);
+            let references_instance_raw = LgtJvmSupport::class_instance_raw(&*references);
+            let references_instance: RawJavaClassInstance = read_generic(&core, references_instance_raw)?;
+            let mut reference_value = [0; 4];
+            core.read_bytes(references_instance.ptr_fields + 4, &mut reference_value)?;
+            assert_eq!(u32::from_le_bytes(reference_value), expected_identity as u32);
 
             let object_definition = jvm
                 .resolve_class("java/lang/Object")

@@ -11,7 +11,24 @@ use wie_core_arm::ArmCore;
 use wie_jvm_support::native::{decode_array_values, encode_array_values};
 use wie_util::{ByteRead, ByteWrite, Result, read_generic, write_generic};
 
-use super::{JavaArrayClassDefinition, JavaClassInstance, value::JavaValueCodec};
+use super::{JavaArrayClassDefinition, JavaClassInstance, LgtJvmWord, value::JavaValueCodec};
+
+// LGT reserves an eight-byte array prefix. Narrow elements start after the
+// length word at +0x04, while long and double elements start at +0x08 for
+// their required alignment.
+const LGT_ARRAY_STORAGE_PREFIX_SIZE: usize = 8;
+
+fn array_storage_size(length: usize, element_size: usize) -> usize {
+    LGT_ARRAY_STORAGE_PREFIX_SIZE + length * element_size
+}
+
+fn array_data_offset(element_size: usize) -> usize {
+    if element_size == size_of::<u64>() {
+        LGT_ARRAY_STORAGE_PREFIX_SIZE
+    } else {
+        size_of::<LgtJvmWord>()
+    }
+}
 
 #[derive(Clone)]
 pub struct JavaArrayClassInstance {
@@ -28,7 +45,7 @@ impl JavaArrayClassInstance {
     }
 
     pub fn new(core: &mut ArmCore, class: &JavaArrayClassDefinition, length: usize) -> Result<Self> {
-        let storage_size = size_of::<u32>() + length * class.element_size();
+        let storage_size = array_storage_size(length, class.element_size());
         let class_instance = JavaClassInstance::instantiate(core, &class.class, storage_size)?;
         write_generic(core, class_instance.ptr_fields()?, length as u32)?;
 
@@ -36,7 +53,7 @@ impl JavaArrayClassInstance {
     }
 
     fn storage_size(&self) -> usize {
-        size_of::<u32>() + self.array_length() * self.element_size()
+        array_storage_size(self.array_length(), self.element_size())
     }
 
     fn array_length(&self) -> usize {
@@ -45,7 +62,7 @@ impl JavaArrayClassInstance {
     }
 
     fn base_address(&self) -> u32 {
-        self.class_instance.storage_address(size_of::<u32>()).unwrap()
+        self.class_instance.storage_address(array_data_offset(self.element_size())).unwrap()
     }
 
     fn element_size(&self) -> usize {
@@ -186,5 +203,27 @@ impl ArrayRawBufferMut for ArrayRawBufferImpl {
             .write_bytes(self.base_address + (offset * self.element_size) as u32, buffer)
             .unwrap();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::mem::size_of;
+
+    use super::{LGT_ARRAY_STORAGE_PREFIX_SIZE, array_data_offset, array_storage_size};
+
+    #[test]
+    fn storage_layout_matches_lgt_abi() {
+        assert_eq!(LGT_ARRAY_STORAGE_PREFIX_SIZE, 8);
+
+        assert_eq!(array_data_offset(1), 4);
+        assert_eq!(array_data_offset(2), 4);
+        assert_eq!(array_data_offset(4), 4);
+        assert_eq!(array_data_offset(size_of::<u64>()), 8);
+
+        assert_eq!(array_storage_size(3, 1), 11);
+        assert_eq!(array_storage_size(3, 2), 14);
+        assert_eq!(array_storage_size(3, 4), 20);
+        assert_eq!(array_storage_size(3, 8), 32);
     }
 }
