@@ -55,7 +55,7 @@ java_constants = { git = "https://github.com/dlunch/RustJava.git" }
 java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
 jvm = { git = "https://github.com/dlunch/RustJava.git" }
 jvm_rust = { git = "https://github.com/dlunch/RustJava.git" }
-wipi_types = { git = "https://github.com/dlunch/wipi.git" }
+wipi_types = { git = "https://github.com/Magstic/wipi", rev = "80e21f355f9538604fe67fd5c21f2284c9954f22" }
 
 wie_backend = { path = "wie_backend" }
 wie_j2me = { path = "wie_j2me" }

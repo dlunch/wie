@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, string::ToString, vec};
 
 mod context;
+pub(super) mod graphics;
 
 use jvm::{Jvm, Result as JvmResult, runtime::JavaLangString};
 use wipi_types::lgt::CletFunctions;
@@ -12,7 +13,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, graphics, kernel, media, misc, net},
+    api::{database, graphics as shared_graphics, kernel, media, misc, net},
 };
 
 use context::LgtWIPICContext;
@@ -44,7 +45,9 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
     let (_, lr) = core.read_pc_lr()?;
     let method = match WIPICSvcId::try_from(id)? {
         WIPICSvcId::CletRegister => {
-            return EmulatedFunction::call(&clet_register, core, jvm).await?.write(core, lr);
+            return EmulatedFunction::call(&clet_register, core, &mut (system.clone(), jvm.clone()))
+                .await?
+                .write(core, lr);
         }
         WIPICSvcId::GetFramebufferPointer => graphics::get_framebuffer_pointer.into_body(),
         WIPICSvcId::GetFramebufferWidth => graphics::get_framebuffer_width.into_body(),
@@ -52,7 +55,10 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::GetFramebufferBpl => graphics::get_framebuffer_bpl.into_body(),
         WIPICSvcId::GetFramebufferBpp => graphics::get_framebuffer_bpp.into_body(),
         WIPICSvcId::Printk => kernel::printk.into_body(),
-        WIPICSvcId::Sprintk => kernel::sprintk.into_body(),
+        WIPICSvcId::Sprintk => (|context: &mut dyn WIPICContext, dest, ptr_format, a0, a1, a2, a3, a4, a5| {
+            kernel::sprintk(context, dest, ptr_format, a0, a1, a2, a3, a4, a5)
+        })
+        .into_body(),
         WIPICSvcId::Unk13 => unk13.into_body(),
         WIPICSvcId::Unk1 => unk1.into_body(),
         WIPICSvcId::Exit => kernel::exit.into_body(),
@@ -91,15 +97,15 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::GetRgbPixels => graphics::get_rgb_pixels.into_body(),
         WIPICSvcId::SetRgbPixels => graphics::set_rgb_pixels.into_body(),
         WIPICSvcId::FlushLcd => graphics::flush_lcd.into_body(),
-        WIPICSvcId::GetPixelFromRgb => graphics::get_pixel_from_rgb.into_body(),
-        WIPICSvcId::GetRgbFromPixel => graphics::get_rgb_from_pixel.into_body(),
+        WIPICSvcId::GetPixelFromRgb => shared_graphics::get_pixel_from_rgb.into_body(),
+        WIPICSvcId::GetRgbFromPixel => shared_graphics::get_rgb_from_pixel.into_body(),
         WIPICSvcId::GetDisplayInfo => graphics::get_display_info.into_body(),
-        WIPICSvcId::Repaint => graphics::repaint.into_body(),
-        WIPICSvcId::GetFont => graphics::get_font.into_body(),
-        WIPICSvcId::GetFontHeight => graphics::get_font_height.into_body(),
-        WIPICSvcId::GetFontAscent => graphics::get_font_ascent.into_body(),
-        WIPICSvcId::GetFontDescent => graphics::get_font_descent.into_body(),
-        WIPICSvcId::GetStringWidth => graphics::get_string_width.into_body(),
+        WIPICSvcId::Repaint => shared_graphics::repaint.into_body(),
+        WIPICSvcId::GetFont => shared_graphics::get_font.into_body(),
+        WIPICSvcId::GetFontHeight => shared_graphics::get_font_height.into_body(),
+        WIPICSvcId::GetFontAscent => shared_graphics::get_font_ascent.into_body(),
+        WIPICSvcId::GetFontDescent => shared_graphics::get_font_descent.into_body(),
+        WIPICSvcId::GetStringWidth => shared_graphics::get_string_width.into_body(),
         WIPICSvcId::CreateImage => graphics::create_image.into_body(),
         WIPICSvcId::Unk0 => unk0.into_body(),
         WIPICSvcId::Unk11 => unk11.into_body(),
@@ -184,9 +190,15 @@ pub fn register_wipic_svc_handler(core: &mut ArmCore, system: &System, jvm: &Jvm
     core.register_svc_handler(SVC_CATEGORY_WIPIC, handle_wipic_svc, &(system.clone(), jvm.clone()))
 }
 
-async fn clet_register(core: &mut ArmCore, jvm: &mut Jvm, function_table: u32, a1: u32) -> Result<()> {
+async fn clet_register(core: &mut ArmCore, (system, jvm): &mut (System, Jvm), function_table: u32, a1: u32) -> Result<()> {
     tracing::debug!("clet_register({function_table:#x}, {a1:#x})");
 
+    let (screen_width, screen_height) = {
+        let screen = system.platform().screen();
+        (screen.width(), screen.height())
+    };
+    graphics::init_process_state(core, screen_width, screen_height)?;
+    graphics::set_use_annunciator(core, a1)?;
     let functions: CletFunctions = read_generic(core, function_table)?;
 
     jvm.put_static_field("net/wie/CletWrapper", "startClet", "I", functions.start_clet as i32)
