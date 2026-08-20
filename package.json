@@ -17,7 +17,7 @@
     "spessasynth_lib": "^4.3.13",
     "ts-loader": "^9.6.2",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "webpack": "^5.109.2",
     "webpack-cli": "^7.2.2",
     "webpack-dev-server": "^6.0.0"
