@@ -160,6 +160,7 @@ async fn get_java_method(core: &mut ArmCore, _: &mut (), ptr_class: u32, ptr_ful
     Ok(method.ptr_raw)
 }
 
+#[allow(clippy::double_must_use)] // temporary until https://github.com/rust-lang/rust-clippy/issues/17529 fix lands
 #[async_recursion::async_recursion]
 async fn find_java_method(class: &JavaClassDefinition, name: &str, descriptor: &str) -> Result<Option<JavaMethod>> {
     let method = class.method(name, descriptor, false)?;
