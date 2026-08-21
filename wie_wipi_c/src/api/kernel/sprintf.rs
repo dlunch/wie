@@ -1,17 +1,18 @@
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec::Vec};
 
-use wie_util::{Result, read_null_terminated_string_bytes};
-
-use crate::context::WIPICContext;
+use wie_util::{ByteRead, Result, read_null_terminated_string_bytes};
 
 const MAX_WIDTH: usize = 4096;
 
-pub fn sprintf(context: &mut dyn WIPICContext, format: &str, args: &[u32]) -> Result<String> {
-    self::format(format, args, &mut |ptr| {
+pub fn sprintf(context: &(impl ByteRead + ?Sized), format_bytes: &[u8], args: &[u32]) -> Result<Vec<u8>> {
+    let format_string = encoding_rs::EUC_KR.decode(format_bytes).0;
+    let result = self::format(&format_string, args, &mut |ptr| {
         let bytes = read_null_terminated_string_bytes(context, ptr)?;
 
         Ok(encoding_rs::EUC_KR.decode(&bytes).0.into_owned())
-    })
+    })?;
+
+    Ok(encoding_rs::EUC_KR.encode(&result).0.into_owned())
 }
 
 fn format(format: &str, args: &[u32], read_string: &mut dyn FnMut(u32) -> Result<String>) -> Result<String> {
@@ -126,9 +127,30 @@ fn next_arg64<'a>(arg_iter: &mut impl Iterator<Item = &'a u32>) -> u64 {
 
 #[cfg(test)]
 mod test {
-    use alloc::string::{String, ToString};
+    use alloc::{
+        string::{String, ToString},
+        vec,
+        vec::Vec,
+    };
 
-    use wie_util::Result;
+    use wie_util::{ByteRead, Result, WieError};
+
+    struct GuestMemory {
+        bytes: Vec<u8>,
+    }
+
+    impl ByteRead for GuestMemory {
+        fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
+            let start = address as usize;
+            let end = start + result.len();
+            if end > self.bytes.len() {
+                return Err(WieError::InvalidMemoryAccess(address));
+            }
+
+            result.copy_from_slice(&self.bytes[start..end]);
+            Ok(result.len())
+        }
+    }
 
     fn format(format_string: &str, args: &[u32]) -> Result<String> {
         super::format(format_string, args, &mut |_| Ok("stub".to_string()))
@@ -201,6 +223,23 @@ mod test {
     fn test_string_and_null() -> Result<()> {
         assert_eq!(format("%s!", &[1])?, "stub!");
         assert_eq!(format("%s", &[0])?, "(null)");
+
+        Ok(())
+    }
+
+    #[test]
+    fn sprintf_formats_euc_kr_guest_strings_and_values() -> Result<()> {
+        let mut memory = GuestMemory { bytes: vec![0; 0x100] };
+        let guest_string = encoding_rs::EUC_KR.encode("세계").0;
+        memory.bytes[0x40..0x40 + guest_string.len()].copy_from_slice(&guest_string);
+        memory.bytes[0x40 + guest_string.len()] = 0;
+
+        let format = encoding_rs::EUC_KR.encode("안녕 %s %c %d %u %x").0;
+        let result = super::sprintf(&memory, &format, &[0x40, b'A' as u32, (-7i32) as u32, 42, 0xbeef])?;
+
+        let expected = "안녕 세계 A -7 42 beef";
+        assert_eq!(encoding_rs::EUC_KR.decode(&result).0, expected);
+        assert_eq!(result, encoding_rs::EUC_KR.encode(expected).0.into_owned());
 
         Ok(())
     }

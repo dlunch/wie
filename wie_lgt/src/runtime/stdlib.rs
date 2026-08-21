@@ -1,26 +1,44 @@
 use alloc::{format, string::String};
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
-use core::cmp::min;
+use core::{cmp::min, mem::size_of};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId, stdlib};
 use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
+use wie_wipi_c::api::kernel;
 
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
 
-pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Result<()> {
+pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &mut System) -> Result<()> {
     async fn handle_stdlib_svc(core: &mut ArmCore, system: &mut System, id: SvcId) -> Result<()> {
         let (_, lr) = core.read_pc_lr()?;
 
         match id.0 {
             x if x == StdlibSvcId::Unk2 as u32 => EmulatedFunction::call(&unk2, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Sprintf as u32 => {
+                let args = [
+                    core.read_param(0)?,
+                    core.read_param(1)?,
+                    core.read_param(2)?,
+                    core.read_param(3)?,
+                    core.read_param(4)?,
+                    core.read_param(5)?,
+                    core.read_param(6)?,
+                    core.read_param(7)?,
+                ];
+                kernel::sprintk(core, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])
+                    .await?
+                    .write(core, lr)
+            }
             x if x == StdlibSvcId::Atoi as u32 => EmulatedFunction::call(&atoi, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Rand as u32 => EmulatedFunction::call(&rand, core, system).await?.write(core, lr),
+            x if x == StdlibSvcId::Srand as u32 => EmulatedFunction::call(&srand, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&stdlib::strcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strncpy as u32 => EmulatedFunction::call(&strncpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strcat as u32 => EmulatedFunction::call(&strcat, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strcmp as u32 => EmulatedFunction::call(&strcmp, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk4 as u32 => EmulatedFunction::call(&unk4, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Unk5 as u32 => EmulatedFunction::call(&unk5, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strstr as u32 => EmulatedFunction::call(&strstr, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&stdlib::strlen, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&stdlib::memcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&stdlib::memset, core, &mut ()).await?.write(core, lr),
@@ -31,7 +49,31 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
         }
     }
 
+    init_random_state(core, system)?;
     core.register_svc_handler(SVC_CATEGORY_STDLIB, handle_stdlib_svc, system)
+}
+
+fn init_random_state(core: &mut ArmCore, system: &mut System) -> Result<()> {
+    let ptr_random_state = Allocator::alloc(core, size_of::<u32>() as u32)?;
+    write_generic(core, ptr_random_state, 1u32)?;
+    system.set_ptr_random_state(ptr_random_state);
+    Ok(())
+}
+
+async fn srand(core: &mut ArmCore, system: &mut System, seed: u32) -> Result<()> {
+    tracing::debug!("srand({seed:#x})");
+
+    write_generic(core, system.ptr_random_state(), seed)
+}
+
+async fn rand(core: &mut ArmCore, system: &mut System) -> Result<u32> {
+    tracing::debug!("rand()");
+
+    let state: u32 = read_generic(core, system.ptr_random_state())?;
+    let state = state.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+    write_generic(core, system.ptr_random_state(), state)?;
+
+    Ok((state >> 16) & 0x7fff)
 }
 
 async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
@@ -138,9 +180,52 @@ async fn unk4(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u3
     Ok(())
 }
 
-async fn unk5(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32) -> Result<()> {
-    tracing::warn!("unk5({a0:#x}, {a1:#x})");
-    // strstr??
+async fn strstr(core: &mut ArmCore, _: &mut (), ptr_haystack: u32, ptr_needle: u32) -> Result<u32> {
+    tracing::debug!("strstr({ptr_haystack:#x}, {ptr_needle:#x})");
 
-    Ok(())
+    let haystack = read_null_terminated_string_bytes(core, ptr_haystack)?;
+    let needle = read_null_terminated_string_bytes(core, ptr_needle)?;
+    let position = if needle.is_empty() {
+        Some(0)
+    } else {
+        haystack.windows(needle.len()).position(|window| window == needle)
+    };
+
+    Ok(position.map_or(0, |position| ptr_haystack + position as u32))
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use futures::FutureExt;
+
+    use test_utils::TestPlatform;
+    use wie_backend::{DefaultTaskRunner, System};
+    use wie_core_arm::{Allocator, ArmCore};
+    use wie_util::{Result, read_generic};
+
+    use super::{init_random_state, rand, srand};
+
+    #[test]
+    fn random_state_is_guest_backed_and_process_local() -> Result<()> {
+        let mut first = ArmCore::new(false, None)?;
+        let mut second = ArmCore::new(false, None)?;
+        Allocator::init(&mut first)?;
+        Allocator::init(&mut second)?;
+        let mut first_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let mut second_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        init_random_state(&mut first, &mut first_system)?;
+        init_random_state(&mut second, &mut second_system)?;
+
+        srand(&mut first, &mut first_system, 1).now_or_never().unwrap()?;
+        assert_eq!(rand(&mut first, &mut first_system).now_or_never().unwrap()?, 16_838);
+        assert_eq!(read_generic::<u32, _>(&first, first_system.ptr_random_state())?, 1_103_527_590);
+
+        assert_eq!(rand(&mut second, &mut second_system).now_or_never().unwrap()?, 16_838);
+        srand(&mut second, &mut second_system, 7).now_or_never().unwrap()?;
+        assert_eq!(rand(&mut first, &mut first_system).now_or_never().unwrap()?, 5_758);
+
+        Ok(())
+    }
 }

@@ -33,6 +33,7 @@ pub struct System {
     event_queue: Arc<RwLock<EventQueue>>,
     audio: Arc<RwLock<Audio>>,
     task_runner: Arc<dyn TaskRunner>,
+    ptr_random_state: u32,
 }
 
 impl System {
@@ -52,6 +53,7 @@ impl System {
             event_queue: Arc::new(RwLock::new(EventQueue::new())),
             audio: Arc::new(RwLock::new(Audio::new(audio_sink))),
             task_runner: Arc::new(task_runner),
+            ptr_random_state: 0,
         }
     }
 
@@ -93,6 +95,14 @@ impl System {
 
     pub fn aid(&self) -> &str {
         &self.aid
+    }
+
+    pub fn ptr_random_state(&self) -> u32 {
+        self.ptr_random_state
+    }
+
+    pub fn set_ptr_random_state(&mut self, ptr_random_state: u32) {
+        self.ptr_random_state = ptr_random_state;
     }
 
     pub fn platform(&self) -> &dyn Platform {

@@ -6,6 +6,7 @@ use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
 
+use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
 use wie_wipi_java::classes::org::kwis::msp::lcdui::Display;
 
 use super::CletWrapperContext;
@@ -67,6 +68,10 @@ impl CletWrapper {
                 "(Lorg/kwis/msp/lcdui/Card;)V",
                 (clet_wrapper_card,),
             )
+            .await?;
+        let midp_display: ClassInstanceRef<MidpDisplay> = jvm.get_field(&display, "midpDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let _: () = jvm
+            .invoke_virtual(&midp_display, "javax/microedition/lcdui/Display", "disablePaint", "()V", ())
             .await?;
 
         context

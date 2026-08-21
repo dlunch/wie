@@ -3,10 +3,10 @@ use wie_core_arm::SvcId;
 #[derive(Copy, Clone)]
 #[repr(u32)]
 pub enum InitSvcId {
-    GetImportTable = 0,
-    GetImportFunction = 1,
-    Unk0 = 2,
-    GetApplicationJarPath = 3,
+    ImportTable = 0,
+    ImportFunction = 1,
+    SetDisplayProperty = 2,
+    ApplicationJarPath = 3,
 }
 
 impl TryFrom<SvcId> for InitSvcId {
@@ -14,10 +14,10 @@ impl TryFrom<SvcId> for InitSvcId {
 
     fn try_from(value: SvcId) -> Result<Self, Self::Error> {
         Ok(match value.0 {
-            0 => Self::GetImportTable,
-            1 => Self::GetImportFunction,
-            2 => Self::Unk0,
-            3 => Self::GetApplicationJarPath,
+            0 => Self::ImportTable,
+            1 => Self::ImportFunction,
+            2 => Self::SetDisplayProperty,
+            3 => Self::ApplicationJarPath,
             _ => return Err(wie_util::WieError::FatalError(alloc::format!("Unknown LGT init SVC id {}", value.0))),
         })
     }
@@ -348,13 +348,16 @@ impl From<WIPICSvcId> for u32 {
 #[repr(u32)]
 pub enum StdlibSvcId {
     Unk2 = 0x3f6,
+    Sprintf = 0x3f7,
     Atoi = 0x3fb,
+    Rand = 0x403,
+    Srand = 0x404,
     Strcpy = 0x405,
     Strncpy = 0x406,
     Strcat = 0x407,
     Strcmp = 0x409,
     Unk4 = 0x40a,
-    Unk5 = 0x410,
+    Strstr = 0x410,
     Strlen = 0x411,
     Memcpy = 0x414,
     Memset = 0x418,
