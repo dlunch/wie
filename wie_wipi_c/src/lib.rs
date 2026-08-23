@@ -6,12 +6,10 @@ mod context;
 mod method;
 
 pub use self::context::{WIPICContext, WIPICResult};
-pub use self::method::MethodImpl;
+pub use self::method::{MethodBody, MethodImpl};
 
 use alloc::boxed::Box;
 
 use wie_util::WieError;
-
-use crate::method::MethodBody;
 
 pub type WIPICMethodBody = Box<dyn MethodBody<WieError>>;

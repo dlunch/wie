@@ -18,6 +18,10 @@ use crate::{
 
 pub const IMAGE_BASE: u32 = 0x100000;
 
+fn is_clet_mode(main_class_name: &str) -> bool {
+    main_class_name == "Clet"
+}
+
 struct KtfTaskRunner {
     core: ArmCore,
 }
@@ -118,7 +122,6 @@ impl KtfEmulator {
         let mut core_clone = core.clone();
         let mut system_clone = system.clone();
         let jar_filename_clone = jar_filename.to_owned();
-
         system.spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, main_class_name).await);
 
         Ok(Self { core, system })
@@ -127,6 +130,7 @@ impl KtfEmulator {
     #[tracing::instrument(name = "start", skip_all)]
     async fn start(core: &mut ArmCore, system: &mut System, jar_filename: String, main_class_name: Option<String>) -> Result<()> {
         let (jvm, class_loader) = KtfJvmSupport::init(core, system, Some(&jar_filename)).await?;
+        let clet_mode = main_class_name.as_deref().is_some_and(is_clet_mode);
 
         let main_class_name = if let Some(x) = main_class_name {
             x
@@ -155,6 +159,10 @@ impl KtfEmulator {
             .await;
 
         if let Err(x) = result {
+            return Err(JvmSupport::to_wie_err(&jvm, x).await);
+        }
+
+        if clet_mode && let Err(x) = KtfJvmSupport::disable_midp_paint(&jvm).await {
             return Err(JvmSupport::to_wie_err(&jvm, x).await);
         }
 
@@ -189,6 +197,13 @@ mod tests {
     use wie_util::{Result, WieError};
 
     use super::{KtfJvmSupport, KtfTaskRunner};
+
+    #[test]
+    fn clet_mode_is_selected_from_adf_mclass() {
+        assert!(super::is_clet_mode("Clet"));
+        assert!(!super::is_clet_mode("MIDlet"));
+        assert!(!super::is_clet_mode(""));
+    }
 
     #[test]
     fn switches_jvm_thread_context_between_tasks() -> Result<()> {

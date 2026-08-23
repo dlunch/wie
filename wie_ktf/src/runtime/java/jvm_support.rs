@@ -17,11 +17,12 @@ use jvm_implementation::KtfJvmImplementation;
 use bytemuck::{Pod, Zeroable};
 
 use java_runtime::classes::java::util::{Enumeration, jar::JarEntry};
-use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, runtime::JavaLangString};
+use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::JvmSupport;
+use wie_midp::classes::javax::microedition::midlet::MIDlet;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic};
 
 use wipi_types::ktf::InitParam2;
@@ -159,6 +160,16 @@ impl KtfJvmSupport {
         Ok((jvm, class_loader))
     }
 
+    pub(crate) async fn disable_midp_paint(jvm: &Jvm) -> JvmResult<()> {
+        let midlet: ClassInstanceRef<MIDlet> = jvm
+            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+            .await?;
+        let display = MIDlet::display(jvm, &midlet).await?;
+
+        jvm.invoke_virtual(&display, "javax/microedition/lcdui/Display", "disablePaint", "()V", ())
+            .await
+    }
+
     pub fn class_definition_raw(definition: &dyn ClassDefinition) -> Result<u32> {
         Ok(if let Some(x) = definition.as_any().downcast_ref::<JavaClassDefinition>() {
             x.ptr_raw
@@ -239,10 +250,11 @@ mod test {
 
     use bytemuck::Zeroable;
     use java_constants::ClassAccessFlags;
-    use jvm::{Jvm, runtime::JavaLangString};
+    use jvm::{ClassInstanceRef, Jvm, runtime::JavaLangString};
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
+    use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{Result, WieError, write_generic};
 
     use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport, KtfJvmThreadContext};
@@ -277,6 +289,16 @@ mod test {
         let mut system_clone = system.clone();
         system.spawn(async move || {
             let (jvm, _core) = init_jvm(&mut system_clone).await?;
+
+            let midlet: ClassInstanceRef<MIDlet> = jvm.new_class("net/wie/WIPIMIDlet", "()V", ()).await.unwrap().into();
+            let display: ClassInstanceRef<MidpDisplay> = MIDlet::display(&jvm, &midlet).await.unwrap();
+            let paint_disabled: bool = jvm.get_field(&display, "paintDisabled", "Z").await.unwrap();
+            assert!(!paint_disabled);
+
+            KtfJvmSupport::disable_midp_paint(&jvm).await.unwrap();
+
+            let paint_disabled: bool = jvm.get_field(&display, "paintDisabled", "Z").await.unwrap();
+            assert!(paint_disabled);
 
             let string1 = JavaLangString::from_rust_string(&jvm, "test1").await.unwrap();
             let string2 = JavaLangString::from_rust_string(&jvm, "test2").await.unwrap();

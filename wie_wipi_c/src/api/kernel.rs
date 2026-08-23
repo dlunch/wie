@@ -15,7 +15,7 @@ use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes
 
 use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 
-use self::sprintf::sprintf;
+pub use self::sprintf::sprintf;
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -222,9 +222,8 @@ pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: W
     tracing::debug!("MC_knlPrintk({ptr_format:#x}, {a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
     let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
-    let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
-
     let result = sprintf(context, &format_string, &[a0, a1, a2, a3])?;
+    let result = encoding_rs::EUC_KR.decode(&result).0;
 
     context.system().platform().write_stdout(result.as_bytes());
 
@@ -246,13 +245,9 @@ pub async fn sprintk(
     tracing::debug!("MC_knlSprintk({dest:#x}, {ptr_format:#x}, {a1}, {a2}, {a3}, {a4}, {a5})",);
 
     let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
-    let format_string = encoding_rs::EUC_KR.decode(&format_string).0;
-
     let result = sprintf(context, &format_string, &[a0, a1, a2, a3, a4, a5])?;
 
-    let result_bytes = encoding_rs::EUC_KR.encode(&result).0;
-
-    write_null_terminated_string_bytes(context, dest, &result_bytes)?;
+    write_null_terminated_string_bytes(context, dest, &result)?;
 
     Ok(result.len() as _)
 }
