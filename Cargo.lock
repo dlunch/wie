@@ -212,7 +212,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 [[package]]
 name = "arm32_cpu"
 version = "0.1.0"
-source = "git+https://github.com/dlunch/arm32_cpu.git#a98b447314de8abd28a59996f497eb72aaeaa89b"
+source = "git+https://github.com/dlunch/arm32_cpu.git#935471b4650ae02de04abe9acac7feb0aea399c2"
 dependencies = [
  "log",
 ]
