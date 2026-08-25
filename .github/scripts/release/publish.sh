@@ -5,11 +5,10 @@ set -euo pipefail
 repo="repos/$GITHUB_REPOSITORY"
 tag=$RELEASE_TAG
 
-warning_body() {
+artifact_notes() {
   cat <<EOF
-## Unsigned artifacts
+## Artifact notes
 
-- The Windows, Linux, macOS, Android, and iOS artifacts are unsigned.
 - The macOS artifacts are not notarized.
 - Android AAB files cannot be installed directly on a device.
 - The iOS \`.xcarchive.zip\` is not an IPA for device installation, TestFlight, or App Store submission.
@@ -20,7 +19,7 @@ if [[ "$CHANNEL" == stable ]]; then
   if release=$(gh api "$repo/releases/tags/$tag" 2>/dev/null); then
     release_id=$(jq -r '.id' <<< "$release")
   else
-    initial_body=$(warning_body)
+    initial_body=$(artifact_notes)
     release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name="$tag" -f body="$initial_body" -F draft=true -F prerelease=false)
     release_id=$(jq -r '.id' <<< "$release")
   fi
@@ -32,7 +31,7 @@ if [[ "$CHANNEL" == stable ]]; then
     generate_notes_args+=(-f previous_tag_name="$PREVIOUS_TAG")
   fi
   notes=$(gh api "${generate_notes_args[@]}" --jq '.body')
-  body="$(warning_body)
+  body="$(artifact_notes)
 
 ## Changes
 
@@ -47,14 +46,14 @@ else
   if release=$(gh api "$repo/releases/tags/$tag" 2>/dev/null); then
     release_id=$(jq -r '.id' <<< "$release")
   else
-    initial_body=$(warning_body)
+    initial_body=$(artifact_notes)
     release=$(gh api --method POST "$repo/releases" -f tag_name="$tag" -f target_commitish="$TARGET_SHA" -f name=nightly -f body="$initial_body" -F draft=true -F prerelease=true)
     release_id=$(jq -r '.id' <<< "$release")
   fi
 
   gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
 
-  body="$(warning_body)
+  body="$(artifact_notes)
 
 ## Nightly
 

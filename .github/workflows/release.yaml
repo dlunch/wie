@@ -307,8 +307,17 @@ jobs:
         working-directory: wie_app
         run: cargo tauri android init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
 
-      - name: Build unsigned Android packages
+      - name: Configure Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: bash .github/scripts/release/configure-android-signing.sh
+
+      - name: Build signed Android packages
         uses: tauri-apps/tauri-action@v1
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         with:
           tauriScript: cargo tauri
           projectPath: wie_app
@@ -320,8 +329,8 @@ jobs:
       - name: Package Android bundles
         run: |
           mkdir -p dist
-          cp "$(find wie_app/gen/android/app/build/outputs/apk -type f -name '*-release-unsigned.apk' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64-unsigned.apk"
-          cp "$(find wie_app/gen/android/app/build/outputs/bundle -type f -name '*-release.aab' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64-unsigned.aab"
+          cp "$(find wie_app/gen/android/app/build/outputs/apk -type f -name '*-release.apk' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64.apk"
+          cp "$(find wie_app/gen/android/app/build/outputs/bundle -type f -name '*-release.aab' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64.aab"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
