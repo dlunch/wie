@@ -206,6 +206,21 @@ svg {
   display: none;
 }
 
+.library-pages.draggable {
+  cursor: grab;
+}
+
+.library-pages.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+.library-pages.dragging button {
+  cursor: grabbing;
+}
+
 .library-loading {
   width: 100%;
   margin: 48px 0;

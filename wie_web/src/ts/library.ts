@@ -47,6 +47,12 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   let appStarting = false;
   let pendingDelete: AppMetadata;
   const iconUrls = new Set<string>();
+  let dragPointer: number | undefined;
+  let dragStartX = 0;
+  let dragStartScrollLeft = 0;
+  let dragging = false;
+  let suppressClick = false;
+  let currentPageIndex = 0;
 
   const closeMenu = () => {
     menu.classList.remove("visible");
@@ -60,7 +66,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     importDialog.showModal();
   };
 
-  const renderLibrary = () => {
+  const renderLibrary = (targetPageIndex = currentPageIndex) => {
     for (const iconUrl of iconUrls) {
       URL.revokeObjectURL(iconUrl);
     }
@@ -79,6 +85,8 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
 
     const entries: Array<AppMetadata | undefined> = [...apps, undefined];
     const pageCount = Math.ceil(entries.length / APPS_PER_PAGE);
+    currentPageIndex = Math.max(0, Math.min(targetPageIndex, pageCount - 1));
+    libraryPages.classList.toggle("draggable", pageCount > 1);
 
     for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
       const page = document.createElement("section");
@@ -125,6 +133,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
           const image = document.createElement("img");
           iconUrls.add(iconUrl);
           image.alt = "";
+          image.draggable = false;
           image.src = iconUrl;
           image.addEventListener(
             "load",
@@ -197,7 +206,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
       indicator.className = "page-indicator";
       indicator.type = "button";
       indicator.setAttribute("aria-label", `${pageIndex + 1} 페이지로 이동`);
-      indicator.classList.toggle("active", pageIndex === 0);
+      indicator.classList.toggle("active", pageIndex === currentPageIndex);
       indicator.addEventListener("click", () => {
         libraryPages.scrollTo({ left: pageIndex * libraryPages.clientWidth, behavior: "smooth" });
       });
@@ -205,7 +214,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     }
 
     pageIndicators.hidden = pageCount < 2;
-    libraryPages.scrollLeft = 0;
+    libraryPages.scrollLeft = currentPageIndex * libraryPages.clientWidth;
     createIcons({ icons, root: libraryView });
     createIcons({ icons, root: importDialog });
     createIcons({ icons, root: deleteDialog });
@@ -214,11 +223,73 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   };
 
   libraryPages.addEventListener("scroll", () => {
-    const pageIndex = Math.round(libraryPages.scrollLeft / libraryPages.clientWidth);
+    currentPageIndex = Math.round(libraryPages.scrollLeft / libraryPages.clientWidth);
     for (const [index, indicator] of Array.from(pageIndicators.children).entries()) {
-      indicator.classList.toggle("active", index === pageIndex);
+      indicator.classList.toggle("active", index === currentPageIndex);
     }
   });
+  libraryPages.addEventListener("pointerdown", event => {
+    if (event.pointerType !== "mouse" || event.button !== 0 || libraryPages.scrollWidth <= libraryPages.clientWidth) {
+      return;
+    }
+
+    dragPointer = event.pointerId;
+    dragStartX = event.clientX;
+    dragStartScrollLeft = libraryPages.scrollLeft;
+    dragging = false;
+  });
+  window.addEventListener("pointermove", event => {
+    if (event.pointerId !== dragPointer) {
+      return;
+    }
+
+    const distance = event.clientX - dragStartX;
+    if (!dragging && Math.abs(distance) < 6) {
+      return;
+    }
+
+    if (!dragging) {
+      dragging = true;
+      libraryPages.classList.add("dragging");
+      libraryPages.setPointerCapture(event.pointerId);
+    }
+    event.preventDefault();
+    libraryPages.scrollLeft = dragStartScrollLeft - distance;
+  });
+  const finishMouseDrag = (event: PointerEvent) => {
+    if (event.pointerId !== dragPointer) {
+      return;
+    }
+
+    if (libraryPages.hasPointerCapture(event.pointerId)) {
+      libraryPages.releasePointerCapture(event.pointerId);
+    }
+    libraryPages.classList.remove("dragging");
+    dragPointer = undefined;
+
+    if (dragging) {
+      dragging = false;
+      suppressClick = true;
+      const pageIndex = Math.round(libraryPages.scrollLeft / libraryPages.clientWidth);
+      libraryPages.scrollTo({ left: pageIndex * libraryPages.clientWidth, behavior: "smooth" });
+      window.setTimeout(() => {
+        suppressClick = false;
+      });
+    }
+  };
+  window.addEventListener("pointerup", finishMouseDrag);
+  window.addEventListener("pointercancel", finishMouseDrag);
+  libraryPages.addEventListener(
+    "click",
+    event => {
+      if (suppressClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        suppressClick = false;
+      }
+    },
+    { capture: true },
+  );
 
   menuToggle.addEventListener("click", () => {
     const visible = menu.classList.toggle("visible");
@@ -247,46 +318,68 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
 
   chooseArchive.addEventListener("click", () => archiveInput.click());
   archiveInput.addEventListener("change", async () => {
-    const file = archiveInput.files?.[0];
-    if (!file) {
+    const files = Array.from(archiveInput.files ?? []);
+    if (files.length === 0) {
       return;
     }
 
     chooseArchive.disabled = true;
     importStatus.classList.remove("error");
-    importStatus.textContent = "앱 파일을 확인하는 중입니다.";
+    importStatus.textContent = `${files.length}개 앱 파일을 확인하는 중입니다.`;
 
     try {
-      const filename = file.name.toLowerCase();
-      if (!filename.endsWith(".zip") && !filename.endsWith(".jar")) {
-        throw new Error("ZIP 또는 JAR 파일을 선택해 주세요.");
+      const knownApps = new Map(apps.map(app => [app.id, app.title]));
+      const failures: string[] = [];
+      let addedCount = 0;
+
+      for (const file of files) {
+        try {
+          const filename = file.name.toLowerCase();
+          if (!filename.endsWith(".zip") && !filename.endsWith(".jar")) {
+            throw new Error("ZIP 또는 JAR 파일이 아닙니다.");
+          }
+
+          const archive = new Uint8Array(await file.arrayBuffer());
+          const extracted = extractAppMetadata(file.name, archive);
+          try {
+            const duplicateTitle = knownApps.get(extracted.id);
+            if (duplicateTitle) {
+              throw new Error(`이미 라이브러리에 추가된 앱입니다: ${duplicateTitle}`);
+            }
+
+            const icon = extracted.icon;
+            const metadata: AppMetadata = {
+              id: extracted.id,
+              title: extracted.title,
+              filename: file.name,
+              addedAt: Date.now(),
+            };
+            if (icon.length > 0) {
+              metadata.icon = new Blob([new Uint8Array(icon).buffer]);
+            }
+            await store.add(metadata, archive);
+            knownApps.set(metadata.id, metadata.title);
+            addedCount += 1;
+          } finally {
+            extracted.free();
+          }
+        } catch (error) {
+          failures.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
 
-      const archive = new Uint8Array(await file.arrayBuffer());
-      const extracted = extractAppMetadata(file.name, archive);
-      try {
-        const duplicate = apps.find(app => app.id === extracted.id);
-        if (duplicate) {
-          throw new Error(`이미 라이브러리에 추가된 앱입니다: ${duplicate.title}`);
-        }
-
-        const icon = extracted.icon;
-        const metadata: AppMetadata = {
-          id: extracted.id,
-          title: extracted.title,
-          filename: file.name,
-          addedAt: Date.now(),
-        };
-        if (icon.length > 0) {
-          metadata.icon = new Blob([new Uint8Array(icon).buffer]);
-        }
-        await store.add(metadata, archive);
-      } finally {
-        extracted.free();
+      if (addedCount > 0) {
+        apps = await store.list();
+        renderLibrary(Math.floor(apps.length / APPS_PER_PAGE));
       }
-      apps = await store.list();
-      importDialog.close();
-      renderLibrary();
+
+      if (failures.length === 0) {
+        importDialog.close();
+      } else {
+        importStatus.classList.add("error");
+        const result = addedCount > 0 ? `${addedCount}개 앱을 추가했습니다. ` : "";
+        importStatus.textContent = `${result}추가하지 못한 파일: ${failures.join(" / ")}`;
+      }
     } catch (error) {
       importStatus.classList.add("error");
       importStatus.textContent = `앱을 추가할 수 없습니다. ${String(error)}`;
