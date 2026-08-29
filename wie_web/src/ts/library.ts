@@ -316,10 +316,8 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     helpDialog.showModal();
   });
 
-  chooseArchive.addEventListener("click", () => archiveInput.click());
-  archiveInput.addEventListener("change", async () => {
-    const files = Array.from(archiveInput.files ?? []);
-    if (files.length === 0) {
+  const importFiles = async (files: File[]) => {
+    if (files.length === 0 || chooseArchive.disabled) {
       return;
     }
 
@@ -387,6 +385,34 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
       chooseArchive.disabled = false;
       archiveInput.value = "";
     }
+  };
+
+  chooseArchive.addEventListener("click", () => archiveInput.click());
+  archiveInput.addEventListener("change", () => {
+    void importFiles(Array.from(archiveInput.files ?? []));
+  });
+  importDialog.addEventListener("dragover", event => {
+    if (!event.dataTransfer?.types.includes("Files")) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = chooseArchive.disabled ? "none" : "copy";
+    chooseArchive.classList.toggle("drop-active", !chooseArchive.disabled);
+  });
+  importDialog.addEventListener("dragleave", event => {
+    if (event.relatedTarget instanceof Node && importDialog.contains(event.relatedTarget)) {
+      return;
+    }
+    chooseArchive.classList.remove("drop-active");
+  });
+  importDialog.addEventListener("drop", event => {
+    event.preventDefault();
+    chooseArchive.classList.remove("drop-active");
+    void importFiles(Array.from(event.dataTransfer?.files ?? []));
+  });
+  importDialog.addEventListener("close", () => {
+    chooseArchive.classList.remove("drop-active");
   });
 
   confirmDelete.addEventListener("click", async () => {
