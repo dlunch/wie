@@ -101,6 +101,11 @@ impl KtfEmulator {
         (!title.is_empty()).then_some(title)
     }
 
+    pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let id = KtfAdf::parse(files.get("__adf__")?).aid;
+        (!id.is_empty()).then_some(id)
+    }
+
     pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
         files.get("big.icon").cloned()
     }

@@ -50,6 +50,12 @@ impl SktEmulator {
         (!title.is_empty()).then_some(title)
     }
 
+    pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let (filename, data) = files.iter().find(|(filename, _)| filename.ends_with(".msd"))?;
+        let id = SktMsd::parse(filename, data).id;
+        (!id.is_empty()).then_some(id)
+    }
+
     pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
         if let Some(icon) = files.iter().find(|(filename, _)| filename.ends_with(".wmr")).and_then(|(_, wmr)| {
             if !wmr.starts_with(b"\xad\xde\xce\xfa") {

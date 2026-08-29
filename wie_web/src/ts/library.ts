@@ -265,9 +265,14 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
       const archive = new Uint8Array(await file.arrayBuffer());
       const extracted = extractAppMetadata(file.name, archive);
       try {
+        const duplicate = apps.find(app => app.id === extracted.id);
+        if (duplicate) {
+          throw new Error(`이미 라이브러리에 추가된 앱입니다: ${duplicate.title}`);
+        }
+
         const icon = extracted.icon;
         const metadata: AppMetadata = {
-          id: crypto.randomUUID(),
+          id: extracted.id,
           title: extracted.title,
           filename: file.name,
           addedAt: Date.now(),

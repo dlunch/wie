@@ -61,6 +61,14 @@ fn parse_archive(buf: &[u8]) -> anyhow::Result<(ArchivePlatform, BTreeMap<String
     Ok((platform, files))
 }
 
+fn jar_app_id<'a>(filename: &'a str, buf: &[u8]) -> &'a str {
+    if KtfEmulator::loadable_jar(buf) || LgtEmulator::loadable_jar(buf) || SktEmulator::loadable_jar(buf) {
+        &filename[..filename.len() - 4]
+    } else {
+        filename
+    }
+}
+
 struct WieWebPlatform {
     database_repository: DatabaseRepository,
     filesystem: WebFilesystem,
@@ -141,12 +149,18 @@ pub struct WieWeb {
 
 #[wasm_bindgen]
 pub struct ImportedAppMetadata {
+    id: String,
     title: String,
     icon: Vec<u8>,
 }
 
 #[wasm_bindgen]
 impl ImportedAppMetadata {
+    #[wasm_bindgen(getter)]
+    pub fn id(&self) -> String {
+        self.id.clone()
+    }
+
     #[wasm_bindgen(getter)]
     pub fn title(&self) -> String {
         self.title.clone()
@@ -160,22 +174,32 @@ impl ImportedAppMetadata {
 
 #[wasm_bindgen(js_name = extractAppMetadata)]
 pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMetadata, JsError> {
-    let filename = filename.to_ascii_lowercase();
-    let metadata = if filename.ends_with(".zip") {
+    let lowercase_filename = filename.to_ascii_lowercase();
+    let metadata = if lowercase_filename.ends_with(".zip") {
         let (platform, files) = parse_archive(buf).map_err(|error| JsError::new(&error.to_string()))?;
         match platform {
-            ArchivePlatform::Ktf => KtfEmulator::archive_title(&files).map(|title| (title, KtfEmulator::archive_icon(&files))),
-            ArchivePlatform::Lgt => LgtEmulator::archive_title(&files).map(|title| (title, LgtEmulator::archive_icon(&files))),
-            ArchivePlatform::Skt => SktEmulator::archive_title(&files).map(|title| (title, SktEmulator::archive_icon(&files))),
+            ArchivePlatform::Ktf => KtfEmulator::archive_id(&files)
+                .zip(KtfEmulator::archive_title(&files))
+                .map(|(id, title)| (id, title, KtfEmulator::archive_icon(&files))),
+            ArchivePlatform::Lgt => LgtEmulator::archive_id(&files)
+                .zip(LgtEmulator::archive_title(&files))
+                .map(|(id, title)| (id, title, LgtEmulator::archive_icon(&files))),
+            ArchivePlatform::Skt => SktEmulator::archive_id(&files)
+                .zip(SktEmulator::archive_title(&files))
+                .map(|(id, title)| (id, title, SktEmulator::archive_icon(&files))),
         }
-    } else if filename.ends_with(".jar") {
-        J2MEEmulator::jar_metadata(buf).map_err(|error| JsError::new(&error.to_string()))?
+    } else if lowercase_filename.ends_with(".jar") {
+        let filename = filename.rsplit('/').next().unwrap();
+        J2MEEmulator::jar_metadata(buf)
+            .map_err(|error| JsError::new(&error.to_string()))?
+            .map(|(title, icon)| (jar_app_id(filename, buf).to_owned(), title, icon))
     } else {
         return Err(JsError::new("Unknown file format"));
     };
-    let (title, icon) = metadata.ok_or_else(|| JsError::new("App metadata does not contain a title or entry point"))?;
+    let (id, title, icon) = metadata.ok_or_else(|| JsError::new("App metadata does not contain an ID, title or entry point"))?;
 
     Ok(ImportedAppMetadata {
+        id,
         title,
         icon: icon.unwrap_or_default(),
     })
@@ -204,15 +228,15 @@ impl WieWeb {
                 }
             } else if filename.to_ascii_lowercase().ends_with(".jar") {
                 let filename_without_path = filename.rsplit('/').next().unwrap().to_owned();
-                let filename_without_ext = &filename_without_path[..filename_without_path.len() - 4];
+                let app_id = jar_app_id(&filename_without_path, buf);
 
                 if KtfEmulator::loadable_jar(buf) {
                     Box::new(KtfEmulator::from_jar(
                         platform,
                         &filename_without_path,
                         buf.to_vec(),
-                        filename_without_ext,
-                        filename_without_ext,
+                        app_id,
+                        app_id,
                         None,
                         options,
                     )?)
@@ -221,19 +245,13 @@ impl WieWeb {
                         platform,
                         &filename_without_path,
                         buf.to_vec(),
-                        filename_without_ext,
-                        filename_without_ext,
+                        app_id,
+                        app_id,
                         None,
                         options,
                     )?)
                 } else if SktEmulator::loadable_jar(buf) {
-                    Box::new(SktEmulator::from_jar(
-                        platform,
-                        &filename_without_path,
-                        buf.to_vec(),
-                        filename_without_ext,
-                        None,
-                    )?)
+                    Box::new(SktEmulator::from_jar(platform, &filename_without_path, buf.to_vec(), app_id, None)?)
                 } else {
                     Box::new(J2MEEmulator::from_jar(platform, &filename_without_path, buf.to_vec())?)
                 }

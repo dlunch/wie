@@ -86,6 +86,11 @@ impl LgtEmulator {
         (!title.is_empty()).then_some(title)
     }
 
+    pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let id = LgtAppInfo::parse(files.get("app_info")?).aid;
+        (!id.is_empty()).then_some(id)
+    }
+
     pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
         files.get("big.png").cloned()
     }

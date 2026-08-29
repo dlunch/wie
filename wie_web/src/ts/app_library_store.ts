@@ -48,8 +48,8 @@ export class AppLibraryStore {
   public add(metadata: AppMetadata, archive: Uint8Array): Promise<void> {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(["apps", "archives"], "readwrite");
-      transaction.objectStore("apps").put(metadata);
-      transaction.objectStore("archives").put(archive, metadata.id);
+      transaction.objectStore("apps").add(metadata);
+      transaction.objectStore("archives").add(archive, metadata.id);
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);

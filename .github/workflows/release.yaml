@@ -307,6 +307,10 @@ jobs:
         working-directory: wie_app
         run: cargo tauri android init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
 
+      - name: Generate Android icons
+        working-directory: wie_app
+        run: cargo tauri icon ../wie_web/src/assets/favicon.png
+
       - name: Configure Android signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -375,6 +379,10 @@ jobs:
       - name: Initialize iOS project
         working-directory: wie_app
         run: cargo tauri ios init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
+
+      - name: Generate iOS icons
+        working-directory: wie_app
+        run: cargo tauri icon ../wie_web/src/assets/favicon.png
 
       - name: Build unsigned iOS archive
         uses: tauri-apps/tauri-action@v1
