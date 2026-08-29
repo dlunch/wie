@@ -2,6 +2,7 @@ export interface AppMetadata {
   id: string;
   title: string;
   filename: string;
+  icon?: Blob;
   addedAt: number;
 }
 

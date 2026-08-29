@@ -96,6 +96,15 @@ impl KtfEmulator {
         files.contains_key("__adf__")
     }
 
+    pub fn archive_title(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let title = KtfAdf::parse(files.get("__adf__")?).name;
+        (!title.is_empty()).then_some(title)
+    }
+
+    pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
+        files.get("big.icon").cloned()
+    }
+
     pub fn loadable_jar(jar: &[u8]) -> bool {
         find_client_bin(jar).is_ok()
     }

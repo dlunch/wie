@@ -6197,6 +6197,7 @@ dependencies = [
  "bytemuck",
  "chrono",
  "elf",
+ "encoding_rs",
  "futures",
  "java_class_proto",
  "java_constants",
@@ -6245,6 +6246,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytemuck",
+ "encoding_rs",
  "jvm",
  "tracing",
  "wie_backend",

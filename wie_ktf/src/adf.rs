@@ -5,10 +5,13 @@ use alloc::{
     vec::Vec,
 };
 
+use encoding_rs::EUC_KR;
+
 use wie_backend::extract_zip;
 use wie_util::{Result, WieError};
 
 pub struct KtfAdf {
+    pub name: String,
     pub aid: String,
     pub pid: String,
     pub mclass: String,
@@ -17,6 +20,7 @@ pub struct KtfAdf {
 
 impl KtfAdf {
     pub fn parse(data: &[u8]) -> Self {
+        let mut name = String::new();
         let mut aid = String::new();
         let mut pid = String::new();
         let mut mclass = String::new();
@@ -25,7 +29,9 @@ impl KtfAdf {
         let mut lines = data.split(|x| *x == b'\n');
 
         for line in &mut lines {
-            if line.starts_with(b"AID:") {
+            if line.starts_with(b"Name:") {
+                name = EUC_KR.decode(&line[5..]).0.trim().to_string();
+            } else if line.starts_with(b"AID:") {
                 aid = String::from_utf8_lossy(&line[4..]).trim().into();
             } else if line.starts_with(b"PID:") {
                 pid = String::from_utf8_lossy(&line[4..]).trim().into();
@@ -34,10 +40,10 @@ impl KtfAdf {
             } else if line.starts_with(b"DisplaySize:") {
                 display_size = parse_display_size(&line[12..]);
             }
-            // TODO load name, it's in euc-kr..
         }
 
         Self {
+            name,
             aid,
             pid,
             mclass,
@@ -78,8 +84,9 @@ mod tests {
 
     #[test]
     fn parse_adf_full() {
-        let data = b"AID:foo\nPID:bar\nMClass:baz\nDisplaySize:176*220\n";
+        let data = b"Name:\xc2\xa5\xbf\xe4\xc2\xa5\xbf\xe4\xc5\xb8\xc0\xcc\xc4\xef2\nAID:foo\nPID:bar\nMClass:baz\nDisplaySize:176*220\n";
         let adf = KtfAdf::parse(data);
+        assert_eq!(adf.name, "짜요짜요타이쿤2");
         assert_eq!(adf.aid, "foo");
         assert_eq!(adf.pid, "bar");
         assert_eq!(adf.mclass, "baz");
@@ -99,6 +106,7 @@ mod tests {
     #[test]
     fn parse_adf_empty() {
         let adf = KtfAdf::parse(b"");
+        assert!(adf.name.is_empty());
         assert!(adf.aid.is_empty());
         assert!(adf.pid.is_empty());
         assert!(adf.mclass.is_empty());
@@ -109,6 +117,7 @@ mod tests {
     fn parse_adf_partial() {
         let data = b"AID:only\n";
         let adf = KtfAdf::parse(data);
+        assert!(adf.name.is_empty());
         assert_eq!(adf.aid, "only");
         assert!(adf.pid.is_empty());
         assert!(adf.mclass.is_empty());

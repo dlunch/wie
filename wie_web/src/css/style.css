@@ -239,13 +239,20 @@ svg {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  color: #ffffff;
+  color: #56615e;
+  background: #e4e9e7;
   border: 1px solid rgba(24, 33, 31, 0.12);
   border-radius: 8px;
   box-shadow: 0 5px 14px rgba(24, 33, 31, 0.13);
   font-size: 2.25rem;
   font-weight: 750;
   line-height: 1;
+}
+
+.app-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .app-launch:hover .app-icon {
@@ -352,8 +359,6 @@ svg {
 
 .player-view {
   min-height: 100dvh;
-  color: #eef3f1;
-  background: #171c1b;
 }
 
 .player-toolbar {
@@ -365,10 +370,6 @@ svg {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-}
-
-.player-toolbar .icon-button:hover {
-  background: rgba(255, 255, 255, 0.1);
 }
 
 .player-title {

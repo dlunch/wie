@@ -139,9 +139,46 @@ pub struct WieWeb {
     key_events: HashMap<KeyCode, f64>,
 }
 
-#[wasm_bindgen(js_name = validateArchive)]
-pub fn validate_archive(buf: &[u8]) -> Result<(), JsError> {
-    parse_archive(buf).map(|_| ()).map_err(|error| JsError::new(&error.to_string()))
+#[wasm_bindgen]
+pub struct ImportedAppMetadata {
+    title: String,
+    icon: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ImportedAppMetadata {
+    #[wasm_bindgen(getter)]
+    pub fn title(&self) -> String {
+        self.title.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn icon(&self) -> Vec<u8> {
+        self.icon.clone()
+    }
+}
+
+#[wasm_bindgen(js_name = extractAppMetadata)]
+pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMetadata, JsError> {
+    let filename = filename.to_ascii_lowercase();
+    let metadata = if filename.ends_with(".zip") {
+        let (platform, files) = parse_archive(buf).map_err(|error| JsError::new(&error.to_string()))?;
+        match platform {
+            ArchivePlatform::Ktf => KtfEmulator::archive_title(&files).map(|title| (title, KtfEmulator::archive_icon(&files))),
+            ArchivePlatform::Lgt => LgtEmulator::archive_title(&files).map(|title| (title, LgtEmulator::archive_icon(&files))),
+            ArchivePlatform::Skt => SktEmulator::archive_title(&files).map(|title| (title, SktEmulator::archive_icon(&files))),
+        }
+    } else if filename.ends_with(".jar") {
+        J2MEEmulator::jar_metadata(buf).map_err(|error| JsError::new(&error.to_string()))?
+    } else {
+        return Err(JsError::new("Unknown file format"));
+    };
+    let (title, icon) = metadata.ok_or_else(|| JsError::new("App metadata does not contain a title or entry point"))?;
+
+    Ok(ImportedAppMetadata {
+        title,
+        icon: icon.unwrap_or_default(),
+    })
 }
 
 #[wasm_bindgen]
@@ -166,8 +203,8 @@ impl WieWeb {
                     ArchivePlatform::Skt => Box::new(SktEmulator::from_archive(platform, files)?),
                 }
             } else if filename.to_ascii_lowercase().ends_with(".jar") {
-                let filename_without_path = filename[filename.rfind('/').unwrap_or(0) + 1..].to_owned();
-                let filename_without_ext = filename_without_path.trim_end_matches(".jar");
+                let filename_without_path = filename.rsplit('/').next().unwrap().to_owned();
+                let filename_without_ext = &filename_without_path[..filename_without_path.len() - 4];
 
                 if KtfEmulator::loadable_jar(buf) {
                     Box::new(KtfEmulator::from_jar(

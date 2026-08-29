@@ -1,11 +1,10 @@
-import { validateArchive } from "@pkg";
+import { extractAppMetadata } from "@pkg";
 import { Check, CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
 
 import { AppLibraryStore, AppMetadata } from "./app_library_store";
 import { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
-const APP_COLORS = ["#147d72", "#d25746", "#4774a8", "#9c642e", "#7658a6", "#3f7c4d", "#b34c72", "#51616d"];
 const WELCOME_STORAGE_KEY = "wie_welcome_seen";
 const icons = {
   Check,
@@ -47,6 +46,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   let manageMode = false;
   let appStarting = false;
   let pendingDelete: AppMetadata;
+  const iconUrls = new Set<string>();
 
   const closeMenu = () => {
     menu.classList.remove("visible");
@@ -61,6 +61,10 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   };
 
   const renderLibrary = () => {
+    for (const iconUrl of iconUrls) {
+      URL.revokeObjectURL(iconUrl);
+    }
+    iconUrls.clear();
     libraryPages.replaceChildren();
     pageIndicators.replaceChildren();
     libraryView.classList.toggle("manage-mode", manageMode);
@@ -115,12 +119,34 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
 
         const icon = document.createElement("span");
         icon.className = "app-icon";
-        let colorIndex = 0;
-        for (const character of app.id) {
-          colorIndex = (colorIndex * 31 + character.charCodeAt(0)) % APP_COLORS.length;
+        const fallbackIcon = Array.from(app.title.trim())[0] ?? "?";
+        if (app.icon) {
+          const iconUrl = URL.createObjectURL(app.icon);
+          const image = document.createElement("img");
+          iconUrls.add(iconUrl);
+          image.alt = "";
+          image.src = iconUrl;
+          image.addEventListener(
+            "load",
+            () => {
+              URL.revokeObjectURL(iconUrl);
+              iconUrls.delete(iconUrl);
+            },
+            { once: true },
+          );
+          image.addEventListener(
+            "error",
+            () => {
+              URL.revokeObjectURL(iconUrl);
+              iconUrls.delete(iconUrl);
+              icon.textContent = fallbackIcon;
+            },
+            { once: true },
+          );
+          icon.appendChild(image);
+        } else {
+          icon.textContent = fallbackIcon;
         }
-        icon.style.backgroundColor = APP_COLORS[colorIndex];
-        icon.textContent = Array.from(app.title.trim())[0] ?? "?";
 
         const title = document.createElement("span");
         title.className = "app-title";
@@ -228,24 +254,31 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
 
     chooseArchive.disabled = true;
     importStatus.classList.remove("error");
-    importStatus.textContent = "ZIP 파일을 확인하는 중입니다.";
+    importStatus.textContent = "앱 파일을 확인하는 중입니다.";
 
     try {
-      if (!file.name.toLowerCase().endsWith(".zip")) {
-        throw new Error("ZIP 파일을 선택해 주세요.");
+      const filename = file.name.toLowerCase();
+      if (!filename.endsWith(".zip") && !filename.endsWith(".jar")) {
+        throw new Error("ZIP 또는 JAR 파일을 선택해 주세요.");
       }
 
       const archive = new Uint8Array(await file.arrayBuffer());
-      validateArchive(archive);
-      await store.add(
-        {
+      const extracted = extractAppMetadata(file.name, archive);
+      try {
+        const icon = extracted.icon;
+        const metadata: AppMetadata = {
           id: crypto.randomUUID(),
-          title: file.name.replace(/\.zip$/i, ""),
+          title: extracted.title,
           filename: file.name,
           addedAt: Date.now(),
-        },
-        archive,
-      );
+        };
+        if (icon.length > 0) {
+          metadata.icon = new Blob([new Uint8Array(icon).buffer]);
+        }
+        await store.add(metadata, archive);
+      } finally {
+        extracted.free();
+      }
       apps = await store.list();
       importDialog.close();
       renderLibrary();

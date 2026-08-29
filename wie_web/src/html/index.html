@@ -180,7 +180,7 @@
         </header>
         <p>wie는 WIPI와 J2ME 앱을 브라우저에서 보관하고 실행할 수 있는 에뮬레이터입니다.</p>
         <ol class="welcome-steps">
-          <li><strong>앱 추가</strong><span>JAR 파일이 들어 있는 ZIP 파일을 선택합니다.</span></li>
+          <li><strong>앱 추가</strong><span>WIPI ZIP 또는 J2ME JAR 파일을 선택합니다.</span></li>
           <li><strong>앱 실행</strong><span>라이브러리에서 추가된 앱 아이콘을 누릅니다.</span></li>
           <li><strong>앱 관리</strong><span>오른쪽 위 메뉴에서 앱을 삭제하거나 설정을 변경합니다.</span></li>
         </ol>
@@ -199,15 +199,15 @@
             <i data-lucide="x"></i>
           </button>
         </header>
-        <p>JAR 파일이 포함된 ZIP 파일을 선택하세요.</p>
+        <p>WIPI ZIP 또는 J2ME JAR 파일을 선택하세요.</p>
         <button id="choose-archive" class="primary-command" type="button" autofocus>
           <i data-lucide="upload"></i>
-          <span>ZIP 선택</span>
+          <span>파일 선택</span>
         </button>
         <p id="import-status" class="dialog-status" role="status" aria-live="polite"></p>
       </form>
     </dialog>
-    <input id="archive-input" type="file" accept=".zip,application/zip" hidden />
+    <input id="archive-input" type="file" accept=".zip,.jar,application/zip,application/java-archive" hidden />
 
     <dialog id="delete-dialog" class="app-dialog">
       <form method="dialog">

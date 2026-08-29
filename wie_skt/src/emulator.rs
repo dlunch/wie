@@ -8,9 +8,13 @@ use alloc::{
     vec::Vec,
 };
 
+use encoding_rs::EUC_KR;
 use jvm::{Result as JvmResult, runtime::JavaLangString};
 
-use wie_backend::{DefaultTaskRunner, Emulator, Event, Platform, System};
+use wie_backend::{
+    DefaultTaskRunner, Emulator, Event, Platform, System,
+    canvas::{decode_res, encode_png},
+};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation};
 use wie_util::{Result, WieError};
 
@@ -38,6 +42,30 @@ impl SktEmulator {
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
         files.iter().any(|x| x.0.ends_with(".msd"))
+    }
+
+    pub fn archive_title(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let (filename, data) = files.iter().find(|(filename, _)| filename.ends_with(".msd"))?;
+        let title = SktMsd::parse(filename, data).name;
+        (!title.is_empty()).then_some(title)
+    }
+
+    pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
+        if let Some(icon) = files.iter().find(|(filename, _)| filename.ends_with(".wmr")).and_then(|(_, wmr)| {
+            if !wmr.starts_with(b"\xad\xde\xce\xfa") {
+                return None;
+            }
+
+            let icon_size = u32::from_le_bytes(wmr.get(12..16)?.try_into().ok()?) as usize;
+            let icon = wmr.get(16..16usize.checked_add(icon_size)?)?;
+            icon.starts_with(b"BM").then(|| icon.to_vec())
+        }) {
+            return Some(icon);
+        }
+
+        let (_, resource) = files.iter().find(|(filename, _)| filename.ends_with(".res"))?;
+        let image = decode_res(resource).ok()?;
+        encode_png(&*image).ok()
     }
 
     pub fn loadable_jar(jar: &[u8]) -> bool {
@@ -136,6 +164,7 @@ impl Emulator for SktEmulator {
 }
 
 struct SktMsd {
+    name: String,
     id: String,
     main_class: String,
     properties: BTreeMap<String, String>,
@@ -143,6 +172,7 @@ struct SktMsd {
 
 impl SktMsd {
     pub fn parse(filename: &str, data: &[u8]) -> Self {
+        let mut name = String::new();
         let mut main_class = String::new();
         let mut id = filename[..filename.find('.').unwrap()].into();
         let mut properties = BTreeMap::new();
@@ -150,12 +180,18 @@ impl SktMsd {
         let mut lines = data.split(|x| *x == b'\n');
 
         for line in &mut lines {
-            if line.starts_with(b"MIDlet-1:") {
-                let value = line[10..].split(|x| *x == b',').collect::<Vec<_>>();
-                main_class = str::from_utf8(value[2]).unwrap().trim().to_string();
+            if line.starts_with(b"MIDlet-Name:") {
+                name = EUC_KR.decode(&line[12..]).0.trim().to_string();
+            } else if line.starts_with(b"MIDlet-1:")
+                && let Some(value) = line[9..].split(|x| *x == b',').nth(2)
+                && let Ok(value) = str::from_utf8(value)
+            {
+                main_class = value.trim().to_string();
             }
-            if line.starts_with(b"DD-ProgName") {
-                id = str::from_utf8(&line[12..]).unwrap().trim().to_string();
+            if line.starts_with(b"DD-ProgName:")
+                && let Ok(value) = str::from_utf8(&line[12..])
+            {
+                id = value.trim().to_string();
             }
 
             let sep = line.iter().position(|x| *x == b':');
@@ -170,6 +206,71 @@ impl SktMsd {
             }
         }
 
-        Self { id, main_class, properties }
+        Self {
+            name,
+            id,
+            main_class,
+            properties,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{collections::BTreeMap, vec};
+
+    use super::{SktEmulator, SktMsd};
+
+    #[test]
+    fn parse_msd_name() {
+        let msd = SktMsd::parse(
+            "0051758461.msd",
+            b"MIDlet-Name: \xbf\xb5\xbf\xf5\xbc\xad\xb1\xe2_\xbc\xd6\xc6\xbc\xbe\xc6\xc0\xc7\xb9\xd9\xb6\xf7\r\nMIDlet-1: title,,rpg.GameMIDlet\r\nDD-ProgName: 0051758461\r\n",
+        );
+
+        assert_eq!(msd.name, "영웅서기_솔티아의바람");
+        assert_eq!(msd.id, "0051758461");
+        assert_eq!(msd.main_class, "rpg.GameMIDlet");
+    }
+
+    #[test]
+    fn parse_msd_ignores_malformed_optional_fields() {
+        let msd = SktMsd::parse("sample.msd", b"MIDlet-Name: Sample\nMIDlet-1: incomplete\nDD-ProgName: \xff\n");
+
+        assert_eq!(msd.name, "Sample");
+        assert_eq!(msd.id, "sample");
+        assert!(msd.main_class.is_empty());
+    }
+
+    #[test]
+    fn extracts_static_icon_from_wmr() {
+        let mut wmr = vec![0; 16];
+        wmr[..4].copy_from_slice(b"\xad\xde\xce\xfa");
+        wmr[12..16].copy_from_slice(&6u32.to_le_bytes());
+        wmr.extend_from_slice(b"BMicon");
+        let files = BTreeMap::from([("sample.wmr".into(), wmr)]);
+
+        assert_eq!(SktEmulator::archive_icon(&files), Some(b"BMicon".to_vec()));
+    }
+
+    #[test]
+    fn extracts_static_icon_from_res_after_animation() {
+        let mut resource = vec![0; 15];
+        resource[..4].copy_from_slice(b"\xce\xfa\xad\xde");
+        resource[6..8].copy_from_slice(&15u16.to_le_bytes());
+        resource.extend_from_slice(&[3, 1, 1, 8, 0, 0, 0, 0, 2, 0, 0]);
+        resource.extend_from_slice(&[2, 2, 1, 8, 0, 0, 0, 0, 0xe0, 0x03]);
+        let files = BTreeMap::from([("sample.res".into(), resource)]);
+
+        let png = SktEmulator::archive_icon(&files).unwrap();
+        let image = wie_backend::canvas::decode_image(&png).unwrap();
+
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+        assert_eq!(image.width(), 2);
+        assert_eq!(image.height(), 1);
+        let red = image.get_pixel(0, 0);
+        let blue = image.get_pixel(1, 0);
+        assert_eq!((red.r, red.g, red.b, red.a), (252, 0, 0, 255));
+        assert_eq!((blue.r, blue.g, blue.b, blue.a), (0, 0, 255, 255));
     }
 }
