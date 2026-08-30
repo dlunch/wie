@@ -15,7 +15,7 @@ use self::lbmp::decode_lbmp;
 pub use self::res::decode_res;
 
 lazy_static::lazy_static! {
-    static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
+    static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../fonts/neodgm.ttf")).unwrap();
 }
 
 pub enum TextAlignment {

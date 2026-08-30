@@ -74,7 +74,7 @@ wie-wipi-java = { version = "0.1.0", path = "wie-wipi-java" }
 # dev-dependencies
 futures-test = { version = "^0.3" }
 
-test-utils = { version = "0.1.0", path = "test-utils" }
+test-utils = { path = "test-utils" }
 
 [package]
 name = "wie"

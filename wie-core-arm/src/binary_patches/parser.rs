@@ -8,7 +8,7 @@ use super::{
     patch::{PatchSpec, PatternPatchSpec},
 };
 
-const BINARY_PATCHES_TOML: &str = include_str!("../../../data/binary_patches.toml");
+const BINARY_PATCHES_TOML: &str = include_str!("../../data/binary_patches.toml");
 
 pub fn binary_patches() -> Vec<Entry> {
     let doc: RawDoc = toml::from_str(BINARY_PATCHES_TOML).expect("parse data/binary_patches.toml");

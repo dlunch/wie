@@ -29,7 +29,7 @@ pub fn test_helloworld() -> Result<()> {
 
     let platform = Box::new(TestPlatform::with_event_handler(event_handler));
 
-    let archive = extract_zip(include_bytes!("../../test-data/helloworld_ktf.zip"))?;
+    let archive = extract_zip(include_bytes!("data/helloworld_ktf.zip"))?;
     let mut emulator = KtfEmulator::from_archive(
         platform,
         archive,

@@ -2,7 +2,7 @@ use alloc::{string::String, vec::Vec};
 
 use serde::Deserialize;
 
-const LGT_JAVA_ABI_TOML: &str = include_str!("../../../../data/lgt_java_abi.toml");
+const LGT_JAVA_ABI_TOML: &str = include_str!("../../../data/lgt_java_abi.toml");
 
 lazy_static::lazy_static! {
     pub static ref JAVA_ABI: JavaAbi = toml::from_str(LGT_JAVA_ABI_TOML).expect("parse data/lgt_java_abi.toml");
