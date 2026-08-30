@@ -29,7 +29,7 @@ opt-level = 1
 lto = true
 
 [workspace.package]
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "WIPI and J2ME emulator components"
@@ -58,23 +58,23 @@ toml = { version = "^1", default-features = false, features = ["parse", "serde"]
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 wipi-types = { version = "^0.0.1" }
 
-wie-backend = { version = "0.0.1", path = "wie-backend" }
-wie-j2me = { version = "0.0.1", path = "wie-j2me" }
-wie-ktf = { version = "0.0.1", path = "wie-ktf" }
-wie-lgt = { version = "0.0.1", path = "wie-lgt" }
-wie-midp = { version = "0.0.1", path = "wie-midp" }
-wie-skt = { version = "0.0.1", path = "wie-skt" }
-wie-util = { version = "0.0.1", path = "wie-util" }
-wie-core-arm = { version = "0.0.1", path = "wie-core-arm" }
-wie-jvm-support = { version = "0.0.1", path = "wie-jvm-support" }
-wie-skvm = { version = "0.0.1", path = "wie-skvm" }
-wie-wipi-c = { version = "0.0.1", path = "wie-wipi-c" }
-wie-wipi-java = { version = "0.0.1", path = "wie-wipi-java" }
+wie-backend = { version = "0.1.0", path = "wie-backend" }
+wie-j2me = { version = "0.1.0", path = "wie-j2me" }
+wie-ktf = { version = "0.1.0", path = "wie-ktf" }
+wie-lgt = { version = "0.1.0", path = "wie-lgt" }
+wie-midp = { version = "0.1.0", path = "wie-midp" }
+wie-skt = { version = "0.1.0", path = "wie-skt" }
+wie-util = { version = "0.1.0", path = "wie-util" }
+wie-core-arm = { version = "0.1.0", path = "wie-core-arm" }
+wie-jvm-support = { version = "0.1.0", path = "wie-jvm-support" }
+wie-skvm = { version = "0.1.0", path = "wie-skvm" }
+wie-wipi-c = { version = "0.1.0", path = "wie-wipi-c" }
+wie-wipi-java = { version = "0.1.0", path = "wie-wipi-java" }
 
 # dev-dependencies
 futures-test = { version = "^0.3" }
 
-test-utils = { version = "0.0.1", path = "test-utils" }
+test-utils = { version = "0.1.0", path = "test-utils" }
 
 [package]
 name = "wie"
