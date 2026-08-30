@@ -47,9 +47,10 @@ jobs:
           toolchain: ${{ matrix.rust }}
           targets: wasm32-unknown-unknown
 
-      - uses: jetli/wasm-pack-action@v0.4.0
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
         with:
-          version: latest
+          tool: wasm-pack
 
       - uses: actions/setup-node@v7
         with:
