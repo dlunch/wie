@@ -2,9 +2,10 @@
 name = "wie-app"
 version.workspace = true
 edition.workspace = true
-license = "Proprietary"
+license.workspace = true
 description.workspace = true
 repository.workspace = true
+publish = false
 
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]
