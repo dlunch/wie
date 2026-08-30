@@ -93,6 +93,13 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
           filename: "assets/img/[name][ext]",
         },
       },
+      {
+        test: /\.ttf$/,
+        type: "asset/resource",
+        generator: {
+          filename: "assets/font/[name].[contenthash:8][ext]",
+        },
+      },
     ],
   },
   plugins: [

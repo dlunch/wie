@@ -27,7 +27,7 @@ use tracing_web::MakeConsoleWriter;
 use wasm_bindgen::{JsError, prelude::*};
 use web_sys::HtmlCanvasElement;
 
-use wie_backend::{Emulator, Event, Instant, KeyCode, Options, Platform, Screen, extract_zip};
+use wie_backend::{Emulator, Event, Font, Instant, KeyCode, Options, Platform, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
@@ -72,6 +72,7 @@ fn jar_app_id<'a>(filename: &'a str, buf: &[u8]) -> &'a str {
 struct WieWebPlatform {
     database_repository: DatabaseRepository,
     filesystem: WebFilesystem,
+    font: Font,
     window: WindowImpl,
 }
 
@@ -80,16 +81,21 @@ unsafe impl Sync for WieWebPlatform {}
 unsafe impl Send for WieWebPlatform {}
 
 impl WieWebPlatform {
-    fn new(window: WindowImpl) -> Self {
+    fn new(window: WindowImpl, font: Font) -> Self {
         Self {
             database_repository: DatabaseRepository::new(),
             filesystem: WebFilesystem::new(),
+            font,
             window,
         }
     }
 }
 
 impl Platform for WieWebPlatform {
+    fn font(&self) -> &Font {
+        &self.font
+    }
+
     fn screen(&self) -> &dyn Screen {
         &self.window
     }
@@ -208,11 +214,12 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
-    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement) -> Result<WieWeb, JsError> {
+    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>) -> Result<WieWeb, JsError> {
         (move || {
             let should_redraw = Arc::new(AtomicBool::new(true));
             let window = WindowImpl::new(canvas, should_redraw.clone());
-            let platform = Box::new(WieWebPlatform::new(window));
+            let font = Font::try_from_vec(font_data)?;
+            let platform = Box::new(WieWebPlatform::new(window, font));
             let options = Options {
                 enable_gdbserver: false,
                 profile: None,

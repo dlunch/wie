@@ -6088,7 +6088,6 @@ dependencies = [
  "futures-test",
  "hashbrown 0.17.1",
  "image",
- "lazy_static",
  "num-traits",
  "smaf",
  "smaf-player",

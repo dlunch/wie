@@ -145,17 +145,17 @@ impl Font {
         Ok(instance.into())
     }
 
-    async fn string_width(jvm: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
+    async fn string_width(jvm: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<Self>, string: ClassInstanceRef<String>) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::stringWidth({string:?})");
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
 
-        Ok(canvas::string_width(&string, 10.0) as _)
+        Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 
     async fn substring_width(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         _: ClassInstanceRef<Self>,
         string: ClassInstanceRef<String>,
         offset: i32,
@@ -166,20 +166,20 @@ impl Font {
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
         let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
 
-        Ok(canvas::string_width(&substring, 10.0) as _)
+        Ok(canvas::string_width(context.system().platform().font(), &substring, 10.0) as _)
     }
 
-    async fn char_width(_: &Jvm, _: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
+    async fn char_width(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::charWidth({char:?})");
 
         let string = RustString::from_utf16(&[char]).unwrap();
 
-        Ok(canvas::string_width(&string, 10.0) as _)
+        Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 
     async fn chars_width(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         _: ClassInstanceRef<Self>,
         chars: ClassInstanceRef<Array<JavaChar>>,
         offset: i32,
@@ -190,6 +190,6 @@ impl Font {
         let chars = jvm.load_array(&chars, offset as _, len as _).await?;
         let string = RustString::from_utf16(&chars).unwrap();
 
-        Ok(canvas::string_width(&string, 10.0) as _)
+        Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 }

@@ -8,7 +8,7 @@ use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use hashbrown::HashMap;
 use spin::Mutex;
-use wie_backend::{AudioSink, Database, DatabaseRepository, Filesystem, Instant, Platform, RecordId, Screen, canvas::Image};
+use wie_backend::{AudioSink, Database, DatabaseRepository, Filesystem, Font, Instant, Platform, RecordId, Screen, canvas::Image};
 use wie_util::Result;
 
 use crate::filesystem::MemoryFilesystem;
@@ -25,6 +25,7 @@ pub struct TestPlatform {
     event_handler: Option<Box<dyn Fn(TestPlatformEvent) + Sync + Send>>,
     fs: Arc<MemoryFilesystem>,
     db: Arc<MemoryDatabaseRepository>,
+    font: Font,
 }
 
 impl Default for TestPlatform {
@@ -40,6 +41,7 @@ impl TestPlatform {
             event_handler: None,
             fs: Arc::new(MemoryFilesystem::default()),
             db: Arc::new(MemoryDatabaseRepository::default()),
+            font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
         }
     }
 
@@ -52,11 +54,16 @@ impl TestPlatform {
             event_handler: Some(Box::new(event_handler)),
             fs: Arc::new(MemoryFilesystem::default()),
             db: Arc::new(MemoryDatabaseRepository::default()),
+            font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
         }
     }
 }
 
 impl Platform for TestPlatform {
+    fn font(&self) -> &Font {
+        &self.font
+    }
+
     fn screen(&self) -> &dyn Screen {
         &self.screen
     }

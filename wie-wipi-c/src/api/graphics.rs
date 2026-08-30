@@ -451,7 +451,7 @@ pub async fn get_string_width(context: &mut dyn WIPICContext, font: i32, ptr_str
     let Some(string) = primitives::read_text(context, ptr_string, length)? else {
         return Ok(0);
     };
-    Ok(string_width(&string, 10.0) as i32)
+    Ok(string_width(context.system().platform().font(), &string, 10.0) as i32)
 }
 
 pub async fn draw_string(

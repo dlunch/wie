@@ -9,7 +9,6 @@ repository.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
-lazy_static = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 

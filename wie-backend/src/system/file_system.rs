@@ -172,6 +172,7 @@ mod tests {
 
     use crate::{
         audio_sink::AudioSink,
+        canvas::Font,
         database::DatabaseRepository,
         platform::{Filesystem, Platform},
         screen::Screen,
@@ -228,6 +229,9 @@ mod tests {
         fs: StubFilesystem,
     }
     impl Platform for StubPlatform {
+        fn font(&self) -> &Font {
+            unimplemented!()
+        }
         fn screen(&self) -> &dyn Screen {
             unimplemented!()
         }
