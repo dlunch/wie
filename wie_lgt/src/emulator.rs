@@ -1,7 +1,15 @@
 use core::pin::Pin;
 
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 
+use encoding_rs::EUC_KR;
 use jvm::{
     JavaError,
     runtime::{JavaIoInputStream, JavaLangClassLoader},
@@ -71,6 +79,20 @@ impl LgtEmulator {
 
     pub fn loadable_archive(files: &BTreeMap<String, Vec<u8>>) -> bool {
         files.contains_key("app_info")
+    }
+
+    pub fn archive_title(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let title = LgtAppInfo::parse(files.get("app_info")?).name;
+        (!title.is_empty()).then_some(title)
+    }
+
+    pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
+        let id = LgtAppInfo::parse(files.get("app_info")?).aid;
+        (!id.is_empty()).then_some(id)
+    }
+
+    pub fn archive_icon(files: &BTreeMap<String, Vec<u8>>) -> Option<Vec<u8>> {
+        files.get("big.png").cloned()
     }
 
     pub fn loadable_jar(jar: &[u8]) -> bool {
@@ -163,6 +185,7 @@ impl Emulator for LgtEmulator {
 
 // almost similar to KtfAdf.. can we merge these?
 struct LgtAppInfo {
+    name: String,
     aid: String,
     pid: String,
     mclass: String,
@@ -170,6 +193,7 @@ struct LgtAppInfo {
 
 impl LgtAppInfo {
     pub fn parse(data: &[u8]) -> Self {
+        let mut name = String::new();
         let mut aid = String::new();
         let mut pid = String::new();
         let mut mclass = String::new();
@@ -177,16 +201,33 @@ impl LgtAppInfo {
         let mut lines = data.split(|x| *x == b'\n');
 
         for line in &mut lines {
-            if line.starts_with(b"AID:") {
+            if line.starts_with(b"Name:") {
+                name = EUC_KR.decode(&line[5..]).0.trim().to_string();
+            } else if line.starts_with(b"AID:") {
                 aid = String::from_utf8_lossy(&line[4..]).into();
             } else if line.starts_with(b"PID:") {
                 pid = String::from_utf8_lossy(&line[4..]).into();
             } else if line.starts_with(b"MClass:") {
                 mclass = String::from_utf8_lossy(&line[7..]).into();
             }
-            // TODO load name, it's in euc-kr..
         }
 
-        Self { aid, pid, mclass }
+        Self { name, aid, pid, mclass }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LgtAppInfo;
+
+    #[test]
+    fn parse_app_info_name() {
+        let app_info =
+            LgtAppInfo::parse(b"PID:pid\nAID:aid\nName:\xbf\xb5\xbf\xf5\xbc\xad\xb1\xe24-\xc8\xaf\xbf\xb5\xc0\xc7\xb0\xa1\xb8\xe9\nMClass:Clet\n");
+
+        assert_eq!(app_info.name, "영웅서기4-환영의가면");
+        assert_eq!(app_info.aid, "aid");
+        assert_eq!(app_info.pid, "pid");
+        assert_eq!(app_info.mclass, "Clet");
     }
 }

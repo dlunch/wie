@@ -1,16 +1,18 @@
 mod lbmp;
+mod res;
 
 use alloc::{borrow::Cow, boxed::Box, string::ToString, vec, vec::Vec};
 use core::mem::size_of;
 
 use ab_glyph::{Font, FontRef, ScaleFont};
 use bytemuck::{Pod, cast_slice, pod_collect_to_vec};
-use image::ImageReader;
+use image::{ExtendedColorType, ImageEncoder, ImageReader, codecs::png::PngEncoder};
 use num_traits::{Num, Zero};
 
 use wie_util::{Result, WieError};
 
 use self::lbmp::decode_lbmp;
+pub use self::res::decode_res;
 
 lazy_static::lazy_static! {
     static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../../fonts/neodgm.ttf")).unwrap();
@@ -907,6 +909,22 @@ pub fn decode_image(data: &[u8]) -> Result<Box<dyn Image>> {
         rgba.height(),
         pod_collect_to_vec(&data),
     )) as Box<_>)
+}
+
+pub fn encode_png(image: &dyn Image) -> Result<Vec<u8>> {
+    extern crate std;
+
+    let rgba = image
+        .colors()
+        .into_iter()
+        .flat_map(|color| [color.r, color.g, color.b, color.a])
+        .collect::<Vec<_>>();
+    let mut encoded = Vec::new();
+    PngEncoder::new(&mut encoded)
+        .write_image(&rgba, image.width(), image.height(), ExtendedColorType::Rgba8)
+        .map_err(|x| WieError::FatalError(x.to_string()))?;
+
+    Ok(encoded)
 }
 
 pub fn string_width(string: &str, pt_size: f32) -> f32 {

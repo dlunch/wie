@@ -90,7 +90,7 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
         test: /\.(ico|png|jp?g|webp|svg)$/,
         type: "asset/resource",
         generator: {
-          filename: "assets/img/",
+          filename: "assets/img/[name][ext]",
         },
       },
     ],
