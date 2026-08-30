@@ -1,10 +1,3 @@
-[package]
-name = "wie"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-exclude = ["docs"]
-
 [workspace]
 resolver = "2"
 
@@ -39,6 +32,8 @@ lto = true
 version = "0.0.1"
 edition = "2024"
 license = "MIT"
+description = "WIPI and J2ME emulator components"
+repository = "https://github.com/dlunch/wie"
 
 [workspace.dependencies]
 anyhow = { version = "^1.0" }
@@ -80,6 +75,15 @@ wie-wipi-java = { path = "wie-wipi-java" }
 futures-test = { version = "^0.3" }
 
 test-utils = { path = "test-utils" }
+
+[package]
+name = "wie"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WIPI and J2ME emulator"
+repository.workspace = true
+exclude = ["docs"]
 
 [dependencies]
 async-trait = { workspace = true }

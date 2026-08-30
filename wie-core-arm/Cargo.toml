@@ -3,6 +3,8 @@ name = "wie-core-arm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description.workspace = true
+repository.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
@@ -13,7 +15,7 @@ spin = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 
-arm32_cpu = { git = "https://github.com/dlunch/arm32_cpu.git" }
+arm32_cpu = { version = "^0.1.0" }
 
 wie-backend = { workspace = true }
 wie-util = { workspace = true }

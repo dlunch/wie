@@ -3,6 +3,8 @@ name = "wie-wipi-java"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description.workspace = true
+repository.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
