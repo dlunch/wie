@@ -1,12 +1,12 @@
 use alloc::vec;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::{
+use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::{
     io::{FileDescriptor, InputStream, OutputStream, RandomAccessFile},
     lang::String,
 };
-use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -640,8 +640,8 @@ impl XFile {
 mod tests {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::lang::String;
     use jvm::{Array, ClassInstanceRef, JavaError, Result as JvmResult, runtime::JavaLangString};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
 
     use super::{FILE_JAR, READ_RESOURCE, XFile};

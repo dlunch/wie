@@ -1,8 +1,8 @@
 use alloc::{format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
-use java_constants::FieldAccessFlags;
 use jvm::Field;
+use jvm_types::FieldAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassField as RawJavaField;
 
 use wie_core_arm::{Allocator, ArmCore};

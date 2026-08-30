@@ -1,11 +1,11 @@
 use alloc::{boxed::Box, format, string::String, string::ToString, vec::Vec};
 use core::mem::size_of;
 
-use java_runtime::classes::java::util::Vector;
 use jvm::{
     ClassDefinition, ClassInstance, ClassInstanceRef, JavaError, JavaType, Jvm,
     runtime::{JavaLangClass, JavaLangClassLoader, JavaLangString},
 };
+use rustjava_runtime::classes::java::util::Vector;
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
 
 use wie_core_arm::{ArmCore, EmulatedFunction, JumpTo, ResultWriter, SvcId};

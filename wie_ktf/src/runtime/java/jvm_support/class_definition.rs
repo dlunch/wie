@@ -5,9 +5,9 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use java_class_proto::JavaClassProto;
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm_class_proto::JavaClassProto;
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::{Allocator, ArmCore};

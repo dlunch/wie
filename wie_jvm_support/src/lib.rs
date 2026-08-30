@@ -8,8 +8,8 @@ mod runtime;
 
 use alloc::{boxed::Box, format, string::ToString};
 
-use java_runtime::Runtime;
 use jvm::{JavaError, Jvm, runtime::JavaLangString};
+use rustjava_runtime::Runtime;
 
 use wie_backend::System;
 use wie_util::{Result, WieError};
@@ -55,7 +55,7 @@ impl JvmSupport {
         .copied()
         .collect();
         let jvm = Jvm::new(
-            java_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
+            rustjava_runtime::get_bootstrap_class_loader(Box::new(runtime.clone())),
             move || runtime.current_task_id(),
             properties,
         )

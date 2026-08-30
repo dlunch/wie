@@ -5,7 +5,7 @@ use core::{
     iter,
     mem::size_of,
 };
-use java_constants::FieldAccessFlags;
+use jvm_types::FieldAccessFlags;
 
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
 use wipi_types::ktf::java::JavaClassInstance as RawJavaClassInstance;

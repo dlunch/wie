@@ -10,7 +10,7 @@ bytemuck = { workspace = true }
 encoding_rs = { workspace = true }
 tracing = { workspace = true }
 
-wipi_types = { workspace = true }
+wipi-types = { workspace = true }
 
 wie_util = { workspace = true }
 wie_backend = { workspace = true }

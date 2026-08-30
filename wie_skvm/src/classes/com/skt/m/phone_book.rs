@@ -1,9 +1,9 @@
 use alloc::vec;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -135,8 +135,8 @@ impl PhoneBook {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::lang::String;
     use jvm::{Array, ClassInstanceRef};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
 
     use crate::get_protos;

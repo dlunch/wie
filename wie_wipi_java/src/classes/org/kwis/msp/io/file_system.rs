@@ -1,9 +1,9 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
-use java_constants::{ClassAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::{io::File as JavaFile, lang::String, util::Vector};
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::JavaMethodProto;
+use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::{io::File as JavaFile, lang::String, util::Vector};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -299,8 +299,8 @@ impl FileSystem {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::{lang::String, util::Vector};
     use jvm::{Array, ClassInstanceRef, runtime::JavaLangString};
+    use rustjava_runtime::classes::java::{lang::String, util::Vector};
     use test_utils::run_jvm_test;
     use wie_util::Result;
 

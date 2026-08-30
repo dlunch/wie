@@ -2,9 +2,9 @@ use alloc::vec;
 
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult};
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::lang::String;
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::{Font as MidpFont, Graphics as MidpGraphics, Image as MidpImage};
@@ -913,8 +913,8 @@ impl Graphics {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::lang::String;
     use jvm::ClassInstanceRef;
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
     use wie_midp::classes::javax::microedition::lcdui::Image as MidpImage;
     use wie_util::Result;

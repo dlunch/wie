@@ -1,8 +1,8 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::ToString, sync::Arc};
 use core::{ops::Deref, ops::DerefMut, pin::Pin};
 
-use java_class_proto::JavaClassProto;
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
+use jvm_class_proto::JavaClassProto;
 use spin::Mutex;
 
 use wie_core_arm::ArmCore;

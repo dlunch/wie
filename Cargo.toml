@@ -44,19 +44,18 @@ clap = { version = "^4.6", features = ["derive"] }
 dyn-clone = { version = "^1.0", default-features = false }
 encoding_rs = { version = "^0.8", default-features = false, features = ["alloc"] }
 futures = { version = "^0.3", default-features = false, features = ["alloc"] }
+jvm = { version = "^0.1.1" }
+jvm-bytecode = { version = "^0.1.1" }
+jvm-class-proto = { version = "^0.1.1" }
+jvm-types = { version = "^0.1.1" }
 lazy_static = { version = "^1.5", default-features = false }
 md5 = { version = "^0.8", default-features = false }
+rustjava-runtime = { version = "^0.1.1" }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
 spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-features = false }
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
-
-java_class_proto = { git = "https://github.com/dlunch/RustJava.git" }
-java_constants = { git = "https://github.com/dlunch/RustJava.git" }
-java_runtime = { git = "https://github.com/dlunch/RustJava.git" }
-jvm = { git = "https://github.com/dlunch/RustJava.git" }
-jvm_rust = { git = "https://github.com/dlunch/RustJava.git" }
-wipi_types = { git = "https://github.com/dlunch/wipi.git" }
+wipi-types = { version = "^0.0.1" }
 
 wie_backend = { path = "wie_backend" }
 wie_j2me = { path = "wie_j2me" }

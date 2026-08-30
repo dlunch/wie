@@ -14,11 +14,11 @@ futures = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 
-java_class_proto = { workspace = true }
-java_constants = { workspace = true }
-java_runtime = { workspace = true }
 jvm = { workspace = true }
-wipi_types = { workspace = true, features = ["ktf"] }
+jvm-class-proto = { workspace = true }
+jvm-types = { workspace = true }
+rustjava-runtime = { workspace = true }
+wipi-types = { workspace = true, features = ["ktf"] }
 
 wie_backend = { workspace = true }
 wie_util = { workspace = true }

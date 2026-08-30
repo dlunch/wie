@@ -1,9 +1,9 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
-use java_constants::{ClassAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::JavaMethodProto;
+use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -108,8 +108,8 @@ impl AudioSystem {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::lang::String;
     use jvm::{ClassInstanceRef, JavaError, Result as JvmResult};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
 
     use crate::{classes::com::skt::m::AudioClip, get_protos};

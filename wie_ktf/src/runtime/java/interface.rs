@@ -7,8 +7,8 @@ use alloc::{
 };
 use core::mem::size_of;
 
-use java_runtime::classes::java::util::Vector;
 use jvm::{ClassInstanceRef, Jvm, runtime::JavaLangString};
+use rustjava_runtime::classes::java::util::Vector;
 use wipi_types::ktf::java::WIPIJBInterface;
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};

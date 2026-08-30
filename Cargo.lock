@@ -647,10 +647,11 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "classfile"
-version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ba5797b8eb4cf376fdd63129903d319d1d7acf98"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8901eba24ed18680f5b8101c2cc52f9a23a491dca82fe42c601876d755070de"
 dependencies = [
- "java_constants",
+ "jvm-types",
  "nom 8.0.0",
 ]
 
@@ -2317,48 +2318,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "java_class_proto"
-version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ba5797b8eb4cf376fdd63129903d319d1d7acf98"
-dependencies = [
- "async-trait",
- "dyn-clone",
- "java_constants",
- "jvm",
-]
-
-[[package]]
-name = "java_constants"
-version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ba5797b8eb4cf376fdd63129903d319d1d7acf98"
-dependencies = [
- "bitflags 2.13.1",
-]
-
-[[package]]
-name = "java_runtime"
-version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ba5797b8eb4cf376fdd63129903d319d1d7acf98"
-dependencies = [
- "async-trait",
- "bytemuck",
- "chrono",
- "dyn-clone",
- "encoding_rs",
- "hashbrown 0.17.1",
- "java_class_proto",
- "java_constants",
- "jvm",
- "libm",
- "parking_lot",
- "regex",
- "tracing",
- "tracing-attributes",
- "url",
- "zip",
-]
-
-[[package]]
 name = "javascriptcore-rs"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2513,8 +2472,9 @@ dependencies = [
 
 [[package]]
 name = "jvm"
-version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ba5797b8eb4cf376fdd63129903d319d1d7acf98"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "556c40b20363ed43473a92f24053b1fde770fae31a06bf187e55b2ae4f5ac443"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2524,27 +2484,49 @@ dependencies = [
  "dyn-hash",
  "event-listener",
  "hashbrown 0.17.1",
- "java_constants",
+ "jvm-types",
  "nom 8.0.0",
  "parking_lot",
  "tracing",
 ]
 
 [[package]]
-name = "jvm_rust"
-version = "0.0.1"
-source = "git+https://github.com/dlunch/RustJava.git#ba5797b8eb4cf376fdd63129903d319d1d7acf98"
+name = "jvm-bytecode"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0b9b290405f4f92152234a31c3d890a530ef418b33a6c548ec660bb1007f31f"
 dependencies = [
  "async-recursion",
  "async-trait",
  "bytemuck",
  "classfile",
  "dyn-clone",
- "java_class_proto",
- "java_constants",
  "jvm",
+ "jvm-class-proto",
+ "jvm-types",
  "parking_lot",
  "tracing",
+]
+
+[[package]]
+name = "jvm-class-proto"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14161835cba49b6c6f86919da80d0fe4998ee8c2e05b20c460fccfbf511d83d4"
+dependencies = [
+ "async-trait",
+ "dyn-clone",
+ "jvm",
+ "jvm-types",
+]
+
+[[package]]
+name = "jvm-types"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c83926d26fd8bef57b873bceacad9d83f9566e4033ef9a939587acaf7f8cdeeb"
+dependencies = [
+ "bitflags 2.13.1",
 ]
 
 [[package]]
@@ -4031,6 +4013,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustjava-runtime"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7970d8bf4d27c4c0239d9e99472c0b18bb92901d54ae8310c2e8aa75cea7058"
+dependencies = [
+ "async-trait",
+ "bytemuck",
+ "chrono",
+ "dyn-clone",
+ "encoding_rs",
+ "hashbrown 0.17.1",
+ "jvm",
+ "jvm-class-proto",
+ "jvm-types",
+ "libm",
+ "parking_lot",
+ "regex",
+ "tracing",
+ "tracing-attributes",
+ "url",
+ "zip",
+]
+
+[[package]]
 name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4370,8 +4376,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "smaf"
-version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#8009d78512fd121609a841f31aa527bf2a4af456"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72e5d7afe0fc44f5eda077e8419fb8856401ebdfb8e908991bff57cfc6a654a1"
 dependencies = [
  "anyhow",
  "nom 7.1.3",
@@ -4379,9 +4386,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "smaf_player"
-version = "0.1.0"
-source = "git+https://github.com/dlunch/smaf.git#8009d78512fd121609a841f31aa527bf2a4af456"
+name = "smaf-player"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "161bce0729a06bc68e2a3fa342811590f4bfd5875bcd00662013b592f97e6246"
 dependencies = [
  "smaf",
 ]
@@ -5088,10 +5096,10 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "hashbrown 0.17.1",
- "java_class_proto",
- "java_runtime",
  "jvm",
- "jvm_rust",
+ "jvm-bytecode",
+ "jvm-class-proto",
+ "rustjava-runtime",
  "spin",
  "tracing",
  "wie_backend",
@@ -6065,7 +6073,7 @@ dependencies = [
  "lazy_static",
  "num-traits",
  "smaf",
- "smaf_player",
+ "smaf-player",
  "spin",
  "tracing",
  "wie_util",
@@ -6141,10 +6149,10 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "futures-test",
- "java_class_proto",
- "java_runtime",
  "jvm",
- "jvm_rust",
+ "jvm-bytecode",
+ "jvm-class-proto",
+ "rustjava-runtime",
  "spin",
  "test_utils",
  "tracing",
@@ -6162,10 +6170,10 @@ dependencies = [
  "bytemuck",
  "encoding_rs",
  "futures",
- "java_class_proto",
- "java_constants",
- "java_runtime",
  "jvm",
+ "jvm-class-proto",
+ "jvm-types",
+ "rustjava-runtime",
  "spin",
  "test_utils",
  "tracing",
@@ -6176,7 +6184,7 @@ dependencies = [
  "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
- "wipi_types",
+ "wipi-types",
 ]
 
 [[package]]
@@ -6199,11 +6207,11 @@ dependencies = [
  "elf",
  "encoding_rs",
  "futures",
- "java_class_proto",
- "java_constants",
- "java_runtime",
  "jvm",
+ "jvm-class-proto",
+ "jvm-types",
  "lazy_static",
+ "rustjava-runtime",
  "serde",
  "spin",
  "test_utils",
@@ -6216,7 +6224,7 @@ dependencies = [
  "wie_util",
  "wie_wipi_c",
  "wie_wipi_java",
- "wipi_types",
+ "wipi-types",
 ]
 
 [[package]]
@@ -6228,11 +6236,11 @@ dependencies = [
  "bytemuck",
  "dyn-clone",
  "futures",
- "java_class_proto",
- "java_constants",
- "java_runtime",
  "jvm",
- "jvm_rust",
+ "jvm-bytecode",
+ "jvm-class-proto",
+ "jvm-types",
+ "rustjava-runtime",
  "test_utils",
  "tracing",
  "wie_backend",
@@ -6265,11 +6273,11 @@ dependencies = [
  "bitflags 2.13.1",
  "bytemuck",
  "dyn-clone",
- "java_class_proto",
- "java_constants",
- "java_runtime",
  "jvm",
- "jvm_rust",
+ "jvm-bytecode",
+ "jvm-class-proto",
+ "jvm-types",
+ "rustjava-runtime",
  "test_utils",
  "tracing",
  "wie_backend",
@@ -6323,7 +6331,7 @@ dependencies = [
  "tracing",
  "wie_backend",
  "wie_util",
- "wipi_types",
+ "wipi-types",
 ]
 
 [[package]]
@@ -6333,11 +6341,11 @@ dependencies = [
  "async-trait",
  "bitflags 2.13.1",
  "bytemuck",
- "java_class_proto",
- "java_constants",
- "java_runtime",
  "jvm",
- "jvm_rust",
+ "jvm-bytecode",
+ "jvm-class-proto",
+ "jvm-types",
+ "rustjava-runtime",
  "test_utils",
  "tracing",
  "wie_backend",
@@ -6844,9 +6852,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "wipi_types"
+name = "wipi-types"
 version = "0.0.1"
-source = "git+https://github.com/dlunch/wipi.git#4e3d8d3366aa0993f7c6667d3c6b0f4770c8f5ae"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ae8e36c0e344c9687be257c923352fe2de3d160b828f2e622d404d155bc8de0"
 dependencies = [
  "bytemuck",
  "cfg-if",

@@ -1,9 +1,9 @@
 use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
-use java_class_proto::JavaMethodProto;
-use java_constants::MethodAccessFlags;
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm_class_proto::JavaMethodProto;
+use jvm_types::MethodAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassMethod as RawJavaMethod;
 
 use wie_core_arm::{
@@ -256,9 +256,9 @@ mod tests {
         sync::atomic::{AtomicBool, Ordering},
     };
 
-    use java_class_proto::{JavaClassProto, JavaMethodProto};
-    use java_constants::{ClassAccessFlags, MethodAccessFlags};
     use jvm::{JavaError, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
+    use jvm_class_proto::{JavaClassProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
     use spin::Mutex;
 
     use test_utils::TestPlatform;

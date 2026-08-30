@@ -16,8 +16,8 @@ use jvm_implementation::KtfJvmImplementation;
 
 use bytemuck::{Pod, Zeroable};
 
-use java_runtime::classes::java::util::{Enumeration, jar::JarEntry};
 use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use rustjava_runtime::classes::java::util::{Enumeration, jar::JarEntry};
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
@@ -249,8 +249,8 @@ mod test {
     };
 
     use bytemuck::Zeroable;
-    use java_constants::ClassAccessFlags;
     use jvm::{ClassInstanceRef, Jvm, runtime::JavaLangString};
+    use jvm_types::ClassAccessFlags;
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};

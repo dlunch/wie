@@ -4,9 +4,9 @@ use bytemuck::cast_vec;
 
 use jvm::{Array, ClassInstanceRef, JavaChar, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::lang::String;
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto, TypeConverter};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_backend::canvas::{ArgbPixel, Canvas as BackendCanvas, Clip, PixelType, Rgb8Pixel, TextAlignment, VecImageBuffer};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};

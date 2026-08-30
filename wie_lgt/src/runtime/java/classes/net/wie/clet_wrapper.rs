@@ -1,10 +1,10 @@
 use alloc::{string::ToString, vec};
 
 use futures::TryFutureExt;
-use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_midp::classes::javax::microedition::lcdui::Display as MidpDisplay;
 use wie_wipi_java::classes::org::kwis::msp::lcdui::Display;

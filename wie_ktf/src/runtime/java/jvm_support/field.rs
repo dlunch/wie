@@ -4,9 +4,9 @@ use core::{
     mem::size_of,
 };
 
-use java_class_proto::JavaFieldProto;
-use java_constants::FieldAccessFlags;
 use jvm::Field;
+use jvm_class_proto::JavaFieldProto;
+use jvm_types::FieldAccessFlags;
 use wipi_types::ktf::java::JavaFieldDefinition as RawJavaField;
 
 use wie_core_arm::{Allocator, ArmCore};

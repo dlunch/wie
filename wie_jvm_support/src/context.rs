@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 
-use java_class_proto::{JavaClassProto, MethodBody};
 use jvm::{JavaError, Jvm, Result as JvmResult};
+use jvm_class_proto::{JavaClassProto, MethodBody};
 
 use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;

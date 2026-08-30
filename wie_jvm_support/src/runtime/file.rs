@@ -3,7 +3,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 use wie_backend::System;
 
-use java_runtime::{File, FileOpenOptions, FileSize, FileStat, FileType, IOError, IOResult};
+use rustjava_runtime::{File, FileOpenOptions, FileSize, FileStat, FileType, IOError, IOResult};
 
 #[derive(Clone)]
 pub struct FileImpl {
@@ -114,7 +114,7 @@ impl File for FileImpl {
 mod tests {
     use alloc::{boxed::Box, vec};
 
-    use java_runtime::{File, FileOpenOptions, FileType, IOError};
+    use rustjava_runtime::{File, FileOpenOptions, FileType, IOError};
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
 

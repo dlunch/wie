@@ -10,10 +10,10 @@ bytemuck = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 
-java_class_proto = { workspace = true }
-java_runtime = { workspace = true }
 jvm = { workspace = true }
-jvm_rust = { workspace = true }
+jvm-bytecode = { workspace = true }
+jvm-class-proto = { workspace = true }
+rustjava-runtime = { workspace = true }
 
 wie_backend = { workspace = true }
 wie_util = { workspace = true }

@@ -1,9 +1,9 @@
 use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{fmt, fmt::Debug, fmt::Formatter, mem::offset_of, mem::size_of, ops::Deref, ops::DerefMut};
 
-use java_class_proto::JavaClassProto;
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
+use jvm_class_proto::JavaClassProto;
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use wipi_types::lgt::java::{
     LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
     LgtJavaClassField as RawJavaField, LgtJavaClassFieldStorage as RawJavaClassFieldStorage, LgtJavaClassInstance as RawJavaClassInstance,

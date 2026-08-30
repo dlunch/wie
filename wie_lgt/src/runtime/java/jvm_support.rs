@@ -281,10 +281,10 @@ mod tests {
         sync::atomic::{AtomicBool, Ordering},
     };
 
-    use java_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
-    use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-    use java_runtime::classes::java::lang::String;
     use jvm::{Array, ClassDefinition, ClassInstance, ClassInstanceRef, JavaValue, Jvm, Method, Result as JvmResult, runtime::JavaLangString};
+    use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use rustjava_runtime::classes::java::lang::String;
     use wipi_types::lgt::java::{
         LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME, LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor,
         LgtJavaClassField as RawJavaField, LgtJavaClassInstance as RawJavaClassInstance, LgtJavaClassMethod as RawJavaMethod,

@@ -1,8 +1,8 @@
 use alloc::{format, string::String, vec::Vec};
 use core::mem::size_of;
 
-use java_constants::MethodAccessFlags;
 use jvm::{ClassDefinition, Jvm, Method};
+use jvm_types::MethodAccessFlags;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{Result, WieError, read_generic, write_generic};

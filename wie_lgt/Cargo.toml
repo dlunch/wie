@@ -18,11 +18,11 @@ tracing = { workspace = true }
 chrono = { version = "^0.4", default-features = false, features = ["alloc"] }
 elf = { version = "^0.8" }
 
-java_class_proto = { workspace = true }
-java_constants = { workspace = true }
-java_runtime = { workspace = true }
 jvm = { workspace = true }
-wipi_types = { workspace = true, features = ["lgt"] }
+jvm-class-proto = { workspace = true }
+jvm-types = { workspace = true }
+rustjava-runtime = { workspace = true }
+wipi-types = { workspace = true, features = ["lgt"] }
 
 wie_backend = { workspace = true }
 wie_core_arm = { workspace = true }

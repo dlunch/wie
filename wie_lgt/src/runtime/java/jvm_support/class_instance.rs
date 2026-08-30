@@ -5,8 +5,8 @@ use core::{
     mem::size_of,
 };
 
-use java_constants::FieldAccessFlags;
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
+use jvm_types::FieldAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassInstance as RawJavaClassInstance;
 
 use wie_core_arm::{Allocator, ArmCore};

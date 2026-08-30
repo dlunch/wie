@@ -1,8 +1,8 @@
 use alloc::vec;
 
-use java_class_proto::JavaMethodProto;
-use java_constants::{ClassAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::JavaMethodProto;
+use jvm_types::{ClassAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -129,8 +129,8 @@ impl Player {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::lang::String;
     use jvm::{ClassInstanceRef, runtime::JavaLangString};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 

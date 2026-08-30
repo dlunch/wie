@@ -3,12 +3,12 @@ use core::time::Duration;
 
 use spin::Mutex;
 
-use java_runtime::{
+use jvm::{ClassDefinition, Jvm, Result as JvmResult};
+use jvm_bytecode::{ClassDefinitionError, ClassDefinitionImpl};
+use rustjava_runtime::{
     File, FileDescriptorId, FileOpenOptions, FileSize, FileStat, FileType, IOError, IOResult, RT_RUSTJAR, Runtime, SpawnCallback,
     get_runtime_class_proto,
 };
-use jvm::{ClassDefinition, Jvm, Result as JvmResult};
-use jvm_rust::{ClassDefinitionError, ClassDefinitionImpl};
 
 use wie_backend::{AsyncCallable, System};
 use wie_util::WieError;

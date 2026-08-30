@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use java_constants::ClassAccessFlags;
+use jvm_types::ClassAccessFlags;
 use wie_jvm_support::WieJavaClassProto;
 
 // interface org.kwis.msp.media.PlayListener

@@ -2,10 +2,10 @@ use alloc::vec;
 
 use bytemuck::cast_vec;
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use java_runtime::classes::java::lang::String;
 use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaIoInputStream};
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::media::Player;
@@ -226,8 +226,8 @@ impl Clip {
 mod test {
     use alloc::boxed::Box;
 
-    use java_runtime::classes::java::lang::String;
     use jvm::{ClassInstanceRef, runtime::JavaLangString};
+    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 

@@ -1,8 +1,8 @@
 use alloc::{format, vec};
 
-use java_class_proto::{JavaFieldProto, JavaMethodProto};
-use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 use wie_midp::classes::javax::microedition::lcdui::Canvas;
@@ -411,9 +411,9 @@ impl Card {
 mod test {
     use alloc::{boxed::Box, vec, vec::Vec};
 
-    use java_class_proto::{JavaFieldProto, JavaMethodProto};
-    use java_constants::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+    use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
     use test_utils::run_jvm_test;
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
     use wie_midp::classes::javax::microedition::lcdui::{Display as MidpDisplay, Graphics as MidpGraphics, Image as MidpImage};

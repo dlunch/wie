@@ -5,9 +5,9 @@ use core::{
     pin::Pin,
 };
 
-use java_class_proto::JavaClassProto;
 use jvm::{ClassDefinition, Jvm, Result as JvmResult};
-use jvm_rust::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
+use jvm_bytecode::{ArrayClassDefinitionImpl, ClassDefinitionImpl};
+use jvm_class_proto::JavaClassProto;
 
 pub trait JvmImplementation: Clone {
     #[allow(clippy::type_complexity)]
