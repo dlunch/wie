@@ -1,0 +1,12 @@
+[package]
+name = "wie-ktf-dump"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true, features = ["executor"] }
+
+wie-ktf = { path = "../wie-ktf" }

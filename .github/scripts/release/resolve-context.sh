@@ -8,7 +8,7 @@ previous_tag=
 if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
   channel=nightly
   release_tag="nightly-${target_sha:0:12}"
-  base_version=$(jq -r '.version' wie_app/tauri.conf.json)
+  base_version=$(jq -r '.version' wie-app/tauri.conf.json)
   # MSI prerelease identifiers must be numeric and at most 65535; epoch days keep nightly versions monotonic.
   app_version="${base_version}-$(($(date -u +%s) / 86400))"
   asset_identity=nightly

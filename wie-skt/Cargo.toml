@@ -1,0 +1,20 @@
+[package]
+name = "wie-skt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+bytemuck = { workspace = true }
+encoding_rs = { workspace = true }
+tracing = { workspace = true }
+
+wie-backend = { workspace = true }
+wie-jvm-support = { workspace = true }
+wie-midp = { workspace = true }
+wie-skvm = { workspace = true }
+wie-util = { workspace = true }
+wie-wipi-java = { workspace = true }
+
+jvm = { workspace = true }

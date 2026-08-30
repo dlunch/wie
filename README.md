@@ -11,7 +11,7 @@ This project is dedicated to digital preservation and educational research. Our 
 
 ## Frontend
 
-The web and Android/iOS frontends are maintained in this repository under `wie_web` and `wie_app`.
+The web and Android/iOS frontends are maintained in this repository under `wie-web` and `wie-app`.
 
 ```bash
 npm install

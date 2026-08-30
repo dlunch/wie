@@ -52,7 +52,7 @@ jobs:
 
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all -- -D warnings
-      - run: cargo clippy --target wasm32-unknown-unknown --workspace --exclude wie_app -- -D warnings
+      - run: cargo clippy --target wasm32-unknown-unknown --workspace --exclude wie-app -- -D warnings
       - run: cargo test --all
 
       - name: Save cache cargo

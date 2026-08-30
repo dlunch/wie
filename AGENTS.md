@@ -1,9 +1,9 @@
 # AGENTS.md
 
 ## Build/Test/Lint Commands
-- **Build**: `cargo build` (default member: `wie_cli`)
+- **Build**: `cargo build` (default member: `wie`)
 - **Test all**: `cargo test --workspace`
-- **Test single**: `cargo test -p wie_ktf test_helloworld` or `cargo test -p <crate> <test_name>`
+- **Test single**: `cargo test -p wie-ktf test_helloworld` or `cargo test -p <crate> <test_name>`
 - **Lint**: `cargo clippy --workspace`
 - **Format**: `cargo fmt` (uses rustfmt.toml: max_width=150, use_field_init_shorthand=true)
 - **Web install**: `npm install`
@@ -27,11 +27,11 @@
 - Do not add special-case branches keyed to a specific application or Java class in shared runtime infrastructure. Represent confirmed ABI differences as data and handle them through generic mechanisms.
 
 ## Project Layout
-- `wie_backend`: System-level services for APIs
-- `wie_cli`: CLI for local testing
-- `wie_core_arm`: ARM emulation
-- `wie_jvm_support`: JVM support
-- `wie_midp`, `wie_wipi_*`, `wie_skvm`: API implementations
-- `wie_j2me`, `wie_skt`, `wie_ktf`, `wie_lgt`: Platform-specific logic
-- `wie_web`: Rust/WebAssembly and TypeScript web frontend
-- `wie_app`: Desktop and mobile Tauri frontend
+- `wie-backend`: System-level services for APIs
+- `wie`: CLI for local testing
+- `wie-core-arm`: ARM emulation
+- `wie-jvm-support`: JVM support
+- `wie-midp`, `wie-wipi-*`, `wie-skvm`: API implementations
+- `wie-j2me`, `wie-skt`, `wie-ktf`, `wie-lgt`: Platform-specific logic
+- `wie-web`: Rust/WebAssembly and TypeScript web frontend
+- `wie-app`: Desktop and mobile Tauri frontend

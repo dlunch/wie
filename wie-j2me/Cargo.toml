@@ -1,0 +1,17 @@
+[package]
+name = "wie-j2me"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+bytemuck = { workspace = true }
+tracing = { workspace = true }
+
+jvm = { workspace = true }
+
+wie-backend = { workspace = true }
+wie-jvm-support = { workspace = true }
+wie-midp = { workspace = true }
+wie-util = { workspace = true }

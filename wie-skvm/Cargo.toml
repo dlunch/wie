@@ -1,0 +1,26 @@
+[package]
+name = "wie-skvm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+bitflags = { workspace = true }
+bytemuck = { workspace = true }
+dyn-clone = { workspace = true }
+tracing = { workspace = true }
+
+jvm = { workspace = true }
+jvm-class-proto = { workspace = true }
+jvm-types = { workspace = true }
+rustjava-runtime = { workspace = true }
+
+wie-backend = { workspace = true }
+wie-jvm-support = { workspace = true }
+wie-midp = { workspace = true }
+
+[dev-dependencies]
+jvm-bytecode = { workspace = true }
+
+test-utils = { workspace = true }

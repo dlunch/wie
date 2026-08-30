@@ -1,12 +1,12 @@
 {
-  "name": "wie_web",
+  "name": "wie-web",
   "version": "0.1.0",
   "description": "",
   "type": "module",
   "scripts": {
-    "build:dev": "webpack --config wie_web/webpack.config.dev.ts",
-    "build:prod": "webpack --config wie_web/webpack.config.prod.ts",
-    "start": "webpack serve --config wie_web/webpack.config.dev.ts"
+    "build:dev": "webpack --config wie-web/webpack.config.dev.ts",
+    "build:prod": "webpack --config wie-web/webpack.config.prod.ts",
+    "start": "webpack serve --config wie-web/webpack.config.dev.ts"
   },
   "author": "",
   "dependencies": {

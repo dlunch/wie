@@ -9,15 +9,15 @@ The repository is organized around three layers:
 1. **Host layer**
    - owns the window, audio output, filesystem access, clock, stdout/stderr, and app database
    - abstracted through the `wie_backend::Platform` trait
-   - consumed by a private web frontend in the main product, and by `wie_cli` for local development
+   - consumed by a private web frontend in the main product, and by `wie` for local development
 2. **Runtime layer**
    - owns task scheduling, event delivery, audio playback scheduling, and platform-neutral services used by emulated apps
-   - represented primarily by `wie_backend`
+   - represented primarily by `wie-backend`
 3. **Execution layer**
    - runs platform-specific app code
-   - split between the Java runtime (`wie_jvm_support`) and the ARM emulator (`wie_core_arm`)
+   - split between the Java runtime (`wie-jvm-support`) and the ARM emulator (`wie-core-arm`)
 
-Platform crates such as `wie_ktf`, `wie_lgt`, `wie_skt`, and `wie_j2me` sit on top of those layers and choose which execution model to use.
+Platform crates such as `wie-ktf`, `wie-lgt`, `wie-skt`, and `wie-j2me` sit on top of those layers and choose which execution model to use.
 
 ## Why Most Crates Are `no_std`
 
@@ -29,26 +29,26 @@ This supports a few goals:
 - forcing platform interaction to go through explicit abstractions such as `Platform`, `System`, and the ARM/JVM bridges
 - making the host-specific layer narrow, so desktop CLI and the private web frontend can share the same emulator core
 
-In practice, host-facing crates such as `wie_cli` can use `std`, while the emulator core, runtime services, and platform implementations stay mostly `no_std` with `alloc`.
+In practice, host-facing crates such as `wie` can use `std`, while the emulator core, runtime services, and platform implementations stay mostly `no_std` with `alloc`.
 
 ## Startup Flow
 
-The repository includes `wie_cli` as a local development helper for driving the emulator from the desktop. The main user-facing frontend lives in a separate private web interface repository.
+The repository includes `wie` as a local development helper for driving the emulator from the desktop. The main user-facing frontend lives in a separate private web interface repository.
 
 In this repository, the observable startup flow is:
 
-1. `wie_cli` reads the input file and identifies the archive format.
+1. `wie` reads the input file and identifies the archive format.
 2. It constructs the matching platform emulator (`KtfEmulator`, `LgtEmulator`, `SktEmulator`, or `J2MEEmulator`).
 3. The selected emulator builds a `wie_backend::System`, injects the host `Platform`, and starts the platform-specific boot sequence.
 4. The main loop repeatedly calls `Emulator::tick()` and forwards host events into the emulator.
 
-This means `wie_cli` is mostly a development-oriented host adapter and format dispatcher; the real platform behavior lives in the platform crates, and the same backend abstractions are intended to be driven by the web frontend as well.
+This means `wie` is mostly a development-oriented host adapter and format dispatcher; the real platform behavior lives in the platform crates, and the same backend abstractions are intended to be driven by the web frontend as well.
 
 ## Core Crates
 
-### `wie_backend`
+### `wie-backend`
 
-`wie_backend` is the shared runtime used by all emulators.
+`wie-backend` is the shared runtime used by all emulators.
 
 It provides:
 - `System`, the central runtime object shared across tasks and platform code
@@ -64,9 +64,9 @@ For pure Java platforms such as SKT and J2ME, `DefaultTaskRunner` runs futures d
 
 These async tasks are not just a convenience abstraction. For ARM-backed platforms they model the original runtime's thread model. This is especially important for the wasm target, where native OS threads are not available, so historical ARM-thread behavior has to be represented in the cooperative async/task system instead.
 
-### `wie_core_arm`
+### `wie-core-arm`
 
-`wie_core_arm` is the ARM execution engine wrapper.
+`wie-core-arm` is the ARM execution engine wrapper.
 
 It is responsible for:
 - mapping and loading executable data into emulated memory
@@ -76,9 +76,9 @@ It is responsible for:
 
 This crate is the bridge that makes mixed Rust/ARM execution possible. Platform runtimes use it both to run native binaries and to expose host/runtime services back to native code as registered functions.
 
-### `wie_jvm_support`
+### `wie-jvm-support`
 
-`wie_jvm_support` builds and configures the Java runtime used by the project.
+`wie-jvm-support` builds and configures the Java runtime used by the project.
 
 It provides:
 - `JvmSupport::new_jvm()` for common JVM setup
@@ -89,22 +89,22 @@ There are two important JVM modes in the repository:
 - `RustJavaJvmImplementation`: loads normal Java classfiles and Rust-defined class prototypes
 - platform-specific implementations such as KTF's custom JVM path, where class and method metadata come from native binary structures instead of `.class` files
 
-### API crates: `wie_midp`, `wie_wipi_java`, `wie_wipi_c`, `wie_skvm`
+### API crates: `wie-midp`, `wie-wipi-java`, `wie-wipi-c`, `wie-skvm`
 
 These crates implement the API surfaces visible to emulated applications.
 
-- `wie_midp` provides MIDP classes such as LCDUI, RMS, media, and the launcher used by J2ME-style apps
-- `wie_wipi_java` provides Java-side WIPI classes, largely implemented on top of the MIDP layer from `wie_midp`
-- `wie_wipi_c` provides C-side WIPI method glue
-- `wie_skvm` provides SKVM-specific Java APIs
+- `wie-midp` provides MIDP classes such as LCDUI, RMS, media, and the launcher used by J2ME-style apps
+- `wie-wipi-java` provides Java-side WIPI classes, largely implemented on top of the MIDP layer from `wie-midp`
+- `wie-wipi-c` provides C-side WIPI method glue
+- `wie-skvm` provides SKVM-specific Java APIs
 
-They are mostly collections of Rust-defined Java class prototypes and method implementations that plug into the JVM created by `wie_jvm_support`.
+They are mostly collections of Rust-defined Java class prototypes and method implementations that plug into the JVM created by `wie-jvm-support`.
 
 ## Platform Execution Models
 
 ### Pure JVM platforms
 
-`wie_j2me` and `wie_skt` run entirely inside the Java runtime.
+`wie-j2me` and `wie-skt` run entirely inside the Java runtime.
 
 - no ARM core is created
 - the emulator creates a JVM with the needed API prototypes
@@ -112,7 +112,7 @@ They are mostly collections of Rust-defined Java class prototypes and method imp
 
 ### Mixed JVM + ARM platforms
 
-`wie_ktf` and `wie_lgt` use `ArmCore` in addition to the JVM.
+`wie-ktf` and `wie-lgt` use `ArmCore` in addition to the JVM.
 
 They both:
 - create an ARM core
@@ -131,7 +131,7 @@ The project relies heavily on callback registration.
 At the boundary:
 - Rust registers a function with `ArmCore`
 - ARM code receives the synthetic address of that function
-- when ARM execution reaches that address, `wie_core_arm` suspends normal ARM stepping and calls back into Rust
+- when ARM execution reaches that address, `wie-core-arm` suspends normal ARM stepping and calls back into Rust
 - Rust can then inspect emulated registers and memory, perform host-side work, and return values back into the ARM context
 
 This pattern is used for:
@@ -142,7 +142,7 @@ This pattern is used for:
 
 ## Async Model
 
-The emulator uses a small cooperative async runtime from `wie_backend` rather than Tokio or async-std.
+The emulator uses a small cooperative async runtime from `wie-backend` rather than Tokio or async-std.
 
 The important split is:
 - `Executor` owns task scheduling and sleeping

@@ -1,0 +1,23 @@
+[package]
+name = "wie-jvm-support"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+bytemuck = { workspace = true }
+spin = { workspace = true }
+tracing = { workspace = true }
+
+jvm = { workspace = true }
+jvm-bytecode = { workspace = true }
+jvm-class-proto = { workspace = true }
+rustjava-runtime = { workspace = true }
+
+wie-backend = { workspace = true }
+wie-util = { workspace = true }
+
+[dev-dependencies]
+futures-test = { workspace = true }
+test-utils = { workspace = true }

@@ -1,0 +1,32 @@
+[package]
+name = "wie-ktf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-recursion = { workspace = true }
+async-trait = { workspace = true }
+bitflags = { workspace = true }
+bytemuck = { workspace = true }
+encoding_rs = { workspace = true }
+futures = { workspace = true }
+spin = { workspace = true }
+tracing = { workspace = true }
+
+jvm = { workspace = true }
+jvm-class-proto = { workspace = true }
+jvm-types = { workspace = true }
+rustjava-runtime = { workspace = true }
+wipi-types = { workspace = true, features = ["ktf"] }
+
+wie-backend = { workspace = true }
+wie-util = { workspace = true }
+wie-core-arm = { workspace = true }
+wie-jvm-support = { workspace = true }
+wie-midp = { workspace = true }
+wie-wipi-c = { workspace = true }
+wie-wipi-java = { workspace = true }
+
+[dev-dependencies]
+test-utils = { workspace = true }

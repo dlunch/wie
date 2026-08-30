@@ -1,0 +1,23 @@
+[package]
+name = "test-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+async-trait = { workspace = true }
+spin = { workspace = true }
+tracing = { workspace = true }
+
+hashbrown = { version = "^0.17", features = ["default-hasher"], default-features = false }
+
+jvm = { workspace = true }
+jvm-bytecode = { workspace = true }
+jvm-class-proto = { workspace = true }
+rustjava-runtime = { workspace = true }
+
+wie-backend = { workspace = true }
+wie-jvm-support = { workspace = true }
+wie-util = { workspace = true }
+wie-wipi-c = { workspace = true }

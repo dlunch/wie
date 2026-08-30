@@ -5091,7 +5091,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "test_utils"
+name = "test-utils"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -5102,10 +5102,10 @@ dependencies = [
  "rustjava-runtime",
  "spin",
  "tracing",
- "wie_backend",
- "wie_jvm_support",
- "wie_util",
- "wie_wipi_c",
+ "wie-backend",
+ "wie-jvm-support",
+ "wie-util",
+ "wie-wipi-c",
 ]
 
 [[package]]
@@ -6049,39 +6049,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
-name = "wie_app"
-version = "0.0.1"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
-]
-
-[[package]]
-name = "wie_backend"
-version = "0.0.1"
-dependencies = [
- "ab_glyph",
- "async-trait",
- "bytemuck",
- "futures-test",
- "hashbrown 0.17.1",
- "image",
- "lazy_static",
- "num-traits",
- "smaf",
- "smaf-player",
- "spin",
- "tracing",
- "wie_util",
- "zip",
-]
-
-[[package]]
-name = "wie_cli"
+name = "wie"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -6097,17 +6065,49 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "web-sys",
- "wie_backend",
- "wie_j2me",
- "wie_ktf",
- "wie_lgt",
- "wie_skt",
- "wie_util",
+ "wie-backend",
+ "wie-j2me",
+ "wie-ktf",
+ "wie-lgt",
+ "wie-skt",
+ "wie-util",
  "winit",
 ]
 
 [[package]]
-name = "wie_core_arm"
+name = "wie-app"
+version = "0.0.1"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+]
+
+[[package]]
+name = "wie-backend"
+version = "0.0.1"
+dependencies = [
+ "ab_glyph",
+ "async-trait",
+ "bytemuck",
+ "futures-test",
+ "hashbrown 0.17.1",
+ "image",
+ "lazy_static",
+ "num-traits",
+ "smaf",
+ "smaf-player",
+ "spin",
+ "tracing",
+ "wie-util",
+ "zip",
+]
+
+[[package]]
+name = "wie-core-arm"
 version = "0.0.1"
 dependencies = [
  "arm32_cpu",
@@ -6121,29 +6121,29 @@ dependencies = [
  "md5",
  "serde",
  "spin",
- "test_utils",
+ "test-utils",
  "toml 1.1.3+spec-1.1.0",
  "tracing",
- "wie_backend",
- "wie_util",
+ "wie-backend",
+ "wie-util",
 ]
 
 [[package]]
-name = "wie_j2me"
+name = "wie-j2me"
 version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytemuck",
  "jvm",
  "tracing",
- "wie_backend",
- "wie_jvm_support",
- "wie_midp",
- "wie_util",
+ "wie-backend",
+ "wie-jvm-support",
+ "wie-midp",
+ "wie-util",
 ]
 
 [[package]]
-name = "wie_jvm_support"
+name = "wie-jvm-support"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -6154,14 +6154,14 @@ dependencies = [
  "jvm-class-proto",
  "rustjava-runtime",
  "spin",
- "test_utils",
+ "test-utils",
  "tracing",
- "wie_backend",
- "wie_util",
+ "wie-backend",
+ "wie-util",
 ]
 
 [[package]]
-name = "wie_ktf"
+name = "wie-ktf"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
@@ -6175,30 +6175,30 @@ dependencies = [
  "jvm-types",
  "rustjava-runtime",
  "spin",
- "test_utils",
+ "test-utils",
  "tracing",
- "wie_backend",
- "wie_core_arm",
- "wie_jvm_support",
- "wie_midp",
- "wie_util",
- "wie_wipi_c",
- "wie_wipi_java",
+ "wie-backend",
+ "wie-core-arm",
+ "wie-jvm-support",
+ "wie-midp",
+ "wie-util",
+ "wie-wipi-c",
+ "wie-wipi-java",
  "wipi-types",
 ]
 
 [[package]]
-name = "wie_ktf_dump"
+name = "wie-ktf-dump"
 version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
  "futures",
- "wie_ktf",
+ "wie-ktf",
 ]
 
 [[package]]
-name = "wie_lgt"
+name = "wie-lgt"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -6214,21 +6214,21 @@ dependencies = [
  "rustjava-runtime",
  "serde",
  "spin",
- "test_utils",
+ "test-utils",
  "toml 1.1.3+spec-1.1.0",
  "tracing",
- "wie_backend",
- "wie_core_arm",
- "wie_jvm_support",
- "wie_midp",
- "wie_util",
- "wie_wipi_c",
- "wie_wipi_java",
+ "wie-backend",
+ "wie-core-arm",
+ "wie-jvm-support",
+ "wie-midp",
+ "wie-util",
+ "wie-wipi-c",
+ "wie-wipi-java",
  "wipi-types",
 ]
 
 [[package]]
-name = "wie_midp"
+name = "wie-midp"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -6241,15 +6241,15 @@ dependencies = [
  "jvm-class-proto",
  "jvm-types",
  "rustjava-runtime",
- "test_utils",
+ "test-utils",
  "tracing",
- "wie_backend",
- "wie_jvm_support",
- "wie_util",
+ "wie-backend",
+ "wie-jvm-support",
+ "wie-util",
 ]
 
 [[package]]
-name = "wie_skt"
+name = "wie-skt"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -6257,16 +6257,16 @@ dependencies = [
  "encoding_rs",
  "jvm",
  "tracing",
- "wie_backend",
- "wie_jvm_support",
- "wie_midp",
- "wie_skvm",
- "wie_util",
- "wie_wipi_java",
+ "wie-backend",
+ "wie-jvm-support",
+ "wie-midp",
+ "wie-skvm",
+ "wie-util",
+ "wie-wipi-java",
 ]
 
 [[package]]
-name = "wie_skvm"
+name = "wie-skvm"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -6278,15 +6278,15 @@ dependencies = [
  "jvm-class-proto",
  "jvm-types",
  "rustjava-runtime",
- "test_utils",
+ "test-utils",
  "tracing",
- "wie_backend",
- "wie_jvm_support",
- "wie_midp",
+ "wie-backend",
+ "wie-jvm-support",
+ "wie-midp",
 ]
 
 [[package]]
-name = "wie_util"
+name = "wie-util"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
@@ -6295,7 +6295,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie_web"
+name = "wie-web"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -6311,31 +6311,31 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wie_backend",
- "wie_j2me",
- "wie_ktf",
- "wie_lgt",
- "wie_skt",
- "wie_util",
+ "wie-backend",
+ "wie-j2me",
+ "wie-ktf",
+ "wie-lgt",
+ "wie-skt",
+ "wie-util",
 ]
 
 [[package]]
-name = "wie_wipi_c"
+name = "wie-wipi-c"
 version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytemuck",
  "encoding_rs",
  "futures-test",
- "test_utils",
+ "test-utils",
  "tracing",
- "wie_backend",
- "wie_util",
+ "wie-backend",
+ "wie-util",
  "wipi-types",
 ]
 
 [[package]]
-name = "wie_wipi_java"
+name = "wie-wipi-java"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -6346,12 +6346,12 @@ dependencies = [
  "jvm-class-proto",
  "jvm-types",
  "rustjava-runtime",
- "test_utils",
+ "test-utils",
  "tracing",
- "wie_backend",
- "wie_jvm_support",
- "wie_midp",
- "wie_util",
+ "wie-backend",
+ "wie-jvm-support",
+ "wie-midp",
+ "wie-util",
 ]
 
 [[package]]

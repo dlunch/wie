@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
           if-no-files-found: error
 
   windows:
@@ -139,12 +139,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
 
       - name: Build unsigned installers
         uses: tauri-apps/tauri-action@v1
         with:
-          projectPath: wie_app
+          projectPath: wie-app
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --ci --target x86_64-pc-windows-msvc --bundles msi,nsis --no-sign
@@ -191,12 +191,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
 
       - name: Build unsigned packages
         uses: tauri-apps/tauri-action@v1
         with:
-          projectPath: wie_app
+          projectPath: wie-app
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --ci --target x86_64-unknown-linux-gnu --bundles appimage,deb --no-sign
@@ -237,12 +237,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
 
       - name: Build unsigned universal bundles
         uses: tauri-apps/tauri-action@v1
         with:
-          projectPath: wie_app
+          projectPath: wie-app
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
             --ci --target universal-apple-darwin --bundles app,dmg --no-sign
@@ -296,7 +296,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
 
       - name: Install Tauri CLI
         uses: taiki-e/install-action@v2
@@ -304,12 +304,12 @@ jobs:
           tool: tauri-cli
 
       - name: Initialize Android project
-        working-directory: wie_app
+        working-directory: wie-app
         run: cargo tauri android init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
 
       - name: Generate Android icons
-        working-directory: wie_app
-        run: cargo tauri icon ../wie_web/src/assets/favicon.png
+        working-directory: wie-app
+        run: cargo tauri icon ../wie-web/src/assets/favicon.png
 
       - name: Configure Android signing
         env:
@@ -324,7 +324,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         with:
           tauriScript: cargo tauri
-          projectPath: wie_app
+          projectPath: wie-app
           mobile: android
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
@@ -333,8 +333,8 @@ jobs:
       - name: Package Android bundles
         run: |
           mkdir -p dist
-          cp "$(find wie_app/gen/android/app/build/outputs/apk -type f -name '*-release.apk' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64.apk"
-          cp "$(find wie_app/gen/android/app/build/outputs/bundle -type f -name '*-release.aab' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64.aab"
+          cp "$(find wie-app/gen/android/app/build/outputs/apk -type f -name '*-release.apk' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64.apk"
+          cp "$(find wie-app/gen/android/app/build/outputs/bundle -type f -name '*-release.aab' -print -quit)" "dist/wie-${{ needs.context.outputs.asset_identity }}-android-aarch64.aab"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
@@ -366,7 +366,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
 
       - name: Install iOS build dependencies
         run: arch -arm64 brew reinstall xcodegen libimobiledevice
@@ -377,18 +377,18 @@ jobs:
           tool: tauri-cli
 
       - name: Initialize iOS project
-        working-directory: wie_app
+        working-directory: wie-app
         run: cargo tauri ios init --config '{"version":"${{ needs.context.outputs.app_version }}"}' --ci
 
       - name: Generate iOS icons
-        working-directory: wie_app
-        run: cargo tauri icon ../wie_web/src/assets/favicon.png
+        working-directory: wie-app
+        run: cargo tauri icon ../wie-web/src/assets/favicon.png
 
       - name: Build unsigned iOS archive
         uses: tauri-apps/tauri-action@v1
         with:
           tauriScript: cargo tauri
-          projectPath: wie_app
+          projectPath: wie-app
           mobile: ios
           args: >-
             --config '{"version":"${{ needs.context.outputs.app_version }}","build":{"beforeBuildCommand":""}}'
@@ -398,7 +398,7 @@ jobs:
       - name: Package iOS archive
         run: |
           mkdir -p dist
-          archive=$(find target wie_app/gen -type d -name '*.xcarchive' -print -quit)
+          archive=$(find target wie-app/gen -type d -name '*.xcarchive' -print -quit)
           ditto -c -k --keepParent "$archive" "dist/wie-${{ needs.context.outputs.asset_identity }}-ios-aarch64-unsigned.xcarchive.zip"
 
       - name: Upload iOS artifacts
@@ -427,7 +427,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-frontend
-          path: wie_web/dist
+          path: wie-web/dist
 
       - name: Publish nightly site to Cloudflare Pages
         if: needs.context.outputs.channel == 'nightly'
@@ -435,7 +435,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./wie_web/dist --project-name=wie-dev --branch=main
+          command: pages deploy ./wie-web/dist --project-name=wie-dev --branch=main
 
       - name: Publish stable site to Cloudflare Pages
         if: needs.context.outputs.channel == 'stable'
@@ -443,7 +443,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./wie_web/dist --project-name=wie --branch=main
+          command: pages deploy ./wie-web/dist --project-name=wie --branch=main
 
   publish:
     name: Publish GitHub release

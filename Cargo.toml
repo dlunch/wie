@@ -1,26 +1,32 @@
+[package]
+name = "wie"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+exclude = ["docs"]
+
 [workspace]
 resolver = "2"
 
 members = [
-    "wie_app",
-    "wie_backend",
-    "wie_cli",
-    "wie_util",
-    "wie_core_arm",
-    "wie_jvm_support",
-    "wie_wipi_java",
-    "wie_wipi_c",
-    "wie_j2me",
-    "wie_ktf",
-    "wie_ktf_dump",
-    "wie_lgt",
-    "wie_skt",
-    "wie_web",
+    "wie-app",
+    "wie-backend",
+    "wie-util",
+    "wie-core-arm",
+    "wie-jvm-support",
+    "wie-wipi-java",
+    "wie-wipi-c",
+    "wie-j2me",
+    "wie-ktf",
+    "wie-ktf-dump",
+    "wie-lgt",
+    "wie-skt",
+    "wie-web",
 ]
 
-default-members = ["wie_cli"]
+default-members = ["."]
 
-[profile.dev.package.wie_core_arm]
+[profile.dev.package.wie-core-arm]
 opt-level = 1
 
 [profile.dev.package.arm32_cpu]
@@ -57,20 +63,47 @@ toml = { version = "^1", default-features = false, features = ["parse", "serde"]
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 wipi-types = { version = "^0.0.1" }
 
-wie_backend = { path = "wie_backend" }
-wie_j2me = { path = "wie_j2me" }
-wie_ktf = { path = "wie_ktf" }
-wie_lgt = { path = "wie_lgt" }
-wie_midp = { path = "wie_midp" }
-wie_skt = { path = "wie_skt" }
-wie_util = { path = "wie_util" }
-wie_core_arm = { path = "wie_core_arm" }
-wie_jvm_support = { path = "wie_jvm_support" }
-wie_skvm = { path = "wie_skvm" }
-wie_wipi_c = { path = "wie_wipi_c" }
-wie_wipi_java = { path = "wie_wipi_java" }
+wie-backend = { path = "wie-backend" }
+wie-j2me = { path = "wie-j2me" }
+wie-ktf = { path = "wie-ktf" }
+wie-lgt = { path = "wie-lgt" }
+wie-midp = { path = "wie-midp" }
+wie-skt = { path = "wie-skt" }
+wie-util = { path = "wie-util" }
+wie-core-arm = { path = "wie-core-arm" }
+wie-jvm-support = { path = "wie-jvm-support" }
+wie-skvm = { path = "wie-skvm" }
+wie-wipi-c = { path = "wie-wipi-c" }
+wie-wipi-java = { path = "wie-wipi-java" }
 
 # dev-dependencies
 futures-test = { version = "^0.3" }
 
-test_utils = { path = "test_utils" }
+test-utils = { path = "test-utils" }
+
+[dependencies]
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+anyhow = { workspace = true, features = ["backtrace"] }
+clap = { workspace = true }
+directories = { version = "^6.0" }
+fast_image_resize = "6.0.0"
+midir = { version = "^0.11" }
+rodio = { version = "^0.22", features = ["playback"] }
+softbuffer = { version = "^0.4" }
+tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
+winit = { version = "^0.30", features = ["x11", "wayland"] }
+
+wie-backend = { workspace = true }
+wie-j2me = { workspace = true }
+wie-ktf = { workspace = true }
+wie-lgt = { workspace = true }
+wie-skt = { workspace = true }
+wie-util = { workspace = true }
+
+hqx = { git = "https://github.com/CryZe/wasmboy-rs", tag = "v0.1.3" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "^0.4", features = ["wasm_js"] } # not direct dependency, but broken without it in wasm build
+web-sys = { version = "=0.3.85" }                        # We need 0.3.85 to not break midir wasm build

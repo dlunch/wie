@@ -2,15 +2,12 @@
 
 ## Project Layout
 
-- `wie_backend`: provides system level services for apis.
-- `wie_cli`: cli for local testing
-- `wie_core_arm`: arm emulation
-- `wie_jvm_support`: jvm support
-- `wie_midp`, `wie_wipi_*`, `wie_skvm`: api implementation
-- `wie_j2me`, `wie_skt`, `wie_ktf`, `wie_lgt`: platform specific logics
-- `wie_util`, `test_utils`: shared helpers & test support
-
-Web interface is on the private repository and occasionally built with wie's main branch.
+- `wie-backend`: provides system level services for apis.
+- `wie-core-arm`: arm emulation
+- `wie-jvm-support`: jvm support
+- `wie-midp`, `wie-wipi-*`, `wie-skvm`: api implementation
+- `wie-j2me`, `wie-skt`, `wie-ktf`, `wie-lgt`: platform specific logics
+- `wie-util`, `test-utils`: shared helpers & test support
 
 ## References
 

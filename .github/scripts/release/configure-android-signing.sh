@@ -7,7 +7,7 @@ keystore_path="$RUNNER_TEMP/android-upload-key.jks"
 printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
 echo "ANDROID_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
 
-cat >> wie_app/gen/android/app/build.gradle.kts <<'EOF'
+cat >> wie-app/gen/android/app/build.gradle.kts <<'EOF'
 
 android {
     signingConfigs {
