@@ -11,4 +11,4 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 futures = { workspace = true, features = ["executor"] }
 
-wie-ktf = { path = "../wie-ktf" }
+wie-ktf = { workspace = true }

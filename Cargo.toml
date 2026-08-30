@@ -58,23 +58,23 @@ toml = { version = "^1", default-features = false, features = ["parse", "serde"]
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 wipi-types = { version = "^0.0.1" }
 
-wie-backend = { path = "wie-backend" }
-wie-j2me = { path = "wie-j2me" }
-wie-ktf = { path = "wie-ktf" }
-wie-lgt = { path = "wie-lgt" }
-wie-midp = { path = "wie-midp" }
-wie-skt = { path = "wie-skt" }
-wie-util = { path = "wie-util" }
-wie-core-arm = { path = "wie-core-arm" }
-wie-jvm-support = { path = "wie-jvm-support" }
-wie-skvm = { path = "wie-skvm" }
-wie-wipi-c = { path = "wie-wipi-c" }
-wie-wipi-java = { path = "wie-wipi-java" }
+wie-backend = { version = "0.0.1", path = "wie-backend" }
+wie-j2me = { version = "0.0.1", path = "wie-j2me" }
+wie-ktf = { version = "0.0.1", path = "wie-ktf" }
+wie-lgt = { version = "0.0.1", path = "wie-lgt" }
+wie-midp = { version = "0.0.1", path = "wie-midp" }
+wie-skt = { version = "0.0.1", path = "wie-skt" }
+wie-util = { version = "0.0.1", path = "wie-util" }
+wie-core-arm = { version = "0.0.1", path = "wie-core-arm" }
+wie-jvm-support = { version = "0.0.1", path = "wie-jvm-support" }
+wie-skvm = { version = "0.0.1", path = "wie-skvm" }
+wie-wipi-c = { version = "0.0.1", path = "wie-wipi-c" }
+wie-wipi-java = { version = "0.0.1", path = "wie-wipi-java" }
 
 # dev-dependencies
 futures-test = { version = "^0.3" }
 
-test-utils = { path = "test-utils" }
+test-utils = { version = "0.0.1", path = "test-utils" }
 
 [package]
 name = "wie"
@@ -105,8 +105,6 @@ wie-ktf = { workspace = true }
 wie-lgt = { workspace = true }
 wie-skt = { workspace = true }
 wie-util = { workspace = true }
-
-hqx = { git = "https://github.com/CryZe/wasmboy-rs", tag = "v0.1.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "^0.4", features = ["wasm_js"] } # not direct dependency, but broken without it in wasm build

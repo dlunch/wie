@@ -166,8 +166,6 @@ impl WindowImpl {
 enum Scaler {
     /// 1:1 native scaling.
     Native,
-    /// hq2x, hq3x, hq4x scaling.
-    Hqx { scale: i8 },
     /// Lanczos3 scaling
     Lanczos3 { scale: f64, resizer: fast_image_resize::Resizer },
 }
@@ -176,7 +174,6 @@ impl fmt::Display for Scaler {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Scaler::Native => f.write_str("Native")?,
-            Scaler::Hqx { scale } => f.write_fmt(format_args!("Hq{scale}x"))?,
             Scaler::Lanczos3 { scale, resizer: _ } => f.write_fmt(format_args!("Lanczos3({scale})"))?,
         }
         Ok(())
@@ -194,20 +191,9 @@ impl Scaler {
         }
     }
 
-    #[allow(dead_code)]
-    fn new_hqx(scale: f64) -> Scaler {
-        match scale {
-            _ if scale < 1.5 => Scaler::Native,
-            _ if scale < 2.5 => Scaler::Hqx { scale: 2 },
-            _ if scale < 3.5 => Scaler::Hqx { scale: 3 },
-            _ => Scaler::Hqx { scale: 4 },
-        }
-    }
-
     fn scale(&self) -> f64 {
         match self {
             Scaler::Native => 1.0,
-            Scaler::Hqx { scale } => *scale as f64,
             Scaler::Lanczos3 { scale, resizer: _ } => *scale,
         }
     }
@@ -215,7 +201,6 @@ impl Scaler {
     fn to_physical(&self, logical_size: LogicalSize<u32>) -> PhysicalSize<u32> {
         match self {
             Scaler::Native => PhysicalSize::new(logical_size.width, logical_size.height),
-            Scaler::Hqx { scale } => PhysicalSize::new(logical_size.width * *scale as u32, logical_size.height * *scale as u32),
             Scaler::Lanczos3 { scale, resizer: _ } => PhysicalSize::new(
                 (logical_size.width as f64 * *scale).floor() as u32,
                 (logical_size.height as f64 * *scale).floor() as u32,
@@ -223,13 +208,9 @@ impl Scaler {
         }
     }
 
-    fn scale_image(&mut self, dst: &mut Vec<u32>, src: &Vec<u32>, dst_size: PhysicalSize<u32>, src_size: LogicalSize<u32>) {
+    fn scale_image(&mut self, dst: &mut Vec<u32>, src: &[u32], dst_size: PhysicalSize<u32>, src_size: LogicalSize<u32>) {
         match self {
             Scaler::Native => dst.copy_from_slice(src),
-            Scaler::Hqx { scale } if *scale == 2 => hqx::hq2x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
-            Scaler::Hqx { scale } if *scale == 3 => hqx::hq3x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
-            Scaler::Hqx { scale } if *scale == 4 => hqx::hq4x(src.as_slice(), dst.as_mut_slice(), src_size.width as usize, src_size.height as usize),
-            Scaler::Hqx { scale } => panic!("invalid hqx scale factor {scale}"),
             Scaler::Lanczos3 { scale: _, resizer } => {
                 let (_, srcarr, _) = unsafe { src.align_to::<u8>() };
                 let srcimg = fast_image_resize::images::ImageRef::new(src_size.width, src_size.height, srcarr, PixelType::U8x4).unwrap();
