@@ -196,21 +196,19 @@ async fn register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) -> Re
 
     let class: JavaClassDefinition = KtfJvmSupport::class_from_raw(core, ptr_class);
     let class_name = class.name()?;
-    if jvm.has_class(&class_name) {
-        return Ok(());
+    if !jvm.has_class(&class_name) {
+        let ktf_class_loader = jvm
+            .get_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;")
+            .await
+            .unwrap();
+
+        let result = jvm.register_class(Box::new(class), Some(ktf_class_loader)).await;
+        if let Err(x) = result {
+            return Err(JvmSupport::to_wie_err(jvm, x).await);
+        }
     }
 
-    let ktf_class_loader = jvm
-        .get_static_field("net/wie/KtfClassLoader", "instance", "Lnet/wie/KtfClassLoader;")
-        .await
-        .unwrap();
-
-    let result = jvm.register_class(Box::new(class), Some(ktf_class_loader)).await;
-    if let Err(x) = result {
-        return Err(JvmSupport::to_wie_err(jvm, x).await);
-    }
-
-    // TODO we shouldn't resolve again.
+    // KTF AOT also calls this entry point to initialize classes before static field access.
     let class = jvm.resolve_class(&class_name).await.unwrap();
     jvm.ensure_initialized(&class).await.unwrap();
 
