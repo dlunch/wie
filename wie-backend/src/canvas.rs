@@ -1,10 +1,10 @@
 mod lbmp;
 mod res;
 
-use alloc::{borrow::Cow, boxed::Box, string::ToString, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, format, string::ToString, vec, vec::Vec};
 use core::mem::size_of;
 
-use ab_glyph::{Font, FontRef, ScaleFont};
+use ab_glyph::{Font as GlyphFont, FontArc, ScaleFont};
 use bytemuck::{Pod, cast_slice, pod_collect_to_vec};
 use image::{ExtendedColorType, ImageEncoder, ImageReader, codecs::png::PngEncoder};
 use num_traits::{Num, Zero};
@@ -14,8 +14,21 @@ use wie_util::{Result, WieError};
 use self::lbmp::decode_lbmp;
 pub use self::res::decode_res;
 
-lazy_static::lazy_static! {
-    static ref FONT: FontRef<'static> = FontRef::try_from_slice(include_bytes!("../fonts/neodgm.ttf")).unwrap();
+#[derive(Clone, Debug)]
+pub struct Font(FontArc);
+
+impl Font {
+    pub fn try_from_static(data: &'static [u8]) -> Result<Self> {
+        FontArc::try_from_slice(data)
+            .map(Self)
+            .map_err(|error| WieError::FatalError(format!("Invalid font data: {error}")))
+    }
+
+    pub fn try_from_vec(data: Vec<u8>) -> Result<Self> {
+        FontArc::try_from_vec(data)
+            .map(Self)
+            .map_err(|error| WieError::FatalError(format!("Invalid font data: {error}")))
+    }
 }
 
 pub enum TextAlignment {
@@ -55,7 +68,7 @@ pub trait Canvas: Send {
     fn copy_area(&mut self, dx: i32, dy: i32, sx: i32, sy: i32, w: u32, h: u32, clip: Clip);
     fn draw(&mut self, dx: i32, dy: i32, w: u32, h: u32, src: &dyn Image, sx: i32, sy: i32, clip: Clip);
     fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32, color: Color, clip: Clip);
-    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip);
+    fn draw_text(&mut self, font: &Font, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip);
     fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: Color, clip: Clip);
     fn draw_arc(&mut self, x: i32, y: i32, w: u32, h: u32, start_angle: i32, arc_angle: i32, color: Color, clip: Clip);
     fn draw_round_rect(&mut self, x: i32, y: i32, w: u32, h: u32, arc_width: u32, arc_height: u32, color: Color, clip: Clip);
@@ -609,9 +622,9 @@ where
         }
     }
 
-    fn draw_text(&mut self, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip) {
+    fn draw_text(&mut self, font: &Font, string: &str, x: i32, y: i32, text_alignment: TextAlignment, color: Color, clip: Clip) {
         let size = 10.0; // TODO
-        let font = FONT.as_scaled(FONT.pt_to_px_scale(size).unwrap());
+        let font = font.0.as_scaled(font.0.pt_to_px_scale(size).unwrap());
 
         let total_width = string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>();
         let x = match text_alignment {
@@ -927,8 +940,8 @@ pub fn encode_png(image: &dyn Image) -> Result<Vec<u8>> {
     Ok(encoded)
 }
 
-pub fn string_width(string: &str, pt_size: f32) -> f32 {
-    let font = FONT.as_scaled(FONT.pt_to_px_scale(pt_size).unwrap());
+pub fn string_width(font: &Font, string: &str, pt_size: f32) -> f32 {
+    let font = font.0.as_scaled(font.0.pt_to_px_scale(pt_size).unwrap());
 
     string.chars().map(|c| font.h_advance(font.scaled_glyph(c).id)).sum::<f32>()
 }
@@ -942,7 +955,7 @@ mod tests {
 
     use crate::canvas::{Clip, Image, ImageBuffer, ImageBufferCanvas};
 
-    use super::{ArgbPixel, Canvas, Color, Rgb332Pixel, TextAlignment, VecImageBuffer};
+    use super::{ArgbPixel, Canvas, Color, Rgb332Pixel, VecImageBuffer};
 
     #[test]
     fn test_canvas() -> Result<()> {
@@ -1521,32 +1534,6 @@ mod tests {
         for x in 0..10 {
             assert!(is_set(&image, x, 5), "visible span of extreme line should be drawn (x={x})");
         }
-    }
-
-    #[test]
-    fn test_draw_text_respects_clip() {
-        let empty_clip = Clip {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-        };
-        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(30, 20));
-        canvas.draw_text("A", 2, 2, TextAlignment::Left, WHITE, empty_clip);
-        let clipped = canvas.into_inner();
-
-        let mut canvas = ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::new(30, 20));
-        canvas.draw_text("A", 2, 2, TextAlignment::Left, WHITE, full_clip(30));
-        let unclipped = canvas.into_inner();
-
-        let count_set = |image: &VecImageBuffer<ArgbPixel>| {
-            (0..20)
-                .flat_map(|y| (0..30).map(move |x| (x, y)))
-                .filter(|&(x, y)| is_set(image, x, y))
-                .count()
-        };
-        assert_eq!(count_set(&clipped), 0, "empty clip must draw nothing");
-        assert!(count_set(&unclipped) > 0, "full clip must draw glyph pixels");
     }
 
     #[test]

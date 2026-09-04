@@ -7,6 +7,11 @@ const main = async () => {
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
   const settings = initializeSettings();
+  const fontResponse = await fetch(new URL("../../../assets/neodgm.ttf", import.meta.url));
+  if (!fontResponse.ok) {
+    throw new Error(`Failed to load font: ${fontResponse.status} ${fontResponse.statusText}`);
+  }
+  const fontData = new Uint8Array(await fontResponse.arrayBuffer());
 
   const routeToApp = (app: AppMetadata, archive: Uint8Array) =>
     new Promise<void>((resolve, reject) => {
@@ -27,7 +32,7 @@ const main = async () => {
       };
 
       try {
-        disposeApp = runApp(app, archive, settings, routeToLibrary);
+        disposeApp = runApp(app, archive, fontData, settings, routeToLibrary);
       } catch (error) {
         playerView.hidden = true;
         libraryView.hidden = false;

@@ -1,8 +1,9 @@
 use alloc::boxed::Box;
 
-use crate::{audio_sink::AudioSink, database::DatabaseRepository, screen::Screen, time::Instant};
+use crate::{audio_sink::AudioSink, canvas::Font, database::DatabaseRepository, screen::Screen, time::Instant};
 
 pub trait Platform: Send + Sync {
+    fn font(&self) -> &Font;
     fn screen(&self) -> &dyn Screen;
     fn now(&self) -> Instant;
     fn database_repository(&self) -> &dyn DatabaseRepository;

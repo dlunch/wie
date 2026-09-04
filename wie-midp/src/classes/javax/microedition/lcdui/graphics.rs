@@ -405,7 +405,7 @@ impl Graphics {
 
     async fn draw_char(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         ch: JavaChar,
         x: i32,
@@ -426,6 +426,7 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw_text(
+            context.system().platform().font(),
             &string,
             (translate_x + x) as _,
             (translate_y + y) as _,
@@ -439,7 +440,7 @@ impl Graphics {
 
     async fn draw_chars(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         chars: ClassInstanceRef<Array<JavaChar>>,
         offset: i32,
@@ -463,6 +464,7 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw_text(
+            context.system().platform().font(),
             &string,
             (translate_x + x) as _,
             (translate_y + y) as _,
@@ -476,7 +478,7 @@ impl Graphics {
 
     async fn draw_string(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         string: ClassInstanceRef<String>,
         x: i32,
@@ -500,6 +502,7 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw_text(
+            context.system().platform().font(),
             &string,
             (translate_x + x) as _,
             (translate_y + y) as _,
@@ -512,7 +515,7 @@ impl Graphics {
     }
     async fn draw_substring(
         jvm: &Jvm,
-        _: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         string: ClassInstanceRef<String>,
         offset: i32,
@@ -536,6 +539,7 @@ impl Graphics {
         let clip = Self::clip(jvm, &this).await?;
 
         canvas.draw_text(
+            context.system().platform().font(),
             &substring,
             (translate_x + x) as _,
             (translate_y + y) as _,

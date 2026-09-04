@@ -160,8 +160,9 @@ pub fn copy_framebuffer(
 }
 
 pub fn draw_text(context: &mut dyn WIPICContext, framebuffer: &FrameBuffer, string: &str, x: i32, y: i32, color: Color, clip: Clip) -> Result<()> {
+    let font = context.system().platform().font().clone();
     write_canvas(context, framebuffer, |canvas| {
-        canvas.draw_text(string, x, y, wie_backend::canvas::TextAlignment::Left, color, clip)
+        canvas.draw_text(&font, string, x, y, wie_backend::canvas::TextAlignment::Left, color, clip)
     })
 }
 

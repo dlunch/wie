@@ -20,7 +20,7 @@ use clap::Parser;
 use midir::MidiOutput;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Instant, KeyCode, Options, Platform, ProfileSample, Screen, extract_zip};
+use wie_backend::{AudioCommand, Emulator, Event, Filesystem, Font, Instant, KeyCode, Options, Platform, ProfileSample, Screen, extract_zip};
 use wie_j2me::J2MEEmulator;
 use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
@@ -37,11 +37,12 @@ struct WieCliPlatform {
     audio_tx: Sender<AudioCommand>,
     database_repository: DatabaseRepository,
     filesystem: CliFilesystem,
+    font: Font,
     window: WindowHandle,
 }
 
 impl WieCliPlatform {
-    fn new(window: WindowHandle, midi_device: Option<usize>) -> Self {
+    fn new(window: WindowHandle, font: Font, midi_device: Option<usize>) -> Self {
         let (tx, rx) = channel();
         thread::spawn(move || audio_sink::run(rx, midi_device));
 
@@ -49,12 +50,17 @@ impl WieCliPlatform {
             audio_tx: tx,
             database_repository: DatabaseRepository::new(),
             filesystem: CliFilesystem::new(),
+            font,
             window,
         }
     }
 }
 
 impl Platform for WieCliPlatform {
+    fn font(&self) -> &Font {
+        &self.font
+    }
+
     fn screen(&self) -> &dyn Screen {
         &self.window
     }
@@ -165,7 +171,8 @@ pub fn start(filename: &str, options: Options) -> anyhow::Result<()> {
 
 fn start_with_midi_device(filename: &str, options: Options, midi_device: Option<usize>) -> anyhow::Result<()> {
     let window = WindowImpl::new(240, 320)?;
-    let platform = Box::new(WieCliPlatform::new(window.handle(), midi_device));
+    let font = Font::try_from_static(include_bytes!("../assets/neodgm.ttf"))?;
+    let platform = Box::new(WieCliPlatform::new(window.handle(), font, midi_device));
 
     let buf = fs::read(filename)?;
     let mut emulator: Box<dyn Emulator> = if filename.ends_with("zip") {
