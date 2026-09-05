@@ -5,6 +5,7 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::{lang::String, util::Vector};
 
+use wie_backend::text_layout::{minimum_width, preferred_width, wrap};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Command, Displayable, Font, Graphics, ItemCommandListener};
@@ -141,28 +142,92 @@ impl Item {
                     MethodAccessFlags::empty(),
                 ),
             ],
-            fields: [
-                "LAYOUT_DEFAULT",
-                "LAYOUT_LEFT",
-                "LAYOUT_RIGHT",
-                "LAYOUT_CENTER",
-                "LAYOUT_TOP",
-                "LAYOUT_BOTTOM",
-                "LAYOUT_VCENTER",
-                "LAYOUT_NEWLINE_BEFORE",
-                "LAYOUT_NEWLINE_AFTER",
-                "LAYOUT_SHRINK",
-                "LAYOUT_EXPAND",
-                "LAYOUT_VSHRINK",
-                "LAYOUT_VEXPAND",
-                "LAYOUT_2",
-                "PLAIN",
-                "HYPERLINK",
-                "BUTTON",
-            ]
-            .into_iter()
-            .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-            .chain([
+            fields: vec![
+                JavaFieldProto::new(
+                    "LAYOUT_DEFAULT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_LEFT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_RIGHT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_CENTER",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_TOP",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_BOTTOM",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_VCENTER",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_NEWLINE_BEFORE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_NEWLINE_AFTER",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_SHRINK",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_EXPAND",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_VSHRINK",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_VEXPAND",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_2",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "PLAIN",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "HYPERLINK",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "BUTTON",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
                 JavaFieldProto::new("owner", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("label", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("layout", "I", FieldAccessFlags::PRIVATE),
@@ -175,8 +240,7 @@ impl Item {
                     "Ljavax/microedition/lcdui/ItemCommandListener;",
                     FieldAccessFlags::PRIVATE,
                 ),
-            ])
-            .collect(),
+            ],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::ABSTRACT,
         }
     }
@@ -426,7 +490,7 @@ impl Item {
         let label = Self::label_text(jvm, &this).await?;
         let label_width = label
             .as_deref()
-            .map(|text| Font::minimum_width(context.system().platform().font(), text))
+            .map(|text| minimum_width(context.system().platform().font(), text, 10.0))
             .unwrap_or(0);
         Ok(content_width.max(label_width))
     }
@@ -438,18 +502,18 @@ impl Item {
         let label = Self::label_text(jvm, &this).await?;
         let label_height = label
             .as_deref()
-            .map(|label| Font::wrap(context.system().platform().font(), label, None).len() as i32 * Font::HEIGHT)
+            .map(|label| wrap(context.system().platform().font(), label, 10.0, None).len() as i32 * Font::HEIGHT)
             .unwrap_or(0);
         Ok(label_height + content_height + if label_height > 0 && content_height > 0 { LABEL_CONTENT_GAP } else { 0 })
     }
 
     async fn get_preferred_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        let preferred_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
+        let locked_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
         let minimum_width: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumWidth", "()I", ())
             .await?;
-        if preferred_width >= 0 {
-            return Ok(preferred_width.max(minimum_width));
+        if locked_width >= 0 {
+            return Ok(locked_width.max(minimum_width));
         }
 
         let content_width: i32 = jvm
@@ -458,7 +522,7 @@ impl Item {
         let label = Self::label_text(jvm, &this).await?;
         let label_width = label
             .as_deref()
-            .map(|text| Font::preferred_width(context.system().platform().font(), text))
+            .map(|text| preferred_width(context.system().platform().font(), text, 10.0))
             .unwrap_or(0);
         Ok(content_width.max(label_width).max(minimum_width))
     }
@@ -645,7 +709,7 @@ impl Item {
         let label = Self::label_text(jvm, &this).await?;
         let label_lines = label
             .as_deref()
-            .map(|label| Font::wrap(context.system().platform().font(), label, Some(width)))
+            .map(|label| wrap(context.system().platform().font(), label, 10.0, Some(width)))
             .unwrap_or_default();
         let label_height = (label_lines.len() as i32 * Font::HEIGHT).min(height);
         if !label_lines.is_empty() {
@@ -797,7 +861,7 @@ impl Item {
             let label = Self::label_text(jvm, &this).await?;
             let label_height = label
                 .as_deref()
-                .map(|label| Font::wrap(context.system().platform().font(), label, Some(width)).len() as i32 * Font::HEIGHT)
+                .map(|label| wrap(context.system().platform().font(), label, 10.0, Some(width)).len() as i32 * Font::HEIGHT)
                 .unwrap_or(0)
                 .min(height);
             let content_y = label_height
@@ -851,7 +915,7 @@ impl Item {
         let label = Self::label_text(jvm, this).await?;
         let label_height = label
             .as_deref()
-            .map(|label| Font::wrap(context.system().platform().font(), label, Some(width.max(1))).len() as i32 * Font::HEIGHT)
+            .map(|label| wrap(context.system().platform().font(), label, 10.0, Some(width.max(1))).len() as i32 * Font::HEIGHT)
             .unwrap_or(0);
         let content_height: i32 = jvm
             .invoke_virtual(this, "javax/microedition/lcdui/Item", "preferredContentHeight", "(I)I", (width,))

@@ -5,6 +5,10 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
+use wie_backend::{
+    canvas::string_width,
+    text_layout::{minimum_width, preferred_width, wrap},
+};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Font, Graphics, Item};
@@ -160,9 +164,9 @@ impl StringItem {
         };
         let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
         let text_width = if appearance_mode == 2 {
-            Font::preferred_width(context.system().platform().font(), &text)
+            preferred_width(context.system().platform().font(), &text, 10.0)
         } else {
-            Font::minimum_width(context.system().platform().font(), &text)
+            minimum_width(context.system().platform().font(), &text, 10.0)
         };
         Ok(text_width + Item::appearance_inset(appearance_mode) * 2)
     }
@@ -172,7 +176,7 @@ impl StringItem {
             return Ok(0);
         };
         let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
-        Ok(Font::wrap(context.system().platform().font(), &text, None).len() as i32 * Font::HEIGHT + Item::appearance_inset(appearance_mode) * 2)
+        Ok(wrap(context.system().platform().font(), &text, 10.0, None).len() as i32 * Font::HEIGHT + Item::appearance_inset(appearance_mode) * 2)
     }
 
     async fn preferred_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -180,7 +184,7 @@ impl StringItem {
             return Ok(0);
         };
         let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
-        Ok(Font::preferred_width(context.system().platform().font(), &text) + Item::appearance_inset(appearance_mode) * 2)
+        Ok(preferred_width(context.system().platform().font(), &text, 10.0) + Item::appearance_inset(appearance_mode) * 2)
     }
 
     async fn preferred_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
@@ -194,7 +198,7 @@ impl StringItem {
         } else {
             Some((width - inset * 2).max(1))
         };
-        Ok(Font::wrap(context.system().platform().font(), &text, wrap_width).len() as i32 * Font::HEIGHT + inset * 2)
+        Ok(wrap(context.system().platform().font(), &text, 10.0, wrap_width).len() as i32 * Font::HEIGHT + inset * 2)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -254,7 +258,7 @@ impl StringItem {
             .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (color,))
             .await?;
         let wrap_width = if appearance_mode == 2 { None } else { Some(content_width.max(1)) };
-        for (index, line) in Font::wrap(context.system().platform().font(), &text, wrap_width).iter().enumerate() {
+        for (index, line) in wrap(context.system().platform().font(), &text, 10.0, wrap_width).iter().enumerate() {
             let line_y = content_y + index as i32 * Font::HEIGHT;
             if line_y >= content_y + content_height {
                 break;
@@ -270,7 +274,7 @@ impl StringItem {
                 )
                 .await?;
             if appearance_mode == 1 && !line.is_empty() {
-                let line_width = Font::text_width(context.system().platform().font(), line).min(content_width);
+                let line_width = (string_width(context.system().platform().font(), line, 10.0).ceil() as i32).min(content_width);
                 let underline_y = (line_y + Font::HEIGHT - 1).min(content_y + content_height - 1);
                 let _: () = jvm
                     .invoke_virtual(

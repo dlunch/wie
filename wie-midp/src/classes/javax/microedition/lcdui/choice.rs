@@ -63,18 +63,43 @@ impl Choice {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
                 ),
             ],
-            fields: [
-                "EXCLUSIVE",
-                "MULTIPLE",
-                "IMPLICIT",
-                "POPUP",
-                "TEXT_WRAP_DEFAULT",
-                "TEXT_WRAP_ON",
-                "TEXT_WRAP_OFF",
-            ]
-            .into_iter()
-            .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-            .collect(),
+            fields: vec![
+                JavaFieldProto::new(
+                    "EXCLUSIVE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "MULTIPLE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "IMPLICIT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "POPUP",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "TEXT_WRAP_DEFAULT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "TEXT_WRAP_ON",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "TEXT_WRAP_OFF",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+            ],
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
         }
     }

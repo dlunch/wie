@@ -5,10 +5,11 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
+use wie_backend::canvas::string_width;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::{
-    lcdui::{Display, Font, Graphics},
+    lcdui::{Display, Graphics},
     midlet::MIDlet,
 };
 
@@ -72,7 +73,7 @@ impl Ticker {
         }
         let offset: i32 = jvm.get_field(&this, "scrollOffset", "I").await?;
         let offset = offset + TICKER_SCROLL_STEP;
-        let offset = if offset >= Font::text_width(context.system().platform().font(), &text) + TITLE_HORIZONTAL_PADDING {
+        let offset = if offset >= string_width(context.system().platform().font(), &text, 10.0).ceil() as i32 + TITLE_HORIZONTAL_PADDING {
             TITLE_HORIZONTAL_PADDING - width
         } else {
             offset

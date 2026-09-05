@@ -5,6 +5,7 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
+use wie_backend::text_layout::wrap;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{AlertType, Command, CommandListener, Display, Displayable, Font, Gauge, Graphics, Image, Item};
@@ -271,7 +272,7 @@ impl Alert {
             if text.is_empty() {
                 Vec::new()
             } else {
-                Font::wrap(context.system().platform().font(), &text, Some(width.max(1)))
+                wrap(context.system().platform().font(), &text, 10.0, Some(width.max(1)))
             }
         };
         let text_y = if text_lines.is_empty() {

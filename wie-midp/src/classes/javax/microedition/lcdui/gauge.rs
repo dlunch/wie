@@ -76,21 +76,36 @@ impl Gauge {
                 JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
             ],
-            fields: [
-                "INDEFINITE",
-                "CONTINUOUS_IDLE",
-                "INCREMENTAL_IDLE",
-                "CONTINUOUS_RUNNING",
-                "INCREMENTAL_UPDATING",
-            ]
-            .into_iter()
-            .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-            .chain([
+            fields: vec![
+                JavaFieldProto::new(
+                    "INDEFINITE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "CONTINUOUS_IDLE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "INCREMENTAL_IDLE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "CONTINUOUS_RUNNING",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "INCREMENTAL_UPDATING",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
                 JavaFieldProto::new("interactive", "Z", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("maxValue", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("value", "I", FieldAccessFlags::PRIVATE),
-            ])
-            .collect(),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }

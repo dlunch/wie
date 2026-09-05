@@ -61,10 +61,32 @@ impl PhoneBook {
                 JavaMethodProto::new("isUsed", "(I)Z", Self::is_used, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
                 JavaMethodProto::new("next", "()I", Self::next, MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC),
             ],
-            fields: ["ALL", "NAME", "GROUP", "HANDPHONE", "HOME", "OFFICE", "EMAIL", "MEMO"]
-                .into_iter()
-                .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-                .collect(),
+            fields: vec![
+                JavaFieldProto::new("ALL", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("NAME", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new(
+                    "GROUP",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "HANDPHONE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("HOME", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new(
+                    "OFFICE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "EMAIL",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("MEMO", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }

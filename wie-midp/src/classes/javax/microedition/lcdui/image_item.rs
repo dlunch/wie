@@ -5,6 +5,7 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
+use wie_backend::text_layout::{minimum_width, wrap};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Font, Graphics, Image, Item};
@@ -69,23 +70,42 @@ impl ImageItem {
                 JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
             ],
-            fields: [
-                "LAYOUT_DEFAULT",
-                "LAYOUT_LEFT",
-                "LAYOUT_RIGHT",
-                "LAYOUT_CENTER",
-                "LAYOUT_NEWLINE_BEFORE",
-                "LAYOUT_NEWLINE_AFTER",
-            ]
-            .into_iter()
-            .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-            .chain([
+            fields: vec![
+                JavaFieldProto::new(
+                    "LAYOUT_DEFAULT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_LEFT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_RIGHT",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_CENTER",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_NEWLINE_BEFORE",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "LAYOUT_NEWLINE_AFTER",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
                 JavaFieldProto::new("image", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("displayImage", "Ljavax/microedition/lcdui/Image;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("altText", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("appearanceMode", "I", FieldAccessFlags::PRIVATE),
-            ])
-            .collect(),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
@@ -228,7 +248,7 @@ impl ImageItem {
         let alt_width = Self::alt_text(jvm, &this)
             .await?
             .as_deref()
-            .map(|text| Font::minimum_width(context.system().platform().font(), text))
+            .map(|text| minimum_width(context.system().platform().font(), text, 10.0))
             .filter(|width| *width > 0);
         Ok(image_width.min(alt_width.unwrap_or(image_width)) + Item::appearance_inset(appearance_mode) * 2)
     }
@@ -240,7 +260,7 @@ impl ImageItem {
         let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
         let alt_height = Self::alt_text(jvm, &this)
             .await?
-            .map(|alt_text| Font::wrap(context.system().platform().font(), &alt_text, None).len() as i32 * Font::HEIGHT)
+            .map(|alt_text| wrap(context.system().platform().font(), &alt_text, 10.0, None).len() as i32 * Font::HEIGHT)
             .filter(|height| *height > 0);
         Ok(image_height.min(alt_height.unwrap_or(image_height)) + Item::appearance_inset(appearance_mode) * 2)
     }
@@ -268,7 +288,7 @@ impl ImageItem {
             return Ok(image_height + inset * 2);
         };
         let wrap_width = if appearance_mode == 2 { None } else { Some(available_width.max(1)) };
-        Ok(Font::wrap(context.system().platform().font(), &alt_text, wrap_width).len() as i32 * Font::HEIGHT + inset * 2)
+        Ok(wrap(context.system().platform().font(), &alt_text, 10.0, wrap_width).len() as i32 * Font::HEIGHT + inset * 2)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -324,9 +344,14 @@ impl ImageItem {
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (color,))
                 .await?;
             let wrap_width = if appearance_mode == 2 { None } else { Some(content_width.max(1)) };
-            for (index, line) in Font::wrap(context.system().platform().font(), alt_text.as_deref().unwrap_or_default(), wrap_width)
-                .iter()
-                .enumerate()
+            for (index, line) in wrap(
+                context.system().platform().font(),
+                alt_text.as_deref().unwrap_or_default(),
+                10.0,
+                wrap_width,
+            )
+            .iter()
+            .enumerate()
             {
                 let line_y = content_y + index as i32 * Font::HEIGHT;
                 if line_y >= content_y + content_height {

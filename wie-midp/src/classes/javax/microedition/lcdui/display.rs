@@ -5,11 +5,11 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::{Runnable, String as JavaString};
 
-use wie_backend::Event;
+use wie_backend::{Event, text_layout::wrap};
 use wie_jvm_support::{JvmSupport, WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::{
-    lcdui::{Alert, Displayable, Font, Graphics, Image, Ticker},
+    lcdui::{Alert, Displayable, Graphics, Image, Ticker},
     midlet::MIDlet,
 };
 
@@ -233,9 +233,10 @@ impl Display {
             Vec::new()
         } else {
             let title = JavaLangString::to_rust_string(jvm, &title).await?;
-            Font::wrap(
+            wrap(
                 context.system().platform().font(),
                 &title,
+                10.0,
                 Some((width - TITLE_HORIZONTAL_PADDING * 2).max(1)),
             )
         };
@@ -388,6 +389,8 @@ impl Display {
         mut this: ClassInstanceRef<Self>,
         displayable: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::transition({this:?}, {displayable:?})");
+
         let alert_generation: i32 = jvm.get_field(&this, "alertGeneration", "I").await?;
         let alert_generation = alert_generation.wrapping_add(1);
         jvm.put_field(&mut this, "alertGeneration", "I", alert_generation).await?;

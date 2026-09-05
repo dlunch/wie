@@ -30,16 +30,28 @@ impl Command {
                 JavaMethodProto::new("getCommandType", "()I", Self::get_command_type, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getPriority", "()I", Self::get_priority, MethodAccessFlags::PUBLIC),
             ],
-            fields: ["SCREEN", "BACK", "CANCEL", "OK", "HELP", "STOP", "EXIT", "ITEM"]
-                .into_iter()
-                .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-                .chain([
-                    JavaFieldProto::new("label", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("longLabel", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("commandType", "I", FieldAccessFlags::PRIVATE),
-                    JavaFieldProto::new("priority", "I", FieldAccessFlags::PRIVATE),
-                ])
-                .collect(),
+            fields: vec![
+                JavaFieldProto::new(
+                    "SCREEN",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("BACK", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new(
+                    "CANCEL",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("OK", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("HELP", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("STOP", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("EXIT", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("ITEM", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("label", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("longLabel", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("commandType", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("priority", "I", FieldAccessFlags::PRIVATE),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }
