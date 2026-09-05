@@ -17,7 +17,9 @@ use crate::classes::{
 
 struct ItemRect {
     item: ClassInstanceRef<Item>,
+    x: i32,
     y: i32,
+    width: i32,
     height: i32,
 }
 
@@ -195,16 +197,32 @@ impl Form {
     }
 
     async fn layout_items(jvm: &Jvm, items: &[ClassInstanceRef<Item>], width: i32) -> JvmResult<Vec<ItemRect>> {
+        let width = width.max(0);
         let mut rows = Vec::with_capacity(items.len());
         let mut y = 0i32;
+        let mut alignment = 1;
         for item in items {
+            let layout: i32 = jvm.invoke_virtual(item, "javax/microedition/lcdui/Item", "getLayout", "()I", ()).await?;
+            if layout & 3 != 0 {
+                alignment = layout & 3;
+            }
+            let item_width: i32 = jvm
+                .invoke_virtual(item, "javax/microedition/lcdui/Item", "measureWidth", "(I)I", (width,))
+                .await?;
+            let x = match alignment {
+                2 => width - item_width,
+                3 => (width - item_width) / 2,
+                _ => 0,
+            };
             let height: i32 = jvm
-                .invoke_virtual(item, "javax/microedition/lcdui/Item", "measureHeight", "(I)I", (width.max(0),))
+                .invoke_virtual(item, "javax/microedition/lcdui/Item", "measureHeight", "(I)I", (item_width,))
                 .await?;
             let height = height.max(1);
             rows.push(ItemRect {
                 item: item.clone(),
+                x,
                 y,
+                width: item_width,
                 height,
             });
             y = y.saturating_add(height);
@@ -217,7 +235,6 @@ impl Form {
         _context: &mut WieJvmContext,
         this: &mut ClassInstanceRef<Self>,
         rows: &[ItemRect],
-        width: i32,
         viewport_height: i32,
     ) -> JvmResult<()> {
         let viewport_height = viewport_height.max(0);
@@ -239,7 +256,7 @@ impl Form {
                         "javax/microedition/lcdui/Item",
                         "getFocusBounds",
                         "(II)[I",
-                        (width, row.height),
+                        (row.width, row.height),
                     )
                     .await?;
                 let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
@@ -316,7 +333,7 @@ impl Form {
             .invoke_special(this, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
             .await?;
         let rows = Self::layout_items(jvm, &items, width).await?;
-        Self::update_scroll(jvm, context, this, &rows, width, height).await
+        Self::update_scroll(jvm, context, this, &rows, height).await
     }
 
     async fn focused_item(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Item>> {
@@ -722,7 +739,7 @@ impl Form {
                         "javax/microedition/lcdui/Item",
                         "getFocusBounds",
                         "(II)[I",
-                        (width, row.height),
+                        (row.width, row.height),
                     )
                     .await?;
                 let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
@@ -871,7 +888,7 @@ impl Form {
             .await?;
         let items = Self::load_items(jvm, &this).await?;
         let rows = Self::layout_items(jvm, &items, width).await?;
-        Self::update_scroll(jvm, context, &mut this, &rows, width, height).await?;
+        Self::update_scroll(jvm, context, &mut this, &rows, height).await?;
 
         let scroll: i32 = jvm.get_field(&this, "scrollY", "I").await?;
         let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
@@ -886,7 +903,14 @@ impl Form {
                     "javax/microedition/lcdui/Item",
                     "paintItem",
                     "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
-                    (graphics.clone(), 0, row.y - scroll, width, row.height, index as i32 == focus_index),
+                    (
+                        graphics.clone(),
+                        row.x,
+                        row.y - scroll,
+                        row.width,
+                        row.height,
+                        index as i32 == focus_index,
+                    ),
                 )
                 .await?;
         }
@@ -912,7 +936,7 @@ mod test {
         classes::{
             javax::microedition::lcdui::{
                 ChoiceGroup, Command, CommandListener, Display, Displayable, Form, Gauge, Graphics, Image, Item, ItemCommandListener,
-                ItemStateListener,
+                ItemStateListener, StringItem,
             },
             javax::microedition::midlet::MIDlet,
             net::wie::{EventQueue, KeyboardEventType, MIDPKeyCode},
@@ -1472,6 +1496,129 @@ mod test {
     }
 
     #[test]
+    fn form_paints_items_at_their_allocated_width_and_alignment() -> Result<()> {
+        run_jvm_test(test_protos(), |jvm| async move {
+            let text = JavaLangString::from_rust_string(&jvm, "alpha beta gamma delta epsilon").await?;
+            let item: ClassInstanceRef<StringItem> = jvm
+                .new_class(
+                    "javax/microedition/lcdui/StringItem",
+                    "(Ljava/lang/String;Ljava/lang/String;)V",
+                    (None, text),
+                )
+                .await?
+                .into();
+            let _: () = jvm
+                .invoke_virtual(&item, "javax/microedition/lcdui/Item", "setPreferredSize", "(II)V", (40, -1))
+                .await?;
+            let height: i32 = jvm
+                .invoke_virtual(&item, "javax/microedition/lcdui/Item", "getPreferredHeight", "()I", ())
+                .await?;
+            let following = recording_item(&jvm, 4, 0x225522, false).await?;
+            let form = form_with_items(
+                &jvm,
+                vec![JavaValue::from(item.clone()).into(), JavaValue::from(following.clone()).into()],
+            )
+            .await?;
+            let display = show_form(&jvm, &form, 80, 240).await?;
+            let mut graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
+            let expected: ClassInstanceRef<Image> = jvm
+                .invoke_static(
+                    "javax/microedition/lcdui/Image",
+                    "createImage",
+                    "(II)Ljavax/microedition/lcdui/Image;",
+                    (80, height),
+                )
+                .await?;
+            let expected_graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &expected,
+                    "javax/microedition/lcdui/Image",
+                    "getGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
+
+            for (layout, x) in [(0, 0), (1, 0), (2, 40), (3, 20), (3 | 0x800, 20), (2 | 0x400, 40)] {
+                let _: () = jvm
+                    .invoke_virtual(&item, "javax/microedition/lcdui/Item", "setLayout", "(I)V", (layout,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&expected_graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xffffff,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &expected_graphics,
+                        "javax/microedition/lcdui/Graphics",
+                        "fillRect",
+                        "(IIII)V",
+                        (0, 0, 80, height),
+                    )
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(
+                        &item,
+                        "javax/microedition/lcdui/Item",
+                        "paintItem",
+                        "(Ljavax/microedition/lcdui/Graphics;IIIIZ)V",
+                        (expected_graphics.clone(), x, 0, 40, height, false),
+                    )
+                    .await?;
+                let actual = Graphics::image(&jvm, &mut graphics).await?;
+                let actual = Image::image(&jvm, &actual).await?;
+                let expected_pixels = Image::image(&jvm, &expected).await?;
+                for y in 0..height {
+                    for x in 0..80 {
+                        let actual = actual.get_pixel(x, y);
+                        let expected = expected_pixels.get_pixel(x, y);
+                        assert_eq!(
+                            (actual.r, actual.g, actual.b),
+                            (expected.r, expected.g, expected.b),
+                            "layout={layout}, x={x}, y={y}"
+                        );
+                    }
+                }
+                assert_eq!(jvm.get_field::<i32>(&following, "lastPaintY", "I").await?, height);
+            }
+
+            let _: () = jvm
+                .invoke_virtual(&following, "javax/microedition/lcdui/Item", "setPreferredSize", "(II)V", (40, -1))
+                .await?;
+            for (layout, x, width) in [(0, 40, 40), (3, 20, 40), (0x800, 0, 80), (1 | 0x400, 0, 40)] {
+                let _: () = jvm
+                    .invoke_virtual(&following, "javax/microedition/lcdui/Item", "setLayout", "(I)V", (layout,))
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                    .await?;
+                let actual = Graphics::image(&jvm, &mut graphics).await?;
+                let actual = Image::image(&jvm, &actual).await?;
+                for column in 0..80 {
+                    let color = actual.get_pixel(column, height);
+                    let expected = if (x..x + width).contains(&column) {
+                        (0x22, 0x55, 0x22)
+                    } else {
+                        (0xff, 0xff, 0xff)
+                    };
+                    assert_eq!((color.r, color.g, color.b), expected, "layout={layout}, x={column}");
+                }
+            }
+            Ok(())
+        })
+    }
+
+    #[test]
     fn form_reveals_oversized_choice_groups_and_scrolls_the_final_element() -> Result<()> {
         run_jvm_test(test_protos(), |jvm| async move {
             for choice_type in [1, 4] {
@@ -1525,10 +1672,13 @@ mod test {
                     .await?;
                 let image = Graphics::image(&jvm, &mut graphics).await?;
                 let pixels = Image::image(&jvm, &image).await?;
+                let choice_width: i32 = jvm
+                    .invoke_virtual(&choice, "javax/microedition/lcdui/Item", "measureWidth", "(I)I", (320,))
+                    .await?;
                 assert_eq!(
                     (0..240)
                         .filter(|y| {
-                            let pixel = pixels.get_pixel(200, *y);
+                            let pixel = pixels.get_pixel(choice_width - 3, *y);
                             (pixel.r, pixel.g, pixel.b) == (0xdc, 0xec, 0xf7)
                         })
                         .count(),

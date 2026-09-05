@@ -34,6 +34,7 @@ impl StringItem {
                 JavaMethodProto::new("setFont", "(Ljavax/microedition/lcdui/Font;)V", Self::set_font, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getFont", "()Ljavax/microedition/lcdui/Font;", Self::get_font, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("setPreferredSize", "(II)V", Self::set_preferred_size, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("measureWidth", "(I)I", Self::measure_width, MethodAccessFlags::empty()),
                 JavaMethodProto::new("minimumContentWidth", "()I", Self::minimum_content_width, MethodAccessFlags::empty()),
                 JavaMethodProto::new("minimumContentHeight", "()I", Self::minimum_content_height, MethodAccessFlags::empty()),
                 JavaMethodProto::new("preferredContentWidth", "()I", Self::preferred_content_width, MethodAccessFlags::empty()),
@@ -133,6 +134,20 @@ impl StringItem {
 
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "setPreferredSize", "(II)V", (width, height))
+            .await
+    }
+
+    async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
+        let preferred_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
+        let preferred_height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
+        // MIDP ignores shrink/expand directives on a StringItem with either dimension locked.
+        if preferred_width >= 0 || preferred_height >= 0 {
+            let width: i32 = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getPreferredWidth", "()I", ())
+                .await?;
+            return Ok(width.min(available_width.max(0)));
+        }
+        jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "measureWidth", "(I)I", (available_width,))
             .await
     }
 

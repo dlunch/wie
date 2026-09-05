@@ -69,6 +69,7 @@ impl Item {
                 ),
                 JavaMethodProto::new("notifyStateChanged", "()V", Self::notify_state_changed, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("invalidate", "(Z)V", Self::invalidate, MethodAccessFlags::empty()),
+                JavaMethodProto::new("measureWidth", "(I)I", Self::measure_width, MethodAccessFlags::empty()),
                 JavaMethodProto::new("measureHeight", "(I)I", Self::measure_height, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "paintItem",
@@ -479,6 +480,17 @@ impl Item {
         .await
     }
 
+    async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
+        let layout: i32 = jvm.get_field(&this, "layout", "I").await?;
+        if layout & 0x800 != 0 {
+            return Ok(available_width.max(0));
+        }
+        let preferred_width: i32 = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getPreferredWidth", "()I", ())
+            .await?;
+        Ok(preferred_width.min(available_width.max(0)))
+    }
+
     async fn measure_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
         let minimum_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumHeight", "()I", ())
@@ -494,16 +506,7 @@ impl Item {
         } else {
             width
         };
-        let preferred_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
-        let measured_width = if preferred_width >= 0 {
-            let minimum_width: i32 = jvm
-                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumWidth", "()I", ())
-                .await?;
-            available_width.min(preferred_width.max(minimum_width))
-        } else {
-            available_width
-        };
-        Ok(Self::natural_height(jvm, context, &this, measured_width).await?.max(minimum_height))
+        Ok(Self::natural_height(jvm, context, &this, available_width).await?.max(minimum_height))
     }
 
     #[allow(clippy::too_many_arguments)]
