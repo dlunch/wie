@@ -25,6 +25,7 @@
 - Avoid redundant or defensive validation for states already guaranteed by internal types, trusted workflow context, build tools, or a following command that will fail naturally. Add validation only at meaningful external/dynamic boundaries or when it provides required observable behavior.
 - Keep emulated runtime state authoritative in guest memory. Do not add host-side state or metadata registries; host adapters may only reference and operate on guest-backed structures.
 - Do not add special-case branches keyed to a specific application or Java class in shared runtime infrastructure. Represent confirmed ABI differences as data and handle them through generic mechanisms.
+- Use reference implementations only to understand architectural boundaries and responsibilities. Derive API contracts from public specifications and documentation, and implement behavior independently without copying reference implementation code or algorithms.
 
 ## Project Layout
 - `wie-backend`: System-level services for APIs

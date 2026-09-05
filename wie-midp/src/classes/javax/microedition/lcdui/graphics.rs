@@ -125,6 +125,7 @@ impl Graphics {
                 JavaFieldProto::new("translateY", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("color", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("xorMode", "Z", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("font", "Ljavax/microedition/lcdui/Font;", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
@@ -166,16 +167,18 @@ impl Graphics {
         jvm.put_field(&mut this, "translateY", "I", 0).await?;
         jvm.put_field(&mut this, "color", "I", 0).await?;
         jvm.put_field(&mut this, "xorMode", "Z", false).await?;
+        let font: ClassInstanceRef<Font> = jvm
+            .invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
+            .await?;
+        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", font).await?;
 
         Ok(())
     }
 
     async fn get_font(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>) -> JvmResult<ClassInstanceRef<Font>> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::getFont({this:?})");
+        tracing::debug!("javax.microedition.lcdui.Graphics::getFont({this:?})");
 
-        let instance = jvm.new_class("javax/microedition/lcdui/Font", "()V", []).await?;
-
-        Ok(instance.into())
+        jvm.get_field(&this, "font", "Ljavax/microedition/lcdui/Font;").await
     }
 
     async fn set_color(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, rgb: i32) -> JvmResult<()> {
@@ -204,10 +207,16 @@ impl Graphics {
         Ok(())
     }
 
-    async fn set_font(_jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
-        tracing::warn!("stub javax.microedition.lcdui.Graphics::setFont({this:?}, {font:?})");
+    async fn set_font(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Graphics>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Graphics::setFont({this:?}, {font:?})");
 
-        Ok(())
+        let font = if font.is_null() {
+            jvm.invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
+                .await?
+        } else {
+            font
+        };
+        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", font).await
     }
 
     async fn set_clip(

@@ -10,6 +10,7 @@ mod screen;
 mod system;
 mod task;
 mod task_runner;
+pub mod text_layout;
 mod time;
 
 pub use self::{

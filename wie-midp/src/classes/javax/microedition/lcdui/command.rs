@@ -17,13 +17,38 @@ impl Command {
             parent_class: Some("java/lang/Object"),
             interfaces: vec![],
             methods: vec![
+                JavaMethodProto::new("<clinit>", "()V", Self::cl_init, MethodAccessFlags::STATIC),
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;II)V", Self::init, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "<init>",
+                    "(Ljava/lang/String;Ljava/lang/String;II)V",
+                    Self::init_with_long_label,
+                    MethodAccessFlags::PUBLIC,
+                ),
                 JavaMethodProto::new("getLabel", "()Ljava/lang/String;", Self::get_label, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("getLongLabel", "()Ljava/lang/String;", Self::get_long_label, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getCommandType", "()I", Self::get_command_type, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getPriority", "()I", Self::get_priority, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
+                JavaFieldProto::new(
+                    "SCREEN",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("BACK", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new(
+                    "CANCEL",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new("OK", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("HELP", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("STOP", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("EXIT", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
+                JavaFieldProto::new("ITEM", "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL),
                 JavaFieldProto::new("label", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("longLabel", "Ljava/lang/String;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("commandType", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("priority", "I", FieldAccessFlags::PRIVATE),
             ],
@@ -31,19 +56,63 @@ impl Command {
         }
     }
 
+    async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Command::<clinit>");
+
+        jvm.put_static_field("javax/microedition/lcdui/Command", "SCREEN", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "BACK", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "CANCEL", "I", 3).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "OK", "I", 4).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "HELP", "I", 5).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "STOP", "I", 6).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "EXIT", "I", 7).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "ITEM", "I", 8).await?;
+
+        Ok(())
+    }
+
     async fn init(
         jvm: &Jvm,
         _context: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         label: ClassInstanceRef<String>,
         command_type: i32,
         priority: i32,
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Command::<init>({this:?}, {label:?}, {command_type}, {priority})");
 
+        jvm.invoke_special(
+            &this,
+            "javax/microedition/lcdui/Command",
+            "<init>",
+            "(Ljava/lang/String;Ljava/lang/String;II)V",
+            (label, None, command_type, priority),
+        )
+        .await
+    }
+
+    async fn init_with_long_label(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        label: ClassInstanceRef<String>,
+        long_label: ClassInstanceRef<String>,
+        command_type: i32,
+        priority: i32,
+    ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Command::<init>({this:?}, {label:?}, {long_label:?}, {command_type}, {priority})");
+
+        if label.is_null() {
+            return Err(jvm.exception("java/lang/NullPointerException", "Command short label is null").await);
+        }
+        if !(1..=8).contains(&command_type) {
+            return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid command type").await);
+        }
+
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
+        jvm.put_field(&mut this, "longLabel", "Ljava/lang/String;", long_label).await?;
         jvm.put_field(&mut this, "commandType", "I", command_type).await?;
         jvm.put_field(&mut this, "priority", "I", priority).await?;
 
@@ -56,6 +125,12 @@ impl Command {
         let label: ClassInstanceRef<String> = jvm.get_field(&this, "label", "Ljava/lang/String;").await?;
 
         Ok(label)
+    }
+
+    async fn get_long_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.Command::getLongLabel({this:?})");
+
+        jvm.get_field(&this, "longLabel", "Ljava/lang/String;").await
     }
 
     async fn get_command_type(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {

@@ -273,7 +273,15 @@ impl Toolkit {
                     (current_midlet,),
                 )
                 .await?;
-            let graphics: ClassInstanceRef<Graphics> = Display::screen_graphics(jvm, &display).await?;
+            let graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
 
             jvm.put_static_field("com/xce/lcdui/Toolkit", "graphics", "Ljavax/microedition/lcdui/Graphics;", graphics)
                 .await?;

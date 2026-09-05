@@ -82,10 +82,23 @@ impl SISImage {
                     MethodAccessFlags::PUBLIC,
                 ),
             ],
-            fields: ["IMG_LEVEL_BW", "IMG_LEVEL_4G", "IMG_LEVEL_256C"]
-                .into_iter()
-                .map(|name| JavaFieldProto::new(name, "I", FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL))
-                .collect(),
+            fields: vec![
+                JavaFieldProto::new(
+                    "IMG_LEVEL_BW",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "IMG_LEVEL_4G",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+                JavaFieldProto::new(
+                    "IMG_LEVEL_256C",
+                    "I",
+                    FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC | FieldAccessFlags::FINAL,
+                ),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
     }

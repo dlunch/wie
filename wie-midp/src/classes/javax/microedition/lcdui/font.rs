@@ -5,13 +5,15 @@ use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_backend::canvas;
+use wie_backend::canvas::string_width;
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class javax.microedition.lcdui.Font
 pub struct Font;
 
 impl Font {
+    pub const HEIGHT: i32 = 12;
+
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "javax/microedition/lcdui/Font",
@@ -126,7 +128,7 @@ impl Font {
     async fn get_height(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getHeight");
 
-        Ok(12) // TODO: hardcoded
+        Ok(Self::HEIGHT) // TODO: hardcoded
     }
 
     async fn get_default_font(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
@@ -150,7 +152,7 @@ impl Font {
 
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
 
-        Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
+        Ok(string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 
     async fn substring_width(
@@ -166,7 +168,7 @@ impl Font {
         let string = JavaLangString::to_rust_string(jvm, &string).await?;
         let substring = string.chars().skip(offset as usize).take(len as usize).collect::<RustString>();
 
-        Ok(canvas::string_width(context.system().platform().font(), &substring, 10.0) as _)
+        Ok(string_width(context.system().platform().font(), &substring, 10.0) as _)
     }
 
     async fn char_width(_: &Jvm, context: &mut WieJvmContext, _: ClassInstanceRef<Self>, char: JavaChar) -> JvmResult<i32> {
@@ -174,7 +176,7 @@ impl Font {
 
         let string = RustString::from_utf16(&[char]).unwrap();
 
-        Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
+        Ok(string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 
     async fn chars_width(
@@ -190,6 +192,6 @@ impl Font {
         let chars = jvm.load_array(&chars, offset as _, len as _).await?;
         let string = RustString::from_utf16(&chars).unwrap();
 
-        Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
+        Ok(string_width(context.system().platform().font(), &string, 10.0) as _)
     }
 }
