@@ -94,7 +94,9 @@ impl StringItem {
         }
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
+            .await?;
         jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
         jvm.put_field(&mut this, "appearanceMode", "I", appearance_mode).await?;
         jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", None).await?;
@@ -138,10 +140,11 @@ impl StringItem {
     }
 
     async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
-        let preferred_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
-        let preferred_height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
+        let preferred: bool = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Item", "hasPreferredSize", "()Z", ())
+            .await?;
         // MIDP ignores shrink/expand directives on a StringItem with either dimension locked.
-        if preferred_width >= 0 || preferred_height >= 0 {
+        if preferred {
             let width: i32 = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getPreferredWidth", "()I", ())
                 .await?;

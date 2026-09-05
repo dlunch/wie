@@ -207,11 +207,9 @@ impl EventQueue {
                 if !midlet.is_null() {
                     let display = MIDlet::display(jvm, &midlet).await?;
                     // A frontend Redraw may not have reached the backend queue yet.
-                    if jvm.get_field::<bool>(&display, "repaintPending", "Z").await? {
-                        let _: () = jvm
-                            .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
-                            .await?;
-                    }
+                    let _: () = jvm
+                        .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
+                        .await?;
                 }
             }
             // Callbacks queued during delivery wait until the next event-loop iteration.

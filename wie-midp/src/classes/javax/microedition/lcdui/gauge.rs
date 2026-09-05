@@ -3,7 +3,7 @@ use alloc::vec;
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::{lang::String, util::Vector};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
@@ -72,6 +72,7 @@ impl Gauge {
                     Self::paint_content,
                     MethodAccessFlags::empty(),
                 ),
+                JavaMethodProto::new("canBeAlertIndicator", "()Z", Self::can_be_alert_indicator, MethodAccessFlags::empty()),
                 JavaMethodProto::new("isFocusable", "()Z", Self::is_focusable, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleItemKey", "(I)I", Self::handle_item_key, MethodAccessFlags::empty()),
             ],
@@ -127,7 +128,9 @@ impl Gauge {
         }
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await?;
-        jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
+            .await?;
         jvm.put_field(&mut this, "interactive", "Z", interactive).await?;
         jvm.put_field(&mut this, "maxValue", "I", max_value).await?;
         jvm.put_field(
@@ -338,13 +341,20 @@ impl Gauge {
         .await
     }
 
+    async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        if jvm.get_field::<bool>(&this, "interactive", "Z").await? {
+            return Ok(false);
+        }
+        jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "canBeAlertIndicator", "()Z", ())
+            .await
+    }
+
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
         if jvm.get_field::<bool>(&this, "interactive", "Z").await? {
             return Ok(true);
         }
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
-        Ok(jvm.invoke_virtual::<_, i32>(&commands, "java/util/Vector", "size", "()I", ()).await? > 0)
+        jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
     }
 
     async fn handle_item_key(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {

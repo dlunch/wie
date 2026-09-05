@@ -8,12 +8,9 @@ use rustjava_runtime::classes::java::lang::{Runnable, String as JavaString};
 use wie_backend::Event;
 use wie_jvm_support::{JvmSupport, WieJavaClassProto, WieJvmContext};
 
-use crate::classes::{
-    javax::microedition::{
-        lcdui::{Alert, Command, Displayable, Font, Graphics, Image, Ticker},
-        midlet::MIDlet,
-    },
-    net::wie::{KeyboardEventType, MIDPKeyCode},
+use crate::classes::javax::microedition::{
+    lcdui::{Alert, Displayable, Font, Graphics, Image, Ticker},
+    midlet::MIDlet,
 };
 
 const FONT_HEIGHT: i32 = 12;
@@ -21,25 +18,12 @@ const TITLE_HORIZONTAL_PADDING: i32 = 4;
 const TITLE_VERTICAL_PADDING: i32 = 2;
 const TICKER_HEIGHT: i32 = 16;
 const TICKER_INTERVAL_MS: u64 = 100;
-const TICKER_SCROLL_STEP: i32 = 2;
 const SOFTKEY_HEIGHT: i32 = 18;
-const MENU_ROW_HEIGHT: i32 = 18;
 
 const TITLE_BACKGROUND: i32 = 0x263746;
-const TICKER_BACKGROUND: i32 = 0xdde5ec;
-const SOFTKEY_BACKGROUND: i32 = 0x263746;
-const MENU_SELECTION_BACKGROUND: i32 = 0x2f6f9f;
 const WHITE: i32 = 0xffffff;
-const BLACK: i32 = 0;
-
-const COMMAND_BACK: i32 = 2;
-const COMMAND_CANCEL: i32 = 3;
-const COMMAND_OK: i32 = 4;
-const COMMAND_STOP: i32 = 6;
-const COMMAND_EXIT: i32 = 7;
 
 const LEFT_TOP: i32 = 4 | 16;
-const RIGHT_TOP: i32 = 8 | 16;
 
 struct ChromeLayout {
     content_width: i32,
@@ -52,19 +36,6 @@ struct ChromeLayout {
     ticker_height: i32,
     softkey_y: i32,
     softkey_height: i32,
-}
-
-#[derive(Clone)]
-struct CommandBinding {
-    command: ClassInstanceRef<Command>,
-    command_type: i32,
-    priority: i32,
-    effective_index: i32,
-}
-
-struct CommandLayout {
-    right: Option<CommandBinding>,
-    remaining: Vec<CommandBinding>,
 }
 
 // class javax.microedition.lcdui.Display
@@ -133,6 +104,7 @@ impl Display {
                     Self::get_content_height,
                     MethodAccessFlags::STATIC,
                 ),
+                JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::empty()),
@@ -218,7 +190,9 @@ impl Display {
     ) -> JvmResult<ChromeLayout> {
         let width = width.max(0);
         let height = height.max(0);
-        let fullscreen: bool = jvm.get_field(displayable, "isInFullScreenMode", "Z").await?;
+        let fullscreen: bool = jvm
+            .invoke_virtual(displayable, "javax/microedition/lcdui/Displayable", "isFullScreen", "()Z", ())
+            .await?;
         if fullscreen {
             return Ok(ChromeLayout {
                 content_x: 0,
@@ -237,8 +211,24 @@ impl Display {
         let command_count: i32 = jvm
             .invoke_virtual(displayable, "javax/microedition/lcdui/Displayable", "getCommandCount", "()I", ())
             .await?;
-        let ticker: ClassInstanceRef<Ticker> = jvm.get_field(displayable, "ticker", "Ljavax/microedition/lcdui/Ticker;").await?;
-        let title: ClassInstanceRef<JavaString> = jvm.get_field(displayable, "title", "Ljava/lang/String;").await?;
+        let ticker: ClassInstanceRef<Ticker> = jvm
+            .invoke_virtual(
+                displayable,
+                "javax/microedition/lcdui/Displayable",
+                "getTicker",
+                "()Ljavax/microedition/lcdui/Ticker;",
+                (),
+            )
+            .await?;
+        let title: ClassInstanceRef<JavaString> = jvm
+            .invoke_virtual(
+                displayable,
+                "javax/microedition/lcdui/Displayable",
+                "getTitle",
+                "()Ljava/lang/String;",
+                (),
+            )
+            .await?;
         let title_lines = if title.is_null() {
             Vec::new()
         } else {
@@ -277,59 +267,6 @@ impl Display {
             softkey_y: height - softkey_height,
             softkey_height,
         })
-    }
-
-    async fn command_layout(jvm: &Jvm, displayable: &ClassInstanceRef<Displayable>) -> JvmResult<CommandLayout> {
-        let count: i32 = jvm
-            .invoke_virtual(displayable, "javax/microedition/lcdui/Displayable", "getCommandCount", "()I", ())
-            .await?;
-        let mut bindings = Vec::with_capacity(count.max(0) as usize);
-        for effective_index in 0..count {
-            let command: ClassInstanceRef<Command> = jvm
-                .invoke_virtual(
-                    displayable,
-                    "javax/microedition/lcdui/Displayable",
-                    "getCommandAt",
-                    "(I)Ljavax/microedition/lcdui/Command;",
-                    (effective_index,),
-                )
-                .await?;
-            let command_type: i32 = jvm
-                .invoke_virtual(&command, "javax/microedition/lcdui/Command", "getCommandType", "()I", ())
-                .await?;
-            let priority: i32 = jvm
-                .invoke_virtual(&command, "javax/microedition/lcdui/Command", "getPriority", "()I", ())
-                .await?;
-            bindings.push(CommandBinding {
-                command,
-                command_type,
-                priority,
-                effective_index,
-            });
-        }
-
-        let right = bindings
-            .iter()
-            .filter(|binding| matches!(binding.command_type, COMMAND_BACK | COMMAND_CANCEL | COMMAND_STOP | COMMAND_EXIT))
-            .min_by_key(|binding| (binding.priority, binding.effective_index))
-            .cloned();
-        let mut remaining = bindings
-            .into_iter()
-            .filter(|binding| right.as_ref().is_none_or(|right| binding.effective_index != right.effective_index))
-            .collect::<Vec<_>>();
-        remaining.sort_by_key(|binding| {
-            (
-                if matches!(binding.command_type, COMMAND_BACK | COMMAND_CANCEL | COMMAND_STOP | COMMAND_EXIT) {
-                    1
-                } else {
-                    0
-                },
-                binding.priority,
-                binding.effective_index,
-            )
-        });
-
-        Ok(CommandLayout { right, remaining })
     }
 
     async fn get_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -387,9 +324,15 @@ impl Display {
                     .exception("java/lang/IllegalArgumentException", "An Alert cannot follow an Alert")
                     .await);
             }
-            let mut alert: ClassInstanceRef<Alert> = JavaValue::from(displayable.clone()).into();
-            jvm.put_field(&mut alert, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", current)
-                .await?;
+            let alert: ClassInstanceRef<Alert> = JavaValue::from(displayable.clone()).into();
+            jvm.invoke_virtual::<_, ()>(
+                &alert,
+                "javax/microedition/lcdui/Alert",
+                "setNextDisplayable",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (current,),
+            )
+            .await?;
         }
 
         jvm.invoke_virtual(
@@ -406,7 +349,7 @@ impl Display {
         jvm: &Jvm,
         _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
-        mut alert: ClassInstanceRef<Alert>,
+        alert: ClassInstanceRef<Alert>,
         next_displayable: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Display::setCurrent({this:?}, {alert:?}, {next_displayable:?})");
@@ -420,8 +363,14 @@ impl Display {
                 .await);
         }
 
-        jvm.put_field(&mut alert, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", next_displayable)
-            .await?;
+        jvm.invoke_virtual::<_, ()>(
+            &alert,
+            "javax/microedition/lcdui/Alert",
+            "setNextDisplayable",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (next_displayable,),
+        )
+        .await?;
         let displayable: ClassInstanceRef<Displayable> = JavaValue::from(alert).into();
         jvm.invoke_virtual(
             &this,
@@ -492,7 +441,9 @@ impl Display {
                 .await?;
         }
 
-        let fullscreen_mode: bool = jvm.get_field(&displayable, "isInFullScreenMode", "Z").await?;
+        let fullscreen_mode: bool = jvm
+            .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "isFullScreen", "()Z", ())
+            .await?;
         jvm.put_field(&mut this, "isInFullScreenMode", "Z", fullscreen_mode).await?;
 
         let width: i32 = jvm.get_field(&this, "width", "I").await?;
@@ -525,7 +476,15 @@ impl Display {
         if current.is_null() || !jvm.is_instance(&**current, "javax/microedition/lcdui/Alert") {
             return Ok(());
         }
-        let attached_display: ClassInstanceRef<Display> = jvm.get_field(&current, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let attached_display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &current,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if attached_display.is_null() || attached_display.identity() != this.identity() {
             return Ok(());
         }
@@ -587,7 +546,15 @@ impl Display {
         if current.is_null() {
             return Ok(None.into());
         }
-        let attached_display: ClassInstanceRef<Display> = jvm.get_field(&current, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let attached_display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &current,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if attached_display.is_null() || attached_display.identity() != this.identity() {
             return Ok(None.into());
         }
@@ -598,7 +565,14 @@ impl Display {
         if layout.ticker_height == 0 || layout.content_width == 0 {
             return Ok(None.into());
         }
-        jvm.get_field(&current, "ticker", "Ljavax/microedition/lcdui/Ticker;").await
+        jvm.invoke_virtual(
+            &current,
+            "javax/microedition/lcdui/Displayable",
+            "getTicker",
+            "()Ljavax/microedition/lcdui/Ticker;",
+            (),
+        )
+        .await
     }
 
     async fn ticker_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
@@ -624,7 +598,9 @@ impl Display {
         if ticker.is_null() {
             return Ok(());
         }
-        let text: ClassInstanceRef<JavaString> = jvm.get_field(&ticker, "text", "Ljava/lang/String;").await?;
+        let text: ClassInstanceRef<JavaString> = jvm
+            .invoke_virtual(&ticker, "javax/microedition/lcdui/Ticker", "getString", "()Ljava/lang/String;", ())
+            .await?;
         if JavaLangString::to_rust_string(jvm, &text).await?.is_empty() {
             return Ok(());
         }
@@ -667,7 +643,7 @@ impl Display {
         if jvm.get_field::<i32>(&this, "tickerGeneration", "I").await? != generation {
             return Ok(());
         }
-        let mut ticker: ClassInstanceRef<Ticker> = jvm
+        let ticker: ClassInstanceRef<Ticker> = jvm
             .invoke_virtual(
                 &this,
                 "javax/microedition/lcdui/Display",
@@ -679,23 +655,13 @@ impl Display {
         if ticker.is_null() {
             return Ok(());
         }
-        let text: ClassInstanceRef<JavaString> = jvm.get_field(&ticker, "text", "Ljava/lang/String;").await?;
-        let text = JavaLangString::to_rust_string(jvm, &text)
-            .await?
-            .replace("\r\n", " ")
-            .replace(['\r', '\n'], " ");
-        if text.is_empty() {
+        let width: i32 = jvm.get_field(&this, "width", "I").await?;
+        let advanced: bool = jvm
+            .invoke_virtual(&ticker, "javax/microedition/lcdui/Ticker", "advance", "(I)Z", (width,))
+            .await?;
+        if !advanced {
             return Ok(());
         }
-        let offset: i32 = jvm.get_field(&ticker, "scrollOffset", "I").await?;
-        let offset = offset + TICKER_SCROLL_STEP;
-        let offset = if offset >= Font::text_width(context.system().platform().font(), &text) + TITLE_HORIZONTAL_PADDING {
-            let width: i32 = jvm.get_field(&this, "width", "I").await?;
-            TITLE_HORIZONTAL_PADDING - width
-        } else {
-            offset
-        };
-        jvm.put_field(&mut ticker, "scrollOffset", "I", offset).await?;
         let _: () = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
             .await?;
@@ -755,7 +721,15 @@ impl Display {
             .await?;
 
         if !current_displayable.is_null() {
-            let result = Self::route_key_event(jvm, &current_displayable, event_type, code).await;
+            let result: JvmResult<()> = jvm
+                .invoke_virtual(
+                    &current_displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "routeKeyEvent",
+                    "(II)V",
+                    (event_type, code),
+                )
+                .await;
 
             if let Err(x) = result {
                 Self::handle_exception(jvm, x).await?;
@@ -777,7 +751,15 @@ impl Display {
         if current.is_null() || !jvm.is_instance(&**current, "javax/microedition/lcdui/Alert") {
             return Ok(());
         }
-        let attached_display: ClassInstanceRef<Display> = jvm.get_field(&current, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let attached_display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &current,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if attached_display.is_null() || attached_display.identity() != this.identity() {
             return Ok(());
         }
@@ -787,6 +769,15 @@ impl Display {
             .await;
         if let Err(error) = result {
             Self::handle_exception(jvm, error).await?;
+        }
+        Ok(())
+    }
+
+    async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        if jvm.get_field::<bool>(&this, "repaintPending", "Z").await? {
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
+                .await?;
         }
         Ok(())
     }
@@ -901,123 +892,9 @@ impl Display {
         Ok(())
     }
 
-    async fn route_key_event(jvm: &Jvm, displayable: &ClassInstanceRef<Displayable>, event_type: i32, code: i32) -> JvmResult<()> {
-        let mut displayable = displayable.clone();
-        let command_layout = Self::command_layout(jvm, &displayable).await?;
-        let mut menu_open: bool = jvm.get_field(&displayable, "commandMenuOpen", "Z").await?;
-
-        if menu_open && command_layout.remaining.len() < 2 {
-            jvm.put_field(&mut displayable, "commandMenuOpen", "Z", false).await?;
-            jvm.put_field(&mut displayable, "commandMenuIndex", "I", -1).await?;
-            menu_open = false;
-        }
-
-        if menu_open {
-            let pressed = event_type == KeyboardEventType::KeyPressed as i32;
-            let repeated = event_type == KeyboardEventType::KeyRepeated as i32;
-            if code == MIDPKeyCode::UP as i32 || code == MIDPKeyCode::DOWN as i32 {
-                if pressed || repeated {
-                    let index: i32 = jvm.get_field(&displayable, "commandMenuIndex", "I").await?;
-                    let maximum = command_layout.remaining.len() as i32 - 1;
-                    let new_index = if code == MIDPKeyCode::UP as i32 {
-                        (index - 1).max(0)
-                    } else {
-                        (index + 1).min(maximum)
-                    };
-                    if new_index != index {
-                        jvm.put_field(&mut displayable, "commandMenuIndex", "I", new_index).await?;
-                        let _: () = jvm
-                            .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
-                            .await?;
-                    }
-                }
-                return Ok(());
-            }
-
-            if code == MIDPKeyCode::FIRE as i32 || code == MIDPKeyCode::LEFT_SOFT_KEY as i32 {
-                if pressed {
-                    let index: i32 = jvm.get_field(&displayable, "commandMenuIndex", "I").await?;
-                    let command_index = command_layout.remaining[index.clamp(0, command_layout.remaining.len() as i32 - 1) as usize].effective_index;
-                    jvm.put_field(&mut displayable, "commandMenuOpen", "Z", false).await?;
-                    jvm.put_field(&mut displayable, "commandMenuIndex", "I", -1).await?;
-                    let _: () = jvm
-                        .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
-                        .await?;
-                    return jvm
-                        .invoke_virtual(
-                            &displayable,
-                            "javax/microedition/lcdui/Displayable",
-                            "dispatchCommandAt",
-                            "(I)V",
-                            (command_index,),
-                        )
-                        .await;
-                }
-                return Ok(());
-            }
-
-            if code == MIDPKeyCode::RIGHT_SOFT_KEY as i32 {
-                if pressed {
-                    jvm.put_field(&mut displayable, "commandMenuOpen", "Z", false).await?;
-                    jvm.put_field(&mut displayable, "commandMenuIndex", "I", -1).await?;
-                    let _: () = jvm
-                        .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
-                        .await?;
-                }
-                return Ok(());
-            }
-        } else {
-            if code == MIDPKeyCode::RIGHT_SOFT_KEY as i32 {
-                if let Some(binding) = command_layout.right {
-                    if event_type == KeyboardEventType::KeyPressed as i32 {
-                        return jvm
-                            .invoke_virtual(
-                                &displayable,
-                                "javax/microedition/lcdui/Displayable",
-                                "dispatchCommandAt",
-                                "(I)V",
-                                (binding.effective_index,),
-                            )
-                            .await;
-                    }
-                    return Ok(());
-                }
-            } else if code == MIDPKeyCode::LEFT_SOFT_KEY as i32 && !command_layout.remaining.is_empty() {
-                if event_type == KeyboardEventType::KeyPressed as i32 {
-                    if command_layout.remaining.len() == 1 {
-                        return jvm
-                            .invoke_virtual(
-                                &displayable,
-                                "javax/microedition/lcdui/Displayable",
-                                "dispatchCommandAt",
-                                "(I)V",
-                                (command_layout.remaining[0].effective_index,),
-                            )
-                            .await;
-                    }
-                    jvm.put_field(&mut displayable, "commandMenuOpen", "Z", true).await?;
-                    jvm.put_field(&mut displayable, "commandMenuIndex", "I", 0).await?;
-                    let _: () = jvm
-                        .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
-                        .await?;
-                }
-                return Ok(());
-            }
-        }
-
-        jvm.invoke_virtual(
-            &displayable,
-            "javax/microedition/lcdui/Displayable",
-            "handleKeyEvent",
-            "(II)V",
-            (event_type, code),
-        )
-        .await
-    }
-
     async fn paint_chrome(
         jvm: &Jvm,
-        mut displayable: ClassInstanceRef<Displayable>,
+        displayable: ClassInstanceRef<Displayable>,
         graphics: ClassInstanceRef<Graphics>,
         layout: &ChromeLayout,
     ) -> JvmResult<()> {
@@ -1066,292 +943,36 @@ impl Display {
         }
 
         if layout.ticker_height > 0 {
-            let _: () = jvm
+            let ticker: ClassInstanceRef<Ticker> = jvm
                 .invoke_virtual(
-                    &graphics,
-                    "javax/microedition/lcdui/Graphics",
-                    "setClip",
-                    "(IIII)V",
-                    (0, layout.ticker_y, layout.content_width, layout.ticker_height),
+                    &displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "getTicker",
+                    "()Ljavax/microedition/lcdui/Ticker;",
+                    (),
                 )
                 .await?;
             let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (TICKER_BACKGROUND,))
-                .await?;
-            let _: () = jvm
                 .invoke_virtual(
-                    &graphics,
-                    "javax/microedition/lcdui/Graphics",
-                    "fillRect",
-                    "(IIII)V",
-                    (0, layout.ticker_y, layout.content_width, layout.ticker_height),
-                )
-                .await?;
-
-            let ticker: ClassInstanceRef<Ticker> = jvm.get_field(&displayable, "ticker", "Ljavax/microedition/lcdui/Ticker;").await?;
-            let text: ClassInstanceRef<JavaString> = jvm.get_field(&ticker, "text", "Ljava/lang/String;").await?;
-            let text = JavaLangString::to_rust_string(jvm, &text)
-                .await?
-                .replace("\r\n", " ")
-                .replace(['\r', '\n'], " ");
-            let text = JavaLangString::from_rust_string(jvm, &text).await?;
-            let scroll_offset: i32 = jvm.get_field(&ticker, "scrollOffset", "I").await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BLACK,))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(
-                    &graphics,
-                    "javax/microedition/lcdui/Graphics",
-                    "drawString",
-                    "(Ljava/lang/String;III)V",
-                    (text, TITLE_HORIZONTAL_PADDING - scroll_offset, layout.ticker_y + 2, LEFT_TOP),
+                    &ticker,
+                    "javax/microedition/lcdui/Ticker",
+                    "paint",
+                    "(Ljavax/microedition/lcdui/Graphics;III)V",
+                    (graphics.clone(), layout.content_width, layout.ticker_y, layout.ticker_height),
                 )
                 .await?;
         }
 
         if layout.softkey_height > 0 {
-            let command_layout = Self::command_layout(jvm, &displayable).await?;
-            let menu_open: bool = jvm.get_field(&displayable, "commandMenuOpen", "Z").await?;
-            if menu_open && command_layout.remaining.len() > 1 && layout.softkey_y > 0 && layout.content_width > 0 {
-                let index: i32 = jvm.get_field(&displayable, "commandMenuIndex", "I").await?;
-                let index = index.clamp(0, command_layout.remaining.len() as i32 - 1);
-                jvm.put_field(&mut displayable, "commandMenuIndex", "I", index).await?;
-
-                let menu_height = layout
-                    .softkey_y
-                    .min((command_layout.remaining.len() as i32).saturating_mul(MENU_ROW_HEIGHT));
-                let visible_rows = ((menu_height + MENU_ROW_HEIGHT - 1) / MENU_ROW_HEIGHT).min(command_layout.remaining.len() as i32);
-                let first_row = (index - visible_rows + 1)
-                    .max(0)
-                    .min(command_layout.remaining.len() as i32 - visible_rows);
-                let menu_width = layout.content_width.min(180);
-                let menu_y = layout.softkey_y - menu_height;
-                let first_row_height = menu_height - (visible_rows - 1) * MENU_ROW_HEIGHT;
-
-                let _: () = jvm
-                    .invoke_virtual(
-                        &graphics,
-                        "javax/microedition/lcdui/Graphics",
-                        "setClip",
-                        "(IIII)V",
-                        (0, menu_y, menu_width, menu_height),
-                    )
-                    .await?;
-                let _: () = jvm
-                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (WHITE,))
-                    .await?;
-                let _: () = jvm
-                    .invoke_virtual(
-                        &graphics,
-                        "javax/microedition/lcdui/Graphics",
-                        "fillRect",
-                        "(IIII)V",
-                        (0, menu_y, menu_width, menu_height),
-                    )
-                    .await?;
-
-                for visible_index in 0..visible_rows {
-                    let command_index = first_row + visible_index;
-                    let (row_y, row_height) = if visible_index == 0 {
-                        (menu_y, first_row_height)
-                    } else {
-                        (menu_y + first_row_height + (visible_index - 1) * MENU_ROW_HEIGHT, MENU_ROW_HEIGHT)
-                    };
-                    let _: () = jvm
-                        .invoke_virtual(
-                            &graphics,
-                            "javax/microedition/lcdui/Graphics",
-                            "setClip",
-                            "(IIII)V",
-                            (0, row_y, menu_width, row_height),
-                        )
-                        .await?;
-                    if command_index == index {
-                        let _: () = jvm
-                            .invoke_virtual(
-                                &graphics,
-                                "javax/microedition/lcdui/Graphics",
-                                "setColor",
-                                "(I)V",
-                                (MENU_SELECTION_BACKGROUND,),
-                            )
-                            .await?;
-                        let _: () = jvm
-                            .invoke_virtual(
-                                &graphics,
-                                "javax/microedition/lcdui/Graphics",
-                                "fillRect",
-                                "(IIII)V",
-                                (0, row_y, menu_width, row_height),
-                            )
-                            .await?;
-                        let _: () = jvm
-                            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (WHITE,))
-                            .await?;
-                    } else {
-                        let _: () = jvm
-                            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BLACK,))
-                            .await?;
-                    }
-
-                    let label: ClassInstanceRef<JavaString> = jvm
-                        .invoke_virtual(
-                            &command_layout.remaining[command_index as usize].command,
-                            "javax/microedition/lcdui/Command",
-                            "getLabel",
-                            "()Ljava/lang/String;",
-                            (),
-                        )
-                        .await?;
-                    let _: () = jvm
-                        .invoke_virtual(
-                            &graphics,
-                            "javax/microedition/lcdui/Graphics",
-                            "drawString",
-                            "(Ljava/lang/String;III)V",
-                            (
-                                label,
-                                TITLE_HORIZONTAL_PADDING.min((menu_width - 1).max(0)),
-                                row_y + ((row_height - FONT_HEIGHT) / 2).max(0),
-                                LEFT_TOP,
-                            ),
-                        )
-                        .await?;
-                }
-
-                let _: () = jvm
-                    .invoke_virtual(
-                        &graphics,
-                        "javax/microedition/lcdui/Graphics",
-                        "setClip",
-                        "(IIII)V",
-                        (0, menu_y, menu_width, menu_height),
-                    )
-                    .await?;
-                let _: () = jvm
-                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BLACK,))
-                    .await?;
-                let _: () = jvm
-                    .invoke_virtual(
-                        &graphics,
-                        "javax/microedition/lcdui/Graphics",
-                        "drawRect",
-                        "(IIII)V",
-                        (0, menu_y, menu_width - 1, menu_height - 1),
-                    )
-                    .await?;
-            }
-
             let _: () = jvm
                 .invoke_virtual(
-                    &graphics,
-                    "javax/microedition/lcdui/Graphics",
-                    "setClip",
-                    "(IIII)V",
-                    (0, layout.softkey_y, layout.content_width, layout.softkey_height),
+                    &displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "paintCommands",
+                    "(Ljavax/microedition/lcdui/Graphics;III)V",
+                    (graphics, layout.content_width, layout.softkey_y, layout.softkey_height),
                 )
                 .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (SOFTKEY_BACKGROUND,))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(
-                    &graphics,
-                    "javax/microedition/lcdui/Graphics",
-                    "fillRect",
-                    "(IIII)V",
-                    (0, layout.softkey_y, layout.content_width, layout.softkey_height),
-                )
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (WHITE,))
-                .await?;
-
-            let middle = layout.content_width / 2;
-            let left_clip_width = (middle - 1).max(0);
-            let right_clip_x = (middle + 1).min(layout.content_width);
-            let right_clip_width = layout.content_width - right_clip_x;
-            if let Some(binding) = command_layout.right {
-                let label: ClassInstanceRef<JavaString> = jvm
-                    .invoke_virtual(
-                        &binding.command,
-                        "javax/microedition/lcdui/Command",
-                        "getLabel",
-                        "()Ljava/lang/String;",
-                        (),
-                    )
-                    .await?;
-                if right_clip_width > 0 {
-                    let _: () = jvm
-                        .invoke_virtual(
-                            &graphics,
-                            "javax/microedition/lcdui/Graphics",
-                            "setClip",
-                            "(IIII)V",
-                            (right_clip_x, layout.softkey_y, right_clip_width, layout.softkey_height),
-                        )
-                        .await?;
-                    let _: () = jvm
-                        .invoke_virtual(
-                            &graphics,
-                            "javax/microedition/lcdui/Graphics",
-                            "drawString",
-                            "(Ljava/lang/String;III)V",
-                            (
-                                label,
-                                (layout.content_width - TITLE_HORIZONTAL_PADDING).max(right_clip_x),
-                                layout.softkey_y + 2,
-                                RIGHT_TOP,
-                            ),
-                        )
-                        .await?;
-                }
-            }
-
-            if !command_layout.remaining.is_empty() && left_clip_width > 0 {
-                let label: ClassInstanceRef<JavaString> = if command_layout.remaining.len() == 1 {
-                    let label: ClassInstanceRef<JavaString> = jvm
-                        .invoke_virtual(
-                            &command_layout.remaining[0].command,
-                            "javax/microedition/lcdui/Command",
-                            "getLabel",
-                            "()Ljava/lang/String;",
-                            (),
-                        )
-                        .await?;
-                    if command_layout.remaining[0].command_type == COMMAND_OK && JavaLangString::to_rust_string(jvm, &label).await?.is_empty() {
-                        JavaLangString::from_rust_string(jvm, "OK").await?.into()
-                    } else {
-                        label
-                    }
-                } else {
-                    JavaLangString::from_rust_string(jvm, "Options").await?.into()
-                };
-                let _: () = jvm
-                    .invoke_virtual(
-                        &graphics,
-                        "javax/microedition/lcdui/Graphics",
-                        "setClip",
-                        "(IIII)V",
-                        (0, layout.softkey_y, left_clip_width, layout.softkey_height),
-                    )
-                    .await?;
-                let _: () = jvm
-                    .invoke_virtual(
-                        &graphics,
-                        "javax/microedition/lcdui/Graphics",
-                        "drawString",
-                        "(Ljava/lang/String;III)V",
-                        (
-                            label,
-                            TITLE_HORIZONTAL_PADDING.min((left_clip_width - 1).max(0)),
-                            layout.softkey_y + 2,
-                            LEFT_TOP,
-                        ),
-                    )
-                    .await?;
-            }
         }
 
         Ok(())

@@ -3,13 +3,11 @@ use alloc::{string::String as RustString, vec, vec::Vec};
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use rustjava_runtime::classes::java::{lang::String, util::Vector};
+use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::{
-    AlertType, Command, CommandListener, Display, Displayable, Font, Gauge, Graphics, Image, Item, ItemCommandListener,
-};
+use crate::classes::javax::microedition::lcdui::{AlertType, Command, CommandListener, Display, Displayable, Font, Gauge, Graphics, Image, Item};
 use crate::classes::net::wie::{KeyboardEventType, MIDPKeyCode};
 
 const CONTENT_GAP: i32 = 4;
@@ -110,6 +108,12 @@ impl Alert {
                     "getCommandAt",
                     "(I)Ljavax/microedition/lcdui/Command;",
                     Self::get_command_at,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new(
+                    "setNextDisplayable",
+                    "(Ljavax/microedition/lcdui/Displayable;)V",
+                    Self::set_next_displayable,
                     MethodAccessFlags::empty(),
                 ),
                 JavaMethodProto::new("dispatchCommandAt", "(I)V", Self::dispatch_command_at, MethodAccessFlags::empty()),
@@ -341,7 +345,15 @@ impl Alert {
     }
 
     async fn invalidate_current(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, request_repaint: bool) -> JvmResult<()> {
-        let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if display.is_null() {
             let _ = Self::effective_timeout(jvm, context, this).await?;
             return Ok(());
@@ -422,9 +434,9 @@ impl Alert {
         jvm: &Jvm,
         context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
-        mut indicator: ClassInstanceRef<Gauge>,
+        indicator: ClassInstanceRef<Gauge>,
     ) -> JvmResult<()> {
-        let mut old_indicator: ClassInstanceRef<Gauge> = jvm.get_field(&this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await?;
+        let old_indicator: ClassInstanceRef<Gauge> = jvm.get_field(&this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await?;
         if (old_indicator.is_null() && indicator.is_null())
             || (!old_indicator.is_null() && !indicator.is_null() && old_indicator.identity() == indicator.identity())
         {
@@ -432,26 +444,10 @@ impl Alert {
         }
 
         if !indicator.is_null() {
-            let interactive: bool = jvm.get_field(&indicator, "interactive", "Z").await?;
-            let owner: ClassInstanceRef<Displayable> = jvm.get_field(&indicator, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
-            let commands: ClassInstanceRef<Vector> = jvm.get_field(&indicator, "commands", "Ljava/util/Vector;").await?;
-            let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
-            let listener: ClassInstanceRef<ItemCommandListener> = jvm
-                .get_field(&indicator, "itemCommandListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
+            let eligible: bool = jvm
+                .invoke_virtual(&indicator, "javax/microedition/lcdui/Gauge", "canBeAlertIndicator", "()Z", ())
                 .await?;
-            let label: ClassInstanceRef<String> = jvm.get_field(&indicator, "label", "Ljava/lang/String;").await?;
-            let preferred_width: i32 = jvm.get_field(&indicator, "preferredWidth", "I").await?;
-            let preferred_height: i32 = jvm.get_field(&indicator, "preferredHeight", "I").await?;
-            let layout: i32 = jvm.get_field(&indicator, "layout", "I").await?;
-            if interactive
-                || !owner.is_null()
-                || command_count != 0
-                || !listener.is_null()
-                || !label.is_null()
-                || preferred_width != -1
-                || preferred_height != -1
-                || layout != 0
-            {
+            if !eligible {
                 return Err(jvm
                     .exception("java/lang/IllegalArgumentException", "Gauge cannot be used as an Alert indicator")
                     .await);
@@ -459,12 +455,24 @@ impl Alert {
         }
 
         if !old_indicator.is_null() {
-            jvm.put_field(&mut old_indicator, "owner", "Ljavax/microedition/lcdui/Displayable;", None)
-                .await?;
+            jvm.invoke_virtual::<_, ()>(
+                &old_indicator,
+                "javax/microedition/lcdui/Item",
+                "setOwner",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (None,),
+            )
+            .await?;
         }
         if !indicator.is_null() {
-            jvm.put_field(&mut indicator, "owner", "Ljavax/microedition/lcdui/Displayable;", this.clone())
-                .await?;
+            jvm.invoke_virtual::<_, ()>(
+                &indicator,
+                "javax/microedition/lcdui/Item",
+                "setOwner",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (this.clone(),),
+            )
+            .await?;
         }
         jvm.put_field(&mut this, "indicator", "Ljavax/microedition/lcdui/Gauge;", indicator)
             .await?;
@@ -581,25 +589,31 @@ impl Alert {
                 (index,),
             )
             .await?;
-        let listener: ClassInstanceRef<CommandListener> = jvm
-            .get_field(&this, "commandListener", "Ljavax/microedition/lcdui/CommandListener;")
+        let dispatched: bool = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "dispatchCommand",
+                "(Ljavax/microedition/lcdui/Command;)Z",
+                (command,),
+            )
             .await?;
-        if !listener.is_null() {
-            return jvm
-                .invoke_virtual(
-                    &listener,
-                    "javax/microedition/lcdui/CommandListener",
-                    "commandAction",
-                    "(Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
-                    (command, this),
-                )
-                .await;
+        if dispatched {
+            return Ok(());
         }
 
         let next: ClassInstanceRef<Displayable> = jvm.get_field(&this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;").await?;
         jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", None)
             .await?;
-        let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if display.is_null() {
             return Ok(());
         }
@@ -626,6 +640,16 @@ impl Alert {
         }
 
         Ok(())
+    }
+
+    async fn set_next_displayable(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        next: ClassInstanceRef<Displayable>,
+    ) -> JvmResult<()> {
+        jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", next)
+            .await
     }
 
     async fn set_display(

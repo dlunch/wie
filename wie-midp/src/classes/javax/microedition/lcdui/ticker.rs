@@ -1,13 +1,22 @@
 use alloc::vec;
 
-use jvm::{ClassInstanceRef, Jvm, Result as JvmResult};
+use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::{lcdui::Display, midlet::MIDlet};
+use crate::classes::javax::microedition::{
+    lcdui::{Display, Font, Graphics},
+    midlet::MIDlet,
+};
+
+const TITLE_HORIZONTAL_PADDING: i32 = 4;
+const TICKER_SCROLL_STEP: i32 = 2;
+const TICKER_BACKGROUND: i32 = 0xdde5ec;
+const BLACK: i32 = 0;
+const LEFT_TOP: i32 = 4 | 16;
 
 // class javax.microedition.lcdui.Ticker
 pub struct Ticker;
@@ -21,6 +30,13 @@ impl Ticker {
             methods: vec![
                 JavaMethodProto::new("<init>", "(Ljava/lang/String;)V", Self::init, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("getString", "()Ljava/lang/String;", Self::get_string, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("advance", "(I)Z", Self::advance, MethodAccessFlags::empty()),
+                JavaMethodProto::new(
+                    "paint",
+                    "(Ljavax/microedition/lcdui/Graphics;III)V",
+                    Self::paint,
+                    MethodAccessFlags::empty(),
+                ),
                 JavaMethodProto::new("setString", "(Ljava/lang/String;)V", Self::set_string, MethodAccessFlags::PUBLIC),
             ],
             fields: vec![
@@ -42,6 +58,79 @@ impl Ticker {
         jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
         jvm.put_field(&mut this, "scrollOffset", "I", 0).await?;
 
+        Ok(())
+    }
+
+    async fn advance(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32) -> JvmResult<bool> {
+        let text: ClassInstanceRef<String> = jvm.get_field(&this, "text", "Ljava/lang/String;").await?;
+        let text = JavaLangString::to_rust_string(jvm, &text)
+            .await?
+            .replace("\r\n", " ")
+            .replace(['\r', '\n'], " ");
+        if text.is_empty() {
+            return Ok(false);
+        }
+        let offset: i32 = jvm.get_field(&this, "scrollOffset", "I").await?;
+        let offset = offset + TICKER_SCROLL_STEP;
+        let offset = if offset >= Font::text_width(context.system().platform().font(), &text) + TITLE_HORIZONTAL_PADDING {
+            TITLE_HORIZONTAL_PADDING - width
+        } else {
+            offset
+        };
+        jvm.put_field(&mut this, "scrollOffset", "I", offset).await?;
+        Ok(true)
+    }
+
+    async fn paint(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        graphics: ClassInstanceRef<Graphics>,
+        width: i32,
+        y: i32,
+        height: i32,
+    ) -> JvmResult<()> {
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "setClip",
+                "(IIII)V",
+                (0, y, width, height),
+            )
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (TICKER_BACKGROUND,))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "fillRect",
+                "(IIII)V",
+                (0, y, width, height),
+            )
+            .await?;
+
+        let text: ClassInstanceRef<String> = jvm.get_field(&this, "text", "Ljava/lang/String;").await?;
+        let text = JavaLangString::to_rust_string(jvm, &text)
+            .await?
+            .replace("\r\n", " ")
+            .replace(['\r', '\n'], " ");
+        let text = JavaLangString::from_rust_string(jvm, &text).await?;
+        let scroll_offset: i32 = jvm.get_field(&this, "scrollOffset", "I").await?;
+        let _: () = jvm
+            .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BLACK,))
+            .await?;
+        let _: () = jvm
+            .invoke_virtual(
+                &graphics,
+                "javax/microedition/lcdui/Graphics",
+                "drawString",
+                "(Ljava/lang/String;III)V",
+                (text, TITLE_HORIZONTAL_PADDING - scroll_offset, y + 2, LEFT_TOP),
+            )
+            .await?;
         Ok(())
     }
 

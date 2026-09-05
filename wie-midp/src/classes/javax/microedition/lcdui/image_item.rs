@@ -146,8 +146,12 @@ impl ImageItem {
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await?;
         let display_image = Self::snapshot(jvm, &image).await?;
-        jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
-        jvm.put_field(&mut this, "layout", "I", layout).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
+            .await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Item", "setLayout", "(I)V", (layout,))
+            .await?;
         jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
         jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
             .await?;
@@ -200,7 +204,7 @@ impl ImageItem {
     }
 
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
-        jvm.get_field(&this, "layout", "I").await
+        jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "getLayout", "()I", ()).await
     }
 
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
@@ -342,7 +346,7 @@ impl ImageItem {
             return Ok(());
         }
 
-        let layout: i32 = jvm.get_field(&this, "layout", "I").await?;
+        let layout: i32 = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "getLayout", "()I", ()).await?;
         let image_x = match layout & 0x3 {
             2 => content_x + content_width - image_width,
             3 => content_x + (content_width - image_width) / 2,

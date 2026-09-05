@@ -187,7 +187,9 @@ impl ChoiceGroup {
 
         let _: () = jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "<init>", "()V", ()).await?;
         let elements: ClassInstanceRef<Vector> = jvm.new_class("java/util/Vector", "()V", ()).await?.into();
-        jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
+        let _: () = jvm
+            .invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
+            .await?;
         jvm.put_field(&mut this, "choiceType", "I", choice_type).await?;
         jvm.put_field(&mut this, "elements", "Ljava/util/Vector;", elements.clone()).await?;
         jvm.put_field(&mut this, "fitPolicy", "I", 0).await?;

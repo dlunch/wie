@@ -82,6 +82,12 @@ impl Form {
                     Self::item_state_changed,
                     MethodAccessFlags::empty(),
                 ),
+                JavaMethodProto::new(
+                    "dispatchItemStateChanged",
+                    "(Ljavax/microedition/lcdui/Item;)V",
+                    Self::dispatch_item_state_changed,
+                    MethodAccessFlags::empty(),
+                ),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "handlePaintEvent",
@@ -148,20 +154,34 @@ impl Form {
         }
 
         let item_count = jvm.array_length(&initial_items).await?;
-        let mut initial_items: Vec<ClassInstanceRef<Item>> = jvm.load_array(&initial_items, 0, item_count).await?;
+        let initial_items: Vec<ClassInstanceRef<Item>> = jvm.load_array(&initial_items, 0, item_count).await?;
         for (index, item) in initial_items.iter().enumerate() {
             if item.is_null() {
                 return Err(jvm.exception("java/lang/NullPointerException", "Form item is null").await);
             }
-            let owner: ClassInstanceRef<Displayable> = jvm.get_field(item, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+            let owner: ClassInstanceRef<Displayable> = jvm
+                .invoke_virtual(
+                    item,
+                    "javax/microedition/lcdui/Item",
+                    "getOwner",
+                    "()Ljavax/microedition/lcdui/Displayable;",
+                    (),
+                )
+                .await?;
             if !owner.is_null() || initial_items[..index].iter().any(|previous| previous.identity() == item.identity()) {
                 return Err(jvm.exception("java/lang/IllegalStateException", "Form item already has an owner").await);
             }
         }
 
-        for item in &mut initial_items {
-            jvm.put_field(item, "owner", "Ljavax/microedition/lcdui/Displayable;", this.clone())
-                .await?;
+        for item in &initial_items {
+            jvm.invoke_virtual::<_, ()>(
+                item,
+                "javax/microedition/lcdui/Item",
+                "setOwner",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (this.clone(),),
+            )
+            .await?;
             let _: () = jvm
                 .invoke_virtual(&items, "java/util/Vector", "addElement", "(Ljava/lang/Object;)V", (item.clone(),))
                 .await?;
@@ -414,7 +434,7 @@ impl Form {
         context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         index: i32,
-        mut item: ClassInstanceRef<Item>,
+        item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
@@ -426,13 +446,27 @@ impl Form {
         if item.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Form item is null").await);
         }
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&item, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+        let owner: ClassInstanceRef<Displayable> = jvm
+            .invoke_virtual(
+                &item,
+                "javax/microedition/lcdui/Item",
+                "getOwner",
+                "()Ljavax/microedition/lcdui/Displayable;",
+                (),
+            )
+            .await?;
         if !owner.is_null() {
             return Err(jvm.exception("java/lang/IllegalStateException", "Form item already has an owner").await);
         }
 
-        jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", this.clone())
-            .await?;
+        jvm.invoke_virtual::<_, ()>(
+            &item,
+            "javax/microedition/lcdui/Item",
+            "setOwner",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (this.clone(),),
+        )
+        .await?;
         let _: () = jvm
             .invoke_virtual(&items, "java/util/Vector", "insertElementAt", "(Ljava/lang/Object;I)V", (item, index))
             .await?;
@@ -448,22 +482,42 @@ impl Form {
         context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
         index: i32,
-        mut item: ClassInstanceRef<Item>,
+        item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
-        let mut old_item = Self::checked_item(jvm, &this, index).await?;
+        let old_item = Self::checked_item(jvm, &this, index).await?;
         if item.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Form item is null").await);
         }
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&item, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+        let owner: ClassInstanceRef<Displayable> = jvm
+            .invoke_virtual(
+                &item,
+                "javax/microedition/lcdui/Item",
+                "getOwner",
+                "()Ljavax/microedition/lcdui/Displayable;",
+                (),
+            )
+            .await?;
         if !owner.is_null() {
             return Err(jvm.exception("java/lang/IllegalStateException", "Form item already has an owner").await);
         }
 
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
-        jvm.put_field(&mut old_item, "owner", "Ljavax/microedition/lcdui/Displayable;", None)
-            .await?;
-        jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", this.clone())
-            .await?;
+        jvm.invoke_virtual::<_, ()>(
+            &old_item,
+            "javax/microedition/lcdui/Item",
+            "setOwner",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (None,),
+        )
+        .await?;
+        jvm.invoke_virtual::<_, ()>(
+            &item,
+            "javax/microedition/lcdui/Item",
+            "setOwner",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (this.clone(),),
+        )
+        .await?;
         let _: () = jvm
             .invoke_virtual(&items, "java/util/Vector", "setElementAt", "(Ljava/lang/Object;I)V", (item, index))
             .await?;
@@ -478,12 +532,19 @@ impl Form {
     }
 
     async fn delete(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
-        let mut item = Self::checked_item(jvm, &this, index).await?;
+        let item = Self::checked_item(jvm, &this, index).await?;
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
         let _: ClassInstanceRef<Item> = jvm
             .invoke_virtual(&items, "java/util/Vector", "remove", "(I)Ljava/lang/Object;", (index,))
             .await?;
-        jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", None).await?;
+        jvm.invoke_virtual::<_, ()>(
+            &item,
+            "javax/microedition/lcdui/Item",
+            "setOwner",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (None,),
+        )
+        .await?;
 
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
@@ -506,10 +567,17 @@ impl Form {
             return Ok(());
         }
         for index in 0..size {
-            let mut item: ClassInstanceRef<Item> = jvm
+            let item: ClassInstanceRef<Item> = jvm
                 .invoke_virtual(&items, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
                 .await?;
-            jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", None).await?;
+            jvm.invoke_virtual::<_, ()>(
+                &item,
+                "javax/microedition/lcdui/Item",
+                "setOwner",
+                "(Ljavax/microedition/lcdui/Displayable;)V",
+                (None,),
+            )
+            .await?;
         }
         let _: () = jvm.invoke_virtual(&items, "java/util/Vector", "removeAllElements", "()V", ()).await?;
         jvm.put_field(&mut this, "focusIndex", "I", -1).await?;
@@ -553,8 +621,9 @@ impl Form {
             return Ok(displayable_count);
         }
 
-        let commands: ClassInstanceRef<Vector> = jvm.get_field(&item, "commands", "Ljava/util/Vector;").await?;
-        let item_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
+        let item_count: i32 = jvm
+            .invoke_virtual(&item, "javax/microedition/lcdui/Item", "getCommandCount", "()I", ())
+            .await?;
         Ok(item_count + displayable_count)
     }
 
@@ -566,11 +635,18 @@ impl Form {
     ) -> JvmResult<ClassInstanceRef<Command>> {
         let item = Self::focused_item(jvm, &this).await?;
         if !item.is_null() {
-            let commands: ClassInstanceRef<Vector> = jvm.get_field(&item, "commands", "Ljava/util/Vector;").await?;
-            let item_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
+            let item_count: i32 = jvm
+                .invoke_virtual(&item, "javax/microedition/lcdui/Item", "getCommandCount", "()I", ())
+                .await?;
             if index < item_count {
                 return jvm
-                    .invoke_virtual(&commands, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
+                    .invoke_virtual(
+                        &item,
+                        "javax/microedition/lcdui/Item",
+                        "getCommandAt",
+                        "(I)Ljavax/microedition/lcdui/Command;",
+                        (index,),
+                    )
                     .await;
             }
             return jvm
@@ -597,11 +673,18 @@ impl Form {
     async fn dispatch_command_at(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         let item = Self::focused_item(jvm, &this).await?;
         if !item.is_null() {
-            let commands: ClassInstanceRef<Vector> = jvm.get_field(&item, "commands", "Ljava/util/Vector;").await?;
-            let count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
+            let count: i32 = jvm
+                .invoke_virtual(&item, "javax/microedition/lcdui/Item", "getCommandCount", "()I", ())
+                .await?;
             if index < count {
                 let command: ClassInstanceRef<Command> = jvm
-                    .invoke_virtual(&commands, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
+                    .invoke_virtual(
+                        &item,
+                        "javax/microedition/lcdui/Item",
+                        "getCommandAt",
+                        "(I)Ljavax/microedition/lcdui/Command;",
+                        (index,),
+                    )
                     .await?;
                 return jvm
                     .invoke_virtual(
@@ -647,7 +730,15 @@ impl Form {
         this: ClassInstanceRef<Self>,
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
-        let mut display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let mut display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if display.is_null() {
             let midlet: ClassInstanceRef<MIDlet> = jvm
                 .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
@@ -676,6 +767,29 @@ impl Form {
             "callSerially",
             "(Ljava/lang/Runnable;)V",
             (event,),
+        )
+        .await
+    }
+
+    async fn dispatch_item_state_changed(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        item: ClassInstanceRef<Item>,
+    ) -> JvmResult<()> {
+        let listener: ClassInstanceRef<ItemStateListener> = jvm
+            .get_field(&this, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;")
+            .await?;
+        if listener.is_null() {
+            return Ok(());
+        }
+
+        jvm.invoke_virtual(
+            &listener,
+            "javax/microedition/lcdui/ItemStateListener",
+            "itemStateChanged",
+            "(Ljavax/microedition/lcdui/Item;)V",
+            (item,),
         )
         .await
     }
@@ -796,19 +910,9 @@ impl Form {
         }
 
         if pressed && code == MIDPKeyCode::FIRE as i32 && !item.is_null() {
-            let default_command: ClassInstanceRef<Command> = jvm.get_field(&item, "defaultCommand", "Ljavax/microedition/lcdui/Command;").await?;
-            if !default_command.is_null() {
-                return jvm
-                    .invoke_virtual(
-                        &item,
-                        "javax/microedition/lcdui/Item",
-                        "dispatchCommand",
-                        "(Ljavax/microedition/lcdui/Command;)V",
-                        (default_command,),
-                    )
-                    .await;
-            }
-            return Ok(());
+            return jvm
+                .invoke_virtual(&item, "javax/microedition/lcdui/Item", "dispatchDefaultCommand", "()V", ())
+                .await;
         }
 
         if code != MIDPKeyCode::UP as i32 && code != MIDPKeyCode::DOWN as i32 {

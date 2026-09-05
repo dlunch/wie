@@ -68,6 +68,33 @@ impl Item {
                     MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new("notifyStateChanged", "()V", Self::notify_state_changed, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new(
+                    "getOwner",
+                    "()Ljavax/microedition/lcdui/Displayable;",
+                    Self::get_owner,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new(
+                    "setOwner",
+                    "(Ljavax/microedition/lcdui/Displayable;)V",
+                    Self::set_owner,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new("getCommandCount", "()I", Self::get_command_count, MethodAccessFlags::empty()),
+                JavaMethodProto::new(
+                    "getCommandAt",
+                    "(I)Ljavax/microedition/lcdui/Command;",
+                    Self::get_command_at,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new(
+                    "dispatchDefaultCommand",
+                    "()V",
+                    Self::dispatch_default_command,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new("hasPreferredSize", "()Z", Self::has_preferred_size, MethodAccessFlags::empty()),
+                JavaMethodProto::new("canBeAlertIndicator", "()Z", Self::can_be_alert_indicator, MethodAccessFlags::empty()),
                 JavaMethodProto::new("invalidate", "(Z)V", Self::invalidate, MethodAccessFlags::empty()),
                 JavaMethodProto::new("measureWidth", "(I)I", Self::measure_width, MethodAccessFlags::empty()),
                 JavaMethodProto::new("measureHeight", "(I)I", Self::measure_height, MethodAccessFlags::empty()),
@@ -192,6 +219,72 @@ impl Item {
         jvm.put_field(&mut this, "preferredHeight", "I", -1).await?;
 
         Ok(())
+    }
+
+    async fn get_owner(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Displayable>> {
+        jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await
+    }
+
+    async fn set_owner(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        mut this: ClassInstanceRef<Self>,
+        owner: ClassInstanceRef<Displayable>,
+    ) -> JvmResult<()> {
+        jvm.put_field(&mut this, "owner", "Ljavax/microedition/lcdui/Displayable;", owner).await
+    }
+
+    async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await
+    }
+
+    async fn get_command_at(
+        jvm: &Jvm,
+        _context: &mut WieJvmContext,
+        this: ClassInstanceRef<Self>,
+        index: i32,
+    ) -> JvmResult<ClassInstanceRef<Command>> {
+        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        jvm.invoke_virtual(&commands, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
+            .await
+    }
+
+    async fn dispatch_default_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        let command: ClassInstanceRef<Command> = jvm.get_field(&this, "defaultCommand", "Ljavax/microedition/lcdui/Command;").await?;
+        if !command.is_null() {
+            let _: () = jvm
+                .invoke_virtual(
+                    &this,
+                    "javax/microedition/lcdui/Item",
+                    "dispatchCommand",
+                    "(Ljavax/microedition/lcdui/Command;)V",
+                    (command,),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn has_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        let width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
+        let height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
+        Ok(width != -1 || height != -1)
+    }
+
+    async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+        let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
+        let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
+        let listener: ClassInstanceRef<ItemCommandListener> = jvm
+            .get_field(&this, "itemCommandListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
+            .await?;
+        let label: ClassInstanceRef<String> = jvm.get_field(&this, "label", "Ljava/lang/String;").await?;
+        let preferred: bool = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Item", "hasPreferredSize", "()Z", ())
+            .await?;
+        let layout: i32 = jvm.get_field(&this, "layout", "I").await?;
+        Ok(owner.is_null() && command_count == 0 && listener.is_null() && label.is_null() && !preferred && layout == 0)
     }
 
     async fn check_owner_mutation(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<()> {

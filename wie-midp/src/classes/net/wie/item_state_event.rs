@@ -6,7 +6,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::{Form, Item, ItemStateListener};
+use crate::classes::javax::microedition::lcdui::{Form, Item};
 
 // class net.wie.ItemStateEvent
 pub struct ItemStateEvent;
@@ -48,18 +48,11 @@ impl ItemStateEvent {
 
     async fn run(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let form: ClassInstanceRef<Form> = jvm.get_field(&this, "form", "Ljavax/microedition/lcdui/Form;").await?;
-        let listener: ClassInstanceRef<ItemStateListener> = jvm
-            .get_field(&form, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;")
-            .await?;
-        if listener.is_null() {
-            return Ok(());
-        }
-
         let item: ClassInstanceRef<Item> = jvm.get_field(&this, "item", "Ljavax/microedition/lcdui/Item;").await?;
         jvm.invoke_virtual(
-            &listener,
-            "javax/microedition/lcdui/ItemStateListener",
-            "itemStateChanged",
+            &form,
+            "javax/microedition/lcdui/Form",
+            "dispatchItemStateChanged",
             "(Ljavax/microedition/lcdui/Item;)V",
             (item,),
         )

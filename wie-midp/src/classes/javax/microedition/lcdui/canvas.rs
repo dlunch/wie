@@ -63,7 +63,15 @@ impl Canvas {
     async fn repaint(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?})");
 
-        let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         let _: () = jvm
             .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
             .await?;
@@ -82,7 +90,15 @@ impl Canvas {
     ) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::repaint({this:?}, {x}, {y}, {width}, {height})");
 
-        let display = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         let _: () = jvm
             .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (x, y, width, height))
             .await?;
@@ -93,7 +109,15 @@ impl Canvas {
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Canvas::serviceRepaints({this:?})");
 
-        let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
+        let display: ClassInstanceRef<Display> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Displayable",
+                "getDisplay",
+                "()Ljavax/microedition/lcdui/Display;",
+                (),
+            )
+            .await?;
         if !display.is_null() {
             let _: () = jvm
                 .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
@@ -136,24 +160,9 @@ impl Canvas {
         Ok(())
     }
 
-    async fn set_full_screen_mode(jvm: &Jvm, _: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
-        tracing::debug!("javax.microedition.lcdui.Canvas::setFullScreenMode({this:?}, {mode})");
-
-        let previous_mode: bool = jvm.get_field(&this, "isInFullScreenMode", "Z").await?;
-        if previous_mode == mode {
-            return Ok(());
-        }
-
-        jvm.put_field(&mut this, "isInFullScreenMode", "Z", mode).await?;
-
-        let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-        if !display.is_null() {
-            let _: () = jvm
-                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "setFullscreen", "(Z)V", (mode,))
-                .await?;
-        }
-
-        Ok(())
+    async fn set_full_screen_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "setFullScreen", "(Z)V", (mode,))
+            .await
     }
 
     async fn is_double_buffered(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
