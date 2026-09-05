@@ -145,6 +145,10 @@ impl J2MEEmulator {
             descriptor.main_class_name.replace('.', "/")
         };
 
+        // Resolve with the system loader before entering the rustjar-loaded Launcher.
+        if let Err(error) = jvm.resolve_class(&main_class_name).await {
+            return Err(JvmSupport::to_wie_err(&jvm, error).await);
+        }
         let main_class_java = JavaLangString::from_rust_string(&jvm, &main_class_name).await.unwrap();
 
         let result: JvmResult<()> = jvm
