@@ -1,17 +1,87 @@
-use alloc::{string::String as RustString, vec};
+use alloc::{
+    string::{String as RustString, ToString},
+    vec,
+    vec::Vec,
+};
 
 use jvm::{Array, ClassInstanceRef, JavaChar, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::String;
 
-use wie_backend::canvas;
+use wie_backend::{Font as BackendFont, canvas};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 // class javax.microedition.lcdui.Font
 pub struct Font;
 
 impl Font {
+    pub const HEIGHT: i32 = 12;
+
+    pub fn text_width(font: &BackendFont, text: &str) -> i32 {
+        canvas::string_width(font, text, 10.0).ceil() as i32
+    }
+
+    pub fn minimum_width(font: &BackendFont, text: &str) -> i32 {
+        text.chars()
+            .filter(|character| *character != '\n')
+            .map(|character| Self::text_width(font, &character.to_string()))
+            .max()
+            .unwrap_or(0)
+    }
+
+    pub fn preferred_width(font: &BackendFont, text: &str) -> i32 {
+        text.split('\n').map(|line| Self::text_width(font, line)).max().unwrap_or(0)
+    }
+
+    pub fn wrap(font: &BackendFont, text: &str, maximum_width: Option<i32>) -> Vec<RustString> {
+        let mut lines = Vec::new();
+        for paragraph in text.split('\n') {
+            let characters = paragraph.chars().collect::<Vec<_>>();
+            if characters.is_empty() {
+                lines.push(RustString::new());
+                continue;
+            }
+
+            let Some(maximum_width) = maximum_width else {
+                lines.push(paragraph.to_string());
+                continue;
+            };
+            let maximum_width = maximum_width.max(1);
+            let mut start = 0;
+            while start < characters.len() {
+                let mut end = start;
+                let mut width = 0;
+                let mut word_boundary = None;
+                while end < characters.len() {
+                    let character_width = Self::text_width(font, &characters[end].to_string());
+                    if end > start && width + character_width > maximum_width {
+                        break;
+                    }
+                    width += character_width;
+                    end += 1;
+                    if characters[end - 1].is_whitespace() {
+                        word_boundary = Some(end);
+                    }
+                }
+
+                let split = if end == characters.len() {
+                    end
+                } else {
+                    word_boundary.filter(|boundary| *boundary > start).unwrap_or(end.max(start + 1))
+                };
+                let line = characters[start..split].iter().collect::<RustString>();
+                lines.push(line.trim_end().to_string());
+                start = split;
+                while start < characters.len() && characters[start].is_whitespace() {
+                    start += 1;
+                }
+            }
+        }
+
+        lines
+    }
+
     pub fn as_proto() -> WieJavaClassProto {
         WieJavaClassProto {
             name: "javax/microedition/lcdui/Font",
@@ -126,7 +196,7 @@ impl Font {
     async fn get_height(_: &Jvm, _: &mut WieJvmContext) -> JvmResult<i32> {
         tracing::warn!("stub javax.microedition.lcdui.Font::getHeight");
 
-        Ok(12) // TODO: hardcoded
+        Ok(Self::HEIGHT) // TODO: hardcoded
     }
 
     async fn get_default_font(jvm: &Jvm, _: &mut WieJvmContext) -> JvmResult<ClassInstanceRef<Self>> {
@@ -191,5 +261,30 @@ impl Font {
         let string = RustString::from_utf16(&chars).unwrap();
 
         Ok(canvas::string_width(context.system().platform().font(), &string, 10.0) as _)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use test_utils::TestPlatform;
+    use wie_backend::Platform;
+
+    use super::*;
+
+    #[test]
+    fn preserves_explicit_newlines_and_prefers_word_boundaries() {
+        let platform = TestPlatform::new();
+        let width = Font::text_width(platform.font(), "alpha ");
+        assert_eq!(
+            Font::wrap(platform.font(), "alpha beta\n\ngamma", Some(width)),
+            ["alpha", "beta", "", "gamma"]
+        );
+    }
+
+    #[test]
+    fn falls_back_to_character_boundaries_for_long_words() {
+        let platform = TestPlatform::new();
+        let width = Font::text_width(platform.font(), "ab");
+        assert_eq!(Font::wrap(platform.font(), "abcdef", Some(width)), ["ab", "cd", "ef"]);
     }
 }

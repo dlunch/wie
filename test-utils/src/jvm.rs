@@ -6,7 +6,7 @@ use core::{
 
 use jvm::{Jvm, Result as JvmResult};
 
-use wie_backend::{DefaultTaskRunner, System};
+use wie_backend::{DefaultTaskRunner, Platform, System};
 use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto};
 use wie_util::{Result, WieError};
 
@@ -18,7 +18,15 @@ where
     T: FnOnce(Jvm) -> F + Send + 'static,
     F: Future<Output = JvmResult<()>> + Send,
 {
-    let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+    run_jvm_test_with_system(protos, Box::new(TestPlatform::new()), move |jvm, _system| func(jvm))
+}
+
+pub fn run_jvm_test_with_system<T, F>(protos: Box<[Box<[WieJavaClassProto]>]>, platform: Box<dyn Platform>, func: T) -> Result<()>
+where
+    T: FnOnce(Jvm, System) -> F + Send + 'static,
+    F: Future<Output = JvmResult<()>> + Send,
+{
+    let mut system = System::new(platform, "", "", DefaultTaskRunner);
 
     let done = Arc::new(AtomicBool::new(false));
     let done_clone = done.clone();
@@ -26,7 +34,7 @@ where
 
     system.spawn(async move || {
         let jvm = JvmSupport::new_jvm(&system_clone, None, protos, &[], RustJavaJvmImplementation).await?;
-        func(jvm).await.unwrap();
+        func(jvm, system_clone).await.unwrap();
 
         done_clone.store(true, Ordering::Relaxed);
 

@@ -15,6 +15,25 @@ use crate::filesystem::MemoryFilesystem;
 
 static TEST_EPOCH: AtomicU64 = AtomicU64::new(0);
 
+#[derive(Clone, Default)]
+pub struct TestClock {
+    epoch_millis: Arc<AtomicU64>,
+}
+
+impl TestClock {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set(&self, epoch_millis: u64) {
+        self.epoch_millis.store(epoch_millis, Ordering::SeqCst);
+    }
+
+    pub fn advance(&self, millis: u64) {
+        self.epoch_millis.fetch_add(millis, Ordering::SeqCst);
+    }
+}
+
 pub enum TestPlatformEvent {
     Stdout(Vec<u8>),
     Exit,
@@ -26,6 +45,7 @@ pub struct TestPlatform {
     fs: Arc<MemoryFilesystem>,
     db: Arc<MemoryDatabaseRepository>,
     font: Font,
+    clock: Option<TestClock>,
 }
 
 impl Default for TestPlatform {
@@ -42,6 +62,7 @@ impl TestPlatform {
             fs: Arc::new(MemoryFilesystem::default()),
             db: Arc::new(MemoryDatabaseRepository::default()),
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
+            clock: None,
         }
     }
 
@@ -55,6 +76,18 @@ impl TestPlatform {
             fs: Arc::new(MemoryFilesystem::default()),
             db: Arc::new(MemoryDatabaseRepository::default()),
             font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
+            clock: None,
+        }
+    }
+
+    pub fn with_clock(clock: TestClock) -> Self {
+        Self {
+            screen: TestScreen::default(),
+            event_handler: None,
+            fs: Arc::new(MemoryFilesystem::default()),
+            db: Arc::new(MemoryDatabaseRepository::default()),
+            font: Font::try_from_static(include_bytes!("../../assets/neodgm.ttf")).unwrap(),
+            clock: Some(clock),
         }
     }
 }
@@ -69,6 +102,10 @@ impl Platform for TestPlatform {
     }
 
     fn now(&self) -> Instant {
+        if let Some(clock) = &self.clock {
+            return Instant::from_epoch_millis(clock.epoch_millis.load(Ordering::SeqCst));
+        }
+
         let epoch = TEST_EPOCH.fetch_add(8, Ordering::SeqCst);
         Instant::from_epoch_millis(epoch) // TODO
     }
