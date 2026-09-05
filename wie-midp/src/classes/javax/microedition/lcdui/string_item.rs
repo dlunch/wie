@@ -96,8 +96,7 @@ impl StringItem {
         jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
         jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
         jvm.put_field(&mut this, "appearanceMode", "I", appearance_mode).await?;
-        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", ClassInstanceRef::<Font>::new(None))
-            .await?;
+        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", None).await?;
 
         Ok(())
     }
@@ -108,7 +107,8 @@ impl StringItem {
 
     async fn set_text(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_appearance_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -117,7 +117,8 @@ impl StringItem {
 
     async fn set_font(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
         jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", font).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Font>> {
@@ -194,7 +195,14 @@ impl StringItem {
             return Ok(());
         };
         let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
-        Item::paint_appearance(jvm, &graphics, x, y, width, height, appearance_mode).await?;
+        let _: () = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Item",
+                "paintAppearance",
+                "(Ljavax/microedition/lcdui/Graphics;IIIII)V",
+                (graphics.clone(), x, y, width, height, appearance_mode),
+            )
+            .await?;
 
         let inset = Item::appearance_inset(appearance_mode);
         let content_x = x + inset;
@@ -355,7 +363,7 @@ mod test {
                 .new_class(
                     "javax/microedition/lcdui/StringItem",
                     "(Ljava/lang/String;Ljava/lang/String;I)V",
-                    (ClassInstanceRef::<String>::new(None), text, 1),
+                    (None, text, 1),
                 )
                 .await?
                 .into();
@@ -416,7 +424,7 @@ mod test {
                 .new_class(
                     "javax/microedition/lcdui/StringItem",
                     "(Ljava/lang/String;Ljava/lang/String;I)V",
-                    (ClassInstanceRef::<String>::new(None), button_text, 2),
+                    (None, button_text, 2),
                 )
                 .await?
                 .into();

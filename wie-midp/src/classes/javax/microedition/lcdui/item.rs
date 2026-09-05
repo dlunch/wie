@@ -68,6 +68,7 @@ impl Item {
                     MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new("notifyStateChanged", "()V", Self::notify_state_changed, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("invalidate", "(Z)V", Self::invalidate, MethodAccessFlags::empty()),
                 JavaMethodProto::new("measureHeight", "(I)I", Self::measure_height, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "paintItem",
@@ -97,6 +98,13 @@ impl Item {
                     "(I)[I",
                     Self::get_focus_content_bounds,
                     MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new("getFocusBounds", "(II)[I", Self::focus_bounds, MethodAccessFlags::empty()),
+                JavaMethodProto::new(
+                    "paintAppearance",
+                    "(Ljavax/microedition/lcdui/Graphics;IIIII)V",
+                    Self::paint_appearance,
+                    MethodAccessFlags::STATIC,
                 ),
                 JavaMethodProto::new(
                     "dispatchCommand",
@@ -148,27 +156,27 @@ impl Item {
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Item::<clinit>");
 
-        for (name, value) in [
-            ("LAYOUT_DEFAULT", 0),
-            ("LAYOUT_LEFT", 1),
-            ("LAYOUT_RIGHT", 2),
-            ("LAYOUT_CENTER", 3),
-            ("LAYOUT_TOP", 0x10),
-            ("LAYOUT_BOTTOM", 0x20),
-            ("LAYOUT_VCENTER", 0x30),
-            ("LAYOUT_NEWLINE_BEFORE", 0x100),
-            ("LAYOUT_NEWLINE_AFTER", 0x200),
-            ("LAYOUT_SHRINK", 0x400),
-            ("LAYOUT_EXPAND", 0x800),
-            ("LAYOUT_VSHRINK", 0x1000),
-            ("LAYOUT_VEXPAND", 0x2000),
-            ("LAYOUT_2", 0x4000),
-            ("PLAIN", 0),
-            ("HYPERLINK", 1),
-            ("BUTTON", 2),
-        ] {
-            jvm.put_static_field("javax/microedition/lcdui/Item", name, "I", value).await?;
-        }
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_DEFAULT", "I", 0).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_LEFT", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_RIGHT", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_CENTER", "I", 3).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_TOP", "I", 0x10).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_BOTTOM", "I", 0x20).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_VCENTER", "I", 0x30).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_NEWLINE_BEFORE", "I", 0x100)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_NEWLINE_AFTER", "I", 0x200)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_SHRINK", "I", 0x400).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_EXPAND", "I", 0x800).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_VSHRINK", "I", 0x1000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_VEXPAND", "I", 0x2000)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "LAYOUT_2", "I", 0x4000).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "PLAIN", "I", 0).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "HYPERLINK", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Item", "BUTTON", "I", 2).await?;
 
         Ok(())
     }
@@ -202,8 +210,8 @@ impl Item {
         Ok(())
     }
 
-    pub async fn invalidate<T: Send + Sync + 'static>(jvm: &Jvm, this: &ClassInstanceRef<T>, layout_changed: bool) -> JvmResult<()> {
-        let owner: ClassInstanceRef<Displayable> = jvm.get_field(this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
+    async fn invalidate(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout_changed: bool) -> JvmResult<()> {
+        let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
         if !owner.is_null() {
             let _: () = jvm
                 .invoke_virtual(
@@ -243,7 +251,9 @@ impl Item {
             let _: () = jvm
                 .invoke_virtual(&commands, "java/util/Vector", "addElement", "(Ljava/lang/Object;)V", (command,))
                 .await?;
-            Self::invalidate(jvm, &this, false).await?;
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+                .await?;
         }
 
         Ok(())
@@ -277,15 +287,12 @@ impl Item {
                 .await?;
             let default_command: ClassInstanceRef<Command> = jvm.get_field(&this, "defaultCommand", "Ljavax/microedition/lcdui/Command;").await?;
             if !default_command.is_null() && default_command.identity() == command.identity() {
-                jvm.put_field(
-                    &mut this,
-                    "defaultCommand",
-                    "Ljavax/microedition/lcdui/Command;",
-                    ClassInstanceRef::<Command>::new(None),
-                )
-                .await?;
+                jvm.put_field(&mut this, "defaultCommand", "Ljavax/microedition/lcdui/Command;", None)
+                    .await?;
             }
-            Self::invalidate(jvm, &this, false).await?;
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+                .await?;
             break;
         }
 
@@ -299,7 +306,8 @@ impl Item {
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
         Self::check_owner_mutation(jvm, &this).await?;
         jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
-        Self::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -313,7 +321,8 @@ impl Item {
         }
 
         jvm.put_field(&mut this, "layout", "I", layout).await?;
-        Self::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_minimum_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -398,7 +407,8 @@ impl Item {
             if height < 0 { -1 } else { height.max(minimum_height) },
         )
         .await?;
-        Self::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn set_default_command(
@@ -431,7 +441,8 @@ impl Item {
 
         jvm.put_field(&mut this, "defaultCommand", "Ljavax/microedition/lcdui/Command;", command)
             .await?;
-        Self::invalidate(jvm, &this, false).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+            .await
     }
 
     async fn set_item_command_listener(
@@ -448,7 +459,8 @@ impl Item {
             listener,
         )
         .await?;
-        Self::invalidate(jvm, &this, false).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+            .await
     }
 
     async fn notify_state_changed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
@@ -669,37 +681,40 @@ impl Item {
         _this: ClassInstanceRef<Self>,
         _width: i32,
     ) -> JvmResult<ClassInstanceRef<Array<i32>>> {
-        Ok(ClassInstanceRef::new(None))
+        Ok(None.into())
     }
 
-    pub async fn focus_bounds(
+    async fn focus_bounds(
         jvm: &Jvm,
         context: &mut WieJvmContext,
-        this: &ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         width: i32,
         height: i32,
-    ) -> JvmResult<(i32, i32)> {
+    ) -> JvmResult<ClassInstanceRef<Array<i32>>> {
         let bounds: ClassInstanceRef<Array<i32>> = jvm
-            .invoke_virtual(this, "javax/microedition/lcdui/Item", "getFocusContentBounds", "(I)[I", (width,))
+            .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getFocusContentBounds", "(I)[I", (width,))
             .await?;
-        if bounds.is_null() {
-            return Ok((0, height));
-        }
-
-        let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
-        let label = Self::label_text(jvm, this).await?;
-        let label_height = label
-            .as_deref()
-            .map(|label| Font::wrap(context.system().platform().font(), label, Some(width)).len() as i32 * Font::HEIGHT)
-            .unwrap_or(0)
-            .min(height);
-        let content_y = label_height
-            + if label_height > 0 {
-                LABEL_CONTENT_GAP.min(height - label_height)
-            } else {
-                0
-            };
-        Ok(((content_y + bounds[0]).min(height), (content_y + bounds[1]).min(height)))
+        let bounds = if bounds.is_null() {
+            [0, height]
+        } else {
+            let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
+            let label = Self::label_text(jvm, &this).await?;
+            let label_height = label
+                .as_deref()
+                .map(|label| Font::wrap(context.system().platform().font(), label, Some(width)).len() as i32 * Font::HEIGHT)
+                .unwrap_or(0)
+                .min(height);
+            let content_y = label_height
+                + if label_height > 0 {
+                    LABEL_CONTENT_GAP.min(height - label_height)
+                } else {
+                    0
+                };
+            [(content_y + bounds[0]).min(height), (content_y + bounds[1]).min(height)]
+        };
+        let mut result = jvm.instantiate_array("I", 2).await?;
+        jvm.store_array(&mut result, 0, bounds).await?;
+        Ok(result.into())
     }
 
     async fn dispatch_command(
@@ -753,9 +768,10 @@ impl Item {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn paint_appearance(
+    async fn paint_appearance(
         jvm: &Jvm,
-        graphics: &ClassInstanceRef<Graphics>,
+        _context: &mut WieJvmContext,
+        graphics: ClassInstanceRef<Graphics>,
         x: i32,
         y: i32,
         width: i32,
@@ -769,10 +785,10 @@ impl Item {
         match appearance_mode {
             1 => {
                 let _: () = jvm
-                    .invoke_virtual(graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (Self::LINK_COLOR,))
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (Self::LINK_COLOR,))
                     .await?;
                 jvm.invoke_virtual(
-                    graphics,
+                    &graphics,
                     "javax/microedition/lcdui/Graphics",
                     "drawLine",
                     "(IIII)V",
@@ -782,11 +798,11 @@ impl Item {
             }
             2 => {
                 let _: () = jvm
-                    .invoke_virtual(graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BUTTON_BACKGROUND,))
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BUTTON_BACKGROUND,))
                     .await?;
                 let _: () = jvm
                     .invoke_virtual(
-                        graphics,
+                        &graphics,
                         "javax/microedition/lcdui/Graphics",
                         "fillRect",
                         "(IIII)V",
@@ -794,10 +810,10 @@ impl Item {
                     )
                     .await?;
                 let _: () = jvm
-                    .invoke_virtual(graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BUTTON_BORDER,))
+                    .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (BUTTON_BORDER,))
                     .await?;
                 jvm.invoke_virtual(
-                    graphics,
+                    &graphics,
                     "javax/microedition/lcdui/Graphics",
                     "drawRect",
                     "(IIII)V",
@@ -829,7 +845,7 @@ mod test {
                 .new_class(
                     "javax/microedition/lcdui/StringItem",
                     "(Ljava/lang/String;Ljava/lang/String;)V",
-                    (ClassInstanceRef::<String>::new(None), text.clone()),
+                    (None, text.clone()),
                 )
                 .await?
                 .into();

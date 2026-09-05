@@ -464,7 +464,15 @@ mod test {
                             assert_eq!(jvm.get_field::<i32>(&canvas, "clipWidth", "I").await?, 320);
                             assert_eq!(jvm.get_field::<i32>(&canvas, "clipHeight", "I").await?, height);
                         }
-                        let mut graphics = Display::screen_graphics(&jvm, &display).await?;
+                        let mut graphics: ClassInstanceRef<Graphics> = jvm
+                            .invoke_virtual(
+                                &display,
+                                "javax/microedition/lcdui/Display",
+                                "getScreenGraphics",
+                                "()Ljavax/microedition/lcdui/Graphics;",
+                                (),
+                            )
+                            .await?;
                         let image_ref = Graphics::image(&jvm, &mut graphics).await?;
                         let image = Image::image(&jvm, &image_ref).await?;
                         let content = image.get_pixel(160, 120);

@@ -106,13 +106,12 @@ impl Form {
     async fn init(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, title: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Form::<init>({this:?}, {title:?})");
 
-        let items = ClassInstanceRef::<Array<ClassInstanceRef<Item>>>::new(None);
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/Form",
             "<init>",
             "(Ljava/lang/String;[Ljavax/microedition/lcdui/Item;)V",
-            (title, items),
+            (title, None),
         )
         .await
     }
@@ -215,7 +214,7 @@ impl Form {
 
     async fn update_scroll(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _context: &mut WieJvmContext,
         this: &mut ClassInstanceRef<Self>,
         rows: &[ItemRect],
         width: i32,
@@ -234,7 +233,17 @@ impl Form {
             && let Some(row) = rows.get(focus_index as usize)
         {
             let (top, bottom) = if row.height > viewport_height {
-                Item::focus_bounds(jvm, context, &row.item, width, row.height).await?
+                let bounds: ClassInstanceRef<Array<i32>> = jvm
+                    .invoke_virtual(
+                        &row.item,
+                        "javax/microedition/lcdui/Item",
+                        "getFocusBounds",
+                        "(II)[I",
+                        (width, row.height),
+                    )
+                    .await?;
+                let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
+                (bounds[0], bounds[1])
             } else {
                 (0, row.height)
             };
@@ -313,7 +322,7 @@ impl Form {
     async fn focused_item(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Item>> {
         let focus_index: i32 = jvm.get_field(this, "focusIndex", "I").await?;
         if focus_index < 0 {
-            return Ok(ClassInstanceRef::new(None));
+            return Ok(None.into());
         }
         Self::checked_item(jvm, this, focus_index).await
     }
@@ -341,12 +350,11 @@ impl Form {
         if text.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Form string is null").await);
         }
-        let label = ClassInstanceRef::<String>::new(None);
         let item: ClassInstanceRef<StringItem> = jvm
             .new_class(
                 "javax/microedition/lcdui/StringItem",
                 "(Ljava/lang/String;Ljava/lang/String;)V",
-                (label, text),
+                (None, text),
             )
             .await?
             .into();
@@ -366,13 +374,11 @@ impl Form {
         if image.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Form image is null").await);
         }
-        let label = ClassInstanceRef::<String>::new(None);
-        let alt_text = ClassInstanceRef::<String>::new(None);
         let item: ClassInstanceRef<ImageItem> = jvm
             .new_class(
                 "javax/microedition/lcdui/ImageItem",
                 "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;ILjava/lang/String;)V",
-                (label, image, 0, alt_text),
+                (None, image, 0, None),
             )
             .await?
             .into();
@@ -437,13 +443,8 @@ impl Form {
         }
 
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
-        jvm.put_field(
-            &mut old_item,
-            "owner",
-            "Ljavax/microedition/lcdui/Displayable;",
-            ClassInstanceRef::<Displayable>::new(None),
-        )
-        .await?;
+        jvm.put_field(&mut old_item, "owner", "Ljavax/microedition/lcdui/Displayable;", None)
+            .await?;
         jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", this.clone())
             .await?;
         let _: () = jvm
@@ -465,13 +466,7 @@ impl Form {
         let _: ClassInstanceRef<Item> = jvm
             .invoke_virtual(&items, "java/util/Vector", "remove", "(I)Ljava/lang/Object;", (index,))
             .await?;
-        jvm.put_field(
-            &mut item,
-            "owner",
-            "Ljavax/microedition/lcdui/Displayable;",
-            ClassInstanceRef::<Displayable>::new(None),
-        )
-        .await?;
+        jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", None).await?;
 
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
@@ -497,13 +492,7 @@ impl Form {
             let mut item: ClassInstanceRef<Item> = jvm
                 .invoke_virtual(&items, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
                 .await?;
-            jvm.put_field(
-                &mut item,
-                "owner",
-                "Ljavax/microedition/lcdui/Displayable;",
-                ClassInstanceRef::<Displayable>::new(None),
-            )
-            .await?;
+            jvm.put_field(&mut item, "owner", "Ljavax/microedition/lcdui/Displayable;", None).await?;
         }
         let _: () = jvm.invoke_virtual(&items, "java/util/Vector", "removeAllElements", "()V", ()).await?;
         jvm.put_field(&mut this, "focusIndex", "I", -1).await?;
@@ -727,9 +716,18 @@ impl Form {
                 && let Some(row) = rows.get(focus_index as usize)
                 && row.height > viewport_height
             {
-                let (top, bottom) = Item::focus_bounds(jvm, context, &row.item, width, row.height).await?;
-                let top = row.y.saturating_add(top);
-                let bottom = row.y.saturating_add(bottom);
+                let bounds: ClassInstanceRef<Array<i32>> = jvm
+                    .invoke_virtual(
+                        &row.item,
+                        "javax/microedition/lcdui/Item",
+                        "getFocusBounds",
+                        "(II)[I",
+                        (width, row.height),
+                    )
+                    .await?;
+                let bounds = jvm.load_array::<i32>(&bounds, 0, 2).await?;
+                let top = row.y.saturating_add(bounds[0]);
+                let bottom = row.y.saturating_add(bounds[1]);
                 // Read an oversized active span before moving focus, including inside an open popup.
                 if bottom - top > viewport_height {
                     let new_scroll = if code == MIDPKeyCode::UP as i32 && scroll > top {
@@ -904,7 +902,6 @@ mod test {
     use jvm::{Array, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::String;
 
     use test_utils::run_jvm_test;
     use wie_backend::{Event, KeyCode};
@@ -1246,7 +1243,7 @@ mod test {
             .new_class(
                 "javax/microedition/lcdui/Form",
                 "(Ljava/lang/String;[Ljavax/microedition/lcdui/Item;)V",
-                (ClassInstanceRef::<String>::new(None), array),
+                (None, array),
             )
             .await?
             .into())
@@ -1494,7 +1491,7 @@ mod test {
                             "javax/microedition/lcdui/ChoiceGroup",
                             "append",
                             "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;)I",
-                            (JavaLangString::from_rust_string(&jvm, text).await?, ClassInstanceRef::<Image>::new(None)),
+                            (JavaLangString::from_rust_string(&jvm, text).await?, None),
                         )
                         .await?;
                 }
@@ -1517,7 +1514,15 @@ mod test {
                     scroll,
                     "paint must preserve the reveal"
                 );
-                let mut graphics = Display::screen_graphics(&jvm, &display).await?;
+                let mut graphics: ClassInstanceRef<Graphics> = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "getScreenGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
+                    .await?;
                 let image = Graphics::image(&jvm, &mut graphics).await?;
                 let pixels = Image::image(&jvm, &image).await?;
                 assert_eq!(
@@ -1537,11 +1542,7 @@ mod test {
                         "javax/microedition/lcdui/ChoiceGroup",
                         "set",
                         "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
-                        (
-                            29,
-                            JavaLangString::from_rust_string(&jvm, &"line\n".repeat(30)).await?,
-                            ClassInstanceRef::<Image>::new(None),
-                        ),
+                        (29, JavaLangString::from_rust_string(&jvm, &"line\n".repeat(30)).await?, None),
                     )
                     .await?;
                 let top: i32 = jvm.get_field(&form, "scrollY", "I").await?;
@@ -1792,19 +1793,11 @@ mod test {
             let display = MIDlet::display(&jvm, &midlet).await?;
 
             let first: ClassInstanceRef<Gauge> = jvm
-                .new_class(
-                    "javax/microedition/lcdui/Gauge",
-                    "(Ljava/lang/String;ZII)V",
-                    (ClassInstanceRef::<String>::new(None), true, 1, 0),
-                )
+                .new_class("javax/microedition/lcdui/Gauge", "(Ljava/lang/String;ZII)V", (None, true, 1, 0))
                 .await?
                 .into();
             let second: ClassInstanceRef<Gauge> = jvm
-                .new_class(
-                    "javax/microedition/lcdui/Gauge",
-                    "(Ljava/lang/String;ZII)V",
-                    (ClassInstanceRef::<String>::new(None), true, 1, 0),
-                )
+                .new_class("javax/microedition/lcdui/Gauge", "(Ljava/lang/String;ZII)V", (None, true, 1, 0))
                 .await?
                 .into();
             let form = form_with_items(&jvm, vec![JavaValue::from(first.clone()).into(), JavaValue::from(second.clone()).into()]).await?;

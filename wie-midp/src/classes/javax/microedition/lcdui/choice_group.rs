@@ -141,13 +141,12 @@ impl ChoiceGroup {
         tracing::debug!("javax.microedition.lcdui.ChoiceGroup::<init>({this:?}, {label:?}, {choice_type})");
 
         let string_elements = jvm.instantiate_array("[Ljava/lang/String;", 0).await?;
-        let image_elements = ClassInstanceRef::<Array<ClassInstanceRef<Image>>>::new(None);
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/ChoiceGroup",
             "<init>",
             "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
-            (label, choice_type, string_elements, image_elements),
+            (label, choice_type, string_elements, None),
         )
         .await
     }
@@ -181,7 +180,7 @@ impl ChoiceGroup {
             return Err(jvm.exception("java/lang/NullPointerException", "Choice string is null").await);
         }
         let images: Vec<ClassInstanceRef<Image>> = if image_elements.is_null() {
-            vec![ClassInstanceRef::new(None); element_count]
+            vec![None.into(); element_count]
         } else {
             jvm.load_array(&image_elements, 0, element_count).await?
         };
@@ -656,7 +655,8 @@ impl ChoiceGroup {
         )
         .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn delete(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
@@ -681,7 +681,8 @@ impl ChoiceGroup {
         };
         jvm.put_field(&mut this, "highlightedIndex", "I", highlighted_index).await?;
         Self::normalize_highlight(jvm, &mut this).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn delete_all(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
@@ -690,7 +691,8 @@ impl ChoiceGroup {
         jvm.put_field(&mut this, "highlightedIndex", "I", -1).await?;
         jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
         Self::normalize_highlight(jvm, &mut this).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn set(
@@ -706,7 +708,7 @@ impl ChoiceGroup {
             return Err(jvm.exception("java/lang/NullPointerException", "Choice string is null").await);
         }
         let display_image: ClassInstanceRef<Image> = if image.is_null() {
-            ClassInstanceRef::new(None)
+            None.into()
         } else {
             jvm.invoke_static(
                 "javax/microedition/lcdui/Image",
@@ -721,7 +723,8 @@ impl ChoiceGroup {
         jvm.put_field(&mut element, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
             .await?;
         Self::normalize_highlight(jvm, &mut this).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn is_selected(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<bool> {
@@ -787,7 +790,9 @@ impl ChoiceGroup {
         };
         Self::normalize_highlight(jvm, &mut this).await?;
         if changed {
-            Item::invalidate(jvm, &this, choice_type == 4).await?;
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (choice_type == 4,))
+                .await?;
         }
         Ok(())
     }
@@ -824,7 +829,9 @@ impl ChoiceGroup {
         }
         Self::normalize_highlight(jvm, &mut this).await?;
         if changed {
-            Item::invalidate(jvm, &this, choice_type == 4).await?;
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (choice_type == 4,))
+                .await?;
         }
         Ok(())
     }
@@ -835,7 +842,8 @@ impl ChoiceGroup {
         }
         jvm.put_field(&mut this, "fitPolicy", "I", fit_policy).await?;
         Self::normalize_highlight(jvm, &mut this).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_fit_policy(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -852,7 +860,8 @@ impl ChoiceGroup {
         let mut element = Self::element_at(jvm, &this, index).await?;
         jvm.put_field(&mut element, "font", "Ljavax/microedition/lcdui/Font;", font).await?;
         Self::normalize_highlight(jvm, &mut this).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Font>> {
@@ -1047,7 +1056,7 @@ impl ChoiceGroup {
     ) -> JvmResult<ClassInstanceRef<Array<i32>>> {
         let highlighted_index: i32 = jvm.get_field(&this, "highlightedIndex", "I").await?;
         if highlighted_index < 0 {
-            return Ok(ClassInstanceRef::new(None));
+            return Ok(None.into());
         }
         let choice_type: i32 = jvm.get_field(&this, "choiceType", "I").await?;
         let popup_open: bool = jvm.get_field(&this, "popupOpen", "Z").await?;
@@ -1099,7 +1108,9 @@ impl ChoiceGroup {
                 jvm.put_field(&mut this, "highlightedIndex", "I", selected_index).await?;
                 jvm.put_field(&mut this, "popupOpen", "Z", true).await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
-                Item::invalidate(jvm, &this, true).await?;
+                let _: () = jvm
+                    .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+                    .await?;
                 return Ok(Item::INPUT_HANDLED);
             }
 
@@ -1111,7 +1122,9 @@ impl ChoiceGroup {
                 };
                 if new_highlight != highlighted_index {
                     jvm.put_field(&mut this, "highlightedIndex", "I", new_highlight).await?;
-                    Item::invalidate(jvm, &this, false).await?;
+                    let _: () = jvm
+                        .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+                        .await?;
                 }
                 return Ok(Item::INPUT_HANDLED);
             }
@@ -1119,7 +1132,9 @@ impl ChoiceGroup {
                 let changed = Self::select_only(jvm, &this, highlighted_index).await?;
                 jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
-                Item::invalidate(jvm, &this, true).await?;
+                let _: () = jvm
+                    .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+                    .await?;
                 return Ok(Item::INPUT_HANDLED | if changed { Item::INPUT_CHANGED } else { 0 });
             }
             if key == MIDPKeyCode::CLEAR as i32 {
@@ -1127,7 +1142,9 @@ impl ChoiceGroup {
                 jvm.put_field(&mut this, "highlightedIndex", "I", selected_index).await?;
                 jvm.put_field(&mut this, "popupOpen", "Z", false).await?;
                 Self::normalize_highlight(jvm, &mut this).await?;
-                Item::invalidate(jvm, &this, true).await?;
+                let _: () = jvm
+                    .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+                    .await?;
                 return Ok(Item::INPUT_HANDLED);
             }
             return Ok(0);
@@ -1143,7 +1160,9 @@ impl ChoiceGroup {
                 return Ok(0);
             }
             jvm.put_field(&mut this, "highlightedIndex", "I", new_highlight).await?;
-            Item::invalidate(jvm, &this, false).await?;
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+                .await?;
             return Ok(Item::INPUT_HANDLED);
         }
         if key != MIDPKeyCode::FIRE as i32 {
@@ -1161,7 +1180,9 @@ impl ChoiceGroup {
             Self::select_only(jvm, &this, highlighted_index).await?
         };
         if changed {
-            Item::invalidate(jvm, &this, false).await?;
+            let _: () = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+                .await?;
         }
         Ok(Item::INPUT_HANDLED | if changed { Item::INPUT_CHANGED } else { 0 })
     }
@@ -1205,14 +1226,14 @@ mod test {
             jvm.store_array(&mut image_array, 0, images.to_vec()).await?;
             image_array
         } else {
-            ClassInstanceRef::new(None)
+            None.into()
         };
 
         Ok(jvm
             .new_class(
                 "javax/microedition/lcdui/ChoiceGroup",
                 "(Ljava/lang/String;I[Ljava/lang/String;[Ljavax/microedition/lcdui/Image;)V",
-                (ClassInstanceRef::<String>::new(None), choice_type, string_array, image_array),
+                (None, choice_type, string_array, image_array),
             )
             .await?
             .into())
@@ -1314,7 +1335,7 @@ mod test {
                     "javax/microedition/lcdui/Choice",
                     "insert",
                     "(ILjava/lang/String;Ljavax/microedition/lcdui/Image;)V",
-                    (0, text, ClassInstanceRef::<Image>::new(None)),
+                    (0, text, None),
                 )
                 .await?;
             assert_eq!(

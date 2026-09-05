@@ -64,6 +64,7 @@ impl Displayable {
                 ),
                 JavaMethodProto::new("requestRepaint", "()V", Self::request_repaint, MethodAccessFlags::empty()),
                 JavaMethodProto::new("decorationChanged", "()V", Self::decoration_changed, MethodAccessFlags::empty()),
+                JavaMethodProto::new("notifySizeChanged", "()V", Self::notify_size_changed, MethodAccessFlags::empty()),
                 JavaMethodProto::new("getCommandCount", "()I", Self::get_command_count, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "getCommandAt",
@@ -152,7 +153,9 @@ impl Displayable {
         jvm.put_field(&mut this, "ticker", "Ljavax/microedition/lcdui/Ticker;", ticker).await?;
         if Self::is_shown(jvm, context, this.clone()).await? {
             let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-            Display::ticker_changed(jvm, context, display).await?;
+            let _: () = jvm
+                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "tickerChanged", "()V", ())
+                .await?;
         }
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
             .await
@@ -282,14 +285,16 @@ impl Displayable {
         Ok(())
     }
 
-    async fn decoration_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn decoration_changed(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         jvm.put_field(&mut this, "sizeDirty", "Z", true).await?;
         jvm.put_field(&mut this, "commandMenuOpen", "Z", false).await?;
         jvm.put_field(&mut this, "commandMenuIndex", "I", -1).await?;
 
         let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         if !display.is_null() {
-            let notification_result = Self::notify_size_changed(jvm, context, this.clone()).await;
+            let notification_result: JvmResult<()> = jvm
+                .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "notifySizeChanged", "()V", ())
+                .await;
             let repaint_result: JvmResult<()> = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
                 .await;
@@ -381,7 +386,7 @@ impl Displayable {
         Ok(height)
     }
 
-    pub async fn live_viewport(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<(i32, i32)> {
+    async fn live_viewport(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<(i32, i32)> {
         let display: ClassInstanceRef<Display> = jvm.get_field(this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         let (width, height) = if display.is_null() {
             let screen = context.system().platform().screen();
@@ -394,12 +399,19 @@ impl Displayable {
                     .await?,
             )
         };
-        let layout = Display::chrome_layout(jvm, context, this, width, height).await?;
+        let content_height: i32 = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Display",
+                "getContentHeight",
+                "(Ljavax/microedition/lcdui/Displayable;II)I",
+                (this.clone(), width, height),
+            )
+            .await?;
 
-        Ok((layout.content_width, layout.content_height))
+        Ok((width.max(0), content_height))
     }
 
-    pub async fn notify_size_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn notify_size_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         if jvm.get_field::<bool>(&this, "sizeNotifying", "Z").await? {
             return Ok(());
         }

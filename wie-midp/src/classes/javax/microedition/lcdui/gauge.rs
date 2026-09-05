@@ -95,15 +95,13 @@ impl Gauge {
     }
 
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
-        for (name, value) in [
-            ("INDEFINITE", -1),
-            ("CONTINUOUS_IDLE", 0),
-            ("INCREMENTAL_IDLE", 1),
-            ("CONTINUOUS_RUNNING", 2),
-            ("INCREMENTAL_UPDATING", 3),
-        ] {
-            jvm.put_static_field("javax/microedition/lcdui/Gauge", name, "I", value).await?;
-        }
+        jvm.put_static_field("javax/microedition/lcdui/Gauge", "INDEFINITE", "I", -1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Gauge", "CONTINUOUS_IDLE", "I", 0).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Gauge", "INCREMENTAL_IDLE", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Gauge", "CONTINUOUS_RUNNING", "I", 2)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/Gauge", "INCREMENTAL_UPDATING", "I", 3)
+            .await?;
 
         Ok(())
     }
@@ -167,7 +165,8 @@ impl Gauge {
         };
         jvm.put_field(&mut this, "maxValue", "I", max_value).await?;
         jvm.put_field(&mut this, "value", "I", value).await?;
-        Item::invalidate(jvm, &this, false).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+            .await
     }
 
     async fn get_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -184,7 +183,8 @@ impl Gauge {
 
         jvm.put_field(&mut this, "value", "I", if max_value == -1 { value } else { value.clamp(0, max_value) })
             .await?;
-        Item::invalidate(jvm, &this, false).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+            .await
     }
 
     async fn is_interactive(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
@@ -365,7 +365,9 @@ impl Gauge {
         }
 
         jvm.put_field(&mut this, "value", "I", new_value).await?;
-        Item::invalidate(jvm, &this, false).await?;
+        let _: () = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (false,))
+            .await?;
         Ok(Item::INPUT_HANDLED | Item::INPUT_CHANGED)
     }
 }
@@ -375,7 +377,6 @@ mod test {
     use alloc::boxed::Box;
 
     use jvm::{ClassInstanceRef, JavaError, Result as JvmResult};
-    use rustjava_runtime::classes::java::lang::String;
     use test_utils::run_jvm_test;
     use wie_util::Result;
 
@@ -390,11 +391,7 @@ mod test {
     fn gauge_clamps_input_and_renders_value_and_focus() -> Result<()> {
         run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
             let gauge: ClassInstanceRef<Gauge> = jvm
-                .new_class(
-                    "javax/microedition/lcdui/Gauge",
-                    "(Ljava/lang/String;ZII)V",
-                    (ClassInstanceRef::<String>::new(None), true, 2, 1),
-                )
+                .new_class("javax/microedition/lcdui/Gauge", "(Ljava/lang/String;ZII)V", (None, true, 2, 1))
                 .await?
                 .into();
             for (key, result, value) in [
@@ -455,11 +452,7 @@ mod test {
             assert_ne!((fill.r, fill.g, fill.b), (track.r, track.g, track.b));
 
             let indicator: ClassInstanceRef<Gauge> = jvm
-                .new_class(
-                    "javax/microedition/lcdui/Gauge",
-                    "(Ljava/lang/String;ZII)V",
-                    (ClassInstanceRef::<String>::new(None), false, 10, 7),
-                )
+                .new_class("javax/microedition/lcdui/Gauge", "(Ljava/lang/String;ZII)V", (None, false, 10, 7))
                 .await?
                 .into();
             for (maximum, expected) in [(5, 5), (-1, 0), (10, 0)] {

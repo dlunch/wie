@@ -51,7 +51,7 @@ impl Ticker {
         jvm.get_field(&this, "text", "Ljava/lang/String;").await
     }
 
-    async fn set_string(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
+    async fn set_string(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Ticker::setString({this:?}, {text:?})");
 
         if text.is_null() {
@@ -73,9 +73,19 @@ impl Ticker {
                     (midlet,),
                 )
                 .await?;
-            let ticker = Display::visible_ticker(jvm, context, &display).await?;
+            let ticker: ClassInstanceRef<Ticker> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getVisibleTicker",
+                    "()Ljavax/microedition/lcdui/Ticker;",
+                    (),
+                )
+                .await?;
             if !ticker.is_null() && ticker.identity() == this.identity() {
-                Display::ticker_changed(jvm, context, display.clone()).await?;
+                let _: () = jvm
+                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "tickerChanged", "()V", ())
+                    .await?;
                 let _: () = jvm
                     .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
                     .await?;

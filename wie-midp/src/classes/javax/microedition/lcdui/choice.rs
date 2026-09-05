@@ -82,17 +82,14 @@ impl Choice {
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Choice::<clinit>");
 
-        for (name, value) in [
-            ("EXCLUSIVE", 1),
-            ("MULTIPLE", 2),
-            ("IMPLICIT", 3),
-            ("POPUP", 4),
-            ("TEXT_WRAP_DEFAULT", 0),
-            ("TEXT_WRAP_ON", 1),
-            ("TEXT_WRAP_OFF", 2),
-        ] {
-            jvm.put_static_field("javax/microedition/lcdui/Choice", name, "I", value).await?;
-        }
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "EXCLUSIVE", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "MULTIPLE", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "IMPLICIT", "I", 3).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "POPUP", "I", 4).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "TEXT_WRAP_DEFAULT", "I", 0)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "TEXT_WRAP_ON", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Choice", "TEXT_WRAP_OFF", "I", 2).await?;
 
         Ok(())
     }

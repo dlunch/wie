@@ -7,7 +7,7 @@ use rustjava_runtime::classes::java::lang::String;
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::{Font, Image};
+use crate::classes::javax::microedition::lcdui::Image;
 
 // WIE guest record for one Choice element.
 pub struct ChoiceElement;
@@ -46,7 +46,7 @@ impl ChoiceElement {
         let _: () = jvm.invoke_special(&this, "java/lang/Object", "<init>", "()V", ()).await?;
 
         let display_image: ClassInstanceRef<Image> = if image.is_null() {
-            ClassInstanceRef::new(None)
+            None.into()
         } else {
             jvm.invoke_static(
                 "javax/microedition/lcdui/Image",
@@ -61,8 +61,7 @@ impl ChoiceElement {
         jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
         jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
             .await?;
-        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", ClassInstanceRef::<Font>::new(None))
-            .await?;
+        jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", None).await?;
         jvm.put_field(&mut this, "selected", "Z", selected).await?;
 
         Ok(())

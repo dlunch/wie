@@ -41,9 +41,9 @@ const COMMAND_EXIT: i32 = 7;
 const LEFT_TOP: i32 = 4 | 16;
 const RIGHT_TOP: i32 = 8 | 16;
 
-pub struct ChromeLayout {
-    pub content_width: i32,
-    pub content_height: i32,
+struct ChromeLayout {
+    content_width: i32,
+    content_height: i32,
     content_x: i32,
     content_y: i32,
     title_height: i32,
@@ -107,6 +107,32 @@ impl Display {
                     MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
                 ),
                 // wie private methods...
+                JavaMethodProto::new(
+                    "transition",
+                    "(Ljavax/microedition/lcdui/Displayable;)V",
+                    Self::transition,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new("alertChanged", "()V", Self::alert_changed, MethodAccessFlags::empty()),
+                JavaMethodProto::new("tickerChanged", "()V", Self::ticker_changed, MethodAccessFlags::empty()),
+                JavaMethodProto::new(
+                    "getVisibleTicker",
+                    "()Ljavax/microedition/lcdui/Ticker;",
+                    Self::visible_ticker,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new(
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    Self::screen_graphics,
+                    MethodAccessFlags::empty(),
+                ),
+                JavaMethodProto::new(
+                    "getContentHeight",
+                    "(Ljavax/microedition/lcdui/Displayable;II)I",
+                    Self::get_content_height,
+                    MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::empty()),
@@ -172,7 +198,18 @@ impl Display {
         Ok(())
     }
 
-    pub async fn chrome_layout(
+    async fn get_content_height(
+        jvm: &Jvm,
+        context: &mut WieJvmContext,
+        displayable: ClassInstanceRef<Displayable>,
+        width: i32,
+        height: i32,
+    ) -> JvmResult<i32> {
+        let layout = Self::chrome_layout(jvm, context, &displayable, width, height).await?;
+        Ok(layout.content_height)
+    }
+
+    async fn chrome_layout(
         jvm: &Jvm,
         context: &mut WieJvmContext,
         displayable: &ClassInstanceRef<Displayable>,
@@ -331,7 +368,7 @@ impl Display {
 
     async fn set_current(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         displayable: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
@@ -355,12 +392,19 @@ impl Display {
                 .await?;
         }
 
-        Self::transition(jvm, context, this, displayable).await
+        jvm.invoke_virtual(
+            &this,
+            "javax/microedition/lcdui/Display",
+            "transition",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (displayable,),
+        )
+        .await
     }
 
     async fn set_current_alert(
         jvm: &Jvm,
-        context: &mut WieJvmContext,
+        _context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         mut alert: ClassInstanceRef<Alert>,
         next_displayable: ClassInstanceRef<Displayable>,
@@ -379,10 +423,17 @@ impl Display {
         jvm.put_field(&mut alert, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", next_displayable)
             .await?;
         let displayable: ClassInstanceRef<Displayable> = JavaValue::from(alert).into();
-        Self::transition(jvm, context, this, displayable).await
+        jvm.invoke_virtual(
+            &this,
+            "javax/microedition/lcdui/Display",
+            "transition",
+            "(Ljavax/microedition/lcdui/Displayable;)V",
+            (displayable,),
+        )
+        .await
     }
 
-    pub async fn transition(
+    async fn transition(
         jvm: &Jvm,
         context: &mut WieJvmContext,
         mut this: ClassInstanceRef<Self>,
@@ -446,7 +497,9 @@ impl Display {
 
         let width: i32 = jvm.get_field(&this, "width", "I").await?;
         let height: i32 = jvm.get_field(&this, "height", "I").await?;
-        let notification_result = Displayable::notify_size_changed(jvm, context, displayable).await;
+        let notification_result: JvmResult<()> = jvm
+            .invoke_virtual(&displayable, "javax/microedition/lcdui/Displayable", "notifySizeChanged", "()V", ())
+            .await;
         let timer_result = Self::schedule_alert_timeout(jvm, context, this.clone(), alert_generation).await;
         let ticker_result = Self::schedule_ticker_tick(jvm, context, this.clone(), ticker_generation).await;
         let repaint_result: JvmResult<()> = jvm
@@ -520,16 +573,16 @@ impl Display {
         Ok(())
     }
 
-    pub async fn alert_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn alert_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let generation: i32 = jvm.get_field(&this, "alertGeneration", "I").await?;
         let generation = generation.wrapping_add(1);
         jvm.put_field(&mut this, "alertGeneration", "I", generation).await?;
         Self::schedule_alert_timeout(jvm, context, this, generation).await
     }
 
-    pub async fn visible_ticker(jvm: &Jvm, context: &mut WieJvmContext, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Ticker>> {
+    async fn visible_ticker(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Ticker>> {
         let current: ClassInstanceRef<Displayable> = jvm
-            .get_field(this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
+            .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
         if current.is_null() {
             return Ok(None.into());
@@ -539,8 +592,8 @@ impl Display {
             return Ok(None.into());
         }
 
-        let width: i32 = jvm.get_field(this, "width", "I").await?;
-        let height: i32 = jvm.get_field(this, "height", "I").await?;
+        let width: i32 = jvm.get_field(&this, "width", "I").await?;
+        let height: i32 = jvm.get_field(&this, "height", "I").await?;
         let layout = Self::chrome_layout(jvm, context, &current, width, height).await?;
         if layout.ticker_height == 0 || layout.content_width == 0 {
             return Ok(None.into());
@@ -548,7 +601,7 @@ impl Display {
         jvm.get_field(&current, "ticker", "Ljavax/microedition/lcdui/Ticker;").await
     }
 
-    pub async fn ticker_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+    async fn ticker_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let generation: i32 = jvm.get_field(&this, "tickerGeneration", "I").await?;
         let generation = generation.wrapping_add(1);
         jvm.put_field(&mut this, "tickerGeneration", "I", generation).await?;
@@ -559,7 +612,15 @@ impl Display {
         if jvm.get_field::<i32>(&this, "tickerGeneration", "I").await? != generation {
             return Ok(());
         }
-        let ticker = Self::visible_ticker(jvm, context, &this).await?;
+        let ticker: ClassInstanceRef<Ticker> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Display",
+                "getVisibleTicker",
+                "()Ljavax/microedition/lcdui/Ticker;",
+                (),
+            )
+            .await?;
         if ticker.is_null() {
             return Ok(());
         }
@@ -606,7 +667,15 @@ impl Display {
         if jvm.get_field::<i32>(&this, "tickerGeneration", "I").await? != generation {
             return Ok(());
         }
-        let mut ticker = Self::visible_ticker(jvm, context, &this).await?;
+        let mut ticker: ClassInstanceRef<Ticker> = jvm
+            .invoke_virtual(
+                &this,
+                "javax/microedition/lcdui/Display",
+                "getVisibleTicker",
+                "()Ljavax/microedition/lcdui/Ticker;",
+                (),
+            )
+            .await?;
         if ticker.is_null() {
             return Ok(());
         }
@@ -754,7 +823,16 @@ impl Display {
                 .invoke_virtual(&screen_graphics, "javax/microedition/lcdui/Graphics", "reset", "()V", ())
                 .await?;
         } else {
-            if let Err(error) = Displayable::notify_size_changed(jvm, context, current_displayable.clone()).await {
+            let notification_result: JvmResult<()> = jvm
+                .invoke_virtual(
+                    &current_displayable,
+                    "javax/microedition/lcdui/Displayable",
+                    "notifySizeChanged",
+                    "()V",
+                    (),
+                )
+                .await;
+            if let Err(error) = notification_result {
                 Self::handle_exception(jvm, error).await?;
             }
 
@@ -1315,8 +1393,8 @@ impl Display {
         Ok(())
     }
 
-    pub async fn screen_graphics(jvm: &Jvm, this: &ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
-        jvm.get_field(this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
+    async fn screen_graphics(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
+        jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
     }
 
     async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
@@ -1349,7 +1427,9 @@ impl Display {
         tracing::debug!("javax.microedition.lcdui.Display::setFullscreen({this:?}, {fullscreen})");
 
         jvm.put_field(&mut this, "isInFullScreenMode", "Z", fullscreen).await?;
-        Self::ticker_changed(jvm, context, this.clone()).await?;
+        let _: () = jvm
+            .invoke_virtual(&this, "javax/microedition/lcdui/Display", "tickerChanged", "()V", ())
+            .await?;
         let current: ClassInstanceRef<Displayable> = jvm
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
@@ -1381,7 +1461,6 @@ mod test {
     use jvm::{ClassInstanceRef, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::String;
 
     use test_utils::run_jvm_test;
     use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
@@ -1756,14 +1835,13 @@ mod test {
                     .await?
             );
 
-            let null_title = ClassInstanceRef::<String>::new(None);
             let _: () = jvm
                 .invoke_virtual(
                     &screen,
                     "javax/microedition/lcdui/Displayable",
                     "setTitle",
                     "(Ljava/lang/String;)V",
-                    (null_title,),
+                    (None,),
                 )
                 .await?;
             let detached_height = viewport_height(&jvm, &screen).await?;
@@ -1837,7 +1915,15 @@ mod test {
                 .await?;
 
             let display: ClassInstanceRef<Display> = jvm.new_class("javax/microedition/lcdui/Display", "()V", ()).await?.into();
-            let mut graphics = Display::screen_graphics(&jvm, &display).await?;
+            let mut graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
             let _: () = jvm
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0xaa22aa,))
                 .await?;
@@ -2007,7 +2093,15 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                 .await?;
-            let mut graphics = Display::screen_graphics(&jvm, &display).await?;
+            let mut graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
             let image_ref = Graphics::image(&jvm, &mut graphics).await?;
             let image = Image::image(&jvm, &image_ref).await?;
             let menu_band_non_white = (160..222)

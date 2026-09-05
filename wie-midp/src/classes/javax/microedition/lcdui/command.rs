@@ -47,18 +47,14 @@ impl Command {
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
         tracing::debug!("javax.microedition.lcdui.Command::<clinit>");
 
-        for (name, value) in [
-            ("SCREEN", 1),
-            ("BACK", 2),
-            ("CANCEL", 3),
-            ("OK", 4),
-            ("HELP", 5),
-            ("STOP", 6),
-            ("EXIT", 7),
-            ("ITEM", 8),
-        ] {
-            jvm.put_static_field("javax/microedition/lcdui/Command", name, "I", value).await?;
-        }
+        jvm.put_static_field("javax/microedition/lcdui/Command", "SCREEN", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "BACK", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "CANCEL", "I", 3).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "OK", "I", 4).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "HELP", "I", 5).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "STOP", "I", 6).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "EXIT", "I", 7).await?;
+        jvm.put_static_field("javax/microedition/lcdui/Command", "ITEM", "I", 8).await?;
 
         Ok(())
     }
@@ -78,7 +74,7 @@ impl Command {
             "javax/microedition/lcdui/Command",
             "<init>",
             "(Ljava/lang/String;Ljava/lang/String;II)V",
-            (label, ClassInstanceRef::<String>::new(None), command_type, priority),
+            (label, None, command_type, priority),
         )
         .await
     }

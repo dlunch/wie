@@ -168,12 +168,11 @@ impl Alert {
 
         jvm.put_static_field("javax/microedition/lcdui/Alert", "FOREVER", "I", -2).await?;
         let short_label = JavaLangString::from_rust_string(jvm, "").await?;
-        let long_label = ClassInstanceRef::<String>::new(None);
         let dismiss_command = jvm
             .new_class(
                 "javax/microedition/lcdui/Command",
                 "(Ljava/lang/String;Ljava/lang/String;II)V",
-                (short_label, long_label, 4, 0),
+                (short_label, None, 4, 0),
             )
             .await?;
         jvm.put_static_field(
@@ -193,12 +192,7 @@ impl Alert {
             "javax/microedition/lcdui/Alert",
             "<init>",
             "(Ljava/lang/String;Ljava/lang/String;Ljavax/microedition/lcdui/Image;Ljavax/microedition/lcdui/AlertType;)V",
-            (
-                title,
-                ClassInstanceRef::<String>::new(None),
-                ClassInstanceRef::<Image>::new(None),
-                ClassInstanceRef::<AlertType>::new(None),
-            ),
+            (title, None, None, None),
         )
         .await
     }
@@ -236,7 +230,7 @@ impl Alert {
 
     async fn snapshot(jvm: &Jvm, image: &ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
         if image.is_null() {
-            Ok(ClassInstanceRef::new(None))
+            Ok(None.into())
         } else {
             jvm.invoke_static(
                 "javax/microedition/lcdui/Image",
@@ -353,7 +347,9 @@ impl Alert {
             return Ok(());
         }
 
-        Display::alert_changed(jvm, context, display).await?;
+        let _: () = jvm
+            .invoke_virtual(&display, "javax/microedition/lcdui/Display", "alertChanged", "()V", ())
+            .await?;
         if request_repaint {
             let _: () = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "requestRepaint", "()V", ())
@@ -463,13 +459,8 @@ impl Alert {
         }
 
         if !old_indicator.is_null() {
-            jvm.put_field(
-                &mut old_indicator,
-                "owner",
-                "Ljavax/microedition/lcdui/Displayable;",
-                ClassInstanceRef::<Displayable>::new(None),
-            )
-            .await?;
+            jvm.put_field(&mut old_indicator, "owner", "Ljavax/microedition/lcdui/Displayable;", None)
+                .await?;
         }
         if !indicator.is_null() {
             jvm.put_field(&mut indicator, "owner", "Ljavax/microedition/lcdui/Displayable;", this.clone())
@@ -580,7 +571,7 @@ impl Alert {
         .await
     }
 
-    async fn dispatch_command_at(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
+    async fn dispatch_command_at(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
         let command: ClassInstanceRef<Command> = jvm
             .invoke_virtual(
                 &this,
@@ -606,13 +597,8 @@ impl Alert {
         }
 
         let next: ClassInstanceRef<Displayable> = jvm.get_field(&this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;").await?;
-        jvm.put_field(
-            &mut this,
-            "nextDisplayable",
-            "Ljavax/microedition/lcdui/Displayable;",
-            ClassInstanceRef::<Displayable>::new(None),
-        )
-        .await?;
+        jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", None)
+            .await?;
         let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
         if display.is_null() {
             return Ok(());
@@ -628,7 +614,15 @@ impl Alert {
             )
             .await?;
         if !current.is_null() && current.identity() == this.identity() {
-            Display::transition(jvm, context, display, next).await?;
+            let _: () = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "transition",
+                    "(Ljavax/microedition/lcdui/Displayable;)V",
+                    (next,),
+                )
+                .await?;
         }
 
         Ok(())
@@ -641,13 +635,8 @@ impl Alert {
         display: ClassInstanceRef<Display>,
     ) -> JvmResult<()> {
         if display.is_null() {
-            jvm.put_field(
-                &mut this,
-                "nextDisplayable",
-                "Ljavax/microedition/lcdui/Displayable;",
-                ClassInstanceRef::<Displayable>::new(None),
-            )
-            .await?;
+            jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", None)
+                .await?;
         }
         jvm.invoke_special(
             &this,
@@ -818,7 +807,6 @@ mod test {
     use jvm::{Array, ClassInstanceRef, JavaError, JavaValue, Jvm, Result as JvmResult, runtime::JavaLangString};
     use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-    use rustjava_runtime::classes::java::lang::String;
 
     use test_utils::{TestClock, TestPlatform, run_jvm_test, run_jvm_test_with_system};
     use wie_backend::{Event, System};
@@ -828,7 +816,7 @@ mod test {
     use crate::{
         classes::{
             javax::microedition::{
-                lcdui::{Alert, AlertType, Command, CommandListener, Display, Displayable, Gauge, Graphics, Image},
+                lcdui::{Alert, Command, Display, Displayable, Gauge, Graphics, Image},
                 midlet::MIDlet,
             },
             net::wie::{KeyboardEventType, MIDPKeyCode},
@@ -920,12 +908,7 @@ mod test {
             .new_class(
                 "javax/microedition/lcdui/Alert",
                 "(Ljava/lang/String;Ljava/lang/String;Ljavax/microedition/lcdui/Image;Ljavax/microedition/lcdui/AlertType;)V",
-                (
-                    ClassInstanceRef::<String>::new(None),
-                    JavaLangString::from_rust_string(jvm, text).await?,
-                    ClassInstanceRef::<Image>::new(None),
-                    ClassInstanceRef::<AlertType>::new(None),
-                ),
+                (None, JavaLangString::from_rust_string(jvm, text).await?, None, None),
             )
             .await?
             .into())
@@ -933,11 +916,7 @@ mod test {
 
     async fn new_form(jvm: &Jvm) -> JvmResult<ClassInstanceRef<Displayable>> {
         Ok(jvm
-            .new_class(
-                "javax/microedition/lcdui/Form",
-                "(Ljava/lang/String;)V",
-                (ClassInstanceRef::<String>::new(None),),
-            )
+            .new_class("javax/microedition/lcdui/Form", "(Ljava/lang/String;)V", (None,))
             .await?
             .into())
     }
@@ -958,7 +937,7 @@ mod test {
             .new_class(
                 "javax/microedition/lcdui/Gauge",
                 "(Ljava/lang/String;ZII)V",
-                (ClassInstanceRef::<String>::new(None), interactive, 10, value),
+                (None, interactive, 10, value),
             )
             .await?
             .into())
@@ -1080,7 +1059,15 @@ mod test {
                 .invoke_virtual(&dismiss, "javax/microedition/lcdui/Command", "getLabel", "()Ljava/lang/String;", ())
                 .await?;
             assert_eq!(JavaLangString::to_rust_string(&jvm, &label).await?, "");
-            let mut screen_graphics = Display::screen_graphics(&jvm, &display).await?;
+            let mut screen_graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
             let screen_image = Graphics::image(&jvm, &mut screen_graphics).await?;
             let mut initial_fill = 0;
             for value in [2, 8] {
@@ -1263,7 +1250,7 @@ mod test {
                     "javax/microedition/lcdui/Alert",
                     "setIndicator",
                     "(Ljavax/microedition/lcdui/Gauge;)V",
-                    (ClassInstanceRef::<Gauge>::new(None),),
+                    (None,),
                 )
                 .await?;
             let _: i32 = jvm
@@ -1475,7 +1462,7 @@ mod test {
                         "javax/microedition/lcdui/Alert",
                         "setCommandListener",
                         "(Ljavax/microedition/lcdui/CommandListener;)V",
-                        (ClassInstanceRef::<CommandListener>::new(None),),
+                        (None,),
                     )
                     .await?;
                 let _: () = jvm
@@ -1507,7 +1494,15 @@ mod test {
                     .invoke_virtual(&alert, "javax/microedition/lcdui/Alert", "setTimeout", "(I)V", (25,))
                     .await?;
                 show(&jvm, &display, JavaValue::from(alert.clone()).into()).await?;
-                let mut graphics = Display::screen_graphics(&jvm, &display).await?;
+                let mut graphics: ClassInstanceRef<Graphics> = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "getScreenGraphics",
+                        "()Ljavax/microedition/lcdui/Graphics;",
+                        (),
+                    )
+                    .await?;
                 let screen_image = Graphics::image(&jvm, &mut graphics).await?;
                 for expired in [false, true] {
                     if expired {

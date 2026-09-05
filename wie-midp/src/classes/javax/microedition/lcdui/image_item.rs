@@ -91,16 +91,16 @@ impl ImageItem {
     }
 
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
-        for (name, value) in [
-            ("LAYOUT_DEFAULT", 0),
-            ("LAYOUT_LEFT", 1),
-            ("LAYOUT_RIGHT", 2),
-            ("LAYOUT_CENTER", 3),
-            ("LAYOUT_NEWLINE_BEFORE", 0x100),
-            ("LAYOUT_NEWLINE_AFTER", 0x200),
-        ] {
-            jvm.put_static_field("javax/microedition/lcdui/ImageItem", name, "I", value).await?;
-        }
+        jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_DEFAULT", "I", 0)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_LEFT", "I", 1).await?;
+        jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_RIGHT", "I", 2).await?;
+        jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_CENTER", "I", 3)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_NEWLINE_BEFORE", "I", 0x100)
+            .await?;
+        jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_NEWLINE_AFTER", "I", 0x200)
+            .await?;
 
         Ok(())
     }
@@ -159,7 +159,7 @@ impl ImageItem {
 
     async fn snapshot(jvm: &Jvm, image: &ClassInstanceRef<Image>) -> JvmResult<ClassInstanceRef<Image>> {
         if image.is_null() {
-            Ok(ClassInstanceRef::new(None))
+            Ok(None.into())
         } else {
             jvm.invoke_static(
                 "javax/microedition/lcdui/Image",
@@ -180,7 +180,8 @@ impl ImageItem {
         jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
         jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
             .await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_alt_text(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
@@ -194,7 +195,8 @@ impl ImageItem {
         alt_text: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
         jvm.put_field(&mut this, "altText", "Ljava/lang/String;", alt_text).await?;
-        Item::invalidate(jvm, &this, true).await
+        jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
+            .await
     }
 
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
@@ -281,7 +283,14 @@ impl ImageItem {
             return Ok(());
         };
         let appearance_mode: i32 = jvm.get_field(&this, "appearanceMode", "I").await?;
-        Item::paint_appearance(jvm, &graphics, x, y, width, height, appearance_mode).await?;
+        let _: () = jvm
+            .invoke_static(
+                "javax/microedition/lcdui/Item",
+                "paintAppearance",
+                "(Ljavax/microedition/lcdui/Graphics;IIIII)V",
+                (graphics.clone(), x, y, width, height, appearance_mode),
+            )
+            .await?;
 
         let inset = Item::appearance_inset(appearance_mode);
         let content_x = x + inset;
@@ -465,7 +474,7 @@ mod test {
                 .new_class(
                     "javax/microedition/lcdui/ImageItem",
                     "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;ILjava/lang/String;)V",
-                    (ClassInstanceRef::<String>::new(None), source.clone(), 2, alt_text.clone()),
+                    (None, source.clone(), 2, alt_text.clone()),
                 )
                 .await?
                 .into();
@@ -516,7 +525,7 @@ mod test {
                 .new_class(
                     "javax/microedition/lcdui/ImageItem",
                     "(Ljava/lang/String;Ljavax/microedition/lcdui/Image;ILjava/lang/String;)V",
-                    (ClassInstanceRef::<String>::new(None), oversized_source, 1, alt_text),
+                    (None, oversized_source, 1, alt_text),
                 )
                 .await?
                 .into();

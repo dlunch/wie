@@ -436,7 +436,15 @@ mod test {
             let count: i32 = jvm.get_field(&this, "count", "I").await?;
             assert_eq!(count, 0, "requeued callback ran before the pending backend event");
             let display: ClassInstanceRef<Display> = jvm.get_field(&this, "currentDisplay", "Ljavax/microedition/lcdui/Display;").await?;
-            let mut graphics = Display::screen_graphics(jvm, &display).await?;
+            let mut graphics: ClassInstanceRef<Graphics> = jvm
+                .invoke_virtual(
+                    &display,
+                    "javax/microedition/lcdui/Display",
+                    "getScreenGraphics",
+                    "()Ljavax/microedition/lcdui/Graphics;",
+                    (),
+                )
+                .await?;
             let image = Graphics::image(jvm, &mut graphics).await?;
             let pixel = Image::image(jvm, &image).await?.get_pixel(0, 0);
             assert_eq!(
