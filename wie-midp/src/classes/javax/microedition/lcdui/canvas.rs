@@ -72,6 +72,10 @@ impl Canvas {
                 (),
             )
             .await?;
+        if display.is_null() {
+            return Ok(());
+        }
+
         let _: () = jvm
             .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (0, 0, -1, -1))
             .await?;
@@ -99,6 +103,10 @@ impl Canvas {
                 (),
             )
             .await?;
+        if display.is_null() {
+            return Ok(());
+        }
+
         let _: () = jvm
             .invoke_virtual(&display, "javax/microedition/lcdui/Display", "repaint", "(IIII)V", (x, y, width, height))
             .await?;
