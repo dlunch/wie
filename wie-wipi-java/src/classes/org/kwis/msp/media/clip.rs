@@ -32,6 +32,7 @@ impl Clip {
                     MethodAccessFlags::PUBLIC,
                 ),
                 JavaMethodProto::new("setVolume", "(I)Z", Self::set_volume, MethodAccessFlags::PUBLIC),
+                JavaMethodProto::new("setVolume", "(I)V", Self::set_volume_void, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new(
                     "setListener",
                     "(Lorg/kwis/msp/media/PlayListener;)V",
@@ -153,6 +154,17 @@ impl Clip {
         jvm.put_field(&mut this, "volume", "I", level).await?;
 
         Ok(true)
+    }
+
+    // not in spec, but some apps call it
+    async fn set_volume_void(jvm: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Clip>, level: i32) -> JvmResult<()> {
+        tracing::debug!("org.kwis.msp.media.Clip::setVolume({this:?}, {level})");
+
+        let _: bool = jvm
+            .invoke_virtual(&this, "org/kwis/msp/media/Clip", "setVolume", "(I)Z", (level,))
+            .await?;
+
+        Ok(())
     }
 
     async fn set_listener(_: &Jvm, _: &mut WieJvmContext, this: ClassInstanceRef<Self>, listener: ClassInstanceRef<PlayListener>) -> JvmResult<()> {
