@@ -221,6 +221,11 @@ svg {
 
 .library-pages.draggable {
   cursor: grab;
+  padding-right: 36px;
+}
+
+.library-pages.draggable .library-page {
+  padding-right: 18px;
 }
 
 .library-pages.dragging {

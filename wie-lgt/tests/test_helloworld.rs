@@ -30,6 +30,7 @@ pub fn test_helloworld() -> Result<()> {
     let platform = Box::new(TestPlatform::with_event_handler(event_handler));
 
     let mut archive = extract_zip(include_bytes!("data/helloworld_lgt.zip"))?;
+    assert_eq!(LgtEmulator::archive_id(&archive).as_deref(), Some("PD000000"));
     let jar = archive.remove("00000000.jar").unwrap();
     archive.insert("application.jar".into(), jar);
     let mut emulator = LgtEmulator::from_archive(

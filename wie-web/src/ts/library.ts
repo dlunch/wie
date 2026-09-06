@@ -216,13 +216,13 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
       indicator.setAttribute("aria-label", `${pageIndex + 1} 페이지로 이동`);
       indicator.classList.toggle("active", pageIndex === currentPageIndex);
       indicator.addEventListener("click", () => {
-        libraryPages.scrollTo({ left: pageIndex * libraryPages.clientWidth, behavior: "smooth" });
+        libraryPages.scrollTo({ left: pageIndex * libraryPages.firstElementChild!.clientWidth, behavior: "smooth" });
       });
       pageIndicators.appendChild(indicator);
     }
 
     pageIndicators.hidden = pageCount < 2;
-    libraryPages.scrollLeft = currentPageIndex * libraryPages.clientWidth;
+    libraryPages.scrollLeft = currentPageIndex * libraryPages.firstElementChild!.clientWidth;
     createIcons({ icons, root: libraryView });
     createIcons({ icons, root: importDialog });
     createIcons({ icons, root: deleteDialog });
@@ -231,7 +231,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   };
 
   libraryPages.addEventListener("scroll", () => {
-    currentPageIndex = Math.round(libraryPages.scrollLeft / libraryPages.clientWidth);
+    currentPageIndex = Math.round(libraryPages.scrollLeft / libraryPages.firstElementChild!.clientWidth);
     for (const [index, indicator] of Array.from(pageIndicators.children).entries()) {
       indicator.classList.toggle("active", index === currentPageIndex);
     }
@@ -278,8 +278,9 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     if (dragging) {
       dragging = false;
       suppressClick = true;
-      const pageIndex = Math.round(libraryPages.scrollLeft / libraryPages.clientWidth);
-      libraryPages.scrollTo({ left: pageIndex * libraryPages.clientWidth, behavior: "smooth" });
+      const pageWidth = libraryPages.firstElementChild!.clientWidth;
+      const pageIndex = Math.round(libraryPages.scrollLeft / pageWidth);
+      libraryPages.scrollTo({ left: pageIndex * pageWidth, behavior: "smooth" });
       window.setTimeout(() => {
         suppressClick = false;
       });

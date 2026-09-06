@@ -102,7 +102,7 @@ impl KtfEmulator {
     }
 
     pub fn archive_id(files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
-        let id = KtfAdf::parse(files.get("__adf__")?).aid;
+        let id = KtfAdf::parse(files.get("__adf__")?).pid;
         (!id.is_empty()).then_some(id)
     }
 
