@@ -3,6 +3,12 @@ import { AppMetadata } from "./app_library_store";
 import { initializeLibrary } from "./library";
 import { initializeSettings } from "./settings";
 
+const originalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  window.alert(String(args[0]));
+  originalConsoleError(...args);
+};
+
 const main = async () => {
   const libraryView = document.getElementById("library-view") as HTMLDivElement;
   const playerView = document.getElementById("player-view") as HTMLElement;
@@ -45,8 +51,7 @@ const main = async () => {
 
 const start = () => {
   void main().catch((error) => {
-    console.error(error);
-    window.alert(`라이브러리를 열 수 없습니다. ${String(error)}`);
+    console.error(`라이브러리를 열 수 없습니다. ${String(error)}`, error);
   });
 };
 
