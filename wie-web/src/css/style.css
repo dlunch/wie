@@ -665,6 +665,11 @@ svg {
   white-space: nowrap;
 }
 
+.help-dialog .dialog-actions {
+  align-items: center;
+  justify-content: space-between;
+}
+
 kbd {
   display: inline-block;
   min-width: 24px;

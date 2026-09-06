@@ -6,6 +6,7 @@ import { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
 const WELCOME_STORAGE_KEY = "wie_welcome_seen";
+const HELP_STORAGE_KEY = "wie_help_dismissed";
 const icons = {
   Check,
   CircleHelp,
@@ -39,8 +40,11 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   const deleteAppTitle = document.getElementById("delete-app-title") as HTMLElement;
   const confirmDelete = document.getElementById("confirm-delete") as HTMLButtonElement;
   const helpDialog = document.getElementById("help-dialog") as HTMLDialogElement;
+  const hideHelp = document.getElementById("hide-help") as HTMLInputElement;
   const welcomeDialog = document.getElementById("welcome-dialog") as HTMLDialogElement;
   const dismissWelcome = document.getElementById("dismiss-welcome") as HTMLButtonElement;
+
+  hideHelp.checked = localStorage.getItem(HELP_STORAGE_KEY) === "true";
 
   let apps = await store.list();
   let manageMode = false;
@@ -172,6 +176,10 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
             const archive = await store.getArchive(app.id);
             if (!archive) {
               throw new Error("저장된 앱 파일을 찾을 수 없습니다.");
+            }
+            if (!hideHelp.checked) {
+              helpDialog.showModal();
+              await new Promise<void>(resolve => helpDialog.addEventListener("close", () => resolve(), { once: true }));
             }
             await launchApp(app, archive);
           } catch (error) {
@@ -314,6 +322,9 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   menuHelp.addEventListener("click", () => {
     closeMenu();
     helpDialog.showModal();
+  });
+  helpDialog.addEventListener("close", () => {
+    localStorage.setItem(HELP_STORAGE_KEY, String(hideHelp.checked));
   });
 
   const importFiles = async (files: File[]) => {
