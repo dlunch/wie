@@ -39,7 +39,8 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
   const backToLibrary = document.getElementById("back-to-library") as HTMLButtonElement;
   const appSettings = document.getElementById("app-settings") as HTMLButtonElement;
 
-  canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.width = 240;
+  canvas.height = 320;
   const abortController = new AbortController();
   const wieWeb = new WieWeb(app.filename, archive, canvas, fontData);
   const unsubscribePcmVolume = settings.onPcmVolumeChange((volume) => wieWeb.set_pcm_volume(volume));
