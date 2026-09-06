@@ -177,6 +177,12 @@ pub async fn get_volume(_context: &mut dyn WIPICContext) -> Result<WIPICWord> {
     Ok(0)
 }
 
+pub async fn set_volume(_context: &mut dyn WIPICContext, volume: i32) -> Result<()> {
+    tracing::warn!("stub MC_mdaSetVolume({volume})");
+
+    Ok(())
+}
+
 pub async fn play(context: &mut dyn WIPICContext, ptr_clip: WIPICWord, repeat: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_mdaPlay({ptr_clip:#x}, {repeat})");
 

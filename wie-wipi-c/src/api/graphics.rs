@@ -60,7 +60,8 @@ pub async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, o
     let mut grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
     match op {
         WIPICGraphicsContextIdx::ClipIdx => {
-            grp_ctx.clip = read_generic(context, pv)?;
+            let clip: [i32; 4] = read_generic(context, pv)?;
+            grp_ctx.clip = clip.map(|value| value as u16);
         }
         WIPICGraphicsContextIdx::FgPixelIdx => {
             grp_ctx.fgpxl = pv as _;
@@ -89,13 +90,35 @@ pub async fn set_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, o
             grp_ctx.style = pv;
         }
         WIPICGraphicsContextIdx::OffsetIdx => {
-            grp_ctx.offset = read_generic(context, pv)?;
+            let offset: [i32; 2] = read_generic(context, pv)?;
+            grp_ctx.offset = offset.map(|value| value as u16);
         }
         _ => {
             tracing::warn!("MC_grpSetContext({p_grp_ctx:#x}, {op:?}, {pv:#x}): ignoring invalid op");
         }
     }
     write_generic(context, p_grp_ctx, grp_ctx)?;
+
+    Ok(())
+}
+
+pub async fn get_context(context: &mut dyn WIPICContext, p_grp_ctx: WIPICWord, op: WIPICGraphicsContextIdx, pv: WIPICWord) -> Result<()> {
+    tracing::debug!("MC_grpGetContext({p_grp_ctx:#x}, {op:?}, {pv:#x})");
+
+    let grp_ctx: WIPICGraphicsContext = read_generic(context, p_grp_ctx)?;
+    match op {
+        WIPICGraphicsContextIdx::ClipIdx => write_generic(context, pv, grp_ctx.clip.map(|value| i32::from(value as i16)))?,
+        WIPICGraphicsContextIdx::FgPixelIdx => write_generic(context, pv, grp_ctx.fgpxl)?,
+        WIPICGraphicsContextIdx::BgPixelIdx => write_generic(context, pv, grp_ctx.bgpxl)?,
+        WIPICGraphicsContextIdx::TransPixelIdx => write_generic(context, pv, grp_ctx.transpxl)?,
+        WIPICGraphicsContextIdx::AlphaIdx => write_generic(context, pv, grp_ctx.alpha)?,
+        WIPICGraphicsContextIdx::PixelopIdx => write_generic(context, pv, grp_ctx.pixel_op_func_ptr)?,
+        WIPICGraphicsContextIdx::PixelParam1Idx => write_generic(context, pv, grp_ctx.param1)?,
+        WIPICGraphicsContextIdx::FontIdx => write_generic(context, pv, grp_ctx.font)?,
+        WIPICGraphicsContextIdx::StyleIdx => write_generic(context, pv, grp_ctx.style)?,
+        WIPICGraphicsContextIdx::OffsetIdx => write_generic(context, pv, grp_ctx.offset.map(|value| i32::from(value as i16)))?,
+        _ => tracing::warn!("MC_grpGetContext({p_grp_ctx:#x}, {op:?}, {pv:#x}): ignoring invalid op"),
+    }
 
     Ok(())
 }
@@ -646,4 +669,59 @@ pub async fn get_framebuffer_bpp(context: &mut dyn WIPICContext, framebuffer: WI
     let framebuffer: WIPICFramebuffer = read_generic(context, context.data_ptr(framebuffer)?)?;
 
     Ok(framebuffer.bpp as _)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::boxed::Box;
+
+    use crate::{MethodImpl, context::test::TestContext};
+
+    use super::*;
+
+    #[futures_test::test]
+    async fn context_values_are_written_to_the_output_pointer() -> Result<()> {
+        let mut context = TestContext::new();
+        let ptr_context = context.alloc_raw(size_of::<WIPICGraphicsContext>() as u32)?;
+        let input = context.alloc_raw(16)?;
+        let output = context.alloc_raw(20)?;
+        init_context(&mut context, ptr_context).await?;
+
+        let set = set_context.into_body();
+        let get = get_context.into_body();
+        for (op, value) in [
+            (1, 0x12345678),
+            (2, 0x87654321),
+            (3, 0xff00ff),
+            (4, 128),
+            (5, 0x1001),
+            (6, 42),
+            (7, 8),
+            (8, 1),
+        ] {
+            set.call(&mut context, Box::new([ptr_context, op, value])).await?;
+            write_generic(&mut context, output, [0xccccccccu32; 5])?;
+            get.call(&mut context, Box::new([ptr_context, op, output])).await?;
+            assert_eq!(
+                read_generic::<[u32; 5], _>(&context, output)?,
+                [value, 0xcccccccc, 0xcccccccc, 0xcccccccc, 0xcccccccc]
+            );
+        }
+
+        write_generic(&mut context, input, [-5i32, -8, 176, 220])?;
+        set.call(&mut context, Box::new([ptr_context, 0, input])).await?;
+        write_generic(&mut context, output, [999i32; 5])?;
+        get.call(&mut context, Box::new([ptr_context, 0, output])).await?;
+        assert_eq!(read_generic::<[i32; 5], _>(&context, output)?, [-5, -8, 176, 220, 999]);
+
+        write_generic(&mut context, input, [-12i32, 34])?;
+        set.call(&mut context, Box::new([ptr_context, 10, input])).await?;
+        write_generic(&mut context, output, [999i32; 5])?;
+        get.call(&mut context, Box::new([ptr_context, 10, output])).await?;
+        assert_eq!(read_generic::<[i32; 5], _>(&context, output)?, [-12, 34, 999, 999, 999]);
+
+        get.call(&mut context, Box::new([ptr_context, 0xff, output])).await?;
+        assert_eq!(read_generic::<[i32; 5], _>(&context, output)?, [-12, 34, 999, 999, 999]);
+        Ok(())
+    }
 }
