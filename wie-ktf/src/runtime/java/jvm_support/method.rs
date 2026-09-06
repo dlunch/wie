@@ -7,7 +7,7 @@ use alloc::{
 };
 use core::{
     fmt::{self, Debug, Formatter},
-    mem::size_of,
+    mem::{offset_of, size_of},
     ops::{Deref, DerefMut},
 };
 use futures::TryFutureExt;
@@ -21,7 +21,7 @@ use wipi_types::ktf::java::{
 
 use alloc::sync::Arc;
 use wie_core_arm::{
-    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter,
+    Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RUN_FUNCTION_LR, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, SvcId,
 };
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
 use wie_util::{ByteWrite, Result, WieError, read_generic, write_generic};
@@ -68,13 +68,7 @@ impl JavaMethod {
         let ptr_raw = Allocator::alloc(core, size_of::<RawJavaMethod>() as u32)?;
 
         let access_flags = proto.access_flags;
-        let fn_method = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_functions)?;
-
-        let (fn_body, fn_body_native) = if access_flags.contains(MethodAccessFlags::NATIVE) {
-            (0, fn_method)
-        } else {
-            (fn_method, 0)
-        };
+        let (fn_body, fn_body_native) = Self::register_java_method(core, jvm, ptr_raw, proto, context, java_functions)?;
 
         write_generic(
             core,
@@ -296,7 +290,7 @@ impl JavaMethod {
         proto: JavaMethodProto<C>,
         context: Context,
         java_functions: JavaSvcFunctions,
-    ) -> Result<u32>
+    ) -> Result<(u32, u32)>
     where
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
@@ -310,7 +304,9 @@ impl JavaMethod {
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
         }
 
+        let is_native = proto.access_flags.contains(MethodAccessFlags::NATIVE);
         let proxy = JavaMethodProxy {
+            ptr_method,
             jvm: jvm.clone(),
             proto,
             context,
@@ -318,12 +314,20 @@ impl JavaMethod {
             return_type: return_type.clone(),
         };
 
-        let proxy = RegisteredFunctionHolder::new(proxy, &());
-        java_functions
-            .lock()
-            .insert(ptr_method, Arc::new(Box::new(proxy) as Box<dyn RegisteredFunction>));
+        let proxy = Arc::new(Box::new(RegisteredFunctionHolder::new(proxy, &())) as Box<dyn RegisteredFunction>);
+        java_functions.lock().insert(ptr_method, proxy.clone());
 
-        core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_method)
+        // Entry-field addresses identify the ABI while sharing the method implementation.
+        let fn_body = core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_method)?;
+        let fn_native = if is_native {
+            let ptr_native_entry = ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
+            java_functions.lock().insert(ptr_native_entry, proxy);
+            core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_native_entry)?
+        } else {
+            0
+        };
+
+        Ok((fn_body, fn_native))
     }
 }
 
@@ -376,6 +380,7 @@ where
     C: ?Sized + Send,
     Context: Deref<Target = C> + DerefMut + Clone,
 {
+    ptr_method: u32,
     jvm: Jvm,
     proto: JavaMethodProto<C>,
     context: Context,
@@ -392,7 +397,8 @@ where
     async fn call(&self, core: &mut ArmCore, _: &mut ()) -> Result<JavaMethodResult> {
         let param_count = method_argument_word_count(&self.parameter_types);
 
-        let raw_args = if self.proto.access_flags.contains(MethodAccessFlags::NATIVE) {
+        let native_entry = self.ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
+        let raw_args = if SvcId::get(core, 0).0 == native_entry {
             let param_base = u32::get(core, 1);
             (0..param_count)
                 .map(|x| read_generic(core, param_base + (x as u32) * 4))

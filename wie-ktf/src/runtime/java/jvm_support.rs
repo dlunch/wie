@@ -249,17 +249,19 @@ mod test {
     };
 
     use bytemuck::Zeroable;
-    use jvm::{ClassInstanceRef, Jvm, runtime::JavaLangString};
-    use jvm_types::ClassAccessFlags;
+    use jvm::{ClassInstanceRef, JavaValue, Jvm, runtime::JavaLangString};
+    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
+    use wipi_types::ktf::java::JavaMethodDefinition as RawJavaMethod;
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
+    use wie_jvm_support::native::encode_method_arguments;
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
-    use wie_util::{Result, WieError, write_generic};
+    use wie_util::{Result, WieError, read_generic, write_generic};
 
-    use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport, KtfJvmThreadContext};
+    use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport, KtfJvmThreadContext, value::JavaValueCodec};
 
-    use test_utils::TestPlatform;
+    use test_utils::{TestClock, TestPlatform};
 
     async fn init_jvm(system: &mut System) -> Result<(Jvm, ArmCore)> {
         let mut core = ArmCore::new(false, None)?;
@@ -345,6 +347,87 @@ mod test {
             }
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_native_method_entry_points() -> Result<()> {
+        struct ReturnWords([u32; 2]);
+
+        impl wie_core_arm::RunFunctionResult<ReturnWords> for ReturnWords {
+            fn get(core: &ArmCore) -> Self {
+                Self([core.read_param(0).unwrap(), core.read_param(1).unwrap()])
+            }
+        }
+
+        let clock = TestClock::new();
+        clock.set(0x12345678_9abcdef0);
+        let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(async move || {
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
+            let runtime = jvm.new_class("java/lang/Runtime", "()V", ()).await.unwrap();
+            let mut source = jvm.instantiate_array("I", 4).await.unwrap();
+            let mut destination = jvm.instantiate_array("I", 4).await.unwrap();
+            jvm.store_array(&mut source, 0, vec![11i32, 22, 33, 44]).await.unwrap();
+
+            for (class_name, name, descriptor, is_static, args, expected) in [
+                (
+                    "java/lang/Runtime",
+                    "totalMemory",
+                    "()J",
+                    false,
+                    vec![JavaValue::from(runtime)],
+                    vec![0x100000, 0],
+                ),
+                ("java/lang/System", "currentTimeMillis", "()J", true, vec![], vec![0x9abcdef0, 0x12345678]),
+                (
+                    "java/lang/System",
+                    "arraycopy",
+                    "(Ljava/lang/Object;ILjava/lang/Object;II)V",
+                    true,
+                    vec![source.into(), 1.into(), destination.clone().into(), 0.into(), 2.into()],
+                    vec![0],
+                ),
+            ] {
+                let class = jvm.resolve_class(class_name).await.unwrap();
+                let class = class.definition.as_any().downcast_ref::<JavaClassDefinition>().unwrap();
+                let method = class.method(name, descriptor, is_static)?.unwrap();
+                let raw: RawJavaMethod = read_generic(&core, method.ptr_raw)?;
+                assert!(MethodAccessFlags::from_bits_truncate(raw.access_flags).contains(MethodAccessFlags::NATIVE));
+                assert_ne!(raw.fn_body, 0);
+                assert_ne!(raw.fn_body_native_or_exception_table, 0);
+                assert_ne!(raw.fn_body, raw.fn_body_native_or_exception_table);
+
+                for native_entry in [false, true] {
+                    jvm.store_array(&mut destination, 0, vec![0i32; 4]).await.unwrap();
+                    let codec = JavaValueCodec::new(&core);
+                    let actual = if native_entry {
+                        let result = method.run(args.clone().into_boxed_slice()).await?;
+                        encode_method_arguments(&codec, &[result])
+                    } else {
+                        let mut params = vec![0];
+                        params.extend(encode_method_arguments(&codec, &args));
+                        let result = core.run_function::<ReturnWords>(raw.fn_body, &params).await?;
+                        result.0[..expected.len()].to_vec()
+                    };
+                    assert_eq!(actual, expected, "{name}, native_entry={native_entry}");
+                    if name == "arraycopy" {
+                        assert_eq!(jvm.load_array::<i32>(&destination, 0, 4).await.unwrap(), vec![22, 33, 0, 0]);
+                    }
+                }
+            }
+
+            done_clone.store(true, Ordering::Relaxed);
+            clock.advance(16);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
         Ok(())
     }
 
