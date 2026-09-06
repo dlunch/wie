@@ -20,9 +20,9 @@ type AudioState = {
 
 let midiVolume = 0.5;
 let pcmVolume = 0.5;
+let audioReady: Promise<AudioState | null> | undefined;
 
-async function initAudio(): Promise<AudioState> {
-  const ctx = new AudioContext();
+async function initAudio(ctx: AudioContext): Promise<AudioState> {
   const midiGain = ctx.createGain();
   midiGain.gain.value = midiVolume;
   midiGain.connect(ctx.destination);
@@ -54,40 +54,41 @@ async function initAudio(): Promise<AudioState> {
   };
 }
 
-const audioReady: Promise<AudioState | null> = new Promise(resolve => {
-  const start = () => initAudio().then(resolve, error => {
-    console.warn("AudioPlayer init failed, audio will be silent:", error);
-    resolve(null);
-  });
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start, { once: true });
-  } else {
-    start();
-  }
-});
-
 export function setMasterVolume(value: number): void {
   midiVolume = value;
-  audioReady.then(state => {
+  audioReady?.then(state => {
     if (state) state.midiGain.gain.value = value;
   });
 }
 
 export function setPcmVolume(value: number): void {
   pcmVolume = value;
-  audioReady.then(state => {
+  audioReady?.then(state => {
     if (state) state.pcmGain.gain.value = value;
   });
 }
 
 export class AudioPlayer {
   private readonly worker = new Worker(new URL("./audio-worker.ts", import.meta.url), { type: "module" });
+  private ctx?: AudioContext;
+  private readonly audioReady = Promise.resolve()
+    .then(() => {
+      if (this.disposed) return null;
+      this.ctx = new AudioContext();
+      return initAudio(this.ctx);
+    })
+    .catch(error => {
+      console.warn("AudioPlayer init failed, audio will be silent:", error);
+      return null;
+    });
   private commands: Promise<void> = Promise.resolve();
+  private disposed = false;
 
   constructor() {
+    audioReady = this.audioReady;
     this.worker.onmessage = (message: MessageEvent<WorkerOutput>) => {
-      void audioReady.then(state => {
-        if (!state) return;
+      void this.audioReady.then(state => {
+        if (!state || this.disposed) return;
 
         const output = message.data;
         const time = Math.max(state.ctx.currentTime, state.clockAudioTime + (output.deadline - state.clockPerformanceTime) / 1000);
@@ -149,12 +150,14 @@ export class AudioPlayer {
     const buffers = events.map(event => (event[1] === "midi" ? event[2].buffer : event[4].buffer));
     this.commands = this.commands
       .then(async () => {
-        const state = await audioReady;
+        const state = await this.audioReady;
+        if (this.disposed) return;
         if (state?.ctx.state === "suspended") {
           await state.ctx.resume();
           state.clockAudioTime = state.ctx.currentTime;
           state.clockPerformanceTime = performance.timeOrigin + performance.now();
         }
+        if (this.disposed) return;
         this.worker.postMessage({ type: "play", handle, duration, events, repeat }, buffers);
       })
       .catch(error => console.warn("Failed to start audio playback:", error));
@@ -163,9 +166,18 @@ export class AudioPlayer {
   public stop(handle: number): void {
     this.commands = this.commands
       .then(async () => {
-        await audioReady;
+        await this.audioReady;
+        if (this.disposed) return;
         this.worker.postMessage({ type: "stop", handle });
       })
       .catch(error => console.warn("Failed to stop audio playback:", error));
+  }
+
+  public dispose(): void {
+    this.disposed = true;
+    this.worker.terminate();
+    if (audioReady === this.audioReady) audioReady = undefined;
+    void this.ctx?.close().catch(error => console.warn("Failed to close audio context:", error));
+    void this.audioReady.then(state => state?.synth?.destroy());
   }
 }

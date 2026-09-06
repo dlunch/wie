@@ -5,10 +5,14 @@ use wie_backend::{AudioCommand, AudioEventData};
 
 #[wasm_bindgen(module = "midi.ts")]
 extern "C" {
-    type AudioPlayer;
+    #[derive(Clone)]
+    pub type AudioPlayer;
 
     #[wasm_bindgen(constructor)]
-    fn new() -> AudioPlayer;
+    pub fn new() -> AudioPlayer;
+
+    #[wasm_bindgen(method)]
+    pub fn dispose(this: &AudioPlayer);
 
     #[wasm_bindgen(method)]
     fn play(this: &AudioPlayer, handle: u32, duration: f64, events: Array, repeat: bool);
@@ -29,8 +33,8 @@ unsafe impl Sync for AudioSink {}
 unsafe impl Send for AudioSink {}
 
 impl AudioSink {
-    pub fn new() -> Self {
-        Self { player: AudioPlayer::new() }
+    pub fn new(player: AudioPlayer) -> Self {
+        Self { player }
     }
 }
 

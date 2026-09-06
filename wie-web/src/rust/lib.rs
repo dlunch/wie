@@ -33,7 +33,12 @@ use wie_ktf::KtfEmulator;
 use wie_lgt::LgtEmulator;
 use wie_skt::SktEmulator;
 
-use self::{audio_sink::AudioSink, database::DatabaseRepository, filesystem::WebFilesystem, window::WindowImpl};
+use self::{
+    audio_sink::{AudioPlayer, AudioSink},
+    database::DatabaseRepository,
+    filesystem::WebFilesystem,
+    window::WindowImpl,
+};
 
 enum ArchivePlatform {
     Ktf,
@@ -70,6 +75,7 @@ fn jar_app_id<'a>(filename: &'a str, buf: &[u8]) -> &'a str {
 }
 
 struct WieWebPlatform {
+    audio_player: AudioPlayer,
     database_repository: DatabaseRepository,
     filesystem: WebFilesystem,
     font: Font,
@@ -81,8 +87,9 @@ unsafe impl Sync for WieWebPlatform {}
 unsafe impl Send for WieWebPlatform {}
 
 impl WieWebPlatform {
-    fn new(window: WindowImpl, font: Font) -> Self {
+    fn new(window: WindowImpl, font: Font, audio_player: AudioPlayer) -> Self {
         Self {
+            audio_player,
             database_repository: DatabaseRepository::new(),
             filesystem: WebFilesystem::new(),
             font,
@@ -116,7 +123,7 @@ impl Platform for WieWebPlatform {
     }
 
     fn audio_sink(&self) -> Box<dyn wie_backend::AudioSink> {
-        Box::new(AudioSink::new())
+        Box::new(AudioSink::new(self.audio_player.clone()))
     }
 
     fn write_stdout(&self, data: &[u8]) {
@@ -149,8 +156,16 @@ impl Platform for WieWebPlatform {
 #[wasm_bindgen]
 pub struct WieWeb {
     emulator: Box<dyn Emulator>,
+    audio_player: AudioPlayer,
     should_redraw: Arc<AtomicBool>,
     key_events: HashMap<KeyCode, f64>,
+}
+
+impl Drop for WieWeb {
+    fn drop(&mut self) {
+        // Runtime tasks can retain platform references after the view closes.
+        self.audio_player.dispose();
+    }
 }
 
 #[wasm_bindgen]
@@ -215,11 +230,12 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 impl WieWeb {
     #[wasm_bindgen(constructor)]
     pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>) -> Result<WieWeb, JsError> {
-        (move || {
+        let audio_player = AudioPlayer::new();
+        let result = (|| {
             let should_redraw = Arc::new(AtomicBool::new(true));
             let window = WindowImpl::new(canvas, should_redraw.clone());
             let font = Font::try_from_vec(font_data)?;
-            let platform = Box::new(WieWebPlatform::new(window, font));
+            let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
             let options = Options {
                 enable_gdbserver: false,
                 profile: None,
@@ -268,11 +284,15 @@ impl WieWeb {
 
             anyhow::Ok(Self {
                 emulator,
+                audio_player: audio_player.clone(),
                 should_redraw,
                 key_events: HashMap::new(),
             })
-        })()
-        .map_err(|e| JsError::new(&e.to_string()))
+        })();
+        if result.is_err() {
+            audio_player.dispose();
+        }
+        result.map_err(|e| JsError::new(&e.to_string()))
     }
 
     pub fn update(&mut self) -> Result<(), JsError> {
