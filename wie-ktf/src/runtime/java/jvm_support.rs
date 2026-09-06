@@ -15,8 +15,10 @@ use core::mem::{offset_of, size_of};
 use jvm_implementation::KtfJvmImplementation;
 
 use bytemuck::{Pod, Zeroable};
+use futures::TryFutureExt;
 
-use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm::{ClassDefinition, ClassInstance, ClassInstanceRef, Field, Jvm, Result as JvmResult, runtime::JavaLangString};
+use jvm_types::FieldAccessFlags;
 use rustjava_runtime::classes::java::util::{Enumeration, jar::JarEntry};
 
 use wie_backend::System;
@@ -25,7 +27,7 @@ use wie_jvm_support::JvmSupport;
 use wie_midp::classes::javax::microedition::midlet::MIDlet;
 use wie_util::{Result, WieError, read_generic, read_null_terminated_table, write_generic};
 
-use wipi_types::ktf::InitParam2;
+use wipi_types::ktf::{ExeInterfaceFunctions, InitParam2, java::JavaClass as RawJavaClass};
 
 use self::{
     array_class_instance::JavaArrayClassInstance,
@@ -160,6 +162,55 @@ impl KtfJvmSupport {
         Ok((jvm, class_loader))
     }
 
+    // Native initialization must have linked the class catalog before registration.
+    pub(crate) async fn register_static_classes(
+        core: &mut ArmCore,
+        jvm: &Jvm,
+        class_loader: Box<dyn ClassInstance>,
+        main_class_name: &str,
+    ) -> Result<()> {
+        let ptr_functions: i32 = jvm
+            .get_field(&class_loader, "nativeFunctions", "I")
+            .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
+            .await?;
+        let functions: ExeInterfaceFunctions = read_generic(core, ptr_functions as u32)?;
+        let predicate = functions.fn_is_native_class_address;
+        if predicate == 0 {
+            return Ok(());
+        }
+
+        let main_class = jvm
+            .resolve_class(main_class_name)
+            .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
+            .await?;
+        let mut ptr_class = Self::class_definition_raw(&*main_class.definition)?;
+        if core.run_function::<u32>(predicate, &[ptr_class]).await? == 0 {
+            return Ok(());
+        }
+
+        let class_size = size_of::<RawJavaClass>() as u32;
+        while core.run_function::<u32>(predicate, &[ptr_class - class_size]).await? != 0 {
+            ptr_class -= class_size;
+        }
+        while core.run_function::<u32>(predicate, &[ptr_class]).await? != 0 {
+            let class = JavaClassDefinition::from_raw(ptr_class, core);
+            let name = class.name()?;
+            if !jvm.has_class(&name)
+                && class
+                    .fields()?
+                    .iter()
+                    .any(|field| field.access_flags().contains(FieldAccessFlags::STATIC))
+            {
+                jvm.register_class(Box::new(class), Some(class_loader.clone()))
+                    .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
+                    .await?;
+            }
+            ptr_class += class_size;
+        }
+
+        Ok(())
+    }
+
     pub(crate) async fn disable_midp_paint(jvm: &Jvm) -> JvmResult<()> {
         let midlet: ClassInstanceRef<MIDlet> = jvm
             .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
@@ -245,13 +296,24 @@ mod test {
     use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
     use core::{
         mem::size_of,
-        sync::atomic::{AtomicBool, Ordering},
+        sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
     use bytemuck::Zeroable;
-    use jvm::{ClassInstanceRef, JavaValue, Jvm, runtime::JavaLangString};
-    use jvm_types::{ClassAccessFlags, MethodAccessFlags};
-    use wipi_types::ktf::java::JavaMethodDefinition as RawJavaMethod;
+    use jvm::{
+        ClassInstanceRef, JavaValue, Jvm,
+        runtime::{JavaLangClass, JavaLangString},
+    };
+    use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
+    use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
+    use rustjava_runtime::classes::java::lang::Class;
+    use wipi_types::ktf::{
+        ExeInterfaceFunctions,
+        java::{
+            JavaClass as RawJavaClass, JavaClassInstance as RawJavaClassInstance, JavaFieldDefinition as RawJavaField,
+            JavaMethodDefinition as RawJavaMethod,
+        },
+    };
 
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::{Allocator, ArmCore};
@@ -259,7 +321,12 @@ mod test {
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{Result, WieError, read_generic, write_generic};
 
-    use super::{JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfJvmSupport, KtfJvmThreadContext, value::JavaValueCodec};
+    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc};
+
+    use super::{
+        ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfClassLoader, KtfJvmSupport, KtfJvmThreadContext,
+        value::JavaValueCodec,
+    };
 
     use test_utils::{TestClock, TestPlatform};
 
@@ -279,6 +346,204 @@ mod test {
         let (jvm, _) = KtfJvmSupport::init(&mut core, system, None).await?;
 
         Ok((jvm, core))
+    }
+
+    #[test]
+    fn test_register_static_classes_keeps_live_guest_roots_without_initializing() -> Result<()> {
+        async fn is_native_class(_core: &mut ArmCore, range: &mut core::ops::Range<u32>, address: u32) -> Result<u32> {
+            Ok(u32::from(range.contains(&address)))
+        }
+
+        async fn count_initialization(_jvm: &Jvm, count: &mut Arc<AtomicUsize>) -> jvm::Result<()> {
+            count.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(async move || {
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
+            let java_functions = JavaSvcFunctions::default();
+            core.register_svc_handler(5, handle_java_svc, &java_functions)?;
+            let loader_class = JavaClassDefinition::new(
+                &mut core.clone(),
+                &jvm,
+                KtfClassLoader::as_proto(),
+                Box::new(ClassLoaderContext {
+                    core: core.clone(),
+                    system: system_clone.clone(),
+                }),
+                java_functions.clone(),
+            )
+            .await?;
+            for method in loader_class.methods()? {
+                let mut raw: RawJavaMethod = read_generic(&core, method.ptr_raw)?;
+                raw.fn_body = core.make_svc_stub(5, method.ptr_raw)?;
+                write_generic(&mut core, method.ptr_raw, raw)?;
+            }
+            jvm.register_class(Box::new(loader_class), None).await.unwrap();
+            let mut loader = jvm.instantiate_class("net/wie/KtfClassLoader").await.unwrap();
+            let ptr_functions = Allocator::alloc(&mut core, size_of::<ExeInterfaceFunctions>() as u32)?;
+            let mut functions = ExeInterfaceFunctions::zeroed();
+            write_generic(&mut core, ptr_functions, functions)?;
+            jvm.put_field(&mut loader, "nativeFunctions", "I", ptr_functions as i32).await.unwrap();
+
+            let missing_name = JavaLangString::from_rust_string(&jvm, "test/Missing").await.unwrap();
+            let missing: ClassInstanceRef<Class> = jvm
+                .invoke_virtual(
+                    &loader,
+                    "net/wie/KtfClassLoader",
+                    "findClass",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    (missing_name,),
+                )
+                .await
+                .unwrap();
+            assert!(missing.is_null());
+
+            let class_size = size_of::<RawJavaClass>() as u32;
+            let begin = Allocator::alloc(&mut core, class_size * 4)?;
+            let end = begin + class_size * 4;
+            core.register_svc_handler(6, is_native_class, &(begin..end))?;
+            let predicate = core.make_svc_stub(6, 0u32)?;
+            let initialization_count = Arc::new(AtomicUsize::new(0));
+            let mut classes = Vec::new();
+            for (index, name) in ["test/Before", "test/Unused", "test/Main", "test/After"].into_iter().enumerate() {
+                let class = JavaClassDefinition::new(
+                    &mut core,
+                    &jvm,
+                    JavaClassProto {
+                        name,
+                        parent_class: Some("java/lang/Object"),
+                        interfaces: vec![],
+                        methods: if index == 0 {
+                            vec![JavaMethodProto::new("<clinit>", "()V", count_initialization, MethodAccessFlags::STATIC)]
+                        } else {
+                            vec![]
+                        },
+                        fields: vec![JavaFieldProto::new(
+                            "root",
+                            "Ljava/lang/Object;",
+                            if index == 1 {
+                                FieldAccessFlags::PUBLIC
+                            } else {
+                                FieldAccessFlags::STATIC
+                            },
+                        )],
+                        access_flags: ClassAccessFlags::PUBLIC,
+                    },
+                    Box::new(initialization_count.clone()),
+                    java_functions.clone(),
+                )
+                .await?;
+
+                // Relocate only the class headers into the native ABI's contiguous table.
+                let ptr_class = begin + index as u32 * class_size;
+                let mut raw: RawJavaClass = read_generic(&core, class.ptr_raw)?;
+                raw.ptr_next = ptr_class + 4;
+                write_generic(&mut core, ptr_class, raw)?;
+                for field in class.fields()? {
+                    let mut raw: RawJavaField = read_generic(&core, field.ptr_raw)?;
+                    raw.ptr_class = ptr_class;
+                    write_generic(&mut core, field.ptr_raw, raw)?;
+                }
+                for method in class.methods()? {
+                    let mut raw: RawJavaMethod = read_generic(&core, method.ptr_raw)?;
+                    raw.ptr_class = ptr_class;
+                    raw.fn_body = core.make_svc_stub(5, method.ptr_raw)?;
+                    write_generic(&mut core, method.ptr_raw, raw)?;
+                }
+                classes.push(JavaClassDefinition::from_raw(ptr_class, &core));
+            }
+            let seed = jvm
+                .register_class(Box::new(classes[2].clone()), Some(loader.clone()))
+                .await
+                .unwrap()
+                .unwrap();
+            let seed_identity = seed.identity();
+
+            KtfJvmSupport::register_static_classes(&mut core, &jvm, loader.clone(), "test/Main").await?;
+            assert!(!jvm.has_class("test/Before"));
+            assert!(!jvm.has_class("test/After"));
+            functions.fn_is_native_class_address = predicate;
+            write_generic(&mut core, ptr_functions, functions)?;
+            KtfJvmSupport::register_static_classes(&mut core, &jvm, loader.clone(), "java/lang/Object").await?;
+            assert!(!jvm.has_class("test/Before"));
+            assert!(!jvm.has_class("test/After"));
+
+            let mut identities = Vec::new();
+            for pass in 0..2 {
+                KtfJvmSupport::register_static_classes(&mut core, &jvm, loader.clone(), "test/Main").await?;
+                assert!(!jvm.has_class("test/Unused"));
+                for (index, name) in ["test/Before", "test/Main", "test/After"].into_iter().enumerate() {
+                    assert!(jvm.has_class(name));
+                    let class = jvm.resolve_class(name).await.unwrap().java_class();
+                    let registered_loader = JavaLangClass::class_loader(&jvm, &class).await.unwrap().unwrap();
+                    assert_eq!(registered_loader.identity(), loader.identity());
+                    if pass == 0 {
+                        identities.push(class.identity());
+                    } else {
+                        assert_eq!(class.identity(), identities[index]);
+                    }
+                }
+                assert_eq!(identities[1], seed_identity);
+                assert_eq!(initialization_count.load(Ordering::Relaxed), 0);
+            }
+            for class in &classes {
+                let raw: RawJavaClass = read_generic(&core, class.ptr_raw)?;
+                assert_eq!(raw.unk_flag, 8);
+            }
+
+            let before_root = classes[0].field("root", "Ljava/lang/Object;", true)?.unwrap();
+            let after_root = classes[3].field("root", "Ljava/lang/Object;", true)?.unwrap();
+            jvm.pop_frame();
+            jvm.collect_garbage().unwrap();
+            jvm.push_native_frame();
+            let mut objects = Vec::new();
+            for _ in 0..3 {
+                let object = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
+                objects.push(KtfJvmSupport::class_instance_raw(&object));
+            }
+            classes[0].write_static_field(&before_root, objects[0])?;
+            classes[3].write_static_field(&after_root, objects[1])?;
+            jvm.pop_frame();
+            jvm.collect_garbage().unwrap();
+            let instance_size = size_of::<RawJavaClassInstance>() as u32;
+            assert!(Allocator::is_allocated(&core, objects[0], instance_size)?);
+            assert!(Allocator::is_allocated(&core, objects[1], instance_size)?);
+            assert!(!Allocator::is_allocated(&core, objects[2], instance_size)?);
+
+            jvm.push_native_frame();
+            let replacement = jvm.new_class("java/lang/Object", "()V", ()).await.unwrap();
+            let replacement = KtfJvmSupport::class_instance_raw(&replacement);
+            classes[0].write_static_field(&before_root, replacement)?;
+            jvm.pop_frame();
+            jvm.collect_garbage().unwrap();
+            assert!(!Allocator::is_allocated(&core, objects[0], instance_size)?);
+            assert!(Allocator::is_allocated(&core, objects[1], instance_size)?);
+            assert!(Allocator::is_allocated(&core, replacement, instance_size)?);
+
+            classes[0].write_static_field(&before_root, 0)?;
+            classes[3].write_static_field(&after_root, 0)?;
+            jvm.collect_garbage().unwrap();
+            assert!(!Allocator::is_allocated(&core, objects[1], instance_size)?);
+            assert!(!Allocator::is_allocated(&core, replacement, instance_size)?);
+            assert_eq!(initialization_count.load(Ordering::Relaxed), 0);
+            jvm.push_native_frame();
+            jvm.ensure_initialized(&jvm.resolve_class("test/Before").await.unwrap()).await.unwrap();
+            assert_eq!(initialization_count.load(Ordering::Relaxed), 1);
+            jvm.pop_frame();
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
+        Ok(())
     }
 
     #[test]

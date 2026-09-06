@@ -166,6 +166,8 @@ impl KtfEmulator {
             .await
             .unwrap();
 
+        KtfJvmSupport::register_static_classes(core, &jvm, class_loader, &main_class_name).await?;
+
         let mut args_array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
         jvm.store_array(&mut args_array, 0, vec![main_class_name_java]).await.unwrap();
         let result: JvmResult<()> = jvm

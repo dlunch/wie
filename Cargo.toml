@@ -56,7 +56,7 @@ serde = { version = "^1", default-features = false, features = ["derive", "alloc
 spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-features = false }
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
-wipi-types = { version = "^0.0.1" }
+wipi-types = { version = "^0.0.2" }
 
 wie-backend = { version = "0.1.0", path = "wie-backend" }
 wie-j2me = { version = "0.1.0", path = "wie-j2me" }
