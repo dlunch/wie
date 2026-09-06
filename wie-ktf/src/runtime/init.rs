@@ -45,7 +45,7 @@ pub async fn load_native(
     data: &[u8],
     ptr_jvm_context: u32,
     ptr_current_jvm_thread_context: u32,
-) -> Result<ExeInterfaceFunctions> {
+) -> Result<u32> {
     let bss_size = parse_bss_size(filename)?;
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
@@ -100,7 +100,7 @@ pub async fn load_native(
         fn_java_check_type: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaCheckType)?,
         fn_java_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaNew)?,
         fn_java_array_new: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaArrayNew)?,
-        unk6: 0,
+        fn_visit_gc_root: 0,
         fn_java_class_load: core.make_svc_stub(SVC_CATEGORY_INIT, InitSvcId::JavaClassLoad)?,
         unk7: 0,
         unk8: 0,
@@ -132,7 +132,7 @@ pub async fn load_native(
         return Err(WieError::FatalError(format!("wipi init failed with code {result:#x}")));
     }
 
-    Ok(exe_interface_functions)
+    Ok(exe_interface.ptr_functions)
 }
 
 async fn get_interface(core: &mut ArmCore, ptr_name: u32) -> Result<u32> {

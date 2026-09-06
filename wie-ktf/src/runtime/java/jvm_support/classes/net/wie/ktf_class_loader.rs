@@ -8,10 +8,11 @@ use jvm::{
 use jvm_class_proto::{JavaClassProto, JavaFieldProto, JavaMethodProto};
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use rustjava_runtime::classes::java::lang::{Class, ClassLoader, String};
+use wipi_types::ktf::ExeInterfaceFunctions;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::write_null_terminated_string_bytes;
+use wie_util::{read_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{init::load_native, java::jvm_support::class_definition::JavaClassDefinition};
 
@@ -47,7 +48,7 @@ impl KtfClassLoader {
                 ),
             ],
             fields: vec![
-                JavaFieldProto::new("fnGetClass", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("nativeFunctions", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("nativeStrings", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new(
                     "instance",
@@ -107,7 +108,7 @@ impl KtfClassLoader {
         .await
         .unwrap();
 
-        jvm.put_field(&mut this, "fnGetClass", "I", native_functions.fn_get_class as i32).await?;
+        jvm.put_field(&mut this, "nativeFunctions", "I", native_functions as i32).await?;
 
         Ok(())
     }
@@ -120,9 +121,13 @@ impl KtfClassLoader {
     ) -> JvmResult<ClassInstanceRef<Class>> {
         tracing::debug!("net.wie.KtfClassLoader::findClass({this:?}, {name:?})");
 
-        let fn_get_class: i32 = jvm.get_field(&this, "fnGetClass", "I").await?;
+        let ptr_native_functions: i32 = jvm.get_field(&this, "nativeFunctions", "I").await?;
 
-        if fn_get_class == 0 {
+        if ptr_native_functions == 0 {
+            return Ok(None.into());
+        }
+        let native_functions: ExeInterfaceFunctions = read_generic(&context.core, ptr_native_functions as u32).unwrap();
+        if native_functions.fn_get_class == 0 {
             return Ok(None.into());
         }
 
@@ -133,7 +138,7 @@ impl KtfClassLoader {
         let ptr_name = Allocator::alloc(&mut context.core, ptr_name_size).unwrap();
         write_null_terminated_string_bytes(&mut context.core, ptr_name, name.as_bytes()).unwrap();
 
-        let ptr_raw = context.core.run_function(fn_get_class as _, &[ptr_name]).await.unwrap();
+        let ptr_raw = context.core.run_function(native_functions.fn_get_class, &[ptr_name]).await.unwrap();
         Allocator::free(&mut context.core, ptr_name, ptr_name_size).unwrap();
 
         if ptr_raw != 0 {
