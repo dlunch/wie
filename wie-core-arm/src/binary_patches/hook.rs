@@ -619,8 +619,8 @@ mod tests {
             let mut inner = core.inner.lock();
             inner.engine.run(0, 10)?
         };
-        let category = match result {
-            crate::engine::EngineRunResult::Svc { category, lr, spsr } => {
+        let category = match result.stop_reason {
+            crate::engine::EngineStopReason::Svc { category, lr, spsr } => {
                 let mut inner = core.inner.lock();
                 inner.engine.reg_write(ArmRegister::Cpsr, spsr);
                 inner.engine.reg_write(ArmRegister::PC, lr);

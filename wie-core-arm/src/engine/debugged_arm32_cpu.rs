@@ -7,7 +7,7 @@ use wie_util::WieError;
 
 use crate::{ThreadId, context::ArmCoreContext};
 
-use super::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
+use super::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, EngineStopReason, MemoryPermission};
 
 #[derive(Copy, Clone)]
 enum ResumeMode {
@@ -420,28 +420,18 @@ impl DebuggedArm32CpuEngine {
     fn stop_thread_id(&self) -> ThreadId {
         self.debug.current_thread().unwrap_or(1)
     }
-
-    fn handle_breakpoint_reinsert(&mut self, addr: u32, end: u32, resume_mode: ResumeMode) -> wie_util::Result<()> {
-        let result = self.debug.cpu.lock().run(end, 1);
-        if let Err(error) = self.debug.reinsert_breakpoint(addr) {
-            self.stop(DebugStopReason::Signal(DebugSignal::Abrt));
-            return Err(error);
-        }
-
-        match result {
-            Ok(EngineRunResult::Svc { .. }) => {}
-            Ok(_) if matches!(resume_mode, ResumeMode::Continue) => {}
-            Ok(_) => self.stop(DebugStopReason::SwBreak(self.stop_thread_id())),
-            Err(error) => self.stop(DebugInner::map_stop_reason(error)),
-        }
-
-        Ok(())
-    }
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
     fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
+        let mut instructions_executed = 0;
         loop {
+            if instructions_executed == count {
+                let mut result = self.debug.cpu.lock().run(end, 0)?;
+                result.instructions_executed += instructions_executed;
+                return Ok(result);
+            }
+
             if self.debug.take_interrupt() {
                 self.stop(DebugStopReason::Signal(DebugSignal::Trap));
                 continue;
@@ -449,45 +439,49 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
             let resume_mode = self.wait_for_resume_mode();
 
-            if let Some(addr) = self.pending_breakpoint_reinsert.take() {
-                self.handle_breakpoint_reinsert(addr, end, resume_mode)?;
-                continue;
-            }
-
-            let current_pc = DebugInner::normalize_addr(self.debug.cpu.lock().reg_read(ArmRegister::PC));
-
-            match self.debug.try_restore_breakpoint(current_pc) {
-                Ok(true) => {
-                    self.pending_breakpoint_reinsert = Some(current_pc);
-                    self.stop(DebugStopReason::SwBreak(self.stop_thread_id()));
-                    continue;
-                }
-                Ok(false) => {}
-                Err(error) => {
+            let result = if let Some(addr) = self.pending_breakpoint_reinsert.take() {
+                let result = self.debug.cpu.lock().run(end, 1);
+                if let Err(error) = self.debug.reinsert_breakpoint(addr) {
                     self.stop(DebugStopReason::Signal(DebugSignal::Abrt));
                     return Err(error);
                 }
-            }
+                result
+            } else {
+                let current_pc = DebugInner::normalize_addr(self.debug.cpu.lock().reg_read(ArmRegister::PC));
 
-            let run_count = match resume_mode {
-                ResumeMode::Continue => {
-                    if self.debug.has_breakpoints() {
-                        1
-                    } else {
-                        count
+                match self.debug.try_restore_breakpoint(current_pc) {
+                    Ok(true) => {
+                        self.pending_breakpoint_reinsert = Some(current_pc);
+                        self.stop(DebugStopReason::SwBreak(self.stop_thread_id()));
+                        continue;
+                    }
+                    Ok(false) => {}
+                    Err(error) => {
+                        self.stop(DebugStopReason::Signal(DebugSignal::Abrt));
+                        return Err(error);
                     }
                 }
-                ResumeMode::Step => 1,
+
+                let run_count = match resume_mode {
+                    ResumeMode::Continue if !self.debug.has_breakpoints() => count - instructions_executed,
+                    _ => 1,
+                };
+                self.debug.cpu.lock().run(end, run_count)
             };
 
-            let result = self.debug.cpu.lock().run(end, run_count);
-
             match result {
-                Ok(result @ EngineRunResult::Svc { .. }) => return Ok(result),
-                Ok(result) => match resume_mode {
-                    ResumeMode::Continue => return Ok(result),
-                    ResumeMode::Step => self.stop(DebugStopReason::SwBreak(self.stop_thread_id())),
-                },
+                Ok(mut result) => {
+                    instructions_executed += result.instructions_executed;
+                    result.instructions_executed = instructions_executed;
+                    match result.stop_reason {
+                        EngineStopReason::Svc { .. } => return Ok(result),
+                        EngineStopReason::CountExhausted if instructions_executed < count && matches!(resume_mode, ResumeMode::Continue) => continue,
+                        _ => match resume_mode {
+                            ResumeMode::Continue => return Ok(result),
+                            ResumeMode::Step => self.stop(DebugStopReason::SwBreak(self.stop_thread_id())),
+                        },
+                    }
+                }
                 Err(error) => self.stop(DebugInner::map_stop_reason(error)),
             }
         }
@@ -521,6 +515,23 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn breakpoint_steps_count_toward_the_svc_instruction_budget() {
+        let mut engine = DebuggedArm32CpuEngine::new();
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(0x1000, &[0x01, 0x30, 0x01, 0x30, 0x01, 0xdf]).unwrap(); // add r0, #1; add r0, #1; svc #1
+        engine.reg_write(ArmRegister::Cpsr, 0x3f);
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.debug.add_breakpoint(0x1002, DebugBreakpointKind::Thumb16).unwrap();
+        engine.debug.resume_continue();
+        engine.debug.resume_continue();
+
+        let result = engine.run(0, 3).unwrap();
+        assert!(matches!(result.stop_reason, EngineStopReason::Svc { category: 1, lr: 0x1006, .. }));
+        assert_eq!(result.instructions_executed, 3);
+        assert_eq!(engine.reg_read(ArmRegister::R0), 2);
+    }
 
     #[test]
     fn test_thumb_breakpoint_patch_and_restore() {

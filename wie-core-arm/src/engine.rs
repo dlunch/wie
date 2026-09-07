@@ -10,10 +10,15 @@ pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
-pub enum EngineRunResult {
+pub enum EngineStopReason {
     End,
     CountExhausted,
     Svc { category: u32, lr: u32, spsr: u32 },
+}
+
+pub struct EngineRunResult {
+    pub stop_reason: EngineStopReason,
+    pub instructions_executed: u32,
 }
 
 pub trait ArmEngine: Send + AsAny {
