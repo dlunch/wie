@@ -13,7 +13,7 @@
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
     "lucide": "^1.38.0",
-    "sass": "^1.103.1",
+    "sass": "^1.104.0",
     "sass-loader": "^17.0.1",
     "spessasynth_lib": "^4.3.14",
     "ts-loader": "^9.6.2",
