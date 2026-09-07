@@ -45,7 +45,6 @@ pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
     instructions_remaining: u32,
     last_thread_id: ThreadId,
-    threads: BTreeMap<ThreadId, ThreadState>,
     svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
     profile: Option<ProfileState>,
@@ -72,6 +71,7 @@ fn drain_samples(samples: &mut BTreeMap<Vec<u32>, u64>) -> Vec<ProfileSample> {
 #[derive(Clone)]
 pub struct ArmCore {
     pub(crate) inner: Arc<Mutex<ArmCoreInner>>, // TODO can we change it to another lock like async-lock?
+    threads: Arc<Mutex<BTreeMap<ThreadId, ThreadState>>>,
 }
 
 impl ArmCore {
@@ -100,7 +100,6 @@ impl ArmCore {
             engine,
             instructions_remaining: INSTRUCTIONS_PER_YIELD,
             last_thread_id: 0,
-            threads: BTreeMap::new(),
             svc_handlers: BTreeMap::new(),
             next_stub_address: FUNCTIONS_BASE,
             profile,
@@ -108,6 +107,7 @@ impl ArmCore {
 
         let result = Self {
             inner: Arc::new(Mutex::new(inner)),
+            threads: Arc::new(Mutex::new(BTreeMap::new())),
         };
 
         if enable_gdbserver {
@@ -121,7 +121,7 @@ impl ArmCore {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn debug_inner(&self) -> Option<Arc<DebugInner>> {
+    pub(crate) fn debug_inner(&self) -> Option<Arc<DebugInner>> {
         let inner = self.inner.lock();
 
         inner
@@ -154,19 +154,12 @@ impl ArmCore {
 
             let thread_id = inner.last_thread_id + 1;
             inner.last_thread_id += 1;
-            inner.threads.insert(thread_id, state);
 
             thread_id
         };
+        self.threads.lock().insert(thread_id, state);
 
         tracing::info!("Create thread: {thread_id}");
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            if let Some(debug) = self.debug_inner() {
-                debug.on_thread_created(thread_id);
-            }
-        }
 
         ArmCoreThreadWrapper::new(self.clone(), thread_id, entry)
     }
@@ -174,16 +167,8 @@ impl ArmCore {
     pub fn delete_thread_context(&self, thread_id: ThreadId) {
         tracing::info!("Terminate thread: {thread_id}");
 
-        // we should exit inner lock first to run cleanup on thread state drop
-        let _thread_state = {
-            let mut inner = self.inner.lock();
-            inner.threads.remove(&thread_id)
-        };
-
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(debug) = self.debug_inner() {
-            debug.on_thread_deleted(thread_id);
-        }
+        // Release the thread lock before freeing its stack.
+        let _thread_state = self.threads.lock().remove(&thread_id);
     }
 
     pub fn enter_thread_context(&self, thread_id: ThreadId) -> ThreadContextGuard {
@@ -191,23 +176,17 @@ impl ArmCore {
     }
 
     pub fn read_thread_context(&self, thread_id: ThreadId) -> Result<ArmCoreContext> {
-        let inner = self.inner.lock();
-
-        let context = inner.threads.get(&thread_id).unwrap().context.clone();
+        let context = self.threads.lock().get(&thread_id).unwrap().context.clone();
 
         Ok(context)
     }
 
     pub fn write_thread_context(&mut self, thread_id: ThreadId, context: &ArmCoreContext) {
-        let mut inner = self.inner.lock();
-
-        inner.threads.get_mut(&thread_id).unwrap().context = context.clone();
+        self.threads.lock().get_mut(&thread_id).unwrap().context = context.clone();
     }
 
     pub fn get_thread_ids(&self) -> Vec<ThreadId> {
-        let inner = self.inner.lock();
-
-        inner.threads.keys().cloned().collect()
+        self.threads.lock().keys().cloned().collect()
     }
 
     fn sample_profile(&self) {
@@ -292,10 +271,13 @@ impl ArmCore {
                 let budget = inner.instructions_remaining;
                 let result = inner.engine.run(RUN_FUNCTION_LR, budget)?;
                 inner.instructions_remaining -= result.instructions_executed;
-                let should_yield = inner.instructions_remaining == 0;
-                if should_yield {
+                let exhausted = inner.instructions_remaining == 0;
+                if exhausted {
                     inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
                 }
+                let should_yield = exhausted;
+                #[cfg(not(target_arch = "wasm32"))]
+                let should_yield = should_yield || matches!(result.stop_reason, EngineStopReason::Yield);
                 (result.stop_reason, should_yield)
             };
 
@@ -315,6 +297,8 @@ impl ArmCore {
             match result {
                 EngineStopReason::End => break,
                 EngineStopReason::CountExhausted => continue,
+                #[cfg(not(target_arch = "wasm32"))]
+                EngineStopReason::Yield => continue,
                 EngineStopReason::Svc { category, .. } => {
                     let function = {
                         let inner = self.inner.lock();
@@ -668,7 +652,7 @@ pub struct ThreadContextGuard {
 
 impl ThreadContextGuard {
     pub fn new(mut core: ArmCore, thread_id: ThreadId) -> Self {
-        let context = core.inner.lock().threads.get(&thread_id).unwrap().context.clone(); // TODO we might not need clone
+        let context = core.threads.lock().get(&thread_id).unwrap().context.clone();
         core.restore_context(&context);
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -684,9 +668,7 @@ impl Drop for ThreadContextGuard {
     fn drop(&mut self) {
         let context = self.core.save_context();
 
-        let mut inner = self.core.inner.lock();
-        inner.threads.get_mut(&self.thread_id).unwrap().context = context;
-        drop(inner);
+        self.core.threads.lock().get_mut(&self.thread_id).unwrap().context = context;
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(debug) = self.core.debug_inner() {
@@ -706,6 +688,123 @@ mod tests {
     use crate::function::JumpTo;
 
     use super::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn saved_thread_contexts_are_accessible_while_the_engine_is_locked() {
+        extern crate std;
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        let mut context = core.read_thread_context(1).unwrap();
+        context.r0 = 42;
+
+        let mut observer = core.clone();
+        let (tx, rx) = crossbeam::channel::bounded(1);
+        let engine_guard = core.inner.lock();
+        let reader = std::thread::spawn(move || {
+            observer.write_thread_context(1, &context);
+            tx.send((observer.read_thread_context(1).unwrap().r0, observer.get_thread_ids())).unwrap();
+        });
+        let result = rx.recv_timeout(std::time::Duration::from_secs(1));
+        drop(engine_guard);
+        reader.join().unwrap();
+        assert_eq!(result.unwrap(), (42, vec![1]));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn scheduler_locking_yields_without_resetting_the_instruction_budget() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        let engine = DebuggedArm32CpuEngine::new();
+        let debug = engine.debug_inner();
+        core.inner.lock().engine = Box::new(engine);
+        core.inner.lock().instructions_remaining = 5;
+        core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
+        debug.on_thread_entered(1);
+        debug.resume(None, Some(vec![2]));
+
+        let observer = core.clone();
+        let mut run = pin!(core.run_function::<()>(0x1001, &[]));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observer.inner.lock().instructions_remaining, 5);
+        debug.resume(None, None);
+        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
+        assert_eq!(observer.inner.lock().instructions_remaining, 4);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn scheduler_locking_keeps_other_thread_futures_stopped() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        let engine = DebuggedArm32CpuEngine::new();
+        let debug = engine.debug_inner();
+        core.inner.lock().engine = Box::new(engine);
+        crate::Allocator::init(&mut core).unwrap();
+        let calls = Arc::new(AtomicU32::new(0));
+        let observed = calls.clone();
+        let mut task = pin!(
+            core.run_in_thread(move || async move {
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+            .unwrap()
+        );
+        let _other = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        debug.resume(None, Some(vec![2]));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(task.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observed.load(Ordering::Relaxed), 0);
+        debug.resume(None, None);
+        assert!(matches!(task.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
+        assert_eq!(observed.load(Ordering::Relaxed), 1);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn interrupt_stops_a_thread_waiting_in_host_code() {
+        extern crate std;
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        let engine = DebuggedArm32CpuEngine::new();
+        let debug = engine.debug_inner();
+        core.inner.lock().engine = Box::new(engine);
+        crate::Allocator::init(&mut core).unwrap();
+        let calls = Arc::new(AtomicU32::new(0));
+        let observed = calls.clone();
+        let mut task = Box::pin(
+            core.run_in_thread(move || async move {
+                loop {
+                    calls.fetch_add(1, Ordering::Relaxed);
+                    YieldFuture::new().await;
+                }
+            })
+            .unwrap(),
+        );
+        let _other = core.run_in_thread(|| async { Ok(()) }).unwrap();
+        debug.resume(None, None);
+        assert!(task.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+
+        debug.interrupt();
+        let runner = std::thread::spawn(move || {
+            assert!(task.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+            task
+        });
+        let stopped = debug.recv_stop_event_timeout(std::time::Duration::from_secs(1));
+        let mut context = debug.read_registers();
+        context.r0 = 123;
+        debug.write_registers(&context);
+        debug.resume(None, Some(vec![2]));
+        let _task = runner.join().unwrap();
+        assert!(matches!(
+            stopped,
+            Ok(crate::engine::DebugStopReason::Signal(crate::engine::DebugSignal::Int, 1))
+        ));
+        assert_eq!(observed.load(Ordering::Relaxed), 1);
+        assert_eq!(core.read_thread_context(1).unwrap().r0, 123);
+    }
 
     async fn test_svc_handler(_core: &mut ArmCore, seen_id: &mut Option<u32>, id: crate::SvcId) -> Result<()> {
         *seen_id = Some(id.0);
@@ -820,6 +919,8 @@ mod tests {
             }
             EngineStopReason::End => panic!("expected SVC, got end"),
             EngineStopReason::CountExhausted => panic!("expected SVC, got count exhausted"),
+            #[cfg(not(target_arch = "wasm32"))]
+            EngineStopReason::Yield => panic!("expected SVC, got yield"),
         }
     }
 }
