@@ -107,12 +107,6 @@ impl Display {
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
-                JavaMethodProto::new(
-                    "handleCallbackEvent",
-                    "(Ljava/lang/Runnable;)V",
-                    Self::handle_callback_event,
-                    MethodAccessFlags::STATIC,
-                ),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleAlertTimeout", "(I)V", Self::handle_alert_timeout, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleTickerTick", "(I)V", Self::handle_ticker_tick, MethodAccessFlags::empty()),
@@ -745,14 +739,6 @@ impl Display {
             }
         }
 
-        Ok(())
-    }
-
-    async fn handle_callback_event(jvm: &Jvm, _context: &mut WieJvmContext, callback: ClassInstanceRef<Runnable>) -> JvmResult<()> {
-        let result: JvmResult<()> = jvm.invoke_virtual(&callback, "java/lang/Runnable", "run", "()V", ()).await;
-        if let Err(error) = result {
-            Self::handle_exception(jvm, error).await?;
-        }
         Ok(())
     }
 

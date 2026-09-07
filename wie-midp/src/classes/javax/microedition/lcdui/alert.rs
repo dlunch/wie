@@ -1445,12 +1445,23 @@ mod test {
                 panic!("CommandEvent swallowed the listener exception");
             };
             assert!(jvm.is_instance(&*exception, "java/lang/RuntimeException"));
+            let queue = jvm
+                .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (event,))
+                .await?;
+            let result: JvmResult<()> = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await;
+            let Err(JavaError::JavaException(exception)) = result else {
+                panic!("EventQueue swallowed the callback exception");
+            };
+            assert!(jvm.is_instance(&*exception, "java/lang/RuntimeException"));
             Ok(())
         })
     }
 
     #[test]
-    fn sole_application_command_fires_once_at_the_exact_deadline_despite_listener_exception() -> Result<()> {
+    fn sole_application_command_fires_once_and_propagates_its_listener_exception() -> Result<()> {
         let clock = TestClock::new();
         run_jvm_test_with_system(
             test_protos(),
@@ -1491,9 +1502,17 @@ mod test {
                         (alert.clone(), previous.clone()),
                     )
                     .await?;
-                for (now, count) in [(49, 0), (50, 1), (50, 1), (1000, 1)] {
+                for (now, count, failed) in [(49, 0, false), (50, 1, true), (50, 1, false), (1000, 1, false)] {
                     clock.set(now);
-                    pump_backend_queue(&jvm, &system).await?;
+                    let result = pump_backend_queue(&jvm, &system).await;
+                    if failed {
+                        let Err(JavaError::JavaException(exception)) = result else {
+                            panic!("Alert command listener exception was not propagated");
+                        };
+                        assert!(jvm.is_instance(&*exception, "java/lang/RuntimeException"));
+                    } else {
+                        result?;
+                    }
                     assert_eq!(jvm.get_field::<i32>(&listener, "count", "I").await?, count);
                     assert_eq!(current(&jvm, &display).await?.identity(), alert.identity());
                 }
