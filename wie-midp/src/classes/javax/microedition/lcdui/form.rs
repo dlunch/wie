@@ -433,6 +433,8 @@ impl Form {
         index: i32,
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::insert({this:?}, {index}, {item:?})");
+
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         if index < 0 || index > size {
@@ -481,6 +483,8 @@ impl Form {
         index: i32,
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::set({this:?}, {index}, {item:?})");
+
         let old_item = Self::checked_item(jvm, &this, index).await?;
         if item.is_null() {
             return Err(jvm.exception("java/lang/NullPointerException", "Form item is null").await);
@@ -525,10 +529,14 @@ impl Form {
     }
 
     async fn get(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<ClassInstanceRef<Item>> {
+        tracing::debug!("javax.microedition.lcdui.Form::get({this:?}, {index})");
+
         Self::checked_item(jvm, &this, index).await
     }
 
     async fn delete(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::delete({this:?}, {index})");
+
         let item = Self::checked_item(jvm, &this, index).await?;
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
         let _: ClassInstanceRef<Item> = jvm
@@ -558,6 +566,8 @@ impl Form {
     }
 
     async fn delete_all(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::deleteAll({this:?})");
+
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
         let size: i32 = jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await?;
         if size == 0 {
@@ -585,6 +595,8 @@ impl Form {
     }
 
     async fn size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Form::size({this:?})");
+
         let items: ClassInstanceRef<Vector> = jvm.get_field(&this, "items", "Ljava/util/Vector;").await?;
         jvm.invoke_virtual(&items, "java/util/Vector", "size", "()I", ()).await
     }
@@ -595,21 +607,29 @@ impl Form {
         mut this: ClassInstanceRef<Self>,
         listener: ClassInstanceRef<ItemStateListener>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::setItemStateListener({this:?}, {listener:?})");
+
         jvm.put_field(&mut this, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;", listener)
             .await
     }
 
     async fn get_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Form::getWidth({this:?})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Displayable", "getWidth", "()I", ())
             .await
     }
 
     async fn get_height(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Form::getHeight({this:?})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Displayable", "getHeight", "()I", ())
             .await
     }
 
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Form::getCommandCount({this:?})");
+
         let displayable_count: i32 = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getCommandCount", "()I", ())
             .await?;
@@ -630,6 +650,8 @@ impl Form {
         this: ClassInstanceRef<Self>,
         index: i32,
     ) -> JvmResult<ClassInstanceRef<Command>> {
+        tracing::debug!("javax.microedition.lcdui.Form::getCommandAt({this:?}, {index})");
+
         let item = Self::focused_item(jvm, &this).await?;
         if !item.is_null() {
             let item_count: i32 = jvm
@@ -668,6 +690,8 @@ impl Form {
     }
 
     async fn dispatch_command_at(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::dispatchCommandAt({this:?}, {index})");
+
         let item = Self::focused_item(jvm, &this).await?;
         if !item.is_null() {
             let count: i32 = jvm
@@ -715,6 +739,8 @@ impl Form {
         _item: ClassInstanceRef<Item>,
         _layout_changed: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::itemInvalidated({this:?}, {_item:?}, {_layout_changed})");
+
         let focus_index: i32 = jvm.get_field(&this, "focusIndex", "I").await?;
         Self::normalize_layout_state(jvm, context, &mut this, focus_index).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
@@ -727,6 +753,8 @@ impl Form {
         this: ClassInstanceRef<Self>,
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::itemStateChanged({this:?}, {item:?})");
+
         let event: ClassInstanceRef<ItemStateEvent> = jvm
             .new_class(
                 "net/wie/ItemStateEvent",
@@ -748,6 +776,8 @@ impl Form {
         this: ClassInstanceRef<Self>,
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::dispatchItemStateChanged({this:?}, {item:?})");
+
         let listener: ClassInstanceRef<ItemStateListener> = jvm
             .get_field(&this, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;")
             .await?;
@@ -766,6 +796,8 @@ impl Form {
     }
 
     async fn handle_key_event(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::handleKeyEvent({this:?}, {event_type}, {code})");
+
         let pressed = event_type == KeyboardEventType::KeyPressed as i32;
         let repeated = event_type == KeyboardEventType::KeyRepeated as i32;
         if !pressed && !repeated {
@@ -946,6 +978,8 @@ impl Form {
         mut this: ClassInstanceRef<Self>,
         graphics: ClassInstanceRef<Graphics>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Form::handlePaintEvent({this:?}, {graphics:?})");
+
         let _: () = jvm
             .invoke_special(
                 &this,

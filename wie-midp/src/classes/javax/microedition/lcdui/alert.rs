@@ -1,4 +1,4 @@
-use alloc::{string::String as RustString, vec, vec::Vec};
+use alloc::{format, string::String as RustString, vec, vec::Vec};
 
 use jvm::{ClassInstanceRef, Jvm, Result as JvmResult, runtime::JavaLangString};
 use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
@@ -372,10 +372,14 @@ impl Alert {
     }
 
     async fn get_default_timeout(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getDefaultTimeout({_this:?})");
+
         Ok(2000)
     }
 
     async fn get_timeout(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getTimeout({this:?})");
+
         Self::effective_timeout(jvm, context, this).await
     }
 
@@ -390,6 +394,8 @@ impl Alert {
     }
 
     async fn get_type(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<AlertType>> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getType({this:?})");
+
         jvm.get_field(&this, "type", "Ljavax/microedition/lcdui/AlertType;").await
     }
 
@@ -406,6 +412,8 @@ impl Alert {
     }
 
     async fn get_string(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getString({this:?})");
+
         jvm.get_field(&this, "text", "Ljava/lang/String;").await
     }
 
@@ -416,10 +424,14 @@ impl Alert {
     }
 
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getImage({this:?})");
+
         jvm.get_field(&this, "image", "Ljavax/microedition/lcdui/Image;").await
     }
 
     async fn set_image(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::setImage({this:?}, {image:?})");
+
         let display_image = Self::snapshot(jvm, &image).await?;
         jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
         jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
@@ -428,6 +440,8 @@ impl Alert {
     }
 
     async fn get_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Gauge>> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getIndicator({this:?})");
+
         jvm.get_field(&this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await
     }
 
@@ -437,6 +451,8 @@ impl Alert {
         mut this: ClassInstanceRef<Self>,
         indicator: ClassInstanceRef<Gauge>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::setIndicator({this:?}, {indicator:?})");
+
         let old_indicator: ClassInstanceRef<Gauge> = jvm.get_field(&this, "indicator", "Ljavax/microedition/lcdui/Gauge;").await?;
         if (old_indicator.is_null() && indicator.is_null())
             || (!old_indicator.is_null() && !indicator.is_null() && old_indicator.identity() == indicator.identity())
@@ -481,6 +497,8 @@ impl Alert {
     }
 
     async fn add_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::addCommand({this:?}, {command:?})");
+
         let dismiss: ClassInstanceRef<Command> = jvm
             .get_static_field("javax/microedition/lcdui/Alert", "DISMISS_COMMAND", "Ljavax/microedition/lcdui/Command;")
             .await?;
@@ -503,6 +521,8 @@ impl Alert {
         this: ClassInstanceRef<Self>,
         command: ClassInstanceRef<Command>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::removeCommand({this:?}, {command:?})");
+
         let dismiss: ClassInstanceRef<Command> = jvm
             .get_static_field("javax/microedition/lcdui/Alert", "DISMISS_COMMAND", "Ljavax/microedition/lcdui/Command;")
             .await?;
@@ -525,6 +545,8 @@ impl Alert {
         this: ClassInstanceRef<Self>,
         listener: ClassInstanceRef<CommandListener>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::setCommandListener({this:?}, {listener:?})");
+
         let listener_result: JvmResult<()> = jvm
             .invoke_special(
                 &this,
@@ -540,6 +562,8 @@ impl Alert {
     }
 
     async fn decoration_changed(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::decorationChanged({this:?})");
+
         let decoration_result: JvmResult<()> = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Displayable", "decorationChanged", "()V", ())
             .await;
@@ -549,6 +573,8 @@ impl Alert {
     }
 
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getCommandCount({this:?})");
+
         let count: i32 = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getCommandCount", "()I", ())
             .await?;
@@ -561,6 +587,8 @@ impl Alert {
         this: ClassInstanceRef<Self>,
         index: i32,
     ) -> JvmResult<ClassInstanceRef<Command>> {
+        tracing::debug!("javax.microedition.lcdui.Alert::getCommandAt({this:?}, {index})");
+
         let count: i32 = jvm
             .invoke_special(&this, "javax/microedition/lcdui/Displayable", "getCommandCount", "()I", ())
             .await?;
@@ -581,6 +609,8 @@ impl Alert {
     }
 
     async fn dispatch_command_at(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, index: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::dispatchCommandAt({this:?}, {index})");
+
         let command: ClassInstanceRef<Command> = jvm
             .invoke_virtual(
                 &this,
@@ -649,6 +679,8 @@ impl Alert {
         mut this: ClassInstanceRef<Self>,
         next: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::setNextDisplayable({this:?}, {next:?})");
+
         jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", next)
             .await
     }
@@ -659,6 +691,9 @@ impl Alert {
         mut this: ClassInstanceRef<Self>,
         display: ClassInstanceRef<Display>,
     ) -> JvmResult<()> {
+        let log = format!("javax.microedition.lcdui.Alert::setDisplay({this:?}, {display:?})");
+        tracing::debug!("{log}");
+
         if display.is_null() {
             jvm.put_field(&mut this, "nextDisplayable", "Ljavax/microedition/lcdui/Displayable;", None)
                 .await?;
@@ -680,10 +715,14 @@ impl Alert {
         _item: ClassInstanceRef<Item>,
         _layout_changed: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::itemInvalidated({this:?}, {_item:?}, {_layout_changed})");
+
         Self::invalidate_current(jvm, context, this, true).await
     }
 
     async fn handle_key_event(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, event_type: i32, code: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::handleKeyEvent({this:?}, {event_type}, {code})");
+
         let pressed = event_type == KeyboardEventType::KeyPressed as i32;
         let repeated = event_type == KeyboardEventType::KeyRepeated as i32;
         if (pressed || repeated) && (code == MIDPKeyCode::UP as i32 || code == MIDPKeyCode::DOWN as i32) {
@@ -728,6 +767,8 @@ impl Alert {
         mut this: ClassInstanceRef<Self>,
         graphics: ClassInstanceRef<Graphics>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::handlePaintEvent({this:?}, {graphics:?})");
+
         let _: () = jvm
             .invoke_special(
                 &this,
@@ -819,6 +860,8 @@ impl Alert {
         _this: ClassInstanceRef<Self>,
         _item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Alert::checkItemMutation({_this:?}, {_item:?})");
+
         Err(jvm
             .exception("java/lang/IllegalStateException", "Alert indicator cannot be modified")
             .await)

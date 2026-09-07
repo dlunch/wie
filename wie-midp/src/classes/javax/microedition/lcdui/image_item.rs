@@ -111,6 +111,8 @@ impl ImageItem {
     }
 
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::<clinit>()");
+
         jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_DEFAULT", "I", 0)
             .await?;
         jvm.put_static_field("javax/microedition/lcdui/ImageItem", "LAYOUT_LEFT", "I", 1).await?;
@@ -134,6 +136,8 @@ impl ImageItem {
         layout: i32,
         alt_text: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::<init>({this:?}, {label:?}, {image:?}, {layout}, {alt_text:?})");
+
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/ImageItem",
@@ -196,10 +200,14 @@ impl ImageItem {
     }
 
     async fn get_image(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Image>> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::getImage({this:?})");
+
         jvm.get_field(&this, "image", "Ljavax/microedition/lcdui/Image;").await
     }
 
     async fn set_image(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, image: ClassInstanceRef<Image>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::setImage({this:?}, {image:?})");
+
         let display_image = Self::snapshot(jvm, &image).await?;
         jvm.put_field(&mut this, "image", "Ljavax/microedition/lcdui/Image;", image).await?;
         jvm.put_field(&mut this, "displayImage", "Ljavax/microedition/lcdui/Image;", display_image)
@@ -209,6 +217,8 @@ impl ImageItem {
     }
 
     async fn get_alt_text(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::getAltText({this:?})");
+
         jvm.get_field(&this, "altText", "Ljava/lang/String;").await
     }
 
@@ -218,16 +228,22 @@ impl ImageItem {
         mut this: ClassInstanceRef<Self>,
         alt_text: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::setAltText({this:?}, {alt_text:?})");
+
         jvm.put_field(&mut this, "altText", "Ljava/lang/String;", alt_text).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
 
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::getLayout({this:?})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "getLayout", "()I", ()).await
     }
 
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::setLayout({this:?}, {layout})");
+
         if layout & !0x7f33 != 0 {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid ImageItem layout").await);
         }
@@ -237,10 +253,14 @@ impl ImageItem {
     }
 
     async fn get_appearance_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::getAppearanceMode({this:?})");
+
         jvm.get_field(&this, "appearanceMode", "I").await
     }
 
     async fn minimum_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::minimumContentWidth({this:?})");
+
         let Some((_image, image_width, _image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
@@ -254,6 +274,8 @@ impl ImageItem {
     }
 
     async fn minimum_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::minimumContentHeight({this:?})");
+
         let Some((_image, _image_width, image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
@@ -266,6 +288,8 @@ impl ImageItem {
     }
 
     async fn preferred_content_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::preferredContentWidth({this:?})");
+
         let Some((_image, image_width, _image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
@@ -274,6 +298,8 @@ impl ImageItem {
     }
 
     async fn preferred_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::preferredContentHeight({this:?}, {width})");
+
         let Some((_image, image_width, image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(0);
         };
@@ -303,6 +329,8 @@ impl ImageItem {
         height: i32,
         _focused: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::paintContent({this:?}, {graphics:?}, {x}, {y}, {width}, {height}, {_focused})");
+
         let Some((image, image_width, image_height)) = Self::display_image(jvm, &this).await? else {
             return Ok(());
         };
@@ -393,10 +421,14 @@ impl ImageItem {
     }
 
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::isFocusable({this:?})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
     }
 
     async fn handle_item_key(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _key: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.ImageItem::handleItemKey({_this:?}, {_key})");
+
         Ok(0)
     }
 

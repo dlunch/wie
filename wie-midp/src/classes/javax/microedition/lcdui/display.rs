@@ -177,6 +177,8 @@ impl Display {
         width: i32,
         height: i32,
     ) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Display::getContentHeight({displayable:?}, {width}, {height})");
+
         let layout = Self::chrome_layout(jvm, context, &displayable, width, height).await?;
         Ok(layout.content_height)
     }
@@ -536,6 +538,8 @@ impl Display {
     }
 
     async fn alert_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::alertChanged({this:?})");
+
         let generation: i32 = jvm.get_field(&this, "alertGeneration", "I").await?;
         let generation = generation.wrapping_add(1);
         jvm.put_field(&mut this, "alertGeneration", "I", generation).await?;
@@ -543,6 +547,8 @@ impl Display {
     }
 
     async fn visible_ticker(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Ticker>> {
+        tracing::debug!("javax.microedition.lcdui.Display::getVisibleTicker({this:?})");
+
         let current: ClassInstanceRef<Displayable> = jvm
             .get_field(&this, "currentDisplayable", "Ljavax/microedition/lcdui/Displayable;")
             .await?;
@@ -579,6 +585,8 @@ impl Display {
     }
 
     async fn ticker_changed(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::tickerChanged({this:?})");
+
         let generation: i32 = jvm.get_field(&this, "tickerGeneration", "I").await?;
         let generation = generation.wrapping_add(1);
         jvm.put_field(&mut this, "tickerGeneration", "I", generation).await?;
@@ -643,6 +651,8 @@ impl Display {
     }
 
     async fn handle_ticker_tick(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, generation: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::handleTickerTick({this:?}, {generation})");
+
         if jvm.get_field::<i32>(&this, "tickerGeneration", "I").await? != generation {
             return Ok(());
         }
@@ -743,6 +753,8 @@ impl Display {
     }
 
     async fn handle_alert_timeout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, generation: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::handleAlertTimeout({this:?}, {generation})");
+
         let current_generation: i32 = jvm.get_field(&this, "alertGeneration", "I").await?;
         if current_generation != generation {
             return Ok(());
@@ -777,6 +789,8 @@ impl Display {
     }
 
     async fn service_repaints(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Display::serviceRepaints({this:?})");
+
         if jvm.get_field::<bool>(&this, "repaintPending", "Z").await? {
             let _: () = jvm
                 .invoke_virtual(&this, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
@@ -1018,6 +1032,8 @@ impl Display {
     }
 
     async fn screen_graphics(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Graphics>> {
+        tracing::debug!("javax.microedition.lcdui.Display::getScreenGraphics({this:?})");
+
         jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
     }
 

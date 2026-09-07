@@ -287,6 +287,8 @@ impl Item {
     }
 
     async fn get_owner(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Displayable>> {
+        tracing::debug!("javax.microedition.lcdui.Item::getOwner({this:?})");
+
         jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await
     }
 
@@ -296,10 +298,14 @@ impl Item {
         mut this: ClassInstanceRef<Self>,
         owner: ClassInstanceRef<Displayable>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::setOwner({this:?}, {owner:?})");
+
         jvm.put_field(&mut this, "owner", "Ljavax/microedition/lcdui/Displayable;", owner).await
     }
 
     async fn get_command_count(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::getCommandCount({this:?})");
+
         let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
         jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await
     }
@@ -310,12 +316,16 @@ impl Item {
         this: ClassInstanceRef<Self>,
         index: i32,
     ) -> JvmResult<ClassInstanceRef<Command>> {
+        tracing::debug!("javax.microedition.lcdui.Item::getCommandAt({this:?}, {index})");
+
         let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
         jvm.invoke_virtual(&commands, "java/util/Vector", "elementAt", "(I)Ljava/lang/Object;", (index,))
             .await
     }
 
     async fn dispatch_default_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::dispatchDefaultCommand({this:?})");
+
         let command: ClassInstanceRef<Command> = jvm.get_field(&this, "defaultCommand", "Ljavax/microedition/lcdui/Command;").await?;
         if !command.is_null() {
             let _: () = jvm
@@ -332,12 +342,16 @@ impl Item {
     }
 
     async fn has_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Item::hasPreferredSize({this:?})");
+
         let width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
         let height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
         Ok(width != -1 || height != -1)
     }
 
     async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Item::canBeAlertIndicator({this:?})");
+
         let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
         let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
         let command_count: i32 = jvm.invoke_virtual(&commands, "java/util/Vector", "size", "()I", ()).await?;
@@ -370,6 +384,8 @@ impl Item {
     }
 
     async fn invalidate(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout_changed: bool) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::invalidate({this:?}, {layout_changed})");
+
         let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
         if !owner.is_null() {
             let _: () = jvm
@@ -459,10 +475,14 @@ impl Item {
     }
 
     async fn get_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.Item::getLabel({this:?})");
+
         jvm.get_field(&this, "label", "Ljava/lang/String;").await
     }
 
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::setLabel({this:?}, {label:?})");
+
         Self::check_owner_mutation(jvm, &this).await?;
         jvm.put_field(&mut this, "label", "Ljava/lang/String;", label).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
@@ -470,10 +490,14 @@ impl Item {
     }
 
     async fn get_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::getLayout({this:?})");
+
         jvm.get_field(&this, "layout", "I").await
     }
 
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::setLayout({this:?}, {layout})");
+
         Self::check_owner_mutation(jvm, &this).await?;
         if layout & !0x7f33 != 0 {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid Item layout").await);
@@ -485,6 +509,8 @@ impl Item {
     }
 
     async fn get_minimum_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::getMinimumWidth({this:?})");
+
         let content_width: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "minimumContentWidth", "()I", ())
             .await?;
@@ -497,6 +523,8 @@ impl Item {
     }
 
     async fn get_minimum_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::getMinimumHeight({this:?})");
+
         let content_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "minimumContentHeight", "()I", ())
             .await?;
@@ -509,6 +537,8 @@ impl Item {
     }
 
     async fn get_preferred_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::getPreferredWidth({this:?})");
+
         let locked_width: i32 = jvm.get_field(&this, "preferredWidth", "I").await?;
         let minimum_width: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumWidth", "()I", ())
@@ -529,6 +559,8 @@ impl Item {
     }
 
     async fn get_preferred_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::getPreferredHeight({this:?})");
+
         let preferred_height: i32 = jvm.get_field(&this, "preferredHeight", "I").await?;
         let minimum_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumHeight", "()I", ())
@@ -544,6 +576,8 @@ impl Item {
     }
 
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::setPreferredSize({this:?}, {width}, {height})");
+
         Self::check_owner_mutation(jvm, &this).await?;
         if width < -1 || height < -1 {
             return Err(jvm
@@ -576,6 +610,8 @@ impl Item {
         mut this: ClassInstanceRef<Self>,
         command: ClassInstanceRef<Command>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::setDefaultCommand({this:?}, {command:?})");
+
         Self::check_owner_mutation(jvm, &this).await?;
 
         if !command.is_null() {
@@ -610,6 +646,8 @@ impl Item {
         mut this: ClassInstanceRef<Self>,
         listener: ClassInstanceRef<ItemCommandListener>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::setItemCommandListener({this:?}, {listener:?})");
+
         Self::check_owner_mutation(jvm, &this).await?;
         jvm.put_field(
             &mut this,
@@ -623,6 +661,8 @@ impl Item {
     }
 
     async fn notify_state_changed(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::notifyStateChanged({this:?})");
+
         let owner: ClassInstanceRef<Displayable> = jvm.get_field(&this, "owner", "Ljavax/microedition/lcdui/Displayable;").await?;
         if owner.is_null() {
             return Err(jvm.exception("java/lang/IllegalStateException", "Item is not owned by a Form").await);
@@ -639,6 +679,8 @@ impl Item {
     }
 
     async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::measureWidth({this:?}, {available_width})");
+
         let layout: i32 = jvm.get_field(&this, "layout", "I").await?;
         if layout & 0x800 != 0 {
             return Ok(available_width.max(0));
@@ -650,6 +692,8 @@ impl Item {
     }
 
     async fn measure_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::measureHeight({this:?}, {width})");
+
         let minimum_height: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getMinimumHeight", "()I", ())
             .await?;
@@ -679,6 +723,8 @@ impl Item {
         height: i32,
         focused: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::paintItem({this:?}, {graphics:?}, {x}, {y}, {width}, {height}, {focused})");
+
         let width = width.max(0);
         let height = height.max(0);
         if width == 0 || height == 0 {
@@ -796,18 +842,26 @@ impl Item {
     }
 
     async fn minimum_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::minimumContentWidth({_this:?})");
+
         Ok(0)
     }
 
     async fn minimum_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::minimumContentHeight({_this:?})");
+
         Ok(0)
     }
 
     async fn preferred_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::preferredContentWidth({_this:?})");
+
         Ok(0)
     }
 
     async fn preferred_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::preferredContentHeight({_this:?}, {_width})");
+
         Ok(0)
     }
 
@@ -823,15 +877,21 @@ impl Item {
         _height: i32,
         _focused: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::paintContent({_this:?}, {_graphics:?}, {_x}, {_y}, {_width}, {_height}, {_focused})");
+
         Ok(())
     }
 
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Item::isFocusable({this:?})");
+
         let commands: ClassInstanceRef<Vector> = jvm.get_field(&this, "commands", "Ljava/util/Vector;").await?;
         Ok(jvm.invoke_virtual::<_, i32>(&commands, "java/util/Vector", "size", "()I", ()).await? > 0)
     }
 
     async fn handle_item_key(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _key: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Item::handleItemKey({_this:?}, {_key})");
+
         Ok(0)
     }
 
@@ -842,6 +902,8 @@ impl Item {
         _this: ClassInstanceRef<Self>,
         _width: i32,
     ) -> JvmResult<ClassInstanceRef<Array<i32>>> {
+        tracing::debug!("javax.microedition.lcdui.Item::getFocusContentBounds({_this:?}, {_width})");
+
         Ok(None.into())
     }
 
@@ -852,6 +914,8 @@ impl Item {
         width: i32,
         height: i32,
     ) -> JvmResult<ClassInstanceRef<Array<i32>>> {
+        tracing::debug!("javax.microedition.lcdui.Item::getFocusBounds({this:?}, {width}, {height})");
+
         let bounds: ClassInstanceRef<Array<i32>> = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "getFocusContentBounds", "(I)[I", (width,))
             .await?;
@@ -884,6 +948,8 @@ impl Item {
         this: ClassInstanceRef<Self>,
         command: ClassInstanceRef<Command>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::dispatchCommand({this:?}, {command:?})");
+
         let listener: ClassInstanceRef<ItemCommandListener> = jvm
             .get_field(&this, "itemCommandListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
             .await?;
@@ -944,6 +1010,8 @@ impl Item {
         height: i32,
         appearance_mode: i32,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Item::paintAppearance({graphics:?}, {x}, {y}, {width}, {height}, {appearance_mode})");
+
         if width <= 0 || height <= 0 {
             return Ok(());
         }

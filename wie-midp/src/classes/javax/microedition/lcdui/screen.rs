@@ -47,6 +47,8 @@ impl Screen {
         this: ClassInstanceRef<Self>,
         graphics: ClassInstanceRef<Graphics>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Screen::handlePaintEvent({this:?}, {graphics:?})");
+
         let width: i32 = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "getWidth", "()I", ())
             .await?;

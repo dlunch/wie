@@ -73,6 +73,8 @@ impl StringItem {
         label: ClassInstanceRef<String>,
         text: ClassInstanceRef<String>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::<init>({this:?}, {label:?}, {text:?})");
+
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/StringItem",
@@ -109,26 +111,36 @@ impl StringItem {
     }
 
     async fn get_text(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<String>> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::getText({this:?})");
+
         jvm.get_field(&this, "text", "Ljava/lang/String;").await
     }
 
     async fn set_text(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, text: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::setText({this:?}, {text:?})");
+
         jvm.put_field(&mut this, "text", "Ljava/lang/String;", text).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
 
     async fn get_appearance_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::getAppearanceMode({this:?})");
+
         jvm.get_field(&this, "appearanceMode", "I").await
     }
 
     async fn set_font(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, font: ClassInstanceRef<Font>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::setFont({this:?}, {font:?})");
+
         jvm.put_field(&mut this, "font", "Ljavax/microedition/lcdui/Font;", font).await?;
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Item", "invalidate", "(Z)V", (true,))
             .await
     }
 
     async fn get_font(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<ClassInstanceRef<Font>> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::getFont({this:?})");
+
         let font: ClassInstanceRef<Font> = jvm.get_field(&this, "font", "Ljavax/microedition/lcdui/Font;").await?;
         if font.is_null() {
             jvm.invoke_static("javax/microedition/lcdui/Font", "getDefaultFont", "()Ljavax/microedition/lcdui/Font;", ())
@@ -139,11 +151,15 @@ impl StringItem {
     }
 
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::setPreferredSize({this:?}, {width}, {height})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "setPreferredSize", "(II)V", (width, height))
             .await
     }
 
     async fn measure_width(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, available_width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::measureWidth({this:?}, {available_width})");
+
         let preferred: bool = jvm
             .invoke_virtual(&this, "javax/microedition/lcdui/Item", "hasPreferredSize", "()Z", ())
             .await?;
@@ -159,6 +175,8 @@ impl StringItem {
     }
 
     async fn minimum_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::minimumContentWidth({this:?})");
+
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
@@ -172,6 +190,8 @@ impl StringItem {
     }
 
     async fn minimum_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::minimumContentHeight({this:?})");
+
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
@@ -180,6 +200,8 @@ impl StringItem {
     }
 
     async fn preferred_content_width(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::preferredContentWidth({this:?})");
+
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
@@ -188,6 +210,8 @@ impl StringItem {
     }
 
     async fn preferred_content_height(jvm: &Jvm, context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::preferredContentHeight({this:?}, {width})");
+
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(0);
         };
@@ -213,6 +237,8 @@ impl StringItem {
         height: i32,
         _focused: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::paintContent({this:?}, {graphics:?}, {x}, {y}, {width}, {height}, {_focused})");
+
         let Some(text) = Self::text(jvm, &this).await? else {
             return Ok(());
         };
@@ -292,10 +318,14 @@ impl StringItem {
     }
 
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::isFocusable({this:?})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "isFocusable", "()Z", ()).await
     }
 
     async fn handle_item_key(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _key: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.StringItem::handleItemKey({_this:?}, {_key})");
+
         Ok(0)
     }
 

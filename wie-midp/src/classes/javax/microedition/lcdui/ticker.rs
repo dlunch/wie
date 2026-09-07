@@ -63,6 +63,8 @@ impl Ticker {
     }
 
     async fn advance(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, width: i32) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Ticker::advance({this:?}, {width})");
+
         let text: ClassInstanceRef<String> = jvm.get_field(&this, "text", "Ljava/lang/String;").await?;
         let text = JavaLangString::to_rust_string(jvm, &text)
             .await?
@@ -91,6 +93,8 @@ impl Ticker {
         y: i32,
         height: i32,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Ticker::paint({this:?}, {graphics:?}, {width}, {y}, {height})");
+
         let _: () = jvm
             .invoke_virtual(
                 &graphics,

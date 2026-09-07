@@ -111,6 +111,8 @@ impl Gauge {
     }
 
     async fn cl_init(jvm: &Jvm, _context: &mut WieJvmContext) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::<clinit>()");
+
         jvm.put_static_field("javax/microedition/lcdui/Gauge", "INDEFINITE", "I", -1).await?;
         jvm.put_static_field("javax/microedition/lcdui/Gauge", "CONTINUOUS_IDLE", "I", 0).await?;
         jvm.put_static_field("javax/microedition/lcdui/Gauge", "INCREMENTAL_IDLE", "I", 1).await?;
@@ -164,10 +166,14 @@ impl Gauge {
     }
 
     async fn get_max_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::getMaxValue({this:?})");
+
         jvm.get_field(&this, "maxValue", "I").await
     }
 
     async fn set_max_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, max_value: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setMaxValue({this:?}, {max_value})");
+
         let interactive: bool = jvm.get_field(&this, "interactive", "Z").await?;
         if max_value <= 0 && (interactive || max_value != -1) {
             return Err(jvm.exception("java/lang/IllegalArgumentException", "Invalid Gauge maximum value").await);
@@ -188,10 +194,14 @@ impl Gauge {
     }
 
     async fn get_value(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::getValue({this:?})");
+
         jvm.get_field(&this, "value", "I").await
     }
 
     async fn set_value(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, value: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setValue({this:?}, {value})");
+
         let max_value: i32 = jvm.get_field(&this, "maxValue", "I").await?;
         if max_value == -1 && !(0..=3).contains(&value) {
             return Err(jvm
@@ -206,20 +216,28 @@ impl Gauge {
     }
 
     async fn is_interactive(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::isInteractive({this:?})");
+
         jvm.get_field(&this, "interactive", "Z").await
     }
 
     async fn set_label(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, label: ClassInstanceRef<String>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setLabel({this:?}, {label:?})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "setLabel", "(Ljava/lang/String;)V", (label,))
             .await
     }
 
     async fn set_layout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, layout: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setLayout({this:?}, {layout})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "setLayout", "(I)V", (layout,))
             .await
     }
 
     async fn add_command(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, command: ClassInstanceRef<Command>) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::addCommand({this:?}, {command:?})");
+
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/Item",
@@ -236,6 +254,8 @@ impl Gauge {
         this: ClassInstanceRef<Self>,
         listener: ClassInstanceRef<ItemCommandListener>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setItemCommandListener({this:?}, {listener:?})");
+
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/Item",
@@ -247,6 +267,8 @@ impl Gauge {
     }
 
     async fn set_preferred_size(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, width: i32, height: i32) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setPreferredSize({this:?}, {width}, {height})");
+
         jvm.invoke_special(&this, "javax/microedition/lcdui/Item", "setPreferredSize", "(II)V", (width, height))
             .await
     }
@@ -257,6 +279,8 @@ impl Gauge {
         this: ClassInstanceRef<Self>,
         command: ClassInstanceRef<Command>,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::setDefaultCommand({this:?}, {command:?})");
+
         jvm.invoke_special(
             &this,
             "javax/microedition/lcdui/Item",
@@ -268,18 +292,26 @@ impl Gauge {
     }
 
     async fn minimum_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::minimumContentWidth({_this:?})");
+
         Ok(GAUGE_MINIMUM_WIDTH)
     }
 
     async fn minimum_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::minimumContentHeight({_this:?})");
+
         Ok(GAUGE_HEIGHT)
     }
 
     async fn preferred_content_width(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::preferredContentWidth({_this:?})");
+
         Ok(GAUGE_PREFERRED_WIDTH)
     }
 
     async fn preferred_content_height(_jvm: &Jvm, _context: &mut WieJvmContext, _this: ClassInstanceRef<Self>, _width: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::preferredContentHeight({_this:?}, {_width})");
+
         Ok(GAUGE_HEIGHT)
     }
 
@@ -295,6 +327,8 @@ impl Gauge {
         height: i32,
         _focused: bool,
     ) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::paintContent({this:?}, {graphics:?}, {x}, {y}, {width}, {height}, {_focused})");
+
         if width <= 0 || height <= 0 {
             return Ok(());
         }
@@ -357,6 +391,8 @@ impl Gauge {
     }
 
     async fn can_be_alert_indicator(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::canBeAlertIndicator({this:?})");
+
         if jvm.get_field::<bool>(&this, "interactive", "Z").await? {
             return Ok(false);
         }
@@ -365,6 +401,8 @@ impl Gauge {
     }
 
     async fn is_focusable(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::isFocusable({this:?})");
+
         if jvm.get_field::<bool>(&this, "interactive", "Z").await? {
             return Ok(true);
         }
@@ -373,6 +411,8 @@ impl Gauge {
     }
 
     async fn handle_item_key(jvm: &Jvm, _context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>, key: i32) -> JvmResult<i32> {
+        tracing::debug!("javax.microedition.lcdui.Gauge::handleItemKey({this:?}, {key})");
+
         let interactive: bool = jvm.get_field(&this, "interactive", "Z").await?;
         if !interactive || (key != MIDPKeyCode::LEFT as i32 && key != MIDPKeyCode::RIGHT as i32) {
             return Ok(0);

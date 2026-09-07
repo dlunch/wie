@@ -169,6 +169,8 @@ impl Canvas {
     }
 
     async fn set_full_screen_mode(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, mode: bool) -> JvmResult<()> {
+        tracing::debug!("javax.microedition.lcdui.Canvas::setFullScreenMode({this:?}, {mode})");
+
         jvm.invoke_virtual(&this, "javax/microedition/lcdui/Displayable", "setFullScreen", "(Z)V", (mode,))
             .await
     }
