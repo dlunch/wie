@@ -58,7 +58,6 @@ impl System {
     }
 
     pub fn tick(&mut self) -> Result<()> {
-        self.task_runner.before_tick();
         let platform = self.platform.clone();
         self.executor.tick(move || platform.now())
     }
