@@ -617,7 +617,7 @@ mod tests {
 
         let result = {
             let mut inner = core.inner.lock();
-            inner.engine.run(0, 10)?
+            inner.engine.run(0, &mut 10)?
         };
         let category = match result {
             crate::engine::EngineRunResult::Svc { category, lr, spsr } => {

@@ -421,8 +421,10 @@ impl DebuggedArm32CpuEngine {
         self.debug.current_thread().unwrap_or(1)
     }
 
-    fn handle_breakpoint_reinsert(&mut self, addr: u32, end: u32, resume_mode: ResumeMode) -> wie_util::Result<()> {
-        let result = self.debug.cpu.lock().run(end, 1);
+    fn handle_breakpoint_reinsert(&mut self, addr: u32, end: u32, resume_mode: ResumeMode, count: &mut u32) -> wie_util::Result<()> {
+        let mut remaining = 1;
+        let result = self.debug.cpu.lock().run(end, &mut remaining);
+        *count -= 1 - remaining;
         if let Err(error) = self.debug.reinsert_breakpoint(addr) {
             self.stop(DebugStopReason::Signal(DebugSignal::Abrt));
             return Err(error);
@@ -440,8 +442,12 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: &mut u32) -> wie_util::Result<EngineRunResult> {
         loop {
+            if *count == 0 {
+                return self.debug.cpu.lock().run(end, count);
+            }
+
             if self.debug.take_interrupt() {
                 self.stop(DebugStopReason::Signal(DebugSignal::Trap));
                 continue;
@@ -450,7 +456,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             let resume_mode = self.wait_for_resume_mode();
 
             if let Some(addr) = self.pending_breakpoint_reinsert.take() {
-                self.handle_breakpoint_reinsert(addr, end, resume_mode)?;
+                self.handle_breakpoint_reinsert(addr, end, resume_mode, count)?;
                 continue;
             }
 
@@ -474,16 +480,19 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     if self.debug.has_breakpoints() {
                         1
                     } else {
-                        count
+                        *count
                     }
                 }
                 ResumeMode::Step => 1,
             };
 
-            let result = self.debug.cpu.lock().run(end, run_count);
+            let mut remaining = run_count;
+            let result = self.debug.cpu.lock().run(end, &mut remaining);
+            *count -= run_count - remaining;
 
             match result {
                 Ok(result @ EngineRunResult::Svc { .. }) => return Ok(result),
+                Ok(EngineRunResult::CountExhausted) if *count > 0 && matches!(resume_mode, ResumeMode::Continue) => continue,
                 Ok(result) => match resume_mode {
                     ResumeMode::Continue => return Ok(result),
                     ResumeMode::Step => self.stop(DebugStopReason::SwBreak(self.stop_thread_id())),
@@ -521,6 +530,26 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn breakpoint_steps_count_toward_the_svc_instruction_budget() {
+        let mut engine = DebuggedArm32CpuEngine::new();
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(0x1000, &[0x01, 0x30, 0x01, 0x30, 0x01, 0xdf]).unwrap(); // add r0, #1; add r0, #1; svc #1
+        engine.reg_write(ArmRegister::Cpsr, 0x3f);
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.debug.add_breakpoint(0x1002, DebugBreakpointKind::Thumb16).unwrap();
+        engine.debug.resume_continue();
+        engine.debug.resume_continue();
+
+        let mut remaining = 3;
+        assert!(matches!(
+            engine.run(0, &mut remaining).unwrap(),
+            EngineRunResult::Svc { category: 1, lr: 0x1006, .. }
+        ));
+        assert_eq!(remaining, 0);
+        assert_eq!(engine.reg_read(ArmRegister::R0), 2);
+    }
 
     #[test]
     fn test_thumb_breakpoint_patch_and_restore() {

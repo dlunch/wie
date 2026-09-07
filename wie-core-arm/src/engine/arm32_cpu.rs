@@ -45,7 +45,7 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, mut count: u32) -> Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: &mut u32) -> Result<EngineRunResult> {
         loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
 
@@ -61,7 +61,7 @@ impl ArmEngine for Arm32CpuEngine {
                 return Ok(EngineRunResult::End);
             }
 
-            if count == 0 {
+            if *count == 0 {
                 return Ok(EngineRunResult::CountExhausted);
             }
 
@@ -70,7 +70,7 @@ impl ArmEngine for Arm32CpuEngine {
             if !(self.cpu.step(&mut arm32cpu_memory)) {
                 return Err(WieError::FatalError("Undefined instruction".into()));
             }
-            count -= 1;
+            *count -= 1;
 
             if let Some(x) = arm32cpu_memory.memory_error() {
                 return Err(WieError::InvalidMemoryAccess(x));

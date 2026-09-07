@@ -17,7 +17,8 @@ pub enum EngineRunResult {
 }
 
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult>;
+    /// Decrements the remaining instruction budget, including when execution stops at an SVC.
+    fn run(&mut self, end: u32, count: &mut u32) -> Result<EngineRunResult>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
