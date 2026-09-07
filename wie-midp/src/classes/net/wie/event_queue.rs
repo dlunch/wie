@@ -160,7 +160,7 @@ impl EventQueue {
                 JavaMethodProto::new("getNextEvent", "([I)V", Self::get_next_event, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("dispatchEvent", "([I)V", Self::dispatch_event, MethodAccessFlags::PUBLIC),
                 JavaMethodProto::new("callSerially", "(Ljava/lang/Runnable;)V", Self::call_serially, MethodAccessFlags::PUBLIC),
-                JavaMethodProto::new("dispatchCallbacks", "()Z", Self::dispatch_callbacks, MethodAccessFlags::empty()),
+                JavaMethodProto::new("dispatchCallbacks", "()V", Self::dispatch_callbacks, MethodAccessFlags::empty()),
                 JavaMethodProto::new(
                     "getEventQueue",
                     "()Lnet/wie/EventQueue;",
@@ -171,7 +171,6 @@ impl EventQueue {
             fields: vec![
                 JavaFieldProto::new("eventQueue", "Lnet/wie/EventQueue;", FieldAccessFlags::PRIVATE | FieldAccessFlags::STATIC),
                 JavaFieldProto::new("callSeriallyEvents", "Ljava/util/Vector;", FieldAccessFlags::PRIVATE),
-                JavaFieldProto::new("inputEventsRemaining", "J", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
         }
@@ -193,25 +192,22 @@ impl EventQueue {
     async fn get_next_event(
         jvm: &Jvm,
         context: &mut WieJvmContext,
-        mut this: ClassInstanceRef<Self>,
+        this: ClassInstanceRef<Self>,
         mut event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
         tracing::debug!("net.wie.EventQueue::getNextEvent({this:?}, {event:?})");
 
         let mut pending_timer_events = Vec::new();
         loop {
-            let remaining: i64 = jvm.get_field(&this, "inputEventsRemaining", "J").await?;
-            let ran_callback = remaining == 0 && Self::dispatch_callbacks(jvm, context, this.clone()).await?;
-
             let now = context.system().platform().now();
             let maybe_event = context.system().event_queue().pop();
 
-            if let Some((x, queued)) = maybe_event {
-                // Drain this input batch before another callback; new arrivals wait for the next batch.
-                let remaining = if remaining == 0 { queued as i64 } else { remaining - 1 };
-                jvm.put_field(&mut this, "inputEventsRemaining", "J", remaining).await?;
+            if let Some(x) = maybe_event {
                 let event_data = match x {
-                    Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
+                    Event::Redraw => {
+                        Self::dispatch_callbacks(jvm, context, this.clone()).await?;
+                        vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0]
+                    }
                     Event::Keydown(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyPressed as _,
@@ -251,9 +247,8 @@ impl EventQueue {
 
                 break;
             } else {
-                if !ran_callback {
-                    context.system().sleep(16).await; // TODO we need to wait for events
-                }
+                Self::dispatch_callbacks(jvm, context, this.clone()).await?;
+                context.system().sleep(16).await; // TODO we need to wait for events
 
                 for event in pending_timer_events.drain(..) {
                     context.system().event_queue().push(event);
@@ -372,9 +367,21 @@ impl EventQueue {
             .await
     }
 
-    async fn dispatch_callbacks(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<bool> {
+    async fn dispatch_callbacks(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
         let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
+        if count > 0 {
+            let midlet: ClassInstanceRef<MIDlet> = jvm
+                .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+                .await?;
+            if !midlet.is_null() {
+                let display = MIDlet::display(jvm, &midlet).await?;
+                // A frontend Redraw may not have reached the backend queue yet.
+                let _: () = jvm
+                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
+                    .await?;
+            }
+        }
         // Callbacks registered during this batch belong to the next event-loop turn.
         for _ in 0..count {
             let callback: ClassInstanceRef<Runnable> = jvm
@@ -390,21 +397,22 @@ impl EventQueue {
                 .await?;
             YieldFuture::new().await;
         }
-        Ok(count > 0)
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use alloc::{boxed::Box, vec};
+    use alloc::{boxed::Box, sync::Arc, vec};
+    use core::sync::atomic::{AtomicBool, Ordering};
 
     use jvm::{Array, ClassInstanceRef, Jvm, Result as JvmResult};
     use jvm_class_proto::{JavaFieldProto, JavaMethodProto};
     use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
-    use test_utils::{TestPlatform, run_jvm_test_with_system};
-    use wie_backend::{Event, KeyCode};
-    use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
+    use test_utils::{TestClock, TestPlatform, run_jvm_test_with_system};
+    use wie_backend::{DefaultTaskRunner, Event, KeyCode, System};
+    use wie_jvm_support::{JvmSupport, RustJavaJvmImplementation, WieJavaClassProto, WieJvmContext};
     use wie_util::Result;
 
     use crate::{
@@ -417,15 +425,101 @@ mod test {
 
     use super::{EventQueue, EventQueueEvent};
 
+    struct IdleCallback;
+
+    impl IdleCallback {
+        async fn run(jvm: &Jvm, context: &mut WieJvmContext, mut this: ClassInstanceRef<Self>) -> JvmResult<()> {
+            let count: i32 = jvm.get_field(&this, "count", "I").await?;
+            let now = context.system().platform().now().raw() as i64;
+            if count > 0 {
+                let last_run: i64 = jvm.get_field(&this, "lastRun", "J").await?;
+                assert!(now - last_run >= 16, "idle callbacks must retain the timed wait");
+                context.system().event_queue().push(Event::Keydown(KeyCode::NUM1));
+            } else {
+                let queue = jvm
+                    .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (this.clone(),))
+                    .await?;
+            }
+            jvm.put_field(&mut this, "count", "I", count + 1).await?;
+            jvm.put_field(&mut this, "lastRun", "J", now).await
+        }
+    }
+
+    #[test]
+    fn recurring_callback_waits_while_the_backend_queue_is_empty() -> Result<()> {
+        let callback_proto = WieJavaClassProto {
+            name: "net/wie/IdleCallback",
+            parent_class: Some("java/lang/Object"),
+            interfaces: vec!["java/lang/Runnable"],
+            methods: vec![JavaMethodProto::new("run", "()V", IdleCallback::run, MethodAccessFlags::PUBLIC)],
+            fields: vec![
+                JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("lastRun", "J", FieldAccessFlags::PRIVATE),
+            ],
+            access_flags: ClassAccessFlags::PUBLIC,
+        };
+        let clock = TestClock::new();
+        let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "", "", DefaultTaskRunner);
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_task = completed.clone();
+        let system_task = system.clone();
+        let clock_task = clock.clone();
+        system.spawn(async move || {
+            let jvm = JvmSupport::new_jvm(
+                &system_task,
+                None,
+                Box::new([get_protos().into(), Box::new([callback_proto])]),
+                &[],
+                RustJavaJvmImplementation,
+            )
+            .await?;
+            let queue = jvm
+                .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                .await
+                .unwrap();
+            let callback = jvm.instantiate_class("net/wie/IdleCallback").await.unwrap();
+            let _: () = jvm
+                .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (callback,))
+                .await
+                .unwrap();
+            let event = jvm.instantiate_array("I", 4).await.unwrap();
+            let _: () = jvm
+                .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event,))
+                .await
+                .unwrap();
+            completed_task.store(true, Ordering::SeqCst);
+            // Let the enclosing tick finish after this task completes.
+            clock_task.advance(100);
+            Ok(())
+        });
+
+        system.tick()?;
+        assert!(!completed.load(Ordering::SeqCst));
+        clock.set(15);
+        system.tick()?;
+        assert!(!completed.load(Ordering::SeqCst));
+        clock.set(16);
+        system.tick()?;
+        clock.set(32);
+        system.tick()?;
+        assert!(completed.load(Ordering::SeqCst));
+        Ok(())
+    }
+
     struct RecurringCallback;
 
     impl RecurringCallback {
         async fn paint(
             jvm: &Jvm,
             _context: &mut WieJvmContext,
-            _this: ClassInstanceRef<Self>,
+            mut this: ClassInstanceRef<Self>,
             graphics: ClassInstanceRef<Graphics>,
         ) -> JvmResult<()> {
+            let paint_count: i32 = jvm.get_field(&this, "paintCount", "I").await?;
+            jvm.put_field(&mut this, "paintCount", "I", paint_count + 1).await?;
             let _: () = jvm
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x22aa44,))
                 .await?;
@@ -453,6 +547,7 @@ mod test {
                 "pending Canvas paint must finish before run"
             );
             jvm.put_field(&mut this, "count", "I", count + 1).await?;
+            let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "()V", ()).await?;
             let queue: ClassInstanceRef<EventQueue> = jvm
                 .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
                 .await?;
@@ -462,7 +557,7 @@ mod test {
     }
 
     #[test]
-    fn recurring_callback_paints_first_and_waits_for_queued_input() -> Result<()> {
+    fn input_precedes_recurring_callbacks_and_pending_paint() -> Result<()> {
         let callback_proto = WieJavaClassProto {
             name: "net/wie/RecurringCallback",
             parent_class: Some("javax/microedition/lcdui/Canvas"),
@@ -476,7 +571,10 @@ mod test {
                     MethodAccessFlags::PROTECTED,
                 ),
             ],
-            fields: vec![JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE)],
+            fields: vec![
+                JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
+            ],
             access_flags: ClassAccessFlags::PUBLIC,
         };
         let midlet_proto = WieJavaClassProto {
@@ -525,7 +623,16 @@ mod test {
                     )
                     .await?;
                 assert!(system.event_queue().pop().is_none(), "callSerially must not schedule host events");
-                // The frontend has not delivered its Redraw yet.
+                let _: () = jvm
+                    .invoke_virtual(
+                        &display,
+                        "javax/microedition/lcdui/Display",
+                        "callSerially",
+                        "(Ljava/lang/Runnable;)V",
+                        (callback.clone(),),
+                    )
+                    .await?;
+                system.event_queue().push(Event::Redraw);
                 system.event_queue().push(Event::Keydown(KeyCode::NUM1));
                 system.event_queue().push(Event::Keyup(KeyCode::NUM1));
                 let event: ClassInstanceRef<Array<i32>> = jvm.instantiate_array("I", 4).await?.into();
@@ -533,24 +640,24 @@ mod test {
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 1).await?, [EventQueueEvent::KeyEvent as i32]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 1);
+                assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 0);
                 let _: () = jvm
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 2, 49, 0]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 1);
+                assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 0);
 
                 system.event_queue().push(Event::Keydown(KeyCode::NUM2));
                 let _: () = jvm
                     .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 1, 50, 0]);
-                assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 2);
+                assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 0);
 
                 system.event_queue().push(Event::Keydown(KeyCode::NUM3));
                 system.event_queue().push(Event::Keyup(KeyCode::NUM3));
                 for index in 0..10 {
-                    // Keep the input queue nonempty without extending the batch already in progress.
+                    // New input retains priority over pending redraw and callback work.
                     system.event_queue().push(Event::Keyrepeat(KeyCode::NUM3));
                     let _: () = jvm
                         .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
@@ -564,7 +671,23 @@ mod test {
                         jvm.load_array::<i32>(&event, 0, 4).await?,
                         [EventQueueEvent::KeyEvent as i32, event_type, 51, 0]
                     );
-                    assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 3 + index / 3);
+                    assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 0);
+                }
+                for _ in 0..2 {
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [EventQueueEvent::KeyEvent as i32, 3, 51, 0]);
+                    assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 0);
+                }
+                for count in 1..=2 {
+                    system.event_queue().push(Event::Redraw);
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(jvm.load_array::<i32>(&event, 0, 1).await?, [EventQueueEvent::RepaintEvent as i32]);
+                    assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, count * 2);
+                    assert_eq!(jvm.get_field::<i32>(&callback, "paintCount", "I").await?, count);
                 }
                 Ok(())
             },

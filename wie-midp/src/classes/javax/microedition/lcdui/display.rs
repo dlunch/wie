@@ -749,16 +749,6 @@ impl Display {
     }
 
     async fn handle_callback_event(jvm: &Jvm, _context: &mut WieJvmContext, callback: ClassInstanceRef<Runnable>) -> JvmResult<()> {
-        let midlet: ClassInstanceRef<MIDlet> = jvm
-            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
-            .await?;
-        if !midlet.is_null() {
-            let display = MIDlet::display(jvm, &midlet).await?;
-            // A frontend Redraw may not have reached the backend queue yet.
-            let _: () = jvm
-                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
-                .await?;
-        }
         let result: JvmResult<()> = jvm.invoke_virtual(&callback, "java/lang/Runnable", "run", "()V", ()).await;
         if let Err(error) = result {
             Self::handle_exception(jvm, error).await?;
@@ -1384,7 +1374,7 @@ mod test {
         let queue = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
-        let _: bool = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ()).await?;
+        let _: () = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await?;
         Ok(())
     }
 

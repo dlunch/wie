@@ -1396,7 +1396,7 @@ mod test {
         let queue = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
-        let _: bool = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ()).await?;
+        let _: () = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await?;
         Ok(())
     }
 
@@ -2125,10 +2125,6 @@ mod test {
                 .await?;
             let _: () = jvm
                 .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event,))
-                .await?;
-            assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 0);
-            let _: bool = jvm
-                .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ())
                 .await?;
             assert_eq!(jvm.get_field::<i32>(&state_listener, "count", "I").await?, 2);
             assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 1);
