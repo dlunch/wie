@@ -1010,6 +1010,7 @@ mod test {
             .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
             .await?;
         assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?, [1000, 731, 19, 23]);
+        let _: bool = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ()).await?;
         Ok(())
     }
 

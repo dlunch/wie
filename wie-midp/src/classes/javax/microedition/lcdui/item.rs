@@ -9,6 +9,7 @@ use wie_backend::text_layout::{minimum_width, preferred_width, wrap};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Command, Displayable, Font, Graphics, ItemCommandListener};
+use crate::classes::net::wie::{CommandEvent, EventQueue};
 
 const LABEL_COLOR: i32 = 0x52606d;
 const BUTTON_BACKGROUND: i32 = 0xe7edf2;
@@ -887,14 +888,19 @@ impl Item {
             .get_field(&this, "itemCommandListener", "Ljavax/microedition/lcdui/ItemCommandListener;")
             .await?;
         if !listener.is_null() {
-            let _: () = jvm
-                .invoke_virtual(
-                    &listener,
-                    "javax/microedition/lcdui/ItemCommandListener",
-                    "commandAction",
-                    "(Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Item;)V",
-                    (command, this),
+            let event: ClassInstanceRef<CommandEvent> = jvm
+                .new_class(
+                    "net/wie/CommandEvent",
+                    "(Ljavax/microedition/lcdui/ItemCommandListener;Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Item;)V",
+                    (listener, command, this),
                 )
+                .await?
+                .into();
+            let queue: ClassInstanceRef<EventQueue> = jvm
+                .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (event,))
                 .await?;
         }
 

@@ -5,7 +5,7 @@ pub mod classes;
 
 use wie_jvm_support::WieJavaClassProto;
 
-pub fn get_protos() -> [WieJavaClassProto; 39] {
+pub fn get_protos() -> [WieJavaClassProto; 40] {
     [
         classes::javax::microedition::lcdui::Alert::as_proto(),
         classes::javax::microedition::lcdui::AlertType::as_proto(),
@@ -41,6 +41,7 @@ pub fn get_protos() -> [WieJavaClassProto; 39] {
         classes::javax::microedition::rms::RecordStore::as_proto(),
         classes::javax::microedition::rms::RecordStoreException::as_proto(),
         classes::net::wie::ChoiceElement::as_proto(),
+        classes::net::wie::CommandEvent::as_proto(),
         classes::net::wie::EventQueue::as_proto(),
         classes::net::wie::ItemStateEvent::as_proto(),
         classes::net::wie::Launcher::as_proto(),

@@ -9,7 +9,7 @@ use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display, Font, Graphics, Item, Ticker};
 
-use crate::classes::net::wie::{KeyboardEventType, MIDPKeyCode};
+use crate::classes::net::wie::{CommandEvent, EventQueue, KeyboardEventType, MIDPKeyCode};
 
 const COMMAND_BACK: i32 = 2;
 const COMMAND_CANCEL: i32 = 3;
@@ -427,14 +427,19 @@ impl Displayable {
             .get_field(&this, "commandListener", "Ljavax/microedition/lcdui/CommandListener;")
             .await?;
         if !listener.is_null() {
-            let _: () = jvm
-                .invoke_virtual(
-                    &listener,
-                    "javax/microedition/lcdui/CommandListener",
-                    "commandAction",
-                    "(Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
-                    (command, this),
+            let event: ClassInstanceRef<CommandEvent> = jvm
+                .new_class(
+                    "net/wie/CommandEvent",
+                    "(Ljavax/microedition/lcdui/CommandListener;Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
+                    (listener.clone(), command, this),
                 )
+                .await?
+                .into();
+            let queue: ClassInstanceRef<EventQueue> = jvm
+                .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                .await?;
+            let _: () = jvm
+                .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (event,))
                 .await?;
         }
 

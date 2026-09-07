@@ -738,7 +738,7 @@ impl Form {
         let queue: ClassInstanceRef<EventQueue> = jvm
             .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
             .await?;
-        jvm.invoke_virtual(&queue, "net/wie/EventQueue", "postCallback", "(Ljava/lang/Runnable;)V", (event,))
+        jvm.invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (event,))
             .await
     }
 
@@ -1233,6 +1233,7 @@ mod test {
                     JavaFieldProto::new("count", "I", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastCommand", "Ljavax/microedition/lcdui/Command;", FieldAccessFlags::PUBLIC),
                     JavaFieldProto::new("lastDisplayable", "Ljavax/microedition/lcdui/Displayable;", FieldAccessFlags::PUBLIC),
+                    JavaFieldProto::new("stateCountAtCommand", "I", FieldAccessFlags::PUBLIC),
                 ],
                 access_flags: ClassAccessFlags::PUBLIC,
             }
@@ -1249,6 +1250,13 @@ mod test {
             command: ClassInstanceRef<Command>,
             displayable: ClassInstanceRef<Displayable>,
         ) -> JvmResult<()> {
+            let state_listener: ClassInstanceRef<ItemStateListener> = jvm
+                .get_field(&displayable, "itemStateListener", "Ljavax/microedition/lcdui/ItemStateListener;")
+                .await?;
+            if !state_listener.is_null() {
+                let state_count: i32 = jvm.get_field(&state_listener, "count", "I").await?;
+                jvm.put_field(&mut this, "stateCountAtCommand", "I", state_count).await?;
+            }
             let count: i32 = jvm.get_field(&this, "count", "I").await?;
             jvm.put_field(&mut this, "count", "I", count + 1).await?;
             jvm.put_field(&mut this, "lastCommand", "Ljavax/microedition/lcdui/Command;", command)
@@ -1376,14 +1384,20 @@ mod test {
     }
 
     async fn send_key(jvm: &Jvm, display: &ClassInstanceRef<Display>, event_type: KeyboardEventType, key: MIDPKeyCode) -> JvmResult<()> {
-        jvm.invoke_virtual(
-            display,
-            "javax/microedition/lcdui/Display",
-            "handleKeyEvent",
-            "(II)V",
-            (event_type as i32, key as i32),
-        )
-        .await
+        let _: () = jvm
+            .invoke_virtual(
+                display,
+                "javax/microedition/lcdui/Display",
+                "handleKeyEvent",
+                "(II)V",
+                (event_type as i32, key as i32),
+            )
+            .await?;
+        let queue = jvm
+            .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+            .await?;
+        let _: bool = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ()).await?;
+        Ok(())
     }
 
     #[test]
@@ -2010,7 +2024,7 @@ mod test {
     }
 
     #[test]
-    fn serial_item_callbacks_run_before_the_next_backend_input_and_command() -> Result<()> {
+    fn item_changes_and_commands_share_the_serial_callback_queue() -> Result<()> {
         run_jvm_test(test_protos(), |jvm| async move {
             let midlet: ClassInstanceRef<RecordingFormMidlet> =
                 jvm.new_class("javax/microedition/lcdui/TestRecordingFormMidlet", "()V", ()).await?.into();
@@ -2083,33 +2097,26 @@ mod test {
                 .invoke_static("javax/microedition/lcdui/TestBackendEventInjector", "enqueueOrderingInputs", "()V", ())
                 .await?;
 
-            for (key, delivered_count) in [
-                (MIDPKeyCode::LEFT, 0),
-                (MIDPKeyCode::RIGHT, 0),
-                (MIDPKeyCode::RIGHT, 1),
-                (MIDPKeyCode::DOWN, 1),
-                (MIDPKeyCode::RIGHT, 1),
-                (MIDPKeyCode::LEFT_SOFT_KEY, 2),
+            for key in [
+                MIDPKeyCode::LEFT,
+                MIDPKeyCode::RIGHT,
+                MIDPKeyCode::RIGHT,
+                MIDPKeyCode::DOWN,
+                MIDPKeyCode::RIGHT,
+                MIDPKeyCode::LEFT_SOFT_KEY,
             ] {
                 let _: () = jvm
                     .invoke_virtual(&event_queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(jvm.load_array::<i32>(&event, 0, 4).await?[2], key as i32);
-                assert_eq!(jvm.get_field::<i32>(&state_listener, "count", "I").await?, delivered_count);
+                assert_eq!(jvm.get_field::<i32>(&state_listener, "count", "I").await?, 0);
                 assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 0);
-                if delivered_count > 0 {
-                    let delivered: ClassInstanceRef<Item> = jvm.get_field(&state_listener, "lastItem", "Ljavax/microedition/lcdui/Item;").await?;
-                    assert_eq!(
-                        delivered.identity(),
-                        if delivered_count == 1 { first.identity() } else { second.identity() }
-                    );
-                }
                 let _: () = jvm
                     .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
                     .await?;
                 assert_eq!(
                     jvm.get_field::<i32>(&state_listener, "count", "I").await?,
-                    delivered_count,
+                    0,
                     "ItemStateListener must not run inside the input handler"
                 );
             }
@@ -2119,8 +2126,15 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event,))
                 .await?;
+            assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 0);
+            let _: bool = jvm
+                .invoke_virtual(&event_queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ())
+                .await?;
             assert_eq!(jvm.get_field::<i32>(&state_listener, "count", "I").await?, 2);
             assert_eq!(jvm.get_field::<i32>(&command_listener, "count", "I").await?, 1);
+            assert_eq!(jvm.get_field::<i32>(&command_listener, "stateCountAtCommand", "I").await?, 2);
+            let delivered: ClassInstanceRef<Item> = jvm.get_field(&state_listener, "lastItem", "Ljavax/microedition/lcdui/Item;").await?;
+            assert_eq!(delivered.identity(), second.identity());
             Ok(())
         })
     }

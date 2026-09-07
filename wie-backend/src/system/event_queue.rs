@@ -103,8 +103,9 @@ impl EventQueue {
         self.events.push_back(event);
     }
 
-    pub fn pop(&mut self) -> Option<Event> {
-        self.events.pop_front()
+    /// Returns the oldest event and the number of events left in the queue.
+    pub fn pop(&mut self) -> Option<(Event, usize)> {
+        self.events.pop_front().map(|event| (event, self.events.len()))
     }
 }
 
@@ -123,13 +124,13 @@ mod tests {
         }
         queue.push(Event::Keyup(KeyCode::DOWN));
 
-        assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::DOWN))));
-        assert!(matches!(queue.pop(), Some(Event::Redraw)));
+        assert!(matches!(queue.pop(), Some((Event::Keydown(KeyCode::DOWN), 3))));
+        assert!(matches!(queue.pop(), Some((Event::Redraw, 2))));
         // A repaint requested while painting still needs another delivery.
         queue.push(Event::Redraw);
-        assert!(matches!(queue.pop(), Some(Event::Keyrepeat(KeyCode::DOWN))));
-        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::DOWN))));
-        assert!(matches!(queue.pop(), Some(Event::Redraw)));
+        assert!(matches!(queue.pop(), Some((Event::Keyrepeat(KeyCode::DOWN), 2))));
+        assert!(matches!(queue.pop(), Some((Event::Keyup(KeyCode::DOWN), 1))));
+        assert!(matches!(queue.pop(), Some((Event::Redraw, 0))));
         assert!(queue.pop().is_none());
     }
 }

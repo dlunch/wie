@@ -1021,7 +1021,7 @@ impl Display {
         jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
     }
 
-    async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
+    pub(crate) async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
         let JavaError::JavaException(x) = err;
 
         if jvm.is_instance(&*x, "java/lang/Error") {
@@ -1348,14 +1348,20 @@ mod test {
     }
 
     async fn send_key(jvm: &Jvm, display: &ClassInstanceRef<Display>, event_type: KeyboardEventType, key: MIDPKeyCode) -> JvmResult<()> {
-        jvm.invoke_virtual(
-            display,
-            "javax/microedition/lcdui/Display",
-            "handleKeyEvent",
-            "(II)V",
-            (event_type as i32, key as i32),
-        )
-        .await
+        let _: () = jvm
+            .invoke_virtual(
+                display,
+                "javax/microedition/lcdui/Display",
+                "handleKeyEvent",
+                "(II)V",
+                (event_type as i32, key as i32),
+            )
+            .await?;
+        let queue = jvm
+            .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+            .await?;
+        let _: bool = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()Z", ()).await?;
+        Ok(())
     }
 
     #[test]
