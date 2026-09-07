@@ -483,7 +483,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                             return Ok(result);
                         }
                         _ if stepping && executed_instruction => self.debug.stop(DebugStopReason::DoneStep(self.stop_thread_id())),
-                        EngineStopReason::CountExhausted if instructions_executed < count => continue,
+                        EngineStopReason::Yield if instructions_executed < count => continue,
                         _ => return Ok(result),
                     }
                 }

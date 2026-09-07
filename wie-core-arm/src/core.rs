@@ -275,9 +275,7 @@ impl ArmCore {
                 if exhausted {
                     inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
                 }
-                let should_yield = exhausted;
-                #[cfg(not(target_arch = "wasm32"))]
-                let should_yield = should_yield || matches!(result.stop_reason, EngineStopReason::Yield);
+                let should_yield = exhausted || matches!(result.stop_reason, EngineStopReason::Yield);
                 (result.stop_reason, should_yield)
             };
 
@@ -296,8 +294,6 @@ impl ArmCore {
 
             match result {
                 EngineStopReason::End => break,
-                EngineStopReason::CountExhausted => continue,
-                #[cfg(not(target_arch = "wasm32"))]
                 EngineStopReason::Yield => continue,
                 EngineStopReason::Svc { category, .. } => {
                     let function = {
@@ -918,8 +914,6 @@ mod tests {
                 assert_ne!(spsr & 0x20, 0);
             }
             EngineStopReason::End => panic!("expected SVC, got end"),
-            EngineStopReason::CountExhausted => panic!("expected SVC, got count exhausted"),
-            #[cfg(not(target_arch = "wasm32"))]
             EngineStopReason::Yield => panic!("expected SVC, got yield"),
         }
     }

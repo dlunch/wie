@@ -12,14 +12,8 @@ pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal
 
 pub enum EngineStopReason {
     End,
-    CountExhausted,
-    #[cfg(not(target_arch = "wasm32"))]
     Yield,
-    Svc {
-        category: u32,
-        lr: u32,
-        spsr: u32,
-    },
+    Svc { category: u32, lr: u32, spsr: u32 },
 }
 
 pub struct EngineRunResult {
