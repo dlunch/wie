@@ -8,11 +8,8 @@ use rustjava_runtime::classes::java::{lang::String, util::Vector};
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
 use crate::classes::{
-    javax::microedition::{
-        lcdui::{Command, Display, Displayable, Graphics, Image, ImageItem, Item, ItemStateListener, StringItem},
-        midlet::MIDlet,
-    },
-    net::wie::{ItemStateEvent, KeyboardEventType, MIDPKeyCode},
+    javax::microedition::lcdui::{Command, Displayable, Graphics, Image, ImageItem, Item, ItemStateListener, StringItem},
+    net::wie::{EventQueue, ItemStateEvent, KeyboardEventType, MIDPKeyCode},
 };
 
 struct ItemRect {
@@ -730,29 +727,6 @@ impl Form {
         this: ClassInstanceRef<Self>,
         item: ClassInstanceRef<Item>,
     ) -> JvmResult<()> {
-        let mut display: ClassInstanceRef<Display> = jvm
-            .invoke_virtual(
-                &this,
-                "javax/microedition/lcdui/Displayable",
-                "getDisplay",
-                "()Ljavax/microedition/lcdui/Display;",
-                (),
-            )
-            .await?;
-        if display.is_null() {
-            let midlet: ClassInstanceRef<MIDlet> = jvm
-                .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
-                .await?;
-            display = jvm
-                .invoke_static(
-                    "javax/microedition/lcdui/Display",
-                    "getDisplay",
-                    "(Ljavax/microedition/midlet/MIDlet;)Ljavax/microedition/lcdui/Display;",
-                    (midlet,),
-                )
-                .await?;
-        }
-
         let event: ClassInstanceRef<ItemStateEvent> = jvm
             .new_class(
                 "net/wie/ItemStateEvent",
@@ -761,14 +735,11 @@ impl Form {
             )
             .await?
             .into();
-        jvm.invoke_virtual(
-            &display,
-            "javax/microedition/lcdui/Display",
-            "callSerially",
-            "(Ljava/lang/Runnable;)V",
-            (event,),
-        )
-        .await
+        let queue: ClassInstanceRef<EventQueue> = jvm
+            .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+            .await?;
+        jvm.invoke_virtual(&queue, "net/wie/EventQueue", "postCallback", "(Ljava/lang/Runnable;)V", (event,))
+            .await
     }
 
     async fn dispatch_item_state_changed(

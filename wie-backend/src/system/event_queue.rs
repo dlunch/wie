@@ -97,10 +97,39 @@ impl EventQueue {
     }
 
     pub fn push(&mut self, event: Event) {
+        if matches!(event, Event::Redraw) && self.events.iter().any(|event| matches!(event, Event::Redraw)) {
+            return;
+        }
         self.events.push_back(event);
     }
 
     pub fn pop(&mut self) -> Option<Event> {
         self.events.pop_front()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Event, EventQueue, KeyCode};
+
+    #[test]
+    fn coalesces_pending_redraws_without_reordering_input() {
+        let mut queue = EventQueue::new();
+        queue.push(Event::Keydown(KeyCode::DOWN));
+        queue.push(Event::Redraw);
+        queue.push(Event::Keyrepeat(KeyCode::DOWN));
+        for _ in 0..100 {
+            queue.push(Event::Redraw);
+        }
+        queue.push(Event::Keyup(KeyCode::DOWN));
+
+        assert!(matches!(queue.pop(), Some(Event::Keydown(KeyCode::DOWN))));
+        assert!(matches!(queue.pop(), Some(Event::Redraw)));
+        // A repaint requested while painting still needs another delivery.
+        queue.push(Event::Redraw);
+        assert!(matches!(queue.pop(), Some(Event::Keyrepeat(KeyCode::DOWN))));
+        assert!(matches!(queue.pop(), Some(Event::Keyup(KeyCode::DOWN))));
+        assert!(matches!(queue.pop(), Some(Event::Redraw)));
+        assert!(queue.pop().is_none());
     }
 }
