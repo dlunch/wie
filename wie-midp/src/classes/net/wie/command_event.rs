@@ -6,7 +6,7 @@ use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 
 use wie_jvm_support::{WieJavaClassProto, WieJvmContext};
 
-use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Display, Displayable, Item, ItemCommandListener};
+use crate::classes::javax::microedition::lcdui::{Command, CommandListener, Displayable, Item, ItemCommandListener};
 
 // class net.wie.CommandEvent
 pub struct CommandEvent;
@@ -81,7 +81,7 @@ impl CommandEvent {
     async fn run(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let command: ClassInstanceRef<Command> = jvm.get_field(&this, "command", "Ljavax/microedition/lcdui/Command;").await?;
         let item: ClassInstanceRef<Item> = jvm.get_field(&this, "item", "Ljavax/microedition/lcdui/Item;").await?;
-        let result: JvmResult<()> = if item.is_null() {
+        if item.is_null() {
             let listener: ClassInstanceRef<CommandListener> = jvm.get_field(&this, "listener", "Ljavax/microedition/lcdui/CommandListener;").await?;
             let displayable: ClassInstanceRef<Displayable> = jvm.get_field(&this, "displayable", "Ljavax/microedition/lcdui/Displayable;").await?;
             jvm.invoke_virtual(
@@ -104,10 +104,6 @@ impl CommandEvent {
                 (command, item),
             )
             .await
-        };
-        if let Err(error) = result {
-            Display::handle_exception(jvm, error).await?;
         }
-        Ok(())
     }
 }

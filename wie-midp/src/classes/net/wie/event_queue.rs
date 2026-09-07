@@ -380,17 +380,14 @@ impl EventQueue {
             let callback: ClassInstanceRef<Runnable> = jvm
                 .invoke_virtual(&events, "java/util/Vector", "remove", "(I)Ljava/lang/Object;", (0,))
                 .await?;
-            let midlet: ClassInstanceRef<MIDlet> = jvm
-                .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+            let _: () = jvm
+                .invoke_static(
+                    "javax/microedition/lcdui/Display",
+                    "handleCallbackEvent",
+                    "(Ljava/lang/Runnable;)V",
+                    (callback,),
+                )
                 .await?;
-            if !midlet.is_null() {
-                let display = MIDlet::display(jvm, &midlet).await?;
-                // A frontend Redraw may not have reached the backend queue yet.
-                let _: () = jvm
-                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
-                    .await?;
-            }
-            let _: () = jvm.invoke_virtual(&callback, "java/lang/Runnable", "run", "()V", ()).await?;
             YieldFuture::new().await;
         }
         Ok(count > 0)

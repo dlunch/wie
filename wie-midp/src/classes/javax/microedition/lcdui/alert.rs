@@ -1428,6 +1428,28 @@ mod test {
     }
 
     #[test]
+    fn command_event_propagates_listener_exception() -> Result<()> {
+        run_jvm_test(test_protos(), |jvm| async move {
+            let listener = jvm.new_class("javax/microedition/lcdui/TestAlertCommandListener", "()V", ()).await?;
+            let command = new_command(&jvm, "Continue").await?;
+            let alert = new_alert(&jvm, "custom").await?;
+            let event = jvm
+                .new_class(
+                    "net/wie/CommandEvent",
+                    "(Ljavax/microedition/lcdui/CommandListener;Ljavax/microedition/lcdui/Command;Ljavax/microedition/lcdui/Displayable;)V",
+                    (listener, command, alert),
+                )
+                .await?;
+            let result: JvmResult<()> = jvm.invoke_virtual(&event, "java/lang/Runnable", "run", "()V", ()).await;
+            let Err(JavaError::JavaException(exception)) = result else {
+                panic!("CommandEvent swallowed the listener exception");
+            };
+            assert!(jvm.is_instance(&*exception, "java/lang/RuntimeException"));
+            Ok(())
+        })
+    }
+
+    #[test]
     fn sole_application_command_fires_once_at_the_exact_deadline_despite_listener_exception() -> Result<()> {
         let clock = TestClock::new();
         run_jvm_test_with_system(

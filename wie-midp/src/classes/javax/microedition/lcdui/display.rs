@@ -107,6 +107,12 @@ impl Display {
                 JavaMethodProto::new("serviceRepaints", "()V", Self::service_repaints, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handlePaintEvent", "()V", Self::handle_paint_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleKeyEvent", "(II)V", Self::handle_key_event, MethodAccessFlags::empty()),
+                JavaMethodProto::new(
+                    "handleCallbackEvent",
+                    "(Ljava/lang/Runnable;)V",
+                    Self::handle_callback_event,
+                    MethodAccessFlags::STATIC,
+                ),
                 JavaMethodProto::new("handleNotifyEvent", "(III)V", Self::handle_notify_event, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleAlertTimeout", "(I)V", Self::handle_alert_timeout, MethodAccessFlags::empty()),
                 JavaMethodProto::new("handleTickerTick", "(I)V", Self::handle_ticker_tick, MethodAccessFlags::empty()),
@@ -742,6 +748,24 @@ impl Display {
         Ok(())
     }
 
+    async fn handle_callback_event(jvm: &Jvm, _context: &mut WieJvmContext, callback: ClassInstanceRef<Runnable>) -> JvmResult<()> {
+        let midlet: ClassInstanceRef<MIDlet> = jvm
+            .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+            .await?;
+        if !midlet.is_null() {
+            let display = MIDlet::display(jvm, &midlet).await?;
+            // A frontend Redraw may not have reached the backend queue yet.
+            let _: () = jvm
+                .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
+                .await?;
+        }
+        let result: JvmResult<()> = jvm.invoke_virtual(&callback, "java/lang/Runnable", "run", "()V", ()).await;
+        if let Err(error) = result {
+            Self::handle_exception(jvm, error).await?;
+        }
+        Ok(())
+    }
+
     async fn handle_alert_timeout(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>, generation: i32) -> JvmResult<()> {
         let current_generation: i32 = jvm.get_field(&this, "alertGeneration", "I").await?;
         if current_generation != generation {
@@ -1021,7 +1045,7 @@ impl Display {
         jvm.get_field(&this, "screenGraphics", "Ljavax/microedition/lcdui/Graphics;").await
     }
 
-    pub(crate) async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
+    async fn handle_exception(jvm: &Jvm, err: JavaError) -> JvmResult<()> {
         let JavaError::JavaException(x) = err;
 
         if jvm.is_instance(&*x, "java/lang/Error") {
