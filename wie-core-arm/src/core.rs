@@ -9,7 +9,7 @@ use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 use crate::{
     EmulatedFunction, ResultWriter, ThreadId,
     context::ArmCoreContext,
-    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineRunResult, MemoryPermission},
+    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineStopReason, MemoryPermission},
     function::{RegisteredFunction, RegisteredFunctionHolder},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
@@ -289,22 +289,19 @@ impl ArmCore {
         loop {
             let (result, should_yield) = {
                 let mut inner = self.inner.lock();
-                let ArmCoreInner {
-                    engine,
-                    instructions_remaining,
-                    ..
-                } = &mut *inner;
-                let result = engine.run(RUN_FUNCTION_LR, instructions_remaining)?;
-                let should_yield = *instructions_remaining == 0;
+                let budget = inner.instructions_remaining;
+                let result = inner.engine.run(RUN_FUNCTION_LR, budget)?;
+                inner.instructions_remaining -= result.instructions_executed;
+                let should_yield = inner.instructions_remaining == 0;
                 if should_yield {
-                    *instructions_remaining = INSTRUCTIONS_PER_YIELD;
+                    inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
                 }
-                (result, should_yield)
+                (result.stop_reason, should_yield)
             };
 
             self.sample_profile();
 
-            if let EngineRunResult::Svc { lr, spsr, .. } = result {
+            if let EngineStopReason::Svc { lr, spsr, .. } = result {
                 // Leave exception mode before yielding: thread contexts do not save banked SVC registers.
                 let mut inner = self.inner.lock();
                 inner.engine.reg_write(ArmRegister::Cpsr, spsr);
@@ -316,9 +313,9 @@ impl ArmCore {
             }
 
             match result {
-                EngineRunResult::End => break,
-                EngineRunResult::CountExhausted => continue,
-                EngineRunResult::Svc { category, .. } => {
+                EngineStopReason::End => break,
+                EngineStopReason::CountExhausted => continue,
+                EngineStopReason::Svc { category, .. } => {
                     let function = {
                         let inner = self.inner.lock();
                         inner
@@ -811,17 +808,18 @@ mod tests {
             inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
             inner.engine.reg_write(ArmRegister::PC, second);
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
-            inner.engine.run(RUN_FUNCTION_LR, &mut 10).unwrap()
+            inner.engine.run(RUN_FUNCTION_LR, 10).unwrap()
         };
 
-        match result {
-            EngineRunResult::Svc { category, lr, spsr } => {
+        assert_eq!(result.instructions_executed, 5);
+        match result.stop_reason {
+            EngineStopReason::Svc { category, lr, spsr } => {
                 assert_eq!(category, 1);
                 assert_eq!(lr, FUNCTIONS_BASE + SVC_STUB_SIZE + 10);
                 assert_ne!(spsr & 0x20, 0);
             }
-            EngineRunResult::End => panic!("expected SVC, got end"),
-            EngineRunResult::CountExhausted => panic!("expected SVC, got count exhausted"),
+            EngineStopReason::End => panic!("expected SVC, got end"),
+            EngineStopReason::CountExhausted => panic!("expected SVC, got count exhausted"),
         }
     }
 }

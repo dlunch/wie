@@ -5,7 +5,7 @@ use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_util::{Result, WieError};
 
-use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, MemoryPermission};
+use crate::engine::{ArmEngine, ArmRegister, EngineRunResult, EngineStopReason, MemoryPermission};
 
 pub struct Arm32CpuEngine {
     cpu: Cpu,
@@ -24,7 +24,7 @@ impl Arm32CpuEngine {
         self.cpu.reg_get(Mode::User, reg::PC) == 0x08 && (self.cpu.reg_get(Mode::User, reg::CPSR) & 0x1f) == 0x13
     }
 
-    fn read_svc_result(&mut self) -> Result<EngineRunResult> {
+    fn read_svc_result(&mut self) -> Result<EngineStopReason> {
         let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
         let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
 
@@ -40,17 +40,18 @@ impl Arm32CpuEngine {
 
         let category = instruction as u32 & 0xff;
 
-        Ok(EngineRunResult::Svc { category, lr, spsr })
+        Ok(EngineStopReason::Svc { category, lr, spsr })
     }
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, count: &mut u32) -> Result<EngineRunResult> {
-        loop {
+    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult> {
+        let mut instructions_executed = 0;
+        let stop_reason = loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
 
             if self.is_svc_exception() {
-                return self.read_svc_result();
+                break self.read_svc_result()?;
             }
 
             if pc < 0x1000 {
@@ -58,11 +59,11 @@ impl ArmEngine for Arm32CpuEngine {
             }
 
             if pc == end {
-                return Ok(EngineRunResult::End);
+                break EngineStopReason::End;
             }
 
-            if *count == 0 {
-                return Ok(EngineRunResult::CountExhausted);
+            if instructions_executed == count {
+                break EngineStopReason::CountExhausted;
             }
 
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
@@ -70,12 +71,17 @@ impl ArmEngine for Arm32CpuEngine {
             if !(self.cpu.step(&mut arm32cpu_memory)) {
                 return Err(WieError::FatalError("Undefined instruction".into()));
             }
-            *count -= 1;
+            instructions_executed += 1;
 
             if let Some(x) = arm32cpu_memory.memory_error() {
                 return Err(WieError::InvalidMemoryAccess(x));
             }
-        }
+        };
+
+        Ok(EngineRunResult {
+            stop_reason,
+            instructions_executed,
+        })
     }
 
     fn reg_write(&mut self, reg: ArmRegister, value: u32) {
@@ -347,7 +353,28 @@ mod tests {
 
     use arm32_cpu::Memory;
 
-    use super::EmulatedMemory;
+    use crate::engine::{ArmEngine, ArmRegister, EngineStopReason, MemoryPermission};
+
+    use super::{Arm32CpuEngine, EmulatedMemory};
+
+    #[test]
+    fn run_reports_executed_instructions_at_budget_and_return_boundaries() {
+        let mut engine = Arm32CpuEngine::new();
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(0x1000, &[0xc0, 0x46, 0xc0, 0x46, 0x70, 0x47]).unwrap(); // nop; nop; bx lr
+        engine.reg_write(ArmRegister::Cpsr, 0x3f);
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.reg_write(ArmRegister::LR, 0x2000);
+
+        for (budget, expected_count, at_end) in [(0, 0, false), (2, 2, false), (10, 1, true), (10, 0, true)] {
+            let result = engine.run(0x2000, budget).unwrap();
+            assert_eq!(result.instructions_executed, expected_count);
+            assert!(matches!(
+                (result.stop_reason, at_end),
+                (EngineStopReason::End, true) | (EngineStopReason::CountExhausted, false)
+            ));
+        }
+    }
 
     #[test]
     fn page_table_is_heap_allocated() {
