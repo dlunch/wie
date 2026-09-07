@@ -28,6 +28,10 @@ struct LgtTaskRunner {
 
 #[async_trait::async_trait]
 impl TaskRunner for LgtTaskRunner {
+    fn before_tick(&self) {
+        self.core.check_debugger();
+    }
+
     async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
         self.core.run_in_thread(async move || future.await)?.await
     }

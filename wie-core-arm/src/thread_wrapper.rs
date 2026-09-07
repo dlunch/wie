@@ -38,7 +38,6 @@ impl Future for ArmCoreThreadWrapper {
         if let Some(debug) = self.core.debug_inner()
             && !debug.is_thread_resumed(self.thread_id)
         {
-            cx.waker().wake_by_ref();
             return Poll::Pending;
         }
 

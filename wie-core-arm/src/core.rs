@@ -189,6 +189,16 @@ impl ArmCore {
         self.threads.lock().keys().cloned().collect()
     }
 
+    /// Handles debugger requests even when the executor has no runnable threads.
+    pub fn check_debugger(&self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.debug_inner().is_some()
+            && let Some(thread_id) = self.get_thread_ids().first()
+        {
+            let _guard = self.enter_thread_context(*thread_id);
+        }
+    }
+
     fn sample_profile(&self) {
         let mut inner = self.inner.lock();
         if inner.profile.is_none() {
@@ -750,8 +760,10 @@ mod tests {
         );
         let _other = core.run_in_thread(|| async { Ok(()) }).unwrap();
         debug.resume(None, Some(vec![2]));
-        let mut cx = Context::from_waker(Waker::noop());
+        let (waker, wake_count) = futures_test::task::new_count_waker();
+        let mut cx = Context::from_waker(&waker);
         assert!(task.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(wake_count, 0);
         assert_eq!(observed.load(Ordering::Relaxed), 0);
         debug.resume(None, None);
         assert!(matches!(task.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
@@ -800,6 +812,84 @@ mod tests {
         ));
         assert_eq!(observed.load(Ordering::Relaxed), 1);
         assert_eq!(core.read_thread_context(1).unwrap().r0, 123);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn interrupt_stops_sleeping_tasks_without_ending_their_sleep() {
+        extern crate std;
+
+        use core::pin::Pin;
+
+        use test_utils::{TestClock, TestPlatform};
+        use wie_backend::{System, TaskRunner};
+
+        struct NativeTaskRunner(ArmCore);
+
+        #[async_trait::async_trait]
+        impl TaskRunner for NativeTaskRunner {
+            fn before_tick(&self) {
+                self.0.check_debugger();
+            }
+
+            async fn run(&self, future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
+                self.0.run_in_thread(|| future)?.await
+            }
+        }
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        let engine = DebuggedArm32CpuEngine::new();
+        let debug = engine.debug_inner();
+        core.inner.lock().engine = Box::new(engine);
+        crate::Allocator::init(&mut core).unwrap();
+        let clock = TestClock::new();
+        let mut system = System::new(
+            Box::new(TestPlatform::with_clock(clock.clone())),
+            "test",
+            "test",
+            NativeTaskRunner(core.clone()),
+        );
+        let calls = Arc::new(AtomicU32::new(0));
+        for _ in 0..2 {
+            let sleeper = system.clone();
+            let clock = clock.clone();
+            let calls = calls.clone();
+            system.spawn(move || async move {
+                calls.fetch_add(1, Ordering::Relaxed);
+                sleeper.sleep(60_000).await;
+                calls.fetch_add(1, Ordering::Relaxed);
+                clock.advance(100);
+                Ok(())
+            });
+        }
+        debug.resume(None, None);
+        system.tick().unwrap();
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+
+        for _ in 0..2 {
+            debug.interrupt();
+            let runner = std::thread::spawn(move || {
+                system.tick().unwrap();
+                system
+            });
+            let stopped = debug.recv_stop_event_timeout(std::time::Duration::from_secs(1));
+            let mut context = debug.read_registers();
+            context.r0 = 123;
+            debug.write_registers(&context);
+            debug.resume(None, None);
+            system = runner.join().unwrap();
+            assert!(matches!(
+                stopped,
+                Ok(crate::engine::DebugStopReason::Signal(crate::engine::DebugSignal::Int, 1))
+            ));
+            assert_eq!(calls.load(Ordering::Relaxed), 2);
+            assert_eq!(core.read_thread_context(1).unwrap().r0, 123);
+            clock.advance(10);
+        }
+
+        clock.set(60_000);
+        system.tick().unwrap();
+        assert_eq!(calls.load(Ordering::Relaxed), 4);
     }
 
     async fn test_svc_handler(_core: &mut ArmCore, seen_id: &mut Option<u32>, id: crate::SvcId) -> Result<()> {

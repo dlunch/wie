@@ -28,6 +28,10 @@ struct KtfTaskRunner {
 
 #[async_trait::async_trait]
 impl TaskRunner for KtfTaskRunner {
+    fn before_tick(&self) {
+        self.core.check_debugger();
+    }
+
     async fn run(&self, mut future: Pin<Box<dyn Future<Output = Result<()>> + Send>>) -> Result<()> {
         let mut core = self.core.clone();
         let ptr_thread_context = Allocator::alloc(&mut core, size_of::<KtfJvmThreadContext>() as u32)?;
