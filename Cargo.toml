@@ -29,7 +29,7 @@ opt-level = 1
 lto = true
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 license = "MIT"
 description = "WIPI and J2ME emulator components"
