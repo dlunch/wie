@@ -1348,14 +1348,20 @@ mod test {
     }
 
     async fn send_key(jvm: &Jvm, display: &ClassInstanceRef<Display>, event_type: KeyboardEventType, key: MIDPKeyCode) -> JvmResult<()> {
-        jvm.invoke_virtual(
-            display,
-            "javax/microedition/lcdui/Display",
-            "handleKeyEvent",
-            "(II)V",
-            (event_type as i32, key as i32),
-        )
-        .await
+        let _: () = jvm
+            .invoke_virtual(
+                display,
+                "javax/microedition/lcdui/Display",
+                "handleKeyEvent",
+                "(II)V",
+                (event_type as i32, key as i32),
+            )
+            .await?;
+        let queue = jvm
+            .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+            .await?;
+        let _: () = jvm.invoke_virtual(&queue, "net/wie/EventQueue", "dispatchCallbacks", "()V", ()).await?;
+        Ok(())
     }
 
     #[test]
