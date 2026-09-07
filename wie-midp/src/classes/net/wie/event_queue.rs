@@ -204,10 +204,7 @@ impl EventQueue {
 
             if let Some(x) = maybe_event {
                 let event_data = match x {
-                    Event::Redraw => {
-                        Self::dispatch_callbacks(jvm, context, this.clone()).await?;
-                        vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0]
-                    }
+                    Event::Redraw => vec![EventQueueEvent::RepaintEvent as _, 0, 0, 0],
                     Event::Keydown(x) => vec![
                         EventQueueEvent::KeyEvent as _,
                         KeyboardEventType::KeyPressed as _,
@@ -247,6 +244,20 @@ impl EventQueue {
 
                 break;
             } else {
+                let events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
+                let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
+                if count > 0 {
+                    let midlet: ClassInstanceRef<MIDlet> = jvm
+                        .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
+                        .await?;
+                    if !midlet.is_null() {
+                        let display = MIDlet::display(jvm, &midlet).await?;
+                        // A frontend Redraw may not have reached the backend queue yet.
+                        let _: () = jvm
+                            .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
+                            .await?;
+                    }
+                }
                 Self::dispatch_callbacks(jvm, context, this.clone()).await?;
                 context.system().sleep(16).await; // TODO we need to wait for events
 
@@ -265,7 +276,7 @@ impl EventQueue {
 
     async fn dispatch_event(
         jvm: &Jvm,
-        _context: &mut WieJvmContext,
+        context: &mut WieJvmContext,
         this: ClassInstanceRef<Self>,
         event: ClassInstanceRef<Array<i32>>,
     ) -> JvmResult<()> {
@@ -298,6 +309,7 @@ impl EventQueue {
                 let _: () = jvm
                     .invoke_virtual(&display, "javax/microedition/lcdui/Display", "handlePaintEvent", "()V", ())
                     .await?;
+                Self::dispatch_callbacks(jvm, context, this).await?;
             }
             EventQueueEvent::KeyEvent => {
                 let event_type = if let Some(event_type) = KeyboardEventType::from_raw(event[1]) {
@@ -370,18 +382,6 @@ impl EventQueue {
     async fn dispatch_callbacks(jvm: &Jvm, _context: &mut WieJvmContext, this: ClassInstanceRef<Self>) -> JvmResult<()> {
         let events = jvm.get_field(&this, "callSeriallyEvents", "Ljava/util/Vector;").await?;
         let count: i32 = jvm.invoke_virtual(&events, "java/util/Vector", "size", "()I", ()).await?;
-        if count > 0 {
-            let midlet: ClassInstanceRef<MIDlet> = jvm
-                .get_static_field("javax/microedition/midlet/MIDlet", "currentMIDlet", "Ljavax/microedition/midlet/MIDlet;")
-                .await?;
-            if !midlet.is_null() {
-                let display = MIDlet::display(jvm, &midlet).await?;
-                // A frontend Redraw may not have reached the backend queue yet.
-                let _: () = jvm
-                    .invoke_virtual(&display, "javax/microedition/lcdui/Display", "serviceRepaints", "()V", ())
-                    .await?;
-            }
-        }
         // Callbacks registered during this batch belong to the next event-loop turn.
         for _ in 0..count {
             let callback: ClassInstanceRef<Runnable> = jvm
@@ -516,6 +516,9 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "setColor", "(I)V", (0x22aa44,))
                 .await?;
+            if jvm.get_field::<bool>(&this, "repaintOnPaint", "Z").await? {
+                let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "()V", ()).await?;
+            }
             jvm.invoke_virtual(&graphics, "javax/microedition/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
                 .await
         }
@@ -540,12 +543,16 @@ mod test {
                 "pending Canvas paint must finish before run"
             );
             jvm.put_field(&mut this, "count", "I", count + 1).await?;
-            let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "()V", ()).await?;
-            let queue: ClassInstanceRef<EventQueue> = jvm
-                .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
-                .await?;
-            jvm.invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (this,))
-                .await
+            if jvm.get_field::<bool>(&this, "repeat", "Z").await? {
+                let _: () = jvm.invoke_virtual(&this, "javax/microedition/lcdui/Canvas", "repaint", "()V", ()).await?;
+                let queue: ClassInstanceRef<EventQueue> = jvm
+                    .invoke_static("net/wie/EventQueue", "getEventQueue", "()Lnet/wie/EventQueue;", ())
+                    .await?;
+                let _: () = jvm
+                    .invoke_virtual(&queue, "net/wie/EventQueue", "callSerially", "(Ljava/lang/Runnable;)V", (this,))
+                    .await?;
+            }
+            Ok(())
         }
     }
 
@@ -567,6 +574,8 @@ mod test {
             fields: vec![
                 JavaFieldProto::new("count", "I", FieldAccessFlags::PRIVATE),
                 JavaFieldProto::new("paintCount", "I", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("repeat", "Z", FieldAccessFlags::PRIVATE),
+                JavaFieldProto::new("repaintOnPaint", "Z", FieldAccessFlags::PRIVATE),
             ],
             access_flags: ClassAccessFlags::PUBLIC,
         };
@@ -590,7 +599,8 @@ mod test {
                     .invoke_special(&midlet, "javax/microedition/midlet/MIDlet", "<init>", "()V", ())
                     .await?;
                 let display = MIDlet::display(&jvm, &midlet).await?;
-                let callback: ClassInstanceRef<RecurringCallback> = jvm.instantiate_class("net/wie/RecurringCallback").await?.into();
+                let mut callback: ClassInstanceRef<RecurringCallback> = jvm.instantiate_class("net/wie/RecurringCallback").await?.into();
+                jvm.put_field(&mut callback, "repeat", "Z", true).await?;
                 let _: () = jvm
                     .invoke_special(&callback, "javax/microedition/lcdui/Canvas", "<init>", "()V", ())
                     .await?;
@@ -674,13 +684,33 @@ mod test {
                     assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 0);
                 }
                 for count in 1..=2 {
+                    jvm.put_field(&mut callback, "repaintOnPaint", "Z", count == 2).await?;
                     system.event_queue().push(Event::Redraw);
                     let _: () = jvm
                         .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
                         .await?;
                     assert_eq!(jvm.load_array::<i32>(&event, 0, 1).await?, [EventQueueEvent::RepaintEvent as i32]);
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
+                        .await?;
                     assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, count * 2);
                     assert_eq!(jvm.get_field::<i32>(&callback, "paintCount", "I").await?, count);
+                    assert!(jvm.get_field::<bool>(&display, "repaintPending", "Z").await?);
+                }
+                jvm.put_field(&mut callback, "repaintOnPaint", "Z", false).await?;
+                jvm.put_field(&mut callback, "repeat", "Z", false).await?;
+                for paint_count in 3..=4 {
+                    // First finish the callbacks, then repaint with no pending request or callback.
+                    system.event_queue().push(Event::Redraw);
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "getNextEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    let _: () = jvm
+                        .invoke_virtual(&queue, "net/wie/EventQueue", "dispatchEvent", "([I)V", (event.clone(),))
+                        .await?;
+                    assert_eq!(jvm.get_field::<i32>(&callback, "count", "I").await?, 6);
+                    assert_eq!(jvm.get_field::<i32>(&callback, "paintCount", "I").await?, paint_count);
+                    assert!(!jvm.get_field::<bool>(&display, "repaintPending", "Z").await?);
                 }
                 Ok(())
             },
