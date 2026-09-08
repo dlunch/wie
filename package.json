@@ -10,6 +10,7 @@
   },
   "author": "",
   "dependencies": {
+    "@sentry/browser": "^10.73.0",
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
     "lucide": "^1.40.0",

@@ -128,6 +128,8 @@ fn main() -> anyhow::Result<()> {
         .with_writer(stderr)
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+    let _guard =
+        sentry::init(sentry::ClientOptions::new().dsn("https://fa9187d6bd7dd43ae621f26d33641f81@o106536.ingest.us.sentry.io/4512048969678848"));
 
     let args = Args::parse();
 
