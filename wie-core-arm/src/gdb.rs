@@ -1,10 +1,10 @@
 #[cfg(any(target_arch = "wasm32", test))]
-mod external;
+mod dummy;
 #[cfg(not(target_arch = "wasm32"))]
 mod tcp;
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use external::start;
+pub(crate) use dummy::start;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use tcp::start;
 

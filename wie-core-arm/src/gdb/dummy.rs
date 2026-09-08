@@ -9,12 +9,11 @@ use crate::ArmCore;
 
 use super::{GdbBlockingEventLoop, GdbTarget};
 
-const UNAVAILABLE: &str = "GDB external-input transport is not implemented";
+const UNAVAILABLE: &str = "GDB dummy transport is unavailable";
 
-// Placeholder for a connection driven by the host's external input.
-struct ExternalInputConnection;
+struct DummyConnection;
 
-impl Connection for ExternalInputConnection {
+impl Connection for DummyConnection {
     type Error = &'static str;
 
     fn write(&mut self, _byte: u8) -> Result<(), Self::Error> {
@@ -30,7 +29,7 @@ impl Connection for ExternalInputConnection {
     }
 }
 
-impl ConnectionExt for ExternalInputConnection {
+impl ConnectionExt for DummyConnection {
     fn read(&mut self) -> Result<u8, Self::Error> {
         Err(UNAVAILABLE)
     }
@@ -43,8 +42,8 @@ impl ConnectionExt for ExternalInputConnection {
 pub(crate) fn start(core: ArmCore) -> wie_util::Result<()> {
     let mut target = GdbTarget::new(core);
     // Fail during connection initialization, before waiting for a guest thread.
-    GdbStub::new(ExternalInputConnection)
-        .run_blocking::<GdbBlockingEventLoop<ExternalInputConnection>>(&mut target)
+    GdbStub::new(DummyConnection)
+        .run_blocking::<GdbBlockingEventLoop<DummyConnection>>(&mut target)
         .map_err(|err| wie_util::WieError::FatalError(format!("{err}")))?;
     target.debug.detach()
 }
