@@ -7,12 +7,10 @@ mod context;
 mod core;
 mod engine;
 mod function;
+mod gdb;
 pub mod stdlib;
 mod thread;
 mod thread_wrapper;
-
-#[cfg(not(target_arch = "wasm32"))]
-mod gdb;
 
 pub type ThreadId = usize;
 

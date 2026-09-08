@@ -34,7 +34,6 @@ impl Future for ArmCoreThreadWrapper {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let _guard = self.core.enter_thread_context(self.thread_id);
 
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(debug) = self.core.debug_inner()
             && !debug.is_thread_resumed(self.thread_id)
         {

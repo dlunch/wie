@@ -16,14 +16,12 @@ toml = { workspace = true }
 tracing = { workspace = true }
 
 arm32_cpu = { version = "^0.1.0" }
+crossbeam = { version = "^0.8" }
+gdbstub = { version = "^0.7" }
+gdbstub_arch = { version = "^0.3" }
 
 wie-backend = { workspace = true }
 wie-util = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gdbstub = { version = "^0.7" }
-gdbstub_arch = { version = "^0.3" }
-crossbeam = { version = "^0.8" }
 
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }

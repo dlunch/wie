@@ -9,15 +9,10 @@ use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 use crate::{
     EmulatedFunction, ResultWriter, ThreadId,
     context::ArmCoreContext,
-    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, EngineStopReason, MemoryPermission},
+    engine::{Arm32CpuEngine, ArmEngine, ArmRegister, DebugInner, DebuggedArm32CpuEngine, EngineStopReason, MemoryPermission},
     function::{RegisteredFunction, RegisteredFunctionHolder},
     thread::ThreadState,
     thread_wrapper::ArmCoreThreadWrapper,
-};
-#[cfg(not(target_arch = "wasm32"))]
-use crate::{
-    engine::{DebugInner, DebuggedArm32CpuEngine},
-    gdb::GdbTarget,
 };
 
 const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
@@ -77,12 +72,7 @@ pub struct ArmCore {
 impl ArmCore {
     pub fn new(enable_gdbserver: bool, profile: Option<ProfileCallback>) -> Result<Self> {
         let mut engine = if enable_gdbserver {
-            #[cfg(not(target_arch = "wasm32"))]
-            let engine = Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>;
-            #[cfg(target_arch = "wasm32")]
-            let engine = Box::new(Arm32CpuEngine::new());
-
-            engine
+            Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>
         } else {
             Box::new(Arm32CpuEngine::new())
         };
@@ -111,16 +101,12 @@ impl ArmCore {
         };
 
         if enable_gdbserver {
-            #[cfg(not(target_arch = "wasm32"))]
-            GdbTarget::start(result.clone())?;
-            #[cfg(target_arch = "wasm32")]
-            panic!("GDB server is not supported on wasm32");
+            crate::gdb::start(result.clone())?;
         }
 
         Ok(result)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn debug_inner(&self) -> Option<Arc<DebugInner>> {
         let inner = self.inner.lock();
 
@@ -651,7 +637,6 @@ impl ThreadContextGuard {
         let context = core.threads.lock().get(&thread_id).unwrap().context.clone();
         core.restore_context(&context);
 
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(debug) = core.debug_inner() {
             debug.on_thread_entered(thread_id);
         }
@@ -666,7 +651,6 @@ impl Drop for ThreadContextGuard {
 
         self.core.threads.lock().get_mut(&self.thread_id).unwrap().context = context;
 
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(debug) = self.core.debug_inner() {
             debug.on_thread_exited(self.thread_id);
         }
@@ -719,14 +703,14 @@ mod tests {
         core.inner.lock().instructions_remaining = 5;
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         debug.on_thread_entered(1);
-        debug.resume(None, Some(vec![2]));
+        debug.resume(Vec::new(), Some(vec![2]));
 
         let observer = core.clone();
         let mut run = pin!(core.run_function::<()>(0x1001, &[]));
         let mut cx = Context::from_waker(Waker::noop());
         assert!(run.as_mut().poll(&mut cx).is_pending());
         assert_eq!(observer.inner.lock().instructions_remaining, 5);
-        debug.resume(None, None);
+        debug.resume(Vec::new(), None);
         assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
         assert_eq!(observer.inner.lock().instructions_remaining, 4);
     }
@@ -749,13 +733,13 @@ mod tests {
             .unwrap()
         );
         let _other = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        debug.resume(None, Some(vec![2]));
+        debug.resume(Vec::new(), Some(vec![2]));
         let (waker, wake_count) = futures_test::task::new_count_waker();
         let mut cx = Context::from_waker(&waker);
         assert!(task.as_mut().poll(&mut cx).is_pending());
         assert_eq!(wake_count, 0);
         assert_eq!(observed.load(Ordering::Relaxed), 0);
-        debug.resume(None, None);
+        debug.resume(Vec::new(), None);
         assert!(matches!(task.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
         assert_eq!(observed.load(Ordering::Relaxed), 1);
     }
@@ -782,7 +766,7 @@ mod tests {
             .unwrap(),
         );
         let _other = core.run_in_thread(|| async { Ok(()) }).unwrap();
-        debug.resume(None, None);
+        debug.resume(Vec::new(), None);
         assert!(task.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
 
         debug.interrupt();
@@ -794,7 +778,7 @@ mod tests {
         let mut context = debug.read_registers();
         context.r0 = 123;
         debug.write_registers(&context);
-        debug.resume(None, Some(vec![2]));
+        debug.resume(Vec::new(), Some(vec![2]));
         let _task = runner.join().unwrap();
         assert!(matches!(
             stopped,
