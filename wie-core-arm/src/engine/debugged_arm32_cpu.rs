@@ -22,7 +22,10 @@ enum ResumeMode {
 enum RunState {
     Initial,
     Paused,
-    Running(Vec<ThreadId>),
+    Running {
+        step_threads: Vec<ThreadId>,
+        svc_steps: BTreeSet<ThreadId>,
+    },
     Interrupt,
 }
 
@@ -238,19 +241,46 @@ impl DebugInner {
     pub(crate) fn interrupt(&self) {
         // ponytail: assumes a runnable thread; fully sleeping targets need an idle checkpoint.
         let mut state = self.run_state.lock();
-        if matches!(*state, RunState::Running(_)) {
+        if matches!(*state, RunState::Running { .. }) {
             *state = RunState::Interrupt;
         }
     }
 
     pub(crate) fn resume(&self, step_threads: Vec<ThreadId>, resumed_threads: Option<Vec<ThreadId>>) {
         *self.resumed_threads.lock() = resumed_threads;
-        *self.run_state.lock() = RunState::Running(step_threads);
+        *self.run_state.lock() = RunState::Running {
+            step_threads,
+            svc_steps: BTreeSet::new(),
+        };
         let _ = self.resume_tx.try_send(());
     }
 
     pub(crate) fn is_thread_resumed(&self, thread_id: ThreadId) -> bool {
         self.resumed_threads.lock().as_ref().is_none_or(|threads| threads.contains(&thread_id))
+    }
+
+    pub(crate) fn begin_svc_step(&self) -> Option<ThreadId> {
+        let thread_id = self.current_thread().unwrap_or(1);
+        let mut state = self.run_state.lock();
+        if let RunState::Running { step_threads, svc_steps } = &mut *state
+            && step_threads.contains(&thread_id)
+            && svc_steps.insert(thread_id)
+        {
+            Some(thread_id)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn end_svc_step(&self, thread_id: ThreadId, completed: bool) {
+        let mut state = self.run_state.lock();
+        if let RunState::Running { svc_steps, .. } = &mut *state
+            && svc_steps.remove(&thread_id)
+            && completed
+        {
+            *state = RunState::Paused;
+            self.stop_event_tx.send(DebugStopReason::DoneStep(thread_id)).unwrap();
+        }
     }
 
     pub(crate) fn detach(&self) -> wie_util::Result<()> {
@@ -329,8 +359,8 @@ impl DebugInner {
         loop {
             let state = self.run_state.lock();
             match &*state {
-                RunState::Running(step_threads) => {
-                    return if step_threads.contains(&thread_id) {
+                RunState::Running { step_threads, svc_steps } => {
+                    return if step_threads.contains(&thread_id) && !svc_steps.contains(&thread_id) {
                         ResumeMode::Step
                     } else {
                         ResumeMode::Continue
@@ -402,7 +432,6 @@ impl DebugInner {
 pub struct DebuggedArm32CpuEngine {
     debug: Arc<DebugInner>,
     pending_breakpoint_step: BTreeMap<ThreadId, u32>,
-    step_after_svc: BTreeSet<ThreadId>,
 }
 
 impl DebuggedArm32CpuEngine {
@@ -412,7 +441,6 @@ impl DebuggedArm32CpuEngine {
         Self {
             debug,
             pending_breakpoint_step: BTreeMap::new(),
-            step_after_svc: BTreeSet::new(),
         }
     }
 
@@ -438,14 +466,6 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 });
             }
             let stepping = matches!(resume_mode, ResumeMode::Step);
-
-            if let RunState::Running(step_threads) = &*self.debug.run_state.lock() {
-                self.step_after_svc.retain(|id| step_threads.contains(id));
-            }
-            if stepping && self.step_after_svc.remove(&thread_id) {
-                self.debug.stop(DebugStopReason::DoneStep(thread_id));
-                continue;
-            }
 
             if instructions_executed == count {
                 let mut result = self.debug.cpu.lock().run(end, 0)?;
@@ -486,12 +506,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     instructions_executed += result.instructions_executed;
                     result.instructions_executed = instructions_executed;
                     match result.stop_reason {
-                        EngineStopReason::Svc { .. } => {
-                            if stepping {
-                                self.step_after_svc.insert(thread_id);
-                            }
-                            return Ok(result);
-                        }
+                        EngineStopReason::Svc { .. } => return Ok(result),
                         _ if stepping && executed_instruction => self.debug.stop(DebugStopReason::DoneStep(self.stop_thread_id())),
                         EngineStopReason::Yield if instructions_executed < count => continue,
                         _ => return Ok(result),
@@ -569,8 +584,10 @@ mod tests {
         let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
             panic!("expected SVC");
         };
+        let thread_id = engine.debug.begin_svc_step().unwrap();
         engine.reg_write(ArmRegister::Cpsr, spsr);
         engine.reg_write(ArmRegister::PC, lr);
+        engine.debug.end_svc_step(thread_id, true);
 
         let debug = engine.debug.clone();
         let runner = std::thread::spawn(move || engine.run(0, 1));
@@ -601,11 +618,13 @@ mod tests {
             let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
                 panic!("expected SVC");
             };
+            assert_eq!(engine.debug.begin_svc_step(), Some(thread_id));
             contexts.push((lr, spsr));
         }
         engine.reg_write(ArmRegister::Cpsr, contexts[0].1);
         engine.reg_write(ArmRegister::PC, contexts[0].0);
         engine.debug.on_thread_entered(1);
+        engine.debug.end_svc_step(1, true);
         let debug = engine.debug.clone();
         let runner = std::thread::spawn(move || engine.run(0, 1));
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));

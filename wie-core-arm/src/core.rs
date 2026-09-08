@@ -267,12 +267,19 @@ impl ArmCore {
 
             self.sample_profile();
 
-            if let EngineStopReason::Svc { lr, spsr, .. } = result {
+            let svc_step = if let EngineStopReason::Svc { lr, spsr, .. } = result {
                 // Leave exception mode before yielding: thread contexts do not save banked SVC registers.
-                let mut inner = self.inner.lock();
-                inner.engine.reg_write(ArmRegister::Cpsr, spsr);
-                inner.engine.reg_write(ArmRegister::PC, lr);
-            }
+                {
+                    let mut inner = self.inner.lock();
+                    inner.engine.reg_write(ArmRegister::Cpsr, spsr);
+                    inner.engine.reg_write(ArmRegister::PC, lr);
+                }
+                // Nested ARM calls remain part of this handler's single step.
+                self.debug_inner()
+                    .and_then(|debug| debug.begin_svc_step().map(|thread_id| (debug, thread_id)))
+            } else {
+                None
+            };
 
             if should_yield {
                 YieldFuture::new().await;
@@ -292,7 +299,11 @@ impl ArmCore {
                     };
 
                     let mut self1 = self.clone();
-                    function.call(&mut self1).await?;
+                    let result = function.call(&mut self1).await;
+                    if let Some((debug, thread_id)) = svc_step {
+                        debug.end_svc_step(thread_id, result.is_ok());
+                    }
+                    result?;
                 }
             }
         }
@@ -804,6 +815,70 @@ mod tests {
         let value = core.run_function(0x10001, &[0]).await?;
         result.store(value, Ordering::Relaxed);
         Ok(JumpTo(pc | 1))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn stepping_svc_waits_for_nested_handlers_and_preserves_breakpoints() {
+        extern crate std;
+
+        use crate::engine::{DebugBreakpointKind, DebugStopReason};
+
+        for breakpoint in [false, true] {
+            let mut core = ArmCore::new(false, None).unwrap();
+            let engine = DebuggedArm32CpuEngine::new();
+            let debug = engine.debug_inner();
+            core.inner.lock().engine = Box::new(engine);
+            // Also exercise suspension between the SVC instruction and its host handler.
+            core.inner.lock().instructions_remaining = 1;
+            crate::Allocator::init(&mut core).unwrap();
+            let result = Arc::new(AtomicU32::new(0));
+            let calls = Arc::new(AtomicU32::new(0));
+            core.register_svc_handler(1, call_nested_arm, &result).unwrap();
+            core.register_svc_handler(2, count_inline_svc, &calls).unwrap();
+            core.load(&[0x01, 0xdf, 0x01, 0x30, 0x70, 0x47], 0x1000, 6).unwrap(); // svc #1; add r0, #1; bx lr
+            core.load(&[0x02, 0xdf, 0x01, 0x30, 0x70, 0x47], 0x10000, 6).unwrap(); // svc #2; add r0, #1; bx lr
+            if breakpoint {
+                debug.add_breakpoint(0x10000, DebugBreakpointKind::Thumb16).unwrap();
+            }
+            let mut running = core.clone();
+            let task = core
+                .run_in_thread(move || async move { running.run_function::<()>(0x1001, &[0]).await })
+                .unwrap();
+            debug.resume(vec![1], None);
+            let (tx, rx) = crossbeam::channel::bounded(1);
+            let runner = std::thread::spawn(move || tx.send(futures::executor::block_on(task)).unwrap());
+            let stopped = debug.recv_stop_event_timeout(std::time::Duration::from_secs(1));
+            let context = debug.read_registers();
+            let completed = (result.load(Ordering::Relaxed), calls.load(Ordering::Relaxed));
+            let nested_stop = if breakpoint {
+                debug.resume(vec![1], None);
+                let stopped = debug.recv_stop_event_timeout(std::time::Duration::from_secs(1));
+                Some((stopped, debug.read_registers(), calls.load(Ordering::Relaxed)))
+            } else {
+                None
+            };
+            debug.resume(Vec::new(), None);
+            let finished = rx.recv_timeout(std::time::Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            finished.unwrap().unwrap();
+
+            if let Some((nested_stop, nested_context, nested_calls)) = nested_stop {
+                assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
+                assert_eq!(context.pc, 0x10000);
+                assert_eq!(completed, (0, 0));
+                assert!(matches!(nested_stop, Ok(DebugStopReason::DoneStep(1))));
+                assert_eq!(nested_context.pc, 0x10002);
+                assert_eq!(nested_calls, 1);
+            } else {
+                assert!(matches!(stopped, Ok(DebugStopReason::DoneStep(1))));
+                assert_eq!(context.pc, 0x1002);
+                assert_eq!(context.r0, 0);
+                assert_eq!(completed, (1, 1));
+            }
+            assert_eq!(result.load(Ordering::Relaxed), 1);
+        }
     }
 
     #[test]
