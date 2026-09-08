@@ -111,4 +111,6 @@ wie-util = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "^0.4", features = ["wasm_js"] } # not direct dependency, but broken without it in wasm build
+# Enable Web Crypto for Sentry's getrandom 0.3; the 0.4 feature does not apply.
+getrandom_03 = { package = "getrandom", version = "^0.3", features = ["wasm_js"] }
 web-sys = { version = "=0.3.85" }                        # We need 0.3.85 to not break midir wasm build
