@@ -40,6 +40,7 @@ pub enum TestPlatformEvent {
 }
 
 pub struct TestPlatform {
+    phone_number: Option<String>,
     screen: TestScreen,
     event_handler: Option<Box<dyn Fn(TestPlatformEvent) + Sync + Send>>,
     fs: Arc<MemoryFilesystem>,
@@ -55,8 +56,14 @@ impl Default for TestPlatform {
 }
 
 impl TestPlatform {
+    pub fn with_phone_number(mut self, number: &str) -> Self {
+        self.phone_number = Some(String::from(number));
+        self
+    }
+
     pub fn new() -> Self {
         Self {
+            phone_number: None,
             screen: TestScreen::default(),
             event_handler: None,
             fs: Arc::new(MemoryFilesystem::default()),
@@ -71,6 +78,7 @@ impl TestPlatform {
         T: Fn(TestPlatformEvent) + Sync + Send + 'static,
     {
         Self {
+            phone_number: None,
             screen: TestScreen::default(),
             event_handler: Some(Box::new(event_handler)),
             fs: Arc::new(MemoryFilesystem::default()),
@@ -82,6 +90,7 @@ impl TestPlatform {
 
     pub fn with_clock(clock: TestClock) -> Self {
         Self {
+            phone_number: None,
             screen: TestScreen::default(),
             event_handler: None,
             fs: Arc::new(MemoryFilesystem::default()),
@@ -93,6 +102,9 @@ impl TestPlatform {
 }
 
 impl Platform for TestPlatform {
+    fn phone_number(&self) -> Option<&str> {
+        self.phone_number.as_deref()
+    }
     fn font(&self) -> &Font {
         &self.font
     }

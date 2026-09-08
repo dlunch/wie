@@ -35,12 +35,17 @@ pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWo
     let id_bytes = read_null_terminated_string_bytes(context, ptr_id)?;
     let id = encoding_rs::EUC_KR.decode(&id_bytes).0;
 
+    let phone_number = if matches!(id.as_ref(), "PHONENUMBER" | "MIN") {
+        context.system().platform().phone_number().map(String::from)
+    } else {
+        None
+    };
     let value = match id.as_ref() {
         "RSSILEVEL" => "30",
         "BATTERYLEVEL" => "100",
         "PHONEMODEL" => "Emulator",
-        "PHONENUMBER" => "", // putting this cause some game to fail authentication
-        "MIN" => "01000000000",
+        "PHONENUMBER" => phone_number.as_deref().unwrap_or(""),
+        "MIN" => phone_number.as_deref().unwrap_or("01000000000"),
         "ANNUN_CALL" => "0",
         "ANNUN_SMS" => "0",
         "ANNUN_SILENT" => "0",
@@ -334,7 +339,12 @@ mod test {
 
     #[futures_test::test]
     async fn test_get_system_property_min() -> Result<()> {
-        let mut context = TestContext::new();
+        let mut context = TestContext::with_system(wie_backend::System::new(
+            Box::new(test_utils::TestPlatform::new()),
+            "test",
+            "test",
+            wie_backend::DefaultTaskRunner,
+        ));
         let id = context.alloc_raw(16).unwrap();
         let out = context.alloc_raw(16).unwrap();
 
@@ -344,6 +354,30 @@ mod test {
         let result = read_null_terminated_string_bytes(&context, out).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "01000000000");
 
+        Ok(())
+    }
+
+    #[futures_test::test]
+    async fn test_provisioned_phone_identity_and_short_buffer() -> Result<()> {
+        let platform = test_utils::TestPlatform::new().with_phone_number("01012345678");
+        let mut context = TestContext::with_system(wie_backend::System::new(
+            Box::new(platform),
+            "test",
+            "test",
+            wie_backend::DefaultTaskRunner,
+        ));
+        let id = context.alloc_raw(32)?;
+        let out = context.alloc_raw(16)?;
+        for name in [b"PHONENUMBER".as_slice(), b"MIN".as_slice()] {
+            write_null_terminated_string_bytes(&mut context, id, name)?;
+            context.write_bytes(out, &[0xa5; 16])?;
+            assert_eq!(get_system_property(&mut context, id, out, 11).await?, -18);
+            let mut unchanged = [0; 16];
+            context.read_bytes(out, &mut unchanged)?;
+            assert_eq!(unchanged, [0xa5; 16]);
+            assert_eq!(get_system_property(&mut context, id, out, 12).await?, 0);
+            assert_eq!(read_null_terminated_string_bytes(&context, out)?, b"01012345678");
+        }
         Ok(())
     }
 

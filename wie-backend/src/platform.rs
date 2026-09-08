@@ -3,6 +3,11 @@ use alloc::boxed::Box;
 use crate::{audio_sink::AudioSink, canvas::Font, database::DatabaseRepository, screen::Screen, time::Instant};
 
 pub trait Platform: Send + Sync {
+    /// Optional provisioned identity for this emulator instance.
+    fn phone_number(&self) -> Option<&str> {
+        None
+    }
+
     fn font(&self) -> &Font;
     fn screen(&self) -> &dyn Screen;
     fn now(&self) -> Instant;
