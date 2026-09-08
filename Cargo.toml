@@ -53,7 +53,7 @@ lazy_static = { version = "^1.5", default-features = false }
 md5 = { version = "^0.8", default-features = false }
 rustjava-runtime = { version = "^0.1.1" }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
-sentry = { version = "^0.49", default-features = false }
+sentry = { version = "^0.49", features = ["anyhow", "tracing"] }
 spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-features = false }
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
@@ -87,8 +87,17 @@ description = "WIPI and J2ME emulator"
 repository.workspace = true
 exclude = ["docs"]
 
+[lib]
+name = "wie"
+
+[[bin]]
+name = "wie"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = { workspace = true, features = ["backtrace"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-trait = { workspace = true }
 clap = { workspace = true }
 sentry = { workspace = true }
@@ -108,9 +117,3 @@ wie-ktf = { workspace = true }
 wie-lgt = { workspace = true }
 wie-skt = { workspace = true }
 wie-util = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "^0.4", features = ["wasm_js"] } # not direct dependency, but broken without it in wasm build
-# Enable Web Crypto for Sentry's getrandom 0.3; the 0.4 feature does not apply.
-getrandom_03 = { package = "getrandom", version = "^0.3", features = ["wasm_js"] }
-web-sys = { version = "=0.3.85" }                        # We need 0.3.85 to not break midir wasm build

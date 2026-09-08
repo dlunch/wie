@@ -21,7 +21,6 @@ path = "src/rust/lib.rs"
 async-trait = { workspace = true }
 anyhow = { workspace = true }
 futures = { workspace = true }
-sentry = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
@@ -40,7 +39,3 @@ wie-lgt = { workspace = true }
 wie-skt = { workspace = true }
 wie-j2me = { workspace = true }
 wie-util = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-# Enable Web Crypto for Sentry's transitive getrandom dependency.
-getrandom = { version = "^0.3", features = ["wasm_js"] }
