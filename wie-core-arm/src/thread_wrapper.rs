@@ -34,6 +34,12 @@ impl Future for ArmCoreThreadWrapper {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let _guard = self.core.enter_thread_context(self.thread_id);
 
+        if let Some(debug) = self.core.debug_inner()
+            && !debug.is_thread_resumed(self.thread_id)
+        {
+            return Poll::Pending;
+        }
+
         self.future.as_mut().poll(cx)
     }
 }

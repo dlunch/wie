@@ -63,7 +63,7 @@ impl ArmEngine for Arm32CpuEngine {
             }
 
             if instructions_executed == count {
-                break EngineStopReason::CountExhausted;
+                break EngineStopReason::Yield;
             }
 
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
@@ -371,7 +371,7 @@ mod tests {
             assert_eq!(result.instructions_executed, expected_count);
             assert!(matches!(
                 (result.stop_reason, at_end),
-                (EngineStopReason::End, true) | (EngineStopReason::CountExhausted, false)
+                (EngineStopReason::End, true) | (EngineStopReason::Yield, false)
             ));
         }
     }

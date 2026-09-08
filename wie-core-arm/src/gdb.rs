@@ -1,12 +1,15 @@
-extern crate std; // we need thread
+#[cfg(any(target_arch = "wasm32", test))]
+mod dummy;
+#[cfg(not(target_arch = "wasm32"))]
+mod tcp;
 
-use alloc::{format, sync::Arc};
-use std::{
-    io,
-    net::{TcpListener, TcpStream},
-    println, thread,
-    time::Duration,
-};
+#[cfg(target_arch = "wasm32")]
+pub(crate) use dummy::start;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use tcp::start;
+
+use alloc::{sync::Arc, vec::Vec};
+use core::{marker::PhantomData, time::Duration};
 
 use crossbeam::channel;
 use gdbstub::{
@@ -14,14 +17,17 @@ use gdbstub::{
     common::{Pid, Signal, Tid},
     conn::ConnectionExt,
     stub::{
-        DisconnectReason, GdbStub, MultiThreadStopReason,
+        MultiThreadStopReason,
         run_blocking::{BlockingEventLoop, Event, WaitForStopReasonError},
     },
     target::{
         Target, TargetError, TargetResult,
         ext::base::{
             BaseOps,
-            multithread::{MultiThreadBase, MultiThreadResume, MultiThreadResumeOps, MultiThreadSingleStep, MultiThreadSingleStepOps},
+            multithread::{
+                MultiThreadBase, MultiThreadResume, MultiThreadResumeOps, MultiThreadSchedulerLocking, MultiThreadSchedulerLockingOps,
+                MultiThreadSingleStep, MultiThreadSingleStepOps,
+            },
         },
         ext::breakpoints::{Breakpoints, BreakpointsOps, SwBreakpoint, SwBreakpointOps},
         ext::extended_mode::{Args, AttachKind, CurrentActivePid, CurrentActivePidOps, ExtendedMode, ExtendedModeOps, ShouldTerminate},
@@ -39,6 +45,7 @@ type GdbTargetError = &'static str;
 
 fn to_gdb_signal(signal: DebugSignal) -> Signal {
     match signal {
+        DebugSignal::Int => Signal::SIGINT,
         DebugSignal::Kill => Signal::SIGKILL,
         DebugSignal::Segv => Signal::SIGSEGV,
         DebugSignal::Sys => Signal::SIGSYS,
@@ -49,8 +56,15 @@ fn to_gdb_signal(signal: DebugSignal) -> Signal {
 
 fn to_gdb_stop_reason(reason: DebugStopReason) -> MultiThreadStopReason<u32> {
     match reason {
-        DebugStopReason::Signal(signal) => MultiThreadStopReason::Signal(to_gdb_signal(signal)),
+        DebugStopReason::Signal(signal, thread_id) => MultiThreadStopReason::SignalWithThread {
+            signal: to_gdb_signal(signal),
+            tid: Tid::try_from(thread_id).unwrap(),
+        },
         DebugStopReason::SwBreak(thread_id) => MultiThreadStopReason::SwBreak(Tid::try_from(thread_id).unwrap()),
+        DebugStopReason::DoneStep(thread_id) => MultiThreadStopReason::SignalWithThread {
+            signal: Signal::SIGTRAP,
+            tid: Tid::try_from(thread_id).unwrap(),
+        },
     }
 }
 
@@ -89,84 +103,20 @@ fn regs_to_context(regs: &ArmCoreRegs) -> ArmCoreContext {
 pub struct GdbTarget {
     core: ArmCore,
     debug: Arc<DebugInner>,
-    resume_step: bool,
+    step_threads: Vec<crate::ThreadId>,
+    resumed_threads: Vec<crate::ThreadId>,
+    scheduler_locked: bool,
 }
 
 impl GdbTarget {
-    pub fn start(core: ArmCore) -> wie_util::Result<()> {
-        let debug = {
-            let inner = core.inner.lock();
-
-            inner
-                .engine
-                .as_any()
-                .downcast_ref::<crate::engine::DebuggedArm32CpuEngine>()
-                .unwrap()
-                .debug_inner()
-        };
-
-        let (startup_tx, startup_rx) = channel::bounded(1);
-        let this = GdbTarget {
+    fn new(core: ArmCore) -> Self {
+        let debug = core.debug_inner().unwrap();
+        Self {
             core,
             debug,
-            resume_step: false,
-        };
-
-        thread::spawn(move || {
-            let _ = this.run_gdb_server(startup_tx);
-        });
-
-        match startup_rx.recv() {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err(err)) => Err(wie_util::WieError::FatalError(format!("Failed to start GDB server: {err}"))),
-            Err(err) => Err(wie_util::WieError::FatalError(format!("Failed to wait for debugger run request: {err}"))),
-        }
-    }
-
-    fn run_gdb_server(mut self, startup_tx: channel::Sender<io::Result<()>>) -> io::Result<()> {
-        let sock = TcpListener::bind("127.0.0.1:2159")?;
-        println!("GDB server listening on {}", sock.local_addr()?);
-
-        let _ = startup_tx.send(Ok(()));
-
-        loop {
-            let (stream, addr) = sock.accept()?;
-
-            println!("GDB client attached from {addr}");
-
-            let gdb = GdbStub::new(stream);
-
-            match gdb.run_blocking::<GdbBlockingEventLoop>(&mut self) {
-                Ok(DisconnectReason::Disconnect) => {
-                    println!("GDB client requested detach");
-                    println!("GDB client detached");
-                }
-                Ok(DisconnectReason::TargetExited(code)) => {
-                    println!("GDB session ended: target exited with code {code}");
-                    return Ok(());
-                }
-                Ok(DisconnectReason::TargetTerminated(sig)) => {
-                    println!("GDB session ended: target terminated with signal {sig:?}");
-                    return Ok(());
-                }
-                Ok(DisconnectReason::Kill) => {
-                    println!("GDB session ended: kill requested");
-                    return Ok(());
-                }
-                Err(err) if err.is_connection_error() => {
-                    if let Some((conn_err, kind)) = err.into_connection_error() {
-                        println!("GDB client disconnected");
-                        println!("GDB connection closed ({kind:?}): {conn_err}");
-                    }
-                }
-                Err(err) if err.is_target_error() => {
-                    return Err(io::Error::other(format!("GDB target error: {}", err.into_target_error().unwrap())));
-                }
-                Err(err) => {
-                    return Err(io::Error::other(format!("GDB server error: {err}")));
-                }
-            }
-            println!("GDB server waiting for next client");
+            step_threads: Vec::new(),
+            resumed_threads: Vec::new(),
+            scheduler_locked: false,
         }
     }
 }
@@ -205,6 +155,9 @@ impl MultiThreadBase for GdbTarget {
     #[inline(always)]
     fn read_registers(&mut self, regs: &mut ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
         let thread_id = u32::try_from(tid.get()).map_err(|_| TargetError::NonFatal)? as usize;
+        if !self.core.get_thread_ids().contains(&thread_id) {
+            return Err(TargetError::NonFatal);
+        }
         let ctx = if self.debug.current_thread() == Some(thread_id) {
             self.debug.read_registers()
         } else {
@@ -218,6 +171,9 @@ impl MultiThreadBase for GdbTarget {
     #[inline(always)]
     fn write_registers(&mut self, regs: &ArmCoreRegs, tid: Tid) -> TargetResult<(), Self> {
         let thread_id = u32::try_from(tid.get()).map_err(|_| TargetError::NonFatal)? as usize;
+        if !self.core.get_thread_ids().contains(&thread_id) {
+            return Err(TargetError::NonFatal);
+        }
         let ctx = regs_to_context(regs);
 
         if self.debug.current_thread() == Some(thread_id) {
@@ -241,7 +197,10 @@ impl MultiThreadBase for GdbTarget {
 
     #[inline(always)]
     fn list_active_threads(&mut self, thread_is_active: &mut dyn FnMut(Tid)) -> Result<(), Self::Error> {
-        let thread_ids = self.debug.active_threads();
+        let mut thread_ids = self.core.get_thread_ids();
+        if let Some(index) = thread_ids.iter().position(|&id| Some(id) == self.debug.current_thread()) {
+            thread_ids.swap(0, index);
+        }
 
         for thread_id in thread_ids {
             thread_is_active(Tid::try_from(thread_id).unwrap());
@@ -253,33 +212,46 @@ impl MultiThreadBase for GdbTarget {
 
 impl MultiThreadResume for GdbTarget {
     fn resume(&mut self) -> Result<(), Self::Error> {
-        if self.resume_step {
-            self.debug.resume_step();
-        } else {
-            self.debug.resume_continue();
-        }
+        self.debug.resume(
+            core::mem::take(&mut self.step_threads),
+            self.scheduler_locked.then(|| core::mem::take(&mut self.resumed_threads)),
+        );
 
         Ok(())
     }
 
     fn clear_resume_actions(&mut self) -> Result<(), Self::Error> {
-        self.resume_step = false;
+        self.step_threads.clear();
+        self.resumed_threads.clear();
+        self.scheduler_locked = false;
         Ok(())
     }
 
-    fn set_resume_action_continue(&mut self, _tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
-        self.resume_step = false;
+    fn set_resume_action_continue(&mut self, tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
+        self.resumed_threads.push(tid.get());
         Ok(())
     }
 
     fn support_single_step(&mut self) -> Option<MultiThreadSingleStepOps<'_, Self>> {
         Some(self)
     }
+
+    fn support_scheduler_locking(&mut self) -> Option<MultiThreadSchedulerLockingOps<'_, Self>> {
+        Some(self)
+    }
+}
+
+impl MultiThreadSchedulerLocking for GdbTarget {
+    fn set_resume_action_scheduler_lock(&mut self) -> Result<(), Self::Error> {
+        self.scheduler_locked = true;
+        Ok(())
+    }
 }
 
 impl MultiThreadSingleStep for GdbTarget {
-    fn set_resume_action_step(&mut self, _tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
-        self.resume_step = true;
+    fn set_resume_action_step(&mut self, tid: Tid, _signal: Option<Signal>) -> Result<(), Self::Error> {
+        self.step_threads.push(tid.get());
+        self.resumed_threads.push(tid.get());
         Ok(())
     }
 }
@@ -312,27 +284,30 @@ impl SwBreakpoint for GdbTarget {
 
 impl ExtendedMode for GdbTarget {
     fn run(&mut self, _filename: Option<&[u8]>, _args: Args<'_, '_>) -> TargetResult<Pid, Self> {
-        if self.debug.active_threads().is_empty() {
-            self.debug.wait_for_thread_ready();
-        }
-
-        Ok(Pid::new(1).unwrap())
+        Err(TargetError::NonFatal)
     }
 
-    fn attach(&mut self, _pid: Pid) -> TargetResult<(), Self> {
+    fn attach(&mut self, pid: Pid) -> TargetResult<(), Self> {
+        if pid.get() != 1 {
+            return Err(TargetError::NonFatal);
+        }
+        self.debug.pause();
         Ok(())
     }
 
-    fn query_if_attached(&mut self, _pid: Pid) -> TargetResult<AttachKind, Self> {
+    fn query_if_attached(&mut self, pid: Pid) -> TargetResult<AttachKind, Self> {
+        if pid.get() != 1 {
+            return Err(TargetError::NonFatal);
+        }
         Ok(AttachKind::Attach)
     }
 
     fn kill(&mut self, _pid: Option<Pid>) -> TargetResult<ShouldTerminate, Self> {
-        Ok(ShouldTerminate::No)
+        Err(TargetError::NonFatal)
     }
 
     fn restart(&mut self) -> Result<(), Self::Error> {
-        Ok(())
+        Err("Restarting the emulator through GDB is not supported")
     }
 
     fn support_current_active_pid(&mut self) -> Option<CurrentActivePidOps<'_, Self>> {
@@ -346,18 +321,18 @@ impl CurrentActivePid for GdbTarget {
     }
 }
 
-struct GdbBlockingEventLoop;
+struct GdbBlockingEventLoop<C>(PhantomData<C>);
 
-impl BlockingEventLoop for GdbBlockingEventLoop {
+impl<C: ConnectionExt> BlockingEventLoop for GdbBlockingEventLoop<C> {
     type Target = GdbTarget;
-    type Connection = TcpStream;
+    type Connection = C;
 
     type StopReason = MultiThreadStopReason<u32>;
 
     fn wait_for_stop_reason(
         target: &mut GdbTarget,
         conn: &mut Self::Connection,
-    ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, io::Error>> {
+    ) -> Result<Event<MultiThreadStopReason<u32>>, WaitForStopReasonError<GdbTargetError, C::Error>> {
         loop {
             match target.debug.recv_stop_event_timeout(Duration::from_millis(10)) {
                 Ok(reason) => return Ok(Event::TargetStopped(to_gdb_stop_reason(reason))),
