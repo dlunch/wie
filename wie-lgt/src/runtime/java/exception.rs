@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 
-use wie_core_arm::{Allocator, ArmCore, ArmCoreContext};
+use wie_core_arm::{Allocator, ArmCore, ArmCoreContext, RUN_FUNCTION_LR};
 use wie_util::{Result, read_generic, write_generic};
 
 const SUPPORT_CONTEXT_BASE: u32 = 0x7fff0000;
@@ -66,6 +66,11 @@ pub fn pending(core: &ArmCore) -> Result<u32> {
 }
 
 pub fn unwind(core: &mut ArmCore, ptr_exception: u32) -> Result<Option<u32>> {
+    // Rust callers must handle the exception before an enclosing guest catch can run.
+    if core.read_pc_lr()?.1 == RUN_FUNCTION_LR {
+        return Ok(None);
+    }
+
     let mut support_context: JavaSupportContext = read_generic(core, SUPPORT_CONTEXT_BASE)?;
     if support_context.ptr_current_exception_frame == 0 {
         return Ok(None);
