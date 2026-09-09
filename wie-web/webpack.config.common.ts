@@ -20,31 +20,43 @@ class WasmPackPlugin {
     const cargoBin = path.join(os.homedir(), ".cargo", "bin");
     const env = { ...process.env, PATH: `${cargoBin}${path.delimiter}${process.env.PATH ?? ""}` };
 
-    const rustDir = path.join(this.crateDir, "src/rust");
-    const cargoToml = path.join(this.crateDir, "Cargo.toml");
+    const root = path.dirname(this.crateDir);
+    const compilerDir = path.join(root, "wie-arm-wasm/compiler");
+    const sourceDirs = [
+      path.join(this.crateDir, "src/rust"),
+      path.join(root, "wie-arm-jit/src"),
+      path.join(root, "wie-arm-wasm/src"),
+      path.join(compilerDir, "src"),
+      path.join(root, "wie-core-arm/src"),
+    ];
+    const manifests = [root, this.crateDir, path.join(root, "wie-arm-jit"), path.join(root, "wie-arm-wasm"), compilerDir, path.join(root, "wie-core-arm")]
+      .map(dir => path.join(dir, "Cargo.toml"));
+    manifests.push(path.join(root, "Cargo.lock"), path.join(compilerDir, "Cargo.lock"));
 
     let needsBuild = true;
 
     compiler.hooks.watchRun.tap("WasmPackPlugin", () => {
       const modified = compiler.modifiedFiles;
       if (!modified) return;
-      needsBuild = [...modified].some(f => f === cargoToml || f.startsWith(rustDir + path.sep));
+      needsBuild ||= [...modified].some(f => manifests.includes(f) || sourceDirs.some(dir => f === dir || f.startsWith(dir + path.sep)));
     });
 
-    compiler.hooks.beforeCompile.tapPromise("WasmPackPlugin", () => {
-      if (!needsBuild) return Promise.resolve();
+    compiler.hooks.beforeCompile.tapPromise("WasmPackPlugin", async () => {
+      if (!needsBuild) return;
+      for (const crateDir of [compilerDir, this.crateDir]) {
+        await new Promise<void>((resolve, reject) => {
+          const args = ["build", crateDir, "--target", "bundler", dev ? "--dev" : "--release"];
+          const proc = spawn("wasm-pack", args, { stdio: "inherit", env });
+          proc.on("exit", code => code === 0 ? resolve() : reject(new Error(`wasm-pack exited with code ${code}`)));
+          proc.on("error", reject);
+        });
+      }
       needsBuild = false;
-      return new Promise<void>((resolve, reject) => {
-        const args = ["build", this.crateDir, "--target", "bundler", dev ? "--dev" : "--release"];
-        const proc = spawn("wasm-pack", args, { stdio: "inherit", env });
-        proc.on("exit", code => code === 0 ? resolve() : reject(new Error(`wasm-pack exited with code ${code}`)));
-        proc.on("error", reject);
-      });
     });
 
     compiler.hooks.afterCompile.tap("WasmPackPlugin", compilation => {
-      compilation.contextDependencies.add(rustDir);
-      compilation.fileDependencies.add(cargoToml);
+      for (const dir of sourceDirs) compilation.contextDependencies.add(dir);
+      for (const manifest of manifests) compilation.fileDependencies.add(manifest);
     });
   }
 }
@@ -63,6 +75,8 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
     alias: {
       "@css": path.resolve(import.meta.dirname, "src/css"),
       "@ts": path.resolve(import.meta.dirname, "src/ts"),
+      "@wie-arm-worker": path.resolve(import.meta.dirname, "../wie-arm-wasm/src/worker.js"),
+      "@wie-arm-compiler": path.resolve(import.meta.dirname, "../wie-arm-wasm/compiler/pkg/wie_arm_wasm_compiler.js"),
     },
     extensions: [".ts", ".js"],
     plugins: [

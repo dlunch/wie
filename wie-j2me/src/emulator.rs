@@ -163,6 +163,12 @@ impl J2MEEmulator {
     }
 }
 
+impl Drop for J2MEEmulator {
+    fn drop(&mut self) {
+        self.system.shutdown();
+    }
+}
+
 impl Emulator for J2MEEmulator {
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
@@ -253,6 +259,32 @@ impl J2MEDescriptor {
 #[cfg(test)]
 mod tests {
     use super::J2MEDescriptor;
+
+    #[test]
+    fn dropping_emulator_releases_pending_tasks() {
+        use alloc::{boxed::Box, sync::Arc};
+        use wie_backend::{DefaultTaskRunner, Emulator, System};
+
+        for started in [false, true] {
+            let resource = Arc::new(());
+            let weak = Arc::downgrade(&resource);
+            let platform = test_utils::TestPlatform::with_event_handler(move |_| {
+                let _ = &resource;
+            });
+            let system = System::new(Box::new(platform), "", "", DefaultTaskRunner);
+            let task_system = system.clone();
+            system.spawn(async move || {
+                task_system.sleep(10_000).await;
+                Ok(())
+            });
+            let mut emulator = super::J2MEEmulator { system };
+            if started {
+                emulator.tick().unwrap();
+            }
+            drop(emulator);
+            assert!(weak.upgrade().is_none(), "started={started}");
+        }
+    }
 
     #[test]
     fn parses_utf8_midlet_metadata() {

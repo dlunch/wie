@@ -1,0 +1,16 @@
+[package]
+name = "wie-arm-wasm-compiler"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dlmalloc = { version = "^0.2", default-features = false, features = ["global"] }
+wasm-bindgen = { version = "^0.2", default-features = false }
+wie-arm-wasm = { path = "..", features = ["compiler-runtime"] }

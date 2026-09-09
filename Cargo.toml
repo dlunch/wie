@@ -6,6 +6,8 @@ members = [
     "wie-backend",
     "wie-util",
     "wie-core-arm",
+    "wie-arm-jit",
+    "wie-arm-wasm",
     "wie-jvm-support",
     "wie-wipi-java",
     "wie-wipi-c",
@@ -50,9 +52,9 @@ jvm-bytecode = { version = "^0.1.1" }
 jvm-class-proto = { version = "^0.1.1" }
 jvm-types = { version = "^0.1.1" }
 lazy_static = { version = "^1.5", default-features = false }
-md5 = { version = "^0.8", default-features = false }
 rustjava-runtime = { version = "^0.1.1" }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "^1", default-features = false, features = ["alloc"] }
 sentry = { version = "^0.49", features = ["anyhow", "tracing"] }
 spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-features = false }
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
@@ -68,6 +70,8 @@ wie-midp = { version = "0.1.0", path = "wie-midp" }
 wie-skt = { version = "0.1.0", path = "wie-skt" }
 wie-util = { version = "0.1.0", path = "wie-util" }
 wie-core-arm = { version = "0.1.0", path = "wie-core-arm" }
+wie-arm-jit = { version = "0.1.0", path = "wie-arm-jit" }
+wie-arm-wasm = { version = "0.1.0", path = "wie-arm-wasm" }
 wie-jvm-support = { version = "0.1.0", path = "wie-jvm-support" }
 wie-skvm = { version = "0.1.0", path = "wie-skvm" }
 wie-wipi-c = { version = "0.1.0", path = "wie-wipi-c" }

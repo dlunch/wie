@@ -1,0 +1,18 @@
+[package]
+name = "wie-arm-browser-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dlmalloc = { version = "^0.2", default-features = false, features = ["global"] }
+serde_json = { version = "^1", default-features = false, features = ["alloc"] }
+wasm-bindgen = { version = "^0.2", default-features = false }
+wie-arm-jit = { path = "../../../wie-arm-jit" }
+wie-arm-wasm = { path = "../.." }

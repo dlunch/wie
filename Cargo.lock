@@ -367,9 +367,9 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arm32_cpu"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "359e8364b274abfc953f0b9b0aaf7cf7123cb9a01a6dc92d8c6e1d9439405d60"
+checksum = "7f7a9c5826e2605a61f450e9153e920407383103c4e7890227336f0b9a66f310"
 dependencies = [
  "log",
 ]
@@ -2850,6 +2850,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "leb128fmt"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3011,12 +3017,6 @@ checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
 dependencies = [
  "regex-automata",
 ]
-
-[[package]]
-name = "md5"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebb8d8732c6a6df3d8f032a82911cfc747e00efb95cc46e8d0acd5b5b88570c"
 
 [[package]]
 name = "memchr"
@@ -5774,10 +5774,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6578,6 +6578,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.257.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085"
+dependencies = [
+ "leb128fmt",
+]
+
+[[package]]
 name = "wasm-streams"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6864,6 +6873,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "wie-arm-jit"
+version = "0.1.4"
+dependencies = [
+ "bytemuck",
+ "serde",
+]
+
+[[package]]
+name = "wie-arm-wasm"
+version = "0.1.4"
+dependencies = [
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-encoder",
+ "web-sys",
+ "wie-arm-jit",
+]
+
+[[package]]
 name = "wie-backend"
 version = "0.1.4"
 dependencies = [
@@ -6894,12 +6924,13 @@ dependencies = [
  "futures-test",
  "gdbstub",
  "gdbstub_arch",
- "md5",
  "serde",
+ "serde_json",
  "spin",
  "test-utils",
- "toml 1.1.3+spec-1.1.0",
  "tracing",
+ "wie-arm-jit",
+ "wie-arm-wasm",
  "wie-backend",
  "wie-util",
 ]
@@ -6911,6 +6942,7 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "jvm",
+ "test-utils",
  "tracing",
  "wie-backend",
  "wie-jvm-support",
@@ -7032,6 +7064,7 @@ dependencies = [
  "bytemuck",
  "encoding_rs",
  "jvm",
+ "test-utils",
  "tracing",
  "wie-backend",
  "wie-jvm-support",

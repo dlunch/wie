@@ -1,0 +1,11 @@
+[package]
+name = "wie-arm-jit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+
+[dependencies]
+bytemuck = { workspace = true }
+serde = { workspace = true }

@@ -1,0 +1,21 @@
+[package]
+name = "wie-arm-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+
+[features]
+compiler-runtime = []
+
+[dependencies]
+serde_json = { workspace = true }
+wasm-encoder = { version = "^0.257", default-features = false }
+wie-arm-jit = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = { version = "^0.3", default-features = false }
+wasm-bindgen = { version = "^0.2", default-features = false }
+wasm-bindgen-futures = { version = "^0.4", default-features = false }
+web-sys = { version = "^0.3", default-features = false, features = ["ErrorEvent", "MessageEvent", "Worker"] }

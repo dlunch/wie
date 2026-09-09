@@ -321,7 +321,7 @@ mod test {
     use wie_midp::classes::javax::microedition::{lcdui::Display as MidpDisplay, midlet::MIDlet};
     use wie_util::{Result, WieError, read_generic, write_generic};
 
-    use crate::runtime::java::{JavaSvcFunctions, handle_java_svc};
+    use crate::runtime::java::{JavaSvcFunctions, JavaSvcHandler};
 
     use super::{
         ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfClassLoader, KtfJvmSupport, KtfJvmThreadContext,
@@ -366,7 +366,7 @@ mod test {
         system.spawn(async move || {
             let (jvm, mut core) = init_jvm(&mut system_clone).await?;
             let java_functions = JavaSvcFunctions::default();
-            core.register_svc_handler(5, handle_java_svc, &java_functions)?;
+            core.register_svc_handler(5, JavaSvcHandler(java_functions.clone()), &())?;
             let loader_class = JavaClassDefinition::new(
                 &mut core.clone(),
                 &jvm,

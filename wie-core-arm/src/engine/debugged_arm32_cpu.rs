@@ -540,6 +540,20 @@ impl ArmEngine for DebuggedArm32CpuEngine {
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.debug.cpu.lock().is_mapped(address, size)
     }
+
+    fn set_profiling(&mut self, enabled: bool) {
+        self.debug.cpu.lock().set_profiling(enabled);
+    }
+
+    fn take_profile(&mut self, force: bool) -> Vec<wie_backend::ProfileSample> {
+        self.debug.cpu.lock().take_profile(force)
+    }
+
+    fn maintain(&mut self) {}
+
+    fn shutdown(&mut self) {
+        self.debug.cpu.lock().shutdown();
+    }
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
