@@ -3,7 +3,7 @@ mod analysis;
 use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, collections::VecDeque, vec, vec::Vec};
 use core::mem::{size_of, size_of_val};
 
-use wie_arm_jit::{Admission, CodePageStamp, CompileRegion, CompileRequest, CompiledExecutor, CompiledHandle, Operation, RegionKey};
+use wie_arm_jit::{Admission, CodePageStamp, CompileRegion, CompileRequest, CompiledExecutor, CompiledHandle, RegionKey};
 
 use crate::engine::EmulatedMemory;
 
@@ -298,15 +298,13 @@ fn entry_index<'a>(regions: impl Iterator<Item = &'a CompileRegion> + Clone) -> 
     let mut entries = Vec::with_capacity(count);
     for region in regions {
         for instruction in region.ir.blocks.iter().flat_map(|block| &block.instructions) {
-            if instruction.operation != Operation::Interpret {
-                entries.push((
-                    RegionKey {
-                        pc: instruction.pc,
-                        ..region.ir.entry
-                    },
-                    region.ir.entry.pc,
-                ));
-            }
+            entries.push((
+                RegionKey {
+                    pc: instruction.pc,
+                    ..region.ir.entry
+                },
+                region.ir.entry.pc,
+            ));
         }
     }
     entries.sort_unstable();
@@ -314,14 +312,7 @@ fn entry_index<'a>(regions: impl Iterator<Item = &'a CompileRegion> + Clone) -> 
 }
 
 fn entry_index_bytes(region: &CompileRegion) -> usize {
-    region
-        .ir
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter(|instruction| instruction.operation != Operation::Interpret)
-        .count()
-        * size_of::<(RegionKey, u32)>()
+    region.ir.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() * size_of::<(RegionKey, u32)>()
 }
 
 impl Drop for Jit {

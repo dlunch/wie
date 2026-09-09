@@ -403,7 +403,8 @@ for (const mode of ["development", "production"]) {
                     regions: [{
                         ir: {
                             entry: { pc: 4096, thumb: true, cpu_mode: 16 },
-                            blocks: [{ instructions: [{ pc: 4096, size: 2, condition: "Always", operation: "Interpret" }] }],
+                            blocks: [{ instructions: [{ pc: 4096, size: 2, condition: "Always",
+                                operation: { Branch: { target: { Immediate: 4096 }, link: null, exchange: false } } }] }],
                         },
                         source: [{ page: 0, version: 1 }], expected_old: null,
                     }],

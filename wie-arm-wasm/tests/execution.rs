@@ -283,7 +283,7 @@ fn arithmetic_flags_and_false_conditions_retire_once() {
 }
 
 #[test]
-fn exchange_and_unsupported_operations_preserve_instruction_boundaries() {
+fn exchange_and_unsupported_operand_forms_preserve_instruction_boundaries() {
     run(
         &request(vec![Instruction {
             pc: 0x1000,
@@ -300,20 +300,45 @@ fn exchange_and_unsupported_operations_preserve_instruction_boundaries() {
         reset({sample:1}); set(0, 8); assert.equal(entry(F,A),6); assert.equal(get(80),1); assert.equal(samples.length,1); assert.equal(get(84),8);
     "#,
     );
-    for instruction in [
-        alu(0x1000, AluOp::Move, Some(15), Value::Immediate(0), Value::Register(1), true),
-        Instruction {
-            pc: 0x1000,
-            size: 2,
-            condition: Condition::Eq,
-            operation: Operation::Interpret,
-        },
-    ] {
+    for condition in [Condition::Always, Condition::Eq] {
+        let mut instruction = alu(0x1000, AluOp::Move, Some(15), Value::Immediate(0), Value::Register(1), true);
+        instruction.condition = condition;
         run(
             &request(vec![instruction]),
             "reset({sample:1}); const before=Array.from(new Uint8Array(memory.buffer,F,92)); assert.equal(entry(F,A),4); assert.deepEqual(Array.from(new Uint8Array(memory.buffer,F,92)),before); assert.equal(samples.length,0);",
         );
     }
+}
+
+#[test]
+fn omitted_frontier_dispatches_without_retiring_and_keeps_the_branch_alternative() {
+    run(
+        &request(vec![
+            Instruction {
+                pc: 0x1000,
+                size: 2,
+                condition: Condition::Eq,
+                operation: Operation::Branch {
+                    target: Value::Immediate(0x1004),
+                    link: None,
+                    exchange: false,
+                },
+            },
+            alu(0x1004, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), false),
+        ]),
+        r#"
+        reset(); assert.equal(entry(F,A),0); assert.equal(get(60),0x1002); assert.equal(get(80),1);
+        assert.equal(get(72),99); assert.equal(get(76),99); assert.equal(get(0),0);
+        reset({pc:0x1002,sample:1}); const before=Array.from(new Uint8Array(memory.buffer,F,92));
+        assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint8Array(memory.buffer,F,92)),before);
+        assert.equal(samples.length,0);
+        reset({cpsr:0x40000030}); assert.equal(entry(F,A),0); assert.equal(get(60),0x1006);
+        assert.equal(get(80),2); assert.equal(get(0),1);
+        reset({pc:0x1002,end:0x1002,budget:0,sample:0}); assert.equal(entry(F,A),3); assert.equal(get(80),0);
+        reset({pc:0x1002,budget:0,sample:0}); assert.equal(entry(F,A),2); assert.equal(get(80),0);
+        reset({pc:0x1002,sample:0}); assert.equal(entry(F,A),1); assert.equal(get(80),0);
+    "#,
+    );
 }
 
 #[test]
@@ -384,7 +409,6 @@ fn unsupported_forms_have_zero_effects() {
             address,
             width: Width::Word,
         },
-        Operation::Interpret,
     ];
     operations.push(Operation::Alu {
         op: AluOp::Move,

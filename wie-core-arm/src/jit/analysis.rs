@@ -44,21 +44,16 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
         let Some(raw) = bytes.get(offset..).and_then(|tail| tail.get(..usize::from(size))) else {
             continue;
         };
-        let (condition, operation) = if entry.thumb {
+        let Some((condition, operation)) = (if entry.thumb {
             decode_thumb(u16::from_le_bytes([raw[0], raw[1]]), pc)
         } else {
             let raw = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]);
-            match CONDITIONS.get((raw >> 28) as usize) {
-                Some(&condition) => (condition, decode_arm(raw, pc).unwrap_or(Operation::Interpret)),
-                None => (Condition::Always, Operation::Interpret),
-            }
+            CONDITIONS.get((raw >> 28) as usize).copied().zip(decode_arm(raw, pc))
+        }) else {
+            continue;
         };
-        if pc == entry.pc && operation == Operation::Interpret {
-            return None;
-        }
         let next = pc.wrapping_add(u32::from(size));
         match operation {
-            Operation::Interpret => {}
             Operation::Branch { target, exchange, .. } => {
                 if let Value::Immediate(target) = target
                     && !exchange
@@ -97,7 +92,7 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
         let mut instructions = Vec::new();
         let mut pc = start;
         while let Some(instruction) = decoded.remove(&pc) {
-            let terminates = matches!(instruction.operation, Operation::Branch { .. } | Operation::Interpret);
+            let terminates = matches!(instruction.operation, Operation::Branch { .. });
             instructions.push(instruction);
             pc = pc.wrapping_add(u32::from(size));
             if terminates || leaders.contains(&pc) {
@@ -125,7 +120,7 @@ fn shifted(value: Value, kind: u8, amount: ShiftAmount) -> Operand {
 }
 
 // Encodings are derived from ARM DDI 0100I, chapters A6/A7 (Thumb) and A3/A4/A5 (ARM).
-fn decode_thumb(raw: u16, pc: u32) -> (Condition, Operation) {
+fn decode_thumb(raw: u16, pc: u32) -> Option<(Condition, Operation)> {
     let rd = (raw & 7) as u8;
     let rm = ((raw >> 3) & 7) as u8;
     let mut op = AluOp::Move;
@@ -176,7 +171,7 @@ fn decode_thumb(raw: u16, pc: u32) -> (Condition, Operation) {
             12 => AluOp::Or,
             14 => AluOp::BitClear,
             15 => AluOp::Not,
-            _ => return (Condition::Always, Operation::Interpret),
+            _ => return None,
         };
         if matches!((raw >> 6) & 15, 8 | 10 | 11) {
             destination = None;
@@ -207,19 +202,19 @@ fn decode_thumb(raw: u16, pc: u32) -> (Condition, Operation) {
         if kind == 3 {
             let link = (raw & 0x0080 != 0).then_some(pc.wrapping_add(2) | 1);
             if raw & 7 != 0 || (link.is_some() && source == 15) {
-                return (Condition::Always, Operation::Interpret);
+                return None;
             }
-            return (
+            return Some((
                 Condition::Always,
                 Operation::Branch {
                     target: right.value,
                     link,
                     exchange: true,
                 },
-            );
+            ));
         }
         if raw & 0x00c0 == 0 || target == 15 {
-            return (Condition::Always, Operation::Interpret);
+            return None;
         }
         op = match kind {
             0 => AluOp::Add,
@@ -244,31 +239,31 @@ fn decode_thumb(raw: u16, pc: u32) -> (Condition, Operation) {
         };
         right.value = Value::Immediate(u32::from(raw & if raw & 0xf000 == 0xb000 { 0x7f } else { 0xff }) * 4);
     } else if raw & 0xf800 == 0x4800 || raw & 0xf000 == 0x5000 || raw & 0xe000 == 0x6000 || raw & 0xe000 == 0x8000 {
-        return (Condition::Always, decode_thumb_memory(raw, pc));
+        return Some((Condition::Always, decode_thumb_memory(raw, pc)));
     } else if raw & 0xf000 == 0xd000 && (raw >> 8) & 15 < 14 {
         let offset = i32::from(raw as u8 as i8) * 2;
-        return (
+        return Some((
             CONDITIONS[((raw >> 8) & 15) as usize],
             Operation::Branch {
                 target: Value::Immediate(pc.wrapping_add(4).wrapping_add_signed(offset)),
                 link: None,
                 exchange: false,
             },
-        );
+        ));
     } else if raw & 0xf800 == 0xe000 {
         let offset = i32::from(((raw & 0x7ff) << 5) as i16) >> 4;
-        return (
+        return Some((
             Condition::Always,
             Operation::Branch {
                 target: Value::Immediate(pc.wrapping_add(4).wrapping_add_signed(offset)),
                 link: None,
                 exchange: false,
             },
-        );
+        ));
     } else {
-        return (Condition::Always, Operation::Interpret);
+        return None;
     }
-    (
+    Some((
         Condition::Always,
         Operation::Alu {
             op,
@@ -277,7 +272,7 @@ fn decode_thumb(raw: u16, pc: u32) -> (Condition, Operation) {
             right,
             set_flags,
         },
-    )
+    ))
 }
 
 fn decode_thumb_memory(raw: u16, pc: u32) -> Operation {
@@ -622,11 +617,36 @@ mod tests {
     #[test]
     fn unsupported_entry_is_not_a_region_but_executed_prefix_is_retained() {
         assert!(thumb(&[0xdf00], 0x1000).is_none());
+        assert!(thumb(&[0xdf00, 0x2001], 0x1000).is_none());
+        assert!(arm(&[0x0f000000, 0xe3a00001]).is_none());
         let ir = thumb(&[0x2001, 0xdf00, 0x3001], 0x1000).unwrap();
         assert_eq!(ir.blocks.len(), 1);
-        assert_eq!(ir.blocks[0].instructions.len(), 2);
-        assert_eq!(ir.blocks[0].instructions[1].pc, 0x1002);
-        assert_eq!(ir.blocks[0].instructions[1].operation, Operation::Interpret);
+        assert_eq!(ir.blocks[0].instructions.len(), 1);
+        assert_eq!(ir.blocks[0].instructions[0].pc, 0x1000);
+        let ir = arm(&[0xe3a00001, 0x0f000000, 0xe2800001]).unwrap();
+        assert_eq!(ir.blocks.len(), 1);
+        assert_eq!(ir.blocks[0].instructions.len(), 1);
+        assert_eq!(ir.blocks[0].instructions[0].pc, 0x1000);
+    }
+
+    #[test]
+    fn unsupported_branch_path_keeps_the_supported_alternative() {
+        for (code, expected) in [
+            ([0xd001, 0xdf00, 0x3001, 0x3101, 0x4770], [0x1000, 0x1006, 0x1008]),
+            ([0xd001, 0x3101, 0x4770, 0xdf00, 0x3001], [0x1000, 0x1002, 0x1004]),
+        ] {
+            let ir = thumb(&code, 0x1000).unwrap();
+            assert_eq!(ir.blocks.len(), 2);
+            assert_eq!(ir.blocks.iter().flat_map(|b| &b.instructions).map(|i| i.pc).collect::<Vec<_>>(), expected);
+        }
+        for (code, expected) in [
+            ([0x0a000001, 0xef000000, 0xe2800001, 0xe2811001, 0xe12fff1e], [0x1000, 0x100c, 0x1010]),
+            ([0x0a000001, 0xe2811001, 0xe12fff1e, 0xef000000, 0xe2800001], [0x1000, 0x1004, 0x1008]),
+        ] {
+            let ir = arm(&code).unwrap();
+            assert_eq!(ir.blocks.len(), 2);
+            assert_eq!(ir.blocks.iter().flat_map(|b| &b.instructions).map(|i| i.pc).collect::<Vec<_>>(), expected);
+        }
     }
 
     #[test]
@@ -1033,8 +1053,9 @@ mod tests {
         ] {
             assert!(arm(&[opcode]).is_none(), "{opcode:08x}");
             let ir = arm(&[0xe3a00001, opcode, 0xe2800001]).unwrap();
-            assert_eq!(ir.blocks[0].instructions.len(), 2, "{opcode:08x}");
-            assert_eq!(ir.blocks[0].instructions[1].operation, Operation::Interpret, "{opcode:08x}");
+            assert_eq!(ir.blocks.len(), 1, "{opcode:08x}");
+            assert_eq!(ir.blocks[0].instructions.len(), 1, "{opcode:08x}");
+            assert_eq!(ir.blocks[0].instructions[0].pc, 0x1000, "{opcode:08x}");
         }
         for opcode in [0xdf00, 0xde00, 0xf000, 0xf800, 0xe800, 0xb200, 0x4600, 0x4701, 0xbd00] {
             assert!(thumb(&[opcode], 0x1000).is_none(), "{opcode:04x}");

@@ -188,8 +188,7 @@ fn supported(operation: &Operation) -> bool {
         | Operation::Store {
             value: Value::Register(15..),
             ..
-        }
-        | Operation::Interpret => false,
+        } => false,
         Operation::Load { address, .. } | Operation::Store { address, .. } => {
             address.write_back.is_none_or(|reg| reg < 15)
                 && !matches!(address.base, Value::Register(16..))
@@ -554,9 +553,6 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             if let Some(register) = address.write_back {
                 s.local_get(0).local_get(RESULT).i32_store(field(u64::from(register) * 4));
             }
-        }
-        Operation::Interpret => {
-            s.i32_const(CompiledExit::InterpretOne as i32).return_();
         }
     }
 }

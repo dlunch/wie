@@ -149,7 +149,6 @@ pub enum Operation {
         address: Address,
         width: Width,
     },
-    Interpret,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

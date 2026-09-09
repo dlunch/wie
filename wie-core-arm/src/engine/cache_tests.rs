@@ -1,9 +1,7 @@
 use alloc::{collections::VecDeque, string::String, sync::Arc, vec};
 
 use spin::Mutex;
-use wie_arm_jit::{
-    Admission, CompileCompletion, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion, Operation,
-};
+use wie_arm_jit::{Admission, CompileCompletion, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion};
 
 use super::*;
 
@@ -94,6 +92,16 @@ fn covered_instruction_entries_reuse_current_canonical_translations() {
             jit.sample(entry, 8);
             jit.maintain(&memory);
             let request = responses.lock().requests[0].clone();
+            assert_eq!(
+                request.regions[0]
+                    .ir
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .map(|instruction| instruction.pc)
+                    .collect::<Vec<_>>(),
+                [entry.pc, entry.pc + width, entry.pc + 4 * width]
+            );
             responses.lock().ready.push_back(completion(&request));
             jit.poll(&memory);
             let installed = jit.lookup(entry, &memory).unwrap();
@@ -204,6 +212,52 @@ fn covered_instruction_entries_reuse_current_canonical_translations() {
             }
         }
     }
+}
+
+#[test]
+fn condition_false_unsupported_frontier_retires_once_in_the_dispatcher() {
+    let responses = Arc::new(Mutex::new(Responses::default()));
+    let mut engine = Arm32CpuEngine::new();
+    // mov r0,#1; svceq #0; add r0,r0,#1
+    let code: Vec<_> = [0xe3a00001u32, 0x0f000000, 0xe2800001].into_iter().flat_map(u32::to_le_bytes).collect();
+    engine.mem_map(0x1000, code.len(), MemoryPermission::ReadWriteExecute);
+    engine.mem_write(0x1000, &code).unwrap();
+    let entry = RegionKey {
+        pc: 0x1000,
+        thumb: false,
+        cpu_mode: 0x1f,
+    };
+    let mut jit = Jit::new(1, Box::new(DeferredExecutor(responses.clone())));
+    jit.sample(entry, 8);
+    jit.maintain(&engine.mem);
+    let request = responses.lock().requests[0].clone();
+    responses.lock().ready.push_back(completion(&request));
+    jit.poll(&engine.mem);
+    assert!(jit.lookup(entry, &engine.mem).is_some());
+    assert!(jit.lookup(RegionKey { pc: 0x1004, ..entry }, &engine.mem).is_none());
+    engine.jit = Some(jit);
+    engine.reg_write(ArmRegister::Cpsr, 0x1f);
+    engine.reg_write(ArmRegister::PC, 0x1004);
+    engine.reg_write(ArmRegister::R0, 7);
+    engine.sampler.profiling = true;
+    engine.sampler.remaining = 1;
+
+    let result = engine.run(0x1008, 1).unwrap();
+    assert!(matches!(result.stop_reason, EngineStopReason::End));
+    assert_eq!(result.instructions_executed, 1);
+    assert_eq!(engine.reg_read(ArmRegister::PC), 0x1008);
+    assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
+    assert_eq!(engine.reg_read(ArmRegister::R0), 7);
+    assert_eq!(engine.sampler.sequence, 1);
+    let samples = engine.take_profile(true);
+    assert_eq!(samples.len(), 1);
+    assert_eq!(samples[0].stack, [0x1004]);
+    assert_eq!(samples[0].count, 1);
+    let result = engine.run(0x100c, 1).unwrap();
+    assert!(matches!(result.stop_reason, EngineStopReason::End));
+    assert_eq!(result.instructions_executed, 1);
+    assert_eq!(engine.reg_read(ArmRegister::PC), 0x100c);
+    assert_eq!(engine.reg_read(ArmRegister::R0), 8);
 }
 
 #[test]
@@ -668,16 +722,7 @@ fn ir_pressure_bounds_merge_requests_and_reclaims_cold_translations() {
         let index_bytes: usize = request
             .regions
             .iter()
-            .map(|region| {
-                region
-                    .ir
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
-                    .filter(|instruction| instruction.operation != Operation::Interpret)
-                    .count()
-                    * core::mem::size_of::<(RegionKey, u32)>()
-            })
+            .map(|region| region.ir.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() * core::mem::size_of::<(RegionKey, u32)>())
             .sum();
         assert!(4 * request.ir_size() + 5 * serde_json::to_vec(&request).unwrap().len() + 2 * index_bytes <= 1024 * 1024);
         if page == 7 {
