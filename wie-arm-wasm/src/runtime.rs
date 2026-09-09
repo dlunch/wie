@@ -337,7 +337,6 @@ impl CompiledExecutor for WasmExecutor {
                 Some(2.0) => Ok(CompiledExit::Budget),
                 Some(3.0) => Ok(CompiledExit::End),
                 Some(4.0) => Ok(CompiledExit::InterpretOne),
-                Some(5.0) => Ok(CompiledExit::Invalidated),
                 Some(6.0) => Ok(CompiledExit::GuestFault),
                 _ => Err(format!("compiled ABI returned invalid exit: {value:?}")),
             },
@@ -446,6 +445,7 @@ fn execution_imports() -> Result<Object, JsValue> {
         ("load", "wie_jit_load"),
         ("store", "wie_jit_store"),
         ("sample_prepare", "wie_jit_sample_prepare"),
+        ("word_range", "wie_jit_word_range"),
     ] {
         Reflect::set(&wie, &import.into(), &Reflect::get(&exports, &export.into())?)?;
     }
@@ -474,7 +474,6 @@ unsafe extern "C" fn wie_jit_load(access: u32, address: u32, width: u32, out: u3
             unsafe { (*context.frame).fault_address = address };
             2
         }
-        AccessResult::Invalidated => 3,
     }
 }
 
@@ -488,7 +487,6 @@ unsafe extern "C" fn wie_jit_store(access: u32, address: u32, width: u32, value:
             unsafe { (*context.frame).fault_address = address };
             2
         }
-        AccessResult::Invalidated => 3,
     }
 }
 
@@ -496,4 +494,10 @@ unsafe extern "C" fn wie_jit_store(access: u32, address: u32, width: u32, value:
 unsafe extern "C" fn wie_jit_sample_prepare(access: u32, pc: u32, cpsr: u32, r7: u32) {
     let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
     context.access.sample_prepare(pc, cpsr, r7);
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn wie_jit_word_range(access: u32, address: u32, words: u32) -> u32 {
+    let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
+    u32::from(context.access.supports_word_range(address, words))
 }

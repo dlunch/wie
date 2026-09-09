@@ -6,6 +6,7 @@ assert(WebAssembly.validate(bytes));
 const module_ = new WebAssembly.Module(bytes);
 assert.deepEqual(WebAssembly.Module.imports(module_).map(({module, name, kind}) => [module,name,kind]), [
     ['wie','memory','memory'], ['wie','load','function'], ['wie','store','function'], ['wie','sample_prepare','function'],
+    ['wie','word_range','function'],
 ]);
 const helpers = new WebAssembly.Instance(new WebAssembly.Module(input.subarray(4 + length))).exports;
 const memory = helpers.memory;

@@ -106,6 +106,7 @@ pub enum AluOp {
     BitClear,
     Not,
     Multiply,
+    CountLeadingZeros,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -149,6 +150,49 @@ pub enum Operation {
         address: Address,
         width: Width,
     },
+    MultiplyAccumulate {
+        destination: u8,
+        left: u8,
+        right: u8,
+        accumulate: u8,
+        set_flags: bool,
+    },
+    MultiplyLong {
+        low: u8,
+        high: u8,
+        left: u8,
+        right: u8,
+        signed: bool,
+        accumulate: bool,
+        set_flags: bool,
+    },
+    ReadStatus {
+        destination: u8,
+    },
+    WriteStatus {
+        value: Value,
+        mask: u32,
+    },
+    MultipleTransfer {
+        base: u8,
+        registers: u16,
+        increment: bool,
+        before: bool,
+        write_back: bool,
+        load: bool,
+    },
+    DoubleTransfer {
+        register: u8,
+        address: Address,
+        load: bool,
+    },
+    Swap {
+        destination: u8,
+        address: u8,
+        value: u8,
+        width: Width,
+    },
+    Nop,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -225,7 +269,6 @@ pub enum CompiledExit {
     Budget = 2,
     End = 3,
     InterpretOne = 4,
-    Invalidated = 5,
     GuestFault = 6,
 }
 
@@ -246,10 +289,12 @@ pub enum AccessResult {
     Complete(u32),
     InterpretOne,
     Fault(u32),
-    Invalidated,
 }
 
 pub trait ExecutionAccess {
+    /// An admitted nonempty range (at most 16 words) cannot decline during this instruction.
+    fn supports_word_range(&mut self, address: u32, words: u32) -> bool;
+    /// A successful byte load also admits a byte store at that address in this instruction.
     fn load(&mut self, address: u32, width: u32) -> AccessResult;
     fn store(&mut self, address: u32, width: u32, value: u32) -> AccessResult;
     fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32);

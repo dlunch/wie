@@ -5,7 +5,8 @@ use wasm_encoder::{
     Module, TypeSection, ValType,
 };
 use wie_arm_jit::{
-    AluOp, CompileRequest, CompiledExit, Condition, Instruction, ManifestRegion, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width,
+    Address, AluOp, CompileRequest, CompiledExit, Condition, Instruction, ManifestRegion, Operand, Operation, RegionIr, Shift, ShiftAmount, Value,
+    Width,
 };
 
 const LEFT: u32 = 2;
@@ -30,6 +31,7 @@ pub fn compile(request: &CompileRequest) -> Result<WasmArtifact, String> {
     types.ty().function([ValType::I32; 4], [ValType::I32]);
     types.ty().function([ValType::I32; 4], []);
     types.ty().function([ValType::I32; 2], [ValType::I32]);
+    types.ty().function([ValType::I32; 3], [ValType::I32]);
     module.section(&types);
     let mut imports = ImportSection::new();
     imports.import(
@@ -46,6 +48,7 @@ pub fn compile(request: &CompileRequest) -> Result<WasmArtifact, String> {
     imports.import("wie", "load", EntityType::Function(0));
     imports.import("wie", "store", EntityType::Function(0));
     imports.import("wie", "sample_prepare", EntityType::Function(1));
+    imports.import("wie", "word_range", EntityType::Function(3));
     module.section(&imports);
     let mut functions = FunctionSection::new();
     let mut exports = ExportSection::new();
@@ -54,15 +57,33 @@ pub fn compile(request: &CompileRequest) -> Result<WasmArtifact, String> {
     for (index, region) in request.regions.iter().enumerate() {
         let ir = &region.ir;
         let mut pcs = BTreeSet::new();
+        let mut occupied = BTreeSet::new();
         if !matches!(ir.entry.cpu_mode, 0x10 | 0x1f) || ir.blocks.len() > 32 {
             return Err(String::from("unsupported region mode or block count"));
         }
         for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
-            if instruction.size != if ir.entry.thumb { 2 } else { 4 }
-                || instruction.pc % u32::from(instruction.size) != 0
+            let size = if ir.entry.thumb
+                && !matches!(
+                    instruction.operation,
+                    Operation::Branch {
+                        target: Value::Immediate(_),
+                        link: Some(_),
+                        ..
+                    }
+                ) {
+                2
+            } else {
+                4
+            };
+            if instruction.size != size
+                || instruction.pc % if ir.entry.thumb { 2 } else { 4 } != 0
                 || !pcs.insert(instruction.pc)
+                || (0..instruction.size).any(|offset| !occupied.insert(instruction.pc.wrapping_add(u32::from(offset))))
             {
                 return Err(String::from("invalid instruction boundary"));
+            }
+            if !supported(&instruction.operation) {
+                return Err(String::from("invalid instruction operands"));
             }
         }
         if pcs.len() > 256 || !pcs.contains(&ir.entry.pc) || pcs.first().zip(pcs.last()).is_some_and(|(first, last)| last - first >= 16 * 1024) {
@@ -70,7 +91,7 @@ pub fn compile(request: &CompileRequest) -> Result<WasmArtifact, String> {
         }
         functions.function(2);
         let export = format!("region_{index}");
-        exports.export(&export, ExportKind::Func, 3 + index as u32);
+        exports.export(&export, ExportKind::Func, 4 + index as u32);
         code.function(&compile_region(ir));
         manifest.push(ManifestRegion {
             entry: ir.entry,
@@ -120,8 +141,6 @@ fn compile_region(ir: &RegionIr) -> Function {
         s.local_get(0).i32_load(field(offset)).i32_eqz().if_(BlockType::Empty);
         s.i32_const(exit as i32).return_().end();
     }
-    s.local_get(ACCESS_STATUS).i32_const(3).i32_eq().if_(BlockType::Empty);
-    s.i32_const(CompiledExit::Invalidated as i32).return_().end();
     s.local_get(0).i32_load(field(64)).local_set(CPSR);
     s.local_get(CPSR).i32_const(0x0100_003f).i32_and();
     s.i32_const(i32::from(ir.entry.cpu_mode) | if ir.entry.thumb { 0x20 } else { 0 })
@@ -139,10 +158,6 @@ fn compile_region(ir: &RegionIr) -> Function {
     s.br_table(targets, count);
     for (index, instruction) in instructions.into_iter().enumerate() {
         s.end();
-        if !supported(&instruction.operation) {
-            s.i32_const(CompiledExit::InterpretOne as i32).return_();
-            continue;
-        }
         s.local_get(0).i32_load(field(76)).i32_const(1).i32_eq().if_(BlockType::Empty);
         s.local_get(1)
             .local_get(PC)
@@ -169,32 +184,72 @@ fn compile_region(ir: &RegionIr) -> Function {
         s.br(count - index as u32);
     }
     s.end().i32_const(CompiledExit::Dispatch as i32).return_().end();
-    s.i32_const(CompiledExit::InterpretOne as i32).end();
+    s.unreachable().end();
     function
 }
 
 fn supported(operation: &Operation) -> bool {
+    let valid_value = |value| !matches!(value, Value::Register(16..));
+    let valid_operand = |operand: Operand| valid_value(operand.value) && !matches!(operand.amount, ShiftAmount::Register(16..));
+    let valid_address =
+        |address: Address| address.write_back.is_none_or(|reg| reg < 15) && valid_value(address.base) && valid_operand(address.offset);
     match operation {
         Operation::Alu {
-            destination, left, right, ..
+            op,
+            destination,
+            left,
+            right,
+            set_flags,
         } => {
-            destination.is_none_or(|reg| reg < 15)
-                && !matches!(left, Value::Register(16..))
-                && !matches!(right.value, Value::Register(16..))
-                && !matches!(right.amount, ShiftAmount::Register(16..))
+            destination.is_none_or(|reg| reg < 15 || (reg == 15 && !set_flags && !matches!(op, AluOp::Multiply | AluOp::CountLeadingZeros)))
+                && valid_value(*left)
+                && valid_operand(*right)
+                && (*op != AluOp::CountLeadingZeros || !set_flags)
         }
-        Operation::Branch { target, .. } => !matches!(target, Value::Register(16..)),
-        Operation::Load { destination: 15.., .. }
-        | Operation::Store {
-            value: Value::Register(15..),
+        Operation::Branch { target, .. } => valid_value(*target),
+        Operation::Load {
+            destination,
+            address,
+            width,
+            signed,
+        } => (*destination < 15 || (*destination == 15 && *width == Width::Word && !signed)) && valid_address(*address),
+        Operation::Store { value, address, width } => {
+            valid_value(*value) && (*value != Value::Register(15) || *width == Width::Word) && valid_address(*address)
+        }
+        Operation::MultiplyAccumulate {
+            destination,
+            left,
+            right,
+            accumulate,
             ..
-        } => false,
-        Operation::Load { address, .. } | Operation::Store { address, .. } => {
-            address.write_back.is_none_or(|reg| reg < 15)
-                && !matches!(address.base, Value::Register(16..))
-                && !matches!(address.offset.value, Value::Register(16..))
-                && !matches!(address.offset.amount, ShiftAmount::Register(16..))
+        } => [destination, left, right, accumulate].into_iter().all(|reg| *reg < 15),
+        Operation::MultiplyLong { low, high, left, right, .. } => low != high && [low, high, left, right].into_iter().all(|reg| *reg < 15),
+        Operation::ReadStatus { destination } => *destination < 15,
+        Operation::WriteStatus { value, mask } => valid_value(*value) && mask & 0x0fff_ffff == 0,
+        Operation::MultipleTransfer {
+            base,
+            registers,
+            write_back,
+            load,
+            ..
+        } => {
+            *base < 15
+                && *registers != 0
+                && (!write_back || registers & (1 << base) == 0 || (!load && registers.trailing_zeros() == u32::from(*base)))
         }
+        Operation::DoubleTransfer { register, address, load } => {
+            *register <= 12
+                && register % 2 == 0
+                && valid_address(*address)
+                && (!load || address.write_back.is_none_or(|base| base != *register && base != register + 1))
+        }
+        Operation::Swap {
+            destination,
+            address,
+            value,
+            width,
+        } => [destination, address, value].into_iter().all(|reg| *reg < 15) && matches!(width, Width::Byte | Width::Word),
+        Operation::Nop => true,
     }
 }
 
@@ -376,6 +431,100 @@ fn condition(s: &mut InstructionSink<'_>, condition: Condition) {
     }
 }
 
+fn commit_pc(s: &mut InstructionSink<'_>, thumb: bool, exchange: bool) {
+    s.local_set(NEXT_PC);
+    if exchange {
+        s.local_get(0).local_get(CPSR).i32_const(!0x20).i32_and();
+        s.local_get(NEXT_PC)
+            .i32_const(1)
+            .i32_and()
+            .i32_const(5)
+            .i32_shl()
+            .i32_or()
+            .i32_store(field(64));
+        s.local_get(NEXT_PC).i32_const(1).i32_and().if_(BlockType::Result(ValType::I32));
+        s.i32_const(!1).else_().i32_const(!3).end();
+    } else {
+        s.i32_const(if thumb { !1 } else { !3 });
+    }
+    s.local_get(NEXT_PC).i32_and().local_set(NEXT_PC);
+}
+
+fn multiply_flags(s: &mut InstructionSink<'_>, wide: bool) {
+    s.local_get(0).local_get(CPSR).i32_const(0x3fff_ffff).i32_and();
+    if wide {
+        s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64();
+    } else {
+        s.local_get(RESULT);
+    }
+    s.i32_const(i32::MIN).i32_and().i32_or();
+    if wide {
+        s.local_get(WIDE).i64_eqz();
+    } else {
+        s.local_get(RESULT).i32_eqz();
+    }
+    s.i32_const(30).i32_shl().i32_or().i32_store(field(64));
+}
+
+// Capture both the effective address and final writeback before any destination changes.
+fn memory_address(s: &mut InstructionSink<'_>, address: Address, pc: u32, thumb: bool) {
+    value(s, address.base, pc, thumb);
+    s.local_set(LEFT);
+    operand(s, address.offset, pc, thumb);
+    s.local_get(LEFT).local_get(RIGHT);
+    if address.subtract {
+        s.i32_sub();
+    } else {
+        s.i32_add();
+    }
+    s.local_set(RESULT);
+    if address.pre_index {
+        s.local_get(RESULT).local_set(LEFT);
+    }
+}
+
+fn access_result(s: &mut InstructionSink<'_>) {
+    s.local_set(ACCESS_STATUS);
+    for (status, exit) in [(1, CompiledExit::InterpretOne), (2, CompiledExit::GuestFault)] {
+        s.local_get(ACCESS_STATUS).i32_const(status).i32_eq().if_(BlockType::Empty);
+        s.i32_const(exit as i32).return_().end();
+    }
+}
+
+fn word_range(s: &mut InstructionSink<'_>, words: u32) {
+    s.local_get(1)
+        .local_get(LEFT)
+        .i32_const(words as i32)
+        .call(3)
+        .i32_eqz()
+        .if_(BlockType::Empty);
+    s.i32_const(CompiledExit::InterpretOne as i32).return_().end();
+}
+
+fn transfer_words(s: &mut InstructionSink<'_>, registers: u16, load: bool, pc: u32, thumb: bool) {
+    word_range(s, registers.count_ones());
+    for (index, register) in (0..16).filter(|reg| registers & (1 << reg) != 0).enumerate() {
+        s.local_get(1).local_get(LEFT).i32_const(index as i32 * 4).i32_add().i32_const(4);
+        if load {
+            s.local_get(0).i32_const(88).i32_add().call(0).drop();
+            if register == 15 {
+                s.local_get(0).i32_load(field(88));
+                commit_pc(s, thumb, true);
+            } else {
+                s.local_get(0).local_get(0).i32_load(field(88)).i32_store(field(u64::from(register) * 4));
+            }
+        } else {
+            if register == 15 {
+                s.i32_const(pc.wrapping_add(12) as i32);
+            } else {
+                value(s, Value::Register(register), pc, thumb);
+            }
+            // Admission guarantees success for every word; no late interpreter replay is possible.
+            s.call(1).drop();
+        }
+    }
+}
+
 fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool) {
     match instruction.operation {
         Operation::Alu {
@@ -397,11 +546,17 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     AluOp::BitClear => Some(left & !right),
                     AluOp::Not => Some(!right),
                     AluOp::Multiply => Some(left.wrapping_mul(right)),
+                    AluOp::CountLeadingZeros => Some(right.leading_zeros()),
                     AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry => None,
                 };
                 if let Some(result) = result {
                     if let Some(destination) = destination {
-                        s.local_get(0).i32_const(result as i32).i32_store(field(u64::from(destination) * 4));
+                        if destination == 15 {
+                            s.i32_const(result as i32);
+                            commit_pc(s, thumb, false);
+                        } else {
+                            s.local_get(0).i32_const(result as i32).i32_store(field(u64::from(destination) * 4));
+                        }
                     }
                     return;
                 }
@@ -453,10 +608,18 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 AluOp::Multiply => {
                     s.local_get(LEFT).local_get(RIGHT).i32_mul();
                 }
+                AluOp::CountLeadingZeros => {
+                    s.local_get(RIGHT).i32_clz();
+                }
             }
             s.local_set(RESULT);
             if let Some(destination) = destination {
-                s.local_get(0).local_get(RESULT).i32_store(field(u64::from(destination) * 4));
+                if destination == 15 {
+                    s.local_get(RESULT);
+                    commit_pc(s, thumb, false);
+                } else {
+                    s.local_get(0).local_get(RESULT).i32_store(field(u64::from(destination) * 4));
+                }
             }
             if set_flags {
                 s.local_get(0)
@@ -486,57 +649,36 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
         }
         Operation::Branch { target, link, exchange } => {
             value(s, target, instruction.pc, thumb);
-            s.local_set(NEXT_PC);
-            if exchange {
-                s.local_get(0).local_get(CPSR).i32_const(!0x20).i32_and();
-                s.local_get(NEXT_PC)
-                    .i32_const(1)
-                    .i32_and()
-                    .i32_const(5)
-                    .i32_shl()
-                    .i32_or()
-                    .i32_store(field(64));
-                s.local_get(NEXT_PC).i32_const(1).i32_and().if_(BlockType::Result(ValType::I32));
-                s.i32_const(!1).else_().i32_const(!3).end();
-                s.local_get(NEXT_PC).i32_and().local_set(NEXT_PC);
-            } else {
-                s.local_get(NEXT_PC).i32_const(if thumb { !1 } else { !3 }).i32_and().local_set(NEXT_PC);
-            }
+            commit_pc(s, thumb, exchange);
             if let Some(link) = link {
                 s.local_get(0).i32_const(link as i32).i32_store(field(56));
             }
         }
         Operation::Load { address, width, .. } | Operation::Store { address, width, .. } => {
-            value(s, address.base, instruction.pc, thumb);
-            s.local_set(LEFT);
-            operand(s, address.offset, instruction.pc, thumb);
-            s.local_get(LEFT).local_get(RIGHT);
-            if address.subtract {
-                s.i32_sub();
-            } else {
-                s.i32_add();
-            }
-            s.local_set(RESULT);
-            s.local_get(1).local_get(if address.pre_index { RESULT } else { LEFT });
+            memory_address(s, address, instruction.pc, thumb);
+            s.local_get(1).local_get(LEFT);
             s.i32_const(match width {
                 Width::Byte => 1,
                 Width::Half => 2,
                 Width::Word => 4,
             });
             if let Operation::Store { value: source, .. } = instruction.operation {
-                value(s, source, instruction.pc, thumb);
+                if source == Value::Register(15) {
+                    s.i32_const(instruction.pc.wrapping_add(12) as i32);
+                } else {
+                    value(s, source, instruction.pc, thumb);
+                }
                 s.call(1);
             } else {
                 s.local_get(0).i32_const(88).i32_add().call(0);
             }
-            s.local_set(ACCESS_STATUS);
-            for (status, exit) in [(1, CompiledExit::InterpretOne), (2, CompiledExit::GuestFault)] {
-                s.local_get(ACCESS_STATUS).i32_const(status).i32_eq().if_(BlockType::Empty);
-                s.i32_const(exit as i32).return_().end();
-            }
+            access_result(s);
             // Helpers may decline an access without side effects. Commit registers only after success.
             if let Operation::Load { destination, signed, .. } = instruction.operation {
-                s.local_get(0).local_get(0).i32_load(field(88));
+                if destination != 15 {
+                    s.local_get(0);
+                }
+                s.local_get(0).i32_load(field(88));
                 if signed {
                     match width {
                         Width::Byte => {
@@ -548,12 +690,142 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                         Width::Word => {}
                     }
                 }
-                s.i32_store(field(u64::from(destination) * 4));
+                if destination == 15 {
+                    commit_pc(s, thumb, true);
+                } else {
+                    s.i32_store(field(u64::from(destination) * 4));
+                }
             }
             if let Some(register) = address.write_back {
                 s.local_get(0).local_get(RESULT).i32_store(field(u64::from(register) * 4));
             }
         }
+        Operation::MultiplyAccumulate {
+            destination,
+            left,
+            right,
+            accumulate,
+            set_flags,
+        } => {
+            value(s, Value::Register(left), instruction.pc, thumb);
+            value(s, Value::Register(right), instruction.pc, thumb);
+            s.i32_mul();
+            value(s, Value::Register(accumulate), instruction.pc, thumb);
+            s.i32_add().local_set(RESULT);
+            s.local_get(0).local_get(RESULT).i32_store(field(u64::from(destination) * 4));
+            if set_flags {
+                multiply_flags(s, false);
+            }
+        }
+        Operation::MultiplyLong {
+            low,
+            high,
+            left,
+            right,
+            signed,
+            accumulate,
+            set_flags,
+        } => {
+            for register in [left, right] {
+                value(s, Value::Register(register), instruction.pc, thumb);
+                if signed {
+                    s.i64_extend_i32_s();
+                } else {
+                    s.i64_extend_i32_u();
+                }
+            }
+            s.i64_mul();
+            if accumulate {
+                value(s, Value::Register(low), instruction.pc, thumb);
+                s.i64_extend_i32_u();
+                value(s, Value::Register(high), instruction.pc, thumb);
+                s.i64_extend_i32_u().i64_const(32).i64_shl().i64_or().i64_add();
+            }
+            s.local_set(WIDE);
+            s.local_get(0).local_get(WIDE).i32_wrap_i64().i32_store(field(u64::from(low) * 4));
+            s.local_get(0)
+                .local_get(WIDE)
+                .i64_const(32)
+                .i64_shr_u()
+                .i32_wrap_i64()
+                .i32_store(field(u64::from(high) * 4));
+            if set_flags {
+                multiply_flags(s, true);
+            }
+        }
+        Operation::ReadStatus { destination } => {
+            s.local_get(0).local_get(CPSR).i32_store(field(u64::from(destination) * 4));
+        }
+        Operation::WriteStatus { value: source, mask } => {
+            s.local_get(0).local_get(CPSR).i32_const(!mask as i32).i32_and();
+            value(s, source, instruction.pc, thumb);
+            s.i32_const(mask as i32).i32_and().i32_or().i32_store(field(64));
+        }
+        Operation::MultipleTransfer {
+            base,
+            registers,
+            increment,
+            before,
+            write_back,
+            load,
+        } => {
+            let bytes = registers.count_ones() as i32 * 4;
+            value(s, Value::Register(base), instruction.pc, thumb);
+            s.local_tee(LEFT)
+                .i32_const(if increment { bytes } else { -bytes })
+                .i32_add()
+                .local_set(RESULT);
+            s.local_get(LEFT).i32_const(if increment {
+                if before { 4 } else { 0 }
+            } else {
+                -bytes + if before { 0 } else { 4 }
+            });
+            s.i32_add().local_set(LEFT);
+            transfer_words(s, registers, load, instruction.pc, thumb);
+            if write_back {
+                s.local_get(0).local_get(RESULT).i32_store(field(u64::from(base) * 4));
+            }
+        }
+        Operation::DoubleTransfer { register, address, load } => {
+            memory_address(s, address, instruction.pc, thumb);
+            transfer_words(s, 3 << register, load, instruction.pc, thumb);
+            if let Some(base) = address.write_back {
+                s.local_get(0).local_get(RESULT).i32_store(field(u64::from(base) * 4));
+            }
+        }
+        Operation::Swap {
+            destination,
+            address,
+            value: source,
+            width,
+        } => {
+            value(s, Value::Register(address), instruction.pc, thumb);
+            s.local_set(LEFT);
+            value(s, Value::Register(source), instruction.pc, thumb);
+            s.local_set(RIGHT);
+            if width == Width::Word {
+                word_range(s, 1);
+            }
+            let bytes = if width == Width::Word { 4 } else { 1 };
+            s.local_get(1)
+                .local_get(LEFT)
+                .i32_const(bytes)
+                .local_get(0)
+                .i32_const(88)
+                .i32_add()
+                .call(0);
+            if width == Width::Byte {
+                access_result(s);
+            } else {
+                s.drop();
+            }
+            s.local_get(1).local_get(LEFT).i32_const(bytes).local_get(RIGHT).call(1).drop();
+            s.local_get(0)
+                .local_get(0)
+                .i32_load(field(88))
+                .i32_store(field(u64::from(destination) * 4));
+        }
+        Operation::Nop => {}
     }
 }
 

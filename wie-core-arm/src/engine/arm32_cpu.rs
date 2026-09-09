@@ -30,6 +30,11 @@ mod differential;
 #[path = "cache_tests.rs"]
 mod cache_tests;
 
+enum InstructionCacheInvalidation {
+    All,
+    Address(u32),
+}
+
 impl Arm32CpuEngine {
     pub fn new() -> Self {
         Self {
@@ -78,6 +83,51 @@ impl Arm32CpuEngine {
 
         Ok(EngineStopReason::Svc { category, lr, spsr })
     }
+
+    fn instruction_cache_invalidation(&self, pc: u32, cpsr: u32) -> Option<InstructionCacheInvalidation> {
+        if cpsr & 0x20 != 0 {
+            return None;
+        }
+        let page = self.mem.pages[pc as usize / PAGE_SIZE].as_ref()?;
+        let offset = (pc & PAGE_MASK & !3) as usize;
+        let instruction = u32::from_le_bytes(core::array::from_fn(|index| page.bytes[offset + index])).rotate_right((pc & 3) * 8);
+        // ARM926EJ-S CP15 c7: I-cache all/MVA/set-way and combined I/D invalidation.
+        if instruction & 0x0fff_0f10 != 0x0e07_0f10 {
+            return None;
+        }
+        let n = cpsr & (1 << 31) != 0;
+        let z = cpsr & (1 << 30) != 0;
+        let c = cpsr & (1 << 29) != 0;
+        let v = cpsr & (1 << 28) != 0;
+        let passed = match instruction >> 28 {
+            0 => z,
+            1 => !z,
+            2 => c,
+            3 => !c,
+            4 => n,
+            5 => !n,
+            6 => v,
+            7 => !v,
+            8 => c && !z,
+            9 => !c || z,
+            10 => n == v,
+            11 => n != v,
+            12 => !z && n == v,
+            13 => z || n != v,
+            14 => true,
+            _ => false,
+        };
+        if !passed {
+            return None;
+        }
+        match (instruction & 15, (instruction >> 5) & 7) {
+            (5, 0 | 2) | (7, 0) => Some(InstructionCacheInvalidation::All),
+            (5, 1) => Some(InstructionCacheInvalidation::Address(
+                self.cpu.reg_get(self.cpu.mode(), ((instruction >> 12) & 15) as u8),
+            )),
+            _ => None,
+        }
+    }
 }
 
 impl ArmEngine for Arm32CpuEngine {
@@ -119,7 +169,7 @@ impl ArmEngine for Arm32CpuEngine {
                     thumb: cpsr & 0x20 != 0,
                     cpu_mode: (cpsr & 0x1f) as u8,
                 };
-                if let Some((handle, source)) = jit.lookup(key, &self.mem) {
+                if let Some(handle) = jit.lookup(key, &self.mem) {
                     let mut frame = RunFrame {
                         regs: core::array::from_fn(|index| self.cpu.reg_get(Mode::User, index as u8)),
                         cpsr,
@@ -131,7 +181,6 @@ impl ArmEngine for Arm32CpuEngine {
                     let mut access = MemoryAccess {
                         memory: &mut self.mem,
                         sampler: &mut self.sampler,
-                        source: &source,
                     };
                     let exit = match jit.executor.execute(handle, &mut frame, &mut access) {
                         Ok(exit) => exit,
@@ -163,12 +212,16 @@ impl ArmEngine for Arm32CpuEngine {
                 });
             }
 
+            let cache_invalidation = self.instruction_cache_invalidation(pc, cpsr);
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
             if !(self.cpu.step(&mut arm32cpu_memory)) {
                 return Err(WieError::FatalError("Undefined instruction".into()));
             }
             if let Some(x) = arm32cpu_memory.memory_error() {
                 return Err(WieError::InvalidMemoryAccess(x));
+            }
+            if let Some(invalidation) = cache_invalidation {
+                self.mem.invalidate_instruction_cache(invalidation);
             }
             instructions_executed += 1;
             if let Some((key, hits)) = self.sampler.retire(1)
@@ -239,10 +292,15 @@ impl ArmEngine for Arm32CpuEngine {
 struct MemoryAccess<'a> {
     memory: &'a mut EmulatedMemory,
     sampler: &'a mut Sampler,
-    source: &'a [CodePageStamp],
 }
 
 impl ExecutionAccess for MemoryAccess<'_> {
+    fn supports_word_range(&mut self, address: u32, words: u32) -> bool {
+        address.is_multiple_of(4)
+            && self.memory.pages[address as usize / PAGE_SIZE].is_some()
+            && self.memory.pages[address.wrapping_add((words - 1) * 4) as usize / PAGE_SIZE].is_some()
+    }
+
     fn load(&mut self, address: u32, width: u32) -> AccessResult {
         if !address.is_multiple_of(width) || self.memory.pages[address as usize / PAGE_SIZE].is_none() {
             return AccessResult::InterpretOne;
@@ -266,11 +324,7 @@ impl ExecutionAccess for MemoryAccess<'_> {
             2 => memory.w16(address, value as u16),
             _ => memory.w32(address, value),
         }
-        if self.memory.code_is_current(self.source) {
-            AccessResult::Complete(0)
-        } else {
-            AccessResult::Invalidated
-        }
+        AccessResult::Complete(0)
     }
 
     fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32) {
@@ -407,6 +461,21 @@ impl EmulatedMemory {
         })
     }
 
+    fn invalidate_instruction_cache(&mut self, invalidation: InstructionCacheInvalidation) {
+        match invalidation {
+            InstructionCacheInvalidation::All => {
+                for page in self.pages.iter_mut().flatten() {
+                    page.version = page.version.wrapping_add(1);
+                }
+            }
+            InstructionCacheInvalidation::Address(address) => {
+                if let Some(page) = &mut self.pages[address as usize / PAGE_SIZE] {
+                    page.version = page.version.wrapping_add(1);
+                }
+            }
+        }
+    }
+
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         let page_start = address & !PAGE_MASK;
         let page_end = (address + size as u32 + PAGE_MASK) & !PAGE_MASK;
@@ -508,7 +577,6 @@ impl Memory for Arm32CpuMemory<'_> {
         let data = page.unwrap();
 
         data.bytes[offset as usize] = val;
-        data.version = data.version.wrapping_add(1);
     }
 
     fn w16(&mut self, addr: u32, val: u16) {
@@ -523,7 +591,6 @@ impl Memory for Arm32CpuMemory<'_> {
 
         data.bytes[offset as usize] = val as u8;
         data.bytes[offset as usize + 1] = (val >> 8) as u8;
-        data.version = data.version.wrapping_add(1);
     }
 
     fn w32(&mut self, addr: u32, val: u32) {
@@ -540,7 +607,6 @@ impl Memory for Arm32CpuMemory<'_> {
         data.bytes[offset as usize + 1] = (val >> 8) as u8;
         data.bytes[offset as usize + 2] = (val >> 16) as u8;
         data.bytes[offset as usize + 3] = (val >> 24) as u8;
-        data.version = data.version.wrapping_add(1);
     }
 }
 
@@ -673,13 +739,14 @@ mod tests {
     }
 
     #[test]
-    fn code_versions_cover_interpreter_writes_and_partial_host_writes() {
+    fn code_versions_follow_host_publication_not_guest_stores() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, 0x10000);
         let (_, _, before) = memory.code_snapshot(0x10000).unwrap();
+        memory.as_arm32cpu_memory().w8(0x10000, 42);
+        memory.as_arm32cpu_memory().w16(0x10000, 42);
         memory.as_arm32cpu_memory().w32(0x10000, 42);
-        assert!(!memory.code_is_current(&[before]));
-        let (_, _, before) = memory.code_snapshot(0x10000).unwrap();
+        assert!(memory.code_is_current(&[before]));
         assert!(memory.write_range(0x1ffff, &[1, 2]).is_err());
         assert!(!memory.code_is_current(&[before]));
         let (_, _, before) = memory.code_snapshot(0x10000).unwrap();
@@ -687,12 +754,140 @@ mod tests {
         let mut access = MemoryAccess {
             memory: &mut memory,
             sampler: &mut sampler,
-            source: &[before],
         };
         assert!(matches!(access.store(0x10001, 4, 42), AccessResult::InterpretOne));
         assert!(access.memory.code_is_current(&[before]));
         assert!(matches!(access.store(0x20000, 4, 42), AccessResult::InterpretOne));
-        assert!(matches!(access.store(0x10000, 2, 42), AccessResult::Invalidated));
+        assert!(matches!(access.store(0x10000, 2, 42), AccessResult::Complete(0)));
+        assert!(access.memory.code_is_current(&[before]));
+        access.memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x10000));
+        assert!(!access.memory.code_is_current(&[before]));
+    }
+
+    #[test]
+    fn word_range_admission_checks_mapping_without_reading_or_publishing() {
+        let mut memory = EmulatedMemory::new();
+        memory.map(0x10000, PAGE_SIZE);
+        memory.pages[0xffff] = Some(MemoryPage {
+            bytes: Box::new([0; PAGE_SIZE]),
+            version: 7,
+        });
+        memory.write_range(0x10000, &42u32.to_le_bytes()).unwrap();
+        let (_, _, before) = memory.code_snapshot(0x10000).unwrap();
+        let mut sampler = Sampler::new();
+        let mut access = MemoryAccess {
+            memory: &mut memory,
+            sampler: &mut sampler,
+        };
+        for (address, words, admitted) in [
+            (0x10000, 16, true),
+            (0x1ffc0, 16, true),
+            (0x1fffc, 1, true),
+            (0x1fffc, 2, false),
+            (0x20000, 1, false),
+            (0x10001, 1, false),
+            (0x10002, 1, false),
+            (0x10003, 1, false),
+            (0xffff_fffc, 1, true),
+            (0xffff_fffc, 2, false),
+        ] {
+            assert_eq!(access.supports_word_range(address, words), admitted, "{address:#x}, words={words}");
+        }
+        assert!(access.memory.code_is_current(&[before]));
+        assert_eq!(access.memory.as_arm32cpu_memory().r32(0x10000), 42);
+        assert_eq!(access.sampler.remaining, 1024);
+        assert_eq!(access.sampler.sequence, 0);
+        access.memory.map(0x20000, PAGE_SIZE);
+        access.memory.map(0, PAGE_SIZE);
+        assert!(access.supports_word_range(0x1fffc, 16));
+        assert!(access.supports_word_range(0xffff_fffc, 16));
+        assert!(!access.supports_word_range(0xffff_fffd, 1));
+        assert_eq!(access.memory.pages[0xffff].as_ref().unwrap().version, 7);
+    }
+
+    #[test]
+    fn coprocessor_instruction_cache_maintenance_publishes_code() {
+        for (opcode, operand, code_current, data_current) in [
+            (0xee070f15u32, 0, false, false),
+            (0xee070f17, 0, false, false),
+            (0xee070f55, 0, false, false),
+            (0xee070f35, 0x20020, true, false),
+            (0xee070f35, 0x30000, true, true),
+            (0xee070e15, 0, true, true),
+            (0xee270f15, 0, true, true),
+            (0xee170f15, 0, true, true),
+            (0xee070f16, 0, true, true),
+            (0xee070f95, 0, true, true),
+        ] {
+            let mut engine = Arm32CpuEngine::new();
+            engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
+            engine.mem_map(0x20000, 4, MemoryPermission::ReadWrite);
+            engine.mem_write(0x1000, &opcode.to_le_bytes()).unwrap();
+            engine.reg_write(ArmRegister::Cpsr, 0x1f);
+            engine.reg_write(ArmRegister::PC, 0x1000);
+            engine.reg_write(ArmRegister::R0, operand);
+            engine.sampler.remaining = 1;
+            engine.set_profiling(true);
+            let (_, _, code) = engine.mem.code_snapshot(0x1000).unwrap();
+            let (_, _, data) = engine.mem.code_snapshot(0x20000).unwrap();
+            let result = engine.run(0x1004, 1).unwrap();
+            assert_eq!(result.instructions_executed, 1);
+            assert!(matches!(result.stop_reason, EngineStopReason::End));
+            assert_eq!(engine.mem.code_is_current(&[code]), code_current, "opcode={opcode:#x}");
+            assert_eq!(engine.mem.code_is_current(&[data]), data_current, "opcode={opcode:#x}");
+            assert!(engine.mem.pages[3].is_none());
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
+            assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
+            assert_eq!(engine.sampler.sequence, 1);
+            let samples = engine.take_profile(true);
+            assert_eq!(samples.len(), 1);
+            assert_eq!(samples[0].stack, [0x1000]);
+        }
+    }
+
+    #[test]
+    fn cache_maintenance_conditions_match_arm_branch_conditions() {
+        let mut engine = Arm32CpuEngine::new();
+        engine.mem_map(0x1000, 0x20, MemoryPermission::ReadWriteExecute);
+        for condition in 0..15 {
+            engine.mem_write(0x1000, &(0x0e070f15u32 | condition << 28).to_le_bytes()).unwrap();
+            engine.mem_write(0x1010, &(0x0a000000u32 | condition << 28).to_le_bytes()).unwrap();
+            for flags in 0..16 {
+                let cpsr = 0x1f | flags << 28;
+                engine.reg_write(ArmRegister::Cpsr, cpsr);
+                engine.reg_write(ArmRegister::PC, 0x1010);
+                engine.run(0x1018, 1).unwrap();
+                let passed = engine.reg_read(ArmRegister::PC) == 0x1018;
+                engine.reg_write(ArmRegister::PC, 0x1000);
+                let (_, _, before) = engine.mem.code_snapshot(0x1000).unwrap();
+                engine.run(0x1004, 1).unwrap();
+                assert_eq!(!engine.mem.code_is_current(&[before]), passed, "condition={condition}, cpsr={cpsr:#x}");
+            }
+        }
+    }
+
+    #[test]
+    fn cache_maintenance_reads_the_current_register_bank() {
+        for (mode, cpsr, register) in [(Mode::Supervisor, 0x13, 13), (Mode::Fiq, 0x11, 8)] {
+            let mut engine = Arm32CpuEngine::new();
+            engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
+            engine.mem_map(0x20000, 4, MemoryPermission::ReadWrite);
+            engine.mem_map(0x30000, 4, MemoryPermission::ReadWrite);
+            engine
+                .mem_write(0x1000, &(0xee070f35u32 | u32::from(register) << 12).to_le_bytes())
+                .unwrap();
+            engine.reg_write(ArmRegister::Cpsr, cpsr);
+            engine.reg_write(ArmRegister::PC, 0x1000);
+            engine.cpu.reg_set(Mode::User, register, 0x20000);
+            engine.cpu.reg_set(mode, register, 0x30000);
+            let (_, _, user_page) = engine.mem.code_snapshot(0x20000).unwrap();
+            let (_, _, active_page) = engine.mem.code_snapshot(0x30000).unwrap();
+
+            assert_eq!(engine.run(0x1004, 1).unwrap().instructions_executed, 1);
+            assert!(engine.mem.code_is_current(&[user_page]), "mode={mode:?}");
+            assert!(!engine.mem.code_is_current(&[active_page]), "mode={mode:?}");
+            assert_eq!(engine.reg_read(ArmRegister::Cpsr), cpsr);
+        }
     }
 
     #[test]

@@ -367,9 +367,9 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arm32_cpu"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7a9c5826e2605a61f450e9153e920407383103c4e7890227336f0b9a66f310"
+checksum = "9c486154d790793acc6f6e881956512bc78fadbd7a7ace8f4be41eba95f9c55a"
 dependencies = [
  "log",
 ]

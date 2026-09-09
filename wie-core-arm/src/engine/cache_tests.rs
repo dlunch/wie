@@ -168,7 +168,7 @@ fn covered_instruction_entries_reuse_current_canonical_translations() {
             };
             assert!(jit.lookup(interior, &memory).is_none());
             assert!(jit.lookup(entry, &memory).is_none());
-            assert_eq!(responses.lock().retired, [installed.0]);
+            assert_eq!(responses.lock().retired, [installed]);
             jit.sample(interior, 9);
             jit.maintain(&memory);
             let replacement = responses.lock().requests[1].clone();
@@ -176,8 +176,8 @@ fn covered_instruction_entries_reuse_current_canonical_translations() {
             assert_eq!(replacement.regions[0].expected_old, None);
             responses.lock().ready.push_back(completion(&replacement));
             jit.poll(&memory);
-            let current = jit.lookup(interior, &memory).unwrap().0;
-            assert_ne!(current, installed.0);
+            let current = jit.lookup(interior, &memory).unwrap();
+            assert_ne!(current, installed);
             assert_eq!(
                 jit.lookup(
                     RegionKey {
@@ -186,14 +186,13 @@ fn covered_instruction_entries_reuse_current_canonical_translations() {
                     },
                     &memory
                 )
-                .unwrap()
-                .0,
+                .unwrap(),
                 current
             );
             assert!(jit.lookup(entry, &memory).is_none());
             responses.lock().ready.push_back(completion(&request));
             jit.poll(&memory);
-            assert_eq!(jit.lookup(interior, &memory).unwrap().0, current);
+            assert_eq!(jit.lookup(interior, &memory).unwrap(), current);
             assert!(!responses.lock().retired.contains(&current));
             jit.shutdown();
             responses.lock().ready.push_back(completion(&replacement));
@@ -354,7 +353,7 @@ fn pending_coverage_is_released_after_failure_or_stale_completion() {
         assert_eq!(replacement.regions[0].expected_old, None);
         responses.lock().ready.push_back(completion(&replacement));
         jit.poll(&memory);
-        assert_eq!(jit.lookup(interior, &memory).unwrap().0.generation, replacement.request);
+        assert_eq!(jit.lookup(interior, &memory).unwrap().generation, replacement.request);
         assert!(jit.lookup(entry, &memory).is_none());
     }
 }
@@ -383,16 +382,16 @@ fn overlapping_regions_keep_canonical_ownership_and_surviving_aliases() {
         let request = responses.lock().requests.last().unwrap().clone();
         responses.lock().ready.push_back(completion(&request));
         jit.poll(&memory);
-        handles.push(jit.lookup(entry, &memory).unwrap().0);
+        handles.push(jit.lookup(entry, &memory).unwrap());
     }
-    assert_eq!(jit.lookup(first, &memory).unwrap().0, handles[0]);
-    assert_eq!(jit.lookup(second, &memory).unwrap().0, handles[1]);
+    assert_eq!(jit.lookup(first, &memory).unwrap(), handles[0]);
+    assert_eq!(jit.lookup(second, &memory).unwrap(), handles[1]);
     responses.lock().admissions.push_back(Admission::Busy);
     jit.sample(other, 8);
     jit.maintain(&memory);
     assert_eq!(responses.lock().retired, [handles[0]]);
     for pc in [first.pc, first.pc + 2, second.pc] {
-        assert_eq!(jit.lookup(RegionKey { pc, ..first }, &memory).unwrap().0, handles[1]);
+        assert_eq!(jit.lookup(RegionKey { pc, ..first }, &memory).unwrap(), handles[1]);
     }
     jit.sample(first, 9);
     jit.maintain(&memory);
@@ -426,10 +425,10 @@ fn duplicate_completion_does_not_retire_an_installed_function() {
     let request = responses.lock().requests[0].clone();
     responses.lock().ready.push_back(completion(&request));
     jit.poll(&memory);
-    let installed = jit.lookup(entry, &memory).unwrap().0;
+    let installed = jit.lookup(entry, &memory).unwrap();
     responses.lock().ready.push_back(completion(&request));
     jit.poll(&memory);
-    assert_eq!(jit.lookup(entry, &memory).unwrap().0, installed);
+    assert_eq!(jit.lookup(entry, &memory).unwrap(), installed);
     assert!(!responses.lock().retired.contains(&installed));
 }
 
@@ -472,7 +471,7 @@ fn foreign_completions_do_not_consume_the_pending_request() {
         assert_eq!(responses.lock().requests.len(), 1);
         responses.lock().ready.push_back(completion(&request));
         jit.poll(&memory);
-        let installed = jit.lookup(entry, &memory).unwrap().0;
+        let installed = jit.lookup(entry, &memory).unwrap();
         assert_eq!(
             installed,
             CompiledHandle {
@@ -504,7 +503,7 @@ fn stale_source_or_old_handle_discards_the_whole_merge() {
             let request = responses.lock().requests.last().unwrap().clone();
             responses.lock().ready.push_back(completion(&request));
             jit.poll(&memory);
-            installed.push((entry, jit.lookup(entry, &memory).unwrap().0));
+            installed.push((entry, jit.lookup(entry, &memory).unwrap()));
         }
         let entry = RegionKey {
             pc: 0x70000,
@@ -558,8 +557,8 @@ fn stale_source_or_old_handle_discards_the_whole_merge() {
         jit.poll(&memory);
         assert!(jit.lookup(entry, &memory).is_none());
         for (entry, handle) in &installed[usize::from(invalidation != "expected_old")..] {
-            assert_eq!(jit.lookup(*entry, &memory).unwrap().0, *handle);
-            assert_eq!(jit.lookup(RegionKey { pc: entry.pc + 2, ..*entry }, &memory).unwrap().0, *handle);
+            assert_eq!(jit.lookup(*entry, &memory).unwrap(), *handle);
+            assert_eq!(jit.lookup(RegionKey { pc: entry.pc + 2, ..*entry }, &memory).unwrap(), *handle);
             assert!(!responses.lock().retired.contains(handle));
         }
         assert!(responses.lock().retired.ends_with(&discarded));
@@ -585,21 +584,21 @@ fn merges_replace_exact_old_handles_and_late_generations_stay_retired() {
         jit.maintain(&memory);
         let request = responses.lock().requests.last().unwrap().clone();
         if page > 7 {
-            let before: Vec<_> = entries.iter().map(|key| jit.lookup(*key, &memory).unwrap().0).collect();
+            let before: Vec<_> = entries.iter().map(|key| jit.lookup(*key, &memory).unwrap()).collect();
             let old_request = responses.lock().requests[0].clone();
             responses.lock().ready.push_back(completion(&old_request));
             let retired_before = responses.lock().retired.len();
             jit.poll(&memory);
             for (key, handle) in entries.iter().zip(before) {
-                assert_eq!(jit.lookup(*key, &memory).unwrap().0, handle);
-                assert_eq!(jit.lookup(RegionKey { pc: key.pc + 2, ..*key }, &memory).unwrap().0, handle);
+                assert_eq!(jit.lookup(*key, &memory).unwrap(), handle);
+                assert_eq!(jit.lookup(RegionKey { pc: key.pc + 2, ..*key }, &memory).unwrap(), handle);
                 assert!(!responses.lock().retired[retired_before..].contains(&handle));
             }
             assert!(jit.lookup(entry, &memory).is_none());
         }
         let old_handles: Vec<_> = request.regions.iter().filter_map(|region| region.expected_old).collect();
         for region in &request.regions {
-            assert_eq!(jit.lookup(region.ir.entry, &memory).map(|value| value.0), region.expected_old);
+            assert_eq!(jit.lookup(region.ir.entry, &memory), region.expected_old);
         }
         merges += usize::from(!old_handles.is_empty());
         let result = completion(&request);
@@ -616,8 +615,8 @@ fn merges_replace_exact_old_handles_and_late_generations_stay_retired() {
         jit.poll(&memory);
         assert_eq!(responses.lock().retired[retired_before..], old_handles);
         for (key, handle) in replacements {
-            assert_eq!(jit.lookup(key, &memory).unwrap().0, handle);
-            assert_eq!(jit.lookup(RegionKey { pc: key.pc + 2, ..key }, &memory).unwrap().0, handle);
+            assert_eq!(jit.lookup(key, &memory).unwrap(), handle);
+            assert_eq!(jit.lookup(RegionKey { pc: key.pc + 2, ..key }, &memory).unwrap(), handle);
             assert!(!old_handles.contains(&handle));
         }
         entries.push(entry);
@@ -644,7 +643,7 @@ fn busy_admission_reclaims_cold_handles_and_retries_at_maintenance_boundaries() 
         let request = responses.lock().requests.last().unwrap().clone();
         responses.lock().ready.push_back(completion(&request));
         jit.poll(&memory);
-        installed.push((entry, jit.lookup(entry, &memory).unwrap().0));
+        installed.push((entry, jit.lookup(entry, &memory).unwrap()));
     }
     let entry = RegionKey {
         pc: 0x30000,
@@ -683,7 +682,7 @@ fn busy_admission_reclaims_cold_handles_and_retries_at_maintenance_boundaries() 
     assert_eq!(request.regions[0].source, responses.lock().requests[2].regions[0].source);
     responses.lock().ready.push_back(completion(&request));
     jit.poll(&memory);
-    let handle = jit.lookup(entry, &memory).unwrap().0;
+    let handle = jit.lookup(entry, &memory).unwrap();
     assert_eq!(
         handle,
         CompiledHandle {
@@ -713,7 +712,7 @@ fn ir_pressure_bounds_merge_requests_and_reclaims_cold_translations() {
         jit.sample(entry, 8);
         let before: Vec<_> = entries
             .iter()
-            .filter_map(|(key, _)| jit.lookup(*key, &memory).map(|value| (*key, value.0)))
+            .filter_map(|(key, _)| jit.lookup(*key, &memory).map(|value| (*key, value)))
             .collect();
         let retired_before = responses.lock().retired.len();
         jit.maintain(&memory);
@@ -739,13 +738,10 @@ fn ir_pressure_bounds_merge_requests_and_reclaims_cold_translations() {
             }
         }
         entries.push((entry, request.regions[0].ir_size() + 2 * 256 * core::mem::size_of::<(RegionKey, u32)>()));
-        let old_handles: Vec<_> = entries
-            .iter()
-            .filter_map(|(key, _)| jit.lookup(*key, &memory).map(|value| value.0))
-            .collect();
+        let old_handles: Vec<_> = entries.iter().filter_map(|(key, _)| jit.lookup(*key, &memory)).collect();
         responses.lock().ready.push_back(completion(&request));
         jit.poll(&memory);
-        let handle = jit.lookup(entry, &memory).unwrap().0;
+        let handle = jit.lookup(entry, &memory).unwrap();
         assert!(!old_handles.contains(&handle));
         assert!(!responses.lock().retired.contains(&handle));
         let live_sizes: Vec<_> = entries
@@ -791,4 +787,75 @@ fn compilation_failure_is_suppressed_only_for_the_current_code_version() {
     jit.sample(entry, 20);
     jit.maintain(&memory);
     assert_eq!(responses.lock().requests.len(), 2);
+}
+
+#[test]
+fn explicit_cache_publication_expires_installed_pending_and_failed_translations() {
+    for opcode in [0xee070f15u32, 0xee070f35] {
+        for state in ["installed", "pending", "failed"] {
+            let responses = Arc::new(Mutex::new(Responses::default()));
+            let mut jit = Jit::new(1, Box::new(DeferredExecutor(responses.clone())));
+            let mut engine = Arm32CpuEngine::new();
+            let entry = RegionKey {
+                pc: 0x1000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            };
+            engine.mem_map(entry.pc, 2, MemoryPermission::ReadWriteExecute);
+            engine.mem_write(entry.pc, &0x4700u16.to_le_bytes()).unwrap(); // bx r0
+            engine.mem_map(0x20000, 4, MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x20000, &opcode.to_le_bytes()).unwrap();
+            jit.sample(entry, 8);
+            jit.maintain(&engine.mem);
+            let request = responses.lock().requests[0].clone();
+            let complete = completion(&request);
+            let old = complete.result.as_ref().unwrap().regions[0].handle;
+            if state != "pending" {
+                let mut result = completion(&request);
+                if state == "failed" {
+                    result.result = Err("compile failed".into());
+                }
+                responses.lock().ready.push_back(result);
+                jit.poll(&engine.mem);
+            }
+
+            engine.mem.as_arm32cpu_memory().w16(entry.pc, 0x4770); // bx lr
+            assert!(engine.mem.code_is_current(&request.regions[0].source));
+            if state == "installed" {
+                assert_eq!(jit.lookup(entry, &engine.mem), Some(old));
+            }
+            for hits in 9..12 {
+                jit.sample(entry, hits);
+                jit.maintain(&engine.mem);
+            }
+            assert_eq!(responses.lock().requests.len(), 1, "{state}");
+
+            engine.reg_write(ArmRegister::Cpsr, 0x1f);
+            engine.reg_write(ArmRegister::PC, 0x20000);
+            engine.reg_write(ArmRegister::R0, entry.pc);
+            let result = engine.run(0x20004, 1).unwrap();
+            assert_eq!(result.instructions_executed, 1);
+            assert!(!engine.mem.code_is_current(&request.regions[0].source));
+            if state == "pending" {
+                responses.lock().ready.push_back(complete);
+                jit.poll(&engine.mem);
+            }
+            assert!(jit.lookup(entry, &engine.mem).is_none(), "{state}");
+            assert_eq!(responses.lock().retired, if state == "failed" { vec![] } else { vec![old] });
+            jit.sample(entry, 12);
+            jit.maintain(&engine.mem);
+            let replacement = responses.lock().requests[1].clone();
+            assert!(matches!(
+                replacement.regions[0].ir.blocks[0].instructions[0].operation,
+                wie_arm_jit::Operation::Branch {
+                    target: wie_arm_jit::Value::Register(14),
+                    ..
+                }
+            ));
+            responses.lock().ready.push_back(completion(&replacement));
+            jit.poll(&engine.mem);
+            assert_ne!(jit.lookup(entry, &engine.mem), Some(old));
+            assert!(jit.lookup(entry, &engine.mem).is_some());
+        }
+    }
 }

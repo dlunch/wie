@@ -157,7 +157,8 @@ for (const mode of ["development", "production"]) {
                 const first = JSON.parse(await until(() => probe.poll()));
                 check(first.request === 1 && first.regions === 1, JSON.stringify(first));
                 check(installations[0].load === wasm.wie_jit_load && installations[0].store === wasm.wie_jit_store
-                    && installations[0].sample_prepare === wasm.wie_jit_sample_prepare && installations[0].memory === wasm.memory,
+                    && installations[0].sample_prepare === wasm.wie_jit_sample_prepare
+                    && installations[0].word_range === wasm.wie_jit_word_range && installations[0].memory === wasm.memory,
                 "generated imports do not reference raw host exports");
                 const budget = JSON.parse(probe.execute(1n, 0xfffffff0, 10, 100));
                 check(budget.exit === 2 && budget.executed === 10 && budget.r0 === 5 && budget.budget === 0, JSON.stringify(budget));
@@ -190,6 +191,26 @@ for (const mode of ["development", "production"]) {
                 for (let id = 12; id <= 19; id++) probe.retire(BigInt(id));
                 check(JSON.parse(probe.execute(20n, 0xfffffff0, 4, 100)).r0 === 2, "retirement dropped the replacement instance");
                 probe.retire(20n);
+                const transfer = JSON.parse(request(21));
+                const operations = [
+                    { Alu: { op: "Move", destination: 0, left: { Immediate: 0 },
+                        right: { value: { Immediate: 37 }, shift: "Lsl", amount: { Immediate: 0 } }, set_flags: false } },
+                    { MultipleTransfer: { base: 1, registers: 129, increment: true, before: false, write_back: false, load: false } },
+                    { Alu: { op: "Move", destination: 0, left: { Immediate: 0 },
+                        right: { value: { Immediate: 0 }, shift: "Lsl", amount: { Immediate: 0 } }, set_flags: false } },
+                    { Alu: { op: "Move", destination: 7, left: { Immediate: 0 },
+                        right: { value: { Immediate: 0 }, shift: "Lsl", amount: { Immediate: 0 } }, set_flags: false } },
+                    { MultipleTransfer: { base: 1, registers: 129, increment: true, before: false, write_back: false, load: true } },
+                ];
+                transfer.regions[0].ir.blocks[0].instructions = operations.map((operation, index) => ({
+                    pc: 4096 + index * 2, size: 2, condition: "Always", operation,
+                }));
+                check(probe.submit(JSON.stringify(transfer)) === 0, "multiple-transfer request rejected");
+                check(JSON.parse(await until(() => probe.poll())).regions === 1, "multiple-transfer request failed to install");
+                const transferred = JSON.parse(probe.execute(21n, 4106, 100, 100));
+                check(transferred.exit === 3 && transferred.executed === 5 && transferred.r0 === 37 && transferred.r7 === 77
+                    && probe.stores === 2, JSON.stringify(transferred));
+                probe.retire(21n);
                 probe.shutdown();
                 check(workers[0].terminated && workers[0].onmessage == null && workers[0].onerror == null, "shutdown retained worker listeners");
                 probe.free();

@@ -13,7 +13,7 @@ serde_json = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
 
-arm32_cpu = { version = "^0.1.1" }
+arm32_cpu = { version = "^0.1.2" }
 crossbeam = { version = "^0.8" }
 gdbstub = { version = "^0.7" }
 gdbstub_arch = { version = "^0.3" }

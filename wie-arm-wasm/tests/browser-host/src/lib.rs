@@ -23,6 +23,7 @@ fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
 pub struct Probe {
     executor: WasmExecutor,
     handles: BTreeMap<u64, Vec<CompiledHandle>>,
+    memory: [u8; 256],
     #[wasm_bindgen(readonly)]
     pub stores: u32,
 }
@@ -34,6 +35,7 @@ impl Probe {
         Ok(Self {
             executor: WasmExecutor::new(session).map_err(JsValue::from)?,
             handles: BTreeMap::new(),
+            memory: [0; 256],
             stores: 0,
         })
     }
@@ -72,13 +74,14 @@ impl Probe {
         let mut access = Access {
             samples: Vec::new(),
             stores: &mut self.stores,
+            memory: &mut self.memory,
         };
         let exit = self
             .executor
             .execute(self.handles[&request][0], &mut frame, &mut access)
             .map_err(JsValue::from)?;
         Ok(serde_json::json!({
-            "exit": exit as u32, "r0": frame.regs[0], "pc": frame.regs[15], "executed": frame.executed,
+            "exit": exit as u32, "r0": frame.regs[0], "r7": frame.regs[7], "pc": frame.regs[15], "executed": frame.executed,
             "budget": frame.budget_remaining, "sample": frame.sample_remaining, "samples": access.samples,
         })
         .to_string())
@@ -99,14 +102,30 @@ impl Probe {
 struct Access<'a> {
     samples: Vec<[u32; 3]>,
     stores: &'a mut u32,
+    memory: &'a mut [u8; 256],
 }
 
 impl ExecutionAccess for Access<'_> {
-    fn load(&mut self, _address: u32, _width: u32) -> AccessResult {
-        AccessResult::InterpretOne
+    fn supports_word_range(&mut self, address: u32, words: u32) -> bool {
+        address.is_multiple_of(4) && u64::from(address) + u64::from(words) * 4 <= self.memory.len() as u64
     }
 
-    fn store(&mut self, _address: u32, _width: u32, _value: u32) -> AccessResult {
+    fn load(&mut self, address: u32, width: u32) -> AccessResult {
+        if !address.is_multiple_of(width) || u64::from(address) + u64::from(width) > self.memory.len() as u64 {
+            return AccessResult::InterpretOne;
+        }
+        let mut value = 0;
+        for (index, byte) in self.memory[address as usize..(address + width) as usize].iter().enumerate() {
+            value |= u32::from(*byte) << (index * 8);
+        }
+        AccessResult::Complete(value)
+    }
+
+    fn store(&mut self, address: u32, width: u32, value: u32) -> AccessResult {
+        if !address.is_multiple_of(width) || u64::from(address) + u64::from(width) > self.memory.len() as u64 {
+            return AccessResult::InterpretOne;
+        }
+        self.memory[address as usize..(address + width) as usize].copy_from_slice(&value.to_le_bytes()[..width as usize]);
         *self.stores += 1;
         AccessResult::Complete(0)
     }

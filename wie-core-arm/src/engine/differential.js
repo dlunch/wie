@@ -27,9 +27,16 @@ const instance = new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from
             const [base, bytes] = page;
             for (let i = 0; i < width; i++) bytes[address - base + i] = value >>> (8 * i);
             effects.push({ Store: [address, width, value >>> 0] });
-            return input.source.some(stamp => stamp.page === ((address & 0xffff0000) >>> 0)) ? 3 : 0;
+            return 0;
         },
         sample_prepare: (_, pc, cpsr, r7) => effects.push({ Sample: [pc >>> 0, cpsr >>> 0, r7 >>> 0] }),
+        word_range: (_, address, words) => {
+            address >>>= 0;
+            const admitted = Array.from({ length: words }, (_, index) => (address + 4 * index) >>> 0)
+                .every(word => find(word, 4)) ? 1 : 0;
+            effects.push({ WordRange: [address, words, admitted] });
+            return admitted;
+        },
     },
 });
 const exit = instance.exports[`region_${input.slot}`](0, 0);

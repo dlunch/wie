@@ -67,13 +67,12 @@ impl Jit {
         }
     }
 
-    pub fn lookup(&mut self, key: RegionKey, memory: &EmulatedMemory) -> Option<(CompiledHandle, [CodePageStamp; 1])> {
+    pub fn lookup(&mut self, key: RegionKey, memory: &EmulatedMemory) -> Option<CompiledHandle> {
         loop {
             let entry = self.owner(key)?;
             let translation = &self.installed[&entry];
             if memory.code_is_current(&translation.region.source) {
-                // Analysis stays within one code_snapshot page.
-                return Some((translation.handle, [translation.region.source[0]]));
+                return Some(translation.handle);
             }
             self.retire(entry);
         }
