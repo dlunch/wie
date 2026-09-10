@@ -7,7 +7,7 @@ use alloc::{
 };
 use core::cell::RefCell;
 
-use js_sys::{Function, Object, Reflect, WebAssembly};
+use js_sys::{Array, Function, Object, Reflect, Uint8Array, WebAssembly};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{ErrorEvent, MessageEvent, Worker};
@@ -20,16 +20,25 @@ const RESERVATION: usize = 512 * 1024;
 const LIVE_BYTES: usize = 2 * 1024 * 1024;
 const PEAK_BYTES: usize = 4 * 1024 * 1024;
 const PENDING_IR_BYTES: usize = 1024 * 1024;
+const MAX_QUEUED_REQUESTS: usize = 4;
+const MAX_LIVE_MODULES: usize = 16;
+const MAX_COEXISTING_MODULES: usize = 20;
 
 #[wasm_bindgen(module = "/src/bootstrap.js")]
 extern "C" {
     #[wasm_bindgen(catch, js_name = createCompilerWorker)]
     fn create_compiler_worker() -> Result<Worker, JsValue>;
+
+    #[wasm_bindgen(catch, js_name = executeRegion)]
+    fn execute_region(region: &Function, frame: u32, context: u32) -> Result<f64, JsValue>;
 }
 
 struct Pending {
-    request: CompileRequest,
-    payload: String,
+    session: u64,
+    request: u64,
+    manifest: Vec<ManifestRegion>,
+    payload: Vec<u8>,
+    request_cost: usize,
 }
 
 struct Installed {
@@ -113,10 +122,10 @@ impl WasmExecutor {
                 return;
             }
             let id = Reflect::get(&data, &"request".into()).ok().and_then(|value| value.as_string());
-            if id.as_deref() != Some(active.pending.request.request.to_string().as_str()) {
+            if id.as_deref() != Some(active.pending.request.to_string().as_str()) {
                 return;
             }
-            let decoded = decode_response(&data, &active.pending.request);
+            let decoded = decode_response(&data, &active.pending.manifest);
             let (module, encoded_size) = match decoded {
                 Ok(result) => result,
                 Err(error) => {
@@ -131,8 +140,8 @@ impl WasmExecutor {
                     return;
                 }
             };
-            let request = active.pending.request.request;
-            let count = active.pending.request.regions.len();
+            let request = active.pending.request;
+            let count = active.pending.manifest.len();
             active.stage = Stage::Installing;
             let promise = WebAssembly::instantiate_module(&module, &imports);
             let weak = weak.clone();
@@ -146,7 +155,7 @@ impl WasmExecutor {
                     return;
                 }
                 let Some(active) = state.active.as_mut() else { return };
-                if active.pending.request.request != request || !matches!(active.stage, Stage::Installing) {
+                if active.pending.request != request || !matches!(active.stage, Stage::Installing) {
                     return;
                 }
                 active.stage = Stage::Ready((|| {
@@ -196,15 +205,19 @@ impl WasmExecutor {
         if state.closed || state.active.is_some() || (!state.ready && state.worker_failure.is_none()) {
             return;
         }
-        let Some(pending) = state.queue.pop_front() else { return };
+        let Some(mut pending) = state.queue.pop_front() else { return };
         let stage = if let Some(error) = &state.worker_failure {
             Stage::Ready(Err(error.clone()))
         } else {
             let message = Object::new();
             let sent = (|| {
-                Reflect::set(&message, &"request".into(), &pending.request.request.to_string().into())?;
-                Reflect::set(&message, &"payload".into(), &JsValue::from_str(&pending.payload))?;
-                worker.post_message(&message)
+                // Copy into a dedicated JS buffer; never transfer the host Wasm memory.
+                let payload = Uint8Array::from(core::mem::take(&mut pending.payload).as_slice());
+                let transfer = Array::new();
+                transfer.push(&payload.buffer());
+                Reflect::set(&message, &"request".into(), &pending.request.to_string().into())?;
+                Reflect::set(&message, &"payload".into(), &payload)?;
+                worker.post_message_with_transfer(&message, &transfer)
             })();
             match sent {
                 Ok(()) => Stage::Compiling,
@@ -216,7 +229,7 @@ impl WasmExecutor {
 }
 
 impl CompiledExecutor for WasmExecutor {
-    fn submit(&mut self, request: CompileRequest) -> Admission {
+    fn submit(&mut self, request: &CompileRequest) -> Admission {
         let mut state = self.state.borrow_mut();
         if state.closed {
             return Admission::Failed(String::from("compiled executor is closed"));
@@ -227,11 +240,11 @@ impl CompiledExecutor for WasmExecutor {
         if request.session != self.session {
             return Admission::Failed(String::from("compile request has a stale session"));
         }
-        let payload = match serde_json::to_string(&request) {
+        let payload = match serde_json::to_vec(request) {
             Ok(payload) => payload,
             Err(error) => return Admission::Failed(error.to_string()),
         };
-        // Include core/runtime/worker IR and UTF-8/UTF-16 transport copies.
+        // Keep the original conservative reservation until completion is consumed.
         let request_cost = 4 * request.ir_size() + 5 * payload.len();
         if request_cost > PENDING_IR_BYTES {
             return Admission::Failed(String::from("compile request exceeds the IR budget"));
@@ -240,20 +253,40 @@ impl CompiledExecutor for WasmExecutor {
             .queue
             .iter()
             .chain(state.active.as_ref().map(|active| &active.pending))
-            .map(|pending| 4 * pending.request.ir_size() + 5 * pending.payload.len())
+            .map(|pending| pending.request_cost)
             .sum();
         if pending_cost + request_cost > PENDING_IR_BYTES {
             return Admission::Busy;
         }
         let pending = state.queue.len() + usize::from(state.active.is_some());
         let bytes: usize = state.modules.values().map(|module| module.encoded_size).sum();
-        if state.queue.len() >= 4 || state.modules.len() + pending + 1 > 12 || bytes + (pending + 1) * RESERVATION > PEAK_BYTES {
+        if state.queue.len() >= MAX_QUEUED_REQUESTS
+            || state.modules.len() + pending + 1 > MAX_COEXISTING_MODULES
+            || bytes + (pending + 1) * RESERVATION > PEAK_BYTES
+        {
             return Admission::Busy;
         }
-        if !fits_live(&state, &request, RESERVATION) {
+        let manifest: Vec<_> = request
+            .regions
+            .iter()
+            .enumerate()
+            .map(|(index, region)| ManifestRegion {
+                entry: region.ir.entry,
+                source: region.source.clone(),
+                export: format!("region_{index}"),
+                expected_old: region.expected_old,
+            })
+            .collect();
+        if !fits_live(&state, &manifest, RESERVATION) {
             return Admission::Busy;
         }
-        state.queue.push_back(Pending { request, payload });
+        state.queue.push_back(Pending {
+            session: request.session,
+            request: request.request,
+            manifest,
+            payload,
+            request_cost,
+        });
         drop(state);
         self.start_next();
         Admission::Accepted
@@ -276,68 +309,53 @@ impl CompiledExecutor for WasmExecutor {
             state.active = Some(active);
             return None;
         };
-        let request = active.pending.request;
-        let session = request.session;
-        let request_id = request.request;
+        let Pending {
+            session, request, manifest, ..
+        } = active.pending;
         let result = result.and_then(|installed| {
-            if !fits_live(&state, &request, installed.encoded_size) {
+            if !fits_live(&state, &manifest, installed.encoded_size) {
                 return Err(String::from("compiled installation exceeds the live module budget"));
             }
             let encoded_size = installed.encoded_size;
-            let regions = request
-                .regions
+            let regions = manifest
                 .into_iter()
                 .enumerate()
-                .map(|(index, region)| CompiledRegion {
-                    manifest: ManifestRegion {
-                        entry: region.ir.entry,
-                        source: region.source,
-                        export: format!("region_{index}"),
-                        expected_old: region.expected_old,
-                    },
+                .map(|(index, manifest)| CompiledRegion {
+                    manifest,
                     handle: CompiledHandle {
                         slot: index as u32,
-                        generation: request.request,
+                        generation: request,
                     },
                 })
                 .collect();
-            state.modules.insert(request.request, installed);
+            state.modules.insert(request, installed);
             Ok(CompiledArtifact { regions, encoded_size })
         });
-        let completion = CompileCompletion {
-            session,
-            request: request_id,
-            result,
-        };
+        let completion = CompileCompletion { session, request, result };
         drop(state);
         self.start_next();
         Some(completion)
     }
 
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
-        let function = self
-            .state
-            .borrow()
+        let state = self.state.borrow();
+        let function = state
             .modules
             .get(&handle.generation)
             .and_then(|module| module.functions.get(handle.slot as usize))
             .and_then(Option::as_ref)
-            .cloned()
             .ok_or_else(|| String::from("compiled handle is retired or executor is closed"))?;
         let mut context = ExecutionContext { access, frame };
-        let result = function.call2(
-            &JsValue::UNDEFINED,
-            &JsValue::from(context.frame as u32),
-            &JsValue::from(&mut context as *mut ExecutionContext<'_> as u32),
-        );
+        let result = execute_region(function, context.frame as u32, &mut context as *mut ExecutionContext<'_> as u32);
+        drop(state);
         let exit = match result {
-            Ok(value) => match value.as_f64() {
-                Some(0.0) => Ok(CompiledExit::Dispatch),
-                Some(1.0) => Ok(CompiledExit::Sample),
-                Some(2.0) => Ok(CompiledExit::Budget),
-                Some(3.0) => Ok(CompiledExit::End),
-                Some(4.0) => Ok(CompiledExit::InterpretOne),
-                Some(6.0) => Ok(CompiledExit::GuestFault),
+            Ok(value) => match value {
+                0.0 => Ok(CompiledExit::Dispatch),
+                1.0 => Ok(CompiledExit::Sample),
+                2.0 => Ok(CompiledExit::Budget),
+                3.0 => Ok(CompiledExit::End),
+                4.0 => Ok(CompiledExit::InterpretOne),
+                6.0 => Ok(CompiledExit::GuestFault),
                 _ => Err(format!("compiled ABI returned invalid exit: {value:?}")),
             },
             Err(error) => Err(format!("generated code trapped: {error:?}")),
@@ -384,13 +402,13 @@ impl Drop for WasmExecutor {
     }
 }
 
-fn fits_live(state: &State, request: &CompileRequest, output_size: usize) -> bool {
+fn fits_live(state: &State, manifest: &[ManifestRegion], output_size: usize) -> bool {
     let mut count = 1;
     let mut bytes = output_size;
     for (&generation, module) in &state.modules {
         let replaced = module.functions.iter().enumerate().all(|(slot, function)| {
             function.is_none()
-                || request.regions.iter().any(|region| {
+                || manifest.iter().any(|region| {
                     region.expected_old
                         == Some(CompiledHandle {
                             slot: slot as u32,
@@ -403,10 +421,10 @@ fn fits_live(state: &State, request: &CompileRequest, output_size: usize) -> boo
             bytes += module.encoded_size;
         }
     }
-    count <= 8 && bytes <= LIVE_BYTES
+    count <= MAX_LIVE_MODULES && bytes <= LIVE_BYTES
 }
 
-fn decode_response(data: &JsValue, request: &CompileRequest) -> Result<(WebAssembly::Module, usize), String> {
+fn decode_response(data: &JsValue, expected: &[ManifestRegion]) -> Result<(WebAssembly::Module, usize), String> {
     let get = |key: &str| Reflect::get(data, &key.into()).map_err(|error| format!("compiler response: {error:?}"));
     if let Some(error) = get("error")?.as_string() {
         return Err(error);
@@ -421,12 +439,12 @@ fn decode_response(data: &JsValue, request: &CompileRequest) -> Result<(WebAssem
         .as_string()
         .ok_or_else(|| String::from("compiler response is missing its manifest"))?;
     let manifest: Vec<ManifestRegion> = serde_json::from_str(&manifest).map_err(|error| error.to_string())?;
-    if manifest.len() != request.regions.len()
-        || manifest.iter().zip(&request.regions).enumerate().any(|(index, (actual, expected))| {
-            actual.entry != expected.ir.entry
+    if manifest.len() != expected.len()
+        || manifest.iter().zip(expected).any(|(actual, expected)| {
+            actual.entry != expected.entry
                 || actual.source != expected.source
                 || actual.expected_old != expected.expected_old
-                || actual.export != format!("region_{index}")
+                || actual.export != expected.export
         })
     {
         return Err(String::from("compiler manifest does not match its request"));
@@ -493,11 +511,20 @@ unsafe extern "C" fn wie_jit_store(access: u32, address: u32, width: u32, value:
 #[unsafe(no_mangle)]
 unsafe extern "C" fn wie_jit_sample_prepare(access: u32, pc: u32, cpsr: u32, r7: u32) {
     let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
-    context.access.sample_prepare(pc, cpsr, r7);
+    context.access.sample_prepare(pc, cpsr, r7, unsafe { (*context.frame).entry_pc });
 }
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn wie_jit_word_range(access: u32, address: u32, words: u32) -> u32 {
+unsafe extern "C" fn wie_jit_word_range(access: u32, address: u32, words: u32) -> u64 {
     let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
-    u32::from(context.access.supports_word_range(address, words))
+    let Some((first, second)) = context.access.word_range(address, words) else {
+        return 0;
+    };
+    // ExecutionAccess is a safe, public trait: validate its spans before exposing unchecked Wasm accesses.
+    if first.is_empty() || !first.len().is_multiple_of(4) || first.len().checked_add(second.len()) != Some(words as usize * 4) {
+        return 0;
+    }
+    // Generated code consumes these borrowed spans before calling another helper.
+    unsafe { (*context.frame).scratch = first.len() as u32 };
+    u64::from(first.as_mut_ptr() as u32) | (u64::from(second.as_mut_ptr() as u32) << 32)
 }

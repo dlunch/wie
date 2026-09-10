@@ -31,8 +31,10 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
     let mut pending = VecDeque::from([entry.pc]);
     let mut decoded = BTreeMap::new();
     let mut leaders = BTreeSet::from([entry.pc]);
+    let mut instruction_limit_reached = false;
     while let Some(pc) = pending.pop_front() {
-        if decoded.len() == 256 {
+        if decoded.len() == 512 {
+            instruction_limit_reached = true;
             break;
         }
         if decoded.contains_key(&pc) || pc % alignment != 0 {
@@ -54,17 +56,21 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
             continue;
         };
         let next = pc.wrapping_add(u32::from(size));
-        if writes_pc(&operation) {
+        if operation.writes_pc() {
             if let Operation::Branch {
                 target: Value::Immediate(target),
-                exchange: false,
-                ..
+                link,
+                exchange,
             } = operation
             {
+                let target_thumb = if exchange { target & 1 != 0 } else { entry.thumb };
+                let target = target & if target_thumb { !1 } else { !3 };
                 leaders.insert(target);
-                pending.push_back(target);
+                if link.is_none() && !exchange {
+                    pending.push_back(target);
+                }
             }
-            if condition != Condition::Always {
+            if condition != Condition::Always || matches!(operation, Operation::Branch { link: Some(_), .. }) {
                 leaders.insert(next);
                 pending.push_back(next);
             }
@@ -86,16 +92,19 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
     }
 
     // Split after discovery so a backward edge can split an already decoded run.
+    let decoded_count = decoded.len();
     let mut blocks = Vec::new();
+    let mut block_limit_reached = false;
     for start in core::iter::once(entry.pc).chain(leaders.iter().copied().filter(|pc| *pc != entry.pc)) {
         // Omitted blocks are exact-PC dispatcher exits, not synthetic guest instructions.
-        if blocks.len() == 32 {
+        if blocks.len() == 128 {
+            block_limit_reached = !decoded.is_empty();
             break;
         }
         let mut instructions = Vec::new();
         let mut pc = start;
         while let Some(instruction) = decoded.remove(&pc) {
-            let terminates = writes_pc(&instruction.operation);
+            let terminates = instruction.operation.writes_pc();
             pc = pc.wrapping_add(u32::from(instruction.size));
             instructions.push(instruction);
             if terminates || leaders.contains(&pc) {
@@ -106,15 +115,19 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
             blocks.push(BasicBlock { instructions });
         }
     }
+    tracing::debug!(
+        pc = entry.pc,
+        thumb = entry.thumb,
+        cpu_mode = entry.cpu_mode,
+        decoded_count,
+        retained_count = decoded_count - decoded.len(),
+        block_count = blocks.len(),
+        omitted_count = decoded.len(),
+        instruction_limit_reached,
+        block_limit_reached,
+        "ARM JIT region analyzed"
+    );
     Some(RegionIr { entry, blocks })
-}
-
-fn writes_pc(operation: &Operation) -> bool {
-    match operation {
-        Operation::Branch { .. } | Operation::Alu { destination: Some(15), .. } | Operation::Load { destination: 15, .. } => true,
-        Operation::MultipleTransfer { registers, load: true, .. } => registers & 0x8000 != 0,
-        _ => false,
-    }
 }
 
 fn shifted(value: Value, kind: u8, amount: ShiftAmount) -> Operand {
@@ -1283,23 +1296,103 @@ mod tests {
     }
 
     #[test]
+    fn call_return_continuations_share_the_source_region() {
+        for opcode in [0xeb000020, 0xe12fff33, 0xfa000020] {
+            let ir = arm(&[opcode, 0xe2800001, 0xe12fff1e]).unwrap();
+            assert_eq!(
+                ir.blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .map(|instruction| instruction.pc)
+                    .collect::<Vec<_>>(),
+                [0x1000, 0x1004, 0x1008],
+                "{opcode:08x}"
+            );
+        }
+        for (code, size) in [
+            (vec![0x4798, 0x3001, 0x4770], 2),
+            (vec![0xf000, 0xf880, 0x3001, 0x4770], 4),
+            (vec![0xf000, 0xe880, 0x3001, 0x4770], 4),
+        ] {
+            let ir = thumb(&code, 0x1000).unwrap();
+            assert_eq!(
+                ir.blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .map(|instruction| instruction.pc)
+                    .collect::<Vec<_>>(),
+                [0x1000, 0x1000 + size, 0x1002 + size]
+            );
+        }
+        for opcode in [0xea000020, 0xe12fff13] {
+            let ir = arm(&[opcode, 0xe2800001]).unwrap();
+            assert_eq!(ir.blocks.len(), 1);
+            assert_eq!(ir.blocks[0].instructions.len(), 1);
+        }
+    }
+
+    #[test]
+    fn calls_keep_continuations_without_discovering_callees_in_the_snapshot() {
+        for opcode in [0xeb000001, 0x0b000001, 0xfa000001, 0xe12fff33] {
+            let ir = arm(&[opcode, 0xe2800001, 0xe12fff1e, 0xe2811001, 0xe12fff1e]).unwrap();
+            assert_eq!(
+                ir.blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .map(|instruction| instruction.pc)
+                    .collect::<Vec<_>>(),
+                [0x1000, 0x1004, 0x1008],
+                "{opcode:08x}"
+            );
+        }
+        for suffix in [0xf804, 0xe804] {
+            let ir = thumb(&[0xf000, suffix, 0x3001, 0x4770, 0xde00, 0xde00, 0x3101, 0x4770], 0x1000).unwrap();
+            assert_eq!(
+                ir.blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .map(|instruction| instruction.pc)
+                    .collect::<Vec<_>>(),
+                [0x1000, 0x1004, 0x1006],
+                "{suffix:04x}"
+            );
+        }
+    }
+
+    #[test]
+    fn independently_reached_call_targets_and_static_exchanges_start_blocks() {
+        for (code, starts) in [
+            (
+                vec![0xeb000001, 0xe2800001, 0xe2800001, 0xe2811001, 0xe12fff1e],
+                vec![0x1000, 0x1004, 0x100c],
+            ),
+            (vec![0xe2800001, 0xe2800001, 0xebfffffd, 0xe12fff1e], vec![0x1000, 0x1004, 0x100c]),
+            (vec![0x012fff1f, 0xe2800001, 0xe2811001, 0xe12fff1e], vec![0x1000, 0x1004, 0x1008]),
+        ] {
+            let ir = arm(&code).unwrap();
+            assert_eq!(ir.blocks.iter().map(|block| block.instructions[0].pc).collect::<Vec<_>>(), starts);
+            assert_eq!(ir.blocks.iter().map(|block| block.instructions.len()).sum::<usize>(), code.len());
+        }
+    }
+
+    #[test]
     fn instruction_and_block_limits_leave_dispatchable_boundaries() {
-        let ir = thumb(&[0x3001; 300], 0x1000).unwrap();
+        let ir = thumb(&[0x3001; 513], 0x1000).unwrap();
         assert_eq!(ir.blocks.len(), 1);
-        assert_eq!(ir.blocks[0].instructions.len(), 256);
-        assert_eq!(ir.blocks[0].instructions[255].pc, 0x11fe);
-        let ir = thumb(&[0xd1ff; 100], 0x1000).unwrap();
-        assert_eq!(ir.blocks.len(), 32);
+        assert_eq!(ir.blocks[0].instructions.len(), 512);
+        assert_eq!(ir.blocks[0].instructions[511].pc, 0x13fe);
+        let ir = thumb(&[0xd1ff; 200], 0x1000).unwrap();
+        assert_eq!(ir.blocks.len(), 128);
         for (index, block) in ir.blocks.iter().enumerate() {
             assert_eq!(block.instructions.len(), 1);
             assert_eq!(block.instructions[0].pc, 0x1000 + index as u32 * 2);
         }
         // Entry must survive the block cap even when branches reach many earlier blocks.
-        let mut code = vec![0xd1ff; 100];
-        code.push(0xe79a); // b 0x1000 at 0x10c8
-        let ir = thumb(&code, 0x10c8).unwrap();
-        assert_eq!(ir.blocks.len(), 32);
-        assert_eq!(ir.blocks[0].instructions[0].pc, 0x10c8);
+        let mut code = vec![0xd1ff; 200];
+        code.push(0xe736); // b 0x1000 at 0x1190
+        let ir = thumb(&code, 0x1190).unwrap();
+        assert_eq!(ir.blocks.len(), 128);
+        assert_eq!(ir.blocks[0].instructions[0].pc, 0x1190);
     }
 
     #[test]
@@ -1590,8 +1683,9 @@ mod tests {
     fn arm_unconditional_space_accepts_only_blx_and_valid_prefetch_hints() {
         for (opcode, target) in [(0xfa000000, 0x1009), (0xfb000000, 0x100b), (0xfaffffff, 0x1005)] {
             let ir = arm(&[opcode, 0xe2800001]).unwrap();
-            assert_eq!(ir.blocks.len(), 1);
+            assert_eq!(ir.blocks.len(), 2);
             assert_eq!(ir.blocks[0].instructions.len(), 1);
+            assert_eq!(ir.blocks[1].instructions[0].pc, 0x1004);
             assert_eq!(ir.blocks[0].instructions[0].condition, Condition::Always);
             assert_eq!(
                 ir.blocks[0].instructions[0].operation,
@@ -1645,7 +1739,7 @@ mod tests {
         let ir = thumb(&[0xd000, 0xf000, 0xf801, 0x3001, 0x4770], 0x1000).unwrap();
         assert_eq!(
             ir.blocks.iter().flat_map(|b| &b.instructions).map(|i| i.pc).collect::<Vec<_>>(),
-            [0x1000, 0x1002, 0x1008]
+            [0x1000, 0x1002, 0x1006, 0x1008]
         );
         let ir = thumb(&[0x3001, 0xf000, 0xe800], 0x1000).unwrap();
         assert_eq!(ir.blocks[0].instructions.len(), 2);

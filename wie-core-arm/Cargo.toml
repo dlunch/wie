@@ -12,6 +12,7 @@ bytemuck = { workspace = true }
 serde_json = { workspace = true }
 spin = { workspace = true }
 tracing = { workspace = true }
+web-time = { workspace = true }
 
 arm32_cpu = { version = "^0.1.2" }
 crossbeam = { version = "^0.8" }

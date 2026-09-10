@@ -298,13 +298,16 @@ mod tests {
         send_packet(&mut stream, "z0,1000,2");
         assert_eq!(read_packet(&mut stream), "OK");
         send_packet(&mut stream, "vCont;s:p1.1");
-        read_packet(&mut stream);
+        let stepped_branch = read_packet(&mut stream);
         send_packet(&mut stream, "vCont;s:p1.1;s:p1.2");
         let stepped_threads = read_packet(&mut stream);
-        send_packet(&mut stream, "Hgp1.1");
-        assert_eq!(read_packet(&mut stream), "OK");
-        send_packet(&mut stream, "g");
-        let registers = read_packet(&mut stream);
+        let mut registers = Vec::new();
+        for thread in [1, 2] {
+            send_packet(&mut stream, &format!("Hgp1.{thread}"));
+            assert_eq!(read_packet(&mut stream), "OK");
+            send_packet(&mut stream, "g");
+            registers.push(read_packet(&mut stream));
+        }
 
         for command in ["M1000,4:70477047", "M2000,4:70477047", "D;1"] {
             send_packet(&mut stream, command);
@@ -313,7 +316,16 @@ mod tests {
         server.join().unwrap();
         runner.join().unwrap();
         assert_eq!(stepped_breakpoint, "T05thread:p01.01;");
-        assert_eq!(stepped_threads, "T05thread:p01.01;");
-        assert_eq!(&registers[..8], "02000000");
+        assert_eq!(stepped_branch, "T05thread:p01.01;");
+        // Either resumed thread can reach its step first; all-stop keeps the other unchanged.
+        let expected = match stepped_threads.as_str() {
+            "T05thread:p01.01;" => [("02000000", "02100000"), ("01000000", "02200000")],
+            "T05thread:p01.02;" => [("01000000", "00100000"), ("01000000", "00200000")],
+            response => panic!("unexpected step response: {response}"),
+        };
+        for (registers, (r0, pc)) in registers.iter().zip(expected) {
+            assert_eq!(&registers[..8], r0);
+            assert_eq!(&registers[15 * 8..16 * 8], pc);
+        }
     }
 }

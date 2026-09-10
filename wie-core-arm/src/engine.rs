@@ -4,6 +4,8 @@ mod sampler;
 
 use alloc::vec::Vec;
 
+use web_time::Instant;
+
 use wie_backend::ProfileSample;
 use wie_util::{AsAny, Result};
 
@@ -15,6 +17,7 @@ pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal
 pub enum EngineStopReason {
     End,
     Yield,
+    Deadline,
     Svc { category: u32, lr: u32, spsr: u32 },
 }
 
@@ -24,12 +27,14 @@ pub struct EngineRunResult {
 }
 
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult>;
+    fn run(&mut self, end: u32, count: u32, deadline: Option<Instant>) -> Result<EngineRunResult>;
+    fn mark_entry(&mut self);
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
     fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
+    fn mem_read_until_nul(&mut self, address: u32) -> Result<Vec<u8>>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
     fn set_profiling(&mut self, enabled: bool);
     fn take_profile(&mut self, force: bool) -> Vec<ProfileSample>;

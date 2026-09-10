@@ -20,8 +20,9 @@ const instance = new WebAssembly.Instance(module_, {wie: helpers});
 const entry = instance.exports.region_0;
 function get(offset) { return new DataView(memory.buffer).getUint32(F + offset, true); }
 function set(offset, value) { new DataView(memory.buffer).setUint32(F + offset, value, true); }
-function reset({pc = 0x1000, end = 0xfffffff0, budget = 100, sample = 100, cpsr = 0x30} = {}) {
-    new Uint8Array(memory.buffer, F, 92).fill(0);
+function reset({pc = 0x1000, end = 0xfffffff0, budget = 100, sample = 100, cpsr = 0x30, entryPc = 0} = {}) {
+    new Uint8Array(memory.buffer, F, 96).fill(0);
     set(28,77); set(60,pc); set(64,cpsr); set(68,end); set(72,budget); set(76,sample);
+    set(92,entryPc);
     new Uint8Array(memory.buffer,128,20).fill(0);
 }

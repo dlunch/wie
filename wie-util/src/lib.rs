@@ -49,6 +49,33 @@ pub type Result<T> = result::Result<T, WieError>;
 
 pub trait ByteRead {
     fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize>;
+
+    /// Reads a byte string excluding its first NUL. The starting address must be
+    /// nonzero; subsequent guest addresses wrap at 32 bits.
+    fn read_null_terminated_string_bytes(&self, address: u32) -> Result<Vec<u8>> {
+        if address == 0 {
+            return Err(WieError::InvalidMemoryAccess(address));
+        }
+
+        let mut result = Vec::with_capacity(20);
+        let mut cursor = address;
+        let mut byte = [0; 1];
+        loop {
+            let read = self.read_bytes(cursor, &mut byte)?;
+            if read != 1 {
+                return Err(WieError::FatalError(format!("Short read at {cursor:#x}: expected 1, got {read}")));
+            }
+
+            if byte[0] == 0 {
+                break;
+            }
+
+            result.push(byte[0]);
+            cursor = cursor.wrapping_add(1);
+        }
+
+        Ok(result)
+    }
 }
 
 pub trait ByteWrite {
@@ -75,34 +102,6 @@ where
     }
 
     Ok(unsafe { destination.assume_init() })
-}
-
-pub fn read_null_terminated_string_bytes<R>(reader: &R, address: u32) -> Result<Vec<u8>>
-where
-    R: ?Sized + ByteRead,
-{
-    if address == 0 {
-        return Err(WieError::InvalidMemoryAccess(address));
-    }
-
-    let mut result = Vec::with_capacity(20);
-    let mut cursor = address;
-    let mut byte = [0; 1];
-    loop {
-        let read = reader.read_bytes(cursor, &mut byte)?;
-        if read != 1 {
-            return Err(WieError::FatalError(format!("Short read at {cursor:#x}: expected 1, got {read}")));
-        }
-
-        if byte[0] == 0 {
-            break;
-        }
-
-        result.push(byte[0]);
-        cursor += 1;
-    }
-
-    Ok(result)
 }
 
 pub fn write_null_terminated_string_bytes<W>(writer: &mut W, address: u32, bytes: &[u8]) -> Result<()>
@@ -233,8 +232,75 @@ mod tests {
             memory: vec![0, b't', b'e', b's', b't', 0],
         };
 
-        let value = read_null_terminated_string_bytes(&memory, 1).unwrap();
+        let value = memory.read_null_terminated_string_bytes(1).unwrap();
 
         assert_eq!(value, b"test");
+    }
+
+    #[test]
+    fn terminated_string_reads_stop_at_the_reader_boundary() {
+        for bytes in [b"".as_slice(), b"a", b"abcd", b"abcde", &[0xff, 0x80]] {
+            let mut memory = StrictMemory { memory: vec![0] };
+            memory.memory.extend_from_slice(bytes);
+            memory.memory.push(0);
+            assert_eq!(memory.read_null_terminated_string_bytes(1).unwrap(), bytes);
+            assert!(matches!(
+                memory.read_null_terminated_string_bytes(0),
+                Err(WieError::InvalidMemoryAccess(0))
+            ));
+            memory.memory.pop();
+            assert!(matches!(
+                memory.read_null_terminated_string_bytes(1),
+                Err(WieError::InvalidMemoryAccess(address)) if address == bytes.len() as u32 + 1
+            ));
+        }
+    }
+
+    #[test]
+    fn terminated_string_reads_preserve_short_reads_and_errors() {
+        struct FailingReader(bool);
+
+        impl ByteRead for FailingReader {
+            fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
+                assert_eq!(result.len(), 1);
+                if address == 1 {
+                    result[0] = b'x';
+                    Ok(1)
+                } else if self.0 {
+                    Ok(0)
+                } else {
+                    Err(WieError::AllocationFailure)
+                }
+            }
+        }
+
+        assert!(matches!(
+            FailingReader(true).read_null_terminated_string_bytes(1),
+            Err(WieError::FatalError(message)) if message == "Short read at 0x2: expected 1, got 0"
+        ));
+        assert!(matches!(
+            FailingReader(false).read_null_terminated_string_bytes(1),
+            Err(WieError::AllocationFailure)
+        ));
+    }
+
+    #[test]
+    fn terminated_string_reads_wrap_guest_addresses() {
+        struct WrappingReader;
+
+        impl ByteRead for WrappingReader {
+            fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
+                assert_eq!(result.len(), 1);
+                result[0] = match address {
+                    u32::MAX => b'x',
+                    0 => b'y',
+                    1 => 0,
+                    _ => panic!("read beyond the terminator"),
+                };
+                Ok(1)
+            }
+        }
+
+        assert_eq!(WrappingReader.read_null_terminated_string_bytes(u32::MAX).unwrap(), b"xy");
     }
 }

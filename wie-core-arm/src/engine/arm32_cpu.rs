@@ -1,7 +1,8 @@
 use alloc::{boxed::Box, format, vec::Vec};
-use core::cell::RefCell;
+use core::{cell::RefCell, ffi::CStr};
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
+use web_time::Instant;
 
 use wie_arm_jit::{AccessResult, CodePageStamp, CompiledExit, ExecutionAccess, RegionKey, RunFrame};
 use wie_backend::ProfileSample;
@@ -18,6 +19,7 @@ pub struct Arm32CpuEngine {
     cpu: Cpu,
     mem: EmulatedMemory,
     sampler: Sampler,
+    entry_pc: u32,
     jit: Option<Jit>,
     closed: bool,
 }
@@ -41,6 +43,7 @@ impl Arm32CpuEngine {
             cpu: Cpu::new(),
             mem: EmulatedMemory::new(),
             sampler: Sampler::new(),
+            entry_pc: 0,
             jit: None,
             closed: false,
         }
@@ -131,7 +134,7 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32, deadline: Option<Instant>) -> Result<EngineRunResult> {
         if self.closed {
             return Err(WieError::FatalError("ARM core is shut down".into()));
         }
@@ -140,6 +143,8 @@ impl ArmEngine for Arm32CpuEngine {
         }
         let mut instructions_executed = 0;
         let mut interpret_one = false;
+        let mut lookup_entry = true;
+        let mut check_deadline = true;
         let stop_reason = loop {
             let pc = self.cpu.reg_get(Mode::User, reg::PC);
 
@@ -159,8 +164,13 @@ impl ArmEngine for Arm32CpuEngine {
                 break EngineStopReason::Yield;
             }
 
+            if core::mem::take(&mut check_deadline) && deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                break EngineStopReason::Deadline;
+            }
+
             let cpsr = self.cpu.reg_get(Mode::User, reg::CPSR);
-            if !interpret_one
+            if lookup_entry
+                && !interpret_one
                 && cpsr & 0x0100_0000 == 0
                 && let Some(jit) = &mut self.jit
             {
@@ -176,6 +186,7 @@ impl ArmEngine for Arm32CpuEngine {
                         end,
                         budget_remaining: count - instructions_executed,
                         sample_remaining: self.sampler.remaining,
+                        entry_pc: self.entry_pc,
                         ..RunFrame::default()
                     };
                     let mut access = MemoryAccess {
@@ -193,23 +204,29 @@ impl ArmEngine for Arm32CpuEngine {
                         self.cpu.reg_set(Mode::User, index as u8, value);
                     }
                     self.cpu.reg_set(Mode::User, reg::CPSR, frame.cpsr);
+                    self.entry_pc = frame.entry_pc;
                     instructions_executed += frame.executed;
-                    if let Some((key, hits)) = self.sampler.retire(frame.executed) {
-                        jit.sample(key, hits);
+                    if let Some(sample) = self.sampler.retire(frame.executed) {
+                        jit.sample(sample.location, sample.hotness);
+                        check_deadline = true;
                     }
                     if exit == CompiledExit::GuestFault {
                         return Err(WieError::InvalidMemoryAccess(frame.fault_address));
                     }
                     interpret_one = exit == CompiledExit::InterpretOne;
+                    lookup_entry = true;
                     continue;
                 }
             }
+            let recheck_after_step = interpret_one;
             interpret_one = false;
+            lookup_entry = false;
 
             if self.sampler.remaining == 1 {
-                self.sampler.prepare(pc, cpsr, self.cpu.reg_get(Mode::User, 7), |address, buffer| {
-                    self.mem.read_range(address, buffer.len(), buffer).is_ok()
-                });
+                self.sampler
+                    .prepare(pc, cpsr, self.cpu.reg_get(Mode::User, 7), self.entry_pc, |address, buffer| {
+                        self.mem.read_range(address, buffer.len(), buffer).is_ok()
+                    });
             }
 
             let cache_invalidation = self.instruction_cache_invalidation(pc, cpsr);
@@ -220,14 +237,24 @@ impl ArmEngine for Arm32CpuEngine {
             if let Some(x) = arm32cpu_memory.memory_error() {
                 return Err(WieError::InvalidMemoryAccess(x));
             }
+            instructions_executed += 1;
+            let next_pc = self.cpu.reg_get(Mode::User, reg::PC);
+            let next_cpsr = self.cpu.reg_get(Mode::User, reg::CPSR);
+            if next_pc != pc.wrapping_add(if cpsr & 0x20 != 0 { 2 } else { 4 }) || (next_cpsr ^ cpsr) & 0x0100_003f != 0 {
+                self.entry_pc = next_pc;
+                lookup_entry = true;
+            }
             if let Some(invalidation) = cache_invalidation {
                 self.mem.invalidate_instruction_cache(invalidation);
+                self.entry_pc = 0;
+                lookup_entry = true;
             }
-            instructions_executed += 1;
-            if let Some((key, hits)) = self.sampler.retire(1)
-                && let Some(jit) = &mut self.jit
-            {
-                jit.sample(key, hits);
+            lookup_entry |= recheck_after_step;
+            if let Some(sample) = self.sampler.retire(1) {
+                check_deadline = true;
+                if let Some(jit) = &mut self.jit {
+                    jit.sample(sample.location, sample.hotness);
+                }
             }
         };
 
@@ -237,7 +264,14 @@ impl ArmEngine for Arm32CpuEngine {
         })
     }
 
+    fn mark_entry(&mut self) {
+        self.entry_pc = self.cpu.reg_get(Mode::User, reg::PC);
+    }
+
     fn reg_write(&mut self, reg: ArmRegister, value: u32) {
+        if matches!(reg, ArmRegister::PC | ArmRegister::Cpsr) {
+            self.entry_pc = 0;
+        }
         if reg == ArmRegister::PC && value % 2 == 1 {
             self.cpu.reg_set(Mode::User, reg.into_armv4t(), value - 1);
 
@@ -263,6 +297,10 @@ impl ArmEngine for Arm32CpuEngine {
 
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
         self.mem.read_range(address, size, result)
+    }
+
+    fn mem_read_until_nul(&mut self, address: u32) -> Result<Vec<u8>> {
+        self.mem.read_until_nul(address)
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
@@ -295,40 +333,63 @@ struct MemoryAccess<'a> {
 }
 
 impl ExecutionAccess for MemoryAccess<'_> {
-    fn supports_word_range(&mut self, address: u32, words: u32) -> bool {
-        address.is_multiple_of(4)
-            && self.memory.pages[address as usize / PAGE_SIZE].is_some()
-            && self.memory.pages[address.wrapping_add((words - 1) * 4) as usize / PAGE_SIZE].is_some()
+    fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])> {
+        if !address.is_multiple_of(4) {
+            return None;
+        }
+        let start = address as usize / PAGE_SIZE;
+        let offset = (address & PAGE_MASK) as usize;
+        let len = words as usize * 4;
+        let first_len = len.min(PAGE_SIZE - offset);
+        if first_len == len {
+            let page = self.memory.pages[start].as_mut()?;
+            return Some((&mut page.bytes[offset..offset + len], &mut []));
+        }
+        let end = address.wrapping_add((words - 1) * 4) as usize / PAGE_SIZE;
+        let (first, second) = if start < end {
+            let (lower, upper) = self.memory.pages.split_at_mut(end);
+            (lower[start].as_mut()?, upper[0].as_mut()?)
+        } else {
+            let (lower, upper) = self.memory.pages.split_at_mut(start);
+            (upper[0].as_mut()?, lower[end].as_mut()?)
+        };
+        Some((&mut first.bytes[offset..], &mut second.bytes[..len - first_len]))
     }
 
     fn load(&mut self, address: u32, width: u32) -> AccessResult {
-        if !address.is_multiple_of(width) || self.memory.pages[address as usize / PAGE_SIZE].is_none() {
+        if !address.is_multiple_of(width) {
             return AccessResult::InterpretOne;
         }
-        let mut memory = self.memory.as_arm32cpu_memory();
+        let Some(page) = self.memory.pages[address as usize / PAGE_SIZE].as_ref() else {
+            return AccessResult::InterpretOne;
+        };
+        let bytes = &page.bytes[(address & PAGE_MASK) as usize..];
         let value = match width {
-            1 => u32::from(memory.r8(address)),
-            2 => u32::from(memory.r16(address)),
-            _ => memory.r32(address),
+            1 => u32::from(bytes[0]),
+            2 => u32::from(u16::from_le_bytes([bytes[0], bytes[1]])),
+            _ => u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
         };
         AccessResult::Complete(value)
     }
 
     fn store(&mut self, address: u32, width: u32, value: u32) -> AccessResult {
-        if !address.is_multiple_of(width) || self.memory.pages[address as usize / PAGE_SIZE].is_none() {
+        if !address.is_multiple_of(width) {
             return AccessResult::InterpretOne;
         }
-        let mut memory = self.memory.as_arm32cpu_memory();
+        let Some(page) = self.memory.pages[address as usize / PAGE_SIZE].as_mut() else {
+            return AccessResult::InterpretOne;
+        };
+        let bytes = &mut page.bytes[(address & PAGE_MASK) as usize..];
         match width {
-            1 => memory.w8(address, value as u8),
-            2 => memory.w16(address, value as u16),
-            _ => memory.w32(address, value),
+            1 => bytes[0] = value as u8,
+            2 => bytes[..2].copy_from_slice(&(value as u16).to_le_bytes()),
+            _ => bytes[..4].copy_from_slice(&value.to_le_bytes()),
         }
         AccessResult::Complete(0)
     }
 
-    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32) {
-        self.sampler.prepare(pc, cpsr, r7, |address, buffer| {
+    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32, entry_pc: u32) {
+        self.sampler.prepare(pc, cpsr, r7, entry_pc, |address, buffer| {
             self.memory.read_range(address, buffer.len(), buffer).is_ok()
         });
     }
@@ -416,6 +477,23 @@ impl EmulatedMemory {
         }
 
         Ok(size)
+    }
+
+    fn read_until_nul(&self, address: u32) -> Result<Vec<u8>> {
+        let mut result = Vec::new();
+        let mut cursor = address;
+        loop {
+            let page = self.pages[cursor as usize / PAGE_SIZE]
+                .as_ref()
+                .ok_or(WieError::InvalidMemoryAccess(cursor))?;
+            let bytes = &page.bytes[(cursor & PAGE_MASK) as usize..];
+            if let Ok(value) = CStr::from_bytes_until_nul(bytes) {
+                result.extend_from_slice(value.to_bytes());
+                return Ok(result);
+            }
+            result.extend_from_slice(bytes);
+            cursor = cursor.wrapping_add(bytes.len() as u32);
+        }
     }
 
     fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
@@ -625,6 +703,64 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn terminated_string_reads_preserve_memory_and_page_boundaries() {
+        let mut engine = Arm32CpuEngine::new();
+        engine.mem_map(0x10000, PAGE_SIZE, MemoryPermission::ReadWrite);
+        engine.mem_write(0x10003, &[0xff, 0x80, 0, b'x']).unwrap();
+        engine.mem_write(0x1fffc, b"end\0").unwrap();
+        let before = engine.mem.pages[1].as_ref().unwrap().bytes.clone();
+        let stamp = engine.mem.code_snapshot(0x10000).unwrap().2;
+        assert_eq!(engine.mem_read_until_nul(0x10003).unwrap(), [0xff, 0x80]);
+        assert!(engine.mem_read_until_nul(0x10005).unwrap().is_empty());
+        assert_eq!(engine.mem_read_until_nul(0x1fffc).unwrap(), b"end");
+        assert!(engine.mem_read_until_nul(0x1ffff).unwrap().is_empty());
+        assert!(matches!(engine.mem_read_until_nul(0x20007), Err(WieError::InvalidMemoryAccess(0x20007))));
+        assert!(engine.mem.code_is_current(&[stamp]));
+        assert_eq!(engine.mem.pages[1].as_ref().unwrap().bytes, before);
+
+        engine.mem_write(0x1ffff, b"x").unwrap();
+        let before = engine.mem.pages[1].as_ref().unwrap().bytes.clone();
+        let stamp = engine.mem.code_snapshot(0x10000).unwrap().2;
+        assert!(matches!(engine.mem_read_until_nul(0x1fffc), Err(WieError::InvalidMemoryAccess(0x20000))));
+        assert!(engine.mem.code_is_current(&[stamp]));
+        assert_eq!(engine.mem.pages[1].as_ref().unwrap().bytes, before);
+
+        engine.mem_map(0x20000, PAGE_SIZE, MemoryPermission::ReadWrite);
+        engine.mem_write(0x20000, b"page\0ignored").unwrap();
+        let second = engine.mem.pages[2].as_ref().unwrap().bytes.clone();
+        let second_stamp = engine.mem.code_snapshot(0x20000).unwrap().2;
+        assert_eq!(engine.mem_read_until_nul(0x1fffc).unwrap(), b"endxpage");
+        assert!(engine.mem.code_is_current(&[stamp, second_stamp]));
+        assert_eq!(engine.mem.pages[1].as_ref().unwrap().bytes, before);
+        assert_eq!(engine.mem.pages[2].as_ref().unwrap().bytes, second);
+    }
+
+    #[test]
+    fn terminated_string_reads_wrap_at_the_last_guest_page() {
+        let mut engine = Arm32CpuEngine::new();
+        engine.mem.pages[0xffff] = Some(MemoryPage {
+            bytes: Box::new([b'x'; PAGE_SIZE]),
+            version: 7,
+        });
+        engine.mem.pages[0xffff].as_mut().unwrap().bytes[PAGE_SIZE - 1] = 0;
+        assert!(engine.mem_read_until_nul(u32::MAX).unwrap().is_empty());
+        assert_eq!(engine.mem_read_until_nul(u32::MAX - 1).unwrap(), b"x");
+        engine.mem.pages[0xffff].as_mut().unwrap().bytes[PAGE_SIZE - 1] = b'x';
+        assert!(matches!(engine.mem_read_until_nul(u32::MAX), Err(WieError::InvalidMemoryAccess(0))));
+
+        engine.mem_map(0, PAGE_SIZE, MemoryPermission::ReadWrite);
+        engine.mem_write(0, b"y\0ignored").unwrap();
+        let before = engine.mem.pages[0].as_ref().unwrap().bytes.clone();
+        let stamps = [0, 0xffff0000].map(|address| engine.mem.code_snapshot(address).unwrap().2);
+        assert_eq!(engine.mem_read_until_nul(0).unwrap(), b"y");
+        assert_eq!(engine.mem_read_until_nul(u32::MAX).unwrap(), b"xy");
+        assert_eq!(engine.mem_read_until_nul(u32::MAX - 1).unwrap(), b"xxy");
+        assert!(engine.mem.code_is_current(&stamps));
+        assert_eq!(engine.mem.pages[0].as_ref().unwrap().bytes, before);
+        assert!(engine.mem.pages[0xffff].as_ref().unwrap().bytes.iter().all(|&byte| byte == b'x'));
+    }
+
     struct TestExecutor {
         completion: Option<CompileCompletion>,
         calls: Arc<Mutex<(u32, bool)>>,
@@ -632,19 +768,19 @@ mod tests {
     }
 
     impl CompiledExecutor for TestExecutor {
-        fn submit(&mut self, request: CompileRequest) -> Admission {
+        fn submit(&mut self, request: &CompileRequest) -> Admission {
             self.completion = Some(CompileCompletion {
                 session: request.session,
                 request: request.request,
                 result: Ok(CompiledArtifact {
                     regions: request
                         .regions
-                        .into_iter()
+                        .iter()
                         .enumerate()
                         .map(|(slot, region)| CompiledRegion {
                             manifest: ManifestRegion {
                                 entry: region.ir.entry,
-                                source: region.source,
+                                source: region.source.clone(),
                                 expected_old: region.expected_old,
                                 export: format!("region_{slot}"),
                             },
@@ -706,17 +842,15 @@ mod tests {
                     trap,
                 }),
             );
-            jit.sample(
-                RegionKey {
-                    pc: 0x1000,
-                    thumb: true,
-                    cpu_mode: 0x1f,
-                },
-                8,
-            );
+            let sampled_key = RegionKey {
+                pc: 0x1000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            };
+            jit.sample(sampled_key, Some((sampled_key, 8)));
             jit.maintain(&engine.mem);
             engine.jit = Some(jit);
-            let result = engine.run(0x2000, 10);
+            let result = engine.run(0x2000, 10, None);
             assert_eq!(calls.lock().0, if trap { 1 } else { 2 });
             if trap {
                 assert!(result.is_err());
@@ -726,7 +860,7 @@ mod tests {
                 engine.mem_read(0x20000, 4, &mut value).unwrap();
                 assert_eq!(u32::from_le_bytes(value), 42);
                 assert!(calls.lock().1);
-                assert!(engine.run(0x2000, 10).is_err());
+                assert!(engine.run(0x2000, 10, None).is_err());
                 assert_eq!(calls.lock().0, 1);
             } else {
                 let result = result.unwrap();
@@ -765,6 +899,70 @@ mod tests {
     }
 
     #[test]
+    fn memory_access_preserves_widths_boundaries_and_code_versions() {
+        let mut memory = EmulatedMemory::new();
+        memory.map(0x10000, PAGE_SIZE);
+        memory.pages[0xffff] = Some(MemoryPage {
+            bytes: Box::new([0; PAGE_SIZE]),
+            version: 7,
+        });
+        let (_, _, first_page) = memory.code_snapshot(0x10000).unwrap();
+        let (_, _, last_page) = memory.code_snapshot(0xffff_0000).unwrap();
+        let mut sampler = Sampler::new();
+        let mut access = MemoryAccess {
+            memory: &mut memory,
+            sampler: &mut sampler,
+        };
+        for base in [0x10000, 0x1fffc, 0xffff_fffc] {
+            for (width, expected) in [(1, 0xef), (2, 0xcdef), (4, 0x89ab_cdef)] {
+                let offset = (base & PAGE_MASK) as usize;
+                access.memory.pages[base as usize / PAGE_SIZE].as_mut().unwrap().bytes[offset..offset + 4].fill(0x55);
+                assert!(matches!(access.load(base, 4), AccessResult::Complete(0x5555_5555)));
+                let address = base + (4 - width);
+                assert!(matches!(access.store(address, width, 0x89ab_cdef), AccessResult::Complete(0)));
+                assert!(matches!(access.load(address, width), AccessResult::Complete(value) if value == expected));
+                let mut bytes = [0x55; 4];
+                bytes[4 - width as usize..].copy_from_slice(&[0xef, 0xcd, 0xab, 0x89][..width as usize]);
+                assert_eq!(
+                    access.memory.pages[base as usize / PAGE_SIZE].as_ref().unwrap().bytes[offset..offset + 4],
+                    bytes
+                );
+            }
+        }
+        let first_bytes = access.memory.pages[1].as_ref().unwrap().bytes.clone();
+        let last_bytes = access.memory.pages[0xffff].as_ref().unwrap().bytes.clone();
+        for (address, width) in [
+            (0x10001, 2),
+            (0x10001, 4),
+            (0x10002, 4),
+            (0x10003, 4),
+            (0x1ffff, 2),
+            (0x1fffd, 4),
+            (0x1fffe, 4),
+            (0x1ffff, 4),
+            (0xffff_ffff, 2),
+            (0xffff_fffd, 4),
+            (0xffff_fffe, 4),
+            (0xffff_ffff, 4),
+            (0x20000, 1),
+            (0x20000, 2),
+            (0x20000, 4),
+        ] {
+            assert!(
+                matches!(access.load(address, width), AccessResult::InterpretOne),
+                "{address:#x}, width={width}"
+            );
+            assert!(
+                matches!(access.store(address, width, 42), AccessResult::InterpretOne),
+                "{address:#x}, width={width}"
+            );
+        }
+        assert_eq!(access.memory.pages[1].as_ref().unwrap().bytes, first_bytes);
+        assert_eq!(access.memory.pages[0xffff].as_ref().unwrap().bytes, last_bytes);
+        assert!(access.memory.code_is_current(&[first_page, last_page]));
+    }
+
+    #[test]
     fn word_range_admission_checks_mapping_without_reading_or_publishing() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, PAGE_SIZE);
@@ -791,7 +989,7 @@ mod tests {
             (0xffff_fffc, 1, true),
             (0xffff_fffc, 2, false),
         ] {
-            assert_eq!(access.supports_word_range(address, words), admitted, "{address:#x}, words={words}");
+            assert_eq!(access.word_range(address, words).is_some(), admitted, "{address:#x}, words={words}");
         }
         assert!(access.memory.code_is_current(&[before]));
         assert_eq!(access.memory.as_arm32cpu_memory().r32(0x10000), 42);
@@ -799,10 +997,29 @@ mod tests {
         assert_eq!(access.sampler.sequence, 0);
         access.memory.map(0x20000, PAGE_SIZE);
         access.memory.map(0, PAGE_SIZE);
-        assert!(access.supports_word_range(0x1fffc, 16));
-        assert!(access.supports_word_range(0xffff_fffc, 16));
-        assert!(!access.supports_word_range(0xffff_fffd, 1));
-        assert_eq!(access.memory.pages[0xffff].as_ref().unwrap().version, 7);
+        assert!(access.word_range(0xffff_fffd, 1).is_none());
+        let before = [0, 0x10000, 0x20000, 0xffff_0000].map(|address| access.memory.code_snapshot(address).unwrap().2);
+        for (address, words, first_len, second_len) in [
+            (0x10000, 1, 4, 0),
+            (0x1ffc0, 16, 64, 0),
+            (0x1fffc, 2, 4, 4),
+            (0x1fffc, 16, 4, 60),
+            (0xffff_ffc0, 16, 64, 0),
+            (0xffff_fffc, 2, 4, 4),
+            (0xffff_fffc, 16, 4, 60),
+        ] {
+            let (first, second) = access.word_range(address, words).unwrap();
+            assert_eq!((first.len(), second.len()), (first_len, second_len));
+            first.fill(0x11);
+            second.fill(0x22);
+            for offset in (0..words * 4).step_by(4) {
+                let expected = if offset < first_len as u32 { 0x1111_1111 } else { 0x2222_2222 };
+                assert_eq!(access.memory.as_arm32cpu_memory().r32(address.wrapping_add(offset)), expected);
+            }
+        }
+        assert!(access.memory.code_is_current(&before));
+        assert_eq!(access.sampler.remaining, 1024);
+        assert_eq!(access.sampler.sequence, 0);
     }
 
     #[test]
@@ -830,7 +1047,7 @@ mod tests {
             engine.set_profiling(true);
             let (_, _, code) = engine.mem.code_snapshot(0x1000).unwrap();
             let (_, _, data) = engine.mem.code_snapshot(0x20000).unwrap();
-            let result = engine.run(0x1004, 1).unwrap();
+            let result = engine.run(0x1004, 1, None).unwrap();
             assert_eq!(result.instructions_executed, 1);
             assert!(matches!(result.stop_reason, EngineStopReason::End));
             assert_eq!(engine.mem.code_is_current(&[code]), code_current, "opcode={opcode:#x}");
@@ -856,11 +1073,11 @@ mod tests {
                 let cpsr = 0x1f | flags << 28;
                 engine.reg_write(ArmRegister::Cpsr, cpsr);
                 engine.reg_write(ArmRegister::PC, 0x1010);
-                engine.run(0x1018, 1).unwrap();
+                engine.run(0x1018, 1, None).unwrap();
                 let passed = engine.reg_read(ArmRegister::PC) == 0x1018;
                 engine.reg_write(ArmRegister::PC, 0x1000);
                 let (_, _, before) = engine.mem.code_snapshot(0x1000).unwrap();
-                engine.run(0x1004, 1).unwrap();
+                engine.run(0x1004, 1, None).unwrap();
                 assert_eq!(!engine.mem.code_is_current(&[before]), passed, "condition={condition}, cpsr={cpsr:#x}");
             }
         }
@@ -883,10 +1100,118 @@ mod tests {
             let (_, _, user_page) = engine.mem.code_snapshot(0x20000).unwrap();
             let (_, _, active_page) = engine.mem.code_snapshot(0x30000).unwrap();
 
-            assert_eq!(engine.run(0x1004, 1).unwrap().instructions_executed, 1);
+            assert_eq!(engine.run(0x1004, 1, None).unwrap().instructions_executed, 1);
             assert!(engine.mem.code_is_current(&[user_page]), "mode={mode:?}");
             assert!(!engine.mem.code_is_current(&[active_page]), "mode={mode:?}");
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), cpsr);
+        }
+    }
+
+    #[test]
+    fn expired_deadlines_preserve_state_and_existing_stop_priorities() {
+        for thumb in [false, true] {
+            for (pc, end, count) in [(0x1000, 0x2000, 2), (0x1000, 0x1000, 0), (0x1000, 0x2000, 0), (8, 8, 0)] {
+                let mut engine = Arm32CpuEngine::new();
+                let code: Vec<_> = if thumb {
+                    [0x3001u16, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()
+                } else {
+                    [0xe2800001u32, 0xe12fff1e].into_iter().flat_map(u32::to_le_bytes).collect()
+                };
+                engine.mem_map(0x1000, code.len(), MemoryPermission::ReadWriteExecute);
+                engine.mem_write(0x1000, &code).unwrap();
+                engine.reg_write(ArmRegister::Cpsr, if thumb { 0x3f } else { 0x1f });
+                engine.reg_write(ArmRegister::PC, pc);
+                engine.reg_write(ArmRegister::LR, 0x2000);
+                engine.mark_entry();
+                engine.sampler.remaining = 1;
+                let result = engine.run(end, count, Some(Instant::now()));
+                if pc < 0x1000 {
+                    assert!(matches!(result, Err(WieError::InvalidMemoryAccess(8))));
+                } else {
+                    let result = result.unwrap();
+                    assert_eq!(result.instructions_executed, 0);
+                    assert!(matches!(
+                        (result.stop_reason, pc == end, count == 0),
+                        (EngineStopReason::End, true, _) | (EngineStopReason::Yield, false, true) | (EngineStopReason::Deadline, false, false)
+                    ));
+                }
+                assert_eq!(engine.reg_read(ArmRegister::PC), pc);
+                assert_eq!(engine.reg_read(ArmRegister::R0), 0);
+                assert_eq!(engine.entry_pc, pc);
+                assert_eq!(engine.sampler.remaining, 1);
+                assert_eq!(engine.sampler.sequence, 0);
+            }
+        }
+
+        let mut engine = Arm32CpuEngine::new();
+        engine.mem_map(0x1000, 2, MemoryPermission::ReadWriteExecute);
+        engine.mem_write(0x1000, &[0x01, 0xdf]).unwrap();
+        engine.reg_write(ArmRegister::Cpsr, 0x3f);
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        let first = engine.run(0x2000, 1, None).unwrap();
+        assert!(matches!(
+            first.stop_reason,
+            EngineStopReason::Svc {
+                category: 1,
+                lr: 0x1002,
+                spsr: 0x3f
+            }
+        ));
+        assert_eq!(first.instructions_executed, 1);
+        let next = engine.run(8, 0, Some(Instant::now())).unwrap();
+        assert!(matches!(
+            next.stop_reason,
+            EngineStopReason::Svc {
+                category: 1,
+                lr: 0x1002,
+                spsr: 0x3f
+            }
+        ));
+        assert_eq!(next.instructions_executed, 0);
+    }
+
+    #[test]
+    fn running_loops_reach_deadlines_at_shared_sample_boundaries() {
+        for thumb in [false, true] {
+            let code: Vec<_> = if thumb {
+                [0x3001u16, 0xe7fd].into_iter().flat_map(u16::to_le_bytes).collect()
+            } else {
+                [0xe2800001u32, 0xeafffffd].into_iter().flat_map(u32::to_le_bytes).collect()
+            };
+            let [mut timed, mut counted] = core::array::from_fn(|_| {
+                let mut engine = Arm32CpuEngine::new();
+                engine.mem_map(0x1000, code.len(), MemoryPermission::ReadWriteExecute);
+                engine.mem_write(0x1000, &code).unwrap();
+                engine.reg_write(ArmRegister::Cpsr, if thumb { 0x3f } else { 0x1f });
+                engine.reg_write(ArmRegister::PC, 0x1000);
+                engine
+            });
+            let result = timed
+                .run(0x2000, u32::MAX, Some(Instant::now() + core::time::Duration::from_millis(8)))
+                .unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Deadline));
+            // Entry can already be expired if the host thread was preempted.
+            if result.instructions_executed != 0 {
+                assert!(timed.sampler.sequence > 0);
+            }
+            let exact = counted
+                .run(
+                    0x2000,
+                    result.instructions_executed,
+                    Some(Instant::now() + core::time::Duration::from_secs(60)),
+                )
+                .unwrap();
+            assert!(matches!(exact.stop_reason, EngineStopReason::Yield));
+            assert_eq!(exact.instructions_executed, result.instructions_executed);
+            assert_eq!(counted.reg_read(ArmRegister::R0), timed.reg_read(ArmRegister::R0));
+            assert_eq!(counted.reg_read(ArmRegister::PC), timed.reg_read(ArmRegister::PC));
+            assert_eq!(counted.sampler.sequence, timed.sampler.sequence);
+            assert_eq!(counted.sampler.remaining, timed.sampler.remaining);
+            let mut sample = Sampler::new();
+            while sample.sequence < timed.sampler.sequence {
+                sample.retire(sample.remaining);
+            }
+            assert_eq!(sample.remaining, timed.sampler.remaining);
         }
     }
 
@@ -900,12 +1225,60 @@ mod tests {
         engine.reg_write(ArmRegister::LR, 0x2000);
 
         for (budget, expected_count, at_end) in [(0, 0, false), (2, 2, false), (10, 1, true), (10, 0, true)] {
-            let result = engine.run(0x2000, budget).unwrap();
+            let result = engine.run(0x2000, budget, None).unwrap();
             assert_eq!(result.instructions_executed, expected_count);
             assert!(matches!(
                 (result.stop_reason, at_end),
                 (EngineStopReason::End, true) | (EngineStopReason::Yield, false)
             ));
+        }
+    }
+
+    #[test]
+    fn entry_observation_survives_retirement_boundaries_but_not_external_context_writes() {
+        for thumb in [false, true] {
+            let mut engine = Arm32CpuEngine::new();
+            let code: Vec<_> = if thumb {
+                [0x46c0u16, 0x46c0, 0x4700, 0x46c0, 0x46c0, 0x4770]
+                    .into_iter()
+                    .flat_map(u16::to_le_bytes)
+                    .collect()
+            } else {
+                [0xe1a00000u32, 0xe1a00000, 0xe12fff10, 0xe1a00000, 0xe1a00000, 0xe12fff1e]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect()
+            };
+            let stride = if thumb { 2 } else { 4 };
+            let cpsr = if thumb { 0x3f } else { 0x1f };
+            let target = 0x1000 + 4 * stride;
+            engine.mem_map(0x1000, code.len(), MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x1000, &code).unwrap();
+            engine.reg_write(ArmRegister::Cpsr, cpsr);
+            engine.reg_write(ArmRegister::PC, 0x1000 | u32::from(thumb));
+            engine.reg_write(ArmRegister::R0, target | u32::from(thumb));
+            engine.reg_write(ArmRegister::LR, 0x2000 | u32::from(thumb));
+            assert_eq!(engine.entry_pc, 0);
+            engine.mark_entry();
+            engine.sampler.remaining = 1;
+
+            for budget in [0, 1, 1] {
+                assert_eq!(engine.run(0x2000, budget, None).unwrap().instructions_executed, budget);
+                assert_eq!(engine.entry_pc, 0x1000);
+                engine.reg_write(ArmRegister::R1, 7);
+                assert_eq!(engine.entry_pc, 0x1000);
+            }
+            assert_eq!(engine.sampler.sequence, 1);
+            engine.reg_write(ArmRegister::Cpsr, cpsr);
+            assert_eq!(engine.entry_pc, 0, "even an unchanged external CPSR invalidates the observation");
+            assert_eq!(engine.run(0x2000, 1, None).unwrap().instructions_executed, 1);
+            assert_eq!(engine.entry_pc, target, "the retired transfer establishes the new entry");
+            engine.reg_write(ArmRegister::PC, target | u32::from(thumb));
+            assert_eq!(engine.entry_pc, 0);
+            assert_eq!(engine.run(0x2000, 1, None).unwrap().instructions_executed, 1);
+            assert_eq!(engine.entry_pc, 0, "linear execution does not invent a context entry");
+            assert_eq!(engine.run(0x2000, 1, None).unwrap().instructions_executed, 1);
+            assert_eq!(engine.entry_pc, 0x2000);
         }
     }
 
@@ -918,7 +1291,7 @@ mod tests {
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.set_profiling(true);
         engine.sampler.remaining = 1;
-        let result = engine.run(0x2000, 1).unwrap();
+        let result = engine.run(0x2000, 1, None).unwrap();
         assert!(matches!(result.stop_reason, EngineStopReason::Svc { category: 1, .. }));
         assert_eq!(result.instructions_executed, 1);
         let samples = engine.take_profile(true);
@@ -927,7 +1300,7 @@ mod tests {
         assert_eq!(samples[0].count, 1);
         assert_eq!(engine.sampler.sequence, 1);
         engine.shutdown();
-        assert!(engine.run(0x2000, 1).is_err());
+        assert!(engine.run(0x2000, 1, None).is_err());
     }
 
     #[test]

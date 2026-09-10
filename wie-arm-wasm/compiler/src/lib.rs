@@ -11,6 +11,6 @@ fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
 }
 
 #[wasm_bindgen]
-pub fn compile_request(payload: &str) -> Result<JsValue, JsValue> {
+pub fn compile_request(payload: &[u8]) -> Result<JsValue, JsValue> {
     wie_arm_wasm::compiler::compile_request(payload)
 }

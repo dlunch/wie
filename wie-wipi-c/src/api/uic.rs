@@ -1,4 +1,4 @@
-use wie_util::{Result, read_null_terminated_string_bytes};
+use wie_util::Result;
 
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
@@ -11,7 +11,7 @@ pub async fn create_application_context(_context: &mut dyn WIPICContext) -> Resu
 }
 
 pub async fn get_class(context: &mut dyn WIPICContext, psz: WIPICWord) -> Result<WIPICIndirectPtr> {
-    let name_bytes = read_null_terminated_string_bytes(context, psz)?;
+    let name_bytes = context.read_null_terminated_string_bytes(psz)?;
     let name = encoding_rs::EUC_KR.decode(&name_bytes).0;
     tracing::warn!("stub MC_uicGetClass({name})");
 

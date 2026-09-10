@@ -79,11 +79,32 @@ for (const mode of ["development", "production"]) {
                         this.received = [];
                         this.errors = [];
                         this.terminated = false;
-                        this.addEventListener("message", event => this.received.push(event.data));
+                        this.addEventListener("message", event => {
+                            this.mutateResponse?.(event.data);
+                            this.received.push(event.data);
+                        });
                         this.addEventListener("error", event => this.errors.push(event.message));
                         workers.push(this);
                     }
-                    postMessage(message) { this.messages.push(message); super.postMessage(message); }
+                    postMessage(message, ...args) {
+                        const { payload } = message;
+                        const memory = globalThis.backendTest?.wasm.memory.buffer;
+                        const before = memory && new Uint8Array(memory, 0, 64).slice();
+                        const record = {
+                            request: message.request,
+                            payload: payload instanceof Uint8Array ? new TextDecoder().decode(payload) : payload,
+                            bytePayload: payload instanceof Uint8Array,
+                            buffer: payload.buffer,
+                            transferred: args[0]?.length === 1 && args[0][0] === payload.buffer,
+                            separate: payload.buffer !== memory,
+                        };
+                        this.messages.push(record);
+                        if (this.failPost) throw Error("test postMessage failure");
+                        super.postMessage(message, ...args);
+                        record.detached = payload.buffer?.byteLength === 0;
+                        record.memoryIntact = !memory || (memory.byteLength > 0 && memory === backendTest.wasm.memory.buffer
+                            && before.every((byte, index) => byte === new Uint8Array(memory)[index]));
+                    }
                     terminate() { this.terminated = true; super.terminate(); }
                 };
                 const instantiate = WebAssembly.instantiate;
@@ -97,13 +118,15 @@ for (const mode of ["development", "production"]) {
                             globalThis.rejectInstallation = () => reject(Error("test late installation rejection"));
                         });
                     }
-                    if (globalThis.trapAfterStore) {
-                        // region_0(frame, access): store(access, 0, 4, 1); unreachable.
+                    if (globalThis.trapAfterStore || globalThis.invalidExit) {
+                        // region_0(frame, access): store(access, 0, 4, 1); trap or return an invalid exit.
+                        const exit = globalThis.invalidExit ?? { type: 127, instructions: [0] };
                         module = new WebAssembly.Module(Uint8Array.from([
-                            0,97,115,109,1,0,0,0,1,15,2,96,4,127,127,127,127,1,127,96,2,127,127,1,127,
+                            0,97,115,109,1,0,0,0,1,15,2,96,4,127,127,127,127,1,127,96,2,127,127,1,exit.type,
                             2,13,1,3,119,105,101,5,115,116,111,114,101,0,0,3,2,1,1,
                             7,12,1,8,114,101,103,105,111,110,95,48,0,1,
-                            10,16,1,14,0,32,1,65,0,65,4,65,1,16,0,26,0,11,
+                            10,15 + exit.instructions.length,1,13 + exit.instructions.length,
+                            0,32,1,65,0,65,4,65,1,16,0,26,...exit.instructions,11,
                         ]));
                     }
                     return instantiate(module, imports);
@@ -156,6 +179,10 @@ for (const mode of ["development", "production"]) {
                 check(probe.submit(request(1)) === 0, "first compile request rejected");
                 const first = JSON.parse(await until(() => probe.poll()));
                 check(first.request === 1 && first.regions === 1, JSON.stringify(first));
+                const sent = workers[0].messages[0];
+                check(sent.bytePayload && sent.transferred && sent.separate && sent.detached && sent.memoryIntact,
+                    "compile payload was not transferred independently of host memory");
+                check(JSON.stringify(JSON.parse(sent.payload)) === request(1), "transport changed the request JSON");
                 check(installations[0].load === wasm.wie_jit_load && installations[0].store === wasm.wie_jit_store
                     && installations[0].sample_prepare === wasm.wie_jit_sample_prepare
                     && installations[0].word_range === wasm.wie_jit_word_range && installations[0].memory === wasm.memory,
@@ -165,7 +192,42 @@ for (const mode of ["development", "production"]) {
                 const end = JSON.parse(probe.execute(1n, 4098, 100, 100));
                 check(end.exit === 3 && end.executed === 1 && end.r0 === 1, JSON.stringify(end));
                 const sampled = JSON.parse(probe.execute(1n, 0xfffffff0, 100, 1));
-                check(sampled.exit === 1 && sampled.executed === 1 && JSON.stringify(sampled.samples) === "[[4096,48,77]]", JSON.stringify(sampled));
+                check(sampled.exit === 1 && sampled.executed === 1 && sampled.entry === 32768
+                    && JSON.stringify(sampled.samples) === "[[4096,48,77,32768]]", JSON.stringify(sampled));
+                const branchSample = JSON.parse(probe.execute(1n, 0xfffffff0, 100, 2));
+                check(branchSample.exit === 1 && branchSample.executed === 2 && branchSample.entry === 4096
+                    && JSON.stringify(branchSample.samples) === "[[4098,48,77,32768]]", JSON.stringify(branchSample));
+                const targetSample = JSON.parse(probe.execute(1n, 0xfffffff0, 100, 3));
+                check(targetSample.exit === 1 && targetSample.executed === 3 && targetSample.entry === 4096
+                    && JSON.stringify(targetSample.samples) === "[[4096,48,77,4096]]", JSON.stringify(targetSample));
+                const rejectedManifests = [];
+                for (const [field, value] of Object.entries({
+                    entry: { pc: 4098, thumb: true, cpu_mode: 16 },
+                    source: [{ page: 0, version: 2 }],
+                    export: "region_1",
+                    expected_old: { slot: 1, generation: 1 },
+                })) {
+                    const replacement = JSON.parse(request(91 + rejectedManifests.length));
+                    replacement.regions[0].expected_old = { slot: 0, generation: 1 };
+                    const expected = { entry: replacement.regions[0].ir.entry, source: replacement.regions[0].source,
+                        export: "region_0", expected_old: replacement.regions[0].expected_old };
+                    const installedBefore = installations.length;
+                    workers[0].mutateResponse = data => {
+                        const manifest = JSON.parse(data.manifest);
+                        check(data.request === String(replacement.request) && data.module instanceof WebAssembly.Module
+                            && JSON.stringify(manifest) === JSON.stringify([expected]), "compiler response fixture was already invalid");
+                        manifest[0][field] = value;
+                        data.manifest = JSON.stringify(manifest);
+                    };
+                    check(probe.submit(JSON.stringify(replacement)) === 0, `manifest ${field} request rejected before compilation`);
+                    const rejected = JSON.parse(await until(() => probe.poll()));
+                    workers[0].mutateResponse = null;
+                    check(rejected.request === replacement.request && rejected.error === "compiler manifest does not match its request",
+                        `manifest ${field} corruption was not rejected: ${JSON.stringify(rejected)}`);
+                    check(installations.length === installedBefore && probe.poll() === "", `manifest ${field} corruption instantiated or completed twice`);
+                    check(JSON.parse(probe.execute(1n, 0xfffffff0, 4, 100)).r0 === 2, `manifest ${field} corruption damaged the old handle`);
+                    rejectedManifests.push(field);
+                }
                 probe.retire(1n);
                 for (let id = 2; id <= 10; id++) {
                     check(probe.submit(request(id)) === 0, "retirement did not return capacity");
@@ -179,19 +241,76 @@ for (const mode of ["development", "production"]) {
                 const rejected = JSON.parse(await until(() => probe.poll()));
                 check(rejected.request === 11 && typeof rejected.error === "string", "compile rejection lost request ID");
                 check(probe.poll() === "", "compiler failure returned a duplicate completion");
-                for (let id = 12; id <= 19; id++) {
+                const worker = workers[0];
+                const malformed = new TextEncoder().encode('{"session":');
+                const installedBefore = installations.length;
+                worker.postMessage({ request: "malformed-json", payload: malformed }, [malformed.buffer]);
+                const malformedResponse = await until(() => worker.received.find(value => value.request === "malformed-json"));
+                check(typeof malformedResponse.error === "string" && malformedResponse.error.includes("EOF"),
+                    "malformed JSON bytes did not return a parse error with the request ID");
+                worker.postMessage({ request: "old-string", payload: request(90) });
+                const stringResponse = await until(() => worker.received.find(value => value.request === "old-string"));
+                check(typeof stringResponse.error === "string" && stringResponse.error.includes("bytes"),
+                    "worker accepted the obsolete string payload");
+                check(probe.poll() === "" && installations.length === installedBefore, "invalid input installed a module");
+                worker.failPost = true;
+                check(probe.submit(request(90)) === 0, "post failure unexpectedly changed admission");
+                const postFailure = JSON.parse(await until(() => probe.poll()));
+                check(postFailure.request === 90 && postFailure.error.includes("test postMessage failure"),
+                    "post failure lost its request or error");
+                for (let attempt = 0; attempt < 3; attempt++) check(probe.poll() === "", "post failure completed more than once");
+                check(!worker.received.some(value => value.request === "90"), "failed post reached the worker");
+                worker.failPost = false;
+                const liveGenerations = [];
+                for (let id = 12; id <= 27; id++) {
                     check(probe.submit(request(id, 1, 4096 + (id - 12) * 4)) === 0, "live module capacity filled early");
                     check(JSON.parse(await until(() => probe.poll())).regions === 1, "live module failed to install");
+                    liveGenerations.push(id);
                 }
-                check(probe.submit(request(20)) === 1, "live module limit exceeded eight");
-                const merge = JSON.parse(request(20, 8));
-                merge.regions.forEach((region, index) => { region.expected_old = { slot: 0, generation: index + 12 }; });
+                check(probe.submit(request(28)) === 1, "live module limit exceeded sixteen");
+                const countLiveBytes = liveGenerations.reduce((sum, id) => sum + worker.received.find(value => value.request === String(id)).encodedSize, 0);
+                check(countLiveBytes + 512 * 1024 < 2 * 1024 * 1024 && countLiveBytes + 5 * 512 * 1024 < 4 * 1024 * 1024,
+                    "peak module-count fixture also reaches a byte limit");
+                const countReplacements = liveGenerations.slice(0, 5).map((generation, index) => {
+                    const replacement = JSON.parse(request(100 + index, 1, 4096 + index * 4));
+                    replacement.regions[0].expected_old = { slot: 0, generation };
+                    return JSON.stringify(replacement);
+                });
+                const sentBeforePeak = worker.messages.length;
+                delayInstallation = true;
+                finishInstallation = null;
+                check(probe.submit(countReplacements[0]) === 0, "first coexistence request rejected");
+                await until(() => { probe.poll(); return globalThis.finishInstallation; });
+                for (let index = 1; index < 4; index++) check(probe.submit(countReplacements[index]) === 0, "twenty coexisting modules were not admitted");
+                check(probe.submit(countReplacements[4]) === 1, "peak module count admitted twenty-one coexisting modules");
+                check(probe.poll() === "" && worker.messages.length === sentBeforePeak + 1
+                    && !worker.received.some(value => value.request === "104"), "Busy peak-count request was submitted or completed");
+                check(JSON.parse(probe.execute(12n, 0xfffffff0, 4, 100)).r0 === 2, "peak-count pressure retired the old handle");
+                // Returning one unrelated module changes neither queue occupancy nor pending IR.
+                probe.retire(BigInt(liveGenerations.pop()));
+                check(probe.submit(countReplacements[4]) === 0, "retirement did not return peak module capacity");
+                delayInstallation = false;
+                finishInstallation();
+                for (let index = 0; index < countReplacements.length; index++) {
+                    const completion = JSON.parse(await until(() => probe.poll()));
+                    check(completion.request === 100 + index && completion.regions === 1, JSON.stringify(completion));
+                    if (index === 0) check(JSON.parse(probe.execute(12n, 0xfffffff0, 4, 100)).r0 === 2, "completion retired the old handle before its owner");
+                    probe.retire(BigInt(liveGenerations[index]));
+                    liveGenerations[index] = completion.request;
+                }
+                finishInstallation = null;
+                check(probe.poll() === "" && worker.messages.length === sentBeforePeak + 5, "peak-count retries duplicated work or completion");
+                check(probe.submit(request(105, 1, 4096 + liveGenerations.length * 4)) === 0, "could not refill the retired live module");
+                check(JSON.parse(await until(() => probe.poll())).request === 105, "refilled live module did not install");
+                liveGenerations.push(105);
+                const merge = JSON.parse(request(28, 16));
+                merge.regions.forEach((region, index) => { region.expected_old = { slot: 0, generation: liveGenerations[index] }; });
                 check(probe.submit(JSON.stringify(merge)) === 0, "batch replacement could not reserve coexistence capacity");
-                check(JSON.parse(await until(() => probe.poll())).regions === 8, "batch replacement did not install all exports");
-                for (let id = 12; id <= 19; id++) probe.retire(BigInt(id));
-                check(JSON.parse(probe.execute(20n, 0xfffffff0, 4, 100)).r0 === 2, "retirement dropped the replacement instance");
-                probe.retire(20n);
-                const transfer = JSON.parse(request(21));
+                check(JSON.parse(await until(() => probe.poll())).regions === 16, "batch replacement did not install all exports");
+                for (const id of liveGenerations) probe.retire(BigInt(id));
+                check(JSON.parse(probe.execute(28n, 0xfffffff0, 4, 100)).r0 === 2, "retirement dropped the replacement instance");
+                probe.retire(28n);
+                const transfer = JSON.parse(request(29));
                 const operations = [
                     { Alu: { op: "Move", destination: 0, left: { Immediate: 0 },
                         right: { value: { Immediate: 37 }, shift: "Lsl", amount: { Immediate: 0 } }, set_flags: false } },
@@ -207,10 +326,12 @@ for (const mode of ["development", "production"]) {
                 }));
                 check(probe.submit(JSON.stringify(transfer)) === 0, "multiple-transfer request rejected");
                 check(JSON.parse(await until(() => probe.poll())).regions === 1, "multiple-transfer request failed to install");
-                const transferred = JSON.parse(probe.execute(21n, 4106, 100, 100));
+                probe.set_range_lengths(4, 4);
+                const transferred = JSON.parse(probe.execute(29n, 4106, 100, 100));
                 check(transferred.exit === 3 && transferred.executed === 5 && transferred.r0 === 37 && transferred.r7 === 77
-                    && probe.stores === 2, JSON.stringify(transferred));
-                probe.retire(21n);
+                    && probe.stores === 0 && String(probe.memory()) === String(Uint8Array.from({ length: 256 }, (_, index) =>
+                        index === 0 ? 37 : index === 4 ? 77 : 0)), JSON.stringify(transferred));
+                probe.retire(29n);
                 probe.shutdown();
                 check(workers[0].terminated && workers[0].onmessage == null && workers[0].onerror == null, "shutdown retained worker listeners");
                 probe.free();
@@ -270,9 +391,18 @@ for (const mode of ["development", "production"]) {
                 const large = JSON.parse(request(1));
                 large.regions[0].source = Array.from({ length: 4000 }, (_, page) => ({ page, version: 1 }));
                 check(irBudget.submit(JSON.stringify(large)) === 0, "single request below the IR limit was rejected");
-                await until(() => { irBudget.poll(); return globalThis.finishInstallation; });
                 large.request = 2;
+                check(irBudget.submit(JSON.stringify(large)) === 1, "queued request released its IR reservation");
+                await until(() => { irBudget.poll(); return workers[5].messages.length === 1; });
+                check(workers[5].messages[0].detached, "pending request payload was not detached");
+                check(irBudget.submit(JSON.stringify(large)) === 1, "compiling request released its IR reservation");
+                await until(() => { irBudget.poll(); return globalThis.finishInstallation; });
                 check(irBudget.submit(JSON.stringify(large)) === 1, "concurrent request exceeded the total pending IR budget");
+                await finishInstallation();
+                await sleep();
+                check(irBudget.submit(JSON.stringify(large)) === 1, "unconsumed completion released its IR reservation");
+                check(JSON.parse(irBudget.poll()).request === 1, "held installation did not complete");
+                check(irBudget.submit(JSON.stringify(large)) === 0, "consumed completion did not release its IR reservation");
                 large.request = 3;
                 large.regions[0].source = Array.from({ length: 9000 }, (_, page) => ({ page, version: 1 }));
                 let oversized = false;
@@ -280,14 +410,102 @@ for (const mode of ["development", "production"]) {
                 check(oversized, "an individually oversized request was not a permanent admission failure");
                 irBudget.shutdown();
                 irBudget.free();
-                finishInstallation();
                 await sleep();
                 await sleep();
-                return { budget, end, sampled, workerCount: workers.length, irBudget: { single: "Accepted", concurrent: "Busy", oversized: "Failed" } };
+                delayInstallation = false;
+                for (const value of [5, 0.5, NaN, null, 0n]) {
+                    const bytes = new Uint8Array(8);
+                    new DataView(bytes.buffer).setFloat64(0, typeof value === "number" ? value : 0, true);
+                    globalThis.invalidExit = value === null ? { type: 111, instructions: [208, 111] }
+                        : typeof value === "bigint" ? { type: 126, instructions: [66, 0] }
+                        : { type: 124, instructions: [68, ...bytes] };
+                    const invalidExitProbe = new Probe(7n);
+                    const worker = workers.at(-1);
+                    try {
+                        check(invalidExitProbe.submit(request(1)) === 0, "invalid-exit request rejected");
+                        check(JSON.parse(await until(() => invalidExitProbe.poll())).regions === 1, "invalid-exit module did not install");
+                        let failure = "";
+                        try { invalidExitProbe.execute(1n, 0xfffffff0, 100, 100); } catch (error) { failure = String(error); }
+                        check(failure.includes("compiled ABI returned invalid exit") && invalidExitProbe.stores === 1,
+                            `invalid exit ${value} was coerced, or its store was replayed`);
+                        check(worker.terminated && worker.onmessage == null, "invalid exit did not close the executor");
+                        try { invalidExitProbe.execute(1n, 0xfffffff0, 100, 100); } catch { /* Already closed. */ }
+                        check(invalidExitProbe.stores === 1, "closed executor replayed an invalid-exit store");
+                    } finally {
+                        globalThis.invalidExit = null;
+                        invalidExitProbe.free();
+                    }
+                }
+                return { budget, end, sampled, rejectedManifests, workerCount: workers.length,
+                    peakCount: { liveBytes: countLiveBytes, fifthReservationBytes: countLiveBytes + 5 * 512 * 1024, rejected: "Busy", recovered: "Accepted" },
+                    irBudget: { single: "Accepted", concurrent: "Busy", oversized: "Failed" } };
             });
-            assert.equal(result.workerCount, 6);
+            assert.equal(result.workerCount, 11);
             assert.deepEqual(errors, []);
             console.log(JSON.stringify({ mode, ...result }));
+
+            const ranges = await page.evaluate(async () => {
+                delayInstallation = false;
+                const probe = new backendTest.Probe(7n);
+                const worker = workers.at(-1);
+                try {
+                    const request = {
+                        session: 7, request: 1,
+                        regions: [{
+                            ir: {
+                                entry: { pc: 4096, thumb: true, cpu_mode: 16 },
+                                blocks: [{ instructions: [{ pc: 4096, size: 2, condition: "Always", operation: { MultipleTransfer: {
+                                    base: 0, registers: 6, increment: true, before: false, write_back: true, load: true,
+                                } } }] }],
+                            }, source: [{ page: 0, version: 1 }], expected_old: null,
+                        }],
+                    };
+                    if (probe.submit(JSON.stringify(request)) !== 0) throw Error("range probe admission failed");
+                    let completion = "";
+                    for (let attempt = 0; attempt < 2000 && !completion; attempt++) {
+                        completion = probe.poll();
+                        if (!completion) await new Promise(resolve => setTimeout(resolve, 5));
+                    }
+                    if (!completion || JSON.parse(completion).regions !== 1) throw Error("range probe compilation failed: " + completion);
+                    const results = [];
+                    const wrapping = structuredClone(request);
+                    wrapping.request = 2;
+                    wrapping.regions[0].ir.blocks[0].instructions[0].pc = 4098;
+                    wrapping.regions[0].ir.blocks[0].instructions.unshift({ pc: 4096, size: 2, condition: "Always", operation: {
+                        Alu: { op: "Move", destination: 0, left: { Immediate: 0 },
+                            right: { value: { Immediate: 0xfffffffc }, shift: "Lsl", amount: { Immediate: 0 } }, set_flags: false },
+                    } });
+                    if (probe.submit(JSON.stringify(wrapping)) !== 0) throw Error("wrapping range admission failed");
+                    completion = "";
+                    for (let attempt = 0; attempt < 2000 && !completion; attempt++) {
+                        completion = probe.poll();
+                        if (!completion) await new Promise(resolve => setTimeout(resolve, 5));
+                    }
+                    if (!completion || JSON.parse(completion).regions !== 1) throw Error("wrapping range compilation failed: " + completion);
+                    const wrapped = JSON.parse(probe.execute(2n, 0xfffffff0, 2, 100));
+                    if (wrapped.exit !== 4 || wrapped.executed !== 1 || wrapped.r0 !== 0xfffffffc || wrapped.pc !== 4098) {
+                        throw Error("unmapped wrapping range did not decline: " + JSON.stringify(wrapped));
+                    }
+                    probe.retire(2n);
+                    for (const [first, second, admitted] of [[0,8,false], [3,5,false], [4,0,false], [4,8,false], [8,0,true], [4,4,true]]) {
+                        probe.set_range_lengths(first, second);
+                        const memory = probe.memory();
+                        const result = JSON.parse(probe.execute(1n, 0xfffffff0, 1, 100));
+                        if (result.exit !== (admitted ? 2 : 4) || result.executed !== Number(admitted)
+                            || result.r0 !== (admitted ? 8 : 0) || result.pc !== (admitted ? 4098 : 4096)
+                            || result.scratch !== (admitted ? first : 0) || String(probe.memory()) !== String(memory)) {
+                            throw Error("unsafe or incorrect borrowed range: " + JSON.stringify({ first, second, result }));
+                        }
+                        results.push({ first, second, result });
+                    }
+                    return results;
+                } finally {
+                    probe.shutdown();
+                    probe.free();
+                    if (!worker.terminated || worker.onmessage != null) throw Error("range probe retained its worker");
+                }
+            });
+            console.log(JSON.stringify({ mode, ranges }));
 
             const capacity = await page.evaluate(async () => {
                 const check = (condition, message) => { if (!condition) throw Error(message); };
@@ -322,11 +540,10 @@ for (const mode of ["development", "production"]) {
                         return {
                             ir: {
                                 entry: { pc, thumb: false, cpu_mode: 16 },
-                                blocks: [{ instructions: Array.from({ length: dense ? 256 : 1 }, (_, index) => ({
+                                blocks: [{ instructions: Array.from({ length: dense ? 200 : 1 }, (_, index) => ({
                                     pc: pc + index * 4, size: 4, condition: "Le",
-                                    operation: { Alu: {
-                                        op: "ReverseSubCarry", destination: 0, left: { Register: 0 },
-                                        right: { value: { Register: 1 }, shift: "Lsl", amount: { Register: 2 } }, set_flags: true,
+                                    operation: { MultipleTransfer: {
+                                        base: 0, registers: 255, increment: true, before: false, write_back: false, load: true,
                                     } },
                                 })) }],
                             }, source: [{ page: pc & 0xffff0000, version: 1 }], expected_old: null,
@@ -338,14 +555,15 @@ for (const mode of ["development", "production"]) {
                 const worker = workers.at(-1);
                 try {
                     let oversized = "";
-                    try { probe.submit(JSON.stringify(request(100, 4096, true, 4))); } catch (error) { oversized = String(error); }
+                    try { probe.submit(JSON.stringify(request(100, 4096, true, 8))); } catch (error) { oversized = String(error); }
                     check(oversized === "compile request exceeds the IR budget", `oversized admission: ${oversized}`);
                     for (let index = 0; index < 4; index++) check(probe.poll() === "", "failed admission produced a completion");
                     check(worker.messages.length === 0, "failed admission reached the worker");
 
                     const modules = new Map();
                     for (let id = 1; id <= 7; id++) {
-                        check(probe.submit(JSON.stringify(request(id, 4096 + (id - 1) * 16384))) === 0, `dense request ${id} rejected`);
+                        check(probe.submit(JSON.stringify(request(id, 4096 + (id - 1) * 16384))) === 0,
+                            `dense request ${id} rejected with live sizes ${JSON.stringify([...modules.values()])}`);
                         const completion = JSON.parse(await until(() => probe.poll()));
                         check(completion.request === id && completion.regions === 4, JSON.stringify(completion));
                         const bytes = worker.received.find(value => value.request === String(id)).encodedSize;
@@ -353,7 +571,7 @@ for (const mode of ["development", "production"]) {
                         modules.set(id, bytes);
                     }
                     const liveBytes = [...modules.values()].reduce((sum, bytes) => sum + bytes, 0);
-                    check(modules.size + 1 <= 8 && liveBytes + reservation > liveLimit && liveBytes <= liveLimit,
+                    check(modules.size + 1 <= 16 && liveBytes + reservation > liveLimit && liveBytes <= liveLimit,
                         `fixture does not isolate live byte pressure: ${liveBytes}`);
                     const retry = JSON.stringify(request(8, 4096 + 7 * 16384));
                     check(probe.submit(retry) === 1, "live encoded bytes did not reject the eighth module");
@@ -374,12 +592,21 @@ for (const mode of ["development", "production"]) {
                         replacement.regions.forEach((region, slot) => { region.expected_old = { slot, generation: old }; });
                         replacements.push(JSON.stringify(replacement));
                     }
+                    const partial = JSON.parse(replacements[0]);
+                    partial.regions.pop();
+                    check(modules.size + 1 <= 16 && modules.size + 1 <= 20 && liveBytes + reservation <= peakLimit
+                        && liveBytes + reservation > liveLimit && liveBytes - modules.get(1) + reservation <= liveLimit,
+                        "partial replacement fixture does not isolate the old module's live bytes");
+                    check(probe.submit(JSON.stringify(partial)) === 1, "partial export replacement reclaimed the old module's live bytes");
+                    check(probe.poll() === "" && worker.messages.length === 8, "Busy partial replacement queued compilation");
+                    check(JSON.parse(probe.execute(1n, 0xfffffff0, 4, 100)).r0 === 2, "partial replacement damaged the old handle");
                     check(probe.submit(replacements[0]) === 0, "replacement could not reserve coexistence bytes");
                     await until(() => { probe.poll(); return globalThis.finishInstallation; });
+                    check(JSON.parse(probe.execute(1n, 0xfffffff0, 4, 100)).r0 === 2, "pending full replacement retired the old handle");
                     for (let index = 1; index < 4; index++) check(probe.submit(replacements[index]) === 0, "coexistence capacity filled early");
                     const coexistBytes = [...modules.values()].reduce((sum, bytes) => sum + bytes, 0);
                     const rejectedPeak = coexistBytes + 5 * reservation;
-                    check(modules.size + 5 <= 12 && coexistBytes + 4 * reservation <= peakLimit && rejectedPeak > peakLimit,
+                    check(modules.size + 5 <= 20 && coexistBytes + 4 * reservation <= peakLimit && rejectedPeak > peakLimit,
                         `fixture does not isolate peak byte pressure: ${rejectedPeak}`);
                     check(coexistBytes - modules.get(5) + reservation <= liveLimit, "replacement would exceed the live byte limit");
                     check(probe.submit(replacements[4]) === 1, "fifth reservation exceeded coexistence bytes");
@@ -396,6 +623,9 @@ for (const mode of ["development", "production"]) {
                         const completion = JSON.parse(await until(() => probe.poll()));
                         check(completion.request === id && completion.regions === 4, JSON.stringify(completion));
                         completions.push(completion.request);
+                        if (id === 9) {
+                            check(JSON.parse(probe.execute(1n, 0xfffffff0, 4, 100)).r0 === 2, "full replacement retired the old handle before its owner");
+                        }
                         probe.retire(BigInt(id - 8));
                     }
                     for (let index = 0; index < 4; index++) check(probe.poll() === "", "reservation returned a duplicate completion");
@@ -405,6 +635,7 @@ for (const mode of ["development", "production"]) {
                     check(execution.exit === 2 && execution.executed === 4 && execution.r0 === 2, JSON.stringify(execution));
                     check(worker.errors.length === 0, JSON.stringify(worker.errors));
                     return { oversized, liveBytes, rejectedLive: liveBytes + reservation, coexistBytes, rejectedPeak,
+                        partialReplacement: "Busy", fullReplacement: "Accepted",
                         afterRetirePeak, completions, execution, encodedSizes: worker.received.filter(value => value.request).map(value => value.encodedSize) };
                 } finally {
                     delayInstallation = false;

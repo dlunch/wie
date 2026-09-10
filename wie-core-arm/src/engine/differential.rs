@@ -15,14 +15,15 @@ use super::*;
 
 #[derive(Deserialize)]
 struct NodeResult {
-    frame: [u32; 23],
+    frame: [u32; 24],
     effects: Vec<NodeEffect>,
     exit: u32,
 }
 
 #[derive(Deserialize)]
 enum NodeEffect {
-    Sample([u32; 3]),
+    Memory(Vec<(u32, Vec<u8>)>),
+    Sample([u32; 4]),
     Store([u32; 3]),
     WordRange([u32; 3]),
 }
@@ -33,13 +34,13 @@ struct NodeExecutor {
     completion: Option<CompileCompletion>,
     calls: Arc<Mutex<u32>>,
     retired: Arc<Mutex<u32>>,
-    stores: Arc<Mutex<u32>>,
+    helper_stores: Arc<Mutex<u32>>,
     handoffs: Arc<Mutex<Vec<RunFrame>>>,
 }
 
 impl CompiledExecutor for NodeExecutor {
-    fn submit(&mut self, request: CompileRequest) -> Admission {
-        let artifact = wie_arm_wasm::compile(&request).unwrap();
+    fn submit(&mut self, request: &CompileRequest) -> Admission {
+        let artifact = wie_arm_wasm::compile(request).unwrap();
         let size = artifact.bytes.len();
         self.modules.insert(request.request, artifact.bytes);
         self.completion = Some(CompileCompletion {
@@ -111,12 +112,22 @@ impl CompiledExecutor for NodeExecutor {
         let result: NodeResult = serde_json::from_slice(&output.stdout).unwrap();
         for effect in result.effects {
             match effect {
-                NodeEffect::Sample([pc, cpsr, r7]) => access.sample_prepare(pc, cpsr, r7),
+                NodeEffect::Memory(pages) => {
+                    for (base, bytes) in pages {
+                        for (index, word) in bytes.as_chunks::<4>().0.iter().enumerate() {
+                            assert!(matches!(
+                                access.store(base + index as u32 * 4, 4, u32::from_le_bytes(*word)),
+                                AccessResult::Complete(0)
+                            ));
+                        }
+                    }
+                }
+                NodeEffect::Sample([pc, cpsr, r7, entry_pc]) => access.sample_prepare(pc, cpsr, r7, entry_pc),
                 NodeEffect::Store([address, width, value]) => {
                     assert!(matches!(access.store(address, width, value), AccessResult::Complete(0)));
-                    *self.stores.lock() += 1;
+                    *self.helper_stores.lock() += 1;
                 }
-                NodeEffect::WordRange([address, words, admitted]) => assert_eq!(u32::from(access.supports_word_range(address, words)), admitted),
+                NodeEffect::WordRange([address, words, admitted]) => assert_eq!(u32::from(access.word_range(address, words).is_some()), admitted),
             }
         }
         *frame = bytemuck::pod_read_unaligned(bytemuck::cast_slice(&result.frame));
@@ -151,7 +162,7 @@ struct DifferentialRun {
     engine: Arm32CpuEngine,
     result: Result<EngineRunResult>,
     retired: u32,
-    stores: u32,
+    helper_stores: u32,
     handoffs: Vec<RunFrame>,
 }
 
@@ -168,11 +179,12 @@ fn run_decoded(code: &[u8], cpsr: u32, setup: impl Fn(&mut Arm32CpuEngine), end:
         engine.sampler.remaining = interval;
         engine.set_profiling(true);
         setup(engine);
+        engine.mark_entry();
     }
     let executor = NodeExecutor::default();
     let calls = executor.calls.clone();
     let retired = executor.retired.clone();
-    let stores = executor.stores.clone();
+    let helper_stores = executor.helper_stores.clone();
     let handoffs = executor.handoffs.clone();
     let mut jit = Jit::new(1, Box::new(executor));
     let entry = RegionKey {
@@ -180,11 +192,11 @@ fn run_decoded(code: &[u8], cpsr: u32, setup: impl Fn(&mut Arm32CpuEngine), end:
         thumb: cpsr & 0x20 != 0,
         cpu_mode: (cpsr & 0x1f) as u8,
     };
-    jit.sample(entry, 8);
+    jit.sample(entry, Some((entry, 8)));
     jit.maintain(&compiled.mem);
     compiled.jit = Some(jit);
-    let expected = interpreter.run(end, budget);
-    let result = compiled.run(end, budget);
+    let expected = interpreter.run(end, budget, None);
+    let result = compiled.run(end, budget, None);
     assert!(
         *calls.lock() > 0 || budget == 0 || end == entry.pc,
         "decoder did not compile {code:x?}, cpsr={cpsr:#x}"
@@ -205,6 +217,7 @@ fn run_decoded(code: &[u8], cpsr: u32, setup: impl Fn(&mut Arm32CpuEngine), end:
         ),
     }
     assert_eq!(compiled.cpu, interpreter.cpu, "whole CPU, code={code:x?}, cpsr={cpsr:#x}");
+    assert_eq!(compiled.entry_pc, interpreter.entry_pc, "observed entry, code={code:x?}, cpsr={cpsr:#x}");
     for (page, (actual, expected)) in compiled.mem.pages.iter().zip(interpreter.mem.pages.iter()).enumerate() {
         assert_eq!(
             actual.as_ref().map(|page| page.bytes.as_slice()),
@@ -229,9 +242,80 @@ fn run_decoded(code: &[u8], cpsr: u32, setup: impl Fn(&mut Arm32CpuEngine), end:
         engine: compiled,
         result,
         retired: *retired.lock(),
-        stores: *stores.lock(),
+        helper_stores: *helper_stores.lock(),
         handoffs: handoffs.lock().clone(),
     }
+}
+
+#[test]
+fn queued_arm_and_thumb_regions_execute_from_one_wasm_module() {
+    let mut interpreter = Arm32CpuEngine::new();
+    let mut compiled = Arm32CpuEngine::new();
+    let arm: Vec<_> = [0xe1a0400eu32, 0xeb000005, 0xe2800001, 0xe12fff14]
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect();
+    let thumb: Vec<_> = [0x4674u16, 0xf000, 0xf80d, 0x3002, 0x4720]
+        .into_iter()
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    for engine in [&mut interpreter, &mut compiled] {
+        engine.mem_map(0x1000, 256, MemoryPermission::ReadWriteExecute);
+        // Save LR; call the local callee; add again after returning; bx saved LR.
+        engine.mem_write(0x1000, &arm).unwrap();
+        engine.mem_write(0x1020, &[0x03, 0x00, 0x80, 0xe2, 0x1e, 0xff, 0x2f, 0xe1]).unwrap();
+        engine.mem_write(0x1080, &thumb).unwrap();
+        engine.mem_write(0x10a0, &[0x05, 0x30, 0x70, 0x47]).unwrap();
+    }
+    let entries = [
+        RegionKey {
+            pc: 0x1000,
+            thumb: false,
+            cpu_mode: 0x1f,
+        },
+        RegionKey {
+            pc: 0x1080,
+            thumb: true,
+            cpu_mode: 0x10,
+        },
+    ];
+    let executor = NodeExecutor::default();
+    let calls = executor.calls.clone();
+    let retired = executor.retired.clone();
+    let mut jit = Jit::new(1, Box::new(executor));
+    for entry in entries {
+        jit.sample(entry, Some((entry, 8)));
+    }
+    jit.maintain(&compiled.mem);
+    jit.poll(&compiled.mem);
+    let first = jit.lookup(entries[0], &compiled.mem).unwrap();
+    let second = jit.lookup(entries[1], &compiled.mem).expect("both queued regions must install together");
+    assert_eq!(first.generation, second.generation);
+    assert_ne!(first.slot, second.slot);
+    for (entry, continuation, callee, handle) in [(entries[0], 0x1008, 0x1020, first), (entries[1], 0x1086, 0x10a0, second)] {
+        assert_eq!(jit.lookup(RegionKey { pc: continuation, ..entry }, &compiled.mem), Some(handle));
+        assert!(jit.lookup(RegionKey { pc: callee, ..entry }, &compiled.mem).is_none());
+    }
+    compiled.jit = Some(jit);
+    for entry in entries {
+        for engine in [&mut interpreter, &mut compiled] {
+            engine.reg_write(ArmRegister::Cpsr, u32::from(entry.cpu_mode) | if entry.thumb { 0x20 } else { 0 });
+            engine.reg_write(ArmRegister::PC, entry.pc);
+            engine.reg_write(ArmRegister::LR, 0x2000 | u32::from(entry.thumb));
+            engine.reg_write(ArmRegister::R0, 41);
+        }
+        let expected = interpreter.run(0x2000, 10, None).unwrap();
+        let actual = compiled.run(0x2000, 10, None).unwrap();
+        assert_eq!(actual.instructions_executed, 6);
+        assert_eq!(actual.instructions_executed, expected.instructions_executed);
+        assert!(matches!(actual.stop_reason, EngineStopReason::End));
+        assert!(matches!(expected.stop_reason, EngineStopReason::End));
+        assert_eq!(compiled.cpu, interpreter.cpu);
+        assert_eq!(compiled.sampler.remaining, interpreter.sampler.remaining);
+    }
+    // Each caller dispatches its callee to the interpreter and resumes at its continuation.
+    assert_eq!(*calls.lock(), 4);
+    assert_eq!(*retired.lock(), 8);
 }
 
 #[test]
@@ -489,7 +573,7 @@ fn decoded_multiple_transfers_cover_addressing_masks_aliases_and_pc() {
                 );
                 assert_eq!(run.retired, 1, "opcode={opcode:#x}");
                 assert_eq!(run.result.unwrap().instructions_executed, 1);
-                assert_eq!(run.stores, if !load && condition != 0 { list.count_ones() } else { 0 });
+                assert_eq!(run.helper_stores, 0);
                 assert!(run.handoffs.is_empty());
             }
         }
@@ -518,15 +602,7 @@ fn decoded_multiple_transfers_cover_addressing_masks_aliases_and_pc() {
             assert_eq!(run.retired, 1, "opcode={opcode:#x}");
             assert_eq!(run.result.unwrap().instructions_executed, 1);
             assert!(run.handoffs.is_empty());
-            assert_eq!(
-                run.stores,
-                match opcode {
-                    0xc625 => 3,
-                    0xc6c0 => 2,
-                    0xb525 => 4,
-                    _ => 0,
-                }
-            );
+            assert_eq!(run.helper_stores, 0);
         }
     }
 }
@@ -540,8 +616,8 @@ fn decoded_swaps_doublewords_and_pc_loads_preserve_memory_and_aliases() {
         (0xe790_f102, 0),
         (0x0590_f008, 0),
         (0xe580_f000, 1), // str pc, [r0]
-        (0xe100_1092, 1),
-        (0xe100_1091, 1),
+        (0xe100_1092, 0),
+        (0xe100_1091, 0),
         (0xe140_1092, 1),
         (0xe140_1091, 1),
         (0x0100_1092, 0),
@@ -550,15 +626,12 @@ fn decoded_swaps_doublewords_and_pc_loads_preserve_memory_and_aliases() {
         for up in [false, true] {
             for load in [false, true] {
                 let offset = if addressing & 0x0040_0000 != 0 { 0x108 } else { 2 };
-                cases.push((
-                    0xe000_40d0 | addressing | (u32::from(up) << 23) | (u32::from(!load) << 5) | offset,
-                    if load { 0 } else { 2 },
-                ));
+                cases.push((0xe000_40d0 | addressing | (u32::from(up) << 23) | (u32::from(!load) << 5) | offset, 0));
             }
         }
     }
-    cases.extend([(0xe1c0_00d0, 0), (0xe1c0_00f0, 2), (0xe180_40f4, 2), (0x01c0_40d0, 0)]);
-    for (opcode, stores) in cases {
+    cases.extend([(0xe1c0_00d0, 0), (0xe1c0_00f0, 0), (0xe180_40f4, 0), (0x01c0_40d0, 0)]);
+    for (opcode, helper_stores) in cases {
         for target in [0x20000u32, 0x20003] {
             let run = run_decoded(
                 &opcode.to_le_bytes(),
@@ -579,7 +652,7 @@ fn decoded_swaps_doublewords_and_pc_loads_preserve_memory_and_aliases() {
             );
             assert_eq!(run.retired, 1, "opcode={opcode:#x}");
             assert_eq!(run.result.unwrap().instructions_executed, 1);
-            assert_eq!(run.stores, stores, "opcode={opcode:#x}");
+            assert_eq!(run.helper_stores, helper_stores, "opcode={opcode:#x}");
             assert!(run.handoffs.is_empty());
         }
     }
@@ -634,7 +707,7 @@ fn decoded_memory_handoffs_precede_all_instruction_effects() {
                 interval,
             );
             assert_eq!(run.retired, generated, "opcode={opcode:#x}, address={address:#x}");
-            assert_eq!(run.stores, 1, "faulting instruction must not store before handoff");
+            assert_eq!(run.helper_stores, 1, "faulting instruction must not store before handoff");
             assert_eq!(run.handoffs.len(), 1);
             let frame = &run.handoffs[0];
             assert_eq!(frame.executed, 1);
@@ -707,7 +780,7 @@ fn decoded_thumb_multiple_handoffs_keep_partial_fault_state() {
             2,
         );
         assert_eq!(run.retired, if fault.is_some() { 1 } else { 2 });
-        assert_eq!(run.stores, 1);
+        assert_eq!(run.helper_stores, 1);
         assert_eq!(run.handoffs.len(), 1);
         let frame = &run.handoffs[0];
         assert_eq!(frame.regs[15], 0x1002);
@@ -724,8 +797,8 @@ fn decoded_thumb_multiple_handoffs_keep_partial_fault_state() {
 }
 
 #[test]
-fn decoded_word_ranges_wrap_without_duplicate_stores() {
-    for (opcode, words, stores) in [(0xe8a6_0036u32, 4, 4), (0xe8b6_0036, 4, 0), (0xe0c6_00f8, 2, 2), (0xe0c6_00d8, 2, 0)] {
+fn decoded_word_ranges_wrap_without_scalar_helpers() {
+    for (opcode, words) in [(0xe8a6_0036u32, 4), (0xe8b6_0036, 4), (0xe0c6_00f8, 2), (0xe0c6_00d8, 2)] {
         for mapped in [false, true] {
             let code = [0xe5c9_8000, opcode].into_iter().flat_map(u32::to_le_bytes).collect::<Vec<_>>();
             let run = run_decoded(
@@ -759,7 +832,7 @@ fn decoded_word_ranges_wrap_without_duplicate_stores() {
                 2,
             );
             assert_eq!(run.retired, if mapped { 2 } else { 1 });
-            assert_eq!(run.stores, 1 + if mapped { stores } else { 0 });
+            assert_eq!(run.helper_stores, 1);
             if mapped {
                 assert_eq!(run.result.unwrap().instructions_executed, 2);
                 assert!(run.handoffs.is_empty());
@@ -799,7 +872,7 @@ fn decoded_extended_operations_obey_budget_and_sample_boundaries() {
             );
             assert_eq!(run.retired, budget.min(5));
             assert_eq!(run.result.unwrap().instructions_executed, budget.min(5));
-            assert_eq!(run.stores, if budget >= 3 { 3 } else { 0 });
+            assert_eq!(run.helper_stores, 0);
             assert!(run.handoffs.is_empty());
         }
     }
@@ -817,7 +890,7 @@ fn decoded_extended_operations_obey_budget_and_sample_boundaries() {
         );
         assert_eq!(run.retired, 1);
         assert_eq!(run.result.unwrap().instructions_executed, 1);
-        assert_eq!(run.stores, 0);
+        assert_eq!(run.helper_stores, 0);
         assert!(run.handoffs.is_empty());
     }
 }
@@ -857,18 +930,16 @@ fn generated_arm_and_thumb_loops_match_interpreter_state_and_samples() {
                     ..NodeExecutor::default()
                 }),
             );
-            jit.sample(
-                RegionKey {
-                    pc: 0x1000,
-                    thumb,
-                    cpu_mode: 0x1f,
-                },
-                8,
-            );
+            let sampled_key = RegionKey {
+                pc: 0x1000,
+                thumb,
+                cpu_mode: 0x1f,
+            };
+            jit.sample(sampled_key, Some((sampled_key, 8)));
             jit.maintain(&compiled.mem);
             compiled.jit = Some(jit);
-            let expected = interpreter.run(end, budget).unwrap();
-            let actual = compiled.run(end, budget).unwrap();
+            let expected = interpreter.run(end, budget, None).unwrap();
+            let actual = compiled.run(end, budget, None).unwrap();
             assert_eq!(actual.instructions_executed, expected.instructions_executed);
             assert_eq!(
                 matches!(actual.stop_reason, EngineStopReason::End),
@@ -926,18 +997,16 @@ fn arm_immediate_logical_flags_preserve_carry_when_rotation_is_zero() {
                     ..NodeExecutor::default()
                 }),
             );
-            jit.sample(
-                RegionKey {
-                    pc: 0x1000,
-                    thumb: false,
-                    cpu_mode: 0x1f,
-                },
-                8,
-            );
+            let sampled_key = RegionKey {
+                pc: 0x1000,
+                thumb: false,
+                cpu_mode: 0x1f,
+            };
+            jit.sample(sampled_key, Some((sampled_key, 8)));
             jit.maintain(&compiled.mem);
             compiled.jit = Some(jit);
-            compiled.run(0x1004, 1).unwrap();
-            interpreter.run(0x1004, 1).unwrap();
+            compiled.run(0x1004, 1, None).unwrap();
+            interpreter.run(0x1004, 1, None).unwrap();
             assert_eq!(*calls.lock(), 1);
             let expected_carry = u32::from(rotated_carry.unwrap_or(carry)) << 29;
             assert_eq!(compiled.reg_read(ArmRegister::Cpsr) & (1 << 29), expected_carry);
@@ -978,18 +1047,16 @@ fn decoded_thumb_register_operations_match_interpreter_flags() {
                     ..NodeExecutor::default()
                 }),
             );
-            jit.sample(
-                RegionKey {
-                    pc: 0x1000,
-                    thumb: true,
-                    cpu_mode: 0x1f,
-                },
-                8,
-            );
+            let sampled_key = RegionKey {
+                pc: 0x1000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            };
+            jit.sample(sampled_key, Some((sampled_key, 8)));
             jit.maintain(&compiled.mem);
             compiled.jit = Some(jit);
-            interpreter.run(0x1002, 1).unwrap();
-            compiled.run(0x1002, 1).unwrap();
+            interpreter.run(0x1002, 1, None).unwrap();
+            compiled.run(0x1002, 1, None).unwrap();
             assert_eq!(*calls.lock(), 1);
             assert_eq!(*retired.lock(), 1);
             for index in 0..=reg::CPSR {
@@ -1028,18 +1095,16 @@ fn decoded_arm_multiply_retires_in_wasm_with_matching_flags() {
                         ..NodeExecutor::default()
                     }),
                 );
-                jit.sample(
-                    RegionKey {
-                        pc: 0x1000,
-                        thumb: false,
-                        cpu_mode,
-                    },
-                    8,
-                );
+                let sampled_key = RegionKey {
+                    pc: 0x1000,
+                    thumb: false,
+                    cpu_mode,
+                };
+                jit.sample(sampled_key, Some((sampled_key, 8)));
                 jit.maintain(&compiled.mem);
                 compiled.jit = Some(jit);
-                let expected = interpreter.run(0x1004, 1).unwrap();
-                let actual = compiled.run(0x1004, 1).unwrap();
+                let expected = interpreter.run(0x1004, 1, None).unwrap();
+                let actual = compiled.run(0x1004, 1, None).unwrap();
                 assert_eq!(*retired.lock(), 1, "opcode={opcode:#x}");
                 assert_eq!(actual.instructions_executed, expected.instructions_executed);
                 for index in 0..=reg::CPSR {
@@ -1139,18 +1204,16 @@ fn memory_handoff_preserves_retired_prefix_and_fault_state() {
                         ..NodeExecutor::default()
                     }),
                 );
-                jit.sample(
-                    RegionKey {
-                        pc: 0x1000,
-                        thumb: false,
-                        cpu_mode: 0x1f,
-                    },
-                    8,
-                );
+                let sampled_key = RegionKey {
+                    pc: 0x1000,
+                    thumb: false,
+                    cpu_mode: 0x1f,
+                };
+                jit.sample(sampled_key, Some((sampled_key, 8)));
                 jit.maintain(&compiled.mem);
                 compiled.jit = Some(jit);
-                let expected = interpreter.run(0x100c, 8);
-                let actual = compiled.run(0x100c, 8);
+                let expected = interpreter.run(0x100c, 8, None);
+                let actual = compiled.run(0x100c, 8, None);
                 assert_eq!(*calls.lock(), if address == 0x30000 { 1 } else { 2 });
                 if address == 0x30000 {
                     assert!(matches!(expected, Err(WieError::InvalidMemoryAccess(0x30000))));
@@ -1214,19 +1277,17 @@ fn generated_store_keeps_cached_code_until_explicit_instruction_cache_flush() {
         let executor = NodeExecutor::default();
         let calls = executor.calls.clone();
         let retired = executor.retired.clone();
-        let stores = executor.stores.clone();
+        let helper_stores = executor.helper_stores.clone();
         let mut jit = Jit::new(1, Box::new(executor));
-        jit.sample(
-            RegionKey {
-                pc: 0x1000,
-                thumb: true,
-                cpu_mode: 0x1f,
-            },
-            8,
-        );
+        let sampled_key = RegionKey {
+            pc: 0x1000,
+            thumb: true,
+            cpu_mode: 0x1f,
+        };
+        jit.sample(sampled_key, Some((sampled_key, 8)));
         jit.maintain(&engine.mem);
         engine.jit = Some(jit);
-        let result = engine.run(0x2000, 10).unwrap();
+        let result = engine.run(0x2000, 10, None).unwrap();
         assert_eq!(result.instructions_executed, 3);
         assert!(matches!(result.stop_reason, EngineStopReason::End));
         assert_eq!(engine.reg_read(ArmRegister::R2), 1);
@@ -1237,7 +1298,7 @@ fn generated_store_keeps_cached_code_until_explicit_instruction_cache_flush() {
         engine.reg_write(ArmRegister::Cpsr, 0x3f);
         engine.reg_write(ArmRegister::PC, 0x1002);
         engine.reg_write(ArmRegister::R2, 0);
-        assert_eq!(engine.run(0x1004, 1).unwrap().instructions_executed, 1);
+        assert_eq!(engine.run(0x1004, 1, None).unwrap().instructions_executed, 1);
         assert_eq!(engine.reg_read(ArmRegister::R2), 1);
         assert_eq!(*retired.lock(), 4);
         assert_eq!(*calls.lock(), 2);
@@ -1245,7 +1306,7 @@ fn generated_store_keeps_cached_code_until_explicit_instruction_cache_flush() {
         engine.reg_write(ArmRegister::Cpsr, 0x1f);
         engine.reg_write(ArmRegister::PC, 0x10000);
         engine.reg_write(ArmRegister::R0, 0x1002);
-        assert_eq!(engine.run(0x10004, 1).unwrap().instructions_executed, 1);
+        assert_eq!(engine.run(0x10004, 1, None).unwrap().instructions_executed, 1);
         assert_eq!(*calls.lock(), 2);
         engine.reg_write(ArmRegister::Cpsr, 0x3f);
         engine.reg_write(ArmRegister::PC, 0x1002);
@@ -1256,13 +1317,13 @@ fn generated_store_keeps_cached_code_until_explicit_instruction_cache_flush() {
             cpu_mode: 0x1f,
         };
         assert!(engine.jit.as_mut().unwrap().lookup(entry, &engine.mem).is_none());
-        engine.jit.as_mut().unwrap().sample(entry, 8);
+        engine.jit.as_mut().unwrap().sample(entry, Some((entry, 8)));
         engine.maintain();
-        assert_eq!(engine.run(0x1004, 1).unwrap().instructions_executed, 1);
+        assert_eq!(engine.run(0x1004, 1, None).unwrap().instructions_executed, 1);
         assert_eq!(engine.reg_read(ArmRegister::R2), 9);
         assert_eq!(*retired.lock(), 5);
         assert_eq!(*calls.lock(), 3);
-        assert_eq!(*stores.lock(), 1);
+        assert_eq!(*helper_stores.lock(), 1);
         assert_eq!(engine.sampler.remaining, 11);
     }
 }
@@ -1285,17 +1346,15 @@ fn a_retired_sample_is_published_before_the_next_pc_fault() {
             ..NodeExecutor::default()
         }),
     );
-    jit.sample(
-        RegionKey {
-            pc: 0x1000,
-            thumb: true,
-            cpu_mode: 0x1f,
-        },
-        8,
-    );
+    let sampled_key = RegionKey {
+        pc: 0x1000,
+        thumb: true,
+        cpu_mode: 0x1f,
+    };
+    jit.sample(sampled_key, Some((sampled_key, 8)));
     jit.maintain(&engine.mem);
     engine.jit = Some(jit);
-    assert!(matches!(engine.run(8, 1), Err(WieError::InvalidMemoryAccess(8))));
+    assert!(matches!(engine.run(8, 1, None), Err(WieError::InvalidMemoryAccess(8))));
     assert_eq!(*calls.lock(), 1);
     let samples = engine.take_profile(true);
     assert_eq!(samples.len(), 1);
@@ -1336,18 +1395,16 @@ fn original_byte_copy_loop_runs_without_native_hooks() {
             ..NodeExecutor::default()
         }),
     );
-    jit.sample(
-        RegionKey {
-            pc: 0x1000,
-            thumb: true,
-            cpu_mode: 0x1f,
-        },
-        8,
-    );
+    let sampled_key = RegionKey {
+        pc: 0x1000,
+        thumb: true,
+        cpu_mode: 0x1f,
+    };
+    jit.sample(sampled_key, Some((sampled_key, 8)));
     jit.maintain(&compiled.mem);
     compiled.jit = Some(jit);
-    let expected = interpreter.run(0x2000, 1000).unwrap();
-    let actual = compiled.run(0x2000, 1000).unwrap();
+    let expected = interpreter.run(0x2000, 1000, None).unwrap();
+    let actual = compiled.run(0x2000, 1000, None).unwrap();
     assert_eq!(actual.instructions_executed, 129);
     assert_eq!(actual.instructions_executed, expected.instructions_executed);
     assert!(*calls.lock() >= 2);
@@ -1371,12 +1428,60 @@ fn original_byte_copy_loop_runs_without_native_hooks() {
 }
 
 #[test]
-fn compiled_prefix_and_nested_svc_calls_share_the_scheduler_budget() {
+fn compiled_loops_reach_deadlines_with_matching_retirement_and_samples() {
+    for thumb in [false, true] {
+        let code: Vec<_> = if thumb {
+            [0x3001u16, 0xe7fd].into_iter().flat_map(u16::to_le_bytes).collect()
+        } else {
+            [0xe2800001u32, 0xeafffffd].into_iter().flat_map(u32::to_le_bytes).collect()
+        };
+        let [mut compiled, mut interpreter] = core::array::from_fn(|_| {
+            let mut engine = Arm32CpuEngine::new();
+            engine.mem_map(0x1000, code.len(), MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x1000, &code).unwrap();
+            engine.reg_write(ArmRegister::Cpsr, if thumb { 0x3f } else { 0x1f });
+            engine.reg_write(ArmRegister::PC, 0x1000);
+            engine.mark_entry();
+            engine.set_profiling(true);
+            engine
+        });
+        let executor = NodeExecutor::default();
+        let retired = executor.retired.clone();
+        let mut jit = Jit::new(1, Box::new(executor));
+        let entry = RegionKey {
+            pc: 0x1000,
+            thumb,
+            cpu_mode: 0x1f,
+        };
+        jit.sample(entry, Some((entry, 8)));
+        jit.maintain(&compiled.mem);
+        jit.poll(&compiled.mem);
+        assert!(jit.lookup(entry, &compiled.mem).is_some());
+        compiled.jit = Some(jit);
+
+        let result = compiled
+            .run(0x2000, u32::MAX, Some(Instant::now() + core::time::Duration::from_millis(8)))
+            .unwrap();
+        assert!(matches!(result.stop_reason, EngineStopReason::Deadline));
+        assert_eq!(*retired.lock(), result.instructions_executed);
+        if result.instructions_executed != 0 {
+            assert!(compiled.sampler.sequence > 0);
+        }
+        let expected = interpreter.run(0x2000, result.instructions_executed, None).unwrap();
+        assert!(matches!(expected.stop_reason, EngineStopReason::Yield));
+        assert_eq!(compiled.cpu, interpreter.cpu);
+        assert_eq!(compiled.entry_pc, interpreter.entry_pc);
+        assert_eq!(compiled.sampler.remaining, interpreter.sampler.remaining);
+        assert_eq!(compiled.sampler.sequence, interpreter.sampler.sequence);
+        let samples = [compiled.take_profile(true), interpreter.take_profile(true)]
+            .map(|samples| samples.into_iter().map(|sample| (sample.stack, sample.count)).collect::<Vec<_>>());
+        assert_eq!(samples[0], samples[1]);
+    }
+}
+
+#[test]
+fn compiled_prefix_and_nested_svc_calls_preserve_results_and_samples() {
     use crate::{ArmCore, JumpTo};
-    use core::{
-        pin::pin,
-        task::{Context, Poll, Waker},
-    };
 
     async fn nested(core: &mut ArmCore, values: &mut Arc<Mutex<Vec<u32>>>) -> Result<JumpTo> {
         let pc = core.read_pc_lr()?.0;
@@ -1409,28 +1514,20 @@ fn compiled_prefix_and_nested_svc_calls_share_the_scheduler_budget() {
             }),
         );
         for pc in [0x1000, 0x10000] {
-            jit.sample(
-                RegionKey {
-                    pc,
-                    thumb: true,
-                    cpu_mode: 0x1f,
-                },
-                8,
-            );
+            let sampled_key = RegionKey {
+                pc,
+                thumb: true,
+                cpu_mode: 0x1f,
+            };
+            jit.sample(sampled_key, Some((sampled_key, 8)));
             jit.maintain(&engine.mem);
         }
         engine.jit = Some(jit);
     }
-    let observer = core.clone();
-    let mut run = pin!(core.run_function::<u32>(0x1001, &[17]));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(run.as_mut().poll(&mut cx).is_pending());
-    assert_eq!(observer.read_param(0).unwrap(), 4999);
-    assert!(values.lock().is_empty());
-    assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(17))));
+    assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[17])).unwrap(), 17);
     assert_eq!(*values.lock(), [5000]);
     assert!(*calls.lock() >= 2);
-    observer.shutdown();
+    core.shutdown();
     assert!(
         observed_samples
             .lock()

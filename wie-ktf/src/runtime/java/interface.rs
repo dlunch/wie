@@ -13,7 +13,7 @@ use wipi_types::ktf::{InitParam2, java::WIPIJBInterface};
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
 use wie_jvm_support::JvmSupport;
-use wie_util::{ByteRead, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
+use wie_util::{ByteRead, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::java::jvm_support::{
     JavaClassDefinition, JavaClassInstance, JavaMethod, JavaMethodResult, JavaVtable, KtfJvmSupport, KtfJvmWord,
@@ -69,7 +69,7 @@ pub fn get_wipi_jb_interface(core: &mut ArmCore) -> Result<u32> {
 pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32, ptr_name: u32) -> Result<u32> {
     tracing::trace!("load_java_class({ptr_target:#x}, {ptr_name:#x})");
 
-    let name_bytes = read_null_terminated_string_bytes(core, ptr_name)?;
+    let name_bytes = core.read_null_terminated_string_bytes(ptr_name)?;
     let name = String::from_utf8_lossy(&name_bytes).to_string();
     let class = jvm.resolve_class(&name).await;
 
@@ -88,7 +88,7 @@ pub async fn java_class_load(core: &mut ArmCore, jvm: &mut Jvm, ptr_target: u32,
 pub async fn java_throw(core: &mut ArmCore, jvm: &mut Jvm, ptr_error: KtfJvmWord, a1: u32) -> Result<JavaMethodResult> {
     tracing::warn!("java_throw({ptr_error:#x}, {a1})");
 
-    let error_bytes = read_null_terminated_string_bytes(core, ptr_error)?;
+    let error_bytes = core.read_null_terminated_string_bytes(ptr_error)?;
     let error = String::from_utf8_lossy(&error_bytes).to_string();
 
     let exception = match jvm.new_class(&error, "()V", ()).await {

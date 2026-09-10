@@ -11,7 +11,7 @@ use bytemuck::{Pod, Zeroable};
 
 use wipi_types::wipic::{WIPICIndirectPtr, WIPICWord};
 
-use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
 
 use crate::{WIPICResult, context::WIPICContext, method::MethodBody};
 
@@ -32,7 +32,7 @@ pub async fn current_time(context: &mut dyn WIPICContext) -> Result<u64> {
 pub async fn get_system_property(context: &mut dyn WIPICContext, ptr_id: WIPICWord, p_out: WIPICWord, buf_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetSystemProperty({ptr_id:#x}, {p_out:#x}, {buf_size:#x})");
 
-    let id_bytes = read_null_terminated_string_bytes(context, ptr_id)?;
+    let id_bytes = context.read_null_terminated_string_bytes(ptr_id)?;
     let id = encoding_rs::EUC_KR.decode(&id_bytes).0;
 
     let value = match id.as_ref() {
@@ -169,7 +169,7 @@ pub async fn free(context: &mut dyn WIPICContext, memory: WIPICIndirectPtr) -> R
 pub async fn get_resource_id(context: &mut dyn WIPICContext, ptr_name: WIPICWord, ptr_size: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_knlGetResourceID({ptr_name:#x}, {ptr_size:#x})");
 
-    let raw_name = read_null_terminated_string_bytes(context, ptr_name)?;
+    let raw_name = context.read_null_terminated_string_bytes(ptr_name)?;
     let name = encoding_rs::EUC_KR.decode(&raw_name).0;
     tracing::debug!("  resource name: {name}");
 
@@ -203,7 +203,7 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICInd
         return Ok(-9); // M_E_INVALID
     }
 
-    let name_bytes = read_null_terminated_string_bytes(context, id as _)?;
+    let name_bytes = context.read_null_terminated_string_bytes(id as _)?;
     // the handle was written by get_resource_id as utf-8, not guest-encoded
     let name = String::from_utf8_lossy(&name_bytes);
 
@@ -221,7 +221,7 @@ pub async fn get_resource(context: &mut dyn WIPICContext, id: i32, buf: WIPICInd
 pub async fn printk(context: &mut dyn WIPICContext, ptr_format: WIPICWord, a0: WIPICWord, a1: WIPICWord, a2: WIPICWord, a3: WIPICWord) -> Result<()> {
     tracing::debug!("MC_knlPrintk({ptr_format:#x}, {a0:#x}, {a1:#x}, {a2:#x}, {a3:#x})");
 
-    let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
+    let format_string = context.read_null_terminated_string_bytes(ptr_format)?;
     let result = sprintf(context, &format_string, &[a0, a1, a2, a3])?;
     let result = encoding_rs::EUC_KR.decode(&result).0;
 
@@ -244,7 +244,7 @@ pub async fn sprintk(
 ) -> Result<WIPICWord> {
     tracing::debug!("MC_knlSprintk({dest:#x}, {ptr_format:#x}, {a1}, {a2}, {a3}, {a4}, {a5})",);
 
-    let format_string = read_null_terminated_string_bytes(context, ptr_format)?;
+    let format_string = context.read_null_terminated_string_bytes(ptr_format)?;
     let result = sprintf(context, &format_string, &[a0, a1, a2, a3, a4, a5])?;
 
     write_null_terminated_string_bytes(context, dest, &result)?;
@@ -298,7 +298,7 @@ pub async fn get_program_name(context: &mut dyn WIPICContext, name_buf: WIPICWor
 mod test {
     use alloc::{boxed::Box, string::String};
 
-    use wie_util::{ByteRead, ByteWrite, Result, read_null_terminated_string_bytes, write_null_terminated_string_bytes};
+    use wie_util::{ByteRead, ByteWrite, Result, write_null_terminated_string_bytes};
 
     use crate::{WIPICContext, context::test::TestContext, method::MethodImpl};
 
@@ -318,7 +318,7 @@ mod test {
             .call(&mut context, Box::new([dest, format, 1234, 0, 0, 0, 0, 0, 0, 0]))
             .await
             .unwrap();
-        let result = read_null_terminated_string_bytes(&context, dest).unwrap();
+        let result = context.read_null_terminated_string_bytes(dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "1234");
 
         write_null_terminated_string_bytes(&mut context, format, "test %02d".as_bytes()).unwrap();
@@ -326,7 +326,7 @@ mod test {
             .call(&mut context, Box::new([dest, format, 1, 0, 0, 0, 0, 0, 0, 0]))
             .await
             .unwrap();
-        let result = read_null_terminated_string_bytes(&context, dest).unwrap();
+        let result = context.read_null_terminated_string_bytes(dest).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "test 01");
 
         Ok(())
@@ -341,7 +341,7 @@ mod test {
         write_null_terminated_string_bytes(&mut context, id, b"MIN").unwrap();
 
         assert_eq!(get_system_property(&mut context, id, out, 16).await.unwrap(), 0);
-        let result = read_null_terminated_string_bytes(&context, out).unwrap();
+        let result = context.read_null_terminated_string_bytes(out).unwrap();
         assert_eq!(String::from_utf8(result).unwrap(), "01000000000");
 
         Ok(())

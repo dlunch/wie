@@ -6929,6 +6929,7 @@ dependencies = [
  "spin",
  "test-utils",
  "tracing",
+ "web-time",
  "wie-arm-jit",
  "wie-arm-wasm",
  "wie-backend",

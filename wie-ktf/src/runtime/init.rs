@@ -4,7 +4,7 @@ use jvm::Jvm;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
-use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
+use wie_util::{ByteRead, Result, WieError, read_generic, write_generic};
 
 use wipi_types::ktf::{ExeInterface, ExeInterfaceFunctions, InitParam0, InitParam3, InitParam4, WipiExe};
 
@@ -125,7 +125,7 @@ pub async fn load_native(
 async fn get_interface(core: &mut ArmCore, ptr_name: u32) -> Result<u32> {
     tracing::trace!("get_interface({ptr_name:#x})");
 
-    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?).unwrap();
+    let name = String::from_utf8(core.read_null_terminated_string_bytes(ptr_name)?).unwrap();
 
     match name.as_str() {
         "WIPIC_knlInterface" => get_wipic_knl_interface(core),

@@ -7,6 +7,7 @@ use core::time::Duration;
 
 use crossbeam::channel;
 use spin::Mutex;
+use web_time::Instant;
 use wie_util::WieError;
 
 use crate::{ThreadId, context::ArmCoreContext};
@@ -454,7 +455,7 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32, deadline: Option<Instant>) -> wie_util::Result<EngineRunResult> {
         let mut instructions_executed = 0;
         loop {
             let thread_id = self.stop_thread_id();
@@ -468,23 +469,27 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             let stepping = matches!(resume_mode, ResumeMode::Step);
 
             if instructions_executed == count {
-                let mut result = self.debug.cpu.lock().run(end, 0)?;
+                let mut result = self.debug.cpu.lock().run(end, 0, deadline)?;
                 result.instructions_executed += instructions_executed;
                 return Ok(result);
             }
 
             let current_pc = DebugInner::normalize_addr(self.debug.cpu.lock().reg_read(ArmRegister::PC));
-            let result = if self.pending_breakpoint_step.remove(&thread_id) == Some(current_pc) {
+            let result = if self.pending_breakpoint_step.get(&thread_id) == Some(&current_pc) {
                 let result = self
                     .debug
                     .try_restore_breakpoint(current_pc)
-                    .and_then(|_| self.debug.cpu.lock().run(end, 1));
+                    .and_then(|_| self.debug.cpu.lock().run(end, 1, deadline));
                 if let Err(error) = self.debug.reinsert_breakpoint(current_pc) {
                     self.debug.stop(DebugStopReason::Signal(DebugSignal::Abrt, self.stop_thread_id()));
                     return Err(error);
                 }
+                if result.as_ref().is_ok_and(|result| result.instructions_executed != 0) {
+                    self.pending_breakpoint_step.remove(&thread_id);
+                }
                 result
             } else {
+                self.pending_breakpoint_step.remove(&thread_id);
                 if self.debug.breakpoints.lock().contains_key(&current_pc) {
                     // Keep the trap installed while another thread may be resumed.
                     self.pending_breakpoint_step.insert(thread_id, current_pc);
@@ -497,7 +502,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 } else {
                     1
                 };
-                self.debug.cpu.lock().run(end, run_count)
+                self.debug.cpu.lock().run(end, run_count, deadline)
             };
 
             match result {
@@ -506,7 +511,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     instructions_executed += result.instructions_executed;
                     result.instructions_executed = instructions_executed;
                     match result.stop_reason {
-                        EngineStopReason::Svc { .. } => return Ok(result),
+                        EngineStopReason::Svc { .. } | EngineStopReason::Deadline => return Ok(result),
                         _ if stepping && executed_instruction => self.debug.stop(DebugStopReason::DoneStep(self.stop_thread_id())),
                         EngineStopReason::Yield if instructions_executed < count => continue,
                         _ => return Ok(result),
@@ -515,6 +520,10 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 Err(error) => self.debug.stop(DebugInner::map_stop_reason(error, self.stop_thread_id())),
             }
         }
+    }
+
+    fn mark_entry(&mut self) {
+        self.debug.cpu.lock().mark_entry();
     }
 
     fn reg_write(&mut self, reg: ArmRegister, value: u32) {
@@ -535,6 +544,10 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> wie_util::Result<usize> {
         self.debug.cpu.lock().mem_read(address, size, result)
+    }
+
+    fn mem_read_until_nul(&mut self, address: u32) -> wie_util::Result<Vec<u8>> {
+        self.debug.cpu.lock().mem_read_until_nul(address)
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
@@ -573,7 +586,7 @@ mod tests {
         engine.debug.resume(vec![1], None);
         let debug = engine.debug.clone();
         let (tx, rx) = channel::bounded(1);
-        let runner = std::thread::spawn(move || tx.send(engine.run(0x2000, 1)).unwrap());
+        let runner = std::thread::spawn(move || tx.send(engine.run(0x2000, 1, None)).unwrap());
         let result = rx.recv_timeout(Duration::from_secs(1));
         debug.resume(Vec::new(), None);
         runner.join().unwrap();
@@ -594,7 +607,7 @@ mod tests {
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.debug.on_thread_entered(1);
         engine.debug.resume(vec![1], None);
-        let result = engine.run(0, 2).unwrap();
+        let result = engine.run(0, 2, None).unwrap();
         let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
             panic!("expected SVC");
         };
@@ -604,7 +617,7 @@ mod tests {
         engine.debug.end_svc_step(thread_id, true);
 
         let debug = engine.debug.clone();
-        let runner = std::thread::spawn(move || engine.run(0, 1));
+        let runner = std::thread::spawn(move || engine.run(0, 1, None));
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
         let context = debug.read_registers();
         debug.resume(Vec::new(), None);
@@ -628,7 +641,7 @@ mod tests {
             engine.reg_write(ArmRegister::Cpsr, 0x3f);
             engine.reg_write(ArmRegister::PC, address | 1);
             engine.debug.on_thread_entered(thread_id);
-            let result = engine.run(0, 1).unwrap();
+            let result = engine.run(0, 1, None).unwrap();
             let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
                 panic!("expected SVC");
             };
@@ -640,7 +653,7 @@ mod tests {
         engine.debug.on_thread_entered(1);
         engine.debug.end_svc_step(1, true);
         let debug = engine.debug.clone();
-        let runner = std::thread::spawn(move || engine.run(0, 1));
+        let runner = std::thread::spawn(move || engine.run(0, 1, None));
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
         let context = debug.read_registers();
         debug.resume(Vec::new(), None);
@@ -666,7 +679,7 @@ mod tests {
                 engine.reg_write(ArmRegister::PC, 0x1001);
                 engine.reg_write(ArmRegister::R0, 0);
                 engine.debug.on_thread_entered(thread_id);
-                engine.run(0, 1).unwrap();
+                engine.run(0, 1, None).unwrap();
             }
         });
         let mut stops = Vec::new();
@@ -689,6 +702,83 @@ mod tests {
     }
 
     #[test]
+    fn expired_breakpoint_resumes_keep_the_pending_instruction_until_it_retires() {
+        extern crate std;
+
+        for stepping in [false, true] {
+            let mut engine = DebuggedArm32CpuEngine::new();
+            engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x1000, &[0x01, 0x30, 0x01, 0x30]).unwrap();
+            engine.reg_write(ArmRegister::Cpsr, 0x3f);
+            engine.reg_write(ArmRegister::PC, 0x1001);
+            engine.debug.on_thread_entered(1);
+            engine.debug.add_breakpoint(0x1000, DebugBreakpointKind::Thumb16).unwrap();
+            let debug = engine.debug.clone();
+            debug.resume(Vec::new(), None);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1, None);
+                (engine, result)
+            });
+            let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), Some(vec![2]));
+            let (mut engine, result) = runner.join().unwrap();
+            assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.instructions_executed, 0);
+            assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
+
+            debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
+            let (tx, rx) = channel::bounded(1);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1, Some(Instant::now()));
+                tx.send((engine, result)).unwrap();
+            });
+            let expired = rx.recv_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            let (mut engine, result) = expired.unwrap();
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Deadline));
+            assert_eq!(result.instructions_executed, 0);
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
+            assert_eq!(engine.reg_read(ArmRegister::R0), 0);
+            assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
+            let mut trap = [0; 2];
+            engine.mem_read(0x1000, 2, &mut trap).unwrap();
+            assert_eq!(trap, [0x00, 0xbe]);
+            assert!(debug.stop_event_rx.is_empty());
+
+            debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
+            let (tx, rx) = channel::bounded(1);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1, Some(Instant::now() + Duration::from_secs(60)));
+                tx.send((engine, result)).unwrap();
+            });
+            let stopped = stepping.then(|| debug.recv_stop_event_timeout(Duration::from_secs(1)));
+            if stepping {
+                debug.resume(Vec::new(), None);
+            }
+            let resumed = rx.recv_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            let (mut engine, result) = resumed.unwrap();
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.instructions_executed, 1);
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1002);
+            assert_eq!(engine.reg_read(ArmRegister::R0), 1);
+            assert!(!engine.pending_breakpoint_step.contains_key(&1));
+            engine.mem_read(0x1000, 2, &mut trap).unwrap();
+            assert_eq!(trap, [0x00, 0xbe]);
+            assert!(debug.stop_event_rx.is_empty());
+            if let Some(stopped) = stopped {
+                assert!(matches!(stopped, Ok(DebugStopReason::DoneStep(1))));
+            }
+        }
+    }
+
+    #[test]
     fn breakpoint_steps_count_toward_the_svc_instruction_budget() {
         extern crate std;
 
@@ -701,7 +791,7 @@ mod tests {
         let debug = engine.debug.clone();
         debug.resume(Vec::new(), None);
         let runner = std::thread::spawn(move || {
-            let result = engine.run(0, 3).unwrap();
+            let result = engine.run(0, 3, None).unwrap();
             (result, engine.reg_read(ArmRegister::R0))
         });
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));

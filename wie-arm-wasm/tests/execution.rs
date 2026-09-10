@@ -65,8 +65,9 @@ fn run(request: &CompileRequest, assertions: &str) {
         const data = new DataView(memory.buffer);
         function resetMemory(options) {{
             reset(options);
-            new Uint8Array(memory.buffer,148,36).fill(0);
+            new Uint8Array(memory.buffer,148,44).fill(0);
             new Uint8Array(memory.buffer,4096,4096).fill(0xa5);
+            new Uint8Array(memory.buffer,16384,64).fill(0xa5);
             data.setUint32(A,F,true);
         }}
         {assertions}
@@ -98,7 +99,7 @@ fn raw_helpers() -> Vec<u8> {
     let mut types = TypeSection::new();
     types.ty().function([ValType::I32; 4], [ValType::I32]);
     types.ty().function([ValType::I32; 4], []);
-    types.ty().function([ValType::I32; 3], [ValType::I32]);
+    types.ty().function([ValType::I32; 3], [ValType::I64]);
     module.section(&types);
     let mut functions = FunctionSection::new();
     functions.function(0).function(0).function(1).function(2);
@@ -131,8 +132,12 @@ fn raw_helpers() -> Vec<u8> {
         };
         let count = if store { 156 } else { 152 };
         s.i32_const(count).i32_const(count).i32_load(mem).i32_const(1).i32_add().i32_store(mem);
+        if !store {
+            s.i32_const(148).i32_load(mem).i32_const(3).i32_eq().if_(wasm_encoder::BlockType::Empty);
+            s.unreachable().end();
+        }
         // Test-only access adapter: guest [0x2000,0x3000) maps to host [0x1000,0x2000).
-        // The control word injects the documented helper statuses, not CPU behavior.
+        // Status controls model helper results; the load-only trap above is a backend failure.
         s.i32_const(148).i32_load(mem).i32_const(1).i32_eq().if_(wasm_encoder::BlockType::Empty);
         s.i32_const(1).return_().end();
         s.i32_const(148).i32_load(mem).i32_const(2).i32_eq().if_(wasm_encoder::BlockType::Empty);
@@ -225,7 +230,8 @@ fn raw_helpers() -> Vec<u8> {
         align: 2,
         memory_index: 0,
     };
-    s.i32_const(160).i32_const(4096).i32_load(word).i32_store(word).end();
+    s.i32_const(160).i32_const(4096).i32_load(word).i32_store(word);
+    s.i32_const(188).i32_const(256 + 92).i32_load(word).i32_store(word).end();
     code.function(&sample);
     let mut query = Function::new([]);
     let mut s = query.instructions();
@@ -246,7 +252,27 @@ fn raw_helpers() -> Vec<u8> {
         .i32_const(0x3000)
         .i32_le_u()
         .i32_and()
-        .end();
+        .if_(wasm_encoder::BlockType::Result(ValType::I64));
+    s.local_get(0)
+        .i32_load(word)
+        .local_get(2)
+        .i32_const(4)
+        .i32_mul()
+        .i32_store(MemArg { offset: 88, ..word });
+    // A test-only split maps the suffix elsewhere in host memory, not next to the prefix.
+    s.i32_const(184)
+        .i32_load(word)
+        .i32_eqz()
+        .if_(wasm_encoder::BlockType::Result(ValType::I64));
+    s.i64_const(0).else_();
+    s.local_get(0)
+        .i32_load(word)
+        .i32_const(184)
+        .i32_load(word)
+        .i32_store(MemArg { offset: 88, ..word });
+    s.i64_const(0x4000_i64 << 32).end();
+    s.local_get(1).i32_const(0x1000).i32_sub().i64_extend_i32_u().i64_or();
+    s.else_().i64_const(0).end().end();
     code.function(&query);
     module.section(&code);
     module.finish()
@@ -283,7 +309,10 @@ fn alu_pc_writes_commit_dynamic_and_constant_targets_in_the_same_state() {
         jump.size = if thumb { 2 } else { 4 };
         let mut destination = alu(0x1004, AluOp::Move, Some(7), Value::Immediate(0), Value::Immediate(99), false);
         destination.size = jump.size;
-        let mut input = request(vec![jump, destination]);
+        let mut input = request(vec![jump]);
+        input.regions[0].ir.blocks.push(BasicBlock {
+            instructions: vec![destination],
+        });
         input.regions[0].ir.entry.thumb = thumb;
         run(
             &input,
@@ -467,6 +496,98 @@ fn status_access_preserves_non_nzcv_bits_and_nop_retires_without_memory() {
 }
 
 #[test]
+fn cpsr_updates_reach_following_conditions_carry_reads_and_pre_instruction_samples() {
+    for (operation, expected) in [
+        (
+            alu(0x1000, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), true).operation,
+            0x6800_0030_u32,
+        ),
+        (
+            alu(0x1000, AluOp::Multiply, Some(0), Value::Register(0), Value::Immediate(0), true).operation,
+            0x7800_0030,
+        ),
+        (
+            Operation::MultiplyAccumulate {
+                destination: 0,
+                left: 0,
+                right: 1,
+                accumulate: 2,
+                set_flags: true,
+            },
+            0x7800_0030,
+        ),
+        (
+            Operation::MultiplyLong {
+                low: 0,
+                high: 1,
+                left: 0,
+                right: 1,
+                signed: false,
+                accumulate: false,
+                set_flags: true,
+            },
+            0x3800_0030,
+        ),
+        (
+            Operation::WriteStatus {
+                value: Value::Immediate(0x5000_0000),
+                mask: 0xf000_0000,
+            },
+            0x5800_0030,
+        ),
+    ] {
+        let mut conditional = alu(0x1006, AluOp::Move, Some(4), Value::Immediate(0), Value::Immediate(123), false);
+        conditional.condition = Condition::Eq;
+        run(
+            &request(vec![
+                Instruction {
+                    pc: 0x1000,
+                    size: 2,
+                    condition: Condition::Always,
+                    operation,
+                },
+                Instruction {
+                    pc: 0x1002,
+                    size: 2,
+                    condition: Condition::Always,
+                    operation: Operation::ReadStatus { destination: 7 },
+                },
+                alu(0x1004, AluOp::AddCarry, Some(3), Value::Immediate(0), Value::Immediate(0), false),
+                conditional,
+                Instruction {
+                    pc: 0x1008,
+                    size: 2,
+                    condition: Condition::Always,
+                    operation: Operation::Branch {
+                        target: Value::Immediate(0x2000),
+                        link: None,
+                        exchange: true,
+                    },
+                },
+            ]),
+            &format!(
+                r#"
+                for (let stop=2;stop<=5;stop++) {{
+                    resetMemory({{cpsr:0xb8000030,sample:stop,entryPc:0x8000}});
+                    set(0,0xffffffff); set(4,1); set(8,1);
+                    assert.equal(entry(F,A),1);
+                    assert.equal(get(64),stop===5 ? ({expected}&~0x20)>>>0 : {expected});
+                    assert.equal(get(28),{expected});
+                    assert.equal(get(12),stop>=3 ? ({expected}>>>29)&1 : 0);
+                    assert.equal(get(16),stop>=4 && ({expected}&0x40000000) ? 123 : 0);
+                    assert.equal(get(60),stop===5 ? 0x2000 : 0x1000+2*stop);
+                    assert.equal(get(80),stop); assert.equal(get(72),100-stop); assert.equal(get(76),0);
+                    assert.equal(get(92),stop===5 ? 0x2000 : 0x8000);
+                    assert.equal(data.getUint32(188,true),0x8000);
+                    assert.deepEqual(samples,[[A,0x1000+2*(stop-1),{expected},stop===2 ? 77 : {expected}]]);
+                }}
+                "#,
+            ),
+        );
+    }
+}
+
+#[test]
 fn multiple_transfers_execute_all_address_modes_and_capture_original_registers() {
     let mut operations = Vec::new();
     for base in [0, 3, 13] {
@@ -519,11 +640,10 @@ fn multiple_transfers_execute_all_address_modes_and_capture_original_registers()
             const addresses=Array.from({{length:count}},(_,i)=>base+step*(i+Number(op.before))).sort((a,b)=>a-b);
             registers.forEach((r,i)=>data.setUint32(addresses[i]-0x1000,r===15 ? 0x4001 : 0x82000000+r*0x101,true));
             const expectedMemory=Uint8Array.from(new Uint8Array(memory.buffer,4096,4096));
-            const view=new DataView(expectedMemory.buffer), trace=[];
+            const view=new DataView(expectedMemory.buffer);
             registers.forEach((r,i)=>{{
                 const address=addresses[i];
                 const v=op.load ? view.getUint32(address-0x2000,true) : r===15 ? 0x100c : original[r];
-                trace.push([Number(!op.load),address,4,v]);
                 if (op.load && r!==15) expected[r]=v;
                 if (!op.load) view.setUint32(address-0x2000,v,true);
             }});
@@ -535,9 +655,8 @@ fn multiple_transfers_execute_all_address_modes_and_capture_original_registers()
             assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),expectedMemory);
             assert.equal(data.getUint32(164,true),1); assert.equal(data.getUint32(168,true),addresses[0]);
             assert.equal(data.getUint32(172,true),count); assert.equal(data.getUint32(180,true),A);
-            assert.equal(data.getUint32(152,true),op.load ? count : 0); assert.equal(data.getUint32(156,true),op.load ? 0 : count);
-            assert.equal(data.getUint32(176,true),count);
-            assert.deepEqual(Array.from({{length:count}},(_,i)=>Array.from(new Uint32Array(memory.buffer,8192+i*16,4))),trace);
+            assert.equal(data.getUint32(152,true),0); assert.equal(data.getUint32(156,true),0);
+            assert.equal(data.getUint32(176,true),0);
             assert.equal(get(80),1); assert.equal(get(72),0); assert.equal(get(76),0);
             assert.deepEqual(samples,[[A,0x1000,0xf8000010,original[7]]]);
         }} }});
@@ -545,6 +664,47 @@ fn multiple_transfers_execute_all_address_modes_and_capture_original_registers()
             serde_json::to_string(&operations).unwrap()
         ),
     );
+}
+
+#[test]
+fn word_transfers_use_both_borrowed_spans_without_scalar_helpers() {
+    for load in [false, true] {
+        let input = request(vec![Instruction {
+            pc: 0x1000,
+            size: 2,
+            condition: Condition::Always,
+            operation: Operation::MultipleTransfer {
+                base: 0,
+                registers: 0x008e,
+                increment: true,
+                before: false,
+                write_back: true,
+                load,
+            },
+        }]);
+        run(
+            &input,
+            &format!(
+                r#"
+            for (const split of [4,8,12]) {{
+                resetMemory({{sample:1,budget:1}}); set(0,0x2080);
+                data.setUint32(184,split,true);
+                const registers=[1,2,3,7], expected=[0x12345678,0x89abcdef,0xfedcba98,0x76543210];
+                const positions=registers.map((_,i)=>i*4<split ? 0x1080+i*4 : 0x4000+i*4-split);
+                registers.forEach((r,i)=>{{ set(r*4,{load} ? 0 : expected[i]); if ({load}) data.setUint32(positions[i],expected[i],true); }});
+                const previousR7=get(28);
+                assert.equal(entry(F,A),2); assert.equal(get(0),0x2090); assert.equal(get(60),0x1002);
+                assert.equal(get(80),1); assert.equal(get(72),0); assert.equal(get(76),0);
+                assert.deepEqual(registers.map(r=>get(r*4)),expected);
+                assert.deepEqual(positions.map(p=>data.getUint32(p,true)),expected);
+                assert.deepEqual(new Uint8Array(memory.buffer,0x1080+split,16-split),new Uint8Array(16-split).fill(0xa5));
+                assert.equal(data.getUint32(164,true),1); assert.equal(data.getUint32(152,true),0); assert.equal(data.getUint32(156,true),0);
+                assert.deepEqual(samples,[[A,0x1000,0x30,previousR7]]);
+            }}
+        "#
+            ),
+        );
+    }
 }
 
 #[test]
@@ -587,7 +747,7 @@ fn thumb_stack_transfers_and_listed_base_loads_retire_once() {
             assert.equal(entry(F,A),2); assert.equal(get(52),0x2080); assert.equal(get(56),target);
             assert.equal(get(60),0x4000); assert.equal(get(64),target&1 ? 0xf8000030 : 0xf8000010);
             assert.equal(data.getUint32(0x107c,true),target); assert.equal(data.getUint32(164,true),2);
-            assert.equal(data.getUint32(152,true),1); assert.equal(data.getUint32(156,true),1);
+            assert.equal(data.getUint32(152,true),0); assert.equal(data.getUint32(156,true),0);
             assert.equal(get(80),2); assert.equal(get(72),0); assert.equal(get(76),0);
             assert.deepEqual(samples,[[A,0x1002,0xf8000030,77]]);
         }
@@ -615,7 +775,7 @@ fn thumb_stack_transfers_and_listed_base_loads_retire_once() {
         [0xdeadbeef,0x12345678,0x87654321].forEach((v,i)=>data.setUint32(4096+4*i,v,true));
         assert.equal(entry(F,A),1); assert.equal(get(4),0xdeadbeef); assert.equal(get(12),0x12345678); assert.equal(get(28),0x87654321);
         assert.equal(get(80),1); assert.equal(get(60),0x1002); assert.equal(data.getUint32(164,true),1);
-        assert.equal(data.getUint32(152,true),3); assert.deepEqual(samples,[[A,0x1000,0x30,77]]);
+        assert.equal(data.getUint32(152,true),0); assert.deepEqual(samples,[[A,0x1000,0x30,77]]);
     "#,
     );
 }
@@ -674,19 +834,17 @@ fn double_transfers_capture_offsets_and_write_back_after_both_words() {
             const updated=0x2080+(op.address.subtract ? -8 : 8), address=op.address.pre_index ? updated : 0x2080;
             data.setUint32(address-0x1000,0x87654321,true); data.setUint32(address-0xffc,0xfedcba98,true);
             const expectedMemory=Uint8Array.from(new Uint8Array(memory.buffer,4096,4096)), view=new DataView(expectedMemory.buffer);
-            const trace=[];
             for (let i=0;i<2;i++) {{
                 const v=op.load ? view.getUint32(address-0x2000+4*i,true) : expected[2+i];
                 if (op.load) expected[2+i]=v; else view.setUint32(address-0x2000+4*i,v,true);
-                trace.push([Number(!op.load),address+4*i,4,v]);
             }}
             if (op.address.write_back!==null) expected[op.address.write_back]=updated;
             assert.equal(instance.exports[`region_${{index}}`](F,A),1);
             assert.deepEqual(Array.from({{length:15}},(_,r)=>get(r*4)),expected,JSON.stringify(op));
             assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),expectedMemory);
-            assert.deepEqual(Array.from({{length:2}},(_,i)=>Array.from(new Uint32Array(memory.buffer,8192+16*i,4))),trace);
+            assert.equal(data.getUint32(176,true),0);
             assert.equal(data.getUint32(164,true),1); assert.equal(data.getUint32(168,true),address); assert.equal(data.getUint32(172,true),2);
-            assert.equal(data.getUint32(152,true),op.load ? 2 : 0); assert.equal(data.getUint32(156,true),op.load ? 0 : 2);
+            assert.equal(data.getUint32(152,true),0); assert.equal(data.getUint32(156,true),0);
             assert.equal(get(64),0xf8000010); assert.equal(get(60),0x1004); assert.equal(get(80),1); assert.equal(get(72),99); assert.equal(get(76),0);
             assert.deepEqual(samples,[[A,0x1000,0xf8000010,77]]);
         }});
@@ -757,12 +915,12 @@ fn range_rejection_precedes_every_transfer_effect_and_preserves_retired_prefixes
             for (const pc of [0x1000,0x1004]) for (const [address,status] of [...addresses.map(a=>[a,0]),[0x2000,1],[0x2000,2]]) {{
                 resetMemory({{pc,cpsr:0xf8000010,sample:pc===0x1000 ? 2 : 1}});
                 set(0,address); set(4,0x12345678); set(88,0xdeadbeef); data.setUint32(148,status,true);
-                const before=Array.from(new Uint32Array(memory.buffer,F,23));
+                const before=Array.from(new Uint32Array(memory.buffer,F,24));
                 const expected=before.slice(), retired=pc===0x1000 ? 1 : 0;
                 expected[6]+=retired; expected[15]=0x1004; expected[18]-=retired; expected[19]-=retired; expected[20]+=retired;
                 const bytes=Uint8Array.from(new Uint8Array(memory.buffer,4096,4096));
                 assert.equal(entry(F,A),4);
-                assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,23)),expected);
+                assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,24)),expected);
                 assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),bytes);
                 assert.equal(data.getUint32(164,true),1); assert.equal(data.getUint32(168,true),address); assert.equal(data.getUint32(172,true),{words});
                 assert.equal(data.getUint32(152,true),0); assert.equal(data.getUint32(156,true),0); assert.equal(data.getUint32(176,true),0);
@@ -805,15 +963,15 @@ fn swaps_read_before_writing_with_aliased_registers_and_decline_without_effects(
                 if (width===1) view.setUint8(address-0x2000,value); else view.setUint32(address-0x2000,value,true);
                 assert.equal(entry(F,A),2); assert.deepEqual(Array.from({{length:15}},(_,r)=>get(r*4)),expected);
                 assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),expectedMemory);
-                assert.deepEqual(Array.from({{length:2}},(_,i)=>Array.from(new Uint32Array(memory.buffer,8192+16*i,4))),[[0,address,width,loaded],[1,address,width,value]]);
+                if (width===1) assert.deepEqual(Array.from({{length:2}},(_,i)=>Array.from(new Uint32Array(memory.buffer,8192+16*i,4))),[[0,address,width,loaded],[1,address,width,value]]);
                 assert.equal(data.getUint32(164,true),Number(width===4));
-                assert.equal(data.getUint32(152,true),1); assert.equal(data.getUint32(156,true),1);
+                assert.equal(data.getUint32(152,true),Number(width===1)); assert.equal(data.getUint32(156,true),Number(width===1));
                 assert.equal(get(64),0xf8000010); assert.equal(get(60),0x1004); assert.equal(get(80),1); assert.equal(get(72),0); assert.equal(get(76),0);
                 assert.deepEqual(samples,[[A,0x1000,0xf8000010,77]]);
                 for (const [address,status] of [[0x3000,0],[0x1fff,0],[0x2000,1]]) {{
                     resetMemory({{cpsr:0xf8000010}}); set(0,address); set(4,0x12345678); set(88,0xdeadbeef); data.setUint32(148,status,true);
-                    const before=Array.from(new Uint32Array(memory.buffer,F,23)), memoryBefore=Uint8Array.from(new Uint8Array(memory.buffer,4096,4096));
-                    assert.equal(entry(F,A),4); assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,23)),before);
+                    const before=Array.from(new Uint32Array(memory.buffer,F,24)), memoryBefore=Uint8Array.from(new Uint8Array(memory.buffer,4096,4096));
+                    assert.equal(entry(F,A),4); assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,24)),before);
                     assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),memoryBefore); assert.equal(data.getUint32(156,true),0);
                     assert.equal(data.getUint32(152,true),Number(width===1)); assert.equal(data.getUint32(164,true),Number(width===4));
                     assert.equal(data.getUint32(176,true),0); assert.equal(samples.length,0);
@@ -926,9 +1084,9 @@ fn new_operations_with_false_conditions_retire_without_accesses_or_register_writ
         r#"
         for (const entry of Object.values(instance.exports)) {
             resetMemory({cpsr:0xb8000010,sample:1}); set(0,0x2001); set(4,0xdeadbeef); data.setUint32(148,2,true);
-            const expected=Array.from(new Uint32Array(memory.buffer,F,23)); expected[15]+=4; expected[18]--; expected[19]--; expected[20]++;
+            const expected=Array.from(new Uint32Array(memory.buffer,F,24)); expected[15]+=4; expected[18]--; expected[19]--; expected[20]++;
             const expectedMemory=Uint8Array.from(new Uint8Array(memory.buffer,4096,4096));
-            assert.equal(entry(F,A),1); assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,23)),expected);
+            assert.equal(entry(F,A),1); assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,24)),expected);
             assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),expectedMemory);
             assert.equal(data.getUint32(164,true),0); assert.equal(data.getUint32(152,true),0); assert.equal(data.getUint32(156,true),0);
             assert.deepEqual(samples,[[A,0x1000,0xb8000010,77]]);
@@ -989,7 +1147,7 @@ fn load_pc_interworks_and_applies_boundaries_after_whole_instruction_retirement(
                 assert.equal(get(60),target&~1); assert.equal(get(64),target&1 ? 0xf8000030 : 0xf8000010);
                 assert.equal(get(0),0x2000+4*words); assert.equal(get(80),1);
                 assert.equal(get(72),(options.budget??100)-1); assert.equal(get(76),(options.sample??100)-1);
-                assert.equal(data.getUint32(152,true),words); assert.equal(data.getUint32(156,true),0);
+                assert.equal(data.getUint32(152,true),Number(words===1)); assert.equal(data.getUint32(156,true),0);
                 assert.equal(data.getUint32(164,true),Number(words>1));
                 if (words>1) {{ assert.equal(get(4),0xabcdef01); assert.equal(get(28),0x23456789); }}
                 if (options.sample===1) assert.deepEqual(samples,[[A,0x1000,0xf8000010,77]]);
@@ -1006,7 +1164,7 @@ fn load_pc_interworks_and_applies_boundaries_after_whole_instruction_retirement(
 #[test]
 fn thumb_call_pairs_retire_as_one_instruction_and_do_not_expose_the_suffix() {
     for exchange in [false, true] {
-        let input = request(vec![
+        let mut input = request(vec![
             alu(0x1000, AluOp::Move, Some(0), Value::Immediate(0), Value::Immediate(1), false),
             Instruction {
                 pc: 0x1002,
@@ -1018,8 +1176,10 @@ fn thumb_call_pairs_retire_as_one_instruction_and_do_not_expose_the_suffix() {
                     exchange,
                 },
             },
-            alu(0x1006, AluOp::Move, Some(1), Value::Immediate(0), Value::Immediate(2), false),
         ]);
+        input.regions[0].ir.blocks.push(BasicBlock {
+            instructions: vec![alu(0x1006, AluOp::Move, Some(1), Value::Immediate(0), Value::Immediate(2), false)],
+        });
         run(
             &input,
             &format!(
@@ -1028,11 +1188,34 @@ fn thumb_call_pairs_retire_as_one_instruction_and_do_not_expose_the_suffix() {
             assert.equal(get(60),0x2000); assert.equal(get(56),0x1007); assert.equal(get(64),{cpsr}); assert.equal(get(80),2);
             assert.equal(get(76),0); assert.deepEqual(samples,[[A,0x1002,0x30,77]]);
             reset({{pc:0x1002,budget:1,sample:1}}); assert.equal(entry(F,A),2); assert.equal(get(80),1); assert.equal(get(56),0x1007);
-            reset({{pc:0x1004,sample:1}}); const before=Array.from(new Uint32Array(memory.buffer,F,23));
-            assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,23)),before); assert.equal(samples.length,0);
+            reset({{pc:0x1004,sample:1}}); const before=Array.from(new Uint32Array(memory.buffer,F,24));
+            assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint32Array(memory.buffer,F,24)),before); assert.equal(samples.length,0);
             reset({{pc:0x1006,budget:1}}); assert.equal(entry(F,A),2); assert.equal(get(4),2); assert.equal(get(80),1);
         "#,
                 cpsr = if exchange { 0x10 } else { 0x30 }
+            ),
+        );
+    }
+    for condition in [Condition::Always, Condition::Eq] {
+        run(
+            &request(vec![Instruction {
+                pc: 0x1000,
+                size: 4,
+                condition,
+                operation: Operation::Branch {
+                    target: Value::Immediate(0x1004),
+                    link: Some(0x1005),
+                    exchange: false,
+                },
+            }]),
+            &format!(
+                r#"
+                resetMemory({{budget:1,sample:1,entryPc:0x8000}});
+                assert.equal(entry(F,A),2); assert.equal(get(60),0x1004); assert.equal(get(64),0x30);
+                assert.equal(get(56),{link}); assert.equal(get(80),1); assert.equal(get(92),0x1004);
+                assert.equal(data.getUint32(188,true),0x8000); assert.deepEqual(samples,[[A,0x1000,0x30,77]]);
+                "#,
+                link = if condition == Condition::Always { 0x1005 } else { 0 },
             ),
         );
     }
@@ -1068,8 +1251,440 @@ fn arm_store_pc_uses_the_instruction_address_plus_twelve() {
             resetMemory({cpsr:0x10,budget:1}); set(0,0x2000);
             assert.equal(entry(F,A),2); assert.equal(data.getUint32(4096,true),0x100c);
             assert.equal(get(60),0x1004); assert.equal(get(80),1); assert.equal(data.getUint32(156,true),1);
+            assert.equal(data.getUint32(164,true),0);
         "#,
         );
+    }
+}
+
+#[test]
+fn narrow_pc_stores_reject_register_sources_and_keep_literal_values() {
+    for thumb in [false, true] {
+        for width in [Width::Byte, Width::Half] {
+            let mut input = request(vec![Instruction {
+                pc: 0x1000,
+                size: if thumb { 2 } else { 4 },
+                condition: Condition::Always,
+                operation: Operation::Store {
+                    value: Value::Register(15),
+                    width,
+                    address: Address {
+                        base: Value::Register(0),
+                        offset: Operand {
+                            value: Value::Immediate(0),
+                            shift: Shift::Lsl,
+                            amount: ShiftAmount::Immediate(0),
+                        },
+                        subtract: false,
+                        pre_index: true,
+                        write_back: None,
+                    },
+                },
+            }]);
+            input.regions[0].ir.entry.thumb = thumb;
+            assert_eq!(codegen::compile(&input).err().as_deref(), Some("invalid instruction operands"));
+            if let Operation::Store { value, .. } = &mut input.regions[0].ir.blocks[0].instructions[0].operation {
+                *value = Value::Immediate(0x100c);
+            }
+            run(
+                &input,
+                &format!(
+                    r#"
+                    resetMemory({{cpsr:{cpsr},budget:1}}); set(0,0x2000);
+                    assert.equal(entry(F,A),2); assert.equal(data.getUint32(4096,true),{stored});
+                    assert.equal(get(0),0x2000); assert.equal(get(60),{next}); assert.equal(get(64),{cpsr});
+                    assert.equal(get(80),1); assert.equal(get(72),0); assert.equal(get(76),99);
+                    assert.equal(data.getUint32(156,true),1); assert.equal(data.getUint32(152,true),0);
+                    assert.equal(data.getUint32(164,true),0); assert.equal(samples.length,0);
+                    "#,
+                    cpsr = if thumb { 0x30 } else { 0x10 },
+                    next = if thumb { 0x1002 } else { 0x1004 },
+                    stored = if width == Width::Byte { 0xa5a5_a50c_u32 } else { 0xa5a5_100c },
+                ),
+            );
+        }
+    }
+}
+
+#[test]
+fn boundary_fields_are_loaded_once_per_invocation_and_reloaded_on_resume() {
+    let input = request(
+        (0..3)
+            .map(|index| alu(0x1000 + index * 2, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), false))
+            .collect(),
+    );
+    run(
+        &input,
+        r#"
+        reset({end:0x1002});
+        assert.equal(entry(F,A),3); assert.equal(get(0),1); assert.equal(get(80),1);
+        set(68,0x1004);
+        assert.equal(entry(F,A),3); assert.equal(get(0),2); assert.equal(get(80),2);
+        set(68,0x1006); set(72,1); set(76,1);
+        assert.equal(entry(F,A),3); assert.equal(get(0),3); assert.equal(get(80),3);
+        assert.equal(get(72),0); assert.equal(get(76),0);
+        assert.deepEqual(samples,[[A,0x1004,0x30,77]]);
+        for (const [options,exit] of [[{end:0x1000,budget:0,sample:0},3],[{budget:0,sample:0},2],[{sample:0},1]]) {
+            reset(options); assert.equal(entry(F,A),exit); assert.equal(get(80),0); assert.equal(samples.length,0);
+        }
+        reset({pc:8,end:8,budget:0,sample:0});
+        assert.equal(entry(F,A),6); assert.equal(get(84),8); assert.equal(get(80),0);
+        assert.equal(samples.length,0);
+        "#,
+    );
+    let artifact = codegen::compile(&input).unwrap();
+    for offset in [68, 64] {
+        let mut load = Function::new([]);
+        load.instructions().local_get(0).i32_load(MemArg {
+            offset,
+            align: 2,
+            memory_index: 0,
+        });
+        // This fixture has no memory operations or constants containing the load encoding.
+        let encoding = load.into_raw_body();
+        let instruction = &encoding[1..];
+        assert_eq!(
+            artifact.bytes.windows(instruction.len()).filter(|bytes| *bytes == instruction).count(),
+            1,
+            "field {offset}"
+        );
+    }
+}
+
+#[test]
+fn straight_line_blocks_stop_and_resume_at_every_instruction() {
+    for thumb in [false, true] {
+        let stride = if thumb { 2 } else { 4 };
+        let mut input = request(
+            (0..12)
+                .map(|index| {
+                    let mut instruction = alu(
+                        0x1000 + index * stride,
+                        AluOp::Add,
+                        Some(0),
+                        Value::Register(0),
+                        Value::Immediate(index + 1),
+                        true,
+                    );
+                    instruction.size = stride as u8;
+                    instruction
+                })
+                .collect(),
+        );
+        input.regions[0].ir.entry.thumb = thumb;
+        let second = input.regions[0].ir.blocks[0].instructions.split_off(6);
+        input.regions[0].ir.blocks.push(BasicBlock { instructions: second });
+        run(
+            &input,
+            &format!(
+                r#"
+                const stride={stride}, cpsr={cpsr}, finalPc=0x1000+12*stride;
+                const total=(start,end)=>(end*(end+1)-start*(start+1))/2;
+                for (let start=0; start<12; start++) for (let stop=start; stop<=12; stop++) {{
+                    const retired=stop-start, pc=0x1000+stop*stride;
+                    for (const [options,exit] of [[{{budget:retired}},2],[{{sample:retired}},1],[{{end:pc}},3]]) {{
+                        reset({{pc:0x1000+start*stride,cpsr,...options}});
+                        assert.equal(entry(F,A),exit);
+                        assert.equal(get(0),total(start,stop));
+                        assert.equal(get(60),pc); assert.equal(get(64),cpsr);
+                        assert.equal(get(80),retired);
+                        assert.equal(get(72),(options.budget??100)-retired);
+                        assert.equal(get(76),(options.sample??100)-retired);
+                        assert.deepEqual(samples,options.sample>0 ? [[A,pc-stride,cpsr,77]] : []);
+                        set(68,finalPc); set(72,100); set(76,100);
+                        assert.equal(entry(F,A),3);
+                        assert.equal(get(0),total(start,12));
+                        assert.equal(get(60),finalPc); assert.equal(get(80),12-start);
+                    }}
+                }}
+                for (const previous of [7,0xfffffffe,0xffffffff]) {{
+                    reset({{cpsr,budget:3}}); set(80,previous);
+                    assert.equal(entry(F,A),2); assert.equal(get(80),(previous+3)>>>0);
+                    assert.equal(get(72),0); assert.equal(get(76),97); assert.equal(get(0),6);
+                }}
+                "#,
+                cpsr = if thumb { 0x30 } else { 0x10 },
+            ),
+        );
+    }
+}
+
+#[test]
+fn backend_traps_preserve_completed_guest_stores_without_a_logical_exit() {
+    let address = Address {
+        base: Value::Register(1),
+        offset: Operand {
+            value: Value::Immediate(0),
+            shift: Shift::Lsl,
+            amount: ShiftAmount::Immediate(0),
+        },
+        subtract: false,
+        pre_index: true,
+        write_back: None,
+    };
+    let input = request(vec![
+        Instruction {
+            pc: 0x1000,
+            size: 2,
+            condition: Condition::Always,
+            operation: Operation::Store {
+                value: Value::Register(2),
+                address,
+                width: Width::Word,
+            },
+        },
+        alu(0x1002, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), false),
+        Instruction {
+            pc: 0x1004,
+            size: 2,
+            condition: Condition::Always,
+            operation: Operation::Load {
+                destination: 3,
+                address,
+                width: Width::Word,
+                signed: false,
+            },
+        },
+    ]);
+    run(
+        &input,
+        r#"
+        resetMemory(); set(4,0x2080); set(8,0xdeadbeef); data.setUint32(148,3,true);
+        assert.throws(()=>entry(F,A),WebAssembly.RuntimeError);
+        assert.equal(data.getUint32(0x1080,true),0xdeadbeef);
+        assert.equal(get(0),1); assert.equal(get(12),0); assert.equal(get(60),0x1004);
+        assert.equal(get(72),100); assert.equal(get(76),100); assert.equal(get(80),0);
+        assert.equal(data.getUint32(152,true),1); assert.equal(data.getUint32(156,true),1);
+        assert.equal(data.getUint32(164,true),0); assert.equal(samples.length,0);
+        "#,
+    );
+}
+
+#[test]
+fn memory_exits_keep_completed_prefixes_from_later_blocks() {
+    for block_index in [1, 2] {
+        for instruction_index in 0..3 {
+            for multiple in [false, true] {
+                let mut input = request(Vec::new());
+                input.regions[0].ir.blocks.clear();
+                let mut pc = 0x1000;
+                for size in [2, 3, 4] {
+                    let instructions = (0..size)
+                        .map(|_| {
+                            let instruction = alu(pc, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), false);
+                            pc += 2;
+                            instruction
+                        })
+                        .collect();
+                    input.regions[0].ir.blocks.push(BasicBlock { instructions });
+                }
+                let failed = &mut input.regions[0].ir.blocks[block_index].instructions[instruction_index];
+                failed.operation = if multiple {
+                    Operation::MultipleTransfer {
+                        base: 1,
+                        registers: 4,
+                        increment: true,
+                        before: false,
+                        write_back: false,
+                        load: true,
+                    }
+                } else {
+                    Operation::Load {
+                        destination: 2,
+                        address: Address {
+                            base: Value::Register(1),
+                            offset: Operand {
+                                value: Value::Immediate(0),
+                                shift: Shift::Lsl,
+                                amount: ShiftAmount::Immediate(0),
+                            },
+                            subtract: false,
+                            pre_index: true,
+                            write_back: None,
+                        },
+                        width: Width::Word,
+                        signed: false,
+                    }
+                };
+                let failed_pc = failed.pc;
+                let prefix = (failed_pc - 0x1000) / 2;
+                run(
+                    &input,
+                    &format!(
+                        r#"
+                        for (const status of [1,2]) {{
+                            resetMemory({{sample:{prefix}+1,entryPc:0x8000}}); set(4,0x2080); set(80,7);
+                            data.setUint32(148,status,true);
+                            const before=new Uint8Array(memory.buffer,4096,4096).slice();
+                            assert.equal(entry(F,A),{multiple}||status===1 ? 4 : {fault});
+                            assert.equal(get(60),{failed_pc}); assert.equal(get(80),7+{prefix});
+                            assert.equal(get(0),{prefix}); assert.equal(get(8),0);
+                            assert.equal(get(72),100-{prefix}); assert.equal(get(76),1);
+                            assert.equal(samples.length,1);
+                            assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),before);
+                        }}
+                        "#,
+                        fault = CompiledExit::GuestFault as u32,
+                    ),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn taken_calls_dispatch_before_an_internal_callee_and_keep_boundary_priority() {
+    for thumb in [false, true] {
+        let width = if thumb { 2 } else { 4 };
+        let mut input = request(vec![Instruction {
+            pc: 0x1000,
+            size: 4,
+            condition: Condition::Eq,
+            operation: Operation::Branch {
+                target: Value::Immediate(0x1010),
+                link: Some(0x1004 | u32::from(thumb)),
+                exchange: false,
+            },
+        }]);
+        input.regions[0].ir.entry.thumb = thumb;
+        for (pc, delta, target) in [(0x1004, 10, Value::Immediate(0x2000)), (0x1010, 1, Value::Register(14))] {
+            input.regions[0].ir.blocks.push(BasicBlock {
+                instructions: vec![
+                    Instruction {
+                        size: width,
+                        ..alu(pc, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(delta), false)
+                    },
+                    Instruction {
+                        pc: pc + u32::from(width),
+                        size: width,
+                        condition: Condition::Always,
+                        operation: Operation::Branch {
+                            target,
+                            link: None,
+                            exchange: matches!(target, Value::Register(_)),
+                        },
+                    },
+                ],
+            });
+        }
+        run(
+            &input,
+            &format!(
+                r#"
+                const cpsr={cpsr}, link={link};
+                for (const [options,exit] of [[{{}},0],[{{sample:1}},1],[{{budget:1,sample:1}},2],[{{end:0x1010,budget:1,sample:1}},3]]) {{
+                    reset({{cpsr:cpsr|0x40000000,entryPc:0x8000,...options}});
+                    assert.equal(entry(F,A),exit);
+                    assert.equal(get(60),0x1010); assert.equal(get(0),0); assert.equal(get(56),link);
+                    assert.equal(get(80),1); assert.equal(get(92),0x1010);
+                    assert.equal(samples.length,Number(options.sample===1));
+                    set(68,0x2000); set(72,100); set(76,100);
+                    assert.equal(entry(F,A),3); assert.equal(get(80),5); assert.equal(get(0),11);
+                    assert.equal(get(60),0x2000);
+                }}
+                reset({{cpsr,end:0x2000}});
+                assert.equal(entry(F,A),3); assert.equal(get(0),10); assert.equal(get(80),3);
+                assert.equal(get(56),0); assert.equal(get(60),0x2000);
+                "#,
+                cpsr = if thumb { 0x30 } else { 0x10 },
+                link = 0x1004 | u32::from(thumb),
+            ),
+        );
+    }
+}
+
+#[test]
+fn register_calls_dispatch_at_fallthrough_and_check_target_faults_first() {
+    for thumb in [false, true] {
+        let size = if thumb { 2 } else { 4 };
+        let next = 0x1000 + u32::from(size);
+        let mut input = request(vec![Instruction {
+            pc: 0x1000,
+            size,
+            condition: Condition::Always,
+            operation: Operation::Branch {
+                target: Value::Register(0),
+                link: Some(next | u32::from(thumb)),
+                exchange: true,
+            },
+        }]);
+        input.regions[0].ir.entry.thumb = thumb;
+        input.regions[0].ir.blocks.push(BasicBlock {
+            instructions: vec![Instruction {
+                size,
+                ..alu(next, AluOp::Add, Some(1), Value::Register(1), Value::Immediate(1), false)
+            }],
+        });
+        run(
+            &input,
+            &format!(
+                r#"
+                const cpsr={cpsr}, thumb={thumb}, next={next};
+                for (const target of [next|Number(thumb),0x1000|Number(thumb),0x1000|Number(!thumb)]) {{
+                    reset({{cpsr,entryPc:0x8000}}); set(0,target);
+                    assert.equal(entry(F,A),0); assert.equal(get(80),1); assert.equal(get(4),0);
+                    assert.equal(get(56),next|Number(thumb)); assert.equal(get(60),target&~1);
+                    assert.equal(get(64),(cpsr&~0x20)|((target&1)<<5));
+                }}
+                reset({{cpsr,end:8,budget:1,sample:1,entryPc:0x8000}}); set(0,8);
+                assert.equal(entry(F,A),{fault}); assert.equal(get(80),1); assert.equal(get(60),8);
+                assert.equal(get(84),8); assert.equal(get(72),0); assert.equal(get(76),0);
+                assert.equal(samples.length,1);
+                "#,
+                cpsr = if thumb { 0x30 } else { 0x10 },
+                fault = CompiledExit::GuestFault as u32,
+            ),
+        );
+    }
+}
+
+#[test]
+fn sampled_transfers_keep_the_pre_instruction_entry_and_publish_the_next_entry() {
+    for thumb in [false, true] {
+        let size = if thumb { 2 } else { 4 };
+        for exchange in [false, true] {
+            let mut input = request(vec![Instruction {
+                pc: 0x1000,
+                size,
+                condition: Condition::Eq,
+                operation: Operation::Branch {
+                    target: Value::Register(0),
+                    link: None,
+                    exchange,
+                },
+            }]);
+            input.regions[0].ir.entry.thumb = thumb;
+            run(
+                &input,
+                &format!(
+                    r#"
+                    const initialCpsr = {cpsr}, sequential = 0x1000 + {size};
+                    for (const taken of [false,true]) for (const next of [sequential,0x2000]) {{
+                        for (const targetThumb of [false,true]) {{
+                            const target = next | Number(targetThumb);
+                            const cpsr = initialCpsr | (taken ? 0x40000000 : 0);
+                            const changesMode = {exchange} && targetThumb !== {thumb};
+                            const aligned = target & (({exchange} ? targetThumb : {thumb}) ? ~1 : ~3);
+                            const expectedEntry = taken && (aligned !== sequential || changesMode) ? aligned : 0x8000;
+                            for (const [options,exit] of [[{{sample:1}},1],[{{budget:1,sample:1}},2]]) {{
+                                reset({{...options,cpsr,entryPc:0x8000}}); set(0,target);
+                                assert.equal(entry(F,A),exit); assert.equal(get(80),1);
+                                assert.equal(get(92),expectedEntry);
+                                assert.equal(data.getUint32(188,true),0x8000);
+                                assert.deepEqual(samples,[[A,0x1000,cpsr,77]]);
+                            }}
+                        }}
+                    }}
+                    for (const [options,exit] of [[{{budget:0}},2],[{{sample:0}},1],[{{end:0x1000}},3]]) {{
+                        reset({{...options,cpsr:initialCpsr,entryPc:0x8000}});
+                        assert.equal(entry(F,A),exit); assert.equal(get(80),0); assert.equal(get(92),0x8000);
+                        assert.equal(samples.length,0);
+                    }}
+                    "#,
+                    cpsr = if thumb { 0x30 } else { 0x10 },
+                ),
+            );
+        }
     }
 }
 
@@ -1169,25 +1784,26 @@ fn exchange_preserves_instruction_boundaries_and_exception_return_is_rejected() 
 
 #[test]
 fn omitted_frontier_dispatches_without_retiring_and_keeps_the_branch_alternative() {
+    let mut input = request(vec![Instruction {
+        pc: 0x1000,
+        size: 2,
+        condition: Condition::Eq,
+        operation: Operation::Branch {
+            target: Value::Immediate(0x1004),
+            link: None,
+            exchange: false,
+        },
+    }]);
+    input.regions[0].ir.blocks.push(BasicBlock {
+        instructions: vec![alu(0x1004, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), false)],
+    });
     run(
-        &request(vec![
-            Instruction {
-                pc: 0x1000,
-                size: 2,
-                condition: Condition::Eq,
-                operation: Operation::Branch {
-                    target: Value::Immediate(0x1004),
-                    link: None,
-                    exchange: false,
-                },
-            },
-            alu(0x1004, AluOp::Add, Some(0), Value::Register(0), Value::Immediate(1), false),
-        ]),
+        &input,
         r#"
         reset(); assert.equal(entry(F,A),0); assert.equal(get(60),0x1002); assert.equal(get(80),1);
         assert.equal(get(72),99); assert.equal(get(76),99); assert.equal(get(0),0);
-        reset({pc:0x1002,sample:1}); const before=Array.from(new Uint8Array(memory.buffer,F,92));
-        assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint8Array(memory.buffer,F,92)),before);
+        reset({pc:0x1002,sample:1}); const before=Array.from(new Uint8Array(memory.buffer,F,96));
+        assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint8Array(memory.buffer,F,96)),before);
         assert.equal(samples.length,0);
         reset({cpsr:0x40000030}); assert.equal(entry(F,A),0); assert.equal(get(60),0x1006);
         assert.equal(get(80),2); assert.equal(get(0),1);
@@ -1673,6 +2289,7 @@ fn single_memory_accesses_apply_width_sign_indexing_and_writeback() {
             assert.equal(get(60),0x1004); assert.equal(get(80),1); assert.equal(get(72),99); assert.equal(get(76),0);
             assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),expected);
             assert.equal(data.getUint32(152,true),Number(load)); assert.equal(data.getUint32(156,true),Number(!load));
+            assert.equal(data.getUint32(164,true),0);
             assert.deepEqual(samples,[[A,0x1000,0xf8000010,77]]);
         }} }});
     "#,
@@ -1726,6 +2343,8 @@ fn memory_fallback_and_fault_do_not_commit_the_failed_instruction() {
                 assert.equal(get(4),0x12345678); assert.equal(get(12),1); assert.equal(get(64),0x30);
                 assert.equal(get(60),0x1002); assert.equal(get(80),1); assert.equal(get(72),99); assert.equal(get(76),1);
                 assert.equal(get(84),status===2 ? address : 0); assert.equal(get(88),0xdeadbeef);
+                assert.equal(data.getUint32(164,true),0);
+                assert.equal(data.getUint32(152,true)+data.getUint32(156,true),1);
                 assert.deepEqual(new Uint8Array(memory.buffer,4096,4096),before);
                 // This is a staged sample only: the failed instruction has not retired.
                 assert.deepEqual(samples,[[A,0x1002,0x30,77]]);
@@ -1769,7 +2388,7 @@ fn completed_store_continues_with_normal_boundary_priority() {
             const retired=exit===0 ? 2 : 1;
             assert.equal(get(0),0x2004); assert.equal(get(12),retired-1); assert.equal(get(60),0x1000+2*retired); assert.equal(get(80),retired);
             assert.equal(get(72),(options.budget??100)-retired); assert.equal(get(76),(options.sample??100)-retired);
-            assert.equal(data.getUint32(156,true),1);
+            assert.equal(data.getUint32(156,true),1); assert.equal(data.getUint32(164,true),0);
             if (options.sample===1) { assert.equal(data.getUint32(160,true),0xa5a5a5a5); assert.deepEqual(samples,[[A,0x1000,0x30,0x2000]]); }
             else assert.equal(samples.length,0);
         }
@@ -1798,6 +2417,7 @@ fn completed_store_continues_with_normal_boundary_priority() {
         resetMemory(); set(0,0x2001);
         assert.equal(entry(F,A),0); assert.equal(get(0),0x2001); assert.equal(get(12),1); assert.equal(get(80),2);
         assert.equal(data.getUint32(156,true),0); assert.equal(data.getUint32(4096,true),0xa5a5a5a5);
+        assert.equal(data.getUint32(164,true),0);
     "#,
     );
 }
@@ -1831,6 +2451,7 @@ fn memory_addresses_snapshot_aliased_operands_and_wrap_to_32_bits() {
         resetMemory({cpsr:0x30000030,budget:1}); set(0,0x80002000); set(4,8); data.setUint32(4100,0x89abcdef,true);
         assert.equal(entry(F,A),2); assert.equal(get(0),0x2004); assert.equal(get(4),0x89abcdef); assert.equal(get(64),0x30000030);
         assert.equal(get(88),0x89abcdef); assert.equal(get(80),1);
+        assert.equal(data.getUint32(164,true),0); assert.equal(data.getUint32(152,true),1);
     "#,
     );
     if let Operation::Load { destination, address, .. } = &mut instruction.operation {
@@ -1873,6 +2494,7 @@ fn memory_addresses_snapshot_aliased_operands_and_wrap_to_32_bits() {
         resetMemory({sample:1}); data.setUint32(148,2,true);
         assert.equal(entry(F,A),1); assert.equal(get(0),0); assert.equal(get(80),1);
         assert.equal(data.getUint32(152,true),0); assert.equal(get(84),0); assert.equal(samples.length,1);
+        assert.equal(data.getUint32(164,true),0);
     "#,
     );
 }
@@ -1997,6 +2619,176 @@ fn taken_branch_checks_dynamic_end_before_target_instruction() {
         reset(); assert.equal(entry(F,A),0); assert.equal(get(28),99); assert.equal(get(80),2);
     "#,
     );
+}
+
+#[test]
+fn malformed_basic_blocks_are_rejected_without_normalization() {
+    let first = Instruction {
+        pc: 0x1000,
+        size: 2,
+        condition: Condition::Always,
+        operation: Operation::Nop,
+    };
+    let next = Instruction { pc: 0x1002, ..first.clone() };
+    let mut malformed = vec![
+        vec![
+            BasicBlock {
+                instructions: vec![first.clone()],
+            },
+            BasicBlock { instructions: vec![] },
+        ],
+        vec![BasicBlock {
+            instructions: vec![first.clone(), Instruction { pc: 0x1004, ..next.clone() }],
+        }],
+        vec![BasicBlock {
+            instructions: vec![next.clone(), first.clone()],
+        }],
+    ];
+    for condition in [Condition::Always, Condition::Eq] {
+        for operation in [
+            Operation::Branch {
+                target: Value::Register(0),
+                link: None,
+                exchange: false,
+            },
+            alu(0x1000, AluOp::Move, Some(15), Value::Immediate(0), Value::Register(0), false).operation,
+            Operation::Load {
+                destination: 15,
+                address: Address {
+                    base: Value::Register(0),
+                    offset: Operand {
+                        value: Value::Immediate(0),
+                        shift: Shift::Lsl,
+                        amount: ShiftAmount::Immediate(0),
+                    },
+                    subtract: false,
+                    pre_index: true,
+                    write_back: None,
+                },
+                width: Width::Word,
+                signed: false,
+            },
+            Operation::MultipleTransfer {
+                base: 0,
+                registers: 0x8002,
+                increment: true,
+                before: false,
+                write_back: false,
+                load: true,
+            },
+        ] {
+            malformed.push(vec![BasicBlock {
+                instructions: vec![
+                    Instruction {
+                        condition,
+                        operation,
+                        ..first.clone()
+                    },
+                    next.clone(),
+                ],
+            }]);
+        }
+    }
+    for blocks in malformed {
+        let mut input = request(vec![]);
+        input.regions[0].ir.blocks = blocks;
+        let serialized = serde_json::to_vec(&input).unwrap();
+        let decoded = serde_json::from_slice(&serialized).unwrap();
+        assert!(
+            codegen::compile(&decoded).is_err(),
+            "accepted malformed blocks: {:?}",
+            input.regions[0].ir.blocks
+        );
+    }
+}
+
+#[test]
+fn included_static_targets_must_start_blocks_even_for_calls_and_exchanges() {
+    for (thumb, target, exchange) in [
+        (true, 0x1011, false),
+        (true, 0x1011, true),
+        (false, 0x1013, false),
+        (false, 0x1011, true),
+        (false, 0x1010, true),
+    ] {
+        let size = if thumb { 2 } else { 4 };
+        for link in [None, Some(0x1004)] {
+            let branch_size = if thumb && link.is_some() { 4 } else { size };
+            let mut input = request(vec![]);
+            input.regions[0].ir.entry.thumb = thumb;
+            input.regions[0].ir.blocks = vec![
+                BasicBlock {
+                    instructions: vec![Instruction {
+                        pc: 0x1000,
+                        size: branch_size,
+                        condition: Condition::Always,
+                        operation: Operation::Branch {
+                            target: Value::Immediate(target),
+                            link,
+                            exchange,
+                        },
+                    }],
+                },
+                BasicBlock {
+                    instructions: (0..3)
+                        .map(|index| Instruction {
+                            pc: 0x1010 - (2 - index) * u32::from(size),
+                            size,
+                            condition: Condition::Always,
+                            operation: Operation::Nop,
+                        })
+                        .collect(),
+                },
+            ];
+            assert!(codegen::compile(&input).is_err(), "thumb={thumb}, link={link:?}, exchange={exchange}");
+            let instructions = input.regions[0].ir.blocks[1].instructions.split_off(2);
+            input.regions[0].ir.blocks.push(BasicBlock { instructions });
+            assert!(codegen::compile(&input).is_ok());
+        }
+    }
+}
+
+#[test]
+fn instruction_and_block_caps_accept_the_boundary_and_reject_the_next_item() {
+    for thumb in [false, true] {
+        let size = if thumb { 2 } else { 4 };
+        let instructions: Vec<_> = (0..513)
+            .map(|index| Instruction {
+                pc: 0x1000 + index * u32::from(size),
+                size,
+                condition: Condition::Always,
+                operation: Operation::Nop,
+            })
+            .collect();
+        let mut input = request(instructions[..512].to_vec());
+        input.regions[0].ir.entry.thumb = thumb;
+        let check = format!(
+            r#"
+            for (const start of [0,1,127,255,511]) {{
+                reset({{cpsr:{cpsr},pc:0x1000+start*{size},end:0x1000+512*{size},budget:512-start,sample:512-start}});
+                assert.equal(entry(F,A),3); assert.equal(get(80),512-start);
+                assert.equal(get(60),0x1000+512*{size}); assert.equal(get(72),0); assert.equal(get(76),0);
+                assert.equal(samples.length,1);
+            }}
+            "#,
+            cpsr = if thumb { 0x30 } else { 0x10 },
+        );
+        run(&input, &check);
+        input.regions[0].ir.blocks[0].instructions.push(instructions[512].clone());
+        assert!(codegen::compile(&input).is_err());
+
+        input.regions[0].ir.blocks = instructions[..512]
+            .chunks(4)
+            .map(|instructions| BasicBlock {
+                instructions: instructions.to_vec(),
+            })
+            .collect();
+        assert_eq!(input.regions[0].ir.blocks.len(), 128);
+        run(&input, &check);
+        let instructions = input.regions[0].ir.blocks.last_mut().unwrap().instructions.split_off(3);
+        input.regions[0].ir.blocks.push(BasicBlock { instructions });
+        assert!(codegen::compile(&input).is_err());
+    }
 }
 
 #[test]
@@ -2325,8 +3117,11 @@ fn sparse_region_dispatch_accepts_exact_interior_pcs_and_preserves_boundaries() 
             },
         },
     );
+    let body = instructions.split_off(1);
+    let mut input = request(instructions);
+    input.regions[0].ir.blocks.push(BasicBlock { instructions: body });
     run(
-        &request(instructions),
+        &input,
         r#"
         reset({budget:200,sample:200}); assert.equal(entry(F,A),0);
         assert.equal(get(0),128); assert.equal(get(60),0x2100); assert.equal(get(80),129);
@@ -2338,8 +3133,11 @@ fn sparse_region_dispatch_accepts_exact_interior_pcs_and_preserves_boundaries() 
             assert.deepEqual(samples,[[A,0x2000+offset*2,0x30,77]]);
         }
         for (const pc of [0x1001,0x1002,0x1ffe,0x2001,0x2100,0x4000,0xfffffffe]) {
-            reset({pc}); const before=Array.from(new Uint8Array(memory.buffer,F,92));
-            assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint8Array(memory.buffer,F,92)),before);
+            for (const sample of [1,100]) {
+                reset({pc,sample}); const before=Array.from(new Uint8Array(memory.buffer,F,96));
+                assert.equal(entry(F,A),0); assert.deepEqual(Array.from(new Uint8Array(memory.buffer,F,96)),before);
+                assert.equal(samples.length,0);
+            }
         }
     "#,
     );

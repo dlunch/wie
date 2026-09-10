@@ -24,6 +24,7 @@ pub struct Probe {
     executor: WasmExecutor,
     handles: BTreeMap<u64, Vec<CompiledHandle>>,
     memory: [u8; 256],
+    range_lengths: Option<(usize, usize)>,
     #[wasm_bindgen(readonly)]
     pub stores: u32,
 }
@@ -36,13 +37,14 @@ impl Probe {
             executor: WasmExecutor::new(session).map_err(JsValue::from)?,
             handles: BTreeMap::new(),
             memory: [0; 256],
+            range_lengths: None,
             stores: 0,
         })
     }
 
     pub fn submit(&mut self, payload: &str) -> Result<u32, JsValue> {
         let request = serde_json::from_str(payload).map_err(|_| JsValue::from_str("invalid test request"))?;
-        match self.executor.submit(request) {
+        match self.executor.submit(&request) {
             Admission::Accepted => Ok(0),
             Admission::Busy => Ok(1),
             Admission::Failed(error) => Err(error.into()),
@@ -67,6 +69,7 @@ impl Probe {
             end,
             budget_remaining: budget,
             sample_remaining: sample,
+            entry_pc: 0x8000,
             ..RunFrame::default()
         };
         frame.regs[15] = 0x1000;
@@ -75,6 +78,7 @@ impl Probe {
             samples: Vec::new(),
             stores: &mut self.stores,
             memory: &mut self.memory,
+            range_lengths: self.range_lengths,
         };
         let exit = self
             .executor
@@ -82,7 +86,8 @@ impl Probe {
             .map_err(JsValue::from)?;
         Ok(serde_json::json!({
             "exit": exit as u32, "r0": frame.regs[0], "r7": frame.regs[7], "pc": frame.regs[15], "executed": frame.executed,
-            "budget": frame.budget_remaining, "sample": frame.sample_remaining, "samples": access.samples,
+            "budget": frame.budget_remaining, "sample": frame.sample_remaining, "scratch": frame.scratch, "entry": frame.entry_pc,
+            "samples": access.samples,
         })
         .to_string())
     }
@@ -93,6 +98,14 @@ impl Probe {
         }
     }
 
+    pub fn set_range_lengths(&mut self, first: usize, second: usize) {
+        self.range_lengths = Some((first, second));
+    }
+
+    pub fn memory(&self) -> Vec<u8> {
+        self.memory.to_vec()
+    }
+
     pub fn shutdown(&mut self) {
         self.executor.shutdown();
         self.handles.clear();
@@ -100,14 +113,23 @@ impl Probe {
 }
 
 struct Access<'a> {
-    samples: Vec<[u32; 3]>,
+    samples: Vec<[u32; 4]>,
     stores: &'a mut u32,
     memory: &'a mut [u8; 256],
+    range_lengths: Option<(usize, usize)>,
 }
 
 impl ExecutionAccess for Access<'_> {
-    fn supports_word_range(&mut self, address: u32, words: u32) -> bool {
-        address.is_multiple_of(4) && u64::from(address) + u64::from(words) * 4 <= self.memory.len() as u64
+    fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])> {
+        if let Some((first, second)) = self.range_lengths {
+            return Some(self.memory.get_mut(..first.checked_add(second)?)?.split_at_mut(first));
+        }
+        if !address.is_multiple_of(4) {
+            return None;
+        }
+        let start = address as usize;
+        let end = start.checked_add(words as usize * 4)?;
+        Some((self.memory.get_mut(start..end)?, &mut []))
     }
 
     fn load(&mut self, address: u32, width: u32) -> AccessResult {
@@ -130,7 +152,7 @@ impl ExecutionAccess for Access<'_> {
         AccessResult::Complete(0)
     }
 
-    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32) {
-        self.samples.push([pc, cpsr, r7]);
+    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32, entry_pc: u32) {
+        self.samples.push([pc, cpsr, r7, entry_pc]);
     }
 }

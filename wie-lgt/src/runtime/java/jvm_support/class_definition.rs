@@ -13,9 +13,7 @@ use wipi_types::lgt::java::{
 
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, RegisteredFunction, RegisteredFunctionHolder};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{
-    ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
-};
+use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{
     SVC_CATEGORY_JAVA,
@@ -461,7 +459,7 @@ impl JavaClassDefinition {
                     interface_descriptor.ptr_name
                 } else {
                     let ptr_name = reference.ptr_class_or_name;
-                    let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?)
+                    let interface_name = String::from_utf8(core.read_null_terminated_string_bytes(ptr_name)?)
                         .map_err(|error| WieError::FatalError(format!("Invalid LGT interface name: {error}")))?;
                     let interface_class = jvm.resolve_class(&interface_name).await.map_err(|error| match error {
                         JavaError::JavaException(instance) => WieError::JavaException(JavaValueCodec::new(core).object_to_raw(&*instance)),
@@ -470,7 +468,7 @@ impl JavaClassDefinition {
                     write_generic(core, ptr_reference, reference)?;
                     ptr_name
                 };
-                let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?)
+                let interface_name = String::from_utf8(core.read_null_terminated_string_bytes(ptr_name)?)
                     .map_err(|error| WieError::FatalError(format!("Invalid LGT interface name: {error}")))?;
                 interface_names.push(interface_name);
                 interface_name_pointers.push(ptr_name);
@@ -489,7 +487,7 @@ impl JavaClassDefinition {
             None
         } else if descriptor.flags & LGT_JAVA_CLASS_SUPER_CLASS_IS_NAME != 0 {
             Some(
-                String::from_utf8(read_null_terminated_string_bytes(core, descriptor.ptr_super_class)?)
+                String::from_utf8(core.read_null_terminated_string_bytes(descriptor.ptr_super_class)?)
                     .map_err(|error| WieError::FatalError(format!("Invalid LGT superclass name: {error}")))?,
             )
         } else {
@@ -780,7 +778,7 @@ impl EmulatedFunction<(), u32, ()> for JavaClassGetterProxy {
 #[async_trait::async_trait]
 impl ClassDefinition for JavaClassDefinition {
     fn name(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.descriptor().unwrap().ptr_name).unwrap()).unwrap()
+        String::from_utf8(self.core.read_null_terminated_string_bytes(self.descriptor().unwrap().ptr_name).unwrap()).unwrap()
     }
 
     fn super_class_name(&self) -> Option<String> {
@@ -791,7 +789,7 @@ impl ClassDefinition for JavaClassDefinition {
 
         let super_class: RawJavaClass = read_generic(&self.core, descriptor.ptr_super_class).unwrap();
         let super_descriptor: RawJavaClassDescriptor = read_generic(&self.core, super_class.ptr_descriptor).unwrap();
-        Some(String::from_utf8(read_null_terminated_string_bytes(&self.core, super_descriptor.ptr_name).unwrap()).unwrap())
+        Some(String::from_utf8(self.core.read_null_terminated_string_bytes(super_descriptor.ptr_name).unwrap()).unwrap())
     }
 
     fn interface_names(&self) -> Vec<String> {
@@ -804,7 +802,7 @@ impl ClassDefinition for JavaClassDefinition {
         (0..count as usize)
             .map(|index| {
                 let ptr_name = read_generic(&self.core, ptr_names + ((index + 1) * size_of::<u32>()) as u32).unwrap();
-                String::from_utf8(read_null_terminated_string_bytes(&self.core, ptr_name).unwrap()).unwrap()
+                String::from_utf8(self.core.read_null_terminated_string_bytes(ptr_name).unwrap()).unwrap()
             })
             .collect()
     }

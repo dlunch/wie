@@ -1,13 +1,13 @@
 use alloc::{format, string::String, vec::Vec};
 
-use wie_util::{ByteRead, Result, read_null_terminated_string_bytes};
+use wie_util::{ByteRead, Result};
 
 const MAX_WIDTH: usize = 4096;
 
 pub fn sprintf(context: &(impl ByteRead + ?Sized), format_bytes: &[u8], args: &[u32]) -> Result<Vec<u8>> {
     let format_string = encoding_rs::EUC_KR.decode(format_bytes).0;
     let result = self::format(&format_string, args, &mut |ptr| {
-        let bytes = read_null_terminated_string_bytes(context, ptr)?;
+        let bytes = context.read_null_terminated_string_bytes(ptr)?;
 
         Ok(encoding_rs::EUC_KR.decode(&bytes).0.into_owned())
     })?;

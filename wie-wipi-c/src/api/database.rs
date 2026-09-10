@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use wipi_types::wipic::WIPICWord;
 
 use wie_backend::Database;
-use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic};
+use wie_util::{Result, read_generic, write_generic};
 
 use crate::context::WIPICContext;
 
@@ -56,7 +56,7 @@ pub async fn open_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, 
     // emulator. Treat it as a bad parameter and return -22, matching the
     // fail-soft behaviour of the other name-keyed entry points in this
     // file (`stat_by_name_ktf`, `exists_database_ktf`).
-    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+    let Ok(name) = String::from_utf8(context.read_null_terminated_string_bytes(ptr_name)?) else {
         tracing::warn!("MC_dbOpenDataBase: invalid utf8 name @ {ptr_name:#x}");
         return Ok(-22);
     };
@@ -210,7 +210,7 @@ pub async fn seek_record_single(context: &mut dyn WIPICContext, db_id: i32, offs
 pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWord, buf_ptr: WIPICWord, capacity: WIPICWord) -> Result<i32> {
     tracing::debug!("MC_dbListRecordInfo({ptr_name:#x}, {buf_ptr:#x}, {capacity})");
 
-    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+    let Ok(name) = String::from_utf8(context.read_null_terminated_string_bytes(ptr_name)?) else {
         return Ok(-22);
     };
     let system = context.system();
@@ -254,7 +254,7 @@ pub async fn list_record_info(context: &mut dyn WIPICContext, ptr_name: WIPICWor
 pub async fn exists_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, r#type: i32) -> Result<i32> {
     tracing::debug!("MC_dbExistsDataBase({ptr_name:#x}, {type})");
 
-    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+    let Ok(name) = String::from_utf8(context.read_null_terminated_string_bytes(ptr_name)?) else {
         return Ok(-22);
     };
     if read_packaged_database(context, &name).await?.is_some() {
@@ -388,7 +388,7 @@ pub async fn delete_record_ktf(context: &mut dyn WIPICContext, a0: i32, a1: i32)
 pub async fn delete_database(context: &mut dyn WIPICContext, ptr_name: WIPICWord, flags: i32) -> Result<i32> {
     tracing::debug!("MC_dbDeleteDataBase({ptr_name:#x}, {flags})");
 
-    let Ok(name) = String::from_utf8(read_null_terminated_string_bytes(context, ptr_name)?) else {
+    let Ok(name) = String::from_utf8(context.read_null_terminated_string_bytes(ptr_name)?) else {
         return Ok(-22);
     };
     let system = context.system();
@@ -526,7 +526,7 @@ pub async fn select_record_ktf(context: &mut dyn WIPICContext, db_id: i32, rec_i
 /// size threshold (must exceed 199 bytes). We fill the struct with
 /// `{0, 0, record_size}` and return 0 on hit, -22 on miss.
 pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWord, out_buf: WIPICWord, mode: i32, _arg3: i32) -> Result<i32> {
-    let name = match read_null_terminated_string_bytes(context, name_ptr) {
+    let name = match context.read_null_terminated_string_bytes(name_ptr) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(_) => return Ok(-22),
@@ -564,7 +564,7 @@ pub async fn stat_by_name_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWor
 /// state on first run and trip later, so we read the C string at `a0` and
 /// answer based on the real persisted state.
 pub async fn exists_database_ktf(context: &mut dyn WIPICContext, name_ptr: WIPICWord, _arg1: i32, _arg2: i32) -> Result<i32> {
-    let name = match read_null_terminated_string_bytes(context, name_ptr) {
+    let name = match context.read_null_terminated_string_bytes(name_ptr) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(_) => {

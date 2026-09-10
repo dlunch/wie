@@ -9,7 +9,7 @@ use rustjava_runtime::classes::java::util::Vector;
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor, LgtJavaClassLink as RawJavaClassLink};
 
 use wie_core_arm::{ArmCore, EmulatedFunction, JumpTo, ResultWriter, SvcId};
-use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic};
+use wie_util::{ByteRead, Result, WieError, read_generic, write_generic};
 
 use crate::runtime::{
     SVC_CATEGORY_JAVA_SYSTEM,
@@ -197,7 +197,7 @@ async fn java_string_literal(core: &mut ArmCore, jvm: &mut Jvm, _runtime_context
 }
 
 async fn java_get_interface_dispatch_table(core: &mut ArmCore, jvm: &mut Jvm, _ptr_instance: u32, ptr_interface_name: u32) -> Result<u32> {
-    let interface_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_interface_name)?)
+    let interface_name = String::from_utf8(core.read_null_terminated_string_bytes(ptr_interface_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT interface class name: {error}")))?;
     LgtJvmSupport::interface_dispatch_table(jvm, &interface_name).await
 }
@@ -215,7 +215,7 @@ async fn java_pending_exception(core: &mut ArmCore, _: &mut ()) -> Result<u32> {
 }
 
 async fn java_is_class_assignable(core: &mut ArmCore, jvm: &Jvm, ptr_class: u32, ptr_class_name: u32, _ptr_fields: u32) -> Result<u32> {
-    let class_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
+    let class_name = String::from_utf8(core.read_null_terminated_string_bytes(ptr_class_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT class name: {error}")))?;
     let source_class_name = LgtJvmSupport::class_from_raw(core, ptr_class).name();
 
@@ -351,7 +351,7 @@ async fn java_initialize_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class_obje
 
 async fn java_get_array_type(core: &mut ArmCore, jvm: &mut Jvm, rank: u32, ptr_component_name: u32, primitive_type: u32) -> Result<u32> {
     let component = if ptr_component_name != 0 {
-        let component = String::from_utf8(read_null_terminated_string_bytes(core, ptr_component_name)?)
+        let component = String::from_utf8(core.read_null_terminated_string_bytes(ptr_component_name)?)
             .map_err(|error| WieError::FatalError(format!("Invalid LGT array component name: {error}")))?;
         if component.starts_with('[') {
             component
@@ -481,9 +481,9 @@ async fn java_instantiate_multi_array(core: &mut ArmCore, jvm: &mut Jvm, ptr_cla
 fn read_member_name_and_descriptor(core: &ArmCore, table: u32, index: u16) -> Result<(String, String)> {
     let ptr_name: u32 = read_generic(core, table + index as u32 * 2 * size_of::<u32>() as u32)?;
     let ptr_descriptor: u32 = read_generic(core, table + (index as u32 * 2 + 1) * size_of::<u32>() as u32)?;
-    let name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_name)?)
+    let name = String::from_utf8(core.read_null_terminated_string_bytes(ptr_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT member name: {error}")))?;
-    let descriptor = String::from_utf8(read_null_terminated_string_bytes(core, ptr_descriptor)?)
+    let descriptor = String::from_utf8(core.read_null_terminated_string_bytes(ptr_descriptor)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT member descriptor: {error}")))?;
     Ok((name, descriptor))
 }
@@ -609,7 +609,7 @@ async fn java_link_imported_classes(
             core,
             imported_classes + size_of::<u32>() as u32 + index * size_of::<RawJavaClassLink>() as u32,
         )?;
-        let class_name = String::from_utf8(read_null_terminated_string_bytes(core, link.ptr_name)?)
+        let class_name = String::from_utf8(core.read_null_terminated_string_bytes(link.ptr_name)?)
             .map_err(|error| WieError::FatalError(format!("Invalid LGT imported class name: {error}")))?;
         tracing::debug!(
             "Linking imported class {class_name}: instance {}+{}, static {}+{}, virtual {}+{}, interface {}+{}, direct {}+{}",
@@ -666,13 +666,13 @@ async fn java_start_application(
     argument_count: u32,
     arguments: u32,
 ) -> Result<()> {
-    let entry_class_name = String::from_utf8(read_null_terminated_string_bytes(core, entry_class_name)?)
+    let entry_class_name = String::from_utf8(core.read_null_terminated_string_bytes(entry_class_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT Java entry class: {error}")))?;
     let mut java_arguments = Vec::with_capacity(argument_count as usize);
     let mut application_class = None;
     for index in 0..argument_count {
         let ptr_argument: u32 = read_generic(core, arguments + index * size_of::<u32>() as u32)?;
-        let argument = String::from_utf8(read_null_terminated_string_bytes(core, ptr_argument)?)
+        let argument = String::from_utf8(core.read_null_terminated_string_bytes(ptr_argument)?)
             .map_err(|error| WieError::FatalError(format!("Invalid LGT Java startup argument: {error}")))?;
         if index == 0 {
             application_class = Some(argument.clone());

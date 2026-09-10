@@ -195,6 +195,16 @@ pub enum Operation {
     Nop,
 }
 
+impl Operation {
+    pub fn writes_pc(&self) -> bool {
+        match self {
+            Self::Branch { .. } | Self::Alu { destination: Some(15), .. } | Self::Load { destination: 15, .. } => true,
+            Self::MultipleTransfer { registers, load: true, .. } => registers & 0x8000 != 0,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompileRegion {
     pub ir: RegionIr,
@@ -283,6 +293,7 @@ pub struct RunFrame {
     pub executed: u32,
     pub fault_address: u32,
     pub scratch: u32,
+    pub entry_pc: u32,
 }
 
 pub enum AccessResult {
@@ -292,17 +303,25 @@ pub enum AccessResult {
 }
 
 pub trait ExecutionAccess {
-    /// An admitted nonempty range (at most 16 words) cannot decline during this instruction.
-    fn supports_word_range(&mut self, address: u32, words: u32) -> bool;
+    /// Borrows an aligned, fully mapped range of `words` (1..=16), wrapping guest addresses at 32 bits.
+    /// Returns `None` for unaligned or unmapped ranges. The guest-backed slices contain only
+    /// requested bytes, split at a backing-memory boundary into a nonempty prefix and optional remainder;
+    /// their lengths are multiples of four and total `words * 4` bytes.
+    /// Acquisition does not read or write data, publish code, or change sampling state. Writes
+    /// through the slices are guest stores and do not publish code either.
+    /// The exclusive borrow is for one synchronous guest instruction, without remapping memory
+    /// or suspending execution while the slices are in use.
+    fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])>;
     /// A successful byte load also admits a byte store at that address in this instruction.
     fn load(&mut self, address: u32, width: u32) -> AccessResult;
     fn store(&mut self, address: u32, width: u32, value: u32) -> AccessResult;
-    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32);
+    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32, entry_pc: u32);
 }
 
 pub trait CompiledExecutor: Send {
-    fn submit(&mut self, request: CompileRequest) -> Admission;
+    fn submit(&mut self, request: &CompileRequest) -> Admission;
     fn poll(&mut self) -> Option<CompileCompletion>;
+    /// Only `Ok` returns a resumable frame. `Err` may follow guest writes; stop execution without retrying.
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String>;
     fn retire(&mut self, handles: &[CompiledHandle]);
     fn shutdown(&mut self);
@@ -316,7 +335,7 @@ mod tests {
 
     #[test]
     fn generated_code_frame_has_a_fixed_plain_data_layout() {
-        assert_eq!(size_of::<RunFrame>(), 92);
+        assert_eq!(size_of::<RunFrame>(), 96);
         assert_eq!(align_of::<RunFrame>(), 4);
         assert_eq!(offset_of!(RunFrame, regs), 0);
         assert_eq!(offset_of!(RunFrame, cpsr), 64);
@@ -326,6 +345,7 @@ mod tests {
         assert_eq!(offset_of!(RunFrame, executed), 80);
         assert_eq!(offset_of!(RunFrame, fault_address), 84);
         assert_eq!(offset_of!(RunFrame, scratch), 88);
-        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 92]);
+        assert_eq!(offset_of!(RunFrame, entry_pc), 92);
+        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 96]);
     }
 }
