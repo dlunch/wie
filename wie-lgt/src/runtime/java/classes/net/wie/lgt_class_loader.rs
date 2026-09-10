@@ -15,7 +15,7 @@ use rustjava_runtime::classes::java::{
 use wipi_types::lgt::java::{LgtJavaClass as RawJavaClass, LgtJavaClassDescriptor as RawJavaClassDescriptor};
 
 use wie_core_arm::ArmCore;
-use wie_util::{ByteRead, Result, read_generic};
+use wie_util::{Result, read_generic, read_null_terminated_string_bytes};
 
 use crate::runtime::java::jvm_support::LgtJvmSupport;
 
@@ -76,7 +76,7 @@ impl LgtClassLoader {
             while ptr_class != 0 {
                 let raw: RawJavaClass = read_generic(core, ptr_class)?;
                 let descriptor: RawJavaClassDescriptor = read_generic(core, raw.ptr_descriptor)?;
-                let class_name = RustString::from_utf8(core.read_null_terminated_string_bytes(descriptor.ptr_name)?)
+                let class_name = RustString::from_utf8(read_null_terminated_string_bytes(core, descriptor.ptr_name)?)
                     .map_err(|error| wie_util::WieError::FatalError(alloc::format!("Invalid LGT class name: {error}")))?;
                 if class_name == name {
                     return Ok(Some(ptr_class));

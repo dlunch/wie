@@ -546,10 +546,6 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().mem_read(address, size, result)
     }
 
-    fn mem_read_until_nul(&mut self, address: u32) -> wie_util::Result<Vec<u8>> {
-        self.debug.cpu.lock().mem_read_until_nul(address)
-    }
-
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.debug.cpu.lock().is_mapped(address, size)
     }

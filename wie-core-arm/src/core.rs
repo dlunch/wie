@@ -610,13 +610,6 @@ impl ArmCore {
 }
 
 impl ByteRead for ArmCore {
-    fn read_null_terminated_string_bytes(&self, address: u32) -> Result<Vec<u8>> {
-        if address == 0 {
-            return Err(WieError::InvalidMemoryAccess(address));
-        }
-        self.inner.lock().engine.mem_read_until_nul(address)
-    }
-
     fn read_bytes(&self, address: u32, result: &mut [u8]) -> wie_util::Result<usize> {
         let mut inner = self.inner.lock();
 
@@ -690,6 +683,7 @@ mod tests {
     };
 
     use crate::function::JumpTo;
+    use wie_util::read_null_terminated_string_bytes;
 
     use super::*;
 
@@ -703,22 +697,24 @@ mod tests {
             core.load(&[], 0x10000, 0x10000).unwrap();
             core.write_bytes(0x1fffc, b"end\0").unwrap();
             let reader: &dyn ByteRead = &core;
-            assert_eq!(reader.read_null_terminated_string_bytes(0x1fffc).unwrap(), b"end");
-            assert!(reader.read_null_terminated_string_bytes(0x1ffff).unwrap().is_empty());
+            assert_eq!(read_null_terminated_string_bytes(reader, 0x1fffc).unwrap(), b"end");
+            assert!(read_null_terminated_string_bytes(reader, 0x1ffff).unwrap().is_empty());
             assert!(matches!(
-                reader.read_null_terminated_string_bytes(0),
+                read_null_terminated_string_bytes(reader, 0),
                 Err(WieError::InvalidMemoryAccess(0))
             ));
             core.write_bytes(0x1ffff, b"x").unwrap();
             assert!(matches!(
-                core.read_null_terminated_string_bytes(0x1fffc),
+                read_null_terminated_string_bytes(&core, 0x1fffc),
                 Err(WieError::InvalidMemoryAccess(0x20000))
             ));
             core.load(b"page\0", 0x20000, 5).unwrap();
-            assert_eq!(core.read_null_terminated_string_bytes(0x1fffc).unwrap(), b"endxpage");
+            assert_eq!(read_null_terminated_string_bytes(&core, 0x1fffc).unwrap(), b"endxpage");
             core.load(b"raw\0", 0, 4).unwrap();
-            assert!(matches!(core.read_null_terminated_string_bytes(0), Err(WieError::InvalidMemoryAccess(0))));
-            assert_eq!(core.inner.lock().engine.mem_read_until_nul(0).unwrap(), b"raw");
+            assert!(matches!(
+                read_null_terminated_string_bytes(&core, 0),
+                Err(WieError::InvalidMemoryAccess(0))
+            ));
         }
     }
 

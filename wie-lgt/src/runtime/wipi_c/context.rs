@@ -139,10 +139,6 @@ impl WIPICContext for LgtWIPICContext {
 }
 
 impl ByteRead for LgtWIPICContext {
-    fn read_null_terminated_string_bytes(&self, address: WIPICWord) -> Result<Vec<u8>> {
-        self.core.read_null_terminated_string_bytes(address)
-    }
-
     fn read_bytes(&self, address: WIPICWord, result: &mut [u8]) -> wie_util::Result<usize> {
         self.core.read_bytes(address, result)
     }

@@ -10,7 +10,7 @@ use wie_core_arm::{
     Allocator, ArmCore, EmulatedFunction, EmulatedFunctionParam, RegisteredFunction, RegisteredFunctionHolder, ResultWriter, RunFunctionResult,
 };
 use wie_jvm_support::native::{NativeJavaValueCodec, decode_method_arguments, encode_method_arguments, method_argument_word_count};
-use wie_util::{ByteRead, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, java::JavaSvcFunctions};
 
@@ -141,11 +141,11 @@ impl JavaMethod {
 #[async_trait::async_trait]
 impl Method for JavaMethod {
     fn name(&self) -> String {
-        String::from_utf8(self.core.read_null_terminated_string_bytes(self.raw().unwrap().ptr_name).unwrap()).unwrap()
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
     }
 
     fn descriptor(&self) -> String {
-        String::from_utf8(self.core.read_null_terminated_string_bytes(self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {

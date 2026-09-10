@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, format, vec::Vec};
-use core::{cell::RefCell, ffi::CStr};
+use core::cell::RefCell;
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 use web_time::Instant;
@@ -291,10 +291,6 @@ impl ArmEngine for Arm32CpuEngine {
         self.mem.read_range(address, size, result)
     }
 
-    fn mem_read_until_nul(&mut self, address: u32) -> Result<Vec<u8>> {
-        self.mem.read_until_nul(address)
-    }
-
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.mem.is_mapped(address, size)
     }
@@ -465,27 +461,10 @@ impl EmulatedMemory {
             result[size - remaining_size..size - remaining_size + available_bytes]
                 .copy_from_slice(&page_data.bytes[offset..offset + available_bytes]);
             remaining_size -= available_bytes;
-            current_address += available_bytes as u32;
+            current_address = current_address.wrapping_add(available_bytes as u32);
         }
 
         Ok(size)
-    }
-
-    fn read_until_nul(&self, address: u32) -> Result<Vec<u8>> {
-        let mut result = Vec::new();
-        let mut cursor = address;
-        loop {
-            let page = self.pages[cursor as usize / PAGE_SIZE]
-                .as_ref()
-                .ok_or(WieError::InvalidMemoryAccess(cursor))?;
-            let bytes = &page.bytes[(cursor & PAGE_MASK) as usize..];
-            if let Ok(value) = CStr::from_bytes_until_nul(bytes) {
-                result.extend_from_slice(value.to_bytes());
-                return Ok(result);
-            }
-            result.extend_from_slice(bytes);
-            cursor = cursor.wrapping_add(bytes.len() as u32);
-        }
     }
 
     fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
@@ -696,61 +675,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn terminated_string_reads_preserve_memory_and_page_boundaries() {
-        let mut engine = Arm32CpuEngine::new();
-        engine.mem_map(0x10000, PAGE_SIZE, MemoryPermission::ReadWrite);
-        engine.mem_write(0x10003, &[0xff, 0x80, 0, b'x']).unwrap();
-        engine.mem_write(0x1fffc, b"end\0").unwrap();
-        let before = engine.mem.pages[1].as_ref().unwrap().bytes.clone();
-        let stamp = engine.mem.code_snapshot(0x10000).unwrap().2;
-        assert_eq!(engine.mem_read_until_nul(0x10003).unwrap(), [0xff, 0x80]);
-        assert!(engine.mem_read_until_nul(0x10005).unwrap().is_empty());
-        assert_eq!(engine.mem_read_until_nul(0x1fffc).unwrap(), b"end");
-        assert!(engine.mem_read_until_nul(0x1ffff).unwrap().is_empty());
-        assert!(matches!(engine.mem_read_until_nul(0x20007), Err(WieError::InvalidMemoryAccess(0x20007))));
-        assert!(engine.mem.code_is_current(&[stamp]));
-        assert_eq!(engine.mem.pages[1].as_ref().unwrap().bytes, before);
-
-        engine.mem_write(0x1ffff, b"x").unwrap();
-        let before = engine.mem.pages[1].as_ref().unwrap().bytes.clone();
-        let stamp = engine.mem.code_snapshot(0x10000).unwrap().2;
-        assert!(matches!(engine.mem_read_until_nul(0x1fffc), Err(WieError::InvalidMemoryAccess(0x20000))));
-        assert!(engine.mem.code_is_current(&[stamp]));
-        assert_eq!(engine.mem.pages[1].as_ref().unwrap().bytes, before);
-
-        engine.mem_map(0x20000, PAGE_SIZE, MemoryPermission::ReadWrite);
-        engine.mem_write(0x20000, b"page\0ignored").unwrap();
-        let second = engine.mem.pages[2].as_ref().unwrap().bytes.clone();
-        let second_stamp = engine.mem.code_snapshot(0x20000).unwrap().2;
-        assert_eq!(engine.mem_read_until_nul(0x1fffc).unwrap(), b"endxpage");
-        assert!(engine.mem.code_is_current(&[stamp, second_stamp]));
-        assert_eq!(engine.mem.pages[1].as_ref().unwrap().bytes, before);
-        assert_eq!(engine.mem.pages[2].as_ref().unwrap().bytes, second);
-    }
-
-    #[test]
-    fn terminated_string_reads_wrap_at_the_last_guest_page() {
+    fn memory_reads_wrap_at_the_last_guest_page() {
         let mut engine = Arm32CpuEngine::new();
         engine.mem.pages[0xffff] = Some(MemoryPage {
             bytes: Box::new([b'x'; PAGE_SIZE]),
-            version: 7,
+            version: 0,
         });
-        engine.mem.pages[0xffff].as_mut().unwrap().bytes[PAGE_SIZE - 1] = 0;
-        assert!(engine.mem_read_until_nul(u32::MAX).unwrap().is_empty());
-        assert_eq!(engine.mem_read_until_nul(u32::MAX - 1).unwrap(), b"x");
-        engine.mem.pages[0xffff].as_mut().unwrap().bytes[PAGE_SIZE - 1] = b'x';
-        assert!(matches!(engine.mem_read_until_nul(u32::MAX), Err(WieError::InvalidMemoryAccess(0))));
-
         engine.mem_map(0, PAGE_SIZE, MemoryPermission::ReadWrite);
-        engine.mem_write(0, b"y\0ignored").unwrap();
-        let before = engine.mem.pages[0].as_ref().unwrap().bytes.clone();
-        let stamps = [0, 0xffff0000].map(|address| engine.mem.code_snapshot(address).unwrap().2);
-        assert_eq!(engine.mem_read_until_nul(0).unwrap(), b"y");
-        assert_eq!(engine.mem_read_until_nul(u32::MAX).unwrap(), b"xy");
-        assert_eq!(engine.mem_read_until_nul(u32::MAX - 1).unwrap(), b"xxy");
-        assert!(engine.mem.code_is_current(&stamps));
-        assert_eq!(engine.mem.pages[0].as_ref().unwrap().bytes, before);
-        assert!(engine.mem.pages[0xffff].as_ref().unwrap().bytes.iter().all(|&byte| byte == b'x'));
+        engine.mem_write(0, b"y").unwrap();
+        let mut bytes = [0; 2];
+        assert_eq!(engine.mem_read(u32::MAX, 2, &mut bytes).unwrap(), 2);
+        assert_eq!(&bytes, b"xy");
     }
 
     #[derive(Default)]

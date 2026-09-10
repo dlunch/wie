@@ -6,7 +6,7 @@ use wipi_types::lgt::java::{
 };
 
 use wie_core_arm::{ArmCore, EmulatedFunction, EmulatedFunctionParam, JumpTo, RegisteredFunction, SvcId};
-use wie_util::{ByteRead, Result, WieError, read_generic};
+use wie_util::{Result, WieError, read_generic, read_null_terminated_string_bytes};
 
 use crate::runtime::{SVC_CATEGORY_JAVA, SVC_CATEGORY_MISSING_JAVA_VTABLE_ENTRY};
 
@@ -60,7 +60,7 @@ async fn handle_missing_java_vtable_entry(core: &mut ArmCore, _: &mut (), id: Sv
     let ptr_class: u32 = read_generic(core, instance.ptr_dispatch_table)?;
     let class: RawJavaClass = read_generic(core, ptr_class)?;
     let descriptor: RawJavaClassDescriptor = read_generic(core, class.ptr_descriptor)?;
-    let class_name = String::from_utf8(core.read_null_terminated_string_bytes(descriptor.ptr_name)?)
+    let class_name = String::from_utf8(read_null_terminated_string_bytes(core, descriptor.ptr_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT class name: {error}")))?;
 
     Err(WieError::Unimplemented(format!("{class_name} vtable index {}", id.0)))

@@ -4,7 +4,9 @@ use core::cmp::min;
 
 use wie_backend::System;
 use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
-use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic, write_generic, write_null_terminated_string_bytes};
+use wie_util::{
+    ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
+};
 use wie_wipi_c::api::kernel;
 
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
@@ -59,7 +61,7 @@ async fn rand(_core: &mut ArmCore, system: &mut System) -> Result<u32> {
 async fn sprintf(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_format: u32, a0: u32, a1: u32, a2: u32, a3: u32, a4: u32, a5: u32) -> Result<u32> {
     tracing::debug!("sprintf({ptr_dst:#x}, {ptr_format:#x}, {a0:#x}, {a1:#x}, {a2:#x}, {a3:#x}, {a4:#x}, {a5:#x})");
 
-    let format = core.read_null_terminated_string_bytes(ptr_format)?;
+    let format = read_null_terminated_string_bytes(core, ptr_format)?;
     let result = kernel::sprintf(core, &format, &[a0, a1, a2, a3, a4, a5])?;
     write_null_terminated_string_bytes(core, ptr_dst, &result)?;
 
@@ -69,7 +71,7 @@ async fn sprintf(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_format: u32, 
 async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, size: u32) -> Result<()> {
     tracing::debug!("strncpy({ptr_dst:#x}, {ptr_src:#x}, {size:#x})");
 
-    let src = core.read_null_terminated_string_bytes(ptr_src)?;
+    let src = read_null_terminated_string_bytes(core, ptr_src)?;
 
     let size_to_copy = min(size, src.len() as u32);
     let bytes = &src[..size_to_copy as usize];
@@ -135,8 +137,8 @@ async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
 async fn strcat(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
     tracing::debug!("strcat({ptr_dst:#x}, {ptr_src:#x})");
 
-    let src = core.read_null_terminated_string_bytes(ptr_src)?;
-    let dst = core.read_null_terminated_string_bytes(ptr_dst)?;
+    let src = read_null_terminated_string_bytes(core, ptr_src)?;
+    let dst = read_null_terminated_string_bytes(core, ptr_dst)?;
 
     let offset = dst.len();
     write_null_terminated_string_bytes(core, ptr_dst + offset as u32, &src)?;
@@ -147,8 +149,8 @@ async fn strcat(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> R
 async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) -> Result<u32> {
     tracing::debug!("strcmp({ptr_str1:#x}, {ptr_str2:#x})");
 
-    let str1 = core.read_null_terminated_string_bytes(ptr_str1)?;
-    let str2 = core.read_null_terminated_string_bytes(ptr_str2)?;
+    let str1 = read_null_terminated_string_bytes(core, ptr_str1)?;
+    let str2 = read_null_terminated_string_bytes(core, ptr_str2)?;
 
     Ok(str1.cmp(&str2) as u32)
 }
@@ -156,7 +158,7 @@ async fn strcmp(core: &mut ArmCore, _: &mut (), ptr_str1: u32, ptr_str2: u32) ->
 async fn atoi(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
     tracing::debug!("atoi({ptr_str:#x})");
 
-    let string = core.read_null_terminated_string_bytes(ptr_str)?;
+    let string = read_null_terminated_string_bytes(core, ptr_str)?;
     let string = String::from_utf8(string).unwrap();
 
     Ok(string.parse().unwrap_or(0))
@@ -226,8 +228,8 @@ async fn unk4(_core: &mut ArmCore, _: &mut (), a0: u32, a1: u32, a2: u32, a3: u3
 async fn strstr(core: &mut ArmCore, _: &mut (), ptr_haystack: u32, ptr_needle: u32) -> Result<u32> {
     tracing::debug!("strstr({ptr_haystack:#x}, {ptr_needle:#x})");
 
-    let haystack = core.read_null_terminated_string_bytes(ptr_haystack)?;
-    let needle = core.read_null_terminated_string_bytes(ptr_needle)?;
+    let haystack = read_null_terminated_string_bytes(core, ptr_haystack)?;
+    let needle = read_null_terminated_string_bytes(core, ptr_needle)?;
     let position = if needle.is_empty() {
         Some(0)
     } else {

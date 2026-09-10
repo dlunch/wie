@@ -12,7 +12,10 @@ use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as Ra
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
-use wie_util::{ByteRead, read_generic, read_null_terminated_table, write_generic, write_null_terminated_string_bytes, write_null_terminated_table};
+use wie_util::{
+    read_generic, read_null_terminated_string_bytes, read_null_terminated_table, write_generic, write_null_terminated_string_bytes,
+    write_null_terminated_table,
+};
 
 use crate::runtime::java::JavaSvcFunctions;
 
@@ -222,7 +225,7 @@ impl JavaClassDefinition {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        let bytes = self.core.read_null_terminated_string_bytes(descriptor.ptr_name)?;
+        let bytes = read_null_terminated_string_bytes(&self.core, descriptor.ptr_name)?;
 
         Ok(String::from_utf8(bytes).unwrap())
     }

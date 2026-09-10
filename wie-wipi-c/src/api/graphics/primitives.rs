@@ -3,13 +3,13 @@
 use alloc::{string::String, vec};
 
 use wie_backend::canvas::{Clip, Color, Image, PixelType, Rgb8Pixel};
-use wie_util::Result;
+use wie_util::{Result, read_null_terminated_string_bytes};
 
 use crate::{WIPICContext, api::graphics::FrameBuffer};
 
 pub fn read_text(context: &dyn WIPICContext, address: u32, length: i32) -> Result<Option<String>> {
     let bytes = if length == -1 {
-        context.read_null_terminated_string_bytes(address)?
+        read_null_terminated_string_bytes(context, address)?
     } else if length >= 0 {
         let mut bytes = vec![0; length as usize];
         context.read_bytes(address, &mut bytes)?;

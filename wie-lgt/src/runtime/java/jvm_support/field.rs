@@ -6,7 +6,7 @@ use jvm_types::FieldAccessFlags;
 use wipi_types::lgt::java::LgtJavaClassField as RawJavaField;
 
 use wie_core_arm::{Allocator, ArmCore};
-use wie_util::{ByteRead, Result, read_generic, write_generic, write_null_terminated_string_bytes};
+use wie_util::{Result, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
 
 #[derive(Clone)]
 pub struct JavaField {
@@ -61,11 +61,11 @@ impl JavaField {
 
 impl Field for JavaField {
     fn name(&self) -> String {
-        String::from_utf8(self.core.read_null_terminated_string_bytes(self.raw().unwrap().ptr_name).unwrap()).unwrap()
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
     }
 
     fn descriptor(&self) -> String {
-        String::from_utf8(self.core.read_null_terminated_string_bytes(self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
     }
 
     fn access_flags(&self) -> FieldAccessFlags {
