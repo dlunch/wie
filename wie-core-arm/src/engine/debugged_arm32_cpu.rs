@@ -7,7 +7,6 @@ use core::time::Duration;
 
 use crossbeam::channel;
 use spin::Mutex;
-use web_time::Instant;
 use wie_util::WieError;
 
 use crate::{ThreadId, context::ArmCoreContext};
@@ -455,7 +454,7 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32, deadline: Option<Instant>) -> wie_util::Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
         let mut instructions_executed = 0;
         loop {
             let thread_id = self.stop_thread_id();
@@ -469,7 +468,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             let stepping = matches!(resume_mode, ResumeMode::Step);
 
             if instructions_executed == count {
-                let mut result = self.debug.cpu.lock().run(end, 0, deadline)?;
+                let mut result = self.debug.cpu.lock().run(end, 0)?;
                 result.instructions_executed += instructions_executed;
                 return Ok(result);
             }
@@ -479,7 +478,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 let result = self
                     .debug
                     .try_restore_breakpoint(current_pc)
-                    .and_then(|_| self.debug.cpu.lock().run(end, 1, deadline));
+                    .and_then(|_| self.debug.cpu.lock().run(end, 1));
                 if let Err(error) = self.debug.reinsert_breakpoint(current_pc) {
                     self.debug.stop(DebugStopReason::Signal(DebugSignal::Abrt, self.stop_thread_id()));
                     return Err(error);
@@ -502,7 +501,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 } else {
                     1
                 };
-                self.debug.cpu.lock().run(end, run_count, deadline)
+                self.debug.cpu.lock().run(end, run_count)
             };
 
             match result {
@@ -511,7 +510,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     instructions_executed += result.instructions_executed;
                     result.instructions_executed = instructions_executed;
                     match result.stop_reason {
-                        EngineStopReason::Svc { .. } | EngineStopReason::Deadline => return Ok(result),
+                        EngineStopReason::Svc { .. } => return Ok(result),
                         _ if stepping && executed_instruction => self.debug.stop(DebugStopReason::DoneStep(self.stop_thread_id())),
                         EngineStopReason::Yield if instructions_executed < count => continue,
                         _ => return Ok(result),
@@ -520,10 +519,6 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 Err(error) => self.debug.stop(DebugInner::map_stop_reason(error, self.stop_thread_id())),
             }
         }
-    }
-
-    fn mark_entry(&mut self) {
-        self.debug.cpu.lock().mark_entry();
     }
 
     fn reg_write(&mut self, reg: ArmRegister, value: u32) {
@@ -558,7 +553,21 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().take_profile(force)
     }
 
-    fn maintain(&mut self) {}
+    fn record_image(&mut self, address: u32, size: usize) {
+        self.debug.cpu.lock().record_image(address, size);
+    }
+
+    fn begin_preparation(&mut self) -> wie_util::Result<Option<wie_arm_jit_types::PreparationFuture>> {
+        self.debug.cpu.lock().begin_preparation()
+    }
+
+    fn preparation_state(&self) -> wie_arm_jit_types::PreparationState {
+        self.debug.cpu.lock().preparation_state()
+    }
+
+    fn finish_preparation(&mut self, result: Result<wie_arm_jit_types::CompiledArtifact, alloc::string::String>) {
+        self.debug.cpu.lock().finish_preparation(result);
+    }
 
     fn shutdown(&mut self) {
         self.debug.cpu.lock().shutdown();
@@ -582,7 +591,7 @@ mod tests {
         engine.debug.resume(vec![1], None);
         let debug = engine.debug.clone();
         let (tx, rx) = channel::bounded(1);
-        let runner = std::thread::spawn(move || tx.send(engine.run(0x2000, 1, None)).unwrap());
+        let runner = std::thread::spawn(move || tx.send(engine.run(0x2000, 1)).unwrap());
         let result = rx.recv_timeout(Duration::from_secs(1));
         debug.resume(Vec::new(), None);
         runner.join().unwrap();
@@ -603,7 +612,7 @@ mod tests {
         engine.reg_write(ArmRegister::PC, 0x1001);
         engine.debug.on_thread_entered(1);
         engine.debug.resume(vec![1], None);
-        let result = engine.run(0, 2, None).unwrap();
+        let result = engine.run(0, 2).unwrap();
         let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
             panic!("expected SVC");
         };
@@ -613,7 +622,7 @@ mod tests {
         engine.debug.end_svc_step(thread_id, true);
 
         let debug = engine.debug.clone();
-        let runner = std::thread::spawn(move || engine.run(0, 1, None));
+        let runner = std::thread::spawn(move || engine.run(0, 1));
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
         let context = debug.read_registers();
         debug.resume(Vec::new(), None);
@@ -637,7 +646,7 @@ mod tests {
             engine.reg_write(ArmRegister::Cpsr, 0x3f);
             engine.reg_write(ArmRegister::PC, address | 1);
             engine.debug.on_thread_entered(thread_id);
-            let result = engine.run(0, 1, None).unwrap();
+            let result = engine.run(0, 1).unwrap();
             let EngineStopReason::Svc { lr, spsr, .. } = result.stop_reason else {
                 panic!("expected SVC");
             };
@@ -649,7 +658,7 @@ mod tests {
         engine.debug.on_thread_entered(1);
         engine.debug.end_svc_step(1, true);
         let debug = engine.debug.clone();
-        let runner = std::thread::spawn(move || engine.run(0, 1, None));
+        let runner = std::thread::spawn(move || engine.run(0, 1));
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
         let context = debug.read_registers();
         debug.resume(Vec::new(), None);
@@ -675,7 +684,7 @@ mod tests {
                 engine.reg_write(ArmRegister::PC, 0x1001);
                 engine.reg_write(ArmRegister::R0, 0);
                 engine.debug.on_thread_entered(thread_id);
-                engine.run(0, 1, None).unwrap();
+                engine.run(0, 1).unwrap();
             }
         });
         let mut stops = Vec::new();
@@ -698,7 +707,7 @@ mod tests {
     }
 
     #[test]
-    fn expired_breakpoint_resumes_keep_the_pending_instruction_until_it_retires() {
+    fn zero_budget_breakpoint_resumes_keep_the_pending_instruction_until_it_retires() {
         extern crate std;
 
         for stepping in [false, true] {
@@ -712,7 +721,7 @@ mod tests {
             let debug = engine.debug.clone();
             debug.resume(Vec::new(), None);
             let runner = std::thread::spawn(move || {
-                let result = engine.run(0x2000, 1, None);
+                let result = engine.run(0x2000, 1);
                 (engine, result)
             });
             let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
@@ -727,15 +736,15 @@ mod tests {
             debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
             let (tx, rx) = channel::bounded(1);
             let runner = std::thread::spawn(move || {
-                let result = engine.run(0x2000, 1, Some(Instant::now()));
+                let result = engine.run(0x2000, 0);
                 tx.send((engine, result)).unwrap();
             });
-            let expired = rx.recv_timeout(Duration::from_secs(1));
+            let suspended = rx.recv_timeout(Duration::from_secs(1));
             debug.resume(Vec::new(), None);
             runner.join().unwrap();
-            let (mut engine, result) = expired.unwrap();
+            let (mut engine, result) = suspended.unwrap();
             let result = result.unwrap();
-            assert!(matches!(result.stop_reason, EngineStopReason::Deadline));
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
             assert_eq!(result.instructions_executed, 0);
             assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
             assert_eq!(engine.reg_read(ArmRegister::R0), 0);
@@ -748,7 +757,7 @@ mod tests {
             debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
             let (tx, rx) = channel::bounded(1);
             let runner = std::thread::spawn(move || {
-                let result = engine.run(0x2000, 1, Some(Instant::now() + Duration::from_secs(60)));
+                let result = engine.run(0x2000, 1);
                 tx.send((engine, result)).unwrap();
             });
             let stopped = stepping.then(|| debug.recv_stop_event_timeout(Duration::from_secs(1)));
@@ -787,7 +796,7 @@ mod tests {
         let debug = engine.debug.clone();
         debug.resume(Vec::new(), None);
         let runner = std::thread::spawn(move || {
-            let result = engine.run(0, 3, None).unwrap();
+            let result = engine.run(0, 3).unwrap();
             (result, engine.reg_read(ArmRegister::R0))
         });
         let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));

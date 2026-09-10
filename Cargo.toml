@@ -7,7 +7,7 @@ members = [
     "wie-util",
     "wie-core-arm",
     "wie-arm-jit-types",
-    "wie-arm-wasm",
+    "wie-core-arm-wasm",
     "wie-jvm-support",
     "wie-wipi-java",
     "wie-wipi-c",
@@ -60,7 +60,6 @@ spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-feature
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "^0.3", features = ["env-filter", "time"] }
-web-time = { version = "^1.1" }
 wipi-types = { version = "^0.0.2" }
 
 wie-backend = { version = "0.1.0", path = "wie-backend" }
@@ -72,7 +71,7 @@ wie-skt = { version = "0.1.0", path = "wie-skt" }
 wie-util = { version = "0.1.0", path = "wie-util" }
 wie-core-arm = { version = "0.1.0", path = "wie-core-arm" }
 wie-arm-jit-types = { version = "0.1.0", path = "wie-arm-jit-types" }
-wie-arm-wasm = { version = "0.1.0", path = "wie-arm-wasm" }
+wie-core-arm-wasm = { version = "0.1.0", path = "wie-core-arm-wasm" }
 wie-jvm-support = { version = "0.1.0", path = "wie-jvm-support" }
 wie-skvm = { version = "0.1.0", path = "wie-skvm" }
 wie-wipi-c = { version = "0.1.0", path = "wie-wipi-c" }

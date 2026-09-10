@@ -2,10 +2,9 @@ mod arm32_cpu;
 mod debugged_arm32_cpu;
 mod sampler;
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
-use web_time::Instant;
-
+use wie_arm_jit_types::{CompiledArtifact, PreparationFuture, PreparationState};
 use wie_backend::ProfileSample;
 use wie_util::{AsAny, Result};
 
@@ -17,7 +16,6 @@ pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal
 pub enum EngineStopReason {
     End,
     Yield,
-    Deadline,
     Svc { category: u32, lr: u32, spsr: u32 },
 }
 
@@ -27,8 +25,7 @@ pub struct EngineRunResult {
 }
 
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, count: u32, deadline: Option<Instant>) -> Result<EngineRunResult>;
-    fn mark_entry(&mut self);
+    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
@@ -37,7 +34,10 @@ pub trait ArmEngine: Send + AsAny {
     fn is_mapped(&self, address: u32, size: usize) -> bool;
     fn set_profiling(&mut self, enabled: bool);
     fn take_profile(&mut self, force: bool) -> Vec<ProfileSample>;
-    fn maintain(&mut self);
+    fn record_image(&mut self, address: u32, size: usize);
+    fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>>;
+    fn preparation_state(&self) -> PreparationState;
+    fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>);
     fn shutdown(&mut self);
 }
 

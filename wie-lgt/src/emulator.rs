@@ -178,6 +178,10 @@ impl Drop for LgtEmulator {
 }
 
 impl Emulator for LgtEmulator {
+    fn is_preparing(&self) -> bool {
+        self.core.is_preparing()
+    }
+
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
     }

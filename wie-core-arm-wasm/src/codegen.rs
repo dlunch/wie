@@ -1,13 +1,10 @@
-use alloc::{collections::BTreeSet, format, string::String, vec, vec::Vec};
+use alloc::{collections::VecDeque, format, string::String, vec, vec::Vec};
 
 use wasm_encoder::{
-    BlockType, CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection, InstructionSink, MemArg, MemoryType,
-    Module, TypeSection, ValType,
+    BlockType, Encode, EntityType, ExportKind, Function, ImportSection, InstructionSink, MemArg, MemoryType, Module, SectionId, TypeSection, ValType,
 };
-use wie_arm_jit_types::{
-    Address, AluOp, CompileRequest, CompiledExit, Condition, Instruction, ManifestRegion, Operand, Operation, RegionIr, Shift, ShiftAmount, Value,
-    Width,
-};
+use wie_arm_jit_types::CompiledExit;
+use wie_arm_jit_types::ir::{Address, AluOp, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
 
 const LEFT: u32 = 2;
 const RIGHT: u32 = 3;
@@ -27,124 +24,92 @@ const EXECUTED: u32 = 16;
 const BUDGET: u32 = 17;
 const SAMPLE: u32 = 18;
 const END: u32 = 19;
-const PRE_CPSR: u32 = 20;
 
-pub struct WasmArtifact {
-    pub bytes: Vec<u8>,
-    pub manifest: Vec<ManifestRegion>,
+#[derive(Default)]
+pub(crate) struct ModuleBuilder {
+    functions: Vec<u8>,
+    exports: Vec<u8>,
+    bodies: VecDeque<Vec<u8>>,
+    code_size: usize,
 }
 
-pub fn compile(request: &CompileRequest) -> Result<WasmArtifact, String> {
-    let mut module = Module::new();
-    let mut types = TypeSection::new();
-    types.ty().function([ValType::I32; 4], [ValType::I32]);
-    types.ty().function([ValType::I32; 4], []);
-    types.ty().function([ValType::I32; 2], [ValType::I32]);
-    types.ty().function([ValType::I32; 3], [ValType::I64]);
-    module.section(&types);
-    let mut imports = ImportSection::new();
-    imports.import(
-        "wie",
-        "memory",
-        MemoryType {
-            minimum: 1,
-            maximum: None,
-            memory64: false,
-            shared: false,
-            page_size_log2: None,
-        },
-    );
-    imports.import("wie", "load", EntityType::Function(0));
-    imports.import("wie", "store", EntityType::Function(0));
-    imports.import("wie", "sample_prepare", EntityType::Function(1));
-    imports.import("wie", "word_range", EntityType::Function(3));
-    module.section(&imports);
-    let mut functions = FunctionSection::new();
-    let mut exports = ExportSection::new();
-    let mut code = CodeSection::new();
-    let mut manifest = Vec::new();
-    for (index, region) in request.regions.iter().enumerate() {
-        let ir = &region.ir;
-        let mut pcs = BTreeSet::new();
-        let mut occupied = BTreeSet::new();
-        if !matches!(ir.entry.cpu_mode, 0x10 | 0x1f) || ir.blocks.len() > 128 {
-            return Err(String::from("unsupported region mode or block count"));
-        }
-        let mut block_starts = BTreeSet::new();
-        for block in &ir.blocks {
-            let Some(first) = block.instructions.first() else {
-                return Err(String::from("empty basic block"));
-            };
-            block_starts.insert(first.pc);
-            if block
-                .instructions
-                .windows(2)
-                .any(|pair| pair[0].operation.writes_pc() || pair[1].pc != pair[0].pc.wrapping_add(u32::from(pair[0].size)))
-            {
-                return Err(String::from("invalid basic block boundary"));
-            }
-        }
-        for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
-            let size = if ir.entry.thumb
-                && !matches!(
-                    instruction.operation,
-                    Operation::Branch {
-                        target: Value::Immediate(_),
-                        link: Some(_),
-                        ..
-                    }
-                ) {
-                2
-            } else {
-                4
-            };
-            if instruction.size != size
-                || instruction.pc % if ir.entry.thumb { 2 } else { 4 } != 0
-                || !pcs.insert(instruction.pc)
-                || (0..instruction.size).any(|offset| !occupied.insert(instruction.pc.wrapping_add(u32::from(offset))))
-            {
-                return Err(String::from("invalid instruction boundary"));
-            }
-            if !supported(&instruction.operation) {
-                return Err(String::from("invalid instruction operands"));
-            }
-        }
-        if pcs.len() > 512 || !pcs.contains(&ir.entry.pc) || pcs.first().zip(pcs.last()).is_some_and(|(first, last)| last - first >= 16 * 1024) {
-            return Err(String::from("invalid region entry or instruction count"));
-        }
-        for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
-            if let Operation::Branch {
-                target: Value::Immediate(target),
-                exchange,
-                ..
-            } = instruction.operation
-            {
-                let target_thumb = if exchange { target & 1 != 0 } else { ir.entry.thumb };
-                let target = target & if target_thumb { !1 } else { !3 };
-                if pcs.contains(&target) && !block_starts.contains(&target) {
-                    return Err(String::from("internal branch target is not a block start"));
-                }
-            }
-        }
-        functions.function(2);
+impl ModuleBuilder {
+    pub(crate) fn add_region(&mut self, ir: &RegionIr) -> String {
+        let index = self.functions.len() as u32;
         let export = format!("region_{index}");
-        exports.export(&export, ExportKind::Func, 4 + index as u32);
-        code.function(&compile_region(ir));
-        manifest.push(ManifestRegion {
-            entry: ir.entry,
-            source: region.source.clone(),
-            export,
-            expected_old: region.expected_old,
+        2_u32.encode(&mut self.functions);
+        export.encode(&mut self.exports);
+        ExportKind::Func.encode(&mut self.exports);
+        (4 + index).encode(&mut self.exports);
+        let body = compile_region(ir).into_raw_body();
+        let mut length = Vec::new();
+        (body.len() as u32).encode(&mut length);
+        self.code_size += length.len() + body.len();
+        self.bodies.push_back(length);
+        self.bodies.push_back(body);
+        export
+    }
+
+    pub(crate) fn begin_assembly(mut self, output: &mut Vec<u8>) -> Result<VecDeque<Vec<u8>>, String> {
+        let mut module = Module::new();
+        let mut types = TypeSection::new();
+        types.ty().function([ValType::I32; 4], [ValType::I32]);
+        types.ty().function([ValType::I32; 3], []);
+        types.ty().function([ValType::I32; 2], [ValType::I32]);
+        types.ty().function([ValType::I32; 3], [ValType::I64]);
+        module.section(&types);
+        let mut imports = ImportSection::new();
+        imports.import(
+            "wie",
+            "memory",
+            MemoryType {
+                minimum: 1,
+                maximum: None,
+                memory64: false,
+                shared: false,
+                page_size_log2: None,
+            },
+        );
+        imports.import("wie", "load", EntityType::Function(0));
+        imports.import("wie", "store", EntityType::Function(0));
+        imports.import("wie", "sample_prepare", EntityType::Function(1));
+        imports.import("wie", "word_range", EntityType::Function(3));
+        module.section(&imports);
+        let prefix = module.finish();
+        let count = self.functions.len() as u32;
+        let mut count_bytes = Vec::new();
+        count.encode(&mut count_bytes);
+        let [functions_header, exports_header, code_header] = [
+            (SectionId::Function, self.functions.len()),
+            (SectionId::Export, self.exports.len()),
+            (SectionId::Code, self.code_size),
+        ]
+        .map(|(id, length)| {
+            let mut header = vec![id.into()];
+            let size = u32::try_from(length + count_bytes.len()).map_err(|_| String::from("Wasm section exceeds 4 GiB"))?;
+            size.encode(&mut header);
+            header.extend_from_slice(&count_bytes);
+            Ok::<_, String>(header)
         });
+        let (functions_header, exports_header, code_header) = (functions_header?, exports_header?, code_header?);
+        // Reserve once; subsequent assembly copies at most one chunk and never reallocates the output.
+        output.reserve_exact(
+            prefix.len()
+                + self.functions.len()
+                + self.exports.len()
+                + self.code_size
+                + functions_header.len()
+                + exports_header.len()
+                + code_header.len(),
+        );
+        self.bodies.push_front(code_header);
+        self.bodies.push_front(self.exports);
+        self.bodies.push_front(exports_header);
+        self.bodies.push_front(self.functions);
+        self.bodies.push_front(functions_header);
+        self.bodies.push_front(prefix);
+        Ok(self.bodies)
     }
-    module.section(&functions);
-    module.section(&exports);
-    module.section(&code);
-    let bytes = module.finish();
-    if bytes.len() > 512 * 1024 {
-        return Err(String::from("encoded module exceeds output limit"));
-    }
-    Ok(WasmArtifact { bytes, manifest })
 }
 
 const fn field(offset: u64) -> MemArg {
@@ -167,7 +132,7 @@ fn compile_region(ir: &RegionIr) -> Function {
             targets[((instruction.pc - first) >> shift) as usize] = index as u32;
         }
     }
-    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (9, ValType::I32)]);
+    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (8, ValType::I32)]);
     let mut s = function.instructions();
     s.local_get(0).i32_load(field(72)).local_set(BUDGET);
     s.local_get(0).i32_load(field(76)).local_set(SAMPLE);
@@ -207,19 +172,10 @@ fn compile_region(ir: &RegionIr) -> Function {
                 .i32_const(1)
                 .i32_eq()
                 .if_(BlockType::Empty);
-            s.local_get(1)
-                .local_get(PC)
-                .local_get(CPSR)
-                .local_get(0)
-                .i32_load(field(28))
-                .call(2)
-                .end();
+            s.local_get(1).local_get(PC).local_get(0).i32_load(field(28)).call(2).end();
             s.i32_const(instruction.pc.wrapping_add(u32::from(instruction.size)) as i32)
                 .local_set(NEXT_PC);
             let call = matches!(instruction.operation, Operation::Branch { link: Some(_), .. });
-            if instruction.operation.writes_pc() {
-                s.local_get(CPSR).local_set(PRE_CPSR);
-            }
             condition(&mut s, instruction.condition);
             if call {
                 s.local_tee(CALL_TAKEN);
@@ -227,20 +183,6 @@ fn compile_region(ir: &RegionIr) -> Function {
             s.if_(BlockType::Empty);
             operation(&mut s, instruction, ir.entry.thumb, exit_depth + 1);
             s.end();
-            if instruction.operation.writes_pc() {
-                s.local_get(NEXT_PC)
-                    .i32_const(instruction.pc.wrapping_add(if ir.entry.thumb { 2 } else { 4 }) as i32)
-                    .i32_ne();
-                s.local_get(CPSR)
-                    .local_get(PRE_CPSR)
-                    .i32_xor()
-                    .i32_const(0x0100_003f)
-                    .i32_and()
-                    .i32_or()
-                    .if_(BlockType::Empty);
-                s.local_get(0).local_get(NEXT_PC).i32_store(field(92));
-                s.end();
-            }
             s.local_get(0).local_get(NEXT_PC).i32_store(field(60));
             s.local_get(EXECUTED).i32_const(1).i32_add().local_set(EXECUTED);
             if call {
@@ -293,71 +235,6 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
             .i32_and()
             .if_(BlockType::Empty);
         s.i32_const(CompiledExit::Dispatch as i32).br(exit_depth + 1).end();
-    }
-}
-
-fn supported(operation: &Operation) -> bool {
-    let valid_value = |value| !matches!(value, Value::Register(16..));
-    let valid_operand = |operand: Operand| valid_value(operand.value) && !matches!(operand.amount, ShiftAmount::Register(16..));
-    let valid_address =
-        |address: Address| address.write_back.is_none_or(|reg| reg < 15) && valid_value(address.base) && valid_operand(address.offset);
-    match operation {
-        Operation::Alu {
-            op,
-            destination,
-            left,
-            right,
-            set_flags,
-        } => {
-            destination.is_none_or(|reg| reg < 15 || (reg == 15 && !set_flags && !matches!(op, AluOp::Multiply | AluOp::CountLeadingZeros)))
-                && valid_value(*left)
-                && valid_operand(*right)
-                && (*op != AluOp::CountLeadingZeros || !set_flags)
-        }
-        Operation::Branch { target, .. } => valid_value(*target),
-        Operation::Load {
-            destination,
-            address,
-            width,
-            signed,
-        } => (*destination < 15 || (*destination == 15 && *width == Width::Word && !signed)) && valid_address(*address),
-        Operation::Store { value, address, width } => {
-            valid_value(*value) && (*value != Value::Register(15) || *width == Width::Word) && valid_address(*address)
-        }
-        Operation::MultiplyAccumulate {
-            destination,
-            left,
-            right,
-            accumulate,
-            ..
-        } => [destination, left, right, accumulate].into_iter().all(|reg| *reg < 15),
-        Operation::MultiplyLong { low, high, left, right, .. } => low != high && [low, high, left, right].into_iter().all(|reg| *reg < 15),
-        Operation::ReadStatus { destination } => *destination < 15,
-        Operation::WriteStatus { value, mask } => valid_value(*value) && mask & 0x0fff_ffff == 0,
-        Operation::MultipleTransfer {
-            base,
-            registers,
-            write_back,
-            load,
-            ..
-        } => {
-            *base < 15
-                && *registers != 0
-                && (!write_back || registers & (1 << base) == 0 || (!load && registers.trailing_zeros() == u32::from(*base)))
-        }
-        Operation::DoubleTransfer { register, address, load } => {
-            *register <= 12
-                && register % 2 == 0
-                && valid_address(*address)
-                && (!load || address.write_back.is_none_or(|base| base != *register && base != register + 1))
-        }
-        Operation::Swap {
-            destination,
-            address,
-            value,
-            width,
-        } => [destination, address, value].into_iter().all(|reg| *reg < 15) && matches!(width, Width::Byte | Width::Word),
-        Operation::Nop => true,
     }
 }
 
@@ -942,62 +819,75 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
+    use alloc::{boxed::Box, vec};
 
-    use wie_arm_jit_types::{BasicBlock, CodePageStamp, CompileRegion, RegionKey};
+    use wie_arm_jit_types::{CodePageStamp, CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
+
+    use crate::Compiler;
 
     use super::*;
 
     #[test]
-    fn encoded_modules_exceeding_the_output_limit_are_rejected() {
-        let mut request = CompileRequest {
-            session: 1,
-            request: 1,
-            regions: (0..8)
-                .map(|region| {
-                    let pc = 0x100000 + region * 0x1000;
-                    CompileRegion {
-                        ir: RegionIr {
-                            entry: RegionKey {
-                                pc,
-                                thumb: false,
-                                cpu_mode: 0x10,
-                            },
-                            blocks: vec![BasicBlock {
-                                instructions: (0..256)
-                                    .map(|index| Instruction {
-                                        pc: pc + index * 4,
-                                        size: 4,
-                                        condition: Condition::Le,
-                                        operation: Operation::Alu {
-                                            op: AluOp::ReverseSubCarry,
-                                            destination: Some(0),
-                                            left: Value::Register(0),
-                                            right: Operand {
-                                                value: Value::Register(1),
-                                                shift: Shift::Lsl,
-                                                amount: ShiftAmount::Register(2),
-                                            },
-                                            set_flags: true,
-                                        },
-                                    })
-                                    .collect(),
-                            }],
-                        },
-                        source: vec![CodePageStamp {
-                            page: pc & 0xffff0000,
-                            version: 1,
-                        }],
-                        expected_old: None,
-                    }
-                })
-                .collect(),
-        };
-        assert_eq!(compile(&request).err().as_deref(), Some("encoded module exceeds output limit"));
-        request.regions.truncate(5);
-        let artifact = compile(&request).unwrap();
-        assert_eq!(artifact.manifest.len(), 5);
-        assert!((384 * 1024..=512 * 1024).contains(&artifact.bytes.len()));
+    fn large_batches_compile_into_a_single_module() {
+        let request: CompileRequest = Box::new((0..16).map(|step| {
+            if step % 2 == 0 {
+                return None;
+            }
+            let pc = 0x100000 + (step / 2) * 0x1000;
+            Some(CompileRegion {
+                ir: RegionIr {
+                    entry: RegionKey {
+                        pc,
+                        thumb: false,
+                        cpu_mode: 0x1f,
+                    },
+                    blocks: vec![BasicBlock {
+                        instructions: (0..256)
+                            .map(|index| Instruction {
+                                pc: pc + index * 4,
+                                size: 4,
+                                condition: Condition::Le,
+                                operation: Operation::Alu {
+                                    op: AluOp::ReverseSubCarry,
+                                    destination: Some(0),
+                                    left: Value::Register(0),
+                                    right: Operand {
+                                        value: Value::Register(1),
+                                        shift: Shift::Lsl,
+                                        amount: ShiftAmount::Register(2),
+                                    },
+                                    set_flags: true,
+                                },
+                            })
+                            .collect(),
+                    }],
+                },
+                source: vec![CodePageStamp {
+                    page: pc & 0xffff0000,
+                    version: 1,
+                }],
+            })
+        }));
+        let mut compiler = Compiler::new(request);
+        assert!(!compiler.step().unwrap());
+        assert!(compiler.artifact.manifest.is_empty());
+        assert!(!compiler.step().unwrap());
+        assert_eq!(compiler.artifact.manifest.len(), 1);
+        let mut assembly_steps = 0;
+        loop {
+            let previous = compiler.artifact.bytes.len();
+            let complete = compiler.step().unwrap();
+            let copied = compiler.artifact.bytes.len() - previous;
+            assert!(copied <= 64 * 1024);
+            assembly_steps += usize::from(copied != 0);
+            if complete {
+                break;
+            }
+        }
+        assert!(assembly_steps > 8);
+        let artifact = compiler.finish();
+        assert_eq!(artifact.manifest.iter().filter(|region| !region.entry.thumb).count(), 8);
+        assert!(artifact.bytes.len() > 512 * 1024);
     }
 
     #[test]

@@ -3,9 +3,8 @@ use alloc::{
     vec::Vec,
 };
 
-use wie_arm_jit_types::{
-    Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, RegionKey, Shift, ShiftAmount, Value, Width,
-};
+use wie_arm_jit_types::RegionKey;
+use wie_arm_jit_types::ir::{Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
 
 const CONDITIONS: [Condition; 15] = [
     Condition::Eq,
@@ -25,10 +24,7 @@ const CONDITIONS: [Condition; 15] = [
     Condition::Always,
 ];
 
-pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<RegionIr> {
-    if bytes.len() > 16 * 1024 || !matches!(entry.cpu_mode, 0x10 | 0x1f) || u64::from(base) + bytes.len() as u64 > 1u64 << 32 {
-        return None;
-    }
+pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64; 128]) -> Option<RegionIr> {
     let alignment = if entry.thumb { 2 } else { 4 };
     let mut pending = VecDeque::from([entry.pc]);
     let mut decoded = BTreeMap::new();
@@ -48,6 +44,9 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
         let Some(raw) = bytes.get(offset..) else {
             continue;
         };
+        if offset < bytes.len() && covered[offset / 128] & (1 << ((offset / 2) % 64)) != 0 {
+            continue;
+        }
         let Some((size, condition, operation)) = (if entry.thumb {
             decode_thumb(raw, pc)
         } else {
@@ -127,7 +126,7 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<Regio
         omitted_count = decoded.len(),
         instruction_limit_reached,
         block_limit_reached,
-        "ARM JIT region analyzed"
+        "ARM region analyzed"
     );
     Some(RegionIr { entry, blocks })
 }
@@ -800,6 +799,58 @@ mod tests {
 
     use super::*;
 
+    fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<RegionIr> {
+        let ir = super::analyze(bytes, base, entry, &[0; 128])?;
+        assert!(ir.blocks.len() <= 128);
+        let mut pcs = BTreeSet::new();
+        let mut occupied = BTreeSet::new();
+        let mut starts = BTreeSet::new();
+        for block in &ir.blocks {
+            starts.insert(block.instructions.first().unwrap().pc);
+            assert!(
+                block
+                    .instructions
+                    .windows(2)
+                    .all(|pair| { !pair[0].operation.writes_pc() && pair[1].pc == pair[0].pc.wrapping_add(u32::from(pair[0].size)) })
+            );
+            for instruction in &block.instructions {
+                assert_eq!(instruction.pc % if entry.thumb { 2 } else { 4 }, 0);
+                let size = if entry.thumb
+                    && !matches!(
+                        instruction.operation,
+                        Operation::Branch {
+                            target: Value::Immediate(_),
+                            link: Some(_),
+                            ..
+                        }
+                    ) {
+                    2
+                } else {
+                    4
+                };
+                assert_eq!(instruction.size, size);
+                assert!(pcs.insert(instruction.pc));
+                for byte in 0..size {
+                    assert!(occupied.insert(instruction.pc.wrapping_add(u32::from(byte))));
+                }
+            }
+        }
+        assert!(pcs.len() <= 512 && pcs.contains(&entry.pc));
+        for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
+            if let Operation::Branch {
+                target: Value::Immediate(target),
+                exchange,
+                ..
+            } = instruction.operation
+            {
+                let thumb = if exchange { target & 1 != 0 } else { entry.thumb };
+                let target = target & if thumb { !1 } else { !3 };
+                assert!(!pcs.contains(&target) || starts.contains(&target));
+            }
+        }
+        Some(ir)
+    }
+
     const ENTRY: RegionKey = RegionKey {
         pc: 0x1000,
         thumb: true,
@@ -927,10 +978,8 @@ mod tests {
         assert!(analyze(&[0x01], 0x1000, ENTRY).is_none());
         assert!(analyze(&[0x01, 0x20], 0x1000, RegionKey { pc: 0x1001, ..ENTRY }).is_none());
         assert!(analyze(&[0x01, 0x20], 0x1000, RegionKey { pc: 0xffe, ..ENTRY }).is_none());
-        assert!(analyze(&[0x01, 0x20], 0x1000, RegionKey { cpu_mode: 0x13, ..ENTRY }).is_none());
         let ir = analyze(&[0x01, 0x20, 0xff], 0x1000, ENTRY).unwrap();
         assert_eq!(ir.blocks[0].instructions.len(), 1);
-        assert!(analyze(&vec![0; 16 * 1024 + 1], 0x1000, ENTRY).is_none());
     }
 
     fn arm(code: &[u32]) -> Option<RegionIr> {
@@ -1111,7 +1160,7 @@ mod tests {
         assert!(matches!(
             ir.blocks[0].instructions[2].operation,
             Operation::Load {
-                address: wie_arm_jit_types::Address {
+                address: Address {
                     base: Value::Immediate(0x1010),
                     ..
                 },
@@ -1123,7 +1172,7 @@ mod tests {
         assert!(matches!(
             ir.blocks[0].instructions[1].operation,
             Operation::Load {
-                address: wie_arm_jit_types::Address {
+                address: Address {
                     base: Value::Immediate(0x1004),
                     ..
                 },
@@ -1151,7 +1200,6 @@ mod tests {
 
     #[test]
     fn memory_width_sign_index_and_writeback_are_preserved() {
-        use wie_arm_jit_types::{Address, Width};
         // ldrb r0,[r1],#1; str r2,[r3,#-4]!; ldrh r4,[r5,#6]; ldrsb r6,[r7,r8]; strh r9,[r10],#2
         let ir = arm(&[0xe4d10001, 0xe5232004, 0xe1d540b6, 0xe19760d8, 0xe0ca90b2]).unwrap();
         assert_eq!(
@@ -2279,7 +2327,6 @@ mod tests {
                 ..
             }
         ));
-        assert!(analyze(&[0; 4], key.pc, key).is_none());
         assert!(analyze(&[0; 4], 0, key).is_none());
         assert!(analyze(&[0; 3], 0x1000, RegionKey { thumb: false, ..ENTRY }).is_none());
         assert!(

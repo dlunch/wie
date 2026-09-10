@@ -1,27 +1,16 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 
-use wie_arm_jit_types::RegionKey;
 use wie_backend::ProfileSample;
 
-const MAX_HOTNESS_ENTRIES: usize = 8192;
 const PROFILE_MAX_STACK: usize = 32;
 const PROFILE_FLUSH_INTERVAL: u64 = 1000;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct Sample {
-    pub location: RegionKey,
-    pub hotness: Option<(RegionKey, u32)>,
-}
 
 pub(super) struct Sampler {
     pub remaining: u32,
     pub profiling: bool,
     pub sequence: u64,
-    pending_key: RegionKey,
-    pending_entry_pc: u32,
     pending_stack: Option<Vec<u32>>,
     jitter: u32,
-    hotness: BTreeMap<RegionKey, (u32, u64)>,
     profile: BTreeMap<Vec<u32>, u64>,
     profile_ready: bool,
 }
@@ -32,27 +21,14 @@ impl Sampler {
             remaining: 1024,
             profiling: false,
             sequence: 0,
-            pending_key: RegionKey {
-                pc: 0,
-                thumb: false,
-                cpu_mode: 0,
-            },
-            pending_entry_pc: 0,
             pending_stack: None,
             jitter: 0x9e3779b9,
-            hotness: BTreeMap::new(),
             profile: BTreeMap::new(),
             profile_ready: false,
         }
     }
 
-    pub fn prepare(&mut self, pc: u32, cpsr: u32, mut r7: u32, entry_pc: u32, mut read: impl FnMut(u32, &mut [u8]) -> bool) {
-        self.pending_key = RegionKey {
-            pc,
-            thumb: cpsr & 0x20 != 0,
-            cpu_mode: (cpsr & 0x1f) as u8,
-        };
-        self.pending_entry_pc = entry_pc;
+    pub fn prepare(&mut self, pc: u32, mut r7: u32, mut read: impl FnMut(u32, &mut [u8]) -> bool) {
         self.pending_stack = if self.profiling {
             let mut stack = vec![pc];
             for _ in 0..PROFILE_MAX_STACK {
@@ -77,10 +53,10 @@ impl Sampler {
         };
     }
 
-    pub fn retire(&mut self, instructions: u32) -> Option<Sample> {
+    pub fn retire(&mut self, instructions: u32) -> bool {
         self.remaining -= instructions;
         if self.remaining != 0 {
-            return None;
+            return false;
         }
         self.sequence += 1;
         self.jitter ^= self.jitter << 13;
@@ -88,34 +64,11 @@ impl Sampler {
         self.jitter ^= self.jitter << 5;
         self.remaining = 896 + self.jitter % 257;
 
-        let hotness = if self.pending_entry_pc == 0 {
-            None
-        } else {
-            let key = RegionKey {
-                pc: self.pending_entry_pc,
-                ..self.pending_key
-            };
-            if self.hotness.len() == MAX_HOTNESS_ENTRIES && !self.hotness.contains_key(&key) {
-                // ponytail: eviction scans at most 8192 entries; use an LRU index if measured hotness cost warrants it.
-                let oldest = self.hotness.iter().min_by_key(|(_, (_, sequence))| sequence).map(|(key, _)| *key);
-                if let Some(oldest) = oldest {
-                    self.hotness.remove(&oldest);
-                }
-            }
-            let entry = self.hotness.entry(key).or_default();
-            entry.0 = entry.0.saturating_add(1);
-            entry.1 = self.sequence;
-            Some((key, entry.0))
-        };
-
         if let Some(stack) = self.pending_stack.take() {
             *self.profile.entry(stack).or_default() += 1;
             self.profile_ready |= self.sequence.is_multiple_of(PROFILE_FLUSH_INTERVAL);
         }
-        Some(Sample {
-            location: self.pending_key,
-            hotness,
-        })
+        true
     }
 
     pub fn take_profile(&mut self, force: bool) -> Vec<ProfileSample> {
@@ -141,13 +94,13 @@ mod tests {
     use super::Sampler;
 
     #[test]
-    fn profiling_consumes_the_same_retired_sample_without_resampling_the_stack() {
+    fn profiling_consumes_the_retired_sample_without_resampling_the_stack() {
         for profiling in [false, true] {
             let mut sampler = Sampler::new();
             sampler.profiling = profiling;
             sampler.remaining = 1;
             let mut reads = 0;
-            sampler.prepare(0x1000, 0x3f, 0x2000, 0x1000, |address, buffer| {
+            sampler.prepare(0x1000, 0x2000, |address, buffer| {
                 reads += 1;
                 if address == 0x2000 {
                     buffer[..4].copy_from_slice(&0x2010u32.to_le_bytes());
@@ -158,12 +111,7 @@ mod tests {
                 true
             });
             assert_eq!(reads, if profiling { 2 } else { 0 });
-            let sample = sampler.retire(1).unwrap();
-            assert_eq!(
-                (sample.location.pc, sample.location.thumb, sample.location.cpu_mode),
-                (0x1000, true, 0x1f)
-            );
-            assert_eq!(sample.hotness, Some((sample.location, 1)));
+            assert!(sampler.retire(1));
             assert_eq!(sampler.sequence, 1);
             let samples = sampler.take_profile(true);
             if profiling {
@@ -177,68 +125,24 @@ mod tests {
     }
 
     #[test]
-    fn unexecuted_boundaries_do_not_advance_the_sampler() {
+    fn unexecuted_boundaries_do_not_commit_a_profile_sample() {
         let mut sampler = Sampler::new();
+        sampler.profiling = true;
         sampler.remaining = 1;
-        sampler.prepare(0x1000, 0x3f, 0, 0x8000, |_, _| false);
-        assert!(sampler.retire(0).is_none());
+        sampler.prepare(0x1000, 0, |_, _| false);
+        assert!(!sampler.retire(0));
         assert_eq!(sampler.sequence, 0);
         assert_eq!(sampler.remaining, 1);
-        assert!(sampler.hotness.is_empty());
-        sampler.prepare(0x1002, 0x1f, 0, 0x9000, |_, _| false);
-        let sample = sampler.retire(1).unwrap();
-        assert_eq!(sample.location.pc, 0x1002);
-        assert_eq!(sample.hotness.unwrap().0.pc, 0x9000);
-        assert_eq!(sampler.hotness.len(), 1);
+        assert!(sampler.take_profile(true).is_empty());
+        sampler.prepare(0x2004, 0, |_, _| false);
+        assert!(sampler.retire(1));
         assert_eq!(sampler.sequence, 1);
         assert!((896..=1152).contains(&sampler.remaining));
-    }
-
-    #[test]
-    fn unknown_entries_preserve_profiles_without_reusing_staged_hotness() {
-        for profiling in [false, true] {
-            let mut sampler = Sampler::new();
-            sampler.profiling = profiling;
-            sampler.remaining = 1;
-            sampler.prepare(0x1000, 0x3f, 0, 0x8000, |_, _| false);
-            assert!(sampler.retire(0).is_none());
-            sampler.prepare(0x2004, 0x10, 0, 0, |_, _| false);
-            let unknown = sampler.retire(1).unwrap();
-            assert_eq!(
-                (unknown.location.pc, unknown.location.thumb, unknown.location.cpu_mode),
-                (0x2004, false, 0x10)
-            );
-            assert_eq!(unknown.hotness, None);
-            assert!(sampler.hotness.is_empty());
-            assert_eq!(sampler.sequence, 1);
-            assert!(sampler.retire(0).is_none());
-
-            sampler.remaining = 1;
-            sampler.prepare(0x3002, 0x3f, 0, 0x3000, |_, _| false);
-            let known = sampler.retire(1).unwrap();
-            assert_eq!(known.location.pc, 0x3002);
-            assert_eq!(
-                known.hotness,
-                Some((
-                    super::RegionKey {
-                        pc: 0x3000,
-                        ..known.location
-                    },
-                    1
-                ))
-            );
-            assert_eq!(sampler.hotness.len(), 1);
-            assert_eq!(sampler.sequence, 2);
-            let profiles = sampler.take_profile(true);
-            if profiling {
-                assert_eq!(profiles.len(), 2);
-                assert_eq!(profiles[0].stack, [0x2004]);
-                assert_eq!(profiles[1].stack, [0x3002]);
-                assert!(profiles.iter().all(|sample| sample.count == 1));
-            } else {
-                assert!(profiles.is_empty());
-            }
-        }
+        let samples = sampler.take_profile(true);
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].stack, [0x2004]);
+        assert_eq!(samples[0].count, 1);
+        assert!(!sampler.retire(0));
     }
 
     #[test]
@@ -254,24 +158,24 @@ mod tests {
                 let mut reads = 0;
                 while retired < 1_200_000 {
                     let count = batch_size.min(sampler.remaining).min(1_200_000 - retired);
-                    assert!(sampler.retire(0).is_none());
+                    assert!(!sampler.retire(0));
+                    let position = retired + count - 1;
+                    let (base, width) = if (position / 4096).is_multiple_of(2) {
+                        (0x10000, 2)
+                    } else {
+                        (0x20000, 4)
+                    };
+                    let pc = base + position % loop_length * width;
                     if count == sampler.remaining {
-                        // Select the input instruction, not a separately computed sampling schedule.
-                        let position = retired + count - 1;
-                        let (base, cpsr, width) = if (position / 4096).is_multiple_of(2) {
-                            (0x10000, 0x3f, 2)
-                        } else {
-                            (0x20000, 0x10, 4)
-                        };
-                        sampler.prepare(base + position % loop_length * width, cpsr, 0, base, |_, _| {
+                        sampler.prepare(pc, 0, |_, _| {
                             reads += 1;
                             false
                         });
                     }
                     retired += count;
-                    if let Some(sample) = sampler.retire(count) {
-                        events.push((retired, sampler.sequence, sample.location, sample.hotness));
-                        *sampled_pcs.entry(vec![sample.location.pc]).or_insert(0u64) += 1;
+                    if sampler.retire(count) {
+                        events.push((retired, sampler.sequence, pc));
+                        *sampled_pcs.entry(vec![pc]).or_insert(0u64) += 1;
                         for sample in sampler.take_profile(false) {
                             *profiles.entry(sample.stack).or_insert(0u64) += sample.count;
                         }
@@ -288,16 +192,9 @@ mod tests {
                 } else {
                     assert!(profiles.is_empty());
                 }
-                let phases: BTreeSet<_> = events
-                    .iter()
-                    .map(|(_, _, key, _)| (key.pc - if key.thumb { 0x10000 } else { 0x20000 }) / if key.thumb { 2 } else { 4 } % 1024)
-                    .collect();
+                let phases: BTreeSet<_> = events.iter().map(|(_, _, pc)| pc % 1024).collect();
                 assert!(phases.len() > 1, "fixed-interval aliasing for loop length {loop_length}");
-                assert_eq!(
-                    events.iter().map(|(_, _, key, _)| (key.thumb, key.cpu_mode)).collect::<BTreeSet<_>>(),
-                    BTreeSet::from([(false, 0x10), (true, 0x1f)])
-                );
-                (events, sampler.remaining, sampler.hotness)
+                (events, sampler.remaining)
             };
             let expected = replay(false, 1);
             for profiling in [false, true] {
@@ -347,7 +244,7 @@ mod tests {
                 futures::executor::block_on(core.run_function::<()>(base | 1, &[])).unwrap();
                 for instruction in 0..length {
                     if reference.remaining == 1 {
-                        reference.prepare(base + instruction * 2, 0x3f, 0, base, |_, _| false);
+                        reference.prepare(base + instruction * 2, 0, |_, _| false);
                     }
                     reference.retire(1);
                 }

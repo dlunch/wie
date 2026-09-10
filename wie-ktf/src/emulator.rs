@@ -197,6 +197,10 @@ impl Drop for KtfEmulator {
 }
 
 impl Emulator for KtfEmulator {
+    fn is_preparing(&self) -> bool {
+        self.core.is_preparing()
+    }
+
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
     }

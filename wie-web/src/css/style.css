@@ -457,6 +457,19 @@ svg {
   background: var(--card-bg);
 }
 
+.player-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--fg);
+  background: var(--card-bg);
+  font-size: 1rem;
+  text-align: center;
+}
+
 .button-container {
   display: flex;
   width: min(100%, 480px);

@@ -1,9 +1,9 @@
 use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
-use core::{future::poll_fn, mem::size_of, pin::pin, time::Duration};
+use core::{future::poll_fn, mem::size_of, pin::pin};
 
 use spin::Mutex;
-use web_time::Instant;
 
+use wie_arm_jit_types::PreparationState;
 use wie_backend::{ProfileCallback, YieldFuture};
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
@@ -23,10 +23,13 @@ const SVC_STUB_SIZE: u32 = 16;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
+#[cfg(not(target_arch = "wasm32"))]
+const INSTRUCTIONS_PER_YIELD: u32 = 10_000;
 
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
-    deadline: Option<Instant>,
+    #[cfg(not(target_arch = "wasm32"))]
+    instructions_remaining: u32,
     last_thread_id: ThreadId,
     svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
@@ -57,7 +60,7 @@ impl ArmCore {
         let mut engine = if enable_gdbserver {
             Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>
         } else {
-            Box::new(Arm32CpuEngine::with_backend()?)
+            Box::new(Arm32CpuEngine::with_backend())
         };
 
         engine.set_profiling(profile.is_some());
@@ -66,7 +69,8 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
-            deadline: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            instructions_remaining: INSTRUCTIONS_PER_YIELD,
             last_thread_id: 0,
             svc_handlers: BTreeMap::new(),
             next_stub_address: FUNCTIONS_BASE,
@@ -125,8 +129,24 @@ impl ArmCore {
             .engine
             .mem_map(address, map_size.next_multiple_of(0x1000), MemoryPermission::ReadWriteExecute);
         inner.engine.mem_write(address, data)?;
+        inner.engine.record_image(address, data.len());
 
         Ok(())
+    }
+
+    pub async fn prepare_execution(&mut self) -> Result<()> {
+        self.check_running()?;
+        let preparation = self.inner.lock().engine.begin_preparation()?;
+        if let Some(preparation) = preparation {
+            let result = preparation.await;
+            self.check_running()?;
+            self.inner.lock().engine.finish_preparation(result);
+        }
+        Ok(())
+    }
+
+    pub fn is_preparing(&self) -> bool {
+        self.inner.lock().engine.preparation_state() != PreparationState::Ready
     }
 
     pub fn run_in_thread<F, Fut>(&self, entry: F) -> Result<ArmCoreThreadWrapper>
@@ -236,17 +256,19 @@ impl ArmCore {
             let cpsr = inner.engine.reg_read(ArmRegister::Cpsr);
             let new_cpsr = (cpsr & !0x3f) | 0x1f | ((address & 1) << 5);
             inner.engine.reg_write(ArmRegister::Cpsr, new_cpsr);
-            inner.engine.mark_entry();
         }
 
         loop {
-            let (result, deadline) = {
+            let (result, exhausted) = {
                 let mut inner = self.inner.lock();
                 if inner.closed {
                     return Err(WieError::FatalError("ARM core is shut down".into()));
                 }
-                let deadline = *inner.deadline.get_or_insert_with(|| Instant::now() + Duration::from_millis(8));
-                let result = match inner.engine.run(RUN_FUNCTION_LR, u32::MAX, Some(deadline)) {
+                #[cfg(not(target_arch = "wasm32"))]
+                let budget = inner.instructions_remaining;
+                #[cfg(target_arch = "wasm32")]
+                let budget = u32::MAX;
+                let result = match inner.engine.run(RUN_FUNCTION_LR, budget) {
                     Ok(result) => result,
                     Err(error) => {
                         inner.closed = true;
@@ -256,7 +278,18 @@ impl ArmCore {
                         return Err(error);
                     }
                 };
-                (result.stop_reason, deadline)
+                #[cfg(not(target_arch = "wasm32"))]
+                let exhausted = {
+                    inner.instructions_remaining -= result.instructions_executed;
+                    let exhausted = inner.instructions_remaining == 0;
+                    if exhausted {
+                        inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
+                    }
+                    exhausted
+                };
+                #[cfg(target_arch = "wasm32")]
+                let exhausted = false;
+                (result.stop_reason, exhausted)
             };
 
             let svc_step = if let EngineStopReason::Svc { lr, spsr, .. } = result {
@@ -273,21 +306,17 @@ impl ArmCore {
                 None
             };
 
-            let should_yield = matches!(result, EngineStopReason::Yield | EngineStopReason::Deadline) || Instant::now() >= deadline;
-            if should_yield {
-                self.inner.lock().engine.maintain();
-            }
+            let should_yield = exhausted || matches!(result, EngineStopReason::Yield);
             self.flush_profile();
 
             if should_yield {
-                self.inner.lock().deadline = None;
                 YieldFuture::new().await;
             }
             self.check_running()?;
 
             match result {
                 EngineStopReason::End => break,
-                EngineStopReason::Yield | EngineStopReason::Deadline => continue,
+                EngineStopReason::Yield => continue,
                 EngineStopReason::Svc { category, .. } => {
                     let function = {
                         let inner = self.inner.lock();
@@ -764,44 +793,23 @@ mod tests {
         assert!(remaining.run_in_thread(|| async { Ok(()) }).is_err());
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn expired_svc_deadlines_restore_cpu_state_before_yielding_or_shutdown() {
-        for shutdown in [false, true] {
-            let mut core = ArmCore::new(false, None).unwrap();
-            let calls = Arc::new(AtomicU32::new(0));
-            core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
-            core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
-            let cpsr = core.save_context().cpsr | 0x3f;
-            core.inner.lock().deadline = Some(Instant::now());
-            let observer = core.clone();
-            let mut run = pin!(core.run_function::<()>(0x1001, &[]));
-            let mut cx = Context::from_waker(Waker::noop());
-            assert!(run.as_mut().poll(&mut cx).is_pending());
-            assert_eq!(calls.load(Ordering::Relaxed), 0);
-            assert_eq!((observer.save_context().pc, observer.save_context().cpsr), (0x1000, cpsr));
-            {
-                let mut inner = observer.inner.lock();
-                assert!(inner.deadline.is_none());
-                // Execute a real SVC while suspended, leaving its banked state for the core to restore.
-                let result = inner.engine.run(RUN_FUNCTION_LR, 1, None).unwrap();
-                assert_eq!(result.instructions_executed, 1);
-                assert!(matches!(result.stop_reason, EngineStopReason::Svc { lr: 0x1002, spsr, .. } if spsr == cpsr));
-                assert_eq!(inner.engine.reg_read(ArmRegister::Cpsr) & 0x1f, 0x13);
-                inner.deadline = Some(Instant::now());
-            }
-            assert!(run.as_mut().poll(&mut cx).is_pending());
-            assert_eq!((observer.save_context().pc, observer.save_context().cpsr), (0x1002, cpsr));
-            assert!(observer.inner.lock().deadline.is_none());
-            assert_eq!(calls.load(Ordering::Relaxed), 0);
-            if shutdown {
-                observer.shutdown();
-                assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Err(_))));
-                assert_eq!(calls.load(Ordering::Relaxed), 0);
-            } else {
-                futures::executor::block_on(run).unwrap();
-                assert_eq!(calls.load(Ordering::Relaxed), 1);
-            }
-        }
+    fn shutdown_stops_a_suspended_svc_before_its_handler() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        let calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
+        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
+        core.inner.lock().instructions_remaining = 1;
+        let observer = core.clone();
+        let mut run = pin!(core.run_function::<()>(0x1001, &[]));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observer.save_context().pc, 0x1002);
+        assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
+        observer.shutdown();
+        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Err(_))));
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
 
     async fn pending_svc_handler(_: &mut ArmCore, (entered, calls): &mut (Arc<AtomicBool>, Arc<AtomicU32>)) -> Result<u32> {
@@ -827,16 +835,11 @@ mod tests {
         core.register_svc_handler(1, pending_svc_handler, &(entered.clone(), calls.clone()))
             .unwrap();
         core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
-        core.inner.lock().deadline = Some(Instant::now());
         let observer = core.clone();
         let mut run = pin!(core.run_function::<()>(0x1001, &[]));
         let mut cx = Context::from_waker(Waker::noop());
         assert!(run.as_mut().poll(&mut cx).is_pending());
-        assert!(!entered.load(Ordering::Relaxed));
-        assert_eq!(observer.save_context().pc, 0x1000);
-        while !entered.load(Ordering::Relaxed) {
-            assert!(run.as_mut().poll(&mut cx).is_pending());
-        }
+        assert!(entered.load(Ordering::Relaxed));
         assert_eq!(observer.save_context().pc, 0x1002);
         assert_eq!(calls.load(Ordering::Relaxed), 0);
         observer.shutdown();
@@ -889,7 +892,6 @@ mod tests {
             .unwrap();
         core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
         core.load(&[0x02, 0xdf, 0x70, 0x47], 0x10000, 4).unwrap();
-        core.inner.lock().deadline = Some(Instant::now());
         let mut running = core.clone();
         let mut task = pin!(
             core.run_in_thread(move || async move { running.run_function::<()>(0x1001, &[]).await })
@@ -897,11 +899,7 @@ mod tests {
         );
         let mut cx = Context::from_waker(Waker::noop());
         assert!(task.as_mut().poll(&mut cx).is_pending());
-        assert!(!entered.load(Ordering::Relaxed));
-        assert_eq!(core.read_thread_context(1).unwrap().pc, 0x1000);
-        while !entered.load(Ordering::Relaxed) {
-            assert!(task.as_mut().poll(&mut cx).is_pending());
-        }
+        assert!(entered.load(Ordering::Relaxed));
         assert_eq!(core.read_thread_context(1).unwrap().pc, 0x10002);
         assert_eq!(calls.load(Ordering::Relaxed), 0);
 
@@ -1002,13 +1000,12 @@ mod tests {
                 let mut inner = core.inner.lock();
                 inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
                 inner.engine.reg_write(ArmRegister::PC, 0x1000);
-                inner.engine.mark_entry();
                 // A flush needs 1000 retired samples; each interval is at most 1152 instructions.
                 let count = 1152 * 1000;
-                let result = inner.engine.run(RUN_FUNCTION_LR, count, None).unwrap();
+                let result = inner.engine.run(RUN_FUNCTION_LR, count).unwrap();
                 assert!(matches!(result.stop_reason, EngineStopReason::Yield));
                 assert_eq!(result.instructions_executed, count);
-                inner.deadline = Some(Instant::now());
+                inner.instructions_remaining = 0;
             }
             assert_eq!(observed.load(Ordering::Relaxed), 0);
             let mut run = pin!(core.run_function::<()>(0x1001, &[]));
@@ -1048,11 +1045,12 @@ mod tests {
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn scheduler_locking_yields_without_executing_guest_code() {
+    fn scheduler_locking_yields_without_resetting_the_instruction_budget() {
         let mut core = ArmCore::new(false, None).unwrap();
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
+        core.inner.lock().instructions_remaining = 5;
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         debug.on_thread_entered(1);
         debug.resume(Vec::new(), Some(vec![2]));
@@ -1062,10 +1060,10 @@ mod tests {
         let mut cx = Context::from_waker(Waker::noop());
         assert!(run.as_mut().poll(&mut cx).is_pending());
         assert_eq!(observer.save_context().pc, 0x1000);
-        assert!(observer.inner.lock().deadline.is_none());
+        assert_eq!(observer.inner.lock().instructions_remaining, 5);
         debug.resume(Vec::new(), None);
         assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
-        assert!(observer.inner.lock().deadline.is_some());
+        assert_eq!(observer.inner.lock().instructions_remaining, 4);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -1221,74 +1219,73 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn expired_deadlines_yield_before_returning_from_arm() {
+    fn yields_every_ten_thousand_instructions_across_svc() {
         let mut core = ArmCore::new(false, None).unwrap();
-        core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
-        core.inner.lock().deadline = Some(Instant::now());
-        let observer = core.clone();
-        let mut run = pin!(core.run_function::<u32>(0x1001, &[17]));
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(run.as_mut().poll(&mut cx).is_pending());
-        {
-            let mut inner = observer.inner.lock();
-            let result = inner.engine.run(RUN_FUNCTION_LR, 1, None).unwrap();
-            assert!(matches!(result.stop_reason, EngineStopReason::End));
-            assert_eq!(result.instructions_executed, 1);
-            inner.deadline = Some(Instant::now());
-        }
-        assert!(run.as_mut().poll(&mut cx).is_pending());
-        assert_eq!(observer.save_context().pc, RUN_FUNCTION_LR);
-        assert_eq!(observer.read_param(0).unwrap(), 17);
-        assert!(observer.inner.lock().deadline.is_none());
-        assert_eq!(futures::executor::block_on(run).unwrap(), 17);
-    }
-
-    #[test]
-    fn nested_arm_calls_inherit_expired_deadlines() {
-        async fn nested(core: &mut ArmCore, result: &mut Arc<AtomicU32>) -> Result<JumpTo> {
-            let pc = core.read_pc_lr()?.0;
-            core.inner.lock().deadline = Some(Instant::now());
-            let value = core.run_function(0x10001, &[0]).await?;
-            result.store(value, Ordering::Relaxed);
-            Ok(JumpTo(pc | 1))
-        }
-
-        let mut core = ArmCore::new(false, None).unwrap();
-        let result = Arc::new(AtomicU32::new(0));
-        core.register_svc_handler(1, nested, &result).unwrap();
-        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
-        core.load(&[0x01, 0x30, 0x70, 0x47], 0x10000, 4).unwrap();
-        core.inner.lock().deadline = Some(Instant::now() + Duration::from_secs(60));
+        let calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
+        let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
+        code.extend_from_slice(&[0x70, 0x47]); // bx lr
+        core.load(&code, 0x1000, code.len()).unwrap();
 
         let observer = core.clone();
-        let mut run = pin!(core.run_function::<u32>(0x1001, &[17]));
+        let mut run = pin!(core.run_function::<u32>(0x1001, &[0]));
         let mut cx = Context::from_waker(Waker::noop());
-        assert!(run.as_mut().poll(&mut cx).is_pending());
-        assert_eq!(observer.save_context().pc, 0x10000);
-        assert_eq!(observer.read_param(0).unwrap(), 0);
-        assert!(observer.inner.lock().deadline.is_none());
-        assert_eq!(result.load(Ordering::Relaxed), 0);
-        assert_eq!(futures::executor::block_on(run).unwrap(), 17);
-        assert_eq!(result.load(Ordering::Relaxed), 1);
+        for completed in [5_000, 10_000] {
+            assert!(run.as_mut().poll(&mut cx).is_pending());
+            assert_eq!(observer.read_param(0).unwrap(), completed);
+            assert_eq!(calls.load(Ordering::Relaxed), completed - 1);
+            assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
+        }
+        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(10_000))));
+        assert_eq!(calls.load(Ordering::Relaxed), 10_000);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn returning_and_nested_arm_calls_preserve_unexpired_deadlines() {
+    fn nested_arm_calls_share_the_instruction_budget() {
         let mut core = ArmCore::new(false, None).unwrap();
         let result = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, call_nested_arm, &result).unwrap();
-        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
-        core.load(&[0x01, 0x30, 0x70, 0x47], 0x10000, 4).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(60);
-        core.inner.lock().deadline = Some(deadline);
-        for address in [0x1003, 0x1001, 0x1003] {
-            assert_eq!(futures::executor::block_on(core.run_function::<u32>(address, &[17])).unwrap(), 17);
-            assert_eq!(core.inner.lock().deadline, Some(deadline));
-        }
-        assert_eq!(result.load(Ordering::Relaxed), 1);
+        let mut outer = [0xc0, 0x46].repeat(5_000); // nop
+        outer.extend_from_slice(&[0x01, 0xdf, 0x70, 0x47]); // svc #1; bx lr
+        core.load(&outer, 0x1000, outer.len()).unwrap();
+        let mut nested = [0x01, 0x30].repeat(5_000); // add r0, #1
+        nested.extend_from_slice(&[0x70, 0x47]); // bx lr
+        core.load(&nested, 0x10000, nested.len()).unwrap();
+
+        let observer = core.clone();
+        let mut run = pin!(core.run_function::<u32>(0x1001, &[17]));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observer.read_param(0).unwrap(), 4_999);
+        assert_eq!(result.load(Ordering::Relaxed), 0);
+        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(17))));
+        assert_eq!(result.load(Ordering::Relaxed), 5_000);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn returning_arm_calls_do_not_reset_the_instruction_budget() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
+        let completed = Arc::new(AtomicU32::new(0));
+        let observed = completed.clone();
+        let mut run = pin!(async move {
+            for _ in 0..10_001 {
+                core.run_function::<()>(0x1001, &[]).await.unwrap();
+                completed.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observed.load(Ordering::Relaxed), 9_999);
+        assert!(run.as_mut().poll(&mut cx).is_ready());
+        assert_eq!(observed.load(Ordering::Relaxed), 10_001);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn ready_arm_threads_yield_and_allow_host_tasks_to_run() {
         use test_utils::{TestClock, TestPlatform};
@@ -1313,7 +1310,7 @@ mod tests {
                     let result = task.as_mut().poll(cx);
                     assert!(result.is_pending());
                     polls.fetch_add(1, Ordering::Relaxed);
-                    // Limit the executor to one step; guest execution still uses the real host clock.
+                    // Limit the executor to one step.
                     clock.advance(9);
                     result
                 })
@@ -1331,11 +1328,12 @@ mod tests {
         assert_eq!(polls.load(Ordering::Relaxed), 2);
         assert_eq!(observed.load(Ordering::Relaxed), 1);
         let first = [1, 2].map(|thread| core.read_thread_context(thread).unwrap().r0);
-        assert!(core.inner.lock().deadline.is_none());
+        assert_eq!(first, [5_000, 5_000]);
+        assert_eq!(core.inner.lock().instructions_remaining, 10_000);
         system.tick().unwrap();
         assert_eq!(polls.load(Ordering::Relaxed), 4);
         for (thread, previous) in [1, 2].into_iter().zip(first) {
-            assert!(core.read_thread_context(thread).unwrap().r0 >= previous);
+            assert_eq!(core.read_thread_context(thread).unwrap().r0 - previous, 5_000);
         }
         system.shutdown();
         assert!(core.get_thread_ids().is_empty());
@@ -1362,7 +1360,7 @@ mod tests {
             inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
             inner.engine.reg_write(ArmRegister::PC, second);
             inner.engine.reg_write(ArmRegister::LR, RUN_FUNCTION_LR);
-            inner.engine.run(RUN_FUNCTION_LR, 10, None).unwrap()
+            inner.engine.run(RUN_FUNCTION_LR, 10).unwrap()
         };
 
         assert_eq!(result.instructions_executed, 5);
@@ -1374,7 +1372,6 @@ mod tests {
             }
             EngineStopReason::End => panic!("expected SVC, got end"),
             EngineStopReason::Yield => panic!("expected SVC, got yield"),
-            EngineStopReason::Deadline => panic!("expected SVC, got deadline"),
         }
     }
 }

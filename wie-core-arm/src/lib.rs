@@ -2,12 +2,12 @@
 extern crate alloc;
 
 mod allocator;
+mod aot;
 mod context;
 mod core;
 mod engine;
 mod function;
 mod gdb;
-mod jit;
 mod thread;
 mod thread_wrapper;
 

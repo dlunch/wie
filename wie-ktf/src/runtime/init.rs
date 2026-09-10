@@ -49,6 +49,7 @@ pub async fn load_native(
     let bss_size = parse_bss_size(filename)?;
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
+    core.prepare_execution().await?;
 
     register_wipic_svc_handler(core, system, jvm)?;
     register_init_svc_handler(core, jvm)?;

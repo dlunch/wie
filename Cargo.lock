@@ -6881,19 +6881,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie-arm-wasm"
-version = "0.1.4"
-dependencies = [
- "js-sys",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-encoder",
- "web-sys",
- "wie-arm-jit-types",
-]
-
-[[package]]
 name = "wie-backend"
 version = "0.1.4"
 dependencies = [
@@ -6924,15 +6911,27 @@ dependencies = [
  "futures-test",
  "gdbstub",
  "gdbstub_arch",
- "serde_json",
  "spin",
  "test-utils",
  "tracing",
- "web-time",
  "wie-arm-jit-types",
- "wie-arm-wasm",
  "wie-backend",
+ "wie-core-arm-wasm",
  "wie-util",
+]
+
+[[package]]
+name = "wie-core-arm-wasm"
+version = "0.1.4"
+dependencies = [
+ "futures",
+ "js-sys",
+ "tracing",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-encoder",
+ "web-sys",
+ "wie-arm-jit-types",
 ]
 
 [[package]]

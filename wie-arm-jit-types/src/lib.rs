@@ -1,10 +1,13 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{future::Future, pin::Pin};
 
 use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
+
+pub mod ir;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct RegionKey {
@@ -22,231 +25,30 @@ pub struct CodePageStamp {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct CompiledHandle {
     pub slot: u32,
-    pub generation: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegionIr {
-    pub entry: RegionKey,
-    pub blocks: Vec<BasicBlock>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BasicBlock {
-    pub instructions: Vec<Instruction>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Instruction {
-    pub pc: u32,
-    pub size: u8,
-    pub condition: Condition,
-    pub operation: Operation,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Condition {
-    Eq,
-    Ne,
-    Cs,
-    Cc,
-    Mi,
-    Pl,
-    Vs,
-    Vc,
-    Hi,
-    Ls,
-    Ge,
-    Lt,
-    Gt,
-    Le,
-    Always,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Value {
-    Register(u8),
-    Immediate(u32),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Shift {
-    Lsl,
-    Lsr,
-    Asr,
-    Ror,
-    Rrx,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum ShiftAmount {
-    Immediate(u8),
-    Register(u8),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Operand {
-    pub value: Value,
-    pub shift: Shift,
-    pub amount: ShiftAmount,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum AluOp {
-    And,
-    Xor,
-    Sub,
-    ReverseSub,
-    Add,
-    AddCarry,
-    SubCarry,
-    ReverseSubCarry,
-    Or,
-    Move,
-    BitClear,
-    Not,
-    Multiply,
-    CountLeadingZeros,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Width {
-    Byte,
-    Half,
-    Word,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Address {
-    pub base: Value,
-    pub offset: Operand,
-    pub subtract: bool,
-    pub pre_index: bool,
-    pub write_back: Option<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Operation {
-    Alu {
-        op: AluOp,
-        destination: Option<u8>,
-        left: Value,
-        right: Operand,
-        set_flags: bool,
-    },
-    Branch {
-        target: Value,
-        link: Option<u32>,
-        exchange: bool,
-    },
-    Load {
-        destination: u8,
-        address: Address,
-        width: Width,
-        signed: bool,
-    },
-    Store {
-        value: Value,
-        address: Address,
-        width: Width,
-    },
-    MultiplyAccumulate {
-        destination: u8,
-        left: u8,
-        right: u8,
-        accumulate: u8,
-        set_flags: bool,
-    },
-    MultiplyLong {
-        low: u8,
-        high: u8,
-        left: u8,
-        right: u8,
-        signed: bool,
-        accumulate: bool,
-        set_flags: bool,
-    },
-    ReadStatus {
-        destination: u8,
-    },
-    WriteStatus {
-        value: Value,
-        mask: u32,
-    },
-    MultipleTransfer {
-        base: u8,
-        registers: u16,
-        increment: bool,
-        before: bool,
-        write_back: bool,
-        load: bool,
-    },
-    DoubleTransfer {
-        register: u8,
-        address: Address,
-        load: bool,
-    },
-    Swap {
-        destination: u8,
-        address: u8,
-        value: u8,
-        width: Width,
-    },
-    Nop,
-}
-
-impl Operation {
-    pub fn writes_pc(&self) -> bool {
-        match self {
-            Self::Branch { .. } | Self::Alu { destination: Some(15), .. } | Self::Load { destination: 15, .. } => true,
-            Self::MultipleTransfer { registers, load: true, .. } => registers & 0x8000 != 0,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompileRegion {
-    pub ir: RegionIr,
+#[derive(Clone, Debug)]
+pub struct CodeImage {
+    pub address: u32,
+    pub bytes: Vec<u8>,
     pub source: Vec<CodePageStamp>,
-    pub expected_old: Option<CompiledHandle>,
 }
 
-impl CompileRegion {
-    pub fn ir_size(&self) -> usize {
-        core::mem::size_of::<Self>()
-            + self.source.capacity() * core::mem::size_of::<CodePageStamp>()
-            + self.ir.blocks.capacity() * core::mem::size_of::<BasicBlock>()
-            + self
-                .ir
-                .blocks
-                .iter()
-                .map(|block| block.instructions.capacity() * core::mem::size_of::<Instruction>())
-                .sum::<usize>()
-    }
+pub struct CompileRegion {
+    pub ir: ir::RegionIr,
+    pub source: Vec<CodePageStamp>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompileRequest {
-    pub session: u64,
-    pub request: u64,
-    pub regions: Vec<CompileRegion>,
-}
-
-impl CompileRequest {
-    pub fn ir_size(&self) -> usize {
-        core::mem::size_of::<Self>()
-            + (self.regions.capacity() - self.regions.len()) * core::mem::size_of::<CompileRegion>()
-            + self.regions.iter().map(CompileRegion::ir_size).sum::<usize>()
-    }
-}
+/// Each step emits one region or makes bounded decoder progress without retaining IR.
+pub type CompileRequest = Box<dyn Iterator<Item = Option<CompileRegion>> + Send>;
+pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact, String>> + Send>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ManifestRegion {
     pub entry: RegionKey,
+    pub instruction_pcs: Vec<u32>,
     pub source: Vec<CodePageStamp>,
     pub export: String,
-    pub expected_old: Option<CompiledHandle>,
 }
 
 pub struct CompiledRegion {
@@ -259,16 +61,11 @@ pub struct CompiledArtifact {
     pub encoded_size: usize,
 }
 
-pub struct CompileCompletion {
-    pub session: u64,
-    pub request: u64,
-    pub result: Result<CompiledArtifact, String>,
-}
-
-pub enum Admission {
-    Accepted,
-    Busy,
-    Failed(String),
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PreparationState {
+    Loading,
+    Preparing,
+    Ready,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -293,7 +90,6 @@ pub struct RunFrame {
     pub executed: u32,
     pub fault_address: u32,
     pub scratch: u32,
-    pub entry_pc: u32,
 }
 
 pub enum AccessResult {
@@ -315,12 +111,11 @@ pub trait ExecutionAccess {
     /// A successful byte load also admits a byte store at that address in this instruction.
     fn load(&mut self, address: u32, width: u32) -> AccessResult;
     fn store(&mut self, address: u32, width: u32, value: u32) -> AccessResult;
-    fn sample_prepare(&mut self, pc: u32, cpsr: u32, r7: u32, entry_pc: u32);
+    fn sample_prepare(&mut self, pc: u32, r7: u32);
 }
 
 pub trait CompiledExecutor: Send {
-    fn submit(&mut self, request: &CompileRequest) -> Admission;
-    fn poll(&mut self) -> Option<CompileCompletion>;
+    fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture;
     /// Only `Ok` returns a resumable frame. `Err` may follow guest writes; stop execution without retrying.
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String>;
     fn retire(&mut self, handles: &[CompiledHandle]);
@@ -335,7 +130,7 @@ mod tests {
 
     #[test]
     fn generated_code_frame_has_a_fixed_plain_data_layout() {
-        assert_eq!(size_of::<RunFrame>(), 96);
+        assert_eq!(size_of::<RunFrame>(), 92);
         assert_eq!(align_of::<RunFrame>(), 4);
         assert_eq!(offset_of!(RunFrame, regs), 0);
         assert_eq!(offset_of!(RunFrame, cpsr), 64);
@@ -345,7 +140,6 @@ mod tests {
         assert_eq!(offset_of!(RunFrame, executed), 80);
         assert_eq!(offset_of!(RunFrame, fault_address), 84);
         assert_eq!(offset_of!(RunFrame, scratch), 88);
-        assert_eq!(offset_of!(RunFrame, entry_pc), 92);
-        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 96]);
+        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 92]);
     }
 }
