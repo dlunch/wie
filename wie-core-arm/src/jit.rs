@@ -3,7 +3,7 @@ mod analysis;
 use alloc::{boxed::Box, collections::BTreeMap, collections::VecDeque, vec, vec::Vec};
 use core::mem::{size_of, size_of_val};
 
-use wie_arm_jit::{Admission, CodePageStamp, CompileRegion, CompileRequest, CompiledExecutor, CompiledHandle, RegionKey};
+use wie_arm_jit_types::{Admission, CodePageStamp, CompileRegion, CompileRequest, CompiledExecutor, CompiledHandle, RegionKey};
 
 use crate::engine::EmulatedMemory;
 

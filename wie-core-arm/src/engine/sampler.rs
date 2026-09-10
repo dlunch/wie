@@ -1,6 +1,6 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 
-use wie_arm_jit::RegionKey;
+use wie_arm_jit_types::RegionKey;
 use wie_backend::ProfileSample;
 
 const MAX_HOTNESS_ENTRIES: usize = 8192;

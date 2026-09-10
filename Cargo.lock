@@ -6873,7 +6873,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wie-arm-jit"
+name = "wie-arm-jit-types"
 version = "0.1.4"
 dependencies = [
  "bytemuck",
@@ -6890,7 +6890,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-encoder",
  "web-sys",
- "wie-arm-jit",
+ "wie-arm-jit-types",
 ]
 
 [[package]]
@@ -6924,13 +6924,12 @@ dependencies = [
  "futures-test",
  "gdbstub",
  "gdbstub_arch",
- "serde",
  "serde_json",
  "spin",
  "test-utils",
  "tracing",
  "web-time",
- "wie-arm-jit",
+ "wie-arm-jit-types",
  "wie-arm-wasm",
  "wie-backend",
  "wie-util",

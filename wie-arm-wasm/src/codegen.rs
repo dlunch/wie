@@ -4,7 +4,7 @@ use wasm_encoder::{
     BlockType, CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection, InstructionSink, MemArg, MemoryType,
     Module, TypeSection, ValType,
 };
-use wie_arm_jit::{
+use wie_arm_jit_types::{
     Address, AluOp, CompileRequest, CompiledExit, Condition, Instruction, ManifestRegion, Operand, Operation, RegionIr, Shift, ShiftAmount, Value,
     Width,
 };
@@ -944,7 +944,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
 mod tests {
     use alloc::vec;
 
-    use wie_arm_jit::{BasicBlock, CodePageStamp, CompileRegion, RegionKey};
+    use wie_arm_jit_types::{BasicBlock, CodePageStamp, CompileRegion, RegionKey};
 
     use super::*;
 

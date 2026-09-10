@@ -3,7 +3,9 @@ use alloc::{
     vec::Vec,
 };
 
-use wie_arm_jit::{Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, RegionKey, Shift, ShiftAmount, Value, Width};
+use wie_arm_jit_types::{
+    Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, RegionKey, Shift, ShiftAmount, Value, Width,
+};
 
 const CONDITIONS: [Condition; 15] = [
     Condition::Eq,
@@ -1109,7 +1111,7 @@ mod tests {
         assert!(matches!(
             ir.blocks[0].instructions[2].operation,
             Operation::Load {
-                address: wie_arm_jit::Address {
+                address: wie_arm_jit_types::Address {
                     base: Value::Immediate(0x1010),
                     ..
                 },
@@ -1121,7 +1123,7 @@ mod tests {
         assert!(matches!(
             ir.blocks[0].instructions[1].operation,
             Operation::Load {
-                address: wie_arm_jit::Address {
+                address: wie_arm_jit_types::Address {
                     base: Value::Immediate(0x1004),
                     ..
                 },
@@ -1149,7 +1151,7 @@ mod tests {
 
     #[test]
     fn memory_width_sign_index_and_writeback_are_preserved() {
-        use wie_arm_jit::{Address, Width};
+        use wie_arm_jit_types::{Address, Width};
         // ldrb r0,[r1],#1; str r2,[r3,#-4]!; ldrh r4,[r5,#6]; ldrsb r6,[r7,r8]; strh r9,[r10],#2
         let ir = arm(&[0xe4d10001, 0xe5232004, 0xe1d540b6, 0xe19760d8, 0xe0ca90b2]).unwrap();
         assert_eq!(

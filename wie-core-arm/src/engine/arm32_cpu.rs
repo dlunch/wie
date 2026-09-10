@@ -4,7 +4,7 @@ use core::{cell::RefCell, ffi::CStr};
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 use web_time::Instant;
 
-use wie_arm_jit::{AccessResult, CodePageStamp, CompiledExit, ExecutionAccess, RegionKey, RunFrame};
+use wie_arm_jit_types::{AccessResult, CodePageStamp, CompiledExit, ExecutionAccess, RegionKey, RunFrame};
 use wie_backend::ProfileSample;
 use wie_util::{Result, WieError};
 
@@ -23,14 +23,6 @@ pub struct Arm32CpuEngine {
     jit: Option<Jit>,
     closed: bool,
 }
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-#[path = "differential.rs"]
-mod differential;
-
-#[cfg(test)]
-#[path = "cache_tests.rs"]
-mod cache_tests;
 
 enum InstructionCacheInvalidation {
     All,
@@ -690,12 +682,12 @@ impl Memory for Arm32CpuMemory<'_> {
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, string::String, sync::Arc};
+    use alloc::{boxed::Box, collections::BTreeSet, collections::VecDeque, string::String, sync::Arc, vec};
     use core::mem::size_of;
 
     use arm32_cpu::Memory;
     use spin::Mutex;
-    use wie_arm_jit::{
+    use wie_arm_jit_types::{
         Admission, CompileCompletion, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion,
     };
 
@@ -761,6 +753,324 @@ mod tests {
         assert!(engine.mem.pages[0xffff].as_ref().unwrap().bytes.iter().all(|&byte| byte == b'x'));
     }
 
+    #[derive(Default)]
+    struct Responses {
+        requests: Vec<CompileRequest>,
+        admissions: VecDeque<Admission>,
+        ready: VecDeque<CompileCompletion>,
+        retired: Vec<CompiledHandle>,
+    }
+
+    struct DeferredExecutor(Arc<Mutex<Responses>>);
+
+    impl CompiledExecutor for DeferredExecutor {
+        fn submit(&mut self, request: &CompileRequest) -> Admission {
+            let mut responses = self.0.lock();
+            responses.requests.push(request.clone());
+            responses.admissions.pop_front().unwrap_or(Admission::Accepted)
+        }
+
+        fn poll(&mut self) -> Option<CompileCompletion> {
+            self.0.lock().ready.pop_front()
+        }
+
+        fn execute(&mut self, _: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> core::result::Result<CompiledExit, String> {
+            unreachable!("cache tests do not execute compiled code")
+        }
+
+        fn retire(&mut self, handles: &[CompiledHandle]) {
+            self.0.lock().retired.extend_from_slice(handles);
+        }
+
+        fn shutdown(&mut self) {
+            self.0.lock().ready.clear();
+        }
+    }
+
+    fn completion(request: &CompileRequest) -> CompileCompletion {
+        CompileCompletion {
+            session: request.session,
+            request: request.request,
+            result: Ok(CompiledArtifact {
+                encoded_size: 100,
+                regions: request
+                    .regions
+                    .iter()
+                    .enumerate()
+                    .map(|(slot, region)| CompiledRegion {
+                        manifest: ManifestRegion {
+                            entry: region.ir.entry,
+                            source: region.source.clone(),
+                            export: format!("region_{slot}"),
+                            expected_old: region.expected_old,
+                        },
+                        handle: CompiledHandle {
+                            slot: slot as u32,
+                            generation: request.request,
+                        },
+                    })
+                    .collect(),
+            }),
+        }
+    }
+
+    #[test]
+    fn queued_hot_regions_share_one_request_and_suppress_all_pending_aliases() {
+        let responses = Arc::new(Mutex::new(Responses::default()));
+        let mut jit = Jit::new(1, Box::new(DeferredExecutor(responses.clone())));
+        let mut memory = EmulatedMemory::new();
+        let entries: Vec<_> = (1..=5)
+            .map(|page| RegionKey {
+                pc: page * 0x10000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            })
+            .collect();
+        for &entry in &entries {
+            memory.map(entry.pc, 4);
+            memory.write_range(entry.pc, &[0xc0, 0x46, 0x70, 0x47]).unwrap();
+            jit.sample(entry, Some((entry, 8)));
+        }
+        jit.maintain(&memory);
+        let request = responses.lock().requests[0].clone();
+        assert_eq!(request.regions.iter().map(|region| region.ir.entry).collect::<Vec<_>>(), entries[..4]);
+        assert!(request.regions.iter().all(|region| region.expected_old.is_none()));
+        for &entry in &entries[..4] {
+            for hits in 9..12 {
+                let sampled_key = RegionKey { pc: entry.pc + 2, ..entry };
+                jit.sample(sampled_key, Some((sampled_key, hits)));
+                jit.maintain(&memory);
+            }
+            assert!(jit.lookup(entry, &memory).is_none());
+        }
+        jit.sample(entries[4], Some((entries[4], 9)));
+        assert_eq!(responses.lock().requests.len(), 1);
+        responses.lock().ready.push_back(completion(&request));
+        jit.maintain(&memory);
+        let next = responses.lock().requests[1].clone();
+        assert_eq!(next.regions.len(), 1);
+        assert_eq!(next.regions[0].ir.entry, entries[4]);
+        for (slot, &entry) in entries[..4].iter().enumerate() {
+            let handle = CompiledHandle {
+                slot: slot as u32,
+                generation: request.request,
+            };
+            assert_eq!(jit.lookup(entry, &memory), Some(handle));
+            assert_eq!(jit.lookup(RegionKey { pc: entry.pc + 2, ..entry }, &memory), Some(handle));
+        }
+    }
+
+    #[test]
+    fn busy_admission_reclaims_cold_handles_and_retries_at_maintenance_boundaries() {
+        let responses = Arc::new(Mutex::new(Responses::default()));
+        let mut jit = Jit::new(1, Box::new(DeferredExecutor(responses.clone())));
+        let mut memory = EmulatedMemory::new();
+        let mut installed = Vec::new();
+        for page in 1..=2 {
+            let entry = RegionKey {
+                pc: page * 0x10000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            };
+            memory.map(entry.pc, 4);
+            memory.write_range(entry.pc, &[0xc0, 0x46, 0x70, 0x47]).unwrap();
+            jit.sample(entry, Some((entry, 8)));
+            jit.maintain(&memory);
+            let request = responses.lock().requests.last().unwrap().clone();
+            responses.lock().ready.push_back(completion(&request));
+            jit.poll(&memory);
+            installed.push((entry, jit.lookup(entry, &memory).unwrap()));
+        }
+        let entry = RegionKey {
+            pc: 0x30000,
+            ..installed[0].0
+        };
+        memory.map(entry.pc, 2);
+        memory.write_range(entry.pc, &[0x70, 0x47]).unwrap();
+        let sampled_key = RegionKey {
+            pc: installed[0].0.pc + 2,
+            ..installed[0].0
+        };
+        jit.sample(sampled_key, Some((sampled_key, 9)));
+        jit.sample(entry, Some((entry, 8)));
+        responses
+            .lock()
+            .admissions
+            .extend([Admission::Busy, Admission::Busy, Admission::Accepted]);
+        for (attempt, (cold, handle)) in installed.iter().rev().enumerate() {
+            jit.maintain(&memory);
+            assert_eq!(responses.lock().requests.len(), 3 + attempt);
+            assert_eq!(responses.lock().retired.last(), Some(handle));
+            assert!(jit.lookup(*cold, &memory).is_none());
+            assert!(jit.lookup(RegionKey { pc: cold.pc + 2, ..*cold }, &memory).is_none());
+            assert!(jit.lookup(entry, &memory).is_none());
+            for hits in 9..20 {
+                jit.sample(entry, Some((entry, hits)));
+                jit.poll(&memory);
+            }
+            assert_eq!(responses.lock().requests.len(), 3 + attempt);
+        }
+        jit.maintain(&memory);
+        let request = responses.lock().requests.last().unwrap().clone();
+        assert_eq!(responses.lock().requests.len(), 5);
+        assert_eq!(request.regions[0].source, responses.lock().requests[2].regions[0].source);
+        responses.lock().ready.push_back(completion(&request));
+        jit.poll(&memory);
+        let handle = jit.lookup(entry, &memory).unwrap();
+        assert_eq!(
+            handle,
+            CompiledHandle {
+                slot: 0,
+                generation: request.request
+            }
+        );
+        assert!(!responses.lock().retired.contains(&handle));
+    }
+
+    #[test]
+    fn whole_generation_merges_retain_a_stable_working_set() {
+        let responses = Arc::new(Mutex::new(Responses::default()));
+        let mut jit = Jit::new(1, Box::new(DeferredExecutor(responses.clone())));
+        let mut memory = EmulatedMemory::new();
+        let mut entries = Vec::new();
+        let mut largest_module = 0;
+        let mut most_replaced_generations = 0;
+        for page in 1..=256 {
+            let entry = RegionKey {
+                pc: page * 0x10000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            };
+            memory.map(entry.pc, 4);
+            memory.write_range(entry.pc, &[0xc0, 0x46, 0x70, 0x47]).unwrap();
+            let before: Vec<_> = entries.iter().map(|key| (*key, jit.lookup(*key, &memory).unwrap())).collect();
+            let retired_before = responses.lock().retired.len();
+            jit.sample(entry, Some((entry, 8)));
+            jit.maintain(&memory);
+            assert_eq!(responses.lock().retired.len(), retired_before, "the small working set needs no eviction");
+            assert_eq!(responses.lock().requests.len(), page as usize);
+            let request = responses.lock().requests.last().unwrap().clone();
+            let old_handles: Vec<_> = request.regions.iter().filter_map(|region| region.expected_old).collect();
+            let replaced_generations: BTreeSet<_> = old_handles.iter().map(|handle| handle.generation).collect();
+            most_replaced_generations = most_replaced_generations.max(replaced_generations.len());
+            for generation in replaced_generations {
+                let installed: BTreeSet<_> = before
+                    .iter()
+                    .map(|(_, handle)| *handle)
+                    .filter(|handle| handle.generation == generation)
+                    .collect();
+                let replaced: BTreeSet<_> = old_handles.iter().copied().filter(|handle| handle.generation == generation).collect();
+                assert_eq!(
+                    replaced, installed,
+                    "request {} partially replaces generation {generation}",
+                    request.request
+                );
+            }
+            let index_bytes: usize = request
+                .regions
+                .iter()
+                .map(|region| region.ir.blocks.iter().map(|block| block.instructions.len()).sum::<usize>() * core::mem::size_of::<(RegionKey, u32)>())
+                .sum();
+            assert!(4 * request.ir_size() + 5 * serde_json::to_vec(&request).unwrap().len() + 2 * index_bytes <= 1024 * 1024);
+            largest_module = largest_module.max(request.regions.len());
+            responses.lock().ready.push_back(completion(&request));
+            jit.poll(&memory);
+            assert_eq!(responses.lock().retired[retired_before..], old_handles);
+            for (key, handle) in before {
+                let current = jit.lookup(key, &memory).unwrap();
+                assert_eq!(current != handle, old_handles.contains(&handle));
+                assert_eq!(jit.lookup(RegionKey { pc: key.pc + 2, ..key }, &memory).unwrap(), current);
+            }
+            entries.push(entry);
+        }
+        assert!(largest_module > 16, "whole generations must retain every merged region");
+        assert_eq!(most_replaced_generations, 2);
+        let retired_before = responses.lock().retired.len();
+        for _ in 0..3 {
+            for &entry in &entries {
+                jit.sample(entry, Some((entry, 99)));
+                jit.maintain(&memory);
+            }
+        }
+        assert_eq!(
+            responses.lock().requests.len(),
+            entries.len(),
+            "stable code must stop compiling after warmup"
+        );
+        assert_eq!(responses.lock().retired.len(), retired_before);
+    }
+
+    #[test]
+    fn explicit_cache_publication_expires_installed_pending_and_failed_translations() {
+        for opcode in [0xee070f15u32, 0xee070f35] {
+            for state in ["installed", "pending", "failed"] {
+                let responses = Arc::new(Mutex::new(Responses::default()));
+                let mut jit = Jit::new(1, Box::new(DeferredExecutor(responses.clone())));
+                let mut engine = Arm32CpuEngine::new();
+                let entry = RegionKey {
+                    pc: 0x1000,
+                    thumb: true,
+                    cpu_mode: 0x1f,
+                };
+                engine.mem_map(entry.pc, 2, MemoryPermission::ReadWriteExecute);
+                engine.mem_write(entry.pc, &0x4700u16.to_le_bytes()).unwrap(); // bx r0
+                engine.mem_map(0x20000, 4, MemoryPermission::ReadWriteExecute);
+                engine.mem_write(0x20000, &opcode.to_le_bytes()).unwrap();
+                jit.sample(entry, Some((entry, 8)));
+                jit.maintain(&engine.mem);
+                let request = responses.lock().requests[0].clone();
+                let complete = completion(&request);
+                let old = complete.result.as_ref().unwrap().regions[0].handle;
+                if state != "pending" {
+                    let mut result = completion(&request);
+                    if state == "failed" {
+                        result.result = Err("compile failed".into());
+                    }
+                    responses.lock().ready.push_back(result);
+                    jit.poll(&engine.mem);
+                }
+
+                engine.mem.as_arm32cpu_memory().w16(entry.pc, 0x4770); // bx lr
+                assert!(engine.mem.code_is_current(&request.regions[0].source));
+                if state == "installed" {
+                    assert_eq!(jit.lookup(entry, &engine.mem), Some(old));
+                }
+                for hits in 9..12 {
+                    jit.sample(entry, Some((entry, hits)));
+                    jit.maintain(&engine.mem);
+                }
+                assert_eq!(responses.lock().requests.len(), 1, "{state}");
+
+                engine.reg_write(ArmRegister::Cpsr, 0x1f);
+                engine.reg_write(ArmRegister::PC, 0x20000);
+                engine.reg_write(ArmRegister::R0, entry.pc);
+                let result = engine.run(0x20004, 1, None).unwrap();
+                assert_eq!(result.instructions_executed, 1);
+                assert!(!engine.mem.code_is_current(&request.regions[0].source));
+                if state == "pending" {
+                    responses.lock().ready.push_back(complete);
+                    jit.poll(&engine.mem);
+                }
+                assert!(jit.lookup(entry, &engine.mem).is_none(), "{state}");
+                assert_eq!(responses.lock().retired, if state == "failed" { vec![] } else { vec![old] });
+                jit.sample(entry, Some((entry, 12)));
+                jit.maintain(&engine.mem);
+                let replacement = responses.lock().requests[1].clone();
+                assert!(matches!(
+                    replacement.regions[0].ir.blocks[0].instructions[0].operation,
+                    wie_arm_jit_types::Operation::Branch {
+                        target: wie_arm_jit_types::Value::Register(14),
+                        ..
+                    }
+                ));
+                responses.lock().ready.push_back(completion(&replacement));
+                jit.poll(&engine.mem);
+                assert_ne!(jit.lookup(entry, &engine.mem), Some(old));
+                assert!(jit.lookup(entry, &engine.mem).is_some());
+            }
+        }
+    }
+
     struct TestExecutor {
         completion: Option<CompileCompletion>,
         calls: Arc<Mutex<(u32, bool)>>,
@@ -769,30 +1079,7 @@ mod tests {
 
     impl CompiledExecutor for TestExecutor {
         fn submit(&mut self, request: &CompileRequest) -> Admission {
-            self.completion = Some(CompileCompletion {
-                session: request.session,
-                request: request.request,
-                result: Ok(CompiledArtifact {
-                    regions: request
-                        .regions
-                        .iter()
-                        .enumerate()
-                        .map(|(slot, region)| CompiledRegion {
-                            manifest: ManifestRegion {
-                                entry: region.ir.entry,
-                                source: region.source.clone(),
-                                expected_old: region.expected_old,
-                                export: format!("region_{slot}"),
-                            },
-                            handle: CompiledHandle {
-                                slot: slot as u32,
-                                generation: request.request,
-                            },
-                        })
-                        .collect(),
-                    encoded_size: 100,
-                }),
-            });
+            self.completion = Some(completion(request));
             Admission::Accepted
         }
 

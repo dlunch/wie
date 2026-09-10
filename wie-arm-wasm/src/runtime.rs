@@ -11,7 +11,7 @@ use js_sys::{Array, Function, Object, Reflect, Uint8Array, WebAssembly};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{ErrorEvent, MessageEvent, Worker};
-use wie_arm_jit::{
+use wie_arm_jit_types::{
     AccessResult, Admission, CompileCompletion, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion,
     ExecutionAccess, ManifestRegion, RunFrame,
 };
@@ -24,7 +24,17 @@ const MAX_QUEUED_REQUESTS: usize = 4;
 const MAX_LIVE_MODULES: usize = 16;
 const MAX_COEXISTING_MODULES: usize = 20;
 
-#[wasm_bindgen(module = "/src/bootstrap.js")]
+#[wasm_bindgen(inline_js = r#"
+export function createCompilerWorker() {
+    return new Worker(new URL("@ts/arm-compiler-worker.ts", import.meta.url), { type: "module" });
+}
+
+export function executeRegion(region, frame, context) {
+    const exit = region(frame, context);
+    // Reject non-numbers before the Wasm import can coerce them to valid exits.
+    return typeof exit === "number" ? exit : NaN;
+}
+"#)]
 extern "C" {
     #[wasm_bindgen(catch, js_name = createCompilerWorker)]
     fn create_compiler_worker() -> Result<Worker, JsValue>;

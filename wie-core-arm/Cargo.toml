@@ -20,7 +20,7 @@ gdbstub = { version = "^0.7" }
 gdbstub_arch = { version = "^0.3" }
 
 wie-backend = { workspace = true }
-wie-arm-jit = { workspace = true }
+wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -29,6 +29,4 @@ wie-arm-wasm = { workspace = true }
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
 futures-test = { workspace = true }
-serde = { workspace = true }
 test-utils = { workspace = true }
-wie-arm-wasm = { workspace = true }

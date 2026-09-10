@@ -6,7 +6,7 @@ members = [
     "wie-backend",
     "wie-util",
     "wie-core-arm",
-    "wie-arm-jit",
+    "wie-arm-jit-types",
     "wie-arm-wasm",
     "wie-jvm-support",
     "wie-wipi-java",
@@ -71,7 +71,7 @@ wie-midp = { version = "0.1.0", path = "wie-midp" }
 wie-skt = { version = "0.1.0", path = "wie-skt" }
 wie-util = { version = "0.1.0", path = "wie-util" }
 wie-core-arm = { version = "0.1.0", path = "wie-core-arm" }
-wie-arm-jit = { version = "0.1.0", path = "wie-arm-jit" }
+wie-arm-jit-types = { version = "0.1.0", path = "wie-arm-jit-types" }
 wie-arm-wasm = { version = "0.1.0", path = "wie-arm-wasm" }
 wie-jvm-support = { version = "0.1.0", path = "wie-jvm-support" }
 wie-skvm = { version = "0.1.0", path = "wie-skvm" }
