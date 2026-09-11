@@ -246,7 +246,9 @@ impl JavaClassDefinition {
 
         for method in methods {
             let full_name = method.name()?;
-            if full_name.name == name && full_name.descriptor == descriptor && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
+            if full_name.name() == name
+                && full_name.descriptor() == descriptor
+                && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
             {
                 return Ok(Some(method));
             }
@@ -260,7 +262,10 @@ impl JavaClassDefinition {
 
         for field in fields {
             let full_name = field.name()?;
-            if full_name.name == name && full_name.descriptor == descriptor && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static {
+            if full_name.name() == name
+                && full_name.descriptor() == descriptor
+                && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static
+            {
                 return Ok(Some(field));
             }
         }

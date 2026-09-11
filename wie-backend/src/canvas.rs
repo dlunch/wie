@@ -366,7 +366,7 @@ where
             return;
         }
 
-        if !blend {
+        if !blend || color.a == 255 {
             self.image_buffer.put_pixel(x, y, color);
             return;
         }
@@ -949,6 +949,7 @@ pub fn string_width(font: &Font, string: &str, pt_size: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use alloc::{borrow::Cow, sync::Arc, vec, vec::Vec};
+    use core::sync::atomic::{AtomicUsize, Ordering};
     use spin::Mutex;
 
     use wie_util::Result;
@@ -1029,6 +1030,7 @@ mod tests {
         width: u32,
         height: u32,
         pixels: Arc<Mutex<Vec<Color>>>,
+        reads: Arc<AtomicUsize>,
     }
 
     impl SharedImageBuffer {
@@ -1037,6 +1039,7 @@ mod tests {
                 width,
                 height: pixels.len() as u32 / width,
                 pixels: Arc::new(Mutex::new(pixels)),
+                reads: Arc::new(AtomicUsize::new(0)),
             }
         }
     }
@@ -1055,6 +1058,7 @@ mod tests {
         }
 
         fn get_pixel(&self, x: i32, y: i32) -> Color {
+            self.reads.fetch_add(1, Ordering::Relaxed);
             self.pixels.lock()[(y as u32 * self.width + x as u32) as usize]
         }
 
@@ -1085,6 +1089,31 @@ mod tests {
             pixel.g ^= color.g;
             pixel.b ^= color.b;
             pixel.a = 255;
+        }
+    }
+
+    #[test]
+    fn opaque_composition_skips_background_reads() {
+        let background = Color { a: 64, ..BACKGROUND };
+        for alpha in [0, 1, 127, 254, 255] {
+            let image = SharedImageBuffer::new(1, vec![background]);
+            let reads = image.reads.clone();
+            let mut canvas = ImageBufferCanvas::new(image);
+            let source = Color { a: alpha, ..XOR_COLOR };
+            canvas.blend_pixel(0, 0, source);
+            assert_eq!(reads.load(Ordering::Relaxed), usize::from(alpha != 255));
+            let factor = f32::from(alpha) / 255.0;
+            assert_color(
+                canvas.image(),
+                0,
+                0,
+                Color {
+                    a: 255,
+                    r: (f32::from(source.r) * factor + f32::from(background.r) * (1.0 - factor)) as u8,
+                    g: (f32::from(source.g) * factor + f32::from(background.g) * (1.0 - factor)) as u8,
+                    b: (f32::from(source.b) * factor + f32::from(background.b) * (1.0 - factor)) as u8,
+                },
+            );
         }
     }
 

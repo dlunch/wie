@@ -1,7 +1,7 @@
 use alloc::{borrow::Cow, boxed::Box, format, vec, vec::Vec};
 use core::marker::PhantomData;
 
-use bytemuck::cast_vec;
+use bytemuck::{Zeroable, cast_vec};
 
 use jvm::{
     Array, ArrayRawBufferMut, ClassInstanceRef, Jvm, Result as JvmResult,
@@ -290,10 +290,10 @@ where
     fn get_pixel(&self, x: i32, y: i32) -> Color {
         let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
-        let mut buffer = vec![0; self.bytes_per_pixel() as usize];
-        self.raw_buffer.read(offset as _, &mut buffer).unwrap();
+        let mut raw = T::DataType::zeroed();
+        self.raw_buffer.read(offset, bytemuck::bytes_of_mut(&mut raw)).unwrap();
 
-        T::to_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]))
+        T::to_color(raw)
     }
 
     fn raw(&self) -> Cow<'_, [u8]> {
@@ -352,10 +352,45 @@ where
 
         let offset = (((y as u32) * self.width() + (x as u32)) * self.bytes_per_pixel()) as usize;
 
-        let mut buffer = vec![0; self.bytes_per_pixel() as usize];
-        self.raw_buffer.read(offset as _, &mut buffer).unwrap();
+        let mut raw = T::DataType::zeroed();
+        self.raw_buffer.read(offset, bytemuck::bytes_of_mut(&mut raw)).unwrap();
 
-        let raw = T::xor_color(*bytemuck::from_bytes(&buffer[..size_of::<T::DataType>()]), color);
+        let raw = T::xor_color(raw, color);
         self.raw_buffer.write(offset as _, bytemuck::bytes_of(&raw)).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn check_pixel_buffer<T: PixelType>(jvm: &Jvm, pixels: [T::DataType; 2]) -> JvmResult<()> {
+        let size = size_of::<T::DataType>();
+        let image = Image::create_image_instance(jvm, 2, 1, bytemuck::cast_slice(&pixels), size as u32).await?;
+        let mut buffer = JavaImageBuffer::<T>::new(jvm, &image).await?;
+        let actual = buffer.get_pixel(1, 0);
+        let expected = T::to_color(pixels[1]);
+        assert_eq!((actual.a, actual.r, actual.g, actual.b), (expected.a, expected.r, expected.g, expected.b));
+
+        let color = Color {
+            a: 255,
+            r: 127,
+            g: 63,
+            b: 31,
+        };
+        buffer.xor_pixel(1, 0, color);
+        let expected = [pixels[0], T::xor_color(pixels[1], color)];
+        assert_eq!(&*buffer.raw(), bytemuck::cast_slice(&expected));
+        Ok(())
+    }
+
+    #[test]
+    fn java_pixel_buffers_preserve_native_formats() -> wie_util::Result<()> {
+        test_utils::run_jvm_test(Box::new([crate::get_protos().into()]), |jvm| async move {
+            check_pixel_buffer::<Rgb332Pixel>(&jvm, [0x13, 0xe7]).await?;
+            check_pixel_buffer::<Rgb565Pixel>(&jvm, [0x1234, 0xabcd]).await?;
+            check_pixel_buffer::<ArgbPixel>(&jvm, [0x10203040, 0x80abcdef]).await?;
+            Ok(())
+        })
     }
 }
