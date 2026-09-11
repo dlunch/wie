@@ -3,7 +3,7 @@ extern crate alloc;
 
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 
-use wie_arm_jit_types::{CodeImage, CompileRequest, ManifestRegion};
+use wie_arm_jit_types::{CodeImage, CompileRegion, CompileRequest, ManifestRegion};
 
 mod codegen;
 
@@ -23,6 +23,9 @@ pub struct WasmArtifact {
 pub struct Compiler {
     request: CompileRequest,
     builder: Option<codegen::ModuleBuilder>,
+    pending: Option<CompileRegion>,
+    pending_instructions: usize,
+    pending_page: Option<u32>,
     chunks: VecDeque<Vec<u8>>,
     chunk_offset: usize,
     artifact: WasmArtifact,
@@ -34,6 +37,9 @@ impl Compiler {
         Self {
             request,
             builder: Some(codegen::ModuleBuilder::default()),
+            pending: None,
+            pending_instructions: 0,
+            pending_page: None,
             chunks: VecDeque::new(),
             chunk_offset: 0,
             artifact: WasmArtifact {
@@ -50,13 +56,44 @@ impl Compiler {
             return Ok(true);
         }
         if let Some(builder) = &mut self.builder {
-            let Some(region) = self.request.regions.next() else {
-                let builder = core::mem::take(builder);
-                self.builder = None;
-                self.chunks = builder.begin_assembly(&mut self.artifact.bytes)?;
-                return Ok(false);
+            let next = self.request.regions.next();
+            let finished = next.is_none();
+            let region = match next {
+                Some(None) => return Ok(false),
+                Some(Some(mut region)) => {
+                    let (instructions, first, last) = region
+                        .ir
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.instructions)
+                        .fold((0, u32::MAX, 0), |(count, first, last), instruction| {
+                            (count + 1, first.min(instruction.pc), last.max(instruction.pc))
+                        });
+                    // Coalesce small fragments without expanding the selectors of larger regions.
+                    let page = (instructions <= 16 && first >> 14 == last >> 14).then_some(first >> 14);
+                    if let Some(pending) = &mut self.pending
+                        && page.is_some()
+                        && page == self.pending_page
+                        && pending.ir.entry.thumb == region.ir.entry.thumb
+                        && pending.ir.entry.cpu_mode == region.ir.entry.cpu_mode
+                        && self.pending_instructions + instructions <= 512
+                        && pending.ir.blocks.len() + region.ir.blocks.len() <= 128
+                    {
+                        self.pending_instructions += instructions;
+                        pending.ir.blocks.append(&mut region.ir.blocks);
+                        pending.source.append(&mut region.source);
+                        pending.source_bytes.append(&mut region.source_bytes);
+                        return Ok(false);
+                    }
+                    self.pending_instructions = instructions;
+                    self.pending_page = page;
+                    self.pending.replace(region)
+                }
+                None => self.pending.take(),
             };
-            if let Some(region) = region {
+            if let Some(mut region) = region {
+                region.source.sort_unstable_by_key(|stamp| stamp.page);
+                region.source.dedup_by_key(|stamp| stamp.page);
                 builder.add_region(&region.ir);
                 let mut instruction_pcs: Vec<_> = region
                     .ir
@@ -72,6 +109,11 @@ impl Compiler {
                     source: region.source,
                     source_bytes: region.source_bytes,
                 });
+            }
+            if finished {
+                let builder = core::mem::take(builder);
+                self.builder = None;
+                self.chunks = builder.begin_assembly(&mut self.artifact.bytes)?;
             }
             return Ok(false);
         }
@@ -175,11 +217,118 @@ pub fn bind_manifest_source(region: &mut ManifestRegion, images: &[CodeImage]) -
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
+    use alloc::{boxed::Box, sync::Arc, vec};
+    use core::sync::atomic::{AtomicUsize, Ordering};
 
-    use wie_arm_jit_types::{CodeImage, CodePageStamp, RegionKey};
+    use wie_arm_jit_types::{
+        CodeImage, CodePageStamp, CompileRegion, RegionKey,
+        ir::{BasicBlock, Condition, Instruction, Operation, RegionIr},
+    };
 
     use super::*;
+
+    fn region_with_blocks(entry: RegionKey, blocks: &[(u32, usize)]) -> CompileRegion {
+        let size = if entry.thumb { 2 } else { 4 };
+        // MOV r8,r8 and PLD are instruction-neutral source bytes for these compiler fixtures.
+        let encoded: &[u8] = if entry.thumb { &[0xc0, 0x46] } else { &[0x00, 0xf0, 0xd0, 0xf5] };
+        let source_bytes: Vec<_> = blocks.iter().map(|(pc, count)| (*pc, encoded.repeat(*count))).collect();
+        let mut source: Vec<_> = blocks
+            .iter()
+            .map(|(pc, _)| CodePageStamp {
+                page: pc & !0xffff,
+                version: 7,
+            })
+            .collect();
+        source.sort_unstable_by_key(|stamp| stamp.page);
+        source.dedup_by_key(|stamp| stamp.page);
+        CompileRegion {
+            ir: RegionIr {
+                entry,
+                blocks: blocks
+                    .iter()
+                    .map(|(pc, count)| BasicBlock {
+                        instructions: (0..*count)
+                            .map(|index| Instruction {
+                                pc: pc + index as u32 * u32::from(size),
+                                size,
+                                condition: Condition::Always,
+                                operation: Operation::Nop,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            },
+            source,
+            source_bytes,
+        }
+    }
+
+    #[test]
+    fn compiler_coalesces_across_yields_and_flushes_once_at_eof() {
+        let entry = RegionKey {
+            pc: 0x1004,
+            thumb: false,
+            cpu_mode: 0x1f,
+        };
+        let first = region_with_blocks(entry, &[(0x1004, 2)]);
+        let second = region_with_blocks(RegionKey { pc: 0x1010, ..entry }, &[(0x1010, 1)]);
+        let expected_source_bytes = [first.source_bytes.as_slice(), second.source_bytes.as_slice()].concat();
+        let mut image = CodeImage {
+            address: 0x1000,
+            bytes: vec![0xff; 0x20],
+            source: vec![CodePageStamp { page: 0, version: 7 }],
+        };
+        for (pc, bytes) in &expected_source_bytes {
+            let start = (pc - image.address) as usize;
+            image.bytes[start..start + bytes.len()].copy_from_slice(bytes);
+        }
+        let mut inputs = vec![
+            Some(first),
+            None,
+            Some(second),
+            Some(region_with_blocks(RegionKey { pc: 0x4000, ..entry }, &[(0x4000, 1)])),
+        ]
+        .into_iter();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let mut compiler = Compiler::new(CompileRequest {
+            images: Arc::from([]),
+            regions: Box::new(core::iter::from_fn(move || {
+                observed.fetch_add(1, Ordering::Relaxed);
+                inputs.next()
+            })),
+        });
+        for (step, emitted) in [(1, 0), (2, 0), (3, 0), (4, 1), (5, 2)] {
+            assert!(!compiler.step().unwrap());
+            assert_eq!(calls.load(Ordering::Relaxed), step);
+            assert_eq!(compiler.artifact.manifest.len(), emitted);
+            assert!(compiler.artifact.bytes.is_empty());
+        }
+        loop {
+            let previous_size = compiler.artifact.bytes.len();
+            let complete = compiler.step().unwrap();
+            assert!(compiler.artifact.bytes.len() - previous_size <= COPY_SIZE);
+            assert_eq!(calls.load(Ordering::Relaxed), 5);
+            if complete {
+                break;
+            }
+        }
+        assert!(compiler.step().unwrap());
+        assert_eq!(calls.load(Ordering::Relaxed), 5);
+        let artifact = compiler.finish();
+        assert_eq!(artifact.manifest.len(), 2);
+        let merged = &artifact.manifest[0];
+        assert_eq!(merged.entry, entry);
+        assert_eq!(merged.instruction_pcs, [0x1004, 0x1008, 0x1010]);
+        assert_eq!(merged.source, image.source);
+        assert_eq!(merged.source_bytes, expected_source_bytes);
+        assert_eq!(artifact.manifest[1].instruction_pcs, [0x4000]);
+        let mut restored = merged.clone();
+        restored.source.clear();
+        image.bytes[0xc] ^= 1; // The gap between source spans is not translated code.
+        bind_manifest_source(&mut restored, &[image]).unwrap();
+        assert_eq!(restored.source, merged.source);
+    }
 
     #[test]
     fn cached_manifest_rebinds_current_stamps_and_preserves_slot_order() {

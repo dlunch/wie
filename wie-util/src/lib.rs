@@ -65,9 +65,9 @@ where
         return Err(WieError::InvalidMemoryAccess(address));
     }
 
-    let mut result = Vec::with_capacity(20);
+    let mut result = Vec::new();
     let mut cursor = address;
-    let mut buffer = [0; 4];
+    let mut buffer = [0; 32];
     loop {
         let (size, read) = match reader.read_bytes(cursor, &mut buffer) {
             // The terminator may precede an unmapped byte in this chunk.
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn read_null_terminated_string_handles_four_byte_boundaries() {
+    fn read_null_terminated_string_returns_bytes_before_nul() {
         let memory = StrictMemory {
             memory: vec![0, b't', b'e', b's', b't', 0],
         };
@@ -248,7 +248,16 @@ mod tests {
 
     #[test]
     fn terminated_string_reads_stop_at_the_reader_boundary() {
-        for bytes in [b"".as_slice(), b"a", b"abcd", b"abcde", &[0xff, 0x80]] {
+        for bytes in [
+            b"".as_slice(),
+            b"a",
+            b"abcd",
+            b"abcde",
+            &[0xff, 0x80],
+            &[b'x'; 31],
+            &[b'x'; 32],
+            &[b'x'; 33],
+        ] {
             let mut memory = StrictMemory { memory: vec![0] };
             memory.memory.extend_from_slice(bytes);
             memory.memory.push(0);
@@ -271,7 +280,7 @@ mod tests {
 
         impl ByteRead for FailingReader {
             fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
-                assert_eq!(result.len(), 4);
+                assert_eq!(result.len(), 32);
                 if address == 1 {
                     result.fill(b'x');
                     Ok(result.len())
@@ -285,7 +294,7 @@ mod tests {
 
         assert!(matches!(
             read_null_terminated_string_bytes(&FailingReader(true), 1),
-            Err(WieError::FatalError(message)) if message == "Short read at 0x5: expected 4, got 0"
+            Err(WieError::FatalError(message)) if message == "Short read at 0x21: expected 32, got 0"
         ));
         assert!(matches!(
             read_null_terminated_string_bytes(&FailingReader(false), 1),

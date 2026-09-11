@@ -281,8 +281,11 @@ fn compile_region(ir: &RegionIr) -> Function {
             }
             let exit_depth = count - index as u32 + (block.instructions.len() - instruction_index) as u32;
             boundaries(&mut s, ir, Some(instruction.pc), exit_depth);
-            s.i32_const(instruction.pc.wrapping_add(u32::from(instruction.size)) as i32)
-                .local_set(NEXT_PC);
+            let fallthrough = instruction.pc.wrapping_add(u32::from(instruction.size)) as i32;
+            let writes_pc = instruction.operation.writes_pc();
+            if writes_pc {
+                s.i32_const(fallthrough).local_set(NEXT_PC);
+            }
             let conditional = instruction.condition != Condition::Always;
             if conditional {
                 condition(&mut s, instruction.condition);
@@ -292,7 +295,13 @@ fn compile_region(ir: &RegionIr) -> Function {
             if conditional {
                 s.end();
             }
-            s.local_get(0).local_get(NEXT_PC).i32_store(field(60));
+            s.local_get(0);
+            if writes_pc {
+                s.local_get(NEXT_PC);
+            } else {
+                s.i32_const(fallthrough);
+            }
+            s.i32_store(field(60));
             s.local_get(EXECUTED).i32_const(1).i32_add().local_set(EXECUTED);
         }
         s.br(count - index as u32);
@@ -529,34 +538,29 @@ fn flag(s: &mut InstructionSink<'_>, bit: i32) {
 
 fn condition(s: &mut InstructionSink<'_>, condition: Condition) {
     match condition {
-        Condition::Eq | Condition::Ne => {
-            flag(s, 30);
-        }
-        Condition::Cs | Condition::Cc => {
-            flag(s, 29);
-        }
-        Condition::Mi | Condition::Pl => {
-            flag(s, 31);
-        }
-        Condition::Vs | Condition::Vc => {
-            flag(s, 28);
+        Condition::Eq | Condition::Ne | Condition::Cs | Condition::Cc | Condition::Mi | Condition::Pl | Condition::Vs | Condition::Vc => {
+            let shift = match condition {
+                Condition::Eq | Condition::Ne => 1,
+                Condition::Cs | Condition::Cc => 2,
+                Condition::Vs | Condition::Vc => 3,
+                _ => 0,
+            };
+            s.local_get(CPSR);
+            if shift != 0 {
+                s.i32_const(shift).i32_shl();
+            }
+            s.i32_const(0).i32_lt_s();
         }
         Condition::Hi | Condition::Ls => {
-            flag(s, 29);
-            flag(s, 30);
-            s.i32_eqz().i32_and();
+            s.local_get(CPSR).i32_const(0x6000_0000).i32_and().i32_const(0x2000_0000).i32_eq();
         }
-        Condition::Ge | Condition::Lt => {
-            flag(s, 31);
-            flag(s, 28);
-            s.i32_eq();
-        }
-        Condition::Gt | Condition::Le => {
-            flag(s, 31);
-            flag(s, 28);
-            s.i32_eq();
-            flag(s, 30);
-            s.i32_eqz().i32_and();
+        Condition::Ge | Condition::Lt | Condition::Gt | Condition::Le => {
+            // Move N xor V, and Z for strict comparisons, into the sign bit.
+            s.local_get(CPSR).local_get(CPSR).i32_const(3).i32_shl().i32_xor();
+            if matches!(condition, Condition::Gt | Condition::Le) {
+                s.local_get(CPSR).i32_const(1).i32_shl().i32_or();
+            }
+            s.i32_const(0).i32_ge_s();
         }
         Condition::Always => {
             s.i32_const(1);
@@ -686,7 +690,9 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             right,
             set_flags,
         } => {
-            if !set_flags && let (Value::Immediate(left), Some((right, _))) = (left, constant_operand(right)) {
+            if (!set_flags || matches!(op, AluOp::Move | AluOp::Not))
+                && let (Value::Immediate(left), Some((right, carry))) = (left, constant_operand(right))
+            {
                 let result = match op {
                     AluOp::Add => Some(left.wrapping_add(right)),
                     AluOp::Sub => Some(left.wrapping_sub(right)),
@@ -710,11 +716,21 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                             s.local_get(0).i32_const(result as i32).i32_store(field(u64::from(destination) * 4));
                         }
                     }
+                    if set_flags {
+                        let flags = (result & 0x8000_0000) | (u32::from(result == 0) << 30) | (carry.unwrap_or(0) << 29);
+                        s.local_get(0)
+                            .local_get(CPSR)
+                            .i32_const(if carry.is_some() { 0x1fff_ffff } else { 0x3fff_ffff })
+                            .i32_and();
+                        s.i32_const(flags as i32).i32_or().local_tee(CPSR).i32_store(field(64));
+                    }
                     return;
                 }
             }
-            value(s, left, instruction.pc, thumb);
-            s.local_set(LEFT);
+            if !matches!(op, AluOp::Move | AluOp::Not | AluOp::CountLeadingZeros) {
+                value(s, left, instruction.pc, thumb);
+                s.local_set(LEFT);
+            }
             let arithmetic = matches!(
                 op,
                 AluOp::Add | AluOp::AddCarry | AluOp::Sub | AluOp::SubCarry | AluOp::ReverseSub | AluOp::ReverseSubCarry
@@ -999,6 +1015,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn conditions_emit_direct_bit_comparisons() {
+        for (positive, negative, bytes) in [
+            (Condition::Eq, Condition::Ne, vec![0x20, 6, 0x41, 1, 0x74, 0x41, 0, 0x48]),
+            (Condition::Cs, Condition::Cc, vec![0x20, 6, 0x41, 2, 0x74, 0x41, 0, 0x48]),
+            (Condition::Mi, Condition::Pl, vec![0x20, 6, 0x41, 0, 0x48]),
+            (Condition::Vs, Condition::Vc, vec![0x20, 6, 0x41, 3, 0x74, 0x41, 0, 0x48]),
+            (
+                Condition::Hi,
+                Condition::Ls,
+                vec![0x20, 6, 0x41, 0x80, 0x80, 0x80, 0x80, 6, 0x71, 0x41, 0x80, 0x80, 0x80, 0x80, 2, 0x46],
+            ),
+            (Condition::Ge, Condition::Lt, vec![0x20, 6, 0x20, 6, 0x41, 3, 0x74, 0x73, 0x41, 0, 0x4e]),
+            (
+                Condition::Gt,
+                Condition::Le,
+                vec![0x20, 6, 0x20, 6, 0x41, 3, 0x74, 0x73, 0x20, 6, 0x41, 1, 0x74, 0x72, 0x41, 0, 0x4e],
+            ),
+        ] {
+            for code in [positive, negative] {
+                let mut function = Function::new([]);
+                condition(&mut function.instructions(), code);
+                let mut expected = vec![0];
+                expected.extend_from_slice(&bytes);
+                if code == negative {
+                    expected.push(0x45);
+                }
+                assert_eq!(function.into_raw_body(), expected, "{code:?}");
+            }
+        }
+    }
+
+    #[test]
     fn dispatcher_is_the_only_export_and_reaches_all_region_slots() {
         let ir = RegionIr {
             entry: RegionKey {
@@ -1096,7 +1144,7 @@ mod tests {
         assert!(!compiler.step().unwrap());
         assert!(compiler.artifact.manifest.is_empty());
         assert!(!compiler.step().unwrap());
-        assert_eq!(compiler.artifact.manifest.len(), 1);
+        assert!(compiler.artifact.manifest.is_empty());
         let mut assembly_steps = 0;
         loop {
             let previous = compiler.artifact.bytes.len();
@@ -1116,48 +1164,6 @@ mod tests {
             8 * 512
         );
         assert!(artifact.bytes.len() > 512 * 1024);
-    }
-
-    #[test]
-    fn dispatcher_keeps_distinct_regions_and_their_source_and_mode() {
-        let request = CompileRequest {
-            images: Arc::from([]),
-            regions: Box::new(
-                [
-                    (0x1000, false, 0x1f, 1),
-                    (0x1004, false, 0x1f, 1),
-                    (0x1008, false, 0x1f, 2),
-                    (0x100c, false, 0x10, 2),
-                    (0x1010, true, 0x1f, 2),
-                    (0x4000, true, 0x1f, 2),
-                ]
-                .into_iter()
-                .map(|(pc, thumb, cpu_mode, version)| {
-                    Some(CompileRegion {
-                        ir: RegionIr {
-                            entry: RegionKey { pc, thumb, cpu_mode },
-                            blocks: vec![BasicBlock {
-                                instructions: vec![Instruction {
-                                    pc,
-                                    size: if thumb { 2 } else { 4 },
-                                    condition: Condition::Always,
-                                    operation: Operation::Nop,
-                                }],
-                            }],
-                        },
-                        source: vec![CodePageStamp { page: 0, version }],
-                        source_bytes: vec![],
-                    })
-                }),
-            ),
-        };
-        let artifact = crate::compile(request).unwrap();
-        assert_eq!(artifact.manifest.len(), 6);
-        assert_eq!(artifact.manifest[0].instruction_pcs, [0x1000]);
-        assert_eq!(
-            artifact.manifest.iter().map(|region| region.instruction_pcs.len()).collect::<Vec<_>>(),
-            [1, 1, 1, 1, 1, 1]
-        );
     }
 
     #[test]
@@ -1388,7 +1394,7 @@ mod tests {
     }
 
     #[test]
-    fn pc_relative_immediate_alu_emits_only_a_constant_store() {
+    fn constant_alu_emits_folded_results_and_move_flags() {
         for (op, left, input, shift, amount, result) in [
             (AluOp::Add, 0x1008, 4, Shift::Lsl, 0, 0x100c_u32),
             (AluOp::Sub, 0x1008, 4, Shift::Lsl, 0, 0x1004),
@@ -1419,14 +1425,24 @@ mod tests {
                             shift,
                             amount: ShiftAmount::Immediate(amount),
                         },
-                        set_flags: false,
+                        set_flags: matches!(op, AluOp::Move | AluOp::Not),
                     },
                 },
                 false,
                 0,
             );
             let mut expected = Function::new([]);
-            expected.instructions().local_get(0).i32_const(result as i32).i32_store(field(0));
+            let mut s = expected.instructions();
+            s.local_get(0).i32_const(result as i32).i32_store(field(0));
+            if matches!(op, AluOp::Move | AluOp::Not) {
+                let (mask, flags) = if op == AluOp::Move {
+                    (0x1fff_ffff, 0xa000_0000_u32)
+                } else {
+                    (0x3fff_ffff, 0x8000_0000)
+                };
+                s.local_get(0).local_get(CPSR).i32_const(mask).i32_and();
+                s.i32_const(flags as i32).i32_or().local_tee(CPSR).i32_store(field(64));
+            }
             assert_eq!(actual.into_raw_body(), expected.into_raw_body(), "{op:?} {left:#x}, {input:#x}");
         }
     }

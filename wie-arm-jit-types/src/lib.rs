@@ -16,13 +16,13 @@ pub struct RegionKey {
     pub cpu_mode: u8,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CodePageStamp {
     pub page: u32,
     pub version: u64,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct CompiledHandle {
     pub slot: u32,
 }
