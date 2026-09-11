@@ -219,6 +219,15 @@ impl ArmCore {
     {
         // we don't need to save r0-r3, but to make it simple, we save all registers
         let previous_context = self.save_context();
+        let result = self.run_function_inner(address, params).await;
+        self.restore_context(&previous_context);
+        result
+    }
+
+    async fn run_function_inner<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
+    where
+        R: RunFunctionResult<R>,
+    {
         {
             let mut inner = self.inner.lock();
 
@@ -308,10 +317,7 @@ impl ArmCore {
             }
         }
 
-        let result = R::get(self);
-        self.restore_context(&previous_context);
-
-        Ok(result)
+        Ok(R::get(self))
     }
 
     pub fn register_svc_handler<F, C, R, P>(&mut self, category: u32, handler: F, context: &C) -> Result<()>
@@ -923,6 +929,36 @@ mod tests {
         assert_eq!(result.load(Ordering::Relaxed), 0);
         assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(17))));
         assert_eq!(result.load(Ordering::Relaxed), 5_000);
+    }
+
+    #[test]
+    fn failed_arm_calls_restore_caller_registers_and_stack() {
+        async fn throwing_handler(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+            core.write_return_value(&[99, 98])?;
+            Err(WieError::JavaException(0x1234))
+        }
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.map(0x2000, 0x1000).unwrap();
+        core.register_svc_handler(1, throwing_handler, &()).unwrap();
+        let target = core.make_svc_stub(1, 0u32).unwrap();
+        let mut context = core.save_context();
+        context.r0 = 42;
+        context.r1 = 43;
+        context.sp = 0x3000;
+        context.lr = 0x4001;
+        core.restore_context(&context);
+        let registers = core.dump_regs();
+
+        for address in [target, 0x1001] {
+            let result = futures::executor::block_on(core.run_function::<()>(address, &[1, 2, 3, 4, 5]));
+            if address == target {
+                assert!(matches!(result, Err(WieError::JavaException(0x1234))));
+            } else {
+                assert!(matches!(result, Err(WieError::InvalidMemoryAccess(_))));
+            }
+            assert_eq!(core.dump_regs(), registers);
+        }
     }
 
     #[test]
