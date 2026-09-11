@@ -223,6 +223,18 @@ impl ArmCore {
     {
         // we don't need to save r0-r3, but to make it simple, we save all registers
         let previous_context = self.save_context();
+        let result = self.run_function_inner(address, params).await;
+        // Closed cores retain the fault state; recoverable calls restore their caller.
+        if !self.inner.lock().closed {
+            self.restore_context(&previous_context);
+        }
+        result
+    }
+
+    async fn run_function_inner<R>(&mut self, address: u32, params: &[u32]) -> Result<R>
+    where
+        R: RunFunctionResult<R>,
+    {
         {
             let mut inner = self.inner.lock();
             if inner.closed {
@@ -342,10 +354,7 @@ impl ArmCore {
             }
         }
 
-        let result = R::get(self);
-        self.restore_context(&previous_context);
-
-        Ok(result)
+        Ok(R::get(self))
     }
 
     pub fn register_svc_handler<F, C, R, P>(&mut self, category: u32, handler: F, context: &C) -> Result<()>
@@ -935,6 +944,7 @@ mod tests {
         let mut remaining = core.clone();
         assert!(futures::executor::block_on(core.run_function::<()>(1, &[42])).is_err());
         let fault = core.save_context();
+        assert_eq!((fault.r0, fault.pc), (42, 0));
         assert!(futures::executor::block_on(remaining.run_function::<()>(0x1001, &[7])).is_err());
         let after = remaining.save_context();
         assert_eq!((after.r0, after.pc, after.cpsr), (fault.r0, fault.pc, fault.cpsr));
@@ -1263,6 +1273,37 @@ mod tests {
         assert_eq!(result.load(Ordering::Relaxed), 0);
         assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(17))));
         assert_eq!(result.load(Ordering::Relaxed), 5_000);
+    }
+
+    #[test]
+    fn recoverable_arm_call_failures_restore_caller_registers_and_stack() {
+        async fn throwing_handler(core: &mut ArmCore, _: &mut ()) -> Result<()> {
+            core.write_return_value(&[99, 98])?;
+            Err(WieError::JavaException(0x1234))
+        }
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.map(0x2000, 0x1000).unwrap();
+        core.register_svc_handler(1, throwing_handler, &()).unwrap();
+        let target = core.make_svc_stub(1, 0u32).unwrap();
+        let mut context = core.save_context();
+        context.r0 = 42;
+        context.r1 = 43;
+        context.lr = 0x4001;
+
+        for sp in [0x3000, 0x2000_0004] {
+            context.sp = sp;
+            core.restore_context(&context);
+            let registers = core.dump_regs();
+            let result = futures::executor::block_on(core.run_function::<()>(target, &[1, 2, 3, 4, 5]));
+            if sp == 0x3000 {
+                assert!(matches!(result, Err(WieError::JavaException(0x1234))));
+            } else {
+                assert!(matches!(result, Err(WieError::InvalidMemoryAccess(_))));
+            }
+            assert!(core.check_running().is_ok());
+            assert_eq!(core.dump_regs(), registers);
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

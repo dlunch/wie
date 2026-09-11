@@ -13,7 +13,7 @@
     "@sentry/browser": "^10.73.0",
     "css-loader": "^7.1.5",
     "html-bundler-webpack-plugin": "^4.23.2",
-    "lucide": "^1.41.0",
+    "lucide": "^1.42.0",
     "sass": "^1.104.0",
     "sass-loader": "^17.0.1",
     "spessasynth_lib": "^4.3.14",
@@ -25,7 +25,7 @@
     "webpack-dev-server": "^6.0.0"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.0",
     "@types/webpack": "^5.28.5",
     "copy-webpack-plugin": "^14.0.0"
   }

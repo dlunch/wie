@@ -236,21 +236,11 @@ mod tests {
     }
 
     #[test]
-    fn read_null_terminated_string_returns_bytes_before_nul() {
-        let memory = StrictMemory {
-            memory: vec![0, b't', b'e', b's', b't', 0],
-        };
-
-        let value = read_null_terminated_string_bytes(&memory, 1).unwrap();
-
-        assert_eq!(value, b"test");
-    }
-
-    #[test]
     fn terminated_string_reads_stop_at_the_reader_boundary() {
         for bytes in [
             b"".as_slice(),
             b"a",
+            b"test",
             b"abcd",
             b"abcde",
             &[0xff, 0x80],

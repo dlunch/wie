@@ -182,43 +182,33 @@ impl JavaClassDefinition {
         Ok(descriptor.fields_size as _)
     }
 
-    pub fn methods(&self) -> Result<Vec<JavaMethod>> {
+    pub fn methods(&self) -> Result<impl Iterator<Item = JavaMethod> + '_> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        if descriptor.ptr_methods == 0 {
-            return Ok(Vec::new());
-        }
+        let ptr_methods = if descriptor.ptr_methods == 0 {
+            Vec::new()
+        } else {
+            read_null_terminated_table(&self.core, descriptor.ptr_methods)?
+        };
 
-        let ptr_methods = read_null_terminated_table(&self.core, descriptor.ptr_methods)?;
-
-        let mut result = Vec::with_capacity(ptr_methods.len());
-        for method in ptr_methods {
-            let method = JavaMethod::from_raw(method, &self.core);
-
-            if method.ptr_class() == self.ptr_raw {
-                result.push(method)
-            }
-        }
-
-        Ok(result)
+        Ok(ptr_methods
+            .into_iter()
+            .map(|ptr| JavaMethod::from_raw(ptr, &self.core))
+            .filter(|method| method.ptr_class() == self.ptr_raw))
     }
 
-    pub fn fields(&self) -> Result<Vec<JavaField>> {
+    pub fn fields(&self) -> Result<impl Iterator<Item = JavaField> + '_> {
         let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
         let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
 
-        if descriptor.ptr_fields_or_element_type == 0 {
-            return Ok(Vec::new());
-        }
+        let ptr_fields = if descriptor.ptr_fields_or_element_type == 0 || read_generic::<u8, _>(&self.core, descriptor.ptr_name)? == b'[' {
+            Vec::new()
+        } else {
+            read_null_terminated_table(&self.core, descriptor.ptr_fields_or_element_type)?
+        };
 
-        if self.name()?.starts_with("[") {
-            return Ok(Vec::new());
-        }
-
-        let ptr_fields = read_null_terminated_table(&self.core, descriptor.ptr_fields_or_element_type)?;
-
-        Ok(ptr_fields.into_iter().map(|x| JavaField::from_raw(x, &self.core)).collect())
+        Ok(ptr_fields.into_iter().map(|ptr| JavaField::from_raw(ptr, &self.core)))
     }
 
     pub fn name(&self) -> Result<String> {
@@ -228,6 +218,13 @@ impl JavaClassDefinition {
         let bytes = read_null_terminated_string_bytes(&self.core, descriptor.ptr_name)?;
 
         Ok(String::from_utf8(bytes).unwrap())
+    }
+
+    pub fn is_array(&self) -> Result<bool> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
+
+        Ok(read_generic::<u8, _>(&self.core, descriptor.ptr_name)? == b'[')
     }
 
     pub fn parent_class(&self) -> Result<Option<JavaClassDefinition>> {
@@ -246,7 +243,9 @@ impl JavaClassDefinition {
 
         for method in methods {
             let full_name = method.name()?;
-            if full_name.name == name && full_name.descriptor == descriptor && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
+            if full_name.name() == name
+                && full_name.descriptor() == descriptor
+                && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static
             {
                 return Ok(Some(method));
             }
@@ -260,7 +259,10 @@ impl JavaClassDefinition {
 
         for field in fields {
             let full_name = field.name()?;
-            if full_name.name == name && full_name.descriptor == descriptor && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static {
+            if full_name.name() == name
+                && full_name.descriptor() == descriptor
+                && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static
+            {
                 return Ok(Some(field));
             }
         }
@@ -329,14 +331,14 @@ impl ClassDefinition for JavaClassDefinition {
     }
 
     fn fields(&self) -> Vec<Box<dyn Field>> {
-        self.fields().unwrap().into_iter().map(|x| Box::new(x) as _).collect()
+        self.fields().unwrap().map(|x| Box::new(x) as _).collect()
     }
 
     fn get_static_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field).unwrap();
 
-        let r#type = JavaType::parse(&field.descriptor());
+        let r#type = JavaType::parse(field.name().unwrap().descriptor());
         Ok(JavaValueCodec::new(&self.core).decode_word(value, &r#type))
     }
 

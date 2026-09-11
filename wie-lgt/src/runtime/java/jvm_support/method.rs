@@ -268,7 +268,10 @@ mod tests {
     use wie_util::{Result, write_generic, write_null_terminated_string_bytes};
 
     use super::{JavaMethod, JavaMethodRunResult, RawJavaMethod};
-    use crate::runtime::java::jvm_support::{JavaClassInstance, LgtJvmImplementation};
+    use crate::runtime::java::{
+        exception,
+        jvm_support::{JavaClassInstance, LgtJvmImplementation, LgtJvmSupport},
+    };
 
     async fn rust_wide_bridge(_jvm: &Jvm, observed: &mut Arc<Mutex<Option<(i64, u64)>>>, integer: i64, floating: f64) -> JvmResult<i64> {
         *observed.lock() = Some((integer, floating.to_bits()));
@@ -390,6 +393,84 @@ mod tests {
             system.tick()?;
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn missing_database_record_is_translated_before_guest_unwind() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let system_clone = system.clone();
+
+        system.spawn(async move || {
+            let mut core = ArmCore::new(false, None)?;
+            Allocator::init(&mut core)?;
+            let stack = Allocator::alloc(&mut core, 0x1000)?;
+            let mut context = core.save_context();
+            context.sp = stack + 0x1000;
+            core.restore_context(&context);
+
+            let implementation = LgtJvmImplementation::new(&mut core)?;
+            let protos = [wie_midp::get_protos().into(), wie_wipi_java::get_protos().into()];
+            let jvm = JvmSupport::new_jvm(&system_clone, None, Box::new(protos), &[], implementation).await?;
+            let name = JavaLangString::from_rust_string(&jvm, "empty-records").await.unwrap();
+            let database: Box<dyn jvm::ClassInstance> = jvm
+                .invoke_static(
+                    "org/kwis/msp/db/DataBase",
+                    "openDataBase",
+                    "(Ljava/lang/String;IZ)Lorg/kwis/msp/db/DataBase;",
+                    (name, 4, true),
+                )
+                .await
+                .unwrap();
+            let class = jvm.get_class("org/kwis/msp/db/DataBase").unwrap();
+            let method = class.definition.method("selectRecord", "(I)[B", false).unwrap();
+            let target = method.as_any().downcast_ref::<JavaMethod>().unwrap().target()?;
+
+            let wrapper = Allocator::alloc(&mut core, 20)?;
+            write_generic(
+                &mut core,
+                wrapper,
+                [
+                    0xb500u16, // push {lr}
+                    0x4c03,    // ldr r4, [pc, #12]
+                    0x47a0,    // blx r4
+                    0x2001,    // movs r0, #1 (normal return)
+                    0xbd00,    // pop {pc}
+                    0x2002,    // movs r0, #2 (catch)
+                    0xbd00,    // pop {pc}
+                    0x46c0,    // nop
+                ],
+            )?;
+            write_generic(&mut core, wrapper + 16, target)?;
+
+            // The guest catch resumes with the wrapper's saved LR still on the stack.
+            let mut catch_context = core.save_context();
+            catch_context.sp -= 4;
+            catch_context.lr = wrapper + 11;
+            catch_context.cpsr = 0x3f;
+            core.restore_context(&catch_context);
+            exception::push(&mut core)?;
+            core.restore_context(&context);
+
+            let result: u32 = core
+                .run_function(wrapper + 1, &[LgtJvmSupport::class_instance_raw(&*database), 0])
+                .await?;
+            assert_eq!(result, 2);
+            let pending = LgtJvmSupport::class_instance_from_raw(&core, exception::pending(&core)?);
+            assert!(jvm.is_instance(&*pending, "org/kwis/msp/db/DataBaseRecordException"));
+            assert_eq!(core.save_context().sp, context.sp);
+            exception::pop(&mut core)?;
+            assert_eq!(exception::pending(&core)?, 0);
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
         Ok(())
     }
 

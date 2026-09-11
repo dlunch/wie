@@ -1,14 +1,13 @@
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_util::{read_null_terminated_table, write_null_terminated_table};
 
-use super::{JavaMethod, Result, class_definition::JavaClassDefinition};
+use super::{JavaMethod, Result, class_definition::JavaClassDefinition, name::JavaFullName};
 
 struct JavaVtableMethod {
     method: JavaMethod,
-    name: String,
-    descriptor: String,
+    name: JavaFullName,
 }
 
 pub struct JavaVtable {
@@ -38,7 +37,7 @@ impl JavaVtable {
             let method = JavaMethod::from_raw(ptr_method, &self.core);
             let method_name = method.name()?;
 
-            if method_name.name == name && method_name.descriptor == descriptor {
+            if method_name.name() == name && method_name.descriptor() == descriptor {
                 return Ok(Some(method));
             }
         }
@@ -61,20 +60,15 @@ impl JavaVtable {
             let methods = class.methods()?;
 
             let items = methods
-                .into_iter()
                 .map(|x| {
                     let name = x.name()?;
 
-                    Ok(JavaVtableMethod {
-                        method: x,
-                        name: name.name,
-                        descriptor: name.descriptor,
-                    })
+                    Ok(JavaVtableMethod { method: x, name })
                 })
                 .collect::<Result<Vec<_>>>()?;
 
             for item in items {
-                let index = if let Some(index) = vtable.iter().position(|x| x.name == item.name && x.descriptor == item.descriptor) {
+                let index = if let Some(index) = vtable.iter().position(|x| x.name == item.name) {
                     vtable[index] = item;
 
                     index

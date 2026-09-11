@@ -55,7 +55,20 @@ lazy_static = { version = "^1.5", default-features = false }
 rustjava-runtime = { version = "^0.1.1" }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "^1", default-features = false, features = ["alloc"] }
-sentry = { version = "^0.49", features = ["anyhow", "tracing"] }
+# Use Rustls with ureq to support Android without OpenSSL or JVM certificate-verifier setup.
+sentry = { version = "^0.49", default-features = false, features = [
+    "anyhow",
+    "backtrace",
+    "contexts",
+    "debug-images",
+    "logs",
+    "metrics",
+    "panic",
+    "release-health",
+    "rustls",
+    "tracing",
+    "ureq",
+] }
 spin = { version = "^0.12", features = ["spin_mutex", "rwlock"], default-features = false }
 toml = { version = "^1", default-features = false, features = ["parse", "serde"] }
 tracing = { version = "^0.1", default-features = false, features = ["attributes"] }

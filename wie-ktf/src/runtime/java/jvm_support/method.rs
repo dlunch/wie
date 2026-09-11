@@ -55,11 +55,7 @@ impl JavaMethod {
         C: ?Sized + 'static + Send,
         Context: Deref<Target = C> + DerefMut + Clone + 'static + Sync + Send,
     {
-        let full_name = JavaFullName {
-            tag: 0,
-            name: proto.name.clone(),
-            descriptor: proto.descriptor.clone(),
-        };
+        let full_name = JavaFullName::new(0, &proto.name, &proto.descriptor);
         let full_name_bytes = full_name.as_bytes();
 
         let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
@@ -86,7 +82,7 @@ impl JavaMethod {
             },
         )?;
 
-        tracing::trace!("Wrote method {} at {ptr_raw:#x}", full_name.name);
+        tracing::trace!("Wrote method {} at {ptr_raw:#x}", full_name.name());
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -304,7 +300,6 @@ impl JavaMethod {
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
         }
 
-        let is_native = proto.access_flags.contains(MethodAccessFlags::NATIVE);
         let proxy = JavaMethodProxy {
             ptr_method,
             jvm: jvm.clone(),
@@ -319,13 +314,12 @@ impl JavaMethod {
 
         // Entry-field addresses identify the ABI while sharing the method implementation.
         let fn_body = core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_method)?;
-        let fn_native = if is_native {
-            let ptr_native_entry = ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
-            java_functions.lock().insert(ptr_native_entry, proxy);
-            core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_native_entry)?
-        } else {
-            0
-        };
+        // AOT code selects the ABI using the original handset implementation,
+        // which need not have the same native flag as our host prototype.
+        // Host methods have no guest exception table, so both entries can coexist.
+        let ptr_native_entry = ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
+        java_functions.lock().insert(ptr_native_entry, proxy);
+        let fn_native = core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_native_entry)?;
 
         Ok((fn_body, fn_native))
     }
@@ -336,13 +330,13 @@ impl Method for JavaMethod {
     fn name(&self) -> String {
         let name = self.name().unwrap();
 
-        name.name
+        name.name().into()
     }
 
     fn descriptor(&self) -> String {
         let name = self.name().unwrap();
 
-        name.descriptor
+        name.descriptor().into()
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {

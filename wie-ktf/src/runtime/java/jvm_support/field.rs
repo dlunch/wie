@@ -25,11 +25,7 @@ impl JavaField {
     }
 
     pub fn new(core: &mut ArmCore, ptr_class: u32, proto: JavaFieldProto, offset_or_value: u32) -> Result<Self> {
-        let full_name = JavaFullName {
-            tag: 0,
-            name: proto.name,
-            descriptor: proto.descriptor,
-        };
+        let full_name = JavaFullName::new(0, &proto.name, &proto.descriptor);
         let full_name_bytes = full_name.as_bytes();
         let ptr_name = Allocator::alloc(core, full_name_bytes.len() as u32)?;
         core.write_bytes(ptr_name, &full_name_bytes)?;
@@ -47,7 +43,7 @@ impl JavaField {
             },
         )?;
 
-        tracing::trace!("Wrote field {} at {ptr_raw:#x}", full_name.name);
+        tracing::trace!("Wrote field {} at {ptr_raw:#x}", full_name.name());
 
         Ok(Self::from_raw(ptr_raw, core))
     }
@@ -75,13 +71,13 @@ impl Field for JavaField {
     fn name(&self) -> String {
         let name = self.name().unwrap();
 
-        name.name.clone()
+        name.name().into()
     }
 
     fn descriptor(&self) -> String {
         let name = self.name().unwrap();
 
-        name.descriptor.clone()
+        name.descriptor().into()
     }
 
     fn access_flags(&self) -> FieldAccessFlags {
