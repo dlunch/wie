@@ -1,7 +1,9 @@
 use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     vec::Vec,
 };
+
+use hashbrown::HashMap;
 
 use wie_arm_jit_types::RegionKey;
 use wie_arm_jit_types::ir::{Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
@@ -27,7 +29,7 @@ const CONDITIONS: [Condition; 15] = [
 pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64; 128]) -> Option<RegionIr> {
     let alignment = if entry.thumb { 2 } else { 4 };
     let mut pending = VecDeque::from([entry.pc]);
-    let mut decoded = BTreeMap::new();
+    let mut decoded = HashMap::new();
     let mut leaders = BTreeSet::from([entry.pc]);
     let mut instruction_limit_reached = false;
     while let Some(pc) = pending.pop_front() {

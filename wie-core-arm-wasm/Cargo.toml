@@ -7,6 +7,7 @@ description.workspace = true
 repository.workspace = true
 
 [dependencies]
+serde_json = { workspace = true }
 wasm-encoder = { version = "^0.257", default-features = false }
 wie-arm-jit-types = { workspace = true }
 

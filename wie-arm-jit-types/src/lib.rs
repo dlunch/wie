@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use core::{future::Future, pin::Pin};
 
 use bytemuck::{Pod, Zeroable};
@@ -37,18 +37,23 @@ pub struct CodeImage {
 pub struct CompileRegion {
     pub ir: ir::RegionIr,
     pub source: Vec<CodePageStamp>,
+    pub source_bytes: Vec<(u32, Vec<u8>)>,
 }
 
-/// Each step emits one region or makes bounded decoder progress without retaining IR.
-pub type CompileRequest = Box<dyn Iterator<Item = Option<CompileRegion>> + Send>;
+pub struct CompileRequest {
+    pub images: Arc<[CodeImage]>,
+    /// Each step emits one region or makes bounded decoder progress without retaining IR.
+    pub regions: Box<dyn Iterator<Item = Option<CompileRegion>> + Send>,
+}
 pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact, String>> + Send>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ManifestRegion {
     pub entry: RegionKey,
     pub instruction_pcs: Vec<u32>,
+    #[serde(skip)]
     pub source: Vec<CodePageStamp>,
-    pub export: String,
+    pub source_bytes: Vec<(u32, Vec<u8>)>,
 }
 
 pub struct CompiledRegion {
@@ -99,6 +104,8 @@ pub enum AccessResult {
 }
 
 pub trait ExecutionAccess {
+    /// Looks up current code for a dispatcher transfer without retiring stale handles.
+    fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle>;
     /// Borrows an aligned, fully mapped range of `words` (1..=16), wrapping guest addresses at 32 bits.
     /// Returns `None` for unaligned or unmapped ranges. The guest-backed slices contain only
     /// requested bytes, split at a backing-memory boundary into a nonempty prefix and optional remainder;

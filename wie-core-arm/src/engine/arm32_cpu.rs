@@ -4,7 +4,8 @@ use core::cell::RefCell;
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_arm_jit_types::{
-    AccessResult, CodeImage, CodePageStamp, CompiledArtifact, CompiledExit, ExecutionAccess, PreparationFuture, PreparationState, RegionKey, RunFrame,
+    AccessResult, CodeImage, CodePageStamp, CompiledArtifact, CompiledExit, CompiledHandle, ExecutionAccess, PreparationFuture, PreparationState,
+    RegionKey, RunFrame,
 };
 use wie_backend::ProfileSample;
 use wie_util::{Result, WieError};
@@ -167,11 +168,16 @@ impl ArmEngine for Arm32CpuEngine {
                         sample_remaining: self.sampler.remaining,
                         ..RunFrame::default()
                     };
-                    let mut access = MemoryAccess {
-                        memory: &mut self.mem,
-                        sampler: &mut self.sampler,
+                    let result = {
+                        let (executor, resolve) = aot.execution_parts();
+                        let mut access = MemoryAccess {
+                            memory: &mut self.mem,
+                            sampler: &mut self.sampler,
+                            resolve: &resolve,
+                        };
+                        executor.execute(handle, &mut frame, &mut access)
                     };
-                    let exit = match aot.executor.execute(handle, &mut frame, &mut access) {
+                    let exit = match result {
                         Ok(exit) => exit,
                         Err(error) => {
                             self.shutdown();
@@ -310,9 +316,23 @@ impl ArmEngine for Arm32CpuEngine {
 struct MemoryAccess<'a> {
     memory: &'a mut EmulatedMemory,
     sampler: &'a mut Sampler,
+    resolve: &'a dyn Fn(RegionKey, &EmulatedMemory) -> Option<CompiledHandle>,
 }
 
 impl ExecutionAccess for MemoryAccess<'_> {
+    fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle> {
+        if cpsr & 0x0100_0000 != 0 {
+            return None;
+        }
+        (self.resolve)(
+            RegionKey {
+                pc,
+                thumb: cpsr & 0x20 != 0,
+                cpu_mode: (cpsr & 0x1f) as u8,
+            },
+            self.memory,
+        )
+    }
     fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])> {
         if !address.is_multiple_of(4) {
             return None;
@@ -346,8 +366,8 @@ impl ExecutionAccess for MemoryAccess<'_> {
         let bytes = &page.bytes[(address & PAGE_MASK) as usize..];
         let value = match width {
             1 => u32::from(bytes[0]),
-            2 => u32::from(u16::from_le_bytes([bytes[0], bytes[1]])),
-            _ => u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+            2 => u32::from(u16::from_le_bytes(bytes.as_chunks::<2>().0[0])),
+            _ => u32::from_le_bytes(bytes.as_chunks::<4>().0[0]),
         };
         AccessResult::Complete(value)
     }
@@ -498,6 +518,33 @@ impl EmulatedMemory {
                 .as_ref()
                 .is_some_and(|page| page.version == stamp.version)
         })
+    }
+
+    pub(crate) fn validate_code(&self, source: &mut [CodePageStamp], source_bytes: &[(u32, Vec<u8>)]) -> bool {
+        if self.code_is_current(source) {
+            return true;
+        }
+        // A cache flush publishes writes, but unchanged instructions still match their translation.
+        for (address, bytes) in source_bytes {
+            let mut address = *address;
+            let mut remaining = bytes.as_slice();
+            while !remaining.is_empty() {
+                let Some(page) = &self.pages[address as usize / PAGE_SIZE] else {
+                    return false;
+                };
+                let offset = (address & PAGE_MASK) as usize;
+                let size = (PAGE_SIZE - offset).min(remaining.len());
+                if page.bytes[offset..offset + size] != remaining[..size] {
+                    return false;
+                }
+                remaining = &remaining[size..];
+                address = address.wrapping_add(size as u32);
+            }
+        }
+        for stamp in source {
+            stamp.version = self.pages[stamp.page as usize / PAGE_SIZE].as_ref().unwrap().version;
+        }
+        true
     }
 
     fn invalidate_instruction_cache(&mut self, invalidation: InstructionCacheInvalidation) {
@@ -690,7 +737,7 @@ mod tests {
         fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
             let (sender, receiver) = futures::channel::oneshot::channel();
             let mut state = self.0.lock();
-            state.requests.push((request.flatten().collect(), deadline_ms));
+            state.requests.push((request.regions.flatten().collect(), deadline_ms));
             state.ready = Some(sender);
             Box::pin(async move { receiver.await.unwrap_or_else(|_| Err("preparation cancelled".into())) })
         }
@@ -730,7 +777,7 @@ mod tests {
                             .map(|instruction| instruction.pc)
                             .collect(),
                         source: region.source.clone(),
-                        export: format!("region_{slot}"),
+                        source_bytes: region.source_bytes.clone(),
                     },
                     handle: CompiledHandle { slot: slot as u32 },
                 })
@@ -808,13 +855,58 @@ mod tests {
         }
         memory.as_arm32cpu_memory().w16(0x1000, 0x4770);
         assert_eq!(aot.lookup(key, &memory), Some(CompiledHandle { slot: 0 }));
-        memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
+        {
+            let (_, resolve) = aot.execution_parts();
+            assert_eq!(resolve(key, &memory), Some(CompiledHandle { slot: 0 }));
+            assert_eq!(resolve(RegionKey { cpu_mode: 0x13, ..key }, &memory), None);
+            memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
+            assert_eq!(resolve(key, &memory), None);
+            assert!(responses.lock().retired.is_empty());
+        }
         assert_eq!(aot.lookup(key, &memory), None);
         assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory), None);
         assert_eq!(responses.lock().retired, [CompiledHandle { slot: 0 }]);
         memory.write_range(0x1000, &[0, 0]).unwrap();
         aot.record_image(0x1000, 2);
         assert!(aot.begin(&memory, || 2.0).unwrap().is_none());
+        assert_eq!(responses.lock().requests.len(), 1);
+    }
+
+    #[test]
+    fn cache_flushes_preserve_unchanged_instructions_but_retire_modified_code() {
+        let responses = Arc::new(Mutex::new(Responses::default()));
+        let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
+        let mut memory = EmulatedMemory::new();
+        memory.map(0x1000, 0x1000);
+        memory.write_range(0x1000, &[1, 0x30, 0x70, 0x47]).unwrap();
+        aot.record_image(0x1000, 4);
+        let preparation = aot.begin(&memory, || 0.0).unwrap().unwrap();
+        let compiled = artifact(&responses.lock().requests[0].0);
+        assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
+        aot.finish(futures::executor::block_on(preparation), &memory, || 1.0);
+        let key = RegionKey {
+            pc: 0x1000,
+            thumb: true,
+            cpu_mode: 0x1f,
+        };
+        let handle = Some(CompiledHandle { slot: 0 });
+
+        memory.as_arm32cpu_memory().w16(0x1080, 42);
+        memory.invalidate_instruction_cache(InstructionCacheInvalidation::All);
+        assert_eq!(aot.lookup(key, &memory), handle);
+        memory.write_range(0x1082, &[7]).unwrap();
+        {
+            let (_, resolve) = aot.execution_parts();
+            assert_eq!(resolve(key, &memory), handle);
+        }
+        assert!(responses.lock().retired.is_empty());
+
+        memory.as_arm32cpu_memory().w16(0x1000, 0x3002);
+        assert_eq!(aot.lookup(key, &memory), handle);
+        memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
+        assert_eq!(aot.lookup(key, &memory), None);
+        assert_eq!(aot.lookup(key, &memory), None);
+        assert_eq!(responses.lock().retired, [CompiledHandle { slot: 0 }]);
         assert_eq!(responses.lock().requests.len(), 1);
     }
 
@@ -864,17 +956,19 @@ mod tests {
 
     impl CompiledExecutor for TestExecutor {
         fn prepare(&mut self, request: CompileRequest, _: f64) -> PreparationFuture {
-            let compiled = artifact(&request.flatten().collect::<Vec<_>>());
+            let compiled = artifact(&request.regions.flatten().collect::<Vec<_>>());
             Box::pin(async move { Ok(compiled) })
         }
 
         fn execute(
             &mut self,
-            _: CompiledHandle,
+            handle: CompiledHandle,
             frame: &mut RunFrame,
             access: &mut dyn ExecutionAccess,
         ) -> core::result::Result<CompiledExit, String> {
             self.calls.lock().0 += 1;
+            assert_eq!(access.resolve(frame.regs[15], frame.cpsr), Some(handle));
+            assert_eq!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000), None);
             if self.trap {
                 assert!(matches!(access.store(0x20000, 4, 42), AccessResult::Complete(0)));
                 frame.regs[0] = 99;
@@ -975,10 +1069,13 @@ mod tests {
     fn native_dummy_decodes_without_compilation_and_resumes_the_loader() {
         let steps = Arc::new(core::sync::atomic::AtomicUsize::new(0));
         let observed = steps.clone();
-        let request: CompileRequest = Box::new((0..3).map(move |_| {
-            observed.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            None
-        }));
+        let request = CompileRequest {
+            images: Arc::from([]),
+            regions: Box::new((0..3).map(move |_| {
+                observed.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                None
+            })),
+        };
         let compiled = futures::executor::block_on(DummyExecutor.prepare(request, 0.0)).unwrap();
         assert_eq!(steps.load(core::sync::atomic::Ordering::Relaxed), 3);
         assert!(compiled.regions.is_empty());
@@ -1016,6 +1113,24 @@ mod tests {
     }
 
     #[test]
+    fn published_code_validation_checks_cross_page_bytes_and_ignores_gaps() {
+        let mut memory = EmulatedMemory::new();
+        memory.map(0, 0x20000);
+        memory.write_range(0xfffe, &[1, 2, 3, 4]).unwrap();
+        memory.write_range(0x10010, &[5, 6]).unwrap();
+        let image = memory.code_image(0xfffe, 4).unwrap();
+        let mut source = image.source;
+        let bytes = [(image.address, image.bytes), (0x10010, alloc::vec![5, 6])];
+        memory.invalidate_instruction_cache(InstructionCacheInvalidation::All);
+        memory.write_range(0x10008, &[42]).unwrap();
+        assert!(memory.validate_code(&mut source, &bytes));
+        assert!(memory.code_is_current(&source));
+        memory.write_range(0x10001, &[7]).unwrap();
+        assert!(!memory.validate_code(&mut source, &bytes));
+        assert!(!memory.code_is_current(&source));
+    }
+
+    #[test]
     fn code_versions_follow_host_publication_not_guest_stores() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, 0x10000);
@@ -1031,6 +1146,7 @@ mod tests {
         let mut access = MemoryAccess {
             memory: &mut memory,
             sampler: &mut sampler,
+            resolve: &|_, _| None,
         };
         assert!(matches!(access.store(0x10001, 4, 42), AccessResult::InterpretOne));
         assert!(access.memory.code_is_current(&[before]));
@@ -1055,6 +1171,7 @@ mod tests {
         let mut access = MemoryAccess {
             memory: &mut memory,
             sampler: &mut sampler,
+            resolve: &|_, _| None,
         };
         for base in [0x10000, 0x1fffc, 0xffff_fffc] {
             for (width, expected) in [(1, 0xef), (2, 0xcdef), (4, 0x89ab_cdef)] {
@@ -1119,6 +1236,7 @@ mod tests {
         let mut access = MemoryAccess {
             memory: &mut memory,
             sampler: &mut sampler,
+            resolve: &|_, _| None,
         };
         for (address, words, admitted) in [
             (0x10000, 16, true),

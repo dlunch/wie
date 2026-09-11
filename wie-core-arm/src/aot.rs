@@ -5,10 +5,13 @@ mod dummy_executor;
 #[cfg(test)]
 mod tests;
 
-use alloc::{boxed::Box, vec::Vec};
-use core::ops::Range;
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use core::{cell::RefCell, ops::Range};
 
-use wie_arm_jit_types::{CodePageStamp, CompiledArtifact, CompiledExecutor, CompiledHandle, PreparationFuture, PreparationState, RegionKey};
+use hashbrown::HashMap;
+use wie_arm_jit_types::{
+    CodePageStamp, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, PreparationFuture, PreparationState, RegionKey,
+};
 use wie_util::Result;
 
 use crate::engine::EmulatedMemory;
@@ -16,7 +19,8 @@ use crate::engine::EmulatedMemory;
 pub(crate) use dummy_executor::DummyExecutor;
 
 struct Translation {
-    source: Vec<CodePageStamp>,
+    source: RefCell<Vec<CodePageStamp>>,
+    source_bytes: Vec<(u32, Vec<u8>)>,
     handle: CompiledHandle,
 }
 
@@ -25,7 +29,7 @@ pub(crate) struct Aot {
     pub state: PreparationState,
     ranges: Vec<Range<u64>>,
     translations: Vec<Option<Translation>>,
-    entries: Box<[(RegionKey, CompiledHandle)]>,
+    entries: HashMap<RegionKey, CompiledHandle>,
     deadline_ms: f64,
 }
 
@@ -36,7 +40,7 @@ impl Aot {
             state: PreparationState::Loading,
             ranges: Vec::new(),
             translations: Vec::new(),
-            entries: Box::default(),
+            entries: HashMap::new(),
             deadline_ms: 0.0,
         }
     }
@@ -85,7 +89,12 @@ impl Aot {
             "ARM AOT input ready"
         );
         self.state = PreparationState::Preparing;
-        Ok(Some(self.executor.prepare(Box::new(decoder::Decoder::new(images)), self.deadline_ms)))
+        let images: Arc<[_]> = images.into();
+        let request = CompileRequest {
+            images: images.clone(),
+            regions: Box::new(decoder::Decoder::new(images)),
+        };
+        Ok(Some(self.executor.prepare(request, self.deadline_ms)))
     }
 
     pub fn finish(&mut self, result: core::result::Result<CompiledArtifact, alloc::string::String>, memory: &EmulatedMemory, now: impl Fn() -> f64) {
@@ -98,7 +107,7 @@ impl Aot {
             return;
         }
         self.state = PreparationState::Ready;
-        let artifact = match result {
+        let mut artifact = match result {
             Ok(artifact) => artifact,
             Err(error) => {
                 tracing::warn!(%error, "ARM AOT preparation failed; using interpreter");
@@ -106,11 +115,15 @@ impl Aot {
                 return;
             }
         };
-        if artifact.regions.iter().any(|region| !memory.code_is_current(&region.manifest.source)) {
+        if artifact
+            .regions
+            .iter_mut()
+            .any(|region| !memory.validate_code(&mut region.manifest.source, &region.manifest.source_bytes))
+        {
             self.shutdown();
             return;
         }
-        let mut entries = Vec::new();
+        let mut entries = HashMap::with_capacity(artifact.regions.iter().map(|region| region.manifest.instruction_pcs.len()).sum());
         let mut translations = Vec::with_capacity(artifact.regions.len());
         for region in artifact.regions {
             entries.extend(
@@ -121,12 +134,11 @@ impl Aot {
                     .map(|pc| (RegionKey { pc, ..region.manifest.entry }, region.handle)),
             );
             translations.push(Some(Translation {
-                source: region.manifest.source,
+                source: RefCell::new(region.manifest.source),
+                source_bytes: region.manifest.source_bytes,
                 handle: region.handle,
             }));
         }
-        entries.sort_unstable_by_key(|(key, _)| *key);
-        let entries = entries.into_boxed_slice();
         // Installation shares the compiler's deadline, including index construction.
         let finished = now();
         if finished >= self.deadline_ms {
@@ -145,10 +157,9 @@ impl Aot {
     }
 
     pub fn lookup(&mut self, key: RegionKey, memory: &EmulatedMemory) -> Option<CompiledHandle> {
-        let index = self.entries.binary_search_by_key(&key, |(key, _)| *key).ok()?;
-        let handle = self.entries[index].1;
+        let handle = *self.entries.get(&key)?;
         let translation = self.translations[handle.slot as usize].as_ref()?;
-        if memory.code_is_current(&translation.source) {
+        if memory.validate_code(&mut translation.source.borrow_mut(), &translation.source_bytes) {
             return Some(handle);
         }
         self.executor.retire(core::slice::from_ref(&translation.handle));
@@ -156,12 +167,29 @@ impl Aot {
         None
     }
 
+    pub fn execution_parts(
+        &mut self,
+    ) -> (
+        &mut dyn CompiledExecutor,
+        impl Fn(RegionKey, &EmulatedMemory) -> Option<CompiledHandle> + '_,
+    ) {
+        let entries = &self.entries;
+        let translations = &self.translations;
+        (&mut *self.executor, move |key, memory| {
+            let handle = *entries.get(&key)?;
+            let translation = translations[handle.slot as usize].as_ref()?;
+            memory
+                .validate_code(&mut translation.source.borrow_mut(), &translation.source_bytes)
+                .then_some(handle)
+        })
+    }
+
     pub fn shutdown(&mut self) {
         self.state = PreparationState::Ready;
         self.executor.shutdown();
         self.ranges.clear();
         self.translations.clear();
-        self.entries = Box::default();
+        self.entries = HashMap::new();
     }
 }
 

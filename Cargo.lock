@@ -6911,6 +6911,7 @@ dependencies = [
  "futures-test",
  "gdbstub",
  "gdbstub_arch",
+ "hashbrown 0.17.1",
  "spin",
  "test-utils",
  "tracing",
@@ -6926,6 +6927,7 @@ version = "0.1.4"
 dependencies = [
  "futures",
  "js-sys",
+ "serde_json",
  "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",

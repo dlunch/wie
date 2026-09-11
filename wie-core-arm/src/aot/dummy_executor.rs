@@ -9,7 +9,7 @@ pub(crate) struct DummyExecutor;
 impl CompiledExecutor for DummyExecutor {
     fn prepare(&mut self, request: CompileRequest, _deadline_ms: f64) -> PreparationFuture {
         Box::pin(async move {
-            for _region in request {}
+            for _region in request.regions {}
             Ok(CompiledArtifact {
                 regions: Vec::new(),
                 encoded_size: 0,

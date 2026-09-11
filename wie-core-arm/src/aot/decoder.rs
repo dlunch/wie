@@ -1,22 +1,24 @@
-use alloc::{vec, vec::Vec};
+use alloc::sync::Arc;
 
 use wie_arm_jit_types::{CodeImage, CompileRegion, RegionKey};
 
 use super::analysis;
 
 pub(crate) struct Decoder {
-    images: vec::IntoIter<CodeImage>,
-    image: Option<CodeImage>,
+    images: Arc<[CodeImage]>,
+    image_index: usize,
+    image_ready: bool,
     cursor: usize,
     thumb: bool,
     covered: [u64; 128],
 }
 
 impl Decoder {
-    pub(crate) fn new(images: Vec<CodeImage>) -> Self {
+    pub(crate) fn new(images: Arc<[CodeImage]>) -> Self {
         Self {
-            images: images.into_iter(),
-            image: None,
+            images,
+            image_index: 0,
+            image_ready: false,
             cursor: 0,
             thumb: false,
             covered: [0; 128],
@@ -28,18 +30,19 @@ impl Iterator for Decoder {
     type Item = Option<CompileRegion>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(image) = &self.image else {
-            let image = self.images.next()?;
+        let image = self.images.get(self.image_index)?;
+        if !self.image_ready {
             self.cursor = (4 - image.address as usize % 4) % 4;
             self.thumb = false;
             self.covered.fill(0);
-            self.image = Some(image);
+            self.image_ready = true;
             return Some(None);
-        };
+        }
         for _ in 0..256 {
             if self.cursor >= image.bytes.len() {
                 if self.thumb {
-                    self.image = None;
+                    self.image_index += 1;
+                    self.image_ready = false;
                 } else {
                     self.thumb = true;
                     self.cursor = (2 - image.address as usize % 2) % 2;
@@ -75,7 +78,18 @@ impl Iterator for Decoder {
                 })
                 .copied()
                 .collect();
-            return Some(Some(CompileRegion { ir, source }));
+            let source_bytes = ir
+                .blocks
+                .iter()
+                .map(|block| {
+                    let first = block.instructions[0].pc;
+                    let last = block.instructions.last().unwrap();
+                    let start = (first - image.address) as usize;
+                    let end = (last.pc - image.address) as usize + usize::from(last.size);
+                    (first, image.bytes[start..end].to_vec())
+                })
+                .collect();
+            return Some(Some(CompileRegion { ir, source, source_bytes }));
         }
         Some(None)
     }

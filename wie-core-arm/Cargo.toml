@@ -16,6 +16,7 @@ arm32_cpu = { version = "^0.1.2" }
 crossbeam = { version = "^0.8" }
 gdbstub = { version = "^0.7" }
 gdbstub_arch = { version = "^0.3" }
+hashbrown = { version = "^0.17" }
 
 wie-backend = { workspace = true }
 wie-arm-jit-types = { workspace = true }
