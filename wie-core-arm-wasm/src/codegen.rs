@@ -21,6 +21,8 @@ const RANGE_FIRST: u32 = 12;
 const RANGE_SECOND: u32 = 13;
 const RANGE_LENGTH: u32 = 14;
 const EXECUTED: u32 = 15;
+const PAGE_BASE: u32 = 16;
+const PAGE_POINTER: u32 = 17;
 
 pub(crate) struct ModuleBuilder {
     functions: Vec<u8>,
@@ -242,7 +244,7 @@ fn compile_region(ir: &RegionIr) -> Function {
             targets[((instruction.pc - first) >> shift) as usize] = index as u32;
         }
     }
-    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (4, ValType::I32)]);
+    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (6, ValType::I32)]);
     let mut s = function.instructions();
     s.local_get(0).i32_load(field(64)).local_set(CPSR);
     s.block(BlockType::Result(ValType::I32));
@@ -327,6 +329,7 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
             .i32_eq()
             .if_(BlockType::Empty);
         commit_prefix(s);
+        s.i32_const(0).local_set(PAGE_POINTER);
         s.local_get(1).i32_const(pc as i32).local_get(0).i32_load(field(28)).call(2).end();
     } else {
         s.local_get(0).i32_load(field(60)).local_set(PC);
@@ -644,6 +647,7 @@ fn commit_prefix(s: &mut InstructionSink<'_>) {
 
 fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     commit_prefix(s);
+    s.i32_const(0).local_set(PAGE_POINTER);
     s.local_get(1)
         .local_get(LEFT)
         .i32_const(words as i32)
@@ -655,6 +659,33 @@ fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     s.local_get(WIDE).i32_wrap_i64().local_set(RANGE_FIRST);
     s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64().local_set(RANGE_SECOND);
     s.local_get(0).i32_load(field(88)).local_set(RANGE_LENGTH);
+}
+
+fn scalar_address(s: &mut InstructionSink<'_>, width: Width, exit_depth: u32) {
+    let alignment_mask = match width {
+        Width::Byte => 0,
+        Width::Half => 1,
+        Width::Word => 3,
+    };
+    if alignment_mask != 0 {
+        s.local_get(LEFT).i32_const(alignment_mask).i32_and().if_(BlockType::Empty);
+        s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 1).end();
+    }
+    s.local_get(LEFT).i32_const(-65536).i32_and().local_get(PAGE_BASE).i32_ne();
+    s.local_get(PAGE_POINTER).i32_eqz().i32_or().if_(BlockType::Empty);
+    commit_prefix(s);
+    s.local_get(LEFT).i32_const(-65536).i32_and().local_set(PAGE_BASE);
+    s.local_get(1).local_get(PAGE_BASE).i32_const(16384).call(3).local_tee(WIDE).i64_eqz();
+    // A split backing range cannot serve as one contiguous page.
+    s.local_get(0)
+        .i32_load(field(88))
+        .i32_const(65536)
+        .i32_ne()
+        .i32_or()
+        .if_(BlockType::Empty);
+    s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 2).end();
+    s.local_get(WIDE).i32_wrap_i64().local_set(PAGE_POINTER).end();
+    s.local_get(PAGE_POINTER).local_get(LEFT).i32_const(65535).i32_and().i32_add();
 }
 
 fn transfer_words(s: &mut InstructionSink<'_>, registers: u16, load: bool, pc: u32, thumb: bool, exit_depth: u32) {
@@ -848,41 +879,47 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
         }
         Operation::Load { address, width, .. } | Operation::Store { address, width, .. } => {
             memory_address(s, address, instruction.pc, thumb);
-            commit_prefix(s);
-            s.local_get(1).local_get(LEFT);
-            s.i32_const(match width {
-                Width::Byte => 1,
-                Width::Half => 2,
-                Width::Word => 4,
-            });
+            scalar_address(s, width, exit_depth);
             if let Operation::Store { value: source, .. } = instruction.operation {
                 if source == Value::Register(15) {
                     s.i32_const(instruction.pc.wrapping_add(12) as i32);
                 } else {
                     value(s, source, instruction.pc, thumb);
                 }
-                s.call(1);
-            } else {
-                s.local_get(0).i32_const(88).i32_add().call(0);
-            }
-            access_result(s, exit_depth);
-            // Helpers may decline an access without side effects. Commit registers only after success.
-            if let Operation::Load { destination, signed, .. } = instruction.operation {
+                match width {
+                    Width::Byte => {
+                        s.i32_store8(MemArg { align: 0, ..field(0) });
+                    }
+                    Width::Half => {
+                        s.i32_store16(MemArg { align: 1, ..field(0) });
+                    }
+                    Width::Word => {
+                        s.i32_store(field(0));
+                    }
+                }
+            } else if let Operation::Load { destination, signed, .. } = instruction.operation {
+                match (width, signed) {
+                    (Width::Byte, false) => {
+                        s.i32_load8_u(MemArg { align: 0, ..field(0) });
+                    }
+                    (Width::Byte, true) => {
+                        s.i32_load8_s(MemArg { align: 0, ..field(0) });
+                    }
+                    (Width::Half, false) => {
+                        s.i32_load16_u(MemArg { align: 1, ..field(0) });
+                    }
+                    (Width::Half, true) => {
+                        s.i32_load16_s(MemArg { align: 1, ..field(0) });
+                    }
+                    (Width::Word, _) => {
+                        s.i32_load(field(0));
+                    }
+                }
+                s.local_set(RIGHT);
                 if destination != 15 {
                     s.local_get(0);
                 }
-                s.local_get(0).i32_load(field(88));
-                if signed {
-                    match width {
-                        Width::Byte => {
-                            s.i32_extend8_s();
-                        }
-                        Width::Half => {
-                            s.i32_extend16_s();
-                        }
-                        Width::Word => {}
-                    }
-                }
+                s.local_get(RIGHT);
                 if destination == 15 {
                     commit_pc(s, thumb, true);
                 } else {
@@ -1002,6 +1039,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 s.local_get(RANGE_FIRST).local_get(RIGHT).i32_store(field(0));
             } else {
                 commit_prefix(s);
+                s.i32_const(0).local_set(PAGE_POINTER);
                 s.local_get(1).local_get(LEFT).i32_const(1).local_get(0).i32_const(88).i32_add().call(0);
                 access_result(s, exit_depth);
                 s.local_get(1).local_get(LEFT).i32_const(1).local_get(RIGHT).call(1).drop();
@@ -1385,7 +1423,10 @@ mod tests {
                 set_flags: false,
             },
             Operation::Store {
-                address,
+                address: Address {
+                    base: Value::Register(2),
+                    ..address
+                },
                 width: Width::Word,
                 value: Value::Register(0),
             },
@@ -1412,6 +1453,38 @@ mod tests {
         };
         let mut builder = ModuleBuilder::default();
         builder.add_region(&ir);
+        let mut accesses = ir.clone();
+        accesses.blocks[0].instructions.clear();
+        for (index, width) in [Width::Byte, Width::Half, Width::Word].into_iter().enumerate() {
+            for operation in [
+                Operation::Store {
+                    address,
+                    width,
+                    value: Value::Register(0),
+                },
+                Operation::Load {
+                    address,
+                    width,
+                    signed: false,
+                    destination: 2 + index as u8 * 2,
+                },
+                Operation::Load {
+                    address,
+                    width,
+                    signed: true,
+                    destination: 3 + index as u8 * 2,
+                },
+            ] {
+                let pc = 0x1000 + accesses.blocks[0].instructions.len() as u32 * 2;
+                accesses.blocks[0].instructions.push(Instruction {
+                    pc,
+                    size: 2,
+                    condition: Condition::Always,
+                    operation,
+                });
+            }
+        }
+        builder.add_region(&accesses);
         let mut bytes = Vec::new();
         for chunk in builder.begin_assembly(&mut bytes).unwrap() {
             bytes.extend_from_slice(&chunk);
@@ -1422,38 +1495,75 @@ mod tests {
                 r#"
 const assert = require('node:assert/strict');
 const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
-for (const failure of ['store', 'sample_prepare', 'resolve']) {
-    const memory = new WebAssembly.Memory({initial: 1});
+for (const failure of ['word_range', 'sample_prepare', 'resolve', 'sample', null]) {
+    const memory = new WebAssembly.Memory({initial: 3});
     const frame = new Uint32Array(memory.buffer, 0, 23);
     frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
+    frame[2] = failure === 'word_range' ? 0x13000 : 0x3000;
     frame[16] = 0x3f; frame[17] = 0x2000; frame[18] = 10;
-    const samples = frame[19] = failure === 'sample_prepare' ? 3 : 1024;
-    let stores = 0;
+    const samples = frame[19] = ['sample_prepare', 'sample'].includes(failure) ? 3 : 1024;
+    let ranges = 0;
     const injected = new Error('injected host failure');
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
         load() { throw new Error('unexpected load'); },
-        word_range() { throw new Error('unexpected word range'); },
-        store(_, address, width, value) {
-            assert.equal(width, 4);
-            if (failure === 'store' && stores === 1) throw injected;
-            stores++;
-            new DataView(memory.buffer).setUint32(address, value, true);
-            return 0;
+        store() { throw new Error('unexpected store'); },
+        word_range(_, address, words) {
+            assert.equal(words, 16384);
+            assert.equal(address % 65536, 0);
+            if (failure === 'word_range' && ranges === 1) throw injected;
+            ranges++;
+            frame[22] = 65536;
+            return BigInt(address + 65536);
         },
         sample_prepare() { if (failure === 'sample_prepare') throw injected; },
         resolve() { if (failure === 'resolve') throw injected; return -1; },
     }}).exports.dispatch;
-    assert.throws(() => dispatch(0, 0, 0), error => error === injected);
-    const completed = failure === 'resolve' ? 4 : 2;
+    if (failure === null || failure === 'sample') {
+        assert.equal(dispatch(0, 0, 0), failure === 'sample' ? 1 : 0);
+    } else {
+        assert.throws(() => dispatch(0, 0, 0), error => error === injected);
+    }
+    const completed = failure === 'sample' ? 3 : failure === 'resolve' || failure === null ? 4 : 2;
     assert.equal(frame[0], 43);
     assert.equal(frame[15], 0x1000 + completed * 2);
     assert.equal(frame[16], 0x3f);
     assert.equal(frame[18], 10 - completed);
     assert.equal(frame[19], samples - completed);
     assert.equal(frame[20], completed);
-    assert.equal(stores, failure === 'resolve' ? 2 : 1);
-    assert.equal(new DataView(memory.buffer).getUint32(0x3000, true), stores === 1 ? 42 : 43);
+    assert.equal(ranges, failure === 'sample' ? 2 : 1);
+    assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 2 ? 42 : 43);
+}
+for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
+    const memory = new WebAssembly.Memory({initial: 2});
+    const frame = new Uint32Array(memory.buffer, 0, 23);
+    frame[0] = 0x89abcdef; frame[1] = address ?? 0x3000;
+    frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1012;
+    frame[18] = 100; frame[19] = 1024;
+    let ranges = 0;
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory,
+        load() { throw new Error('unexpected load'); },
+        store() { throw new Error('unexpected store'); },
+        sample_prepare() { throw new Error('unexpected sample'); },
+        resolve() { throw new Error('unexpected resolve'); },
+        word_range(_, base, words) {
+            ranges++;
+            assert.equal(base >>> 0, (frame[1] & 0xffff0000) >>> 0);
+            assert.equal(words, 16384);
+            frame[22] = 65536;
+            return address === null ? 0n : 65536n;
+        },
+    }}).exports.dispatch;
+    const completed = address === null ? 0 : address === 0x3001 ? 3 : 9;
+    assert.equal(dispatch(0, 0, 1), completed === 9 ? 3 : 4);
+    assert.equal(ranges, 1);
+    assert.equal(frame[15], 0x1000 + completed * 2);
+    assert.equal(frame[18], 100 - completed);
+    assert.equal(frame[19], 1024 - completed);
+    assert.equal(frame[20], completed);
+    const expected = [0xef, 0xffffffef, 0xcdef, 0xffffcdef, 0x89abcdef, 0x89abcdef];
+    assert.deepEqual(Array.from(frame.slice(2, 2 + completed / 3 * 2)), expected.slice(0, completed / 3 * 2));
 }
 "#,
             ])

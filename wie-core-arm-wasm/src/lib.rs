@@ -22,7 +22,7 @@ pub use runtime::{WasmExecutor, now};
 const COPY_SIZE: usize = 64 * 1024;
 
 /// Increment when analysis, generated code, execution ABI, or the cache format changes.
-pub const AOT_CACHE_VERSION: u32 = 1;
+pub const AOT_CACHE_VERSION: u32 = 2;
 
 pub fn encode_manifest_region(region: &ManifestRegion, output: &mut Vec<u8>) {
     // Little-endian header, instruction PCs, then length-prefixed source spans; stamps are session-local.

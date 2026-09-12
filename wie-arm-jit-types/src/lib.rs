@@ -104,14 +104,14 @@ pub enum AccessResult {
 pub trait ExecutionAccess {
     /// Looks up current code for a dispatcher transfer without retiring stale handles.
     fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle>;
-    /// Borrows an aligned, fully mapped range of `words` (1..=16), wrapping guest addresses at 32 bits.
+    /// Borrows an aligned, fully mapped range of `words` (1..=16384), wrapping guest addresses at 32 bits.
     /// Returns `None` for unaligned or unmapped ranges. The guest-backed slices contain only
     /// requested bytes, split at a backing-memory boundary into a nonempty prefix and optional remainder;
     /// their lengths are multiples of four and total `words * 4` bytes.
     /// Acquisition does not read or write data, publish code, or change sampling state. Writes
     /// through the slices are guest stores and do not publish code either.
-    /// The exclusive borrow is for one synchronous guest instruction, without remapping memory
-    /// or suspending execution while the slices are in use.
+    /// The exclusive borrow lasts until the next access method call or return from synchronous
+    /// execution. Generated code may reuse it across instructions, without remapping memory or suspending.
     fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])>;
     /// A successful byte load also admits a byte store at that address in this instruction.
     fn load(&mut self, address: u32, width: u32) -> AccessResult;
