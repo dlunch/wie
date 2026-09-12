@@ -330,7 +330,7 @@ fn execution_imports() -> Result<Object, JsValue> {
     let wie = Object::new();
     Reflect::set(&wie, &"memory".into(), &wasm_bindgen::memory())?;
     for (import, export) in [
-        ("page", "wie_aot_page"),
+        ("pages", "wie_aot_pages"),
         ("sample_prepare", "wie_aot_sample_prepare"),
         ("word_range", "wie_aot_word_range"),
         ("resolve", "wie_aot_resolve"),
@@ -350,10 +350,16 @@ struct ExecutionContext<'a> {
 // Only generated code calls these raw exports, synchronously within execute().
 // The thin pointer addresses a borrowed context, never the trait object's data.
 #[unsafe(no_mangle)]
-unsafe extern "C" fn wie_aot_page(access: u32, address: u32) -> u32 {
+unsafe extern "C" fn wie_aot_pages(access: u32) -> u32 {
     let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
-    context.access.page(address).map_or(0, |page| page.as_mut_ptr() as u32)
+    context.access.pages().as_mut_ptr() as u32
 }
+
+#[cfg(target_arch = "wasm32")]
+const _: () = {
+    assert!(core::mem::size_of::<wie_arm_jit_types::MemoryPage>() == 16);
+    assert!(core::mem::offset_of!(wie_arm_jit_types::MemoryPage, bytes) == 0);
+};
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn wie_aot_sample_prepare(access: u32, pc: u32, r7: u32) {

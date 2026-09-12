@@ -21,13 +21,13 @@ const RANGE_FIRST: u32 = 12;
 const RANGE_SECOND: u32 = 13;
 const RANGE_LENGTH: u32 = 14;
 const EXECUTED: u32 = 15;
-const PAGE_BASE: u32 = 16;
+const PAGE_TABLE: u32 = 16;
 const PAGE_POINTER: u32 = 17;
 const SAMPLE_AT: u32 = 18;
 const END: u32 = 19;
 
 // Function indices follow the import and helper section order.
-const PAGE: u32 = 0;
+const PAGES: u32 = 0;
 const SAMPLE: u32 = 1;
 const WORD_RANGE: u32 = 2;
 const RESOLVE: u32 = 3;
@@ -170,6 +170,7 @@ impl ModuleBuilder {
         types.ty().function([ValType::I32; 3], [ValType::I64]);
         types.ty().function([ValType::I32; 3], [ValType::I32]);
         types.ty().function([ValType::I32; 2], []);
+        types.ty().function([ValType::I32], [ValType::I32]);
         module.section(&types);
         let mut imports = ImportSection::new();
         imports.import(
@@ -183,7 +184,7 @@ impl ModuleBuilder {
                 page_size_log2: None,
             },
         );
-        imports.import("wie", "page", EntityType::Function(2));
+        imports.import("wie", "pages", EntityType::Function(6));
         imports.import("wie", "sample_prepare", EntityType::Function(1));
         imports.import("wie", "word_range", EntityType::Function(3));
         imports.import("wie", "resolve", EntityType::Function(4));
@@ -343,7 +344,7 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
             .end();
         s.local_get(EXECUTED).local_get(SAMPLE_AT).i32_eq().if_(BlockType::Empty);
         commit_prefix(s);
-        s.i32_const(0).local_set(PAGE_POINTER);
+        s.i32_const(0).local_set(PAGE_TABLE);
         s.local_get(1).i32_const(pc as i32).local_get(0).i32_load(field(28)).call(SAMPLE).end();
     } else {
         s.local_get(0).i32_load(field(60)).local_set(PC);
@@ -654,7 +655,7 @@ fn commit_prefix(s: &mut InstructionSink<'_>) {
 
 fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     commit_prefix(s);
-    s.i32_const(0).local_set(PAGE_POINTER);
+    s.i32_const(0).local_set(PAGE_TABLE);
     s.local_get(1)
         .local_get(LEFT)
         .i32_const(words as i32)
@@ -678,18 +679,22 @@ fn scalar_address(s: &mut InstructionSink<'_>, width: Width, exit_depth: u32) {
         s.local_get(LEFT).i32_const(alignment_mask).i32_and().if_(BlockType::Empty);
         s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 1).end();
     }
-    s.local_get(LEFT).i32_const(-65536).i32_and().local_get(PAGE_BASE).i32_ne();
-    s.local_get(PAGE_POINTER).i32_eqz().i32_or().if_(BlockType::Empty);
+    s.local_get(PAGE_TABLE).i32_eqz().if_(BlockType::Empty);
     commit_prefix(s);
-    s.local_get(LEFT).i32_const(-65536).i32_and().local_set(PAGE_BASE);
-    s.local_get(1)
-        .local_get(PAGE_BASE)
-        .call(PAGE)
+    s.local_get(1).call(PAGES).local_set(PAGE_TABLE).end();
+    // Each repr(C) directory entry is 16 bytes; its first word is the nullable page pointer.
+    s.local_get(PAGE_TABLE)
+        .local_get(LEFT)
+        .i32_const(16)
+        .i32_shr_u()
+        .i32_const(4)
+        .i32_shl()
+        .i32_add()
+        .i32_load(field(0))
         .local_tee(PAGE_POINTER)
         .i32_eqz()
         .if_(BlockType::Empty);
-    s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 2).end();
-    s.end();
+    s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 1).end();
     s.local_get(PAGE_POINTER).local_get(LEFT).i32_const(65535).i32_and().i32_add();
 }
 
@@ -1596,6 +1601,13 @@ mod tests {
                 r#"
 const assert = require('node:assert/strict');
 const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
+function directory(memory, entries) {
+    const base = memory.buffer.byteLength;
+    memory.grow(16);
+    const view = new DataView(memory.buffer);
+    for (const [page, pointer] of entries) view.setUint32(base + page * 16, pointer, true);
+    return base;
+}
 {
     const memory = new WebAssembly.Memory({initial: 1});
     const frame = new Uint32Array(memory.buffer, 0, 22);
@@ -1603,48 +1615,50 @@ const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
     const before = Array.from(frame);
     const unexpected = () => { throw new Error('guest execution during warmup'); };
     const dispatch = new WebAssembly.Instance(module, {wie: {
-        memory, page: unexpected, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
+        memory, pages: unexpected, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
     }}).exports.dispatch;
     for (let slot = 0; slot < 18; slot++) assert.equal(dispatch(0, 0, slot), 3);
     assert.deepEqual(Array.from(frame), before);
 }
-for (const failure of ['page', 'sample_prepare', 'resolve', 'sample', null]) {
+for (const failure of ['pages', 'sample_prepare', 'resolve', 'sample', 'page_switch', null]) {
     const memory = new WebAssembly.Memory({initial: 3});
+    const table = directory(memory, [[0, 65536], [1, 131072]]);
     const frame = new Uint32Array(memory.buffer, 0, 22);
     frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
-    frame[2] = failure === 'page' ? 0x13000 : 0x3000;
+    frame[2] = failure === 'page_switch' ? 0x13000 : 0x3000;
     frame[16] = 0xf000003f; frame[17] = 0x2000;
-    const samples = frame[18] = ['sample_prepare', 'sample'].includes(failure) ? 3 : 1024;
+    const samples = frame[18] = ['pages', 'sample_prepare', 'sample'].includes(failure) ? 3 : 1024;
     let pages = 0;
     const injected = new Error('injected host failure');
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
         word_range() { throw new Error('unexpected word range'); },
-        page(_, address) {
-            assert.equal(address % 65536, 0);
-            if (failure === 'page' && pages === 1) throw injected;
+        pages() {
+            if (failure === 'pages' && pages === 1) throw injected;
             pages++;
-            return address + 65536;
+            return table;
         },
         sample_prepare() { if (failure === 'sample_prepare') throw injected; },
         resolve() { if (failure === 'resolve') throw injected; return -1; },
     }}).exports.dispatch;
-    if (failure === null || failure === 'sample') {
+    if (failure === null || failure === 'sample' || failure === 'page_switch') {
         assert.equal(dispatch(0, 1, 0), failure === 'sample' ? 1 : 0);
     } else {
         assert.throws(() => dispatch(0, 1, 0), error => error === injected);
     }
-    const completed = failure === 'sample' ? 3 : failure === 'resolve' || failure === null ? 4 : 2;
+    const completed = failure === 'sample' ? 3 : ['resolve', 'page_switch', null].includes(failure) ? 4 : 2;
     assert.equal(frame[0], 43);
     assert.equal(frame[15], 0x1000 + completed * 2);
     assert.equal(frame[16], 0x3f);
     assert.equal(frame[18], samples - completed);
     assert.equal(frame[19], completed);
     assert.equal(pages, failure === 'sample' ? 2 : 1);
-    assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 2 ? 42 : 43);
+    assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 2 || failure === 'page_switch' ? 42 : 43);
+    if (failure === 'page_switch') assert.equal(new DataView(memory.buffer).getUint32(0x23000, true), 43);
 }
 for (let sample = 1; sample <= 5; sample++) for (let end = 0; end <= 5; end++) {
     const memory = new WebAssembly.Memory({initial: 2});
+    const table = directory(memory, [[0, 65536]]);
     const frame = new Uint32Array(memory.buffer, 0, 22);
     frame[0] = 42; frame[1] = frame[2] = 0x3000;
     frame[15] = 0x1000; frame[16] = 0xf000003f;
@@ -1654,7 +1668,7 @@ for (let sample = 1; sample <= 5; sample++) for (let end = 0; end <= 5; end++) {
         memory,
         word_range() { throw new Error('unexpected word range'); },
         resolve() { return -1; },
-        page() { return 65536; },
+        pages() { return table; },
         sample_prepare() { samples++; },
     }}).exports.dispatch;
     const completed = Math.min(4, sample, end);
@@ -1669,6 +1683,7 @@ for (let sample = 1; sample <= 5; sample++) for (let end = 0; end <= 5; end++) {
 }
 for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x3001, 0xfffc, 0xffff, 0xfffffffc, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
+    const table = directory(memory, address === null ? [] : [[address >>> 16, 65536]]);
     const frame = new Uint32Array(memory.buffer, 0, 22);
     const data = new Uint8Array(memory.buffer, 65536, 65536).fill(0x55);
     frame[0] = address ?? 0x3000; frame[1] = 0x89abcdef;
@@ -1677,7 +1692,7 @@ for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x
     const unexpected = () => { throw new Error('unexpected host call'); };
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
-        page() { return address === null ? 0 : 65536; },
+        pages() { return table; },
     }}).exports.dispatch;
     const admitted = address !== null && address % width === 0;
     assert.equal(dispatch(0, 1, 16 + index), admitted ? 3 : 4);
@@ -1692,6 +1707,7 @@ for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x
 }
 for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
+    const table = directory(memory, address === null ? [] : [[address >>> 16, 65536]]);
     const frame = new Uint32Array(memory.buffer, 0, 22);
     frame[0] = 0x89abcdef; frame[1] = address ?? 0x3000;
     frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1012;
@@ -1702,10 +1718,9 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
         word_range() { throw new Error('unexpected word range'); },
         sample_prepare() { throw new Error('unexpected sample'); },
         resolve() { throw new Error('unexpected resolve'); },
-        page(_, base) {
+        pages() {
             pages++;
-            assert.equal(base >>> 0, (frame[1] & 0xffff0000) >>> 0);
-            return address === null ? 0 : 65536;
+            return table;
         },
     }}).exports.dispatch;
     const completed = address === null ? 0 : address === 0x3001 ? 3 : 9;
@@ -1722,7 +1737,7 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     const frame = new Uint32Array(memory.buffer, 0, 22);
     const unexpected = () => { throw new Error('unexpected host call'); };
     const dispatch = new WebAssembly.Instance(module, {wie: {
-        memory, page: unexpected, word_range: unexpected,
+        memory, pages: unexpected, word_range: unexpected,
         sample_prepare: unexpected, resolve: unexpected,
     }}).exports.dispatch;
     const values = [0, 1, 2, 0x7fffffff, 0x80000000, 0x80000001, 0xfffffffe, 0xffffffff];

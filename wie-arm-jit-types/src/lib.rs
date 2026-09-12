@@ -93,13 +93,22 @@ pub struct RunFrame {
     pub scratch: u32,
 }
 
+/// The owning guest page directory entry. Wasm reads the nullable page pointer at offset zero.
+/// `Option<Box<T>>` for sized T has the pointer layout, with zero representing None.
+#[derive(Default)]
+#[repr(C)]
+pub struct MemoryPage {
+    pub bytes: Option<Box<[u8; 0x10000]>>,
+    pub version: u64,
+}
+
 pub trait ExecutionAccess {
     /// Looks up current code for a dispatcher transfer without retiring stale handles.
     fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle>;
-    /// Borrows the mapped 64 KiB guest page containing `address`, without reading or publishing code.
-    /// Generated code may reuse the page until its next access method call or synchronous return.
-    /// Writes through the page are guest stores and do not publish code.
-    fn page(&mut self, address: u32) -> Option<&mut [u8; 0x10000]>;
+    /// Borrows the complete guest page directory without reading or publishing code.
+    /// Generated code may access mapped bytes until its next access method call or synchronous return.
+    /// It must not modify directory entries; writes through page pointers are unpublished guest stores.
+    fn pages(&mut self) -> &mut [MemoryPage; 0x10000];
     /// Borrows an aligned, fully mapped range of `words` (1..=16), wrapping guest addresses at 32 bits.
     /// Returns `None` for unaligned or unmapped ranges. The guest-backed slices contain only
     /// requested bytes, split at a backing-memory boundary into a nonempty prefix and optional remainder;
