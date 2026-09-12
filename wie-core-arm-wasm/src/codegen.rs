@@ -5,7 +5,7 @@ use wasm_encoder::{
     MemoryType, Module, RefType, SectionId, TableSection, TableType, TypeSection, ValType,
 };
 use wie_arm_jit_types::CompiledExit;
-use wie_arm_jit_types::ir::{Address, AluOp, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
+use wie_arm_jit_types::ir::{Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
 
 const LEFT: u32 = 2;
 const RIGHT: u32 = 3;
@@ -280,6 +280,20 @@ fn compile_region(ir: &RegionIr) -> Function {
     s.br_table(targets, count);
     for (index, block) in ir.blocks.iter().enumerate() {
         s.end();
+        if let Some(body) = small_loop_body(ir, block) {
+            s.local_get(PC).i32_const(block.instructions[0].pc as i32).i32_eq().if_(BlockType::Empty);
+            s.loop_(BlockType::Empty);
+            let exit_depth = count - index as u32 + 3;
+            for instruction in &block.instructions {
+                emit_instruction(&mut s, ir, instruction, exit_depth);
+            }
+            s.local_get(0).i32_load(field(60)).i32_const(body.instructions[0].pc as i32).i32_ne();
+            s.br_if(count - index as u32 + 2);
+            for instruction in &body.instructions {
+                emit_instruction(&mut s, ir, instruction, exit_depth);
+            }
+            s.br(0).end().end();
+        }
         if block.instructions.len() > 1 {
             let first = block.instructions[0].pc;
             let last = block.instructions.last().unwrap().pc;
@@ -297,29 +311,7 @@ fn compile_region(ir: &RegionIr) -> Function {
                 s.end();
             }
             let exit_depth = count - index as u32 + (block.instructions.len() - instruction_index) as u32;
-            boundaries(&mut s, ir, Some(instruction.pc), exit_depth);
-            let fallthrough = instruction.pc.wrapping_add(u32::from(instruction.size)) as i32;
-            let writes_pc = instruction.operation.writes_pc();
-            if writes_pc {
-                s.i32_const(fallthrough).local_set(NEXT_PC);
-            }
-            let conditional = instruction.condition != Condition::Always;
-            if conditional {
-                condition(&mut s, instruction.condition);
-                s.if_(BlockType::Empty);
-            }
-            operation(&mut s, instruction, ir.entry.thumb, exit_depth + u32::from(conditional));
-            if conditional {
-                s.end();
-            }
-            s.local_get(0);
-            if writes_pc {
-                s.local_get(NEXT_PC);
-            } else {
-                s.i32_const(fallthrough);
-            }
-            s.i32_store(field(60));
-            s.local_get(EXECUTED).i32_const(1).i32_add().local_set(EXECUTED);
+            emit_instruction(&mut s, ir, instruction, exit_depth);
         }
         s.br(count - index as u32);
     }
@@ -329,6 +321,69 @@ fn compile_region(ir: &RegionIr) -> Function {
     s.local_get(0).local_get(EXECUTED).call(COMMIT);
     s.end();
     function
+}
+
+fn small_loop_body<'a>(ir: &'a RegionIr, header: &BasicBlock) -> Option<&'a BasicBlock> {
+    let tail = header.instructions.last()?;
+    let Operation::Branch {
+        target: Value::Immediate(target),
+        link: None,
+        exchange: false,
+    } = tail.operation
+    else {
+        return None;
+    };
+    if tail.condition == Condition::Always {
+        return None;
+    }
+    let mask = if ir.entry.thumb { !1 } else { !3 };
+    let successors = [target & mask, tail.pc.wrapping_add(u32::from(tail.size))];
+    let header_pc = header.instructions[0].pc;
+    ir.blocks.iter().find(|body| {
+        let body_pc = body.instructions[0].pc;
+        let backedge = body.instructions.last().unwrap();
+        // Skipping ENTRY must not bypass its low-address guest fault.
+        body_pc >= 0x1000
+            && successors.contains(&body_pc)
+            && successors[0] != successors[1]
+            && !successors.contains(&header_pc)
+            && header.instructions.len() + body.instructions.len() <= 32
+            && backedge.condition == Condition::Always
+            && matches!(backedge.operation, Operation::Branch {
+                target: Value::Immediate(pc), link: None, exchange: false
+            } if pc & mask == header_pc)
+            && [header, body].into_iter().all(|block| {
+                block.instructions[..block.instructions.len() - 1]
+                    .iter()
+                    .all(|instruction| !instruction.operation.writes_pc() && !matches!(instruction.operation, Operation::WriteStatus { .. }))
+            })
+    })
+}
+
+fn emit_instruction(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction: &Instruction, exit_depth: u32) {
+    boundaries(s, ir, Some(instruction.pc), exit_depth);
+    let fallthrough = instruction.pc.wrapping_add(u32::from(instruction.size)) as i32;
+    let writes_pc = instruction.operation.writes_pc();
+    if writes_pc {
+        s.i32_const(fallthrough).local_set(NEXT_PC);
+    }
+    let conditional = instruction.condition != Condition::Always;
+    if conditional {
+        condition(s, instruction.condition);
+        s.if_(BlockType::Empty);
+    }
+    operation(s, instruction, ir.entry.thumb, exit_depth + u32::from(conditional));
+    if conditional {
+        s.end();
+    }
+    s.local_get(0);
+    if writes_pc {
+        s.local_get(NEXT_PC);
+    } else {
+        s.i32_const(fallthrough);
+    }
+    s.i32_store(field(60));
+    s.local_get(EXECUTED).i32_const(1).i32_add().local_set(EXECUTED);
 }
 
 fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option<u32>, exit_depth: u32) {
@@ -1591,6 +1646,115 @@ mod tests {
                 }],
             });
         }
+        let mut loop_ir = RegionIr {
+            entry: ir.entry,
+            blocks: vec![],
+        };
+        for block in [
+            vec![
+                (
+                    0x1000,
+                    Condition::Always,
+                    Operation::Alu {
+                        op: AluOp::Sub,
+                        destination: None,
+                        left: Value::Register(0),
+                        right: address.offset,
+                        set_flags: true,
+                    },
+                ),
+                (
+                    0x1002,
+                    Condition::Ne,
+                    Operation::Branch {
+                        target: Value::Immediate(0x1008),
+                        link: None,
+                        exchange: false,
+                    },
+                ),
+            ],
+            vec![(0x1004, Condition::Always, Operation::Nop)],
+            vec![
+                (
+                    0x1008,
+                    Condition::Always,
+                    Operation::Store {
+                        address,
+                        width: Width::Word,
+                        value: Value::Register(0),
+                    },
+                ),
+                (
+                    0x100a,
+                    Condition::Always,
+                    Operation::Alu {
+                        op: AluOp::Sub,
+                        destination: Some(0),
+                        left: Value::Register(0),
+                        right: Operand {
+                            value: Value::Immediate(1),
+                            ..address.offset
+                        },
+                        set_flags: true,
+                    },
+                ),
+                (
+                    0x100c,
+                    Condition::Always,
+                    Operation::Alu {
+                        op: AluOp::Add,
+                        destination: Some(1),
+                        left: Value::Register(1),
+                        right: Operand {
+                            value: Value::Immediate(4),
+                            ..address.offset
+                        },
+                        set_flags: false,
+                    },
+                ),
+                (
+                    0x100e,
+                    Condition::Always,
+                    Operation::Branch {
+                        target: Value::Immediate(0x1000),
+                        link: None,
+                        exchange: false,
+                    },
+                ),
+            ],
+        ] {
+            loop_ir.blocks.push(BasicBlock {
+                instructions: block
+                    .into_iter()
+                    .map(|(pc, condition, operation)| Instruction {
+                        pc,
+                        size: 2,
+                        condition,
+                        operation,
+                    })
+                    .collect(),
+            });
+        }
+        assert_eq!(small_loop_body(&loop_ir, &loop_ir.blocks[0]).unwrap().instructions[0].pc, 0x1008);
+        builder.add_region(&loop_ir);
+        let mut low_body = loop_ir.clone();
+        low_body.blocks[0].instructions[1].operation = Operation::Branch {
+            target: Value::Immediate(0xffc),
+            link: None,
+            exchange: false,
+        };
+        low_body.blocks[2].instructions = vec![Instruction {
+            pc: 0xffc,
+            size: 2,
+            condition: Condition::Always,
+            operation: Operation::Branch {
+                target: Value::Immediate(0x1000),
+                link: None,
+                exchange: false,
+            },
+        }];
+        assert!(small_loop_body(&low_body, &low_body.blocks[0]).is_none());
+        builder.add_region(&low_body);
         let mut bytes = Vec::new();
         for chunk in builder.begin_assembly(&mut bytes).unwrap() {
             bytes.extend_from_slice(&chunk);
@@ -1617,8 +1781,67 @@ function directory(memory, entries) {
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, pages: unexpected, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
     }}).exports.dispatch;
-    for (let slot = 0; slot < 18; slot++) assert.equal(dispatch(0, 0, slot), 3);
+    for (let slot = 0; slot < 20; slot++) assert.equal(dispatch(0, 0, slot), 3);
     assert.deepEqual(Array.from(frame), before);
+}
+{
+    const memory = new WebAssembly.Memory({initial: 2});
+    const table = directory(memory, [[0, 65536]]);
+    const frame = new Uint32Array(memory.buffer, 0, 22);
+    const data = new Uint8Array(memory.buffer, 65536, 65536);
+    let sampled = [];
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory, pages() { return table; }, resolve() { return -1; },
+        word_range() { throw new Error('unexpected word range'); },
+        sample_prepare(context, pc, r7) { sampled.push([pc, r7]); },
+    }}).exports.dispatch;
+    const pcs = [0x1000, 0x1002, 0x1004, 0x1008, 0x100a, 0x100c, 0x100e];
+    frame[0] = 1; frame[15] = 0x1000; frame[16] = 0x3f;
+    frame[17] = 0xffc; frame[18] = 2;
+    assert.equal(dispatch(0, 1, 19), 6);
+    assert.equal(frame[15], 0xffc);
+    assert.equal(frame[20], 0xffc);
+    assert.equal(frame[19], 2);
+    for (const start of pcs) for (const end of [...pcs, 0x1006])
+    for (const sample of [1, 2, 3, 5, 6, 7, 12, 19, 1024]) for (const pointer of [0x3000, 0xfffc]) {
+        frame.fill(0); data.fill(0); sampled = [];
+        frame[0] = 2; frame[1] = pointer; frame[7] = 0x3456;
+        frame[15] = start; frame[16] = 0xf800003f; frame[17] = end; frame[18] = sample;
+        const expected = Array.from(frame), expectedData = new Uint8Array(65536), expectedSamples = [];
+        let completed = 0, exit;
+        // Model the fixture instruction by instruction, including stops before faulting stores.
+        while (true) {
+            const pc = expected[15];
+            if (pc === end) { exit = 3; break; }
+            if (completed === sample) { exit = 1; break; }
+            if (!pcs.includes(pc)) { exit = 0; break; }
+            if (completed === sample - 1) expectedSamples.push([pc, expected[7]]);
+            if (pc === 0x1008 && expected[1] >= 65536) { exit = 4; break; }
+            let next = pc + 2;
+            if (pc === 0x1000 || pc === 0x100a) {
+                const left = expected[0], right = pc === 0x1000 ? 0 : 1;
+                const result = (left - right) >>> 0;
+                expected[16] = ((expected[16] & 0x0fffffff) | (result & 0x80000000)
+                    | (result === 0 ? 0x40000000 : 0) | (left >= right ? 0x20000000 : 0)
+                    | (((left ^ right) & (left ^ result) & 0x80000000) >>> 3)) >>> 0;
+                if (pc === 0x100a) expected[0] = result;
+            } else if (pc === 0x1002) {
+                if (!(expected[16] & 0x40000000)) next = 0x1008;
+            } else if (pc === 0x1008) {
+                new DataView(expectedData.buffer).setUint32(expected[1], expected[0], true);
+            } else if (pc === 0x100c) {
+                expected[1] = (expected[1] + 4) >>> 0;
+            } else if (pc === 0x100e) next = 0x1000;
+            expected[15] = next;
+            completed++;
+        }
+        expected[18] -= completed; expected[19] = completed;
+        const label = `loop start=${start}, end=${end}, sample=${sample}, pointer=${pointer}`;
+        assert.equal(dispatch(0, 1, 18), exit, label);
+        assert.deepEqual(Array.from(frame), expected, label);
+        assert.deepEqual(sampled, expectedSamples, label);
+        assert.deepEqual(data, expectedData, label);
+    }
 }
 for (const failure of ['pages', 'sample_prepare', 'resolve', 'sample', 'page_switch', null]) {
     const memory = new WebAssembly.Memory({initial: 3});
