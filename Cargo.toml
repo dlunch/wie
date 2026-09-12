@@ -54,7 +54,6 @@ jvm-types = { version = "^0.1.1" }
 lazy_static = { version = "^1.5", default-features = false }
 rustjava-runtime = { version = "^0.1.1" }
 serde = { version = "^1", default-features = false, features = ["derive", "alloc"] }
-serde_json = { version = "^1", default-features = false, features = ["alloc"] }
 # Use Rustls with ureq to support Android without OpenSSL or JVM certificate-verifier setup.
 sentry = { version = "^0.49", default-features = false, features = [
     "anyhow",

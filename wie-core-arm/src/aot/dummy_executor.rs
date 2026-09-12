@@ -22,6 +22,4 @@ impl CompiledExecutor for DummyExecutor {
     }
 
     fn retire(&mut self, _handles: &[CompiledHandle]) {}
-
-    fn shutdown(&mut self) {}
 }

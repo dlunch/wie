@@ -5,11 +5,10 @@ use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use core::{future::Future, pin::Pin};
 
 use bytemuck::{Pod, Zeroable};
-use serde::{Deserialize, Serialize};
 
 pub mod ir;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RegionKey {
     pub pc: u32,
     pub thumb: bool,
@@ -47,11 +46,10 @@ pub struct CompileRequest {
 }
 pub type PreparationFuture = Pin<Box<dyn Future<Output = Result<CompiledArtifact, String>> + Send>>;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct ManifestRegion {
     pub entry: RegionKey,
     pub instruction_pcs: Vec<u32>,
-    #[serde(skip)]
     pub source: Vec<CodePageStamp>,
     pub source_bytes: Vec<(u32, Vec<u8>)>,
 }
@@ -123,10 +121,11 @@ pub trait ExecutionAccess {
 
 pub trait CompiledExecutor: Send {
     fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture;
-    /// Only `Ok` returns a resumable frame. `Err` may follow guest writes; stop execution without retrying.
+    /// Both `Ok` and `Err` leave the completed instruction prefix in `frame`, including its next PC and counters.
+    /// On `Err`, discard this executor and resume in the interpreter without replaying completed writes.
+    /// Fallible host calls must fail before guest side effects; arbitrary code or memory corruption is not resumable.
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String>;
     fn retire(&mut self, handles: &[CompiledHandle]);
-    fn shutdown(&mut self);
 }
 
 #[cfg(test)]

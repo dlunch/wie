@@ -3,7 +3,13 @@ extern crate alloc;
 
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 
-use wie_arm_jit_types::{CodeImage, CompileRegion, CompileRequest, ManifestRegion};
+use nom::{
+    Parser,
+    multi::{length_count, length_data},
+    number::complete::le_u32,
+};
+
+use wie_arm_jit_types::{CodeImage, CompileRegion, CompileRequest, ManifestRegion, RegionKey};
 
 mod codegen;
 
@@ -14,6 +20,52 @@ mod runtime;
 pub use runtime::{WasmExecutor, now};
 
 const COPY_SIZE: usize = 64 * 1024;
+
+/// Increment when analysis, generated code, execution ABI, or the cache format changes.
+pub const AOT_CACHE_VERSION: u32 = 1;
+
+pub fn encode_manifest_region(region: &ManifestRegion, output: &mut Vec<u8>) {
+    // Little-endian header, instruction PCs, then length-prefixed source spans; stamps are session-local.
+    for word in [
+        region.entry.pc,
+        u32::from(region.entry.cpu_mode) << 1 | u32::from(region.entry.thumb),
+        region.instruction_pcs.len() as u32,
+    ]
+    .into_iter()
+    .chain(region.instruction_pcs.iter().copied())
+    {
+        output.extend_from_slice(&word.to_le_bytes());
+    }
+    output.extend_from_slice(&(region.source_bytes.len() as u32).to_le_bytes());
+    for (address, bytes) in &region.source_bytes {
+        output.extend_from_slice(&address.to_le_bytes());
+        output.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        output.extend_from_slice(bytes);
+    }
+}
+
+pub fn decode_manifest_region(input: &mut &[u8]) -> Option<ManifestRegion> {
+    let decoded: nom::IResult<_, _> = (
+        le_u32,
+        le_u32,
+        length_count(le_u32, le_u32),
+        length_count(le_u32, (le_u32, length_data(le_u32))),
+    )
+        .parse(*input);
+    let (remaining, (pc, mode, instruction_pcs, spans)) = decoded.ok()?;
+    let entry = RegionKey {
+        pc,
+        thumb: mode & 1 != 0,
+        cpu_mode: u8::try_from(mode >> 1).ok()?,
+    };
+    *input = remaining;
+    Some(ManifestRegion {
+        entry,
+        instruction_pcs,
+        source: Vec::new(),
+        source_bytes: spans.into_iter().map(|(address, bytes)| (address, bytes.to_vec())).collect(),
+    })
+}
 
 pub struct WasmArtifact {
     pub bytes: Vec<u8>,
@@ -356,20 +408,16 @@ mod tests {
             .collect();
         let mut bytes = Vec::new();
         for region in &manifest {
-            let value = serde_json::to_value(region).unwrap();
-            assert!(value.get("source").is_none());
-            bytes.extend(serde_json::to_vec(region).unwrap());
-            bytes.push(b'\n');
+            encode_manifest_region(region, &mut bytes);
         }
-        let restored: Vec<_> = serde_json::Deserializer::from_slice(&bytes)
-            .into_iter::<ManifestRegion>()
-            .map(|region| {
-                let mut region = region.unwrap();
-                assert!(region.source.is_empty());
-                bind_manifest_source(&mut region, &images).unwrap();
-                region
-            })
-            .collect();
+        let mut remaining = bytes.as_slice();
+        let mut restored = Vec::new();
+        while !remaining.is_empty() {
+            let mut region = decode_manifest_region(&mut remaining).unwrap();
+            assert!(region.source.is_empty());
+            bind_manifest_source(&mut region, &images).unwrap();
+            restored.push(region);
+        }
         assert_eq!(restored.len(), manifest.len());
         for (actual, expected) in restored.iter().zip(&manifest) {
             assert_eq!(actual.entry, expected.entry);
@@ -377,15 +425,8 @@ mod tests {
             assert_eq!(actual.source_bytes, expected.source_bytes);
             assert_eq!(actual.source, images[0].source);
         }
-        let mut injected = serde_json::to_value(&manifest[0]).unwrap();
-        injected["source"] = serde_json::json!([{"page": 0, "version": 42}, "not a stamp"]);
-        let mut restored: ManifestRegion = serde_json::from_value(injected).unwrap();
-        assert!(restored.source.is_empty());
-        bind_manifest_source(&mut restored, &images).unwrap();
-        assert_eq!(restored.source, images[0].source);
-        restored.source_bytes[0].1[0] ^= 1;
-        assert!(bind_manifest_source(&mut restored, &images).is_err());
-        assert!(serde_json::Deserializer::from_slice(b"").into_iter::<ManifestRegion>().next().is_none());
+        restored[0].source_bytes[0].1[0] ^= 1;
+        assert!(bind_manifest_source(&mut restored[0], &images).is_err());
     }
 
     #[test]
@@ -433,7 +474,7 @@ mod tests {
     }
 
     #[test]
-    fn cached_manifest_rejects_corrupt_json_source_and_instruction_ownership() {
+    fn cached_manifest_rejects_truncated_bytes_source_and_instruction_ownership() {
         let images = [CodeImage {
             address: 0x1000,
             bytes: vec![1, 0x30, 0x70, 0x47],
@@ -468,23 +509,15 @@ mod tests {
             }
             assert!(bind_manifest_source(&mut region, &images).is_err(), "case {case}");
         }
-        let encoded = serde_json::to_vec(&valid).unwrap();
-        assert!(
-            serde_json::Deserializer::from_slice(&encoded[..encoded.len() - 1])
-                .into_iter::<ManifestRegion>()
-                .next()
-                .unwrap()
-                .is_err()
-        );
-        for invalid in [
-            serde_json::json!(-1),
-            serde_json::json!(4294967296_u64),
-            serde_json::json!(1.5),
-            serde_json::json!("4096"),
-        ] {
-            let mut value = serde_json::to_value(&valid).unwrap();
-            value["entry"]["pc"] = invalid;
-            assert!(serde_json::from_value::<ManifestRegion>(value).is_err());
+        let mut encoded = Vec::new();
+        encode_manifest_region(&valid, &mut encoded);
+        for length in 0..encoded.len() {
+            assert!(decode_manifest_region(&mut &encoded[..length]).is_none(), "length={length}");
+        }
+        for offset in [4, 8, 20, 28] {
+            let mut corrupt = encoded.clone();
+            corrupt[offset..offset + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+            assert!(decode_manifest_region(&mut corrupt.as_slice()).is_none(), "offset={offset}");
         }
     }
 }

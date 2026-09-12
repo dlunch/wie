@@ -1,5 +1,3 @@
-declare const __webpack_hash__: string;
-
 interface ArmArtifactBytes {
     bytes: Uint8Array;
     manifest: Uint8Array;
@@ -17,38 +15,27 @@ interface ArmCacheLookup {
 let latestModule: { key: string; digest: string; module: WebAssembly.Module } | undefined;
 
 async function duringPreparation<T>(
-    deadline: number, signal: AbortSignal, work: (check: () => void, taskSignal: AbortSignal) => Promise<T>,
+    deadline: number, work: (check: () => void) => Promise<T>,
 ): Promise<T> {
-    const controller = new AbortController();
+    let settled = false;
     const check = () => {
-        controller.signal.throwIfAborted();
-        signal.throwIfAborted();
-        if (performance.now() >= deadline) throw new Error("ARM AOT preparation timed out");
+        if (settled || performance.now() >= deadline) throw new Error("ARM AOT preparation timed out");
     };
     let interrupt!: (error: unknown) => void;
     const interrupted = new Promise<never>((_, reject) => { interrupt = reject; });
-    const abort = () => {
-        controller.abort(signal.reason);
-        interrupt(signal.reason);
-    };
-    signal.addEventListener("abort", abort, { once: true });
     const timeout = setTimeout(() => {
-        const failure = new Error("ARM AOT preparation timed out");
-        controller.abort(failure);
-        interrupt(failure);
+        // Timer delay rounding can settle the race before the absolute deadline.
+        settled = true;
+        interrupt(new Error("ARM AOT preparation timed out"));
     }, Math.max(0, deadline - performance.now()));
     try {
         check();
-        const result = await Promise.race([interrupted, work(check, controller.signal)]);
+        const result = await Promise.race([interrupted, work(check)]);
         check();
         return result;
-    } catch (error) {
-        controller.abort(error);
-        throw error;
     } finally {
-        controller.abort();
+        settled = true;
         clearTimeout(timeout);
-        signal.removeEventListener("abort", abort);
     }
 }
 
@@ -65,23 +52,12 @@ async function artifactDigest(artifact: ArmArtifactBytes, key: string, check: ()
     return sha256(new TextEncoder().encode(JSON.stringify([key, bytes, manifest])), check);
 }
 
-async function accessArmCache(key: string, record: ArmCacheRecord | undefined, check: () => void, signal: AbortSignal): Promise<unknown> {
+async function accessArmCache(key: string, record: ArmCacheRecord | undefined, check: () => void): Promise<unknown> {
     let db: IDBDatabase | undefined;
-    let transaction: IDBTransaction | undefined;
-    const close = () => {
-        try {
-            transaction?.abort();
-        } catch {
-            // Commit may finish before the transaction's completion event arrives.
-        }
-        transaction = undefined;
-        db?.close();
-    };
-    signal.addEventListener("abort", close, { once: true });
+    const opening = indexedDB.open("wie_arm_aot");
     try {
         return await new Promise((resolve, reject) => {
             check();
-            const opening = indexedDB.open("wie_arm_aot");
             opening.onupgradeneeded = () => {
                 try {
                     check();
@@ -98,11 +74,10 @@ async function accessArmCache(key: string, record: ArmCacheRecord | undefined, c
                 db = opening.result;
                 try {
                     check();
-                    const current = transaction = db.transaction("artifacts", record ? "readwrite" : "readonly");
+                    const current = db.transaction("artifacts", record ? "readwrite" : "readonly");
                     const store = current.objectStore("artifacts");
                     const request = record ? store.put(record, key) : store.get(key);
                     current.oncomplete = () => {
-                        transaction = undefined;
                         try {
                             check();
                             resolve(request.result);
@@ -111,7 +86,6 @@ async function accessArmCache(key: string, record: ArmCacheRecord | undefined, c
                         }
                     };
                     current.onerror = current.onabort = () => {
-                        transaction = undefined;
                         reject(current.error);
                     };
                 } catch (error) {
@@ -122,24 +96,25 @@ async function accessArmCache(key: string, record: ArmCacheRecord | undefined, c
             };
         });
     } finally {
-        signal.removeEventListener("abort", close);
-        close();
+        // A blocked request can succeed after this operation has already returned.
+        opening.onsuccess = () => opening.result.close();
+        db?.close();
     }
 }
 
-export async function loadArmCache(input: Uint8Array, deadline: number, signal: AbortSignal): Promise<ArmCacheLookup> {
+export async function loadArmCache(input: Uint8Array, version: number, deadline: number): Promise<ArmCacheLookup> {
     const started = performance.now();
     const timing: Record<string, number> = {};
     let outcome = "miss";
     let key: string | undefined;
     try {
-        return await duringPreparation(deadline, signal, async (check, taskSignal) => {
+        return await duringPreparation(deadline, async check => {
             try {
-                key = `${__webpack_hash__}:${await sha256(input, check)}`;
+                key = `${version}:${await sha256(input, check)}`;
                 check();
                 timing.keying = performance.now() - started;
                 let phaseStarted = performance.now();
-                const record = await accessArmCache(key, undefined, check, taskSignal);
+                const record = await accessArmCache(key, undefined, check);
                 check();
                 timing.read = performance.now() - phaseStarted;
                 phaseStarted = performance.now();
@@ -171,13 +146,13 @@ export async function loadArmCache(input: Uint8Array, deadline: number, signal: 
 }
 
 // This detached task owns only cache data, never an instance, imports or a warmup frame.
-async function storeArmCache(record: ArmCacheRecord, key: string, deadline: number, signal: AbortSignal): Promise<void> {
+async function storeArmCache(record: ArmCacheRecord, key: string, deadline: number): Promise<void> {
     const started = performance.now();
     let outcome = "stored";
     try {
-        await duringPreparation(deadline, signal, (check, taskSignal) => accessArmCache(key, record, check, taskSignal));
+        await duringPreparation(deadline, check => accessArmCache(key, record, check));
     } catch {
-        outcome = signal.aborted || performance.now() >= deadline ? "skipped" : "failed";
+        outcome = performance.now() >= deadline ? "skipped" : "failed";
     }
     console.info("ARM AOT cache store", { outcome, elapsedMs: performance.now() - started });
 }
@@ -197,7 +172,7 @@ export function compilerTask(): Promise<void> {
 
 export async function compileArm(
     artifact: ArmArtifactBytes, key: string | undefined, cachedDigest: string | undefined, imports: WebAssembly.Imports,
-    frame: number, regionCount: number, deadline: number, signal: AbortSignal,
+    frame: number, regionCount: number, deadline: number,
 ): Promise<Function> {
     let stopped: unknown;
     let failed = false;
@@ -207,7 +182,7 @@ export async function compileArm(
     let memory: WebAssembly.Memory | undefined = imports.wie.memory as WebAssembly.Memory;
     const memoryBefore = memory.buffer.byteLength;
     try {
-        return await duringPreparation(deadline, signal, async check => {
+        return await duringPreparation(deadline, async check => {
             check();
             let digest = cachedDigest;
             if (key !== undefined && digest === undefined) {
@@ -254,7 +229,7 @@ export async function compileArm(
             timing.warmup = performance.now() - phaseStarted;
             latestModule = key !== undefined && digest !== undefined ? { key, digest, module } : undefined;
             if (key !== undefined && digest !== undefined && cachedDigest === undefined) {
-                void storeArmCache({ bytes: artifact.bytes, manifest: artifact.manifest, digest }, key, deadline, signal);
+                void storeArmCache({ bytes: artifact.bytes, manifest: artifact.manifest, digest }, key, deadline);
             }
             return dispatcher;
         });
@@ -267,7 +242,7 @@ export async function compileArm(
         imports = {};
         memory = undefined;
         console.info("ARM AOT prepared", {
-            outcome: failed || signal.aborted ? String(stopped) : "ready",
+            outcome: failed ? String(stopped) : "ready",
             elapsedMs: performance.now() - started, phasesMs: timing, encodedSize: artifact.bytes.byteLength, regionCount, cache,
             hostMemoryBefore: memoryBefore, hostMemoryPeak: memoryRetained, hostMemoryRetained: memoryRetained,
         });

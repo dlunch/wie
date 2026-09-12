@@ -7019,7 +7019,6 @@ name = "wie-arm-jit-types"
 version = "0.1.4"
 dependencies = [
  "bytemuck",
- "serde",
 ]
 
 [[package]]
@@ -7069,12 +7068,11 @@ version = "0.1.4"
 dependencies = [
  "futures",
  "js-sys",
- "serde_json",
+ "nom 8.0.0",
  "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-encoder",
- "web-sys",
  "wie-arm-jit-types",
 ]
 

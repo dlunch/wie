@@ -39,7 +39,6 @@ pub(crate) struct ArmCoreInner {
 
 impl Drop for ArmCoreInner {
     fn drop(&mut self) {
-        self.engine.shutdown();
         let batch = self.engine.take_profile(true);
         if !batch.is_empty()
             && let Some(callback) = self.profile.as_mut()

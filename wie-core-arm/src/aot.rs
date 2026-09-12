@@ -94,22 +94,25 @@ impl Aot {
         Ok(Some(self.executor.prepare(request, self.deadline_ms)))
     }
 
-    pub fn finish(&mut self, result: core::result::Result<CompiledArtifact, alloc::string::String>, memory: &EmulatedMemory, now: impl Fn() -> f64) {
+    pub fn finish(
+        &mut self,
+        result: core::result::Result<CompiledArtifact, alloc::string::String>,
+        memory: &EmulatedMemory,
+        now: impl Fn() -> f64,
+    ) -> bool {
         if self.state != PreparationState::Preparing {
-            return;
-        }
-        if now() >= self.deadline_ms {
-            tracing::warn!("ARM AOT preparation timed out; using interpreter");
-            self.shutdown();
-            return;
+            return false;
         }
         self.state = PreparationState::Ready;
+        if now() >= self.deadline_ms {
+            tracing::warn!("ARM AOT preparation timed out; using interpreter");
+            return false;
+        }
         let mut artifact = match result {
             Ok(artifact) => artifact,
             Err(error) => {
                 tracing::warn!(%error, "ARM AOT preparation failed; using interpreter");
-                self.shutdown();
-                return;
+                return false;
             }
         };
         if artifact
@@ -117,8 +120,7 @@ impl Aot {
             .iter_mut()
             .any(|region| !memory.validate_code(&mut region.manifest.source, &region.manifest.source_bytes))
         {
-            self.shutdown();
-            return;
+            return false;
         }
         let mut entries = HashMap::with_capacity(artifact.regions.iter().map(|region| region.manifest.instruction_pcs.len()).sum());
         let mut translations = Vec::with_capacity(artifact.regions.len());
@@ -140,8 +142,7 @@ impl Aot {
         let finished = now();
         if finished >= self.deadline_ms {
             tracing::warn!("ARM AOT installation timed out; using interpreter");
-            self.shutdown();
-            return;
+            return false;
         }
         self.entries = entries;
         self.translations = translations;
@@ -151,6 +152,7 @@ impl Aot {
             elapsed_ms = finished - (self.deadline_ms - 10_000.0),
             "ARM AOT installed"
         );
+        true
     }
 
     pub fn lookup(&mut self, key: RegionKey, memory: &EmulatedMemory) -> Option<CompiledHandle> {
@@ -179,20 +181,6 @@ impl Aot {
                 .validate_code(&mut translation.source.borrow_mut(), &translation.source_bytes)
                 .then_some(handle)
         })
-    }
-
-    pub fn shutdown(&mut self) {
-        self.state = PreparationState::Ready;
-        self.executor.shutdown();
-        self.ranges.clear();
-        self.translations.clear();
-        self.entries = HashMap::new();
-    }
-}
-
-impl Drop for Aot {
-    fn drop(&mut self) {
-        self.shutdown();
     }
 }
 

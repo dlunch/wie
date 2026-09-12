@@ -41,14 +41,6 @@ impl Default for ModuleBuilder {
             s.local_get(value).local_get(0).i32_load(field(offset)).i32_eq().if_(BlockType::Empty);
             s.i32_const(exit as i32).return_().end();
         }
-        s.local_get(0)
-            .i32_load(field(76))
-            .local_get(3)
-            .i32_sub()
-            .i32_const(1)
-            .i32_eq()
-            .if_(BlockType::Empty);
-        s.local_get(1).local_get(2).local_get(0).i32_load(field(28)).call(2).end();
         s.i32_const(-1).end();
         builder.push_body(boundary);
         let mut entry = Function::new([]);
@@ -327,6 +319,15 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
             .i32_ne()
             .br_if(exit_depth)
             .drop();
+        s.local_get(0)
+            .i32_load(field(76))
+            .local_get(EXECUTED)
+            .i32_sub()
+            .i32_const(1)
+            .i32_eq()
+            .if_(BlockType::Empty);
+        commit_prefix(s);
+        s.local_get(1).i32_const(pc as i32).local_get(0).i32_load(field(28)).call(2).end();
     } else {
         s.local_get(0).i32_load(field(60)).local_set(PC);
         s.local_get(0)
@@ -635,7 +636,14 @@ fn access_result(s: &mut InstructionSink<'_>, exit_depth: u32) {
     }
 }
 
+// Host calls can fail; publish the completed prefix before crossing that boundary.
+fn commit_prefix(s: &mut InstructionSink<'_>) {
+    s.local_get(0).local_get(EXECUTED).call(7);
+    s.i32_const(0).local_set(EXECUTED);
+}
+
 fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
+    commit_prefix(s);
     s.local_get(1)
         .local_get(LEFT)
         .i32_const(words as i32)
@@ -840,6 +848,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
         }
         Operation::Load { address, width, .. } | Operation::Store { address, width, .. } => {
             memory_address(s, address, instruction.pc, thumb);
+            commit_prefix(s);
             s.local_get(1).local_get(LEFT);
             s.i32_const(match width {
                 Width::Byte => 1,
@@ -992,6 +1001,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 s.local_get(RANGE_FIRST).i32_load(field(0)).local_set(RESULT);
                 s.local_get(RANGE_FIRST).local_get(RIGHT).i32_store(field(0));
             } else {
+                commit_prefix(s);
                 s.local_get(1).local_get(LEFT).i32_const(1).local_get(0).i32_const(88).i32_add().call(0);
                 access_result(s, exit_depth);
                 s.local_get(1).local_get(LEFT).i32_const(1).local_get(RIGHT).call(1).drop();
@@ -1331,8 +1341,130 @@ mod tests {
                 .i32_ne()
                 .br_if(depth)
                 .drop();
-            assert_eq!(actual.into_raw_body(), expected.into_raw_body());
+            let actual = actual.into_raw_body();
+            assert!(actual.starts_with(&expected.into_raw_body()));
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    #[ignore = "requires Node.js to execute generated Wasm"]
+    fn host_failures_leave_a_resumable_completed_prefix() {
+        extern crate std;
+        use std::{
+            io::Write,
+            process::{Command, Stdio},
+        };
+
+        let address = Address {
+            base: Value::Register(1),
+            offset: Operand {
+                value: Value::Immediate(0),
+                shift: Shift::Lsl,
+                amount: ShiftAmount::Immediate(0),
+            },
+            subtract: false,
+            pre_index: true,
+            write_back: None,
+        };
+        let operations = [
+            Operation::Store {
+                address,
+                width: Width::Word,
+                value: Value::Register(0),
+            },
+            Operation::Alu {
+                op: AluOp::Add,
+                destination: Some(0),
+                left: Value::Register(0),
+                right: Operand {
+                    value: Value::Immediate(1),
+                    shift: Shift::Lsl,
+                    amount: ShiftAmount::Immediate(0),
+                },
+                set_flags: false,
+            },
+            Operation::Store {
+                address,
+                width: Width::Word,
+                value: Value::Register(0),
+            },
+            Operation::Nop,
+        ];
+        let ir = RegionIr {
+            entry: RegionKey {
+                pc: 0x1000,
+                thumb: true,
+                cpu_mode: 0x1f,
+            },
+            blocks: vec![BasicBlock {
+                instructions: operations
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, operation)| Instruction {
+                        pc: 0x1000 + index as u32 * 2,
+                        size: 2,
+                        condition: Condition::Always,
+                        operation,
+                    })
+                    .collect(),
+            }],
+        };
+        let mut builder = ModuleBuilder::default();
+        builder.add_region(&ir);
+        let mut bytes = Vec::new();
+        for chunk in builder.begin_assembly(&mut bytes).unwrap() {
+            bytes.extend_from_slice(&chunk);
+        }
+        let mut node = Command::new("node")
+            .args([
+                "-e",
+                r#"
+const assert = require('node:assert/strict');
+const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
+for (const failure of ['store', 'sample_prepare', 'resolve']) {
+    const memory = new WebAssembly.Memory({initial: 1});
+    const frame = new Uint32Array(memory.buffer, 0, 23);
+    frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
+    frame[16] = 0x3f; frame[17] = 0x2000; frame[18] = 10;
+    const samples = frame[19] = failure === 'sample_prepare' ? 3 : 1024;
+    let stores = 0;
+    const injected = new Error('injected host failure');
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory,
+        load() { throw new Error('unexpected load'); },
+        word_range() { throw new Error('unexpected word range'); },
+        store(_, address, width, value) {
+            assert.equal(width, 4);
+            if (failure === 'store' && stores === 1) throw injected;
+            stores++;
+            new DataView(memory.buffer).setUint32(address, value, true);
+            return 0;
+        },
+        sample_prepare() { if (failure === 'sample_prepare') throw injected; },
+        resolve() { if (failure === 'resolve') throw injected; return -1; },
+    }}).exports.dispatch;
+    assert.throws(() => dispatch(0, 0, 0), error => error === injected);
+    const completed = failure === 'resolve' ? 4 : 2;
+    assert.equal(frame[0], 43);
+    assert.equal(frame[15], 0x1000 + completed * 2);
+    assert.equal(frame[16], 0x3f);
+    assert.equal(frame[18], 10 - completed);
+    assert.equal(frame[19], samples - completed);
+    assert.equal(frame[20], completed);
+    assert.equal(stores, failure === 'resolve' ? 2 : 1);
+    assert.equal(new DataView(memory.buffer).getUint32(0x3000, true), stores === 1 ? 42 : 43);
+}
+"#,
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        node.stdin.take().unwrap().write_all(&bytes).unwrap();
+        let output = node.wait_with_output().unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     }
 
     #[test]

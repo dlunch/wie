@@ -179,8 +179,9 @@ impl ArmEngine for Arm32CpuEngine {
                     let exit = match result {
                         Ok(exit) => exit,
                         Err(error) => {
-                            self.shutdown();
-                            return Err(WieError::FatalError(format!("ARM AOT execution failed: {error}")));
+                            tracing::warn!(%error, "ARM AOT execution failed; using interpreter");
+                            self.aot = None;
+                            CompiledExit::Dispatch
                         }
                     };
                     for (index, value) in frame.regs.into_iter().enumerate() {
@@ -302,7 +303,9 @@ impl ArmEngine for Arm32CpuEngine {
             let now = wie_core_arm_wasm::now;
             #[cfg(not(target_arch = "wasm32"))]
             let now = || 0.0;
-            aot.finish(result, &self.mem, now);
+            if !aot.finish(result, &self.mem, now) {
+                self.aot = None;
+            }
         }
     }
 
@@ -716,7 +719,6 @@ mod tests {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
         ready: Option<futures::channel::oneshot::Sender<core::result::Result<CompiledArtifact, String>>>,
         retired: Vec<CompiledHandle>,
-        shutdowns: usize,
     }
 
     struct DeferredExecutor(Arc<Mutex<Responses>>);
@@ -736,12 +738,6 @@ mod tests {
 
         fn retire(&mut self, handles: &[CompiledHandle]) {
             self.0.lock().retired.extend_from_slice(handles);
-        }
-
-        fn shutdown(&mut self) {
-            let mut state = self.0.lock();
-            state.shutdowns += 1;
-            state.ready = None;
         }
     }
 
@@ -899,8 +895,8 @@ mod tests {
     }
 
     #[test]
-    fn failed_stale_cancelled_and_timed_out_preparations_do_not_install_late_results() {
-        for cause in ["failed", "stale", "cancelled", "timeout", "installation-timeout"] {
+    fn failed_stale_and_timed_out_preparations_do_not_install_late_results() {
+        for cause in ["failed", "stale", "timeout", "installation-timeout"] {
             let responses = Arc::new(Mutex::new(Responses::default()));
             let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
             let mut memory = EmulatedMemory::new();
@@ -912,17 +908,15 @@ mod tests {
             assert!(responses.lock().ready.take().unwrap().send(result).is_ok());
             if cause == "stale" {
                 memory.write_range(0x1000, &[1]).unwrap();
-            } else if cause == "cancelled" {
-                aot.shutdown();
             }
             let time = core::cell::Cell::new(if cause == "timeout" { 10_000.0 } else { 9_999.0 });
-            aot.finish(futures::executor::block_on(preparation), &memory, || {
+            assert!(!aot.finish(futures::executor::block_on(preparation), &memory, || {
                 let value = time.get();
                 if cause == "installation-timeout" {
                     time.set(10_000.0);
                 }
                 value
-            });
+            }));
             assert_eq!(aot.state, PreparationState::Ready, "{cause}");
             let key = RegionKey {
                 pc: 0x1000,
@@ -939,7 +933,7 @@ mod tests {
 
     struct TestExecutor {
         calls: Arc<Mutex<(u32, bool)>>,
-        trap: bool,
+        completed: Option<u32>,
     }
 
     impl CompiledExecutor for TestExecutor {
@@ -957,55 +951,67 @@ mod tests {
             self.calls.lock().0 += 1;
             assert_eq!(access.resolve(frame.regs[15], frame.cpsr), Some(handle));
             assert_eq!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000), None);
-            if self.trap {
-                assert!(matches!(access.store(0x20000, 4, 42), AccessResult::Complete(0)));
-                frame.regs[0] = 99;
-                return Err("injected trap after store".into());
+            if let Some(completed) = self.completed {
+                if completed != 0 {
+                    assert!(matches!(access.store(0x20000, 4, 42), AccessResult::Complete(0)));
+                    frame.regs[0] = 43;
+                    frame.regs[15] += completed * 2;
+                    frame.executed = completed;
+                    frame.budget_remaining -= completed;
+                    frame.sample_remaining -= completed;
+                }
+                return Err("injected backend failure at an instruction boundary".into());
             }
             Ok(CompiledExit::InterpretOne)
         }
 
         fn retire(&mut self, _: &[CompiledHandle]) {}
+    }
 
-        fn shutdown(&mut self) {
+    impl Drop for TestExecutor {
+        fn drop(&mut self) {
             self.calls.lock().1 = true;
         }
     }
 
     #[test]
-    fn interpreter_handoff_advances_once_and_traps_never_replay_or_commit_the_frame() {
-        for trap in [false, true] {
+    fn interpreter_handoff_and_backend_failure_preserve_progress_and_budget() {
+        for (completed, budget) in [(None, 10), (Some(0), 10), (Some(2), 10), (Some(2), 2)] {
             let calls = Arc::new(Mutex::new((0, false)));
             let mut engine = Arm32CpuEngine::new();
             engine.mem_map(0x1000, 6, MemoryPermission::ReadWriteExecute);
             engine.mem_map(0x20000, 4, MemoryPermission::ReadWrite);
-            engine.mem_write(0x1000, &[0x01, 0x30, 0x70, 0x47]).unwrap(); // add r0, #1; bx lr
+            engine.mem_write(0x1000, &[0x08, 0x60, 0x01, 0x30, 0x70, 0x47]).unwrap(); // str r0, [r1]; add r0, #1; bx lr
+            engine.reg_write(ArmRegister::R0, 42);
+            engine.reg_write(ArmRegister::R1, 0x20000);
             engine.reg_write(ArmRegister::Cpsr, 0x3f);
             engine.reg_write(ArmRegister::PC, 0x1001);
             engine.reg_write(ArmRegister::LR, 0x2000);
-            let mut aot = Aot::new(Box::new(TestExecutor { calls: calls.clone(), trap }));
-            aot.record_image(0x1000, 4);
+            let mut aot = Aot::new(Box::new(TestExecutor {
+                calls: calls.clone(),
+                completed,
+            }));
+            aot.record_image(0x1000, 6);
             let preparation = aot.begin(&engine.mem, || 0.0).unwrap().unwrap();
             aot.finish(futures::executor::block_on(preparation), &engine.mem, || 1.0);
             engine.aot = Some(aot);
-            let result = engine.run(0x2000, 10);
-            assert_eq!(calls.lock().0, if trap { 1 } else { 2 });
-            if trap {
-                assert!(result.is_err());
-                assert_eq!(engine.reg_read(ArmRegister::R0), 0);
-                assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
-                let mut value = [0; 4];
-                engine.mem_read(0x20000, 4, &mut value).unwrap();
-                assert_eq!(u32::from_le_bytes(value), 42);
-                assert!(calls.lock().1);
-                assert!(engine.run(0x2000, 10).is_err());
+            let result = engine.run(0x2000, budget).unwrap();
+            assert_eq!(result.instructions_executed, budget.min(3));
+            assert_eq!(engine.sampler.remaining, 1024 - budget.min(3));
+            assert_eq!(engine.reg_read(ArmRegister::Cpsr), if budget == 2 { 0x3f } else { 0x1f });
+            assert_eq!(calls.lock().0, if completed.is_some() { 1 } else { 2 });
+            assert_eq!(engine.reg_read(ArmRegister::R0), 43);
+            let mut value = [0; 4];
+            engine.mem_read(0x20000, 4, &mut value).unwrap();
+            assert_eq!(u32::from_le_bytes(value), 42);
+            assert_eq!(calls.lock().1, completed.is_some());
+            if budget == 2 {
+                assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+                assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
+                assert_eq!(engine.run(0x2000, 10).unwrap().instructions_executed, 1);
                 assert_eq!(calls.lock().0, 1);
             } else {
-                let result = result.unwrap();
                 assert!(matches!(result.stop_reason, EngineStopReason::End));
-                assert_eq!(result.instructions_executed, 2);
-                assert_eq!(engine.reg_read(ArmRegister::R0), 1);
-                assert_eq!(engine.sampler.remaining, 1022);
             }
         }
     }
@@ -1031,20 +1037,23 @@ mod tests {
             assert_eq!(controller.inner.try_lock().unwrap().engine.reg_read(ArmRegister::R0), 0);
             if cancel {
                 controller.shutdown();
+                assert!(execution.as_mut().poll(&mut context).is_pending());
+            }
+            assert!(
+                responses
+                    .lock()
+                    .ready
+                    .take()
+                    .unwrap()
+                    .send(Ok(CompiledArtifact {
+                        regions: Vec::new(),
+                        encoded_size: 0
+                    }))
+                    .is_ok()
+            );
+            if cancel {
                 assert!(matches!(execution.as_mut().poll(&mut context), Poll::Ready(Err(_))));
             } else {
-                assert!(
-                    responses
-                        .lock()
-                        .ready
-                        .take()
-                        .unwrap()
-                        .send(Ok(CompiledArtifact {
-                            regions: Vec::new(),
-                            encoded_size: 0
-                        }))
-                        .is_ok()
-                );
                 assert!(controller.is_preparing());
                 assert!(matches!(execution.as_mut().poll(&mut context), Poll::Ready(Ok(1))));
                 assert!(!controller.is_preparing());
@@ -1086,7 +1095,7 @@ mod tests {
             engine.mem_write(0x1000, &[0x01, 0x30, 0xc0, 0x46]).unwrap();
             let mut aot = Aot::new(Box::new(TestExecutor {
                 calls: calls.clone(),
-                trap: false,
+                completed: None,
             }));
             aot.record_image(0x1000, 4);
             let preparation = aot.begin(&engine.mem, || 0.0).unwrap().unwrap();

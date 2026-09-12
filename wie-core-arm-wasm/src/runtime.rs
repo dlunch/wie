@@ -1,17 +1,16 @@
 use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, string::String, vec, vec::Vec};
-use core::{cell::RefCell, future};
+use core::cell::RefCell;
 
 use futures::channel::oneshot;
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use web_sys::{AbortController, AbortSignal};
 use wie_arm_jit_types::{
-    AccessResult, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, ManifestRegion,
+    AccessResult, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess,
     PreparationFuture, RegionKey, RunFrame,
 };
 
-use crate::{Compiler, WasmArtifact, bind_manifest_source};
+use crate::{AOT_CACHE_VERSION, Compiler, WasmArtifact, bind_manifest_source, decode_manifest_region, encode_manifest_region};
 
 #[wasm_bindgen(inline_js = r#"
 export { compileArm, compilerTask, loadArmCache } from "@ts/arm-compiler.ts";
@@ -31,11 +30,10 @@ extern "C" {
         frame: u32,
         regions: u32,
         deadline: f64,
-        signal: &AbortSignal,
     ) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(catch, js_name = loadArmCache)]
-    fn load_arm_cache(input: &Uint8Array, deadline: f64, signal: &AbortSignal) -> Result<Promise, JsValue>;
+    fn load_arm_cache(input: &Uint8Array, version: u32, deadline: f64) -> Result<Promise, JsValue>;
 
     #[wasm_bindgen(js_name = compilerTask)]
     fn compiler_task() -> Promise;
@@ -52,10 +50,8 @@ extern "C" {
 
 #[derive(Default)]
 struct State {
-    closed: bool,
     active: Vec<bool>,
     dispatcher: Option<Function>,
-    abort: Option<AbortController>,
 }
 
 #[derive(Default)]
@@ -69,29 +65,12 @@ unsafe impl Send for WasmExecutor {}
 
 impl CompiledExecutor for WasmExecutor {
     fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
-        let mut state = self.state.borrow_mut();
-        if state.closed {
-            return Box::pin(future::ready(Err(String::from("compiled executor is closed"))));
-        }
-        let abort = match AbortController::new() {
-            Ok(abort) => abort,
-            Err(error) => {
-                return Box::pin(future::ready(Err(format!("compiler cancellation setup: {error:?}"))));
-            }
-        };
-        let signal = abort.signal();
-        state.abort = Some(abort);
         let weak = Rc::downgrade(&self.state);
-        drop(state);
         let (sender, receiver) = oneshot::channel();
         spawn_local(async move {
-            let result = prepare_module(request, deadline_ms, &signal).await;
+            let result = prepare_module(request, deadline_ms).await;
             let Some(state) = weak.upgrade() else { return };
             let mut state = state.borrow_mut();
-            if state.closed || signal.aborted() {
-                return;
-            }
-            state.abort = None;
             let result = match result {
                 Ok((artifact, dispatcher)) if now() < deadline_ms => {
                     state.active = vec![true; artifact.regions.len()];
@@ -105,7 +84,7 @@ impl CompiledExecutor for WasmExecutor {
             let _ = sender.send(result);
         });
         // Only the Send receiver crosses the host initialization future's await.
-        Box::pin(async move { receiver.await.map_err(|_| String::from("ARM AOT preparation cancelled"))? })
+        Box::pin(async move { receiver.await.map_err(|_| String::from("ARM AOT owner was dropped"))? })
     }
 
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
@@ -114,7 +93,7 @@ impl CompiledExecutor for WasmExecutor {
             .dispatcher
             .as_ref()
             .filter(|_| state.active.get(handle.slot as usize) == Some(&true))
-            .ok_or_else(|| String::from("compiled handle is retired or executor is closed"))?;
+            .ok_or_else(|| String::from("compiled handle is retired or dispatcher is unavailable"))?;
         let mut context = ExecutionContext { access, frame };
         let result = execute_region(
             function,
@@ -123,7 +102,7 @@ impl CompiledExecutor for WasmExecutor {
             handle.slot,
         );
         drop(state);
-        let exit = match result {
+        match result {
             Ok(value) => match value {
                 0.0 => Ok(CompiledExit::Dispatch),
                 1.0 => Ok(CompiledExit::Sample),
@@ -134,11 +113,7 @@ impl CompiledExecutor for WasmExecutor {
                 _ => Err(format!("compiled ABI returned invalid exit: {value:?}")),
             },
             Err(error) => Err(format!("generated code trapped: {error:?}")),
-        };
-        if exit.is_err() {
-            self.shutdown();
         }
-        exit
     }
 
     fn retire(&mut self, handles: &[CompiledHandle]) {
@@ -149,28 +124,9 @@ impl CompiledExecutor for WasmExecutor {
             }
         }
     }
-
-    fn shutdown(&mut self) {
-        let abort = {
-            let mut state = self.state.borrow_mut();
-            state.closed = true;
-            state.active.clear();
-            state.dispatcher = None;
-            state.abort.take()
-        };
-        if let Some(abort) = abort {
-            abort.abort();
-        }
-    }
 }
 
-impl Drop for WasmExecutor {
-    fn drop(&mut self) {
-        self.shutdown();
-    }
-}
-
-async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSignal) -> Result<(CompiledArtifact, Function), JsValue> {
+async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(CompiledArtifact, Function), JsValue> {
     let started = now();
     let memory_before = core::arch::wasm32::memory_size::<0>() * 65536;
     let mut cache = "miss";
@@ -183,11 +139,11 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
     let mut region_count = 0;
     let result = async {
         let mut group_started = started;
-        preparation_checkpoint(&mut group_started, deadline, signal).await?;
+        preparation_checkpoint(&mut group_started, deadline).await?;
         let mut input = Vec::new();
         input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
         for image in request.images.iter() {
-            preparation_checkpoint(&mut group_started, deadline, signal).await?;
+            preparation_checkpoint(&mut group_started, deadline).await?;
             input.extend_from_slice(&image.address.to_le_bytes());
             input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
             input.extend_from_slice(&image.bytes);
@@ -195,12 +151,12 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
         let input_copy = Uint8Array::from(input.as_slice());
         drop(input);
         input_ms = now() - started;
-        preparation_checkpoint(&mut group_started, deadline, signal).await?;
+        preparation_checkpoint(&mut group_started, deadline).await?;
         let lookup_started = now();
-        let lookup = JsFuture::from(load_arm_cache(&input_copy, deadline, signal)?).await?;
+        let lookup = JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?;
         drop(input_copy);
         lookup_ms = now() - lookup_started;
-        preparation_checkpoint(&mut group_started, deadline, signal).await?;
+        preparation_checkpoint(&mut group_started, deadline).await?;
         let key = Reflect::get(&lookup, &"key".into())?;
         if key.is_undefined() {
             cache = "unavailable";
@@ -215,13 +171,12 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
                 let manifest_started = now();
                 let restored = async {
                     let bytes = Reflect::get(&artifact, &"manifest".into())?.dyn_into::<Uint8Array>()?.to_vec();
-                    let mut manifest = serde_json::Deserializer::from_slice(&bytes).into_iter::<ManifestRegion>();
+                    let mut manifest = bytes.as_slice();
                     let mut owned = BTreeSet::new();
                     let mut regions = Vec::new();
-                    loop {
-                        preparation_checkpoint(&mut group_started, deadline, signal).await?;
-                        let Some(region) = manifest.next() else { break };
-                        let mut region = region.map_err(|error| JsValue::from_str(&format!("cached manifest: {error}")))?;
+                    while !manifest.is_empty() {
+                        preparation_checkpoint(&mut group_started, deadline).await?;
+                        let mut region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
                         bind_manifest_source(&mut region, &request.images).map_err(|error| JsValue::from_str(&error))?;
                         for &pc in &region.instruction_pcs {
                             if !owned.insert(RegionKey { pc, ..region.entry }) {
@@ -237,17 +192,17 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
                 }
                 .await;
                 manifest_ms += now() - manifest_started;
-                preparation_checkpoint(&mut group_started, deadline, signal).await?;
+                preparation_checkpoint(&mut group_started, deadline).await?;
                 let regions = restored?;
                 encoded_size = Reflect::get(&artifact, &"bytes".into())?.dyn_into::<Uint8Array>()?.length() as usize;
                 let digest = Reflect::get(&artifact, &"digest".into())?;
                 region_count = regions.len();
                 cache = "persistent-hit";
-                let dispatcher = prepare_dispatcher(&artifact, &key, &digest, region_count, deadline, signal, &mut output_setup_ms).await?;
+                let dispatcher = prepare_dispatcher(&artifact, &key, &digest, region_count, deadline, &mut output_setup_ms).await?;
                 Ok::<_, JsValue>((CompiledArtifact { regions, encoded_size }, dispatcher))
             }
             .await;
-            preparation_checkpoint(&mut group_started, deadline, signal).await?;
+            preparation_checkpoint(&mut group_started, deadline).await?;
             match restored {
                 Ok(result) => return Ok(result),
                 Err(error) => {
@@ -261,7 +216,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
         let mut compiler = Compiler::new(request);
         let compiled = async {
             loop {
-                preparation_checkpoint(&mut group_started, deadline, signal).await?;
+                preparation_checkpoint(&mut group_started, deadline).await?;
                 if compiler.step().map_err(|error| JsValue::from_str(&error))? {
                     break;
                 }
@@ -276,16 +231,15 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
         let mut serialized = Vec::new();
         let mut regions = Vec::with_capacity(manifest.len());
         for (slot, manifest) in manifest.into_iter().enumerate() {
-            preparation_checkpoint(&mut group_started, deadline, signal).await?;
-            serialized.extend(serde_json::to_vec(&manifest).map_err(|error| JsValue::from_str(&format!("manifest: {error}")))?);
-            serialized.push(b'\n');
+            preparation_checkpoint(&mut group_started, deadline).await?;
+            encode_manifest_region(&manifest, &mut serialized);
             regions.push(CompiledRegion {
                 manifest,
                 handle: CompiledHandle { slot: slot as u32 },
             });
         }
         manifest_ms += now() - manifest_started;
-        preparation_checkpoint(&mut group_started, deadline, signal).await?;
+        preparation_checkpoint(&mut group_started, deadline).await?;
         let output_started = now();
         let artifact = Object::new();
         // Both arrays own their bytes before Rust allocations are freed or an await can grow memory.
@@ -297,9 +251,9 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
         Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
         output_setup_ms += now() - output_started;
         region_count = regions.len();
-        preparation_checkpoint(&mut group_started, deadline, signal).await?;
-        let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, region_count, deadline, signal, &mut output_setup_ms).await?;
-        preparation_checkpoint(&mut group_started, deadline, signal).await?;
+        preparation_checkpoint(&mut group_started, deadline).await?;
+        let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, region_count, deadline, &mut output_setup_ms).await?;
+        preparation_checkpoint(&mut group_started, deadline).await?;
         Ok((CompiledArtifact { regions, encoded_size }, dispatcher))
     }
     .await;
@@ -324,16 +278,16 @@ async fn prepare_module(request: CompileRequest, deadline: f64, signal: &AbortSi
     result
 }
 
-async fn preparation_checkpoint(group_started: &mut f64, deadline: f64, signal: &AbortSignal) -> Result<(), JsValue> {
+async fn preparation_checkpoint(group_started: &mut f64, deadline: f64) -> Result<(), JsValue> {
     let current = now();
-    if signal.aborted() || current >= deadline {
-        return Err(JsValue::from_str("ARM AOT preparation cancelled or timed out"));
+    if current >= deadline {
+        return Err(JsValue::from_str("ARM AOT preparation timed out"));
     }
     if current - *group_started >= 4.0 {
         JsFuture::from(compiler_task()).await?;
         *group_started = now();
-        if signal.aborted() || *group_started >= deadline {
-            return Err(JsValue::from_str("ARM AOT preparation cancelled or timed out"));
+        if *group_started >= deadline {
+            return Err(JsValue::from_str("ARM AOT preparation timed out"));
         }
     }
     Ok(())
@@ -345,7 +299,6 @@ async fn prepare_dispatcher(
     cached_digest: &JsValue,
     region_count: usize,
     deadline: f64,
-    signal: &AbortSignal,
     output_setup_ms: &mut f64,
 ) -> Result<Function, JsValue> {
     let output_started = now();
@@ -365,10 +318,9 @@ async fn prepare_dispatcher(
         &mut *warmup as *mut RunFrame as u32,
         region_count as u32,
         deadline,
-        signal,
     )?;
     let result = JsFuture::from(promise).await;
-    // TS has stopped calling exports when its job settles, including cancellation.
+    // TS checks job settlement after every await, so timed-out continuations cannot reuse this frame.
     drop(warmup);
     result?.dyn_into::<Function>()
 }
