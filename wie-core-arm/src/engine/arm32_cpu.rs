@@ -163,7 +163,6 @@ impl ArmEngine for Arm32CpuEngine {
                         regs: core::array::from_fn(|index| self.cpu.reg_get(Mode::User, index as u8)),
                         cpsr,
                         end,
-                        budget_remaining: count - instructions_executed,
                         sample_remaining: self.sampler.remaining,
                         ..RunFrame::default()
                     };
@@ -929,7 +928,6 @@ mod tests {
                     frame.regs[0] = 43;
                     frame.regs[15] += completed * 2;
                     frame.executed = completed;
-                    frame.budget_remaining -= completed;
                     frame.sample_remaining -= completed;
                 }
                 return Err("injected backend failure at an instruction boundary".into());

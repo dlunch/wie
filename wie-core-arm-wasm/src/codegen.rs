@@ -23,7 +23,7 @@ const RANGE_LENGTH: u32 = 14;
 const EXECUTED: u32 = 15;
 const PAGE_BASE: u32 = 16;
 const PAGE_POINTER: u32 = 17;
-const INSTRUCTION_LIMIT: u32 = 18;
+const SAMPLE_AT: u32 = 18;
 const END: u32 = 19;
 
 // Function indices follow the import and helper section order.
@@ -51,7 +51,7 @@ impl Default for ModuleBuilder {
         };
         let mut boundary = Function::new([]);
         let mut s = boundary.instructions();
-        for (value, offset, exit) in [(2, 68, CompiledExit::End), (3, 72, CompiledExit::Budget), (3, 76, CompiledExit::Sample)] {
+        for (value, offset, exit) in [(2, 68, CompiledExit::End), (3, 72, CompiledExit::Sample)] {
             s.local_get(value).local_get(0).i32_load(field(offset)).i32_eq().if_(BlockType::Empty);
             s.i32_const(exit as i32).return_().end();
         }
@@ -60,9 +60,9 @@ impl Default for ModuleBuilder {
         let mut entry = Function::new([]);
         let mut s = entry.instructions();
         s.local_get(1).i32_const(0x1000).i32_lt_u().if_(BlockType::Empty);
-        s.local_get(0).local_get(1).i32_store(field(84));
+        s.local_get(0).local_get(1).i32_store(field(80));
         s.i32_const(CompiledExit::GuestFault as i32).return_().end();
-        for (value, offset, exit) in [(1, 68, CompiledExit::End), (2, 72, CompiledExit::Budget), (2, 76, CompiledExit::Sample)] {
+        for (value, offset, exit) in [(1, 68, CompiledExit::End), (2, 72, CompiledExit::Sample)] {
             s.local_get(value).local_get(0).i32_load(field(offset)).i32_eq().if_(BlockType::Empty);
             s.i32_const(exit as i32).return_().end();
         }
@@ -84,20 +84,18 @@ impl Default for ModuleBuilder {
         builder.push_body(entry);
         let mut commit = Function::new([]);
         let mut s = commit.instructions();
-        for offset in [72, 76] {
-            s.local_get(0)
-                .local_get(0)
-                .i32_load(field(offset))
-                .local_get(1)
-                .i32_sub()
-                .i32_store(field(offset));
-        }
         s.local_get(0)
             .local_get(0)
-            .i32_load(field(80))
+            .i32_load(field(72))
+            .local_get(1)
+            .i32_sub()
+            .i32_store(field(72));
+        s.local_get(0)
+            .local_get(0)
+            .i32_load(field(76))
             .local_get(1)
             .i32_add()
-            .i32_store(field(80))
+            .i32_store(field(76))
             .end();
         builder.push_body(commit);
         builder
@@ -128,8 +126,8 @@ impl ModuleBuilder {
         exports.encode(&mut export_bytes);
         let mut dispatcher = Function::new([(1, ValType::I32)]);
         let mut s = dispatcher.instructions();
-        // The host warms the dispatcher with budget zero before any guest execution.
-        s.local_get(0).i32_load(field(72)).i32_eqz().if_(BlockType::Empty);
+        // Warmup has no access context and returns at the frame's current PC.
+        s.local_get(1).i32_eqz().if_(BlockType::Empty);
         s.local_get(0)
             .local_get(1)
             .local_get(0)
@@ -146,7 +144,7 @@ impl ModuleBuilder {
             .drop();
         s.local_get(0).i32_const(0).call(COMMIT).end();
         if regions == 0 {
-            s.i32_const(CompiledExit::Budget as i32);
+            s.i32_const(CompiledExit::End as i32);
         } else {
             s.loop_(BlockType::Empty);
             s.local_get(0).local_get(1).local_get(2).call_indirect(0, 2).local_tee(3);
@@ -270,15 +268,7 @@ fn compile_region(ir: &RegionIr) -> Function {
     let mut s = function.instructions();
     s.local_get(0).i32_load(field(64)).local_set(CPSR);
     s.local_get(0).i32_load(field(68)).local_set(END);
-    s.local_get(0).i32_load(field(72)).local_set(LEFT);
-    s.local_get(0).i32_load(field(76)).local_set(RIGHT);
-    s.local_get(LEFT)
-        .local_get(RIGHT)
-        .local_get(LEFT)
-        .local_get(RIGHT)
-        .i32_lt_u()
-        .select()
-        .local_set(INSTRUCTION_LIMIT);
+    s.local_get(0).i32_load(field(72)).i32_const(1).i32_sub().local_set(SAMPLE_AT);
     s.block(BlockType::Result(ValType::I32));
     s.loop_(BlockType::Empty);
     boundaries(&mut s, ir, None, 1);
@@ -342,7 +332,7 @@ fn compile_region(ir: &RegionIr) -> Function {
 
 fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option<u32>, exit_depth: u32) {
     if let Some(pc) = instruction_pc {
-        s.local_get(EXECUTED).local_get(INSTRUCTION_LIMIT).i32_eq();
+        s.local_get(EXECUTED).local_get(SAMPLE_AT).i32_gt_u();
         s.i32_const(pc as i32).local_get(END).i32_eq().i32_or().if_(BlockType::Empty);
         s.local_get(0)
             .local_get(1)
@@ -351,13 +341,7 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
             .call(BOUNDARY)
             .br(exit_depth + 1)
             .end();
-        s.local_get(0)
-            .i32_load(field(76))
-            .local_get(EXECUTED)
-            .i32_sub()
-            .i32_const(1)
-            .i32_eq()
-            .if_(BlockType::Empty);
+        s.local_get(EXECUTED).local_get(SAMPLE_AT).i32_eq().if_(BlockType::Empty);
         commit_prefix(s);
         s.i32_const(0).local_set(PAGE_POINTER);
         s.local_get(1).i32_const(pc as i32).local_get(0).i32_load(field(28)).call(SAMPLE).end();
@@ -664,7 +648,7 @@ fn memory_address(s: &mut InstructionSink<'_>, address: Address, pc: u32, thumb:
 // Host calls can fail; publish the completed prefix before crossing that boundary.
 fn commit_prefix(s: &mut InstructionSink<'_>) {
     s.local_get(0).local_get(EXECUTED).call(COMMIT);
-    s.local_get(INSTRUCTION_LIMIT).local_get(EXECUTED).i32_sub().local_set(INSTRUCTION_LIMIT);
+    s.local_get(SAMPLE_AT).local_get(EXECUTED).i32_sub().local_set(SAMPLE_AT);
     s.i32_const(0).local_set(EXECUTED);
 }
 
@@ -681,7 +665,7 @@ fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 1).end();
     s.local_get(WIDE).i32_wrap_i64().local_set(RANGE_FIRST);
     s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64().local_set(RANGE_SECOND);
-    s.local_get(0).i32_load(field(88)).local_set(RANGE_LENGTH);
+    s.local_get(0).i32_load(field(84)).local_set(RANGE_LENGTH);
 }
 
 fn scalar_address(s: &mut InstructionSink<'_>, width: Width, exit_depth: u32) {
@@ -1419,8 +1403,8 @@ mod tests {
             expected
                 .instructions()
                 .local_get(EXECUTED)
-                .local_get(INSTRUCTION_LIMIT)
-                .i32_eq()
+                .local_get(SAMPLE_AT)
+                .i32_gt_u()
                 .i32_const(0x1000)
                 .local_get(END)
                 .i32_eq()
@@ -1612,13 +1596,25 @@ mod tests {
                 r#"
 const assert = require('node:assert/strict');
 const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
+{
+    const memory = new WebAssembly.Memory({initial: 1});
+    const frame = new Uint32Array(memory.buffer, 0, 22);
+    frame[15] = frame[17] = 0x1000; frame[16] = 0x1f; frame[18] = 1;
+    const before = Array.from(frame);
+    const unexpected = () => { throw new Error('guest execution during warmup'); };
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory, page: unexpected, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
+    }}).exports.dispatch;
+    for (let slot = 0; slot < 18; slot++) assert.equal(dispatch(0, 0, slot), 3);
+    assert.deepEqual(Array.from(frame), before);
+}
 for (const failure of ['page', 'sample_prepare', 'resolve', 'sample', null]) {
     const memory = new WebAssembly.Memory({initial: 3});
-    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const frame = new Uint32Array(memory.buffer, 0, 22);
     frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
     frame[2] = failure === 'page' ? 0x13000 : 0x3000;
-    frame[16] = 0xf000003f; frame[17] = 0x2000; frame[18] = 10;
-    const samples = frame[19] = ['sample_prepare', 'sample'].includes(failure) ? 3 : 1024;
+    frame[16] = 0xf000003f; frame[17] = 0x2000;
+    const samples = frame[18] = ['sample_prepare', 'sample'].includes(failure) ? 3 : 1024;
     let pages = 0;
     const injected = new Error('injected host failure');
     const dispatch = new WebAssembly.Instance(module, {wie: {
@@ -1634,26 +1630,25 @@ for (const failure of ['page', 'sample_prepare', 'resolve', 'sample', null]) {
         resolve() { if (failure === 'resolve') throw injected; return -1; },
     }}).exports.dispatch;
     if (failure === null || failure === 'sample') {
-        assert.equal(dispatch(0, 0, 0), failure === 'sample' ? 1 : 0);
+        assert.equal(dispatch(0, 1, 0), failure === 'sample' ? 1 : 0);
     } else {
-        assert.throws(() => dispatch(0, 0, 0), error => error === injected);
+        assert.throws(() => dispatch(0, 1, 0), error => error === injected);
     }
     const completed = failure === 'sample' ? 3 : failure === 'resolve' || failure === null ? 4 : 2;
     assert.equal(frame[0], 43);
     assert.equal(frame[15], 0x1000 + completed * 2);
     assert.equal(frame[16], 0x3f);
-    assert.equal(frame[18], 10 - completed);
-    assert.equal(frame[19], samples - completed);
-    assert.equal(frame[20], completed);
+    assert.equal(frame[18], samples - completed);
+    assert.equal(frame[19], completed);
     assert.equal(pages, failure === 'sample' ? 2 : 1);
     assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 2 ? 42 : 43);
 }
-for (let budget = 0; budget <= 5; budget++) for (let sample = 1; sample <= 5; sample++) for (let end = 0; end <= 5; end++) {
+for (let sample = 1; sample <= 5; sample++) for (let end = 0; end <= 5; end++) {
     const memory = new WebAssembly.Memory({initial: 2});
-    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const frame = new Uint32Array(memory.buffer, 0, 22);
     frame[0] = 42; frame[1] = frame[2] = 0x3000;
     frame[15] = 0x1000; frame[16] = 0xf000003f;
-    frame[17] = 0x1000 + end * 2; frame[18] = budget; frame[19] = sample;
+    frame[17] = 0x1000 + end * 2; frame[18] = sample;
     let samples = 0;
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
@@ -1662,34 +1657,33 @@ for (let budget = 0; budget <= 5; budget++) for (let sample = 1; sample <= 5; sa
         page() { return 65536; },
         sample_prepare() { samples++; },
     }}).exports.dispatch;
-    const completed = Math.min(4, budget, sample, end);
-    const exit = completed === end ? 3 : completed === budget ? 2 : completed === sample ? 1 : 0;
-    assert.equal(dispatch(0, 0, 0), exit, `budget=${budget}, sample=${sample}, end=${end}`);
+    const completed = Math.min(4, sample, end);
+    const exit = completed === end ? 3 : completed === sample ? 1 : 0;
+    assert.equal(dispatch(0, 1, 0), exit, `sample=${sample}, end=${end}`);
     assert.equal(frame[15], 0x1000 + completed * 2);
     assert.equal(frame[16], completed < 2 ? 0xf000003f : 0x3f);
-    assert.equal(frame[18], budget - completed);
-    assert.equal(frame[19], sample - completed);
-    assert.equal(frame[20], completed);
+    assert.equal(frame[18], sample - completed);
+    assert.equal(frame[19], completed);
     assert.equal(samples, completed === sample ? 1 : 0);
     assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 0 ? 0 : completed < 3 ? 42 : 43);
 }
 for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x3001, 0xfffc, 0xffff, 0xfffffffc, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
-    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const frame = new Uint32Array(memory.buffer, 0, 22);
     const data = new Uint8Array(memory.buffer, 65536, 65536).fill(0x55);
     frame[0] = address ?? 0x3000; frame[1] = 0x89abcdef;
     frame[15] = 0x1000; frame[16] = 0xf000003f; frame[17] = 0x1002;
-    frame[18] = 1; frame[19] = 1024;
+    frame[18] = 1024;
     const unexpected = () => { throw new Error('unexpected host call'); };
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
         page() { return address === null ? 0 : 65536; },
     }}).exports.dispatch;
     const admitted = address !== null && address % width === 0;
-    assert.equal(dispatch(0, 0, 16 + index), admitted ? 3 : 4);
+    assert.equal(dispatch(0, 1, 16 + index), admitted ? 3 : 4);
     assert.equal(frame[2], admitted ? width === 1 ? 0x55 : 0x55555555 : 0);
     assert.equal(frame[16], 0xf000003f);
-    assert.equal(frame[20], admitted ? 1 : 0);
+    assert.equal(frame[19], admitted ? 1 : 0);
     if (admitted) {
         assert.deepEqual(Array.from(data.slice(address & 65535, (address & 65535) + width)), [0xef, 0xcd, 0xab, 0x89].slice(0, width));
     } else {
@@ -1698,10 +1692,10 @@ for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x
 }
 for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
-    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const frame = new Uint32Array(memory.buffer, 0, 22);
     frame[0] = 0x89abcdef; frame[1] = address ?? 0x3000;
     frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1012;
-    frame[18] = 100; frame[19] = 1024;
+    frame[18] = 1024;
     let pages = 0;
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
@@ -1715,18 +1709,17 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
         },
     }}).exports.dispatch;
     const completed = address === null ? 0 : address === 0x3001 ? 3 : 9;
-    assert.equal(dispatch(0, 0, 1), completed === 9 ? 3 : 4);
+    assert.equal(dispatch(0, 1, 1), completed === 9 ? 3 : 4);
     assert.equal(pages, 1);
     assert.equal(frame[15], 0x1000 + completed * 2);
-    assert.equal(frame[18], 100 - completed);
-    assert.equal(frame[19], 1024 - completed);
-    assert.equal(frame[20], completed);
+    assert.equal(frame[18], 1024 - completed);
+    assert.equal(frame[19], completed);
     const expected = [0xef, 0xffffffef, 0xcdef, 0xffffcdef, 0x89abcdef, 0x89abcdef];
     assert.deepEqual(Array.from(frame.slice(2, 2 + completed / 3 * 2)), expected.slice(0, completed / 3 * 2));
 }
 {
     const memory = new WebAssembly.Memory({initial: 1});
-    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const frame = new Uint32Array(memory.buffer, 0, 22);
     const unexpected = () => { throw new Error('unexpected host call'); };
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, page: unexpected, word_range: unexpected,
@@ -1737,8 +1730,8 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
         frame.fill(0);
         frame[0] = left; frame[1] = right;
         frame[15] = 0x1000; frame[16] = (0xd800003f | carry << 29) >>> 0;
-        frame[17] = 0x1002; frame[18] = 1; frame[19] = 1024;
-        assert.equal(dispatch(0, 0, 2 + op), 3);
+        frame[17] = 0x1002; frame[18] = 1024;
+        assert.equal(dispatch(0, 1, 2 + op), 3);
         if (op >= 8) {
             const result = [right, ~right, left & right, left | right, left ^ right, left & ~right][op - 8] >>> 0;
             const flags = ((result & 0x80000000) | (result === 0 ? 0x40000000 : 0) | carry << 29 | 0x10000000) >>> 0;
@@ -1761,7 +1754,7 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
             | (signed < -0x80000000n || signed > 0x7fffffffn ? 0x10000000 : 0)) >>> 0;
         assert.equal(frame[2], result, `op=${op}, left=${left}, right=${right}, carry=${carry}`);
         assert.equal(frame[16], (flags | 0x0800003f) >>> 0);
-        assert.equal(frame[20], 1);
+        assert.equal(frame[19], 1);
     }
 }
 "#,

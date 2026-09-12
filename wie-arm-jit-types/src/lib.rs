@@ -76,7 +76,6 @@ pub enum PreparationState {
 pub enum CompiledExit {
     Dispatch = 0,
     Sample = 1,
-    Budget = 2,
     End = 3,
     InterpretOne = 4,
     GuestFault = 6,
@@ -88,7 +87,6 @@ pub struct RunFrame {
     pub regs: [u32; 16],
     pub cpsr: u32,
     pub end: u32,
-    pub budget_remaining: u32,
     pub sample_remaining: u32,
     pub executed: u32,
     pub fault_address: u32,
@@ -131,16 +129,15 @@ mod tests {
 
     #[test]
     fn generated_code_frame_has_a_fixed_plain_data_layout() {
-        assert_eq!(size_of::<RunFrame>(), 92);
+        assert_eq!(size_of::<RunFrame>(), 88);
         assert_eq!(align_of::<RunFrame>(), 4);
         assert_eq!(offset_of!(RunFrame, regs), 0);
         assert_eq!(offset_of!(RunFrame, cpsr), 64);
         assert_eq!(offset_of!(RunFrame, end), 68);
-        assert_eq!(offset_of!(RunFrame, budget_remaining), 72);
-        assert_eq!(offset_of!(RunFrame, sample_remaining), 76);
-        assert_eq!(offset_of!(RunFrame, executed), 80);
-        assert_eq!(offset_of!(RunFrame, fault_address), 84);
-        assert_eq!(offset_of!(RunFrame, scratch), 88);
-        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 92]);
+        assert_eq!(offset_of!(RunFrame, sample_remaining), 72);
+        assert_eq!(offset_of!(RunFrame, executed), 76);
+        assert_eq!(offset_of!(RunFrame, fault_address), 80);
+        assert_eq!(offset_of!(RunFrame, scratch), 84);
+        assert_eq!(bytemuck::bytes_of(&RunFrame::default()), &[0; 88]);
     }
 }

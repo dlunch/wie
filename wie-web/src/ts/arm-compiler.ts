@@ -216,8 +216,8 @@ export async function compileArm(
             if (typeof dispatcher !== "function") throw new Error("missing compiled dispatcher");
             for (let slot = 0; slot < Math.max(regionCount, 1); slot++) {
                 check();
-                // The boxed host frame has PC 0x1000 and budget 0: no guest context is needed.
-                if (dispatcher(frame, 0, slot) !== 2) throw new Error(`compiled region ${slot} failed budget-zero warmup`);
+                // The boxed host frame has PC and return address 0x1000: no guest context is needed.
+                if (dispatcher(frame, 0, slot) !== 3) throw new Error(`compiled region ${slot} failed return-boundary warmup`);
                 check();
                 if (performance.now() - groupStarted >= 4) {
                     await compilerTask();

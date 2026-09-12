@@ -106,7 +106,6 @@ impl CompiledExecutor for WasmExecutor {
             Ok(value) => match value {
                 0.0 => Ok(CompiledExit::Dispatch),
                 1.0 => Ok(CompiledExit::Sample),
-                2.0 => Ok(CompiledExit::Budget),
                 3.0 => Ok(CompiledExit::End),
                 4.0 => Ok(CompiledExit::InterpretOne),
                 6.0 => Ok(CompiledExit::GuestFault),
@@ -304,6 +303,7 @@ async fn prepare_dispatcher(
     let output_started = now();
     let mut warmup = Box::new(RunFrame {
         cpsr: 0x1f,
+        end: 0x1000,
         sample_remaining: 1,
         ..RunFrame::default()
     });
