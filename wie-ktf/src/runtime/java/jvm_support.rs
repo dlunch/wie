@@ -324,8 +324,8 @@ mod test {
     use crate::runtime::java::{JavaSvcFunctions, handle_java_svc};
 
     use super::{
-        ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaMethod, KtfClassLoader, KtfJvmSupport, KtfJvmThreadContext,
-        value::JavaValueCodec,
+        ClassLoaderContext, JavaArrayClassInstance, JavaClassDefinition, JavaClassInstance, JavaMethod, KtfClassLoader, KtfJvmSupport,
+        KtfJvmThreadContext, value::JavaValueCodec,
     };
 
     use test_utils::{TestClock, TestPlatform};
@@ -612,6 +612,55 @@ mod test {
             }
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_non_native_method_through_native_entry() -> Result<()> {
+        let mut system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
+        let done = Arc::new(AtomicBool::new(false));
+        let done_clone = done.clone();
+        let mut system_clone = system.clone();
+        system.spawn(async move || {
+            let (jvm, mut core) = init_jvm(&mut system_clone).await?;
+            let mut chars = jvm.instantiate_array("C", 4).await.unwrap();
+            jvm.store_array(&mut chars, 0, vec![0x41u16, 0xd654, 0xc7a5, 0x42]).await.unwrap();
+            let class = jvm.resolve_class("java/lang/String").await.unwrap();
+            let class = class.definition.as_any().downcast_ref::<JavaClassDefinition>().unwrap();
+            let method = class.method("valueOf", "([CII)Ljava/lang/String;", true)?.unwrap();
+            let raw: RawJavaMethod = read_generic(&core, method.ptr_raw)?;
+            assert!(!MethodAccessFlags::from_bits_truncate(raw.access_flags).contains(MethodAccessFlags::NATIVE));
+            assert_eq!(raw.exception_table_count, 0);
+            assert_ne!(raw.fn_body_native_or_exception_table, 0);
+
+            let args = vec![chars.clone().into(), 1.into(), 2.into()];
+            let java_result = method.run(args.clone().into_boxed_slice()).await?;
+            let java_result = Box::<dyn jvm::ClassInstance>::from(java_result);
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &java_result).await.unwrap(), "화장");
+
+            let codec = JavaValueCodec::new(&core);
+            let words = encode_method_arguments(&codec, &args);
+            let ptr_args = Allocator::alloc(&mut core, words.len() as u32 * 4)?;
+            for (index, word) in words.iter().enumerate() {
+                write_generic(&mut core, ptr_args + index as u32 * 4, *word)?;
+            }
+            // KTF AOT callers can use the native argument-buffer ABI even when
+            // the host implementation's Java prototype is not marked native.
+            let result: u32 = core.run_function(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await?;
+            let result: Box<dyn jvm::ClassInstance> = Box::new(JavaClassInstance::from_raw(result, &core));
+            assert_eq!(JavaLangString::to_rust_string(&jvm, &result).await.unwrap(), "화장");
+
+            write_generic(&mut core, ptr_args + 4, (-1i32) as u32)?;
+            let result = core.run_function::<u32>(raw.fn_body_native_or_exception_table, &[0, ptr_args]).await;
+            assert!(matches!(result, Err(WieError::JavaException(_))));
+            Allocator::free(&mut core, ptr_args, words.len() as u32 * 4)?;
+
+            done_clone.store(true, Ordering::Relaxed);
+            Ok(())
+        });
+        while !done.load(Ordering::Relaxed) {
+            system.tick()?;
+        }
         Ok(())
     }
 

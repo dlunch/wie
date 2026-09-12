@@ -304,7 +304,6 @@ impl JavaMethod {
             parameter_types.insert(0, JavaType::Class("".into())); // TODO name
         }
 
-        let is_native = proto.access_flags.contains(MethodAccessFlags::NATIVE);
         let proxy = JavaMethodProxy {
             ptr_method,
             jvm: jvm.clone(),
@@ -319,13 +318,12 @@ impl JavaMethod {
 
         // Entry-field addresses identify the ABI while sharing the method implementation.
         let fn_body = core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_method)?;
-        let fn_native = if is_native {
-            let ptr_native_entry = ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
-            java_functions.lock().insert(ptr_native_entry, proxy);
-            core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_native_entry)?
-        } else {
-            0
-        };
+        // AOT code selects the ABI using the original handset implementation,
+        // which need not have the same native flag as our host prototype.
+        // Host methods have no guest exception table, so both entries can coexist.
+        let ptr_native_entry = ptr_method + offset_of!(RawJavaMethod, fn_body_native_or_exception_table) as u32;
+        java_functions.lock().insert(ptr_native_entry, proxy);
+        let fn_native = core.make_svc_stub(SVC_CATEGORY_JAVA, ptr_native_entry)?;
 
         Ok((fn_body, fn_native))
     }
