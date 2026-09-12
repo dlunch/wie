@@ -156,7 +156,6 @@ impl ClassInstance for JavaClassInstance {
 
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let field_type = JavaType::parse(field.name().unwrap().descriptor());
 
         assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
 
@@ -164,7 +163,7 @@ impl ClassInstance for JavaClassInstance {
         let address = self.field_address(offset).unwrap();
         let codec = JavaValueCodec::new(&self.core);
 
-        if matches!(field_type, JavaType::Long | JavaType::Double) {
+        if matches!(value, JavaValue::Long(_) | JavaValue::Double(_)) {
             let (value, value_high) = codec.encode_wide(&value);
 
             write_generic(&mut self.core, address, value).unwrap();
