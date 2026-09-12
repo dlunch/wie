@@ -195,12 +195,7 @@ impl KtfJvmSupport {
         while core.run_function::<u32>(predicate, &[ptr_class]).await? != 0 {
             let class = JavaClassDefinition::from_raw(ptr_class, core);
             let name = class.name()?;
-            if !jvm.has_class(&name)
-                && class
-                    .fields()?
-                    .iter()
-                    .any(|field| field.access_flags().contains(FieldAccessFlags::STATIC))
-            {
+            if !jvm.has_class(&name) && class.fields()?.any(|field| field.access_flags().contains(FieldAccessFlags::STATIC)) {
                 jvm.register_class(Box::new(class), Some(class_loader.clone()))
                     .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
                     .await?;

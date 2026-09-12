@@ -60,7 +60,6 @@ impl JavaVtable {
             let methods = class.methods()?;
 
             let items = methods
-                .into_iter()
                 .map(|x| {
                     let name = x.name()?;
 
