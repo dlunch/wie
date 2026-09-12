@@ -366,7 +366,7 @@ where
             return;
         }
 
-        if !blend {
+        if !blend || color.a == 255 {
             self.image_buffer.put_pixel(x, y, color);
             return;
         }

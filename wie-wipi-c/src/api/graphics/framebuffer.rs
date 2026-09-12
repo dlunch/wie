@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use bytemuck::pod_collect_to_vec;
+use bytemuck::{Pod, cast_slice_mut};
 
 use wipi_types::wipic::{WIPICFramebuffer, WIPICIndirectPtr, WIPICWord};
 
@@ -66,45 +66,41 @@ impl FrameBuffer {
         }))
     }
 
-    pub fn data(&self, context: &dyn WIPICContext) -> Result<Vec<u8>> {
+    fn data<T: Pod>(&self, context: &dyn WIPICContext) -> Result<Vec<T>> {
         let (size, _) = buffer_size(self.0.width, self.0.height, self.0.bpp / 8)?;
-        let mut buf = vec![0; size as _];
-        context.read_bytes(context.data_ptr(self.0.buf)?, &mut buf)?;
+        let mut buf = vec![T::zeroed(); size as usize / size_of::<T>()];
+        context.read_bytes(context.data_ptr(self.0.buf)?, cast_slice_mut(&mut buf))?;
 
         Ok(buf)
     }
 
     pub fn image(&self, context: &mut dyn WIPICContext) -> Result<Box<dyn Image>> {
-        let data = self.data(context)?;
-
         Ok(match self.0.bpp {
             16 => Box::new(VecImageBuffer::<Rgb565Pixel>::from_raw(
                 self.0.width as _,
                 self.0.height as _,
-                pod_collect_to_vec(&data),
+                self.data(context)?,
             )),
             32 => Box::new(VecImageBuffer::<ArgbPixel>::from_raw(
                 self.0.width as _,
                 self.0.height as _,
-                pod_collect_to_vec(&data),
+                self.data(context)?,
             )),
             _ => unimplemented!("Unsupported pixel format: {}", self.0.bpp),
         })
     }
 
     pub fn canvas<'a>(&'a self, context: &'a mut dyn WIPICContext) -> Result<FramebufferCanvas<'a>> {
-        let data = self.data(context)?;
-
         let canvas: Box<dyn Canvas> = match self.0.bpp {
             16 => Box::new(ImageBufferCanvas::new(VecImageBuffer::<Rgb565Pixel>::from_raw(
                 self.0.width as _,
                 self.0.height as _,
-                pod_collect_to_vec(&data),
+                self.data(context)?,
             ))),
             32 => Box::new(ImageBufferCanvas::new(VecImageBuffer::<ArgbPixel>::from_raw(
                 self.0.width as _,
                 self.0.height as _,
-                pod_collect_to_vec(&data),
+                self.data(context)?,
             ))),
             _ => unimplemented!("Unsupported pixel format: {}", self.0.bpp),
         };
@@ -215,11 +211,19 @@ mod test {
     fn test_new_normal_size_ok() {
         let mut context = TestContext::new();
 
-        let framebuffer = FrameBuffer::new(&mut context, 100, 100, 16).unwrap();
-        assert_eq!(framebuffer.0.width, 100);
-        assert_eq!(framebuffer.0.height, 100);
-        assert_eq!(framebuffer.0.bpl, 200);
-        assert_eq!(framebuffer.0.bpp, 16);
-        assert_eq!(framebuffer.data(&context).unwrap().len(), 20000);
+        for bpp in [16, 32] {
+            let framebuffer = FrameBuffer::new(&mut context, 100, 100, bpp).unwrap();
+            assert_eq!(framebuffer.0.width, 100);
+            assert_eq!(framebuffer.0.height, 100);
+            assert_eq!(framebuffer.0.bpl, 100 * bpp / 8);
+            assert_eq!(framebuffer.0.bpp, bpp);
+            let pixels = (0..100 * 100 * bpp / 8).map(|i| i as u8).collect::<alloc::vec::Vec<_>>();
+            framebuffer.write(&mut context, &pixels).unwrap();
+            assert_eq!(&*framebuffer.image(&mut context).unwrap().raw(), pixels.as_slice());
+            let canvas = framebuffer.canvas(&mut context).unwrap();
+            assert_eq!(&*canvas.image().raw(), pixels.as_slice());
+            canvas.flush().unwrap();
+            assert_eq!(&*framebuffer.image(&mut context).unwrap().raw(), pixels.as_slice());
+        }
     }
 }

@@ -138,7 +138,7 @@ async fn get_java_method(core: &mut ArmCore, _: &mut (), ptr_class: u32, ptr_ful
     let method = if first_item != ptr_class + 4 {
         let ptr_vtable: u32 = read_generic(core, ptr_class + offset_of!(InitParam2, ptr_java_vtables) as u32)?;
         let vtable = JavaVtable::from_raw(core, ptr_vtable);
-        let method = vtable.find_method(&fullname.name, &fullname.descriptor)?;
+        let method = vtable.find_method(fullname.name(), fullname.descriptor())?;
 
         if method.is_none() {
             return Err(WieError::FatalError(format!("Method {fullname} not found from {ptr_class:#x}")));
@@ -146,7 +146,7 @@ async fn get_java_method(core: &mut ArmCore, _: &mut (), ptr_class: u32, ptr_ful
         method
     } else {
         let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-        let method = find_java_method(&class, &fullname.name, &fullname.descriptor).await?;
+        let method = find_java_method(&class, fullname.name(), fullname.descriptor()).await?;
 
         if method.is_none() {
             return Err(WieError::FatalError(format!("Method {fullname} not found from {}", class.name()?)));
@@ -256,9 +256,9 @@ async fn get_field(core: &mut ArmCore, _: &mut (), ptr_class: u32, field_name: u
     let field_name = KtfJvmSupport::read_name(core, field_name)?;
 
     let class = KtfJvmSupport::class_from_raw(core, ptr_class);
-    let field = class.field(&field_name.name, &field_name.descriptor, true)?;
+    let field = class.field(field_name.name(), field_name.descriptor(), true)?;
     let field = if field.is_none() {
-        class.field(&field_name.name, &field_name.descriptor, false)?
+        class.field(field_name.name(), field_name.descriptor(), false)?
     } else {
         field
     };

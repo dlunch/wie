@@ -195,12 +195,7 @@ impl KtfJvmSupport {
         while core.run_function::<u32>(predicate, &[ptr_class]).await? != 0 {
             let class = JavaClassDefinition::from_raw(ptr_class, core);
             let name = class.name()?;
-            if !jvm.has_class(&name)
-                && class
-                    .fields()?
-                    .iter()
-                    .any(|field| field.access_flags().contains(FieldAccessFlags::STATIC))
-            {
+            if !jvm.has_class(&name) && class.fields()?.any(|field| field.access_flags().contains(FieldAccessFlags::STATIC)) {
                 jvm.register_class(Box::new(class), Some(class_loader.clone()))
                     .or_else(async |error| Err(JvmSupport::to_wie_err(jvm, error).await))
                     .await?;
@@ -569,6 +564,7 @@ mod test {
 
             let string1 = JavaLangString::from_rust_string(&jvm, "test1").await.unwrap();
             let string2 = JavaLangString::from_rust_string(&jvm, "test2").await.unwrap();
+            assert!(!string1.class_definition().fields().is_empty());
 
             let string3 = jvm
                 .invoke_virtual(
@@ -588,6 +584,9 @@ mod test {
             let temp: Vec<i16> = jvm.load_array(&array, 5, 4).await.unwrap();
 
             assert_eq!(temp, vec![5, 6, 7, 8]);
+
+            let reference_array = jvm.instantiate_array("Ljava/lang/String;", 1).await.unwrap();
+            assert!(reference_array.class_definition().fields().is_empty());
 
             // test 64bit parameter passing
             let date = jvm.new_class("java/util/Date", "(J)V", (0x12345678_abcdef01i64,)).await.unwrap();
