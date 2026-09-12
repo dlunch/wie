@@ -22,6 +22,8 @@ const KEY_MAP: Record<string, string> = {
   ArrowLeft: "LEFT",
   ArrowRight: "RIGHT",
   ArrowDown: "DOWN",
+  Enter: "OK",
+  NumpadEnter: "OK",
   Space: "OK",
 };
 const icons = {
