@@ -6,8 +6,8 @@ use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use wie_arm_jit_types::{
-    AccessResult, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess,
-    PreparationFuture, RegionKey, RunFrame,
+    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, CompiledRegion, ExecutionAccess, PreparationFuture, RegionKey,
+    RunFrame,
 };
 
 use crate::{AOT_CACHE_VERSION, Compiler, WasmArtifact, bind_manifest_source, decode_manifest_region, encode_manifest_region};
@@ -330,8 +330,7 @@ fn execution_imports() -> Result<Object, JsValue> {
     let wie = Object::new();
     Reflect::set(&wie, &"memory".into(), &wasm_bindgen::memory())?;
     for (import, export) in [
-        ("load", "wie_aot_load"),
-        ("store", "wie_aot_store"),
+        ("page", "wie_aot_page"),
         ("sample_prepare", "wie_aot_sample_prepare"),
         ("word_range", "wie_aot_word_range"),
         ("resolve", "wie_aot_resolve"),
@@ -351,32 +350,9 @@ struct ExecutionContext<'a> {
 // Only generated code calls these raw exports, synchronously within execute().
 // The thin pointer addresses a borrowed context, never the trait object's data.
 #[unsafe(no_mangle)]
-unsafe extern "C" fn wie_aot_load(access: u32, address: u32, width: u32, out: u32) -> u32 {
+unsafe extern "C" fn wie_aot_page(access: u32, address: u32) -> u32 {
     let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
-    match context.access.load(address, width) {
-        AccessResult::Complete(value) => {
-            unsafe { *(out as *mut u32) = value };
-            0
-        }
-        AccessResult::InterpretOne => 1,
-        AccessResult::Fault(address) => {
-            unsafe { (*context.frame).fault_address = address };
-            2
-        }
-    }
-}
-
-#[unsafe(no_mangle)]
-unsafe extern "C" fn wie_aot_store(access: u32, address: u32, width: u32, value: u32) -> u32 {
-    let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
-    match context.access.store(address, width, value) {
-        AccessResult::Complete(_) => 0,
-        AccessResult::InterpretOne => 1,
-        AccessResult::Fault(address) => {
-            unsafe { (*context.frame).fault_address = address };
-            2
-        }
-    }
+    context.access.page(address).map_or(0, |page| page.as_mut_ptr() as u32)
 }
 
 #[unsafe(no_mangle)]

@@ -23,6 +23,18 @@ const RANGE_LENGTH: u32 = 14;
 const EXECUTED: u32 = 15;
 const PAGE_BASE: u32 = 16;
 const PAGE_POINTER: u32 = 17;
+const INSTRUCTION_LIMIT: u32 = 18;
+const END: u32 = 19;
+
+// Function indices follow the import and helper section order.
+const PAGE: u32 = 0;
+const SAMPLE: u32 = 1;
+const WORD_RANGE: u32 = 2;
+const RESOLVE: u32 = 3;
+const BOUNDARY: u32 = 4;
+const ENTRY: u32 = 5;
+const COMMIT: u32 = 6;
+const FIRST_REGION: u32 = 7;
 
 pub(crate) struct ModuleBuilder {
     functions: Vec<u8>,
@@ -111,22 +123,28 @@ impl ModuleBuilder {
         let regions = self.functions.len() as u32 - 3;
         4_u32.encode(&mut self.functions);
         let mut exports = ExportSection::new();
-        exports.export("dispatch", ExportKind::Func, 8 + regions);
+        exports.export("dispatch", ExportKind::Func, FIRST_REGION + regions);
         let mut export_bytes = vec![SectionId::Export.into()];
         exports.encode(&mut export_bytes);
         let mut dispatcher = Function::new([(1, ValType::I32)]);
         let mut s = dispatcher.instructions();
         // The host warms the dispatcher with budget zero before any guest execution.
         s.local_get(0).i32_load(field(72)).i32_eqz().if_(BlockType::Empty);
-        s.local_get(0).local_get(1).local_get(0).i32_load(field(60)).i32_const(0).call(5).drop();
+        s.local_get(0)
+            .local_get(1)
+            .local_get(0)
+            .i32_load(field(60))
+            .i32_const(0)
+            .call(BOUNDARY)
+            .drop();
         s.local_get(0)
             .local_get(0)
             .i32_load(field(60))
             .i32_const(0)
             .i32_const(0x1f)
-            .call(6)
+            .call(ENTRY)
             .drop();
-        s.local_get(0).i32_const(0).call(7).end();
+        s.local_get(0).i32_const(0).call(COMMIT).end();
         if regions == 0 {
             s.i32_const(CompiledExit::Budget as i32);
         } else {
@@ -134,7 +152,12 @@ impl ModuleBuilder {
             s.local_get(0).local_get(1).local_get(2).call_indirect(0, 2).local_tee(3);
             s.i32_const(CompiledExit::Dispatch as i32).i32_ne().if_(BlockType::Empty);
             s.local_get(3).return_().end();
-            s.local_get(1).local_get(0).i32_load(field(60)).local_get(0).i32_load(field(64)).call(4);
+            s.local_get(1)
+                .local_get(0)
+                .i32_load(field(60))
+                .local_get(0)
+                .i32_load(field(64))
+                .call(RESOLVE);
             s.local_tee(2).i32_const(-1).i32_eq().if_(BlockType::Empty);
             s.i32_const(CompiledExit::Dispatch as i32).return_().end();
             s.br(0).end().unreachable();
@@ -162,8 +185,7 @@ impl ModuleBuilder {
                 page_size_log2: None,
             },
         );
-        imports.import("wie", "load", EntityType::Function(0));
-        imports.import("wie", "store", EntityType::Function(0));
+        imports.import("wie", "page", EntityType::Function(2));
         imports.import("wie", "sample_prepare", EntityType::Function(1));
         imports.import("wie", "word_range", EntityType::Function(3));
         imports.import("wie", "resolve", EntityType::Function(4));
@@ -183,7 +205,7 @@ impl ModuleBuilder {
         elements.active(
             None,
             &ConstExpr::i32_const(0),
-            Elements::Functions(Cow::Owned((8..8 + regions).collect())),
+            Elements::Functions(Cow::Owned((FIRST_REGION..FIRST_REGION + regions).collect())),
         );
         let mut element_bytes = vec![SectionId::Element.into()];
         elements.encode(&mut element_bytes);
@@ -244,9 +266,19 @@ fn compile_region(ir: &RegionIr) -> Function {
             targets[((instruction.pc - first) >> shift) as usize] = index as u32;
         }
     }
-    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (6, ValType::I32)]);
+    let mut function = Function::new([(9, ValType::I32), (1, ValType::I64), (8, ValType::I32)]);
     let mut s = function.instructions();
     s.local_get(0).i32_load(field(64)).local_set(CPSR);
+    s.local_get(0).i32_load(field(68)).local_set(END);
+    s.local_get(0).i32_load(field(72)).local_set(LEFT);
+    s.local_get(0).i32_load(field(76)).local_set(RIGHT);
+    s.local_get(LEFT)
+        .local_get(RIGHT)
+        .local_get(LEFT)
+        .local_get(RIGHT)
+        .i32_lt_u()
+        .select()
+        .local_set(INSTRUCTION_LIMIT);
     s.block(BlockType::Result(ValType::I32));
     s.loop_(BlockType::Empty);
     boundaries(&mut s, ir, None, 1);
@@ -303,24 +335,22 @@ fn compile_region(ir: &RegionIr) -> Function {
     s.end().i32_const(CompiledExit::Dispatch as i32).br(1).end();
     s.unreachable().end();
     // Every logical exit commits the completed prefix once; the exit reason stays on the stack.
-    s.local_get(0).local_get(EXECUTED).call(7);
+    s.local_get(0).local_get(EXECUTED).call(COMMIT);
     s.end();
     function
 }
 
 fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option<u32>, exit_depth: u32) {
     if let Some(pc) = instruction_pc {
+        s.local_get(EXECUTED).local_get(INSTRUCTION_LIMIT).i32_eq();
+        s.i32_const(pc as i32).local_get(END).i32_eq().i32_or().if_(BlockType::Empty);
         s.local_get(0)
             .local_get(1)
             .i32_const(pc as i32)
             .local_get(EXECUTED)
-            .call(5)
-            .local_tee(ACCESS_STATUS)
-            .local_get(ACCESS_STATUS)
-            .i32_const(-1)
-            .i32_ne()
-            .br_if(exit_depth)
-            .drop();
+            .call(BOUNDARY)
+            .br(exit_depth + 1)
+            .end();
         s.local_get(0)
             .i32_load(field(76))
             .local_get(EXECUTED)
@@ -330,14 +360,14 @@ fn boundaries(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction_pc: Option
             .if_(BlockType::Empty);
         commit_prefix(s);
         s.i32_const(0).local_set(PAGE_POINTER);
-        s.local_get(1).i32_const(pc as i32).local_get(0).i32_load(field(28)).call(2).end();
+        s.local_get(1).i32_const(pc as i32).local_get(0).i32_load(field(28)).call(SAMPLE).end();
     } else {
         s.local_get(0).i32_load(field(60)).local_set(PC);
         s.local_get(0)
             .local_get(PC)
             .local_get(EXECUTED)
             .i32_const(i32::from(ir.entry.cpu_mode) | if ir.entry.thumb { 0x20 } else { 0 })
-            .call(6)
+            .call(ENTRY)
             .local_tee(ACCESS_STATUS)
             .local_get(ACCESS_STATUS)
             .i32_const(-1)
@@ -631,17 +661,10 @@ fn memory_address(s: &mut InstructionSink<'_>, address: Address, pc: u32, thumb:
     }
 }
 
-fn access_result(s: &mut InstructionSink<'_>, exit_depth: u32) {
-    s.local_set(ACCESS_STATUS);
-    for (status, exit) in [(1, CompiledExit::InterpretOne), (2, CompiledExit::GuestFault)] {
-        s.local_get(ACCESS_STATUS).i32_const(status).i32_eq().if_(BlockType::Empty);
-        s.i32_const(exit as i32).br(exit_depth + 1).end();
-    }
-}
-
 // Host calls can fail; publish the completed prefix before crossing that boundary.
 fn commit_prefix(s: &mut InstructionSink<'_>) {
-    s.local_get(0).local_get(EXECUTED).call(7);
+    s.local_get(0).local_get(EXECUTED).call(COMMIT);
+    s.local_get(INSTRUCTION_LIMIT).local_get(EXECUTED).i32_sub().local_set(INSTRUCTION_LIMIT);
     s.i32_const(0).local_set(EXECUTED);
 }
 
@@ -651,7 +674,7 @@ fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     s.local_get(1)
         .local_get(LEFT)
         .i32_const(words as i32)
-        .call(3)
+        .call(WORD_RANGE)
         .local_tee(WIDE)
         .i64_eqz()
         .if_(BlockType::Empty);
@@ -675,16 +698,14 @@ fn scalar_address(s: &mut InstructionSink<'_>, width: Width, exit_depth: u32) {
     s.local_get(PAGE_POINTER).i32_eqz().i32_or().if_(BlockType::Empty);
     commit_prefix(s);
     s.local_get(LEFT).i32_const(-65536).i32_and().local_set(PAGE_BASE);
-    s.local_get(1).local_get(PAGE_BASE).i32_const(16384).call(3).local_tee(WIDE).i64_eqz();
-    // A split backing range cannot serve as one contiguous page.
-    s.local_get(0)
-        .i32_load(field(88))
-        .i32_const(65536)
-        .i32_ne()
-        .i32_or()
+    s.local_get(1)
+        .local_get(PAGE_BASE)
+        .call(PAGE)
+        .local_tee(PAGE_POINTER)
+        .i32_eqz()
         .if_(BlockType::Empty);
     s.i32_const(CompiledExit::InterpretOne as i32).br(exit_depth + 2).end();
-    s.local_get(WIDE).i32_wrap_i64().local_set(PAGE_POINTER).end();
+    s.end();
     s.local_get(PAGE_POINTER).local_get(LEFT).i32_const(65535).i32_and().i32_add();
 }
 
@@ -774,14 +795,26 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 op,
                 AluOp::Add | AluOp::AddCarry | AluOp::Sub | AluOp::SubCarry | AluOp::ReverseSub | AluOp::ReverseSubCarry
             );
-            operand(s, right, instruction.pc, thumb, set_flags && !arithmetic && op != AluOp::Multiply);
+            let zero_arithmetic = matches!(op, AluOp::Add | AluOp::Sub) && constant_operand(right).is_some_and(|(value, _)| value == 0);
+            let preserves_carry = right.amount == ShiftAmount::Immediate(0) && right.shift != Shift::Rrx;
+            if !zero_arithmetic {
+                operand(
+                    s,
+                    right,
+                    instruction.pc,
+                    thumb,
+                    set_flags && !arithmetic && op != AluOp::Multiply && !preserves_carry,
+                );
+            }
             match op {
                 AluOp::Add | AluOp::AddCarry | AluOp::Sub | AluOp::SubCarry | AluOp::ReverseSub | AluOp::ReverseSubCarry => {
                     if matches!(op, AluOp::ReverseSub | AluOp::ReverseSubCarry) {
                         s.local_get(LEFT).local_get(RIGHT).local_set(LEFT).local_set(RIGHT);
                     }
                     let subtract = !matches!(op, AluOp::Add | AluOp::AddCarry);
-                    if !set_flags {
+                    if zero_arithmetic {
+                        s.local_get(LEFT);
+                    } else if !set_flags {
                         s.local_get(LEFT).local_get(RIGHT);
                         if subtract {
                             s.i32_sub();
@@ -795,6 +828,18 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                                 s.i32_const(1).i32_sub();
                             }
                         }
+                    } else if matches!(op, AluOp::Add | AluOp::Sub | AluOp::ReverseSub) {
+                        s.local_get(LEFT).local_get(RIGHT);
+                        if subtract {
+                            s.i32_sub().local_set(RESULT);
+                            s.local_get(LEFT).local_get(RIGHT).i32_ge_u().local_set(CARRY);
+                            // Keep the shared overflow calculation's normalized addends.
+                            s.local_get(RIGHT).i32_const(-1).i32_xor().local_set(RIGHT);
+                        } else {
+                            s.i32_add().local_set(RESULT);
+                            s.local_get(RESULT).local_get(LEFT).i32_lt_u().local_set(CARRY);
+                        }
+                        s.local_get(RESULT);
                     } else {
                         if subtract {
                             s.local_get(RIGHT).i32_const(-1).i32_xor().local_set(RIGHT);
@@ -849,7 +894,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     .local_get(CPSR)
                     .i32_const(if arithmetic {
                         0x0fff_ffff
-                    } else if op == AluOp::Multiply {
+                    } else if op == AluOp::Multiply || preserves_carry {
                         0x3fff_ffff
                     } else {
                         0x1fff_ffff
@@ -857,14 +902,22 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                     .i32_and();
                 s.local_get(RESULT).i32_const(i32::MIN).i32_and().i32_or();
                 s.local_get(RESULT).i32_eqz().i32_const(30).i32_shl().i32_or();
-                if arithmetic {
-                    s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64();
+                if zero_arithmetic {
+                    if op == AluOp::Sub {
+                        s.i32_const(1 << 29).i32_or();
+                    }
+                } else if arithmetic {
+                    if matches!(op, AluOp::Add | AluOp::Sub | AluOp::ReverseSub) {
+                        s.local_get(CARRY);
+                    } else {
+                        s.local_get(WIDE).i64_const(32).i64_shr_u().i32_wrap_i64();
+                    }
                     s.i32_const(29).i32_shl().i32_or();
                     // Overflow uses the normalized addends, including the complemented subtrahend.
                     s.local_get(LEFT).local_get(RIGHT).i32_xor().i32_const(-1).i32_xor();
                     s.local_get(LEFT).local_get(RESULT).i32_xor().i32_and();
                     s.i32_const(31).i32_shr_u().i32_const(28).i32_shl().i32_or();
-                } else if op != AluOp::Multiply {
+                } else if op != AluOp::Multiply && !preserves_carry {
                     s.local_get(CARRY).i32_const(29).i32_shl().i32_or();
                 }
                 s.local_tee(CPSR).i32_store(field(64));
@@ -1033,17 +1086,14 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             s.local_set(LEFT);
             value(s, Value::Register(source), instruction.pc, thumb);
             s.local_set(RIGHT);
+            scalar_address(s, width, exit_depth);
+            s.local_set(RANGE_FIRST);
             if width == Width::Word {
-                word_range(s, 1, exit_depth);
                 s.local_get(RANGE_FIRST).i32_load(field(0)).local_set(RESULT);
                 s.local_get(RANGE_FIRST).local_get(RIGHT).i32_store(field(0));
             } else {
-                commit_prefix(s);
-                s.i32_const(0).local_set(PAGE_POINTER);
-                s.local_get(1).local_get(LEFT).i32_const(1).local_get(0).i32_const(88).i32_add().call(0);
-                access_result(s, exit_depth);
-                s.local_get(1).local_get(LEFT).i32_const(1).local_get(RIGHT).call(1).drop();
-                s.local_get(0).i32_load(field(88)).local_set(RESULT);
+                s.local_get(RANGE_FIRST).i32_load8_u(MemArg { align: 0, ..field(0) }).local_set(RESULT);
+                s.local_get(RANGE_FIRST).local_get(RIGHT).i32_store8(MemArg { align: 0, ..field(0) });
             }
             s.local_get(0).local_get(RESULT).i32_store(field(u64::from(destination) * 4));
         }
@@ -1123,7 +1173,7 @@ mod tests {
                 functions.function(2);
             }
             functions.function(4);
-            exports.export("dispatch", ExportKind::Func, 8 + regions);
+            exports.export("dispatch", ExportKind::Func, FIRST_REGION + regions);
             let chunks = builder.begin_assembly(&mut Vec::new()).unwrap();
             let mut expected = vec![SectionId::Function.into()];
             functions.encode(&mut expected);
@@ -1135,7 +1185,7 @@ mod tests {
             elements.active(
                 None,
                 &ConstExpr::i32_const(0),
-                Elements::Functions(Cow::Owned((8..8 + regions).collect())),
+                Elements::Functions(Cow::Owned((FIRST_REGION..FIRST_REGION + regions).collect())),
             );
             let mut expected = vec![SectionId::Element.into()];
             elements.encode(&mut expected);
@@ -1336,7 +1386,7 @@ mod tests {
                     .local_get(PC)
                     .local_get(EXECUTED)
                     .i32_const(if thumb { 0x3f } else { 0x1f })
-                    .call(6)
+                    .call(ENTRY)
                     .local_tee(ACCESS_STATUS)
                     .local_get(ACCESS_STATUS)
                     .i32_const(-1)
@@ -1347,7 +1397,7 @@ mod tests {
             }
             let body = compile_region(&ir).into_raw_body();
             let mut commit = Function::new([]);
-            commit.instructions().local_get(0).local_get(EXECUTED).call(7).end();
+            commit.instructions().local_get(0).local_get(EXECUTED).call(COMMIT).end();
             assert!(body.ends_with(&commit.into_raw_body()[1..]));
         }
     }
@@ -1368,17 +1418,21 @@ mod tests {
             let mut expected = Function::new([]);
             expected
                 .instructions()
+                .local_get(EXECUTED)
+                .local_get(INSTRUCTION_LIMIT)
+                .i32_eq()
+                .i32_const(0x1000)
+                .local_get(END)
+                .i32_eq()
+                .i32_or()
+                .if_(BlockType::Empty)
                 .local_get(0)
                 .local_get(1)
                 .i32_const(0x1000)
                 .local_get(EXECUTED)
-                .call(5)
-                .local_tee(ACCESS_STATUS)
-                .local_get(ACCESS_STATUS)
-                .i32_const(-1)
-                .i32_ne()
-                .br_if(depth)
-                .drop();
+                .call(BOUNDARY)
+                .br(depth + 1)
+                .end();
             let actual = actual.into_raw_body();
             assert!(actual.starts_with(&expected.into_raw_body()));
         }
@@ -1387,7 +1441,7 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     #[ignore = "requires Node.js to execute generated Wasm"]
-    fn host_failures_leave_a_resumable_completed_prefix() {
+    fn generated_execution_preserves_memory_flags_and_stop_boundaries() {
         extern crate std;
         use std::{
             io::Write,
@@ -1420,7 +1474,7 @@ mod tests {
                     shift: Shift::Lsl,
                     amount: ShiftAmount::Immediate(0),
                 },
-                set_flags: false,
+                set_flags: true,
             },
             Operation::Store {
                 address: Address {
@@ -1485,6 +1539,69 @@ mod tests {
             }
         }
         builder.add_region(&accesses);
+        for (index, op) in [
+            AluOp::Add,
+            AluOp::Sub,
+            AluOp::ReverseSub,
+            AluOp::AddCarry,
+            AluOp::SubCarry,
+            AluOp::ReverseSubCarry,
+            AluOp::Add,
+            AluOp::Sub,
+            AluOp::Move,
+            AluOp::Not,
+            AluOp::And,
+            AluOp::Or,
+            AluOp::Xor,
+            AluOp::BitClear,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            builder.add_region(&RegionIr {
+                entry: ir.entry,
+                blocks: vec![BasicBlock {
+                    instructions: vec![Instruction {
+                        pc: 0x1000,
+                        size: 2,
+                        condition: Condition::Always,
+                        operation: Operation::Alu {
+                            op,
+                            destination: Some(2),
+                            left: Value::Register(0),
+                            right: Operand {
+                                value: if matches!(index, 6 | 7) {
+                                    Value::Immediate(0)
+                                } else {
+                                    Value::Register(1)
+                                },
+                                shift: Shift::Lsl,
+                                amount: ShiftAmount::Immediate(0),
+                            },
+                            set_flags: true,
+                        },
+                    }],
+                }],
+            });
+        }
+        for width in [Width::Byte, Width::Word] {
+            builder.add_region(&RegionIr {
+                entry: ir.entry,
+                blocks: vec![BasicBlock {
+                    instructions: vec![Instruction {
+                        pc: 0x1000,
+                        size: 2,
+                        condition: Condition::Always,
+                        operation: Operation::Swap {
+                            destination: 2,
+                            address: 0,
+                            value: 1,
+                            width,
+                        },
+                    }],
+                }],
+            });
+        }
         let mut bytes = Vec::new();
         for chunk in builder.begin_assembly(&mut bytes).unwrap() {
             bytes.extend_from_slice(&chunk);
@@ -1495,26 +1612,23 @@ mod tests {
                 r#"
 const assert = require('node:assert/strict');
 const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
-for (const failure of ['word_range', 'sample_prepare', 'resolve', 'sample', null]) {
+for (const failure of ['page', 'sample_prepare', 'resolve', 'sample', null]) {
     const memory = new WebAssembly.Memory({initial: 3});
     const frame = new Uint32Array(memory.buffer, 0, 23);
     frame[0] = 42; frame[1] = 0x3000; frame[15] = 0x1000;
-    frame[2] = failure === 'word_range' ? 0x13000 : 0x3000;
-    frame[16] = 0x3f; frame[17] = 0x2000; frame[18] = 10;
+    frame[2] = failure === 'page' ? 0x13000 : 0x3000;
+    frame[16] = 0xf000003f; frame[17] = 0x2000; frame[18] = 10;
     const samples = frame[19] = ['sample_prepare', 'sample'].includes(failure) ? 3 : 1024;
-    let ranges = 0;
+    let pages = 0;
     const injected = new Error('injected host failure');
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
-        load() { throw new Error('unexpected load'); },
-        store() { throw new Error('unexpected store'); },
-        word_range(_, address, words) {
-            assert.equal(words, 16384);
+        word_range() { throw new Error('unexpected word range'); },
+        page(_, address) {
             assert.equal(address % 65536, 0);
-            if (failure === 'word_range' && ranges === 1) throw injected;
-            ranges++;
-            frame[22] = 65536;
-            return BigInt(address + 65536);
+            if (failure === 'page' && pages === 1) throw injected;
+            pages++;
+            return address + 65536;
         },
         sample_prepare() { if (failure === 'sample_prepare') throw injected; },
         resolve() { if (failure === 'resolve') throw injected; return -1; },
@@ -1531,8 +1645,56 @@ for (const failure of ['word_range', 'sample_prepare', 'resolve', 'sample', null
     assert.equal(frame[18], 10 - completed);
     assert.equal(frame[19], samples - completed);
     assert.equal(frame[20], completed);
-    assert.equal(ranges, failure === 'sample' ? 2 : 1);
+    assert.equal(pages, failure === 'sample' ? 2 : 1);
     assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 2 ? 42 : 43);
+}
+for (let budget = 0; budget <= 5; budget++) for (let sample = 1; sample <= 5; sample++) for (let end = 0; end <= 5; end++) {
+    const memory = new WebAssembly.Memory({initial: 2});
+    const frame = new Uint32Array(memory.buffer, 0, 23);
+    frame[0] = 42; frame[1] = frame[2] = 0x3000;
+    frame[15] = 0x1000; frame[16] = 0xf000003f;
+    frame[17] = 0x1000 + end * 2; frame[18] = budget; frame[19] = sample;
+    let samples = 0;
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory,
+        word_range() { throw new Error('unexpected word range'); },
+        resolve() { return -1; },
+        page() { return 65536; },
+        sample_prepare() { samples++; },
+    }}).exports.dispatch;
+    const completed = Math.min(4, budget, sample, end);
+    const exit = completed === end ? 3 : completed === budget ? 2 : completed === sample ? 1 : 0;
+    assert.equal(dispatch(0, 0, 0), exit, `budget=${budget}, sample=${sample}, end=${end}`);
+    assert.equal(frame[15], 0x1000 + completed * 2);
+    assert.equal(frame[16], completed < 2 ? 0xf000003f : 0x3f);
+    assert.equal(frame[18], budget - completed);
+    assert.equal(frame[19], sample - completed);
+    assert.equal(frame[20], completed);
+    assert.equal(samples, completed === sample ? 1 : 0);
+    assert.equal(new DataView(memory.buffer).getUint32(0x13000, true), completed === 0 ? 0 : completed < 3 ? 42 : 43);
+}
+for (const [index, width] of [1, 4].entries()) for (const address of [0x3000, 0x3001, 0xfffc, 0xffff, 0xfffffffc, null]) {
+    const memory = new WebAssembly.Memory({initial: 2});
+    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const data = new Uint8Array(memory.buffer, 65536, 65536).fill(0x55);
+    frame[0] = address ?? 0x3000; frame[1] = 0x89abcdef;
+    frame[15] = 0x1000; frame[16] = 0xf000003f; frame[17] = 0x1002;
+    frame[18] = 1; frame[19] = 1024;
+    const unexpected = () => { throw new Error('unexpected host call'); };
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory, word_range: unexpected, sample_prepare: unexpected, resolve: unexpected,
+        page() { return address === null ? 0 : 65536; },
+    }}).exports.dispatch;
+    const admitted = address !== null && address % width === 0;
+    assert.equal(dispatch(0, 0, 16 + index), admitted ? 3 : 4);
+    assert.equal(frame[2], admitted ? width === 1 ? 0x55 : 0x55555555 : 0);
+    assert.equal(frame[16], 0xf000003f);
+    assert.equal(frame[20], admitted ? 1 : 0);
+    if (admitted) {
+        assert.deepEqual(Array.from(data.slice(address & 65535, (address & 65535) + width)), [0xef, 0xcd, 0xab, 0x89].slice(0, width));
+    } else {
+        assert(data.every(byte => byte === 0x55));
+    }
 }
 for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     const memory = new WebAssembly.Memory({initial: 2});
@@ -1540,30 +1702,67 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
     frame[0] = 0x89abcdef; frame[1] = address ?? 0x3000;
     frame[15] = 0x1000; frame[16] = 0x3f; frame[17] = 0x1012;
     frame[18] = 100; frame[19] = 1024;
-    let ranges = 0;
+    let pages = 0;
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory,
-        load() { throw new Error('unexpected load'); },
-        store() { throw new Error('unexpected store'); },
+        word_range() { throw new Error('unexpected word range'); },
         sample_prepare() { throw new Error('unexpected sample'); },
         resolve() { throw new Error('unexpected resolve'); },
-        word_range(_, base, words) {
-            ranges++;
+        page(_, base) {
+            pages++;
             assert.equal(base >>> 0, (frame[1] & 0xffff0000) >>> 0);
-            assert.equal(words, 16384);
-            frame[22] = 65536;
-            return address === null ? 0n : 65536n;
+            return address === null ? 0 : 65536;
         },
     }}).exports.dispatch;
     const completed = address === null ? 0 : address === 0x3001 ? 3 : 9;
     assert.equal(dispatch(0, 0, 1), completed === 9 ? 3 : 4);
-    assert.equal(ranges, 1);
+    assert.equal(pages, 1);
     assert.equal(frame[15], 0x1000 + completed * 2);
     assert.equal(frame[18], 100 - completed);
     assert.equal(frame[19], 1024 - completed);
     assert.equal(frame[20], completed);
     const expected = [0xef, 0xffffffef, 0xcdef, 0xffffcdef, 0x89abcdef, 0x89abcdef];
     assert.deepEqual(Array.from(frame.slice(2, 2 + completed / 3 * 2)), expected.slice(0, completed / 3 * 2));
+}
+{
+    const memory = new WebAssembly.Memory({initial: 1});
+    const frame = new Uint32Array(memory.buffer, 0, 23);
+    const unexpected = () => { throw new Error('unexpected host call'); };
+    const dispatch = new WebAssembly.Instance(module, {wie: {
+        memory, page: unexpected, word_range: unexpected,
+        sample_prepare: unexpected, resolve: unexpected,
+    }}).exports.dispatch;
+    const values = [0, 1, 2, 0x7fffffff, 0x80000000, 0x80000001, 0xfffffffe, 0xffffffff];
+    for (let op = 0; op < 14; op++) for (const left of values) for (const right of values) for (const carry of [0, 1]) {
+        frame.fill(0);
+        frame[0] = left; frame[1] = right;
+        frame[15] = 0x1000; frame[16] = (0xd800003f | carry << 29) >>> 0;
+        frame[17] = 0x1002; frame[18] = 1; frame[19] = 1024;
+        assert.equal(dispatch(0, 0, 2 + op), 3);
+        if (op >= 8) {
+            const result = [right, ~right, left & right, left | right, left ^ right, left & ~right][op - 8] >>> 0;
+            const flags = ((result & 0x80000000) | (result === 0 ? 0x40000000 : 0) | carry << 29 | 0x10000000) >>> 0;
+            assert.equal(frame[2], result);
+            assert.equal(frame[16], (flags | 0x0800003f) >>> 0);
+            continue;
+        }
+        const kind = op % 6;
+        const operand = op >= 6 ? 0 : right;
+        const reverse = kind === 2 || kind === 5;
+        const subtract = kind !== 0 && kind !== 3;
+        const a = BigInt(reverse ? operand : left), b = BigInt(reverse ? left : operand);
+        const carryIn = kind >= 3 ? BigInt(carry) : subtract ? 1n : 0n;
+        const wide = a + (subtract ? 0xffffffffn - b : b) + carryIn;
+        const result = Number(wide & 0xffffffffn);
+        const signed = BigInt.asIntN(32, a) + (subtract ? -BigInt.asIntN(32, b) : BigInt.asIntN(32, b))
+            + (subtract ? carryIn - 1n : carryIn);
+        const flags = ((result & 0x80000000) | (result === 0 ? 0x40000000 : 0)
+            | (wide > 0xffffffffn ? 0x20000000 : 0)
+            | (signed < -0x80000000n || signed > 0x7fffffffn ? 0x10000000 : 0)) >>> 0;
+        assert.equal(frame[2], result, `op=${op}, left=${left}, right=${right}, carry=${carry}`);
+        assert.equal(frame[16], (flags | 0x0800003f) >>> 0);
+        assert.equal(frame[20], 1);
+    }
 }
 "#,
             ])

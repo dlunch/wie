@@ -3,8 +3,8 @@ use alloc::{boxed::Box, format, string::String, vec::Vec};
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_arm_jit_types::{
-    AccessResult, CodeImage, CodePageStamp, CompiledArtifact, CompiledExit, CompiledHandle, ExecutionAccess, PreparationFuture, PreparationState,
-    RegionKey, RunFrame,
+    CodeImage, CodePageStamp, CompiledArtifact, CompiledExit, CompiledHandle, ExecutionAccess, PreparationFuture, PreparationState, RegionKey,
+    RunFrame,
 };
 use wie_backend::ProfileSample;
 use wie_util::{Result, WieError};
@@ -322,6 +322,10 @@ struct MemoryAccess<'a> {
 }
 
 impl ExecutionAccess for MemoryAccess<'_> {
+    fn page(&mut self, address: u32) -> Option<&mut [u8; PAGE_SIZE]> {
+        Some(self.memory.pages[address as usize / PAGE_SIZE].as_mut()?.bytes.as_mut())
+    }
+
     fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle> {
         if cpsr & 0x0100_0000 != 0 {
             return None;
@@ -356,38 +360,6 @@ impl ExecutionAccess for MemoryAccess<'_> {
             (upper[0].as_mut()?, lower[end].as_mut()?)
         };
         Some((&mut first.bytes[offset..], &mut second.bytes[..len - first_len]))
-    }
-
-    fn load(&mut self, address: u32, width: u32) -> AccessResult {
-        if !address.is_multiple_of(width) {
-            return AccessResult::InterpretOne;
-        }
-        let Some(page) = self.memory.pages[address as usize / PAGE_SIZE].as_ref() else {
-            return AccessResult::InterpretOne;
-        };
-        let bytes = &page.bytes[(address & PAGE_MASK) as usize..];
-        let value = match width {
-            1 => u32::from(bytes[0]),
-            2 => u32::from(u16::from_le_bytes(bytes.as_chunks::<2>().0[0])),
-            _ => u32::from_le_bytes(bytes.as_chunks::<4>().0[0]),
-        };
-        AccessResult::Complete(value)
-    }
-
-    fn store(&mut self, address: u32, width: u32, value: u32) -> AccessResult {
-        if !address.is_multiple_of(width) {
-            return AccessResult::InterpretOne;
-        }
-        let Some(page) = self.memory.pages[address as usize / PAGE_SIZE].as_mut() else {
-            return AccessResult::InterpretOne;
-        };
-        let bytes = &mut page.bytes[(address & PAGE_MASK) as usize..];
-        match width {
-            1 => bytes[0] = value as u8,
-            2 => bytes[..2].copy_from_slice(&(value as u16).to_le_bytes()),
-            _ => bytes[..4].copy_from_slice(&value.to_le_bytes()),
-        }
-        AccessResult::Complete(0)
     }
 
     fn sample_prepare(&mut self, pc: u32, r7: u32) {
@@ -953,7 +925,7 @@ mod tests {
             assert_eq!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000), None);
             if let Some(completed) = self.completed {
                 if completed != 0 {
-                    assert!(matches!(access.store(0x20000, 4, 42), AccessResult::Complete(0)));
+                    access.page(0x20000).unwrap()[..4].copy_from_slice(&42u32.to_le_bytes());
                     frame.regs[0] = 43;
                     frame.regs[15] += completed * 2;
                     frame.executed = completed;
@@ -1145,17 +1117,15 @@ mod tests {
             sampler: &mut sampler,
             resolve: &|_, _| None,
         };
-        assert!(matches!(access.store(0x10001, 4, 42), AccessResult::InterpretOne));
-        assert!(access.memory.code_is_current(&[before]));
-        assert!(matches!(access.store(0x20000, 4, 42), AccessResult::InterpretOne));
-        assert!(matches!(access.store(0x10000, 2, 42), AccessResult::Complete(0)));
+        assert!(access.page(0x20000).is_none());
+        access.page(0x10000).unwrap()[..2].copy_from_slice(&42u16.to_le_bytes());
         assert!(access.memory.code_is_current(&[before]));
         access.memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x10000));
         assert!(!access.memory.code_is_current(&[before]));
     }
 
     #[test]
-    fn memory_access_preserves_widths_boundaries_and_code_versions() {
+    fn page_borrows_cover_mapped_memory_without_publishing() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, PAGE_SIZE);
         memory.pages[0xffff] = Some(MemoryPage {
@@ -1170,52 +1140,15 @@ mod tests {
             sampler: &mut sampler,
             resolve: &|_, _| None,
         };
-        for base in [0x10000, 0x1fffc, 0xffff_fffc] {
-            for (width, expected) in [(1, 0xef), (2, 0xcdef), (4, 0x89ab_cdef)] {
-                let offset = (base & PAGE_MASK) as usize;
-                access.memory.pages[base as usize / PAGE_SIZE].as_mut().unwrap().bytes[offset..offset + 4].fill(0x55);
-                assert!(matches!(access.load(base, 4), AccessResult::Complete(0x5555_5555)));
-                let address = base + (4 - width);
-                assert!(matches!(access.store(address, width, 0x89ab_cdef), AccessResult::Complete(0)));
-                assert!(matches!(access.load(address, width), AccessResult::Complete(value) if value == expected));
-                let mut bytes = [0x55; 4];
-                bytes[4 - width as usize..].copy_from_slice(&[0xef, 0xcd, 0xab, 0x89][..width as usize]);
-                assert_eq!(
-                    access.memory.pages[base as usize / PAGE_SIZE].as_ref().unwrap().bytes[offset..offset + 4],
-                    bytes
-                );
-            }
+        for address in [0x10000, 0x1ffff, 0xffff_0000, 0xffff_ffff] {
+            access.page(address).unwrap()[(address & PAGE_MASK) as usize] = 42;
         }
-        let first_bytes = access.memory.pages[1].as_ref().unwrap().bytes.clone();
-        let last_bytes = access.memory.pages[0xffff].as_ref().unwrap().bytes.clone();
-        for (address, width) in [
-            (0x10001, 2),
-            (0x10001, 4),
-            (0x10002, 4),
-            (0x10003, 4),
-            (0x1ffff, 2),
-            (0x1fffd, 4),
-            (0x1fffe, 4),
-            (0x1ffff, 4),
-            (0xffff_ffff, 2),
-            (0xffff_fffd, 4),
-            (0xffff_fffe, 4),
-            (0xffff_ffff, 4),
-            (0x20000, 1),
-            (0x20000, 2),
-            (0x20000, 4),
-        ] {
-            assert!(
-                matches!(access.load(address, width), AccessResult::InterpretOne),
-                "{address:#x}, width={width}"
-            );
-            assert!(
-                matches!(access.store(address, width, 42), AccessResult::InterpretOne),
-                "{address:#x}, width={width}"
-            );
+        assert!(access.page(0x20000).is_none());
+        for page in [1, 0xffff] {
+            let bytes = &access.memory.pages[page].as_ref().unwrap().bytes;
+            assert_eq!(bytes[0], 42);
+            assert_eq!(bytes[PAGE_SIZE - 1], 42);
         }
-        assert_eq!(access.memory.pages[1].as_ref().unwrap().bytes, first_bytes);
-        assert_eq!(access.memory.pages[0xffff].as_ref().unwrap().bytes, last_bytes);
         assert!(access.memory.code_is_current(&[first_page, last_page]));
     }
 
