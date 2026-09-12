@@ -85,21 +85,27 @@ where
         return Err(WieError::InvalidMemoryAccess(address));
     }
 
-    let mut result = Vec::with_capacity(20);
+    let mut result = Vec::new();
     let mut cursor = address;
-    let mut byte = [0; 1];
+    let mut buffer = [0; 32];
     loop {
-        let read = reader.read_bytes(cursor, &mut byte)?;
-        if read != 1 {
-            return Err(WieError::FatalError(format!("Short read at {cursor:#x}: expected 1, got {read}")));
+        let (size, read) = match reader.read_bytes(cursor, &mut buffer) {
+            // The terminator may precede an unmapped byte in this chunk.
+            Err(WieError::InvalidMemoryAccess(_)) => (1, reader.read_bytes(cursor, &mut buffer[..1])?),
+            result => (buffer.len(), result?),
+        };
+        if read != size {
+            return Err(WieError::FatalError(format!("Short read at {cursor:#x}: expected {size}, got {read}")));
         }
 
-        if byte[0] == 0 {
+        let bytes = &buffer[..size];
+        if let Some(end) = bytes.iter().position(|&byte| byte == 0) {
+            result.extend_from_slice(&bytes[..end]);
             break;
         }
 
-        result.push(byte[0]);
-        cursor += 1;
+        result.extend_from_slice(bytes);
+        cursor = cursor.wrapping_add(size as u32);
     }
 
     Ok(result)
@@ -228,13 +234,45 @@ mod tests {
     }
 
     #[test]
-    fn read_null_terminated_string_handles_four_byte_boundaries() {
-        let memory = StrictMemory {
-            memory: vec![0, b't', b'e', b's', b't', 0],
-        };
+    fn terminated_string_reads_stop_at_the_reader_boundary() {
+        for bytes in [b"".as_slice(), b"test", &[0xff, 0x80], &[b'x'; 31], &[b'x'; 32], &[b'x'; 33]] {
+            let mut memory = StrictMemory { memory: vec![0] };
+            memory.memory.extend_from_slice(bytes);
+            memory.memory.push(0);
+            assert_eq!(read_null_terminated_string_bytes(&memory, 1).unwrap(), bytes);
+            memory.memory.pop();
+            assert!(matches!(
+                read_null_terminated_string_bytes(&memory, 1),
+                Err(WieError::InvalidMemoryAccess(address)) if address == bytes.len() as u32 + 1
+            ));
+        }
+    }
 
-        let value = read_null_terminated_string_bytes(&memory, 1).unwrap();
+    #[test]
+    fn terminated_string_reads_preserve_short_reads_and_errors() {
+        struct FailingReader(bool);
 
-        assert_eq!(value, b"test");
+        impl ByteRead for FailingReader {
+            fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
+                assert_eq!(result.len(), 32);
+                if address == 1 {
+                    result.fill(b'x');
+                    Ok(result.len())
+                } else if self.0 {
+                    Ok(0)
+                } else {
+                    Err(WieError::AllocationFailure)
+                }
+            }
+        }
+
+        assert!(matches!(
+            read_null_terminated_string_bytes(&FailingReader(true), 1),
+            Err(WieError::FatalError(message)) if message == "Short read at 0x21: expected 32, got 0"
+        ));
+        assert!(matches!(
+            read_null_terminated_string_bytes(&FailingReader(false), 1),
+            Err(WieError::AllocationFailure)
+        ));
     }
 }
