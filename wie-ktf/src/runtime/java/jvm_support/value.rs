@@ -21,7 +21,7 @@ impl JavaValueCodec {
 impl NativeJavaValueCodec for JavaValueCodec {
     fn object_from_raw(&self, raw: u32) -> Box<dyn ClassInstance> {
         let instance = JavaClassInstance::from_raw(raw, &self.core);
-        if instance.class().unwrap().name().unwrap().starts_with('[') {
+        if instance.class().unwrap().is_array().unwrap() {
             Box::new(JavaArrayClassInstance::from_raw(raw, &self.core))
         } else {
             Box::new(instance)

@@ -212,7 +212,7 @@ impl JavaClassDefinition {
             return Ok(Vec::new());
         }
 
-        if self.name()?.starts_with("[") {
+        if read_generic::<u8, _>(&self.core, descriptor.ptr_name)? == b'[' {
             return Ok(Vec::new());
         }
 
@@ -228,6 +228,13 @@ impl JavaClassDefinition {
         let bytes = read_null_terminated_string_bytes(&self.core, descriptor.ptr_name)?;
 
         Ok(String::from_utf8(bytes).unwrap())
+    }
+
+    pub fn is_array(&self) -> Result<bool> {
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
+
+        Ok(read_generic::<u8, _>(&self.core, descriptor.ptr_name)? == b'[')
     }
 
     pub fn parent_class(&self) -> Result<Option<JavaClassDefinition>> {
@@ -341,7 +348,7 @@ impl ClassDefinition for JavaClassDefinition {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
         let value = self.read_static_field(field).unwrap();
 
-        let r#type = JavaType::parse(&field.descriptor());
+        let r#type = JavaType::parse(field.name().unwrap().descriptor());
         Ok(JavaValueCodec::new(&self.core).decode_word(value, &r#type))
     }
 

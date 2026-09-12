@@ -134,7 +134,7 @@ impl ClassInstance for JavaClassInstance {
 
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let field_type = JavaType::parse(&field.descriptor());
+        let field_type = JavaType::parse(field.name().unwrap().descriptor());
 
         assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
 
@@ -146,19 +146,17 @@ impl ClassInstance for JavaClassInstance {
             let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
             let value_high: KtfJvmWord = read_generic(&self.core, address + 4).unwrap();
 
-            let r#type = JavaType::parse(&field.descriptor());
-            Ok(codec.decode_wide(value, value_high, &r#type))
+            Ok(codec.decode_wide(value, value_high, &field_type))
         } else {
             let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
 
-            let r#type = JavaType::parse(&field.descriptor());
-            Ok(codec.decode_word(value, &r#type))
+            Ok(codec.decode_word(value, &field_type))
         }
     }
 
     fn put_field(&mut self, field: &dyn Field, value: JavaValue) -> JvmResult<()> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let field_type = JavaType::parse(&field.descriptor());
+        let field_type = JavaType::parse(field.name().unwrap().descriptor());
 
         assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
 
