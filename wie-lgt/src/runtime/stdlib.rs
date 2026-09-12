@@ -3,8 +3,10 @@ use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 use core::cmp::min;
 
 use wie_backend::System;
-use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId, stdlib};
-use wie_util::{ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes};
+use wie_core_arm::{Allocator, ArmCore, EmulatedFunction, ResultWriter, SvcId};
+use wie_util::{
+    ByteRead, ByteWrite, Result, WieError, read_generic, read_null_terminated_string_bytes, write_generic, write_null_terminated_string_bytes,
+};
 use wie_wipi_c::api::kernel;
 
 use crate::runtime::{SVC_CATEGORY_STDLIB, svc_ids::StdlibSvcId};
@@ -19,15 +21,15 @@ pub fn register_stdlib_svc_handler(core: &mut ArmCore, system: &System) -> Resul
             x if x == StdlibSvcId::Atoi as u32 => EmulatedFunction::call(&atoi, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Rand as u32 => EmulatedFunction::call(&rand, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Srand as u32 => EmulatedFunction::call(&srand, core, system).await?.write(core, lr),
-            x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&stdlib::strcpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strcpy as u32 => EmulatedFunction::call(&strcpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strncpy as u32 => EmulatedFunction::call(&strncpy, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strcat as u32 => EmulatedFunction::call(&strcat, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strcmp as u32 => EmulatedFunction::call(&strcmp, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk4 as u32 => EmulatedFunction::call(&unk4, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Strstr as u32 => EmulatedFunction::call(&strstr, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&stdlib::strlen, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&stdlib::memcpy, core, &mut ()).await?.write(core, lr),
-            x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&stdlib::memset, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Strlen as u32 => EmulatedFunction::call(&strlen, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Memcpy as u32 => EmulatedFunction::call(&memcpy, core, &mut ()).await?.write(core, lr),
+            x if x == StdlibSvcId::Memset as u32 => EmulatedFunction::call(&memset, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Time as u32 => EmulatedFunction::call(&time, core, system).await?.write(core, lr),
             x if x == StdlibSvcId::Localtime as u32 => EmulatedFunction::call(&localtime, core, &mut ()).await?.write(core, lr),
             x if x == StdlibSvcId::Unk3 as u32 => EmulatedFunction::call(&unk3, core, &mut ()).await?.write(core, lr),
@@ -77,6 +79,59 @@ async fn strncpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, siz
     core.write_bytes(ptr_dst, bytes)?;
 
     Ok(())
+}
+
+const COPY_CHUNK: usize = 4096;
+const STR_SCAN_CHUNK: usize = 256;
+
+async fn memcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32, len: u32) -> Result<()> {
+    let mut buf = [0u8; COPY_CHUNK];
+    let mut offset: u32 = 0;
+    while offset < len {
+        let chunk = ((len - offset) as usize).min(COPY_CHUNK);
+        core.read_bytes(ptr_src.wrapping_add(offset), &mut buf[..chunk])?;
+        core.write_bytes(ptr_dst.wrapping_add(offset), &buf[..chunk])?;
+        offset = offset.wrapping_add(chunk as u32);
+    }
+    Ok(())
+}
+
+async fn memset(core: &mut ArmCore, _: &mut (), ptr_dst: u32, value: u32, len: u32) -> Result<()> {
+    let buf = [value as u8; COPY_CHUNK];
+    let mut offset: u32 = 0;
+    while offset < len {
+        let chunk = ((len - offset) as usize).min(COPY_CHUNK);
+        core.write_bytes(ptr_dst.wrapping_add(offset), &buf[..chunk])?;
+        offset = offset.wrapping_add(chunk as u32);
+    }
+    Ok(())
+}
+
+/// R0 already holds the original destination pointer for the ARM ABI return.
+async fn strcpy(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
+    let mut buf = [0u8; STR_SCAN_CHUNK];
+    let mut offset: u32 = 0;
+    loop {
+        core.read_bytes(ptr_src.wrapping_add(offset), &mut buf)?;
+        if let Some(pos) = buf.iter().position(|&b| b == 0) {
+            core.write_bytes(ptr_dst.wrapping_add(offset), &buf[..=pos])?;
+            return Ok(());
+        }
+        core.write_bytes(ptr_dst.wrapping_add(offset), &buf)?;
+        offset = offset.wrapping_add(STR_SCAN_CHUNK as u32);
+    }
+}
+
+async fn strlen(core: &mut ArmCore, _: &mut (), ptr_str: u32) -> Result<u32> {
+    let mut buf = [0u8; STR_SCAN_CHUNK];
+    let mut len: u32 = 0;
+    loop {
+        core.read_bytes(ptr_str.wrapping_add(len), &mut buf)?;
+        if let Some(pos) = buf.iter().position(|&b| b == 0) {
+            return Ok(len.wrapping_add(pos as u32));
+        }
+        len = len.wrapping_add(STR_SCAN_CHUNK as u32);
+    }
 }
 
 async fn strcat(core: &mut ArmCore, _: &mut (), ptr_dst: u32, ptr_src: u32) -> Result<()> {
@@ -193,9 +248,31 @@ mod tests {
     use test_utils::TestPlatform;
     use wie_backend::{DefaultTaskRunner, System};
     use wie_core_arm::ArmCore;
-    use wie_util::Result;
+    use wie_util::{ByteRead, ByteWrite, Result};
 
-    use super::{rand, srand};
+    use super::{memcpy, memset, rand, srand, strcpy, strlen};
+
+    #[test]
+    fn memory_and_string_imports_preserve_guest_bytes_across_chunks() -> Result<()> {
+        let mut core = ArmCore::new(false, None)?;
+        core.map(0x10000, 0x10000)?;
+        core.map(0x20000, 0x10000)?;
+        let mut source = alloc::vec![0x61; 5000];
+        source.push(0);
+        core.write_bytes(0x10000, &source)?;
+        memcpy(&mut core, &mut (), 0x20000, 0x10000, 5001).now_or_never().unwrap()?;
+        let mut copied = alloc::vec![0; 5001];
+        core.read_bytes(0x20000, &mut copied)?;
+        assert_eq!(copied, source);
+        memset(&mut core, &mut (), 0x20000, 0xff, 5001).now_or_never().unwrap()?;
+        core.read_bytes(0x20000, &mut copied)?;
+        assert!(copied.iter().all(|byte| *byte == 0xff));
+        strcpy(&mut core, &mut (), 0x20000, 0x10000).now_or_never().unwrap()?;
+        assert_eq!(strlen(&mut core, &mut (), 0x20000).now_or_never().unwrap()?, 5000);
+        core.read_bytes(0x20000, &mut copied)?;
+        assert_eq!(copied, source);
+        Ok(())
+    }
 
     #[test]
     fn random_state_is_shared_by_system_clones_and_process_local() -> Result<()> {

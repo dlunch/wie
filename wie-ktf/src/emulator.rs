@@ -123,22 +123,25 @@ impl KtfEmulator {
         files: &BTreeMap<String, Vec<u8>>,
         mut options: Options,
     ) -> Result<Self> {
-        let mut core = ArmCore::new(options.enable_gdbserver, options.profile.take())?;
+        let core = ArmCore::new(options.enable_gdbserver, options.profile.take())?;
         let system = System::new(platform, pid, aid, KtfTaskRunner { core: core.clone() });
+        let mut emulator = Self { core, system };
 
         for (path, data) in files {
             let path = path.trim_start_matches("P/");
-            system.filesystem().add_virtual(path, data.clone());
+            emulator.system.filesystem().add_virtual(path, data.clone());
         }
 
-        Allocator::init(&mut core)?;
+        Allocator::init(&mut emulator.core)?;
 
-        let mut core_clone = core.clone();
-        let mut system_clone = system.clone();
+        let mut core_clone = emulator.core.clone();
+        let mut system_clone = emulator.system.clone();
         let jar_filename_clone = jar_filename.to_owned();
-        system.spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, main_class_name).await);
+        emulator
+            .system
+            .spawn(async move || Self::start(&mut core_clone, &mut system_clone, jar_filename_clone, main_class_name).await);
 
-        Ok(Self { core, system })
+        Ok(emulator)
     }
 
     #[tracing::instrument(name = "start", skip_all)]
@@ -186,13 +189,26 @@ impl KtfEmulator {
     }
 }
 
+impl Drop for KtfEmulator {
+    fn drop(&mut self) {
+        self.core.shutdown();
+        self.system.shutdown();
+    }
+}
+
 impl Emulator for KtfEmulator {
+    fn is_preparing(&self) -> bool {
+        self.core.is_preparing()
+    }
+
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
     }
 
     fn tick(&mut self) -> Result<()> {
+        self.core.check_running()?;
         self.system.tick().map_err(|x| {
+            self.core.shutdown();
             let reg_stack = self.core.dump_reg_stack(IMAGE_BASE);
             match x {
                 WieError::FatalError(msg) => WieError::FatalError(format!("{msg}\n{reg_stack}")),
@@ -213,6 +229,61 @@ mod tests {
     use wie_util::{Result, WieError};
 
     use super::{KtfJvmSupport, KtfTaskRunner};
+
+    #[test]
+    fn dropping_emulator_releases_queued_and_sleeping_tasks() {
+        use wie_backend::Emulator;
+
+        for started in [false, true] {
+            let resource = Arc::new(());
+            let weak = Arc::downgrade(&resource);
+            let platform = TestPlatform::with_event_handler(move |_| {
+                let _ = &resource;
+            });
+            let mut core = ArmCore::new(false, None).unwrap();
+            Allocator::init(&mut core).unwrap();
+            let system = System::new(Box::new(platform), "", "", KtfTaskRunner { core: core.clone() });
+            let task_system = system.clone();
+            system.spawn(async move || {
+                task_system.sleep(10_000).await;
+                Ok(())
+            });
+            let mut emulator = super::KtfEmulator { core, system };
+            if started {
+                emulator.tick().unwrap();
+            }
+            drop(emulator);
+            assert!(weak.upgrade().is_none(), "started={started}");
+        }
+    }
+
+    #[test]
+    fn dropping_emulator_stops_retained_core_clones() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
+        let system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });
+        let emulator = super::KtfEmulator { core: core.clone(), system };
+        drop(emulator);
+        let mut run = core::pin::pin!(core.run_function::<()>(0x1001, &[]));
+        assert!(matches!(
+            run.as_mut().poll(&mut core::task::Context::from_waker(core::task::Waker::noop())),
+            core::task::Poll::Ready(Err(_))
+        ));
+    }
+
+    #[test]
+    fn failed_tick_closes_the_core_and_stops_later_ticks() {
+        use wie_backend::Emulator;
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        Allocator::init(&mut core).unwrap();
+        let system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });
+        system.spawn(|| async { Err(WieError::FatalError("Initialization failed".into())) });
+        let mut emulator = super::KtfEmulator { core: core.clone(), system };
+        assert!(emulator.tick().is_err());
+        assert!(core.check_running().is_err());
+        assert!(emulator.tick().is_err());
+    }
 
     #[test]
     fn clet_mode_is_selected_from_adf_mclass() {

@@ -457,6 +457,28 @@ svg {
   background: var(--card-bg);
 }
 
+.player-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  margin: 0;
+  padding: 24px;
+  color: var(--fg);
+  background: var(--card-bg);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.player-status progress {
+  width: 100%;
+  max-width: 192px;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
 .button-container {
   display: flex;
   width: min(100%, 480px);

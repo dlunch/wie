@@ -32,6 +32,7 @@ impl Future for ArmCoreThreadWrapper {
 
     #[tracing::instrument(name = "native thread", fields(id = self.thread_id), skip_all)]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.core.check_running()?;
         let _guard = self.core.enter_thread_context(self.thread_id);
 
         if let Some(debug) = self.core.debug_inner()

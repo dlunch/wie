@@ -1,9 +1,10 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
-use core::mem::size_of;
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use core::{future::poll_fn, mem::size_of, pin::pin};
 
 use spin::Mutex;
 
-use wie_backend::{ProfileCallback, ProfileSample, YieldFuture};
+use wie_arm_jit_types::PreparationState;
+use wie_backend::{ProfileCallback, YieldFuture};
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{
@@ -19,48 +20,32 @@ const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const FUNCTIONS_SIZE: usize = 0x10000;
 const SVC_STUB_SIZE: u32 = 16;
-const INSTRUCTIONS_PER_YIELD: u32 = 10_000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
-
-/// Limit on stack frames recorded per sample. Bounds memory and protects
-/// against runaway loops if the R7 chain forms a cycle.
-const PROFILE_MAX_STACK: usize = 32;
-/// Flush the per-stack counter map every this many samples taken.
-const PROFILE_FLUSH_INTERVAL: u32 = 1000;
-
-struct ProfileState {
-    samples: BTreeMap<Vec<u32>, u64>,
-    counter: u32,
-    callback: ProfileCallback,
-}
+#[cfg(not(target_arch = "wasm32"))]
+const INSTRUCTIONS_PER_YIELD: u32 = 10_000;
 
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
+    #[cfg(not(target_arch = "wasm32"))]
     instructions_remaining: u32,
     last_thread_id: ThreadId,
     svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
-    profile: Option<ProfileState>,
+    profile: Option<ProfileCallback>,
+    closed: bool,
 }
 
 impl Drop for ArmCoreInner {
     fn drop(&mut self) {
-        if let Some(mut profile) = self.profile.take() {
-            let batch = drain_samples(&mut profile.samples);
-            if !batch.is_empty() {
-                (profile.callback)(batch);
-            }
+        let batch = self.engine.take_profile(true);
+        if !batch.is_empty()
+            && let Some(callback) = self.profile.as_mut()
+        {
+            callback(batch);
         }
     }
-}
-
-fn drain_samples(samples: &mut BTreeMap<Vec<u32>, u64>) -> Vec<ProfileSample> {
-    core::mem::take(samples)
-        .into_iter()
-        .map(|(stack, count)| ProfileSample { stack, count })
-        .collect()
 }
 
 #[derive(Clone)]
@@ -74,25 +59,22 @@ impl ArmCore {
         let mut engine = if enable_gdbserver {
             Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>
         } else {
-            Box::new(Arm32CpuEngine::new())
+            Box::new(Arm32CpuEngine::with_backend())
         };
 
+        engine.set_profiling(profile.is_some());
         engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
 
-        let profile = profile.map(|callback| ProfileState {
-            samples: BTreeMap::new(),
-            counter: 0,
-            callback,
-        });
-
         let inner = ArmCoreInner {
             engine,
+            #[cfg(not(target_arch = "wasm32"))]
             instructions_remaining: INSTRUCTIONS_PER_YIELD,
             last_thread_id: 0,
             svc_handlers: BTreeMap::new(),
             next_stub_address: FUNCTIONS_BASE,
             profile,
+            closed: false,
         };
 
         let result = Self {
@@ -100,11 +82,33 @@ impl ArmCore {
             threads: Arc::new(Mutex::new(BTreeMap::new())),
         };
 
-        if enable_gdbserver {
-            crate::gdb::start(result.clone())?;
+        if enable_gdbserver && let Err(error) = crate::gdb::start(result.clone()) {
+            result.shutdown();
+            return Err(error);
         }
 
         Ok(result)
+    }
+
+    pub fn shutdown(&self) {
+        let handlers = {
+            let mut inner = self.inner.lock();
+            if !inner.closed {
+                inner.closed = true;
+                inner.engine.shutdown();
+            }
+            core::mem::take(&mut inner.svc_handlers)
+        };
+        self.flush_profile();
+        // Handler contexts can own this core and run destructors that reenter it.
+        drop(handlers);
+    }
+
+    pub fn check_running(&self) -> Result<()> {
+        if self.inner.lock().closed {
+            return Err(WieError::FatalError("ARM core is shut down".into()));
+        }
+        Ok(())
     }
 
     pub(crate) fn debug_inner(&self) -> Option<Arc<DebugInner>> {
@@ -124,8 +128,24 @@ impl ArmCore {
             .engine
             .mem_map(address, map_size.next_multiple_of(0x1000), MemoryPermission::ReadWriteExecute);
         inner.engine.mem_write(address, data)?;
+        inner.engine.record_image(address, data.len());
 
         Ok(())
+    }
+
+    pub async fn prepare_execution(&mut self) -> Result<()> {
+        self.check_running()?;
+        let preparation = self.inner.lock().engine.begin_preparation()?;
+        if let Some(preparation) = preparation {
+            let result = preparation.await;
+            self.check_running()?;
+            self.inner.lock().engine.finish_preparation(result);
+        }
+        Ok(())
+    }
+
+    pub fn is_preparing(&self) -> bool {
+        self.inner.lock().engine.preparation_state() != PreparationState::Ready
     }
 
     pub fn run_in_thread<F, Fut>(&self, entry: F) -> Result<ArmCoreThreadWrapper>
@@ -133,6 +153,7 @@ impl ArmCore {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
+        self.check_running()?;
         let state = ThreadState::new(self.clone())?;
 
         let thread_id = {
@@ -175,41 +196,23 @@ impl ArmCore {
         self.threads.lock().keys().cloned().collect()
     }
 
-    fn sample_profile(&self) {
-        let mut inner = self.inner.lock();
-        if inner.profile.is_none() {
+    fn flush_profile(&self) {
+        // Taking the FnMut also serializes reentrant delivery; nested runs leave samples in the engine.
+        let Some(mut callback) = self.inner.lock().profile.take() else {
             return;
-        }
-        let pc = inner.engine.reg_read(ArmRegister::PC);
-        let mut stack = vec![pc];
-        let mut r7 = inner.engine.reg_read(ArmRegister::R7);
-        for _ in 0..PROFILE_MAX_STACK {
-            // Thumb frame: [saved R7 | saved LR] at [r7].
-            let mut buf = [0u8; 8];
-            if inner.engine.mem_read(r7, 8, &mut buf).is_err() {
-                break;
+        };
+        loop {
+            let mut inner = self.inner.lock();
+            let closed = inner.closed;
+            let batch = inner.engine.take_profile(closed);
+            if batch.is_empty() {
+                if !closed {
+                    inner.profile = Some(callback);
+                }
+                return;
             }
-            let prev_r7 = u32::from_le_bytes(buf[0..4].try_into().unwrap());
-            let lr = u32::from_le_bytes(buf[4..8].try_into().unwrap());
-            // Heuristic stop: zero/null frame or non-Thumb LR (we only ever
-            // call into Thumb code from the guest).
-            if prev_r7 == 0 || lr == 0 || lr & 1 == 0 {
-                break;
-            }
-            stack.push(lr);
-            if prev_r7 <= r7 {
-                // R7 chain must walk upward; bail on any inversion to avoid loops.
-                break;
-            }
-            r7 = prev_r7;
-        }
-        let profile = inner.profile.as_mut().unwrap();
-        *profile.samples.entry(stack).or_insert(0) += 1;
-        profile.counter = profile.counter.wrapping_add(1);
-        if profile.counter >= PROFILE_FLUSH_INTERVAL {
-            profile.counter = 0;
-            let batch = drain_samples(&mut profile.samples);
-            (profile.callback)(batch);
+            drop(inner);
+            callback(batch);
         }
     }
 
@@ -220,7 +223,10 @@ impl ArmCore {
         // we don't need to save r0-r3, but to make it simple, we save all registers
         let previous_context = self.save_context();
         let result = self.run_function_inner(address, params).await;
-        self.restore_context(&previous_context);
+        // Closed cores retain the fault state; recoverable calls restore their caller.
+        if !self.inner.lock().closed {
+            self.restore_context(&previous_context);
+        }
         result
     }
 
@@ -230,6 +236,9 @@ impl ArmCore {
     {
         {
             let mut inner = self.inner.lock();
+            if inner.closed {
+                return Err(WieError::FatalError("ARM core is shut down".into()));
+            }
 
             if !params.is_empty() {
                 inner.engine.reg_write(ArmRegister::R0, params[0]);
@@ -261,20 +270,38 @@ impl ArmCore {
         }
 
         loop {
-            let (result, should_yield) = {
+            let (result, exhausted) = {
                 let mut inner = self.inner.lock();
-                let budget = inner.instructions_remaining;
-                let result = inner.engine.run(RUN_FUNCTION_LR, budget)?;
-                inner.instructions_remaining -= result.instructions_executed;
-                let exhausted = inner.instructions_remaining == 0;
-                if exhausted {
-                    inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
+                if inner.closed {
+                    return Err(WieError::FatalError("ARM core is shut down".into()));
                 }
-                let should_yield = exhausted || matches!(result.stop_reason, EngineStopReason::Yield);
-                (result.stop_reason, should_yield)
+                #[cfg(not(target_arch = "wasm32"))]
+                let budget = inner.instructions_remaining;
+                #[cfg(target_arch = "wasm32")]
+                let budget = u32::MAX;
+                let result = match inner.engine.run(RUN_FUNCTION_LR, budget) {
+                    Ok(result) => result,
+                    Err(error) => {
+                        inner.closed = true;
+                        inner.engine.shutdown();
+                        drop(inner);
+                        self.shutdown();
+                        return Err(error);
+                    }
+                };
+                #[cfg(not(target_arch = "wasm32"))]
+                let exhausted = {
+                    inner.instructions_remaining -= result.instructions_executed;
+                    let exhausted = inner.instructions_remaining == 0;
+                    if exhausted {
+                        inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
+                    }
+                    exhausted
+                };
+                #[cfg(target_arch = "wasm32")]
+                let exhausted = false;
+                (result.stop_reason, exhausted)
             };
-
-            self.sample_profile();
 
             let svc_step = if let EngineStopReason::Svc { lr, spsr, .. } = result {
                 // Leave exception mode before yielding: thread contexts do not save banked SVC registers.
@@ -290,9 +317,13 @@ impl ArmCore {
                 None
             };
 
+            let should_yield = exhausted || matches!(result, EngineStopReason::Yield);
+            self.flush_profile();
+
             if should_yield {
                 YieldFuture::new().await;
             }
+            self.check_running()?;
 
             match result {
                 EngineStopReason::End => break,
@@ -308,7 +339,12 @@ impl ArmCore {
                     };
 
                     let mut self1 = self.clone();
-                    let result = function.call(&mut self1).await;
+                    let mut call = pin!(function.call(&mut self1));
+                    let result = poll_fn(|cx| {
+                        self.check_running()?;
+                        call.as_mut().poll(cx)
+                    })
+                    .await;
                     if let Some((debug, thread_id)) = svc_step {
                         debug.end_svc_step(thread_id, result.is_ok());
                     }
@@ -676,15 +712,321 @@ impl Drop for ThreadContextGuard {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
     use core::{
         pin::pin,
-        sync::atomic::{AtomicU32, Ordering},
+        sync::atomic::{AtomicBool, AtomicU32, Ordering},
         task::{Context, Poll, Waker},
     };
 
     use crate::function::JumpTo;
+    use wie_util::read_null_terminated_string_bytes;
 
     use super::*;
+
+    #[test]
+    fn terminated_string_reads_use_normal_and_debug_engines() {
+        for debug in [false, true] {
+            let mut core = ArmCore::new(false, None).unwrap();
+            if debug {
+                core.inner.lock().engine = Box::new(DebuggedArm32CpuEngine::new());
+            }
+            core.load(&[], 0x10000, 0x10000).unwrap();
+            core.write_bytes(0x1fffc, b"end\0").unwrap();
+            let reader: &dyn ByteRead = &core;
+            assert_eq!(read_null_terminated_string_bytes(reader, 0x1fffc).unwrap(), b"end");
+            assert!(read_null_terminated_string_bytes(reader, 0x1ffff).unwrap().is_empty());
+            assert!(matches!(
+                read_null_terminated_string_bytes(reader, 0),
+                Err(WieError::InvalidMemoryAccess(0))
+            ));
+            core.write_bytes(0x1ffff, b"x").unwrap();
+            assert!(matches!(
+                read_null_terminated_string_bytes(&core, 0x1fffc),
+                Err(WieError::InvalidMemoryAccess(0x20000))
+            ));
+            core.load(b"page\0", 0x20000, 5).unwrap();
+            assert_eq!(read_null_terminated_string_bytes(&core, 0x1fffc).unwrap(), b"endxpage");
+            core.load(b"raw\0", 0, 4).unwrap();
+            assert!(matches!(
+                read_null_terminated_string_bytes(&core, 0),
+                Err(WieError::InvalidMemoryAccess(0))
+            ));
+        }
+    }
+
+    #[test]
+    fn shutdown_releases_svc_contexts_outside_the_core_lock() {
+        struct ContextOwner(ArmCore);
+
+        impl Drop for ContextOwner {
+            fn drop(&mut self) {
+                assert!(self.0.inner.try_lock().is_some());
+                self.0.shutdown();
+            }
+        }
+
+        async fn handler(_: &mut ArmCore, _: &mut Arc<ContextOwner>) -> Result<()> {
+            Ok(())
+        }
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        let weak = Arc::downgrade(&core.inner);
+        let context = Arc::new(ContextOwner(core.clone()));
+        let weak_context = Arc::downgrade(&context);
+        core.register_svc_handler(1, handler, &context).unwrap();
+        drop(context);
+
+        core.shutdown();
+        assert!(weak_context.upgrade().is_none());
+        drop(core);
+        assert!(weak.upgrade().is_none());
+    }
+
+    #[test]
+    fn shutdown_blocks_clones_before_call_setup() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
+        let mut remaining = core.clone();
+        let previous = remaining.save_context();
+
+        core.shutdown();
+        core.shutdown();
+        assert!(futures::executor::block_on(remaining.run_function::<()>(0x1001, &[1, 2, 3, 4, 5])).is_err());
+        let after = remaining.save_context();
+        assert_eq!(
+            (after.r0, after.sp, after.pc, after.cpsr),
+            (previous.r0, previous.sp, previous.pc, previous.cpsr)
+        );
+        assert!(remaining.run_in_thread(|| async { Ok(()) }).is_err());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn shutdown_stops_a_suspended_svc_before_its_handler() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        let calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
+        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
+        core.inner.lock().instructions_remaining = 1;
+        let observer = core.clone();
+        let mut run = pin!(core.run_function::<()>(0x1001, &[]));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observer.save_context().pc, 0x1002);
+        assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
+        observer.shutdown();
+        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Err(_))));
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+    }
+
+    async fn pending_svc_handler(_: &mut ArmCore, (entered, calls): &mut (Arc<AtomicBool>, Arc<AtomicU32>)) -> Result<u32> {
+        entered.store(true, Ordering::Relaxed);
+        let mut yielded = false;
+        poll_fn(|_| {
+            if core::mem::replace(&mut yielded, true) {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        })
+        .await;
+        calls.fetch_add(1, Ordering::Relaxed);
+        Ok(42)
+    }
+
+    #[test]
+    fn shutdown_does_not_resume_an_already_pending_svc_handler() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        let entered = Arc::new(AtomicBool::new(false));
+        let calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, pending_svc_handler, &(entered.clone(), calls.clone()))
+            .unwrap();
+        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
+        let observer = core.clone();
+        let mut run = pin!(core.run_function::<()>(0x1001, &[]));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert!(entered.load(Ordering::Relaxed));
+        assert_eq!(observer.save_context().pc, 0x1002);
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        observer.shutdown();
+        let before = observer.save_context();
+        let result = run.as_mut().poll(&mut cx);
+        let after = observer.save_context();
+        assert!(matches!(result, Poll::Ready(Err(_))));
+        assert_eq!((calls.load(Ordering::Relaxed), after.r0, after.pc), (0, before.r0, before.pc));
+    }
+
+    #[test]
+    fn shutdown_does_not_resume_an_existing_host_thread() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let calls = Arc::new(AtomicU32::new(0));
+        let observed = calls.clone();
+        let task = core
+            .run_in_thread(move || async move {
+                let mut yielded = false;
+                poll_fn(|_| {
+                    if core::mem::replace(&mut yielded, true) {
+                        Poll::Ready(())
+                    } else {
+                        Poll::Pending
+                    }
+                })
+                .await;
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+            .unwrap();
+        let mut task = pin!(task);
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(task.as_mut().poll(&mut cx).is_pending());
+        core.shutdown();
+        let result = task.as_mut().poll(&mut cx);
+        assert_eq!(observed.load(Ordering::Relaxed), 0);
+        assert!(matches!(result, Poll::Ready(Err(_))));
+    }
+
+    #[test]
+    fn shutdown_preserves_fault_context_when_a_nested_thread_is_polled() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        let completed = Arc::new(AtomicU32::new(0));
+        let entered = Arc::new(AtomicBool::new(false));
+        let calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, call_nested_arm, &completed).unwrap();
+        core.register_svc_handler(2, pending_svc_handler, &(entered.clone(), calls.clone()))
+            .unwrap();
+        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
+        core.load(&[0x02, 0xdf, 0x70, 0x47], 0x10000, 4).unwrap();
+        let mut running = core.clone();
+        let mut task = pin!(
+            core.run_in_thread(move || async move { running.run_function::<()>(0x1001, &[]).await })
+                .unwrap()
+        );
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(task.as_mut().poll(&mut cx).is_pending());
+        assert!(entered.load(Ordering::Relaxed));
+        assert_eq!(core.read_thread_context(1).unwrap().pc, 0x10002);
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+
+        assert!(futures::executor::block_on(core.run_function::<()>(1, &[99])).is_err());
+        assert!(core.check_running().is_err());
+        let diagnostic = core.dump_regs();
+        assert!(matches!(task.as_mut().poll(&mut cx), Poll::Ready(Err(_))));
+        assert_eq!(core.dump_regs(), diagnostic);
+        assert_eq!(core.read_thread_context(1).unwrap().pc, 0x10002);
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        assert_eq!(completed.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn shutdown_inside_a_svc_handler_prevents_result_writes() {
+        async fn shutdown_handler(core: &mut ArmCore, _: &mut ()) -> Result<u32> {
+            core.shutdown();
+            Ok(42)
+        }
+
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.register_svc_handler(1, shutdown_handler, &()).unwrap();
+        core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
+        assert!(futures::executor::block_on(core.run_function::<()>(0x1001, &[17])).is_err());
+        let context = core.save_context();
+        assert_eq!((context.r0, context.pc), (17, 0x1002));
+    }
+
+    #[test]
+    fn engine_errors_close_the_shared_core_without_restoring_fault_state() {
+        let mut core = ArmCore::new(false, None).unwrap();
+        core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
+        let mut remaining = core.clone();
+        assert!(futures::executor::block_on(core.run_function::<()>(1, &[42])).is_err());
+        let fault = core.save_context();
+        assert_eq!((fault.r0, fault.pc), (42, 0));
+        assert!(futures::executor::block_on(remaining.run_function::<()>(0x1001, &[7])).is_err());
+        let after = remaining.save_context();
+        assert_eq!((after.r0, after.pc, after.cpsr), (fault.r0, fault.pc, fault.cpsr));
+    }
+
+    #[test]
+    fn final_owner_drop_flushes_remaining_profile_samples() {
+        let samples = Arc::new(Mutex::new(Vec::new()));
+        let observed = samples.clone();
+        let mut core = ArmCore::new(false, Some(Box::new(move |batch| samples.lock().extend(batch)))).unwrap();
+        let mut code = [0xc0, 0x46].repeat(2048); // nop
+        code.extend_from_slice(&[0x70, 0x47]);
+        core.load(&code, 0x1000, code.len()).unwrap();
+        futures::executor::block_on(core.run_function::<()>(0x1001, &[])).unwrap();
+        let last = core.clone();
+        drop(core);
+        assert!(observed.lock().is_empty());
+        drop(last);
+        let samples = observed.lock();
+        assert!(!samples.is_empty());
+        assert!(samples.iter().all(|sample| (0x1000..0x2000).contains(&sample.stack[0])));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn profile_callbacks_can_reenter_and_shutdown_outside_engine_locks() {
+        for debug in [false, true] {
+            let holder = Arc::new(Mutex::new(None::<ArmCore>));
+            let callback_core = holder.clone();
+            let callbacks = Arc::new(AtomicU32::new(0));
+            let observed = callbacks.clone();
+            let mut core = ArmCore::new(
+                false,
+                Some(Box::new(move |batch| {
+                    assert!(!batch.is_empty());
+                    let mut core = callback_core.lock().as_ref().unwrap().clone();
+                    assert!(core.inner.try_lock().is_some());
+                    core.save_context(); // Also acquires the debug CPU lock.
+                    if callbacks.fetch_add(1, Ordering::Relaxed) == 0 {
+                        assert!(batch.iter().all(|sample| sample.stack[0] == 0x1000));
+                        assert!(batch.iter().map(|sample| sample.count).sum::<u64>() >= 1000);
+                        futures::executor::block_on(core.run_function::<()>(0x10001, &[])).unwrap();
+                        core.shutdown();
+                        core.shutdown();
+                    } else {
+                        assert!(batch.iter().all(|sample| (0x10000..=0x11000).contains(&sample.stack[0])));
+                    }
+                })),
+            )
+            .unwrap();
+            if debug {
+                let mut engine = DebuggedArm32CpuEngine::new();
+                engine.set_profiling(true);
+                engine.debug_inner().resume(Vec::new(), None);
+                core.inner.lock().engine = Box::new(engine);
+            }
+            core.load(&[0xfe, 0xe7], 0x1000, 2).unwrap(); // b .
+            let mut nested = [0xc0, 0x46].repeat(2048);
+            nested.extend_from_slice(&[0x70, 0x47]);
+            core.load(&nested, 0x10000, nested.len()).unwrap();
+            *holder.lock() = Some(core.clone());
+            {
+                let mut inner = core.inner.lock();
+                inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
+                inner.engine.reg_write(ArmRegister::PC, 0x1000);
+                // A flush needs 1000 retired samples; each interval is at most 1152 instructions.
+                let count = 1152 * 1000;
+                let result = inner.engine.run(RUN_FUNCTION_LR, count).unwrap();
+                assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+                assert_eq!(result.instructions_executed, count);
+                inner.instructions_remaining = 0;
+            }
+            assert_eq!(observed.load(Ordering::Relaxed), 0);
+            let mut run = pin!(core.run_function::<()>(0x1001, &[]));
+            let mut cx = Context::from_waker(Waker::noop());
+            assert!(run.as_mut().poll(&mut cx).is_pending());
+            assert_eq!(observed.load(Ordering::Relaxed), 2);
+            let finished = run.as_mut().poll(&mut cx);
+            let _owner = holder.lock().take();
+            assert!(matches!(finished, Poll::Ready(Err(_))));
+            assert_eq!(observed.load(Ordering::Relaxed), 2);
+        }
+    }
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
@@ -726,6 +1068,7 @@ mod tests {
         let mut run = pin!(core.run_function::<()>(0x1001, &[]));
         let mut cx = Context::from_waker(Waker::noop());
         assert!(run.as_mut().poll(&mut cx).is_pending());
+        assert_eq!(observer.save_context().pc, 0x1000);
         assert_eq!(observer.inner.lock().instructions_remaining, 5);
         debug.resume(Vec::new(), None);
         assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
@@ -835,8 +1178,6 @@ mod tests {
             let engine = DebuggedArm32CpuEngine::new();
             let debug = engine.debug_inner();
             core.inner.lock().engine = Box::new(engine);
-            // Also exercise suspension between the SVC instruction and its host handler.
-            core.inner.lock().instructions_remaining = 1;
             crate::Allocator::init(&mut core).unwrap();
             let result = Arc::new(AtomicU32::new(0));
             let calls = Arc::new(AtomicU32::new(0));
@@ -887,6 +1228,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn yields_every_ten_thousand_instructions_across_svc() {
         let mut core = ArmCore::new(false, None).unwrap();
@@ -909,6 +1251,7 @@ mod tests {
         assert_eq!(calls.load(Ordering::Relaxed), 10_000);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn nested_arm_calls_share_the_instruction_budget() {
         let mut core = ArmCore::new(false, None).unwrap();
@@ -932,7 +1275,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_arm_calls_restore_caller_registers_and_stack() {
+    fn recoverable_arm_call_failures_restore_caller_registers_and_stack() {
         async fn throwing_handler(core: &mut ArmCore, _: &mut ()) -> Result<()> {
             core.write_return_value(&[99, 98])?;
             Err(WieError::JavaException(0x1234))
@@ -945,22 +1288,24 @@ mod tests {
         let mut context = core.save_context();
         context.r0 = 42;
         context.r1 = 43;
-        context.sp = 0x3000;
         context.lr = 0x4001;
-        core.restore_context(&context);
-        let registers = core.dump_regs();
 
-        for address in [target, 0x1001] {
-            let result = futures::executor::block_on(core.run_function::<()>(address, &[1, 2, 3, 4, 5]));
-            if address == target {
+        for sp in [0x3000, 0x2000_0004] {
+            context.sp = sp;
+            core.restore_context(&context);
+            let registers = core.dump_regs();
+            let result = futures::executor::block_on(core.run_function::<()>(target, &[1, 2, 3, 4, 5]));
+            if sp == 0x3000 {
                 assert!(matches!(result, Err(WieError::JavaException(0x1234))));
             } else {
                 assert!(matches!(result, Err(WieError::InvalidMemoryAccess(_))));
             }
+            assert!(core.check_running().is_ok());
             assert_eq!(core.dump_regs(), registers);
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn returning_arm_calls_do_not_reset_the_instruction_budget() {
         let mut core = ArmCore::new(false, None).unwrap();
@@ -978,6 +1323,61 @@ mod tests {
         assert_eq!(observed.load(Ordering::Relaxed), 9_999);
         assert!(run.as_mut().poll(&mut cx).is_ready());
         assert_eq!(observed.load(Ordering::Relaxed), 10_001);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn ready_arm_threads_yield_and_allow_host_tasks_to_run() {
+        use test_utils::{TestClock, TestPlatform};
+        use wie_backend::{DefaultTaskRunner, System};
+
+        let clock = TestClock::new();
+        let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "test", "test", DefaultTaskRunner);
+        let mut core = ArmCore::new(false, None).unwrap();
+        crate::Allocator::init(&mut core).unwrap();
+        core.load(&[0x01, 0x30, 0xfd, 0xe7], 0x1000, 4).unwrap(); // add r0, #1; b 0x1000
+        let polls = Arc::new(AtomicU32::new(0));
+        for _ in 0..2 {
+            let mut running = core.clone();
+            let task = core
+                .run_in_thread(move || async move { running.run_function::<()>(0x1001, &[0]).await })
+                .unwrap();
+            let clock = clock.clone();
+            let polls = polls.clone();
+            system.spawn(move || async move {
+                let mut task = pin!(task);
+                poll_fn(|cx| {
+                    let result = task.as_mut().poll(cx);
+                    assert!(result.is_pending());
+                    polls.fetch_add(1, Ordering::Relaxed);
+                    // Limit the executor to one step.
+                    clock.advance(9);
+                    result
+                })
+                .await
+            });
+        }
+        let host_calls = Arc::new(AtomicU32::new(0));
+        let observed = host_calls.clone();
+        system.spawn(move || async move {
+            host_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        });
+
+        system.tick().unwrap();
+        assert_eq!(polls.load(Ordering::Relaxed), 2);
+        assert_eq!(observed.load(Ordering::Relaxed), 1);
+        let first = [1, 2].map(|thread| core.read_thread_context(thread).unwrap().r0);
+        assert_eq!(first, [5_000, 5_000]);
+        assert_eq!(core.inner.lock().instructions_remaining, 10_000);
+        system.tick().unwrap();
+        assert_eq!(polls.load(Ordering::Relaxed), 4);
+        for (thread, previous) in [1, 2].into_iter().zip(first) {
+            assert_eq!(core.read_thread_context(thread).unwrap().r0 - previous, 5_000);
+        }
+        system.shutdown();
+        assert!(core.get_thread_ids().is_empty());
+        core.shutdown();
     }
 
     #[test]

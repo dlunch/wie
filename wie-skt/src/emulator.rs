@@ -159,7 +159,17 @@ impl SktEmulator {
     }
 }
 
+impl Drop for SktEmulator {
+    fn drop(&mut self) {
+        self.system.shutdown();
+    }
+}
+
 impl Emulator for SktEmulator {
+    fn is_preparing(&self) -> bool {
+        false
+    }
+
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
     }
@@ -226,6 +236,32 @@ mod tests {
     use alloc::{collections::BTreeMap, vec};
 
     use super::{SktEmulator, SktMsd};
+
+    #[test]
+    fn dropping_emulator_releases_pending_tasks() {
+        use alloc::{boxed::Box, sync::Arc};
+        use wie_backend::{DefaultTaskRunner, Emulator, System};
+
+        for started in [false, true] {
+            let resource = Arc::new(());
+            let weak = Arc::downgrade(&resource);
+            let platform = test_utils::TestPlatform::with_event_handler(move |_| {
+                let _ = &resource;
+            });
+            let system = System::new(Box::new(platform), "", "", DefaultTaskRunner);
+            let task_system = system.clone();
+            system.spawn(async move || {
+                task_system.sleep(10_000).await;
+                Ok(())
+            });
+            let mut emulator = super::SktEmulator { system };
+            if started {
+                emulator.tick().unwrap();
+            }
+            drop(emulator);
+            assert!(weak.upgrade().is_none(), "started={started}");
+        }
+    }
 
     #[test]
     fn parse_msd_name() {

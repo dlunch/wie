@@ -55,28 +55,8 @@ pub trait ByteWrite {
     fn write_bytes(&mut self, address: u32, data: &[u8]) -> Result<()>;
 }
 
-pub fn read_generic<T, R>(reader: &R, address: u32) -> Result<T>
-where
-    T: Copy + AnyBitPattern + NoUninit,
-    R: ?Sized + ByteRead,
-{
-    if address == 0 {
-        return Err(WieError::InvalidMemoryAccess(address));
-    }
-
-    let mut destination = MaybeUninit::<T>::uninit();
-    let destination_bytes = unsafe { from_raw_parts_mut(destination.as_mut_ptr().cast::<u8>(), size_of::<T>()) };
-    let read = reader.read_bytes(address, destination_bytes)?;
-    if read != destination_bytes.len() {
-        return Err(WieError::FatalError(format!(
-            "Short read at {address:#x}: expected {}, got {read}",
-            destination_bytes.len()
-        )));
-    }
-
-    Ok(unsafe { destination.assume_init() })
-}
-
+/// Reads a byte string excluding its first NUL. The starting address must be
+/// nonzero; subsequent guest addresses wrap at 32 bits.
 pub fn read_null_terminated_string_bytes<R>(reader: &R, address: u32) -> Result<Vec<u8>>
 where
     R: ?Sized + ByteRead,
@@ -109,6 +89,28 @@ where
     }
 
     Ok(result)
+}
+
+pub fn read_generic<T, R>(reader: &R, address: u32) -> Result<T>
+where
+    T: Copy + AnyBitPattern + NoUninit,
+    R: ?Sized + ByteRead,
+{
+    if address == 0 {
+        return Err(WieError::InvalidMemoryAccess(address));
+    }
+
+    let mut destination = MaybeUninit::<T>::uninit();
+    let destination_bytes = unsafe { from_raw_parts_mut(destination.as_mut_ptr().cast::<u8>(), size_of::<T>()) };
+    let read = reader.read_bytes(address, destination_bytes)?;
+    if read != destination_bytes.len() {
+        return Err(WieError::FatalError(format!(
+            "Short read at {address:#x}: expected {}, got {read}",
+            destination_bytes.len()
+        )));
+    }
+
+    Ok(unsafe { destination.assume_init() })
 }
 
 pub fn write_null_terminated_string_bytes<W>(writer: &mut W, address: u32, bytes: &[u8]) -> Result<()>
@@ -235,11 +237,25 @@ mod tests {
 
     #[test]
     fn terminated_string_reads_stop_at_the_reader_boundary() {
-        for bytes in [b"".as_slice(), b"test", &[0xff, 0x80], &[b'x'; 31], &[b'x'; 32], &[b'x'; 33]] {
+        for bytes in [
+            b"".as_slice(),
+            b"a",
+            b"test",
+            b"abcd",
+            b"abcde",
+            &[0xff, 0x80],
+            &[b'x'; 31],
+            &[b'x'; 32],
+            &[b'x'; 33],
+        ] {
             let mut memory = StrictMemory { memory: vec![0] };
             memory.memory.extend_from_slice(bytes);
             memory.memory.push(0);
             assert_eq!(read_null_terminated_string_bytes(&memory, 1).unwrap(), bytes);
+            assert!(matches!(
+                read_null_terminated_string_bytes(&memory, 0),
+                Err(WieError::InvalidMemoryAccess(0))
+            ));
             memory.memory.pop();
             assert!(matches!(
                 read_null_terminated_string_bytes(&memory, 1),
@@ -274,5 +290,27 @@ mod tests {
             read_null_terminated_string_bytes(&FailingReader(false), 1),
             Err(WieError::AllocationFailure)
         ));
+    }
+
+    #[test]
+    fn terminated_string_reads_wrap_guest_addresses() {
+        struct WrappingReader;
+
+        impl ByteRead for WrappingReader {
+            fn read_bytes(&self, address: u32, result: &mut [u8]) -> Result<usize> {
+                for (offset, byte) in result.iter_mut().enumerate() {
+                    let address = address.wrapping_add(offset as u32);
+                    *byte = match address {
+                        u32::MAX => b'x',
+                        0 => b'y',
+                        1 => 0,
+                        _ => return Err(WieError::InvalidMemoryAccess(address)),
+                    };
+                }
+                Ok(result.len())
+            }
+        }
+
+        assert_eq!(read_null_terminated_string_bytes(&WrappingReader, u32::MAX).unwrap(), b"xy");
     }
 }

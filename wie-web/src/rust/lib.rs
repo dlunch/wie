@@ -295,6 +295,10 @@ impl WieWeb {
         result.map_err(|e| JsError::new(&e.to_string()))
     }
 
+    pub fn is_preparing(&self) -> bool {
+        self.emulator.is_preparing()
+    }
+
     pub fn update(&mut self) -> Result<(), JsError> {
         if self.should_redraw.load(Ordering::SeqCst) {
             self.emulator.handle_event(Event::Redraw);

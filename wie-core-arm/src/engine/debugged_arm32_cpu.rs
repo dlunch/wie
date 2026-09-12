@@ -474,7 +474,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
             }
 
             let current_pc = DebugInner::normalize_addr(self.debug.cpu.lock().reg_read(ArmRegister::PC));
-            let result = if self.pending_breakpoint_step.remove(&thread_id) == Some(current_pc) {
+            let result = if self.pending_breakpoint_step.get(&thread_id) == Some(&current_pc) {
                 let result = self
                     .debug
                     .try_restore_breakpoint(current_pc)
@@ -483,8 +483,12 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     self.debug.stop(DebugStopReason::Signal(DebugSignal::Abrt, self.stop_thread_id()));
                     return Err(error);
                 }
+                if result.as_ref().is_ok_and(|result| result.instructions_executed != 0) {
+                    self.pending_breakpoint_step.remove(&thread_id);
+                }
                 result
             } else {
+                self.pending_breakpoint_step.remove(&thread_id);
                 if self.debug.breakpoints.lock().contains_key(&current_pc) {
                     // Keep the trap installed while another thread may be resumed.
                     self.pending_breakpoint_step.insert(thread_id, current_pc);
@@ -539,6 +543,34 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.debug.cpu.lock().is_mapped(address, size)
+    }
+
+    fn set_profiling(&mut self, enabled: bool) {
+        self.debug.cpu.lock().set_profiling(enabled);
+    }
+
+    fn take_profile(&mut self, force: bool) -> Vec<wie_backend::ProfileSample> {
+        self.debug.cpu.lock().take_profile(force)
+    }
+
+    fn record_image(&mut self, address: u32, size: usize) {
+        self.debug.cpu.lock().record_image(address, size);
+    }
+
+    fn begin_preparation(&mut self) -> wie_util::Result<Option<wie_arm_jit_types::PreparationFuture>> {
+        self.debug.cpu.lock().begin_preparation()
+    }
+
+    fn preparation_state(&self) -> wie_arm_jit_types::PreparationState {
+        self.debug.cpu.lock().preparation_state()
+    }
+
+    fn finish_preparation(&mut self, result: Result<wie_arm_jit_types::CompiledArtifact, alloc::string::String>) {
+        self.debug.cpu.lock().finish_preparation(result);
+    }
+
+    fn shutdown(&mut self) {
+        self.debug.cpu.lock().shutdown();
     }
 }
 
@@ -672,6 +704,83 @@ mod tests {
         assert_eq!(stops[2].1.r0, 1);
         assert_eq!(stops[3].1.r0, 1);
         assert!(stops.iter().all(|(_, _, instruction)| *instruction == [0x00, 0xbe]));
+    }
+
+    #[test]
+    fn zero_budget_breakpoint_resumes_keep_the_pending_instruction_until_it_retires() {
+        extern crate std;
+
+        for stepping in [false, true] {
+            let mut engine = DebuggedArm32CpuEngine::new();
+            engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x1000, &[0x01, 0x30, 0x01, 0x30]).unwrap();
+            engine.reg_write(ArmRegister::Cpsr, 0x3f);
+            engine.reg_write(ArmRegister::PC, 0x1001);
+            engine.debug.on_thread_entered(1);
+            engine.debug.add_breakpoint(0x1000, DebugBreakpointKind::Thumb16).unwrap();
+            let debug = engine.debug.clone();
+            debug.resume(Vec::new(), None);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1);
+                (engine, result)
+            });
+            let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), Some(vec![2]));
+            let (mut engine, result) = runner.join().unwrap();
+            assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.instructions_executed, 0);
+            assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
+
+            debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
+            let (tx, rx) = channel::bounded(1);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 0);
+                tx.send((engine, result)).unwrap();
+            });
+            let suspended = rx.recv_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            let (mut engine, result) = suspended.unwrap();
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.instructions_executed, 0);
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
+            assert_eq!(engine.reg_read(ArmRegister::R0), 0);
+            assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
+            let mut trap = [0; 2];
+            engine.mem_read(0x1000, 2, &mut trap).unwrap();
+            assert_eq!(trap, [0x00, 0xbe]);
+            assert!(debug.stop_event_rx.is_empty());
+
+            debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
+            let (tx, rx) = channel::bounded(1);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1);
+                tx.send((engine, result)).unwrap();
+            });
+            let stopped = stepping.then(|| debug.recv_stop_event_timeout(Duration::from_secs(1)));
+            if stepping {
+                debug.resume(Vec::new(), None);
+            }
+            let resumed = rx.recv_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            let (mut engine, result) = resumed.unwrap();
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.instructions_executed, 1);
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1002);
+            assert_eq!(engine.reg_read(ArmRegister::R0), 1);
+            assert!(!engine.pending_breakpoint_step.contains_key(&1));
+            engine.mem_read(0x1000, 2, &mut trap).unwrap();
+            assert_eq!(trap, [0x00, 0xbe]);
+            assert!(debug.stop_event_rx.is_empty());
+            if let Some(stopped) = stopped {
+                assert!(matches!(stopped, Ok(DebugStopReason::DoneStep(1))));
+            }
+        }
     }
 
     #[test]

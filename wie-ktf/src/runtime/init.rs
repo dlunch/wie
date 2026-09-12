@@ -49,19 +49,7 @@ pub async fn load_native(
     let bss_size = parse_bss_size(filename)?;
 
     core.load(data, IMAGE_BASE, data.len() + bss_size as usize)?;
-
-    // Patterns target instruction encodings, which the guest self-rebase at
-    // IMAGE_BASE+1 doesn't rewrite — so installing here is sound and skips a
-    // re-scan after relocation. Hash-matched entries take priority over
-    // hash-less generic ones; only one entry is installed because each install
-    // claims fresh SVC categories from a fixed base and they would collide.
-    //
-    // The scan range covers the whole loaded image because KTF binaries don't
-    // expose a code/metadata boundary at this point. Safety relies on the
-    // patterns being long enough (and `{exit_b}` strict enough) that a
-    // metadata-region collision is implausible; tighten patterns rather than
-    // narrow the range if that ever becomes false.
-    wie_core_arm::install_binary_patches(core, data, &[(IMAGE_BASE, data.len() as u32)])?;
+    core.prepare_execution().await?;
 
     register_wipic_svc_handler(core, system, jvm)?;
     register_init_svc_handler(core, jvm)?;

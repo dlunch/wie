@@ -37,6 +37,7 @@ const icons = {
 export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Array, settings: SettingsController, exit: (error?: unknown) => void) => {
   const playerView = document.getElementById("player-view") as HTMLElement;
   const playerTitle = document.getElementById("player-title") as HTMLElement;
+  const playerStatus = document.getElementById("player-status") as HTMLElement;
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   const backToLibrary = document.getElementById("back-to-library") as HTMLButtonElement;
   const appSettings = document.getElementById("app-settings") as HTMLButtonElement;
@@ -44,9 +45,12 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
   canvas.width = 240;
   canvas.height = 320;
   const abortController = new AbortController();
+  playerStatus.hidden = false;
+  playerView.setAttribute("aria-busy", "true");
   const wieWeb = new WieWeb(app.filename, archive, canvas, fontData);
   const unsubscribePcmVolume = settings.onPcmVolumeChange((volume) => wieWeb.set_pcm_volume(volume));
   let running = true;
+  let preparing = true;
 
   wieWeb.set_pcm_volume(settings.pcmVolume);
   playerTitle.textContent = app.title;
@@ -56,10 +60,14 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
   appSettings.addEventListener("click", settings.open, { signal: abortController.signal });
 
   for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-key]")) {
+    button.disabled = true;
     const key = button.dataset.key!;
     button.addEventListener(
       "pointerdown",
       (event) => {
+        if (preparing) {
+          return;
+        }
         event.preventDefault();
         button.setPointerCapture(event.pointerId);
         wieWeb.key_down(key);
@@ -67,6 +75,9 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
       { signal: abortController.signal },
     );
     const releaseKey = (event: PointerEvent) => {
+      if (preparing) {
+        return;
+      }
       event.preventDefault();
       wieWeb.key_up(key);
     };
@@ -77,7 +88,7 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
   document.addEventListener(
     "keydown",
     (event) => {
-      if (event.target instanceof HTMLElement && event.target.closest("dialog")) {
+      if (preparing || (event.target instanceof HTMLElement && event.target.closest("dialog"))) {
         return;
       }
 
@@ -94,7 +105,7 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
   document.addEventListener(
     "keyup",
     (event) => {
-      if (event.target instanceof HTMLElement && event.target.closest("dialog")) {
+      if (preparing || (event.target instanceof HTMLElement && event.target.closest("dialog"))) {
         return;
       }
 
@@ -114,15 +125,25 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
 
     try {
       wieWeb.update();
+      if (preparing && !wieWeb.is_preparing()) {
+        preparing = false;
+        playerStatus.hidden = true;
+        playerView.setAttribute("aria-busy", "false");
+        for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-key]")) {
+          button.disabled = false;
+        }
+      }
       requestAnimationFrame(update);
     } catch (error) {
       exit(error);
     }
   };
-  requestAnimationFrame(update);
+  requestAnimationFrame(() => requestAnimationFrame(update));
 
   return () => {
     running = false;
+    playerStatus.hidden = true;
+    playerView.removeAttribute("aria-busy");
     abortController.abort();
     unsubscribePcmVolume();
     wieWeb.free();
