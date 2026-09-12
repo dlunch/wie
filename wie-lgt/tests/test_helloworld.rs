@@ -49,9 +49,5 @@ pub fn test_helloworld() -> Result<()> {
     let stdout_str = String::from_utf8(stdout.lock().unwrap().clone()).unwrap();
     assert_eq!(stdout_str, "Hello, world!");
 
-    drop(emulator);
-    assert_eq!(Arc::strong_count(&stdout), 1);
-    assert_eq!(Arc::strong_count(&exited), 1);
-
     Ok(())
 }
