@@ -281,16 +281,29 @@ fn compile_region(ir: &RegionIr) -> Function {
     for (index, block) in ir.blocks.iter().enumerate() {
         s.end();
         if let Some(body) = small_loop_body(ir, block) {
-            s.local_get(PC).i32_const(block.instructions[0].pc as i32).i32_eq().if_(BlockType::Empty);
+            let first_pc = block.instructions[0].pc.min(body.instructions[0].pc);
+            let last_pc = block.instructions.last().unwrap().pc.max(body.instructions.last().unwrap().pc);
+            let loop_length = (block.instructions.len() + body.instructions.len()) as i32;
+            s.local_get(PC).i32_const(block.instructions[0].pc as i32).i32_eq();
+            s.local_get(END)
+                .i32_const(first_pc as i32)
+                .i32_sub()
+                .i32_const((last_pc - first_pc) as i32)
+                .i32_gt_u();
+            s.i32_and().if_(BlockType::Empty);
             s.loop_(BlockType::Empty);
+            // Leave the loop for checked execution before the next sample instruction.
+            s.local_get(SAMPLE_AT).i32_const(loop_length).i32_lt_u();
+            s.local_get(EXECUTED).local_get(SAMPLE_AT).i32_const(loop_length).i32_sub().i32_gt_u();
+            s.i32_or().br_if(1);
             let exit_depth = count - index as u32 + 3;
             for instruction in &block.instructions {
-                emit_instruction(&mut s, ir, instruction, exit_depth);
+                emit_instruction(&mut s, ir, instruction, exit_depth, false);
             }
             s.local_get(0).i32_load(field(60)).i32_const(body.instructions[0].pc as i32).i32_ne();
             s.br_if(count - index as u32 + 2);
             for instruction in &body.instructions {
-                emit_instruction(&mut s, ir, instruction, exit_depth);
+                emit_instruction(&mut s, ir, instruction, exit_depth, false);
             }
             s.br(0).end().end();
         }
@@ -311,7 +324,7 @@ fn compile_region(ir: &RegionIr) -> Function {
                 s.end();
             }
             let exit_depth = count - index as u32 + (block.instructions.len() - instruction_index) as u32;
-            emit_instruction(&mut s, ir, instruction, exit_depth);
+            emit_instruction(&mut s, ir, instruction, exit_depth, true);
         }
         s.br(count - index as u32);
     }
@@ -360,8 +373,10 @@ fn small_loop_body<'a>(ir: &'a RegionIr, header: &BasicBlock) -> Option<&'a Basi
     })
 }
 
-fn emit_instruction(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction: &Instruction, exit_depth: u32) {
-    boundaries(s, ir, Some(instruction.pc), exit_depth);
+fn emit_instruction(s: &mut InstructionSink<'_>, ir: &RegionIr, instruction: &Instruction, exit_depth: u32, check_boundaries: bool) {
+    if check_boundaries {
+        boundaries(s, ir, Some(instruction.pc), exit_depth);
+    }
     let fallthrough = instruction.pc.wrapping_add(u32::from(instruction.size)) as i32;
     let writes_pc = instruction.operation.writes_pc();
     if writes_pc {
@@ -1790,10 +1805,15 @@ function directory(memory, entries) {
     const frame = new Uint32Array(memory.buffer, 0, 22);
     const data = new Uint8Array(memory.buffer, 65536, 65536);
     let sampled = [];
+    let throwSample = false;
+    const injected = new Error('injected loop sample failure');
     const dispatch = new WebAssembly.Instance(module, {wie: {
         memory, pages() { return table; }, resolve() { return -1; },
         word_range() { throw new Error('unexpected word range'); },
-        sample_prepare(context, pc, r7) { sampled.push([pc, r7]); },
+        sample_prepare(context, pc, r7) {
+            sampled.push([pc, r7]);
+            if (throwSample) throw injected;
+        },
     }}).exports.dispatch;
     const pcs = [0x1000, 0x1002, 0x1004, 0x1008, 0x100a, 0x100c, 0x100e];
     frame[0] = 1; frame[15] = 0x1000; frame[16] = 0x3f;
@@ -1802,9 +1822,11 @@ function directory(memory, entries) {
     assert.equal(frame[15], 0xffc);
     assert.equal(frame[20], 0xffc);
     assert.equal(frame[19], 2);
-    for (const start of pcs) for (const end of [...pcs, 0x1006])
-    for (const sample of [1, 2, 3, 5, 6, 7, 12, 19, 1024]) for (const pointer of [0x3000, 0xfffc]) {
+    for (const start of pcs) for (const end of [...pcs, 0x1006, 0x2000])
+    for (const sample of [1, 2, 3, 5, 6, 7, 12, 13, 19, 1024])
+    for (const pointer of [0x3000, 0xfffc]) for (const failSample of [false, true]) {
         frame.fill(0); data.fill(0); sampled = [];
+        throwSample = failSample;
         frame[0] = 2; frame[1] = pointer; frame[7] = 0x3456;
         frame[15] = start; frame[16] = 0xf800003f; frame[17] = end; frame[18] = sample;
         const expected = Array.from(frame), expectedData = new Uint8Array(65536), expectedSamples = [];
@@ -1815,7 +1837,10 @@ function directory(memory, entries) {
             if (pc === end) { exit = 3; break; }
             if (completed === sample) { exit = 1; break; }
             if (!pcs.includes(pc)) { exit = 0; break; }
-            if (completed === sample - 1) expectedSamples.push([pc, expected[7]]);
+            if (completed === sample - 1) {
+                expectedSamples.push([pc, expected[7]]);
+                if (failSample) { exit = injected; break; }
+            }
             if (pc === 0x1008 && expected[1] >= 65536) { exit = 4; break; }
             let next = pc + 2;
             if (pc === 0x1000 || pc === 0x100a) {
@@ -1836,8 +1861,9 @@ function directory(memory, entries) {
             completed++;
         }
         expected[18] -= completed; expected[19] = completed;
-        const label = `loop start=${start}, end=${end}, sample=${sample}, pointer=${pointer}`;
-        assert.equal(dispatch(0, 1, 18), exit, label);
+        const label = `loop start=${start}, end=${end}, sample=${sample}, pointer=${pointer}, failSample=${failSample}`;
+        if (exit === injected) assert.throws(() => dispatch(0, 1, 18), error => error === injected, label);
+        else assert.equal(dispatch(0, 1, 18), exit, label);
         assert.deepEqual(Array.from(frame), expected, label);
         assert.deepEqual(sampled, expectedSamples, label);
         assert.deepEqual(data, expectedData, label);
