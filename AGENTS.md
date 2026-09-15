@@ -17,6 +17,7 @@
 - **Imports**: Group by source (std/alloc → external crates → local crate → workspace crates), alphabetized
 - **Error handling**: Use `wie_util::Result<T>` / `WieError` enum. Propagate with `?`, no panics in library code
 - **Naming**: snake_case for functions/variables, PascalCase for types, SCREAMING_CASE for constants
+- **Modules**: Use `name.rs` with a `name/` directory for submodules; do not use `mod.rs` files.
 - **Types**: Explicit types preferred. Never use `as any` equivalents or suppress errors
 - **Async**: Use `async-trait` for async trait methods
 

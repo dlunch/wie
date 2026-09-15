@@ -9,21 +9,24 @@ repository.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 bytemuck = { workspace = true }
-md5 = { workspace = true }
-serde = { workspace = true }
 spin = { workspace = true }
-toml = { workspace = true }
 tracing = { workspace = true }
 
-arm32_cpu = { version = "^0.1.0" }
+arm32_cpu = { version = "^0.1.2" }
 crossbeam = { version = "^0.8" }
 gdbstub = { version = "^0.7" }
 gdbstub_arch = { version = "^0.3" }
+hashbrown = { version = "^0.17" }
 
 wie-backend = { workspace = true }
+wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wie-core-arm-wasm = { workspace = true }
 
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
 futures-test = { workspace = true }
 test-utils = { workspace = true }
+wie-core-arm-wasm = { workspace = true }

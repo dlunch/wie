@@ -8,7 +8,7 @@ use core::{
 use jvm_types::FieldAccessFlags;
 
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Result as JvmResult};
-use wipi_types::ktf::java::JavaClassInstance as RawJavaClassInstance;
+use wipi_types::ktf::java::{JavaClassInstance as RawJavaClassInstance, JavaFieldDefinition as RawJavaField};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
@@ -134,13 +134,19 @@ impl ClassInstance for JavaClassInstance {
 
     fn get_field(&self, field: &dyn Field) -> JvmResult<JavaValue> {
         let field = field.as_any().downcast_ref::<JavaField>().unwrap();
-        let field_type = JavaType::parse(field.name().unwrap().descriptor());
-
-        assert!(!field.access_flags().contains(FieldAccessFlags::STATIC));
-
-        let offset = field.offset().unwrap();
-        let address = self.field_address(offset).unwrap();
+        let raw: RawJavaField = read_generic(&self.core, field.ptr_raw).unwrap();
+        assert!(!FieldAccessFlags::from_bits_truncate(raw.access_flags as _).contains(FieldAccessFlags::STATIC));
+        let address = self.field_address(raw.offset_or_value).unwrap();
         let codec = JavaValueCodec::new(&self.core);
+        let descriptor: u8 = read_generic(&self.core, raw.ptr_name + 1).unwrap();
+
+        // Reference conversion needs the stored object, not its declared class name.
+        if matches!(descriptor, b'L' | b'[') {
+            let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
+            return Ok(JavaValue::Object((value != 0).then(|| codec.object_from_raw(value))));
+        }
+        let descriptor = [descriptor];
+        let field_type = JavaType::parse(core::str::from_utf8(&descriptor).unwrap());
 
         if matches!(field_type, JavaType::Long | JavaType::Double) {
             let value: KtfJvmWord = read_generic(&self.core, address).unwrap();
@@ -185,5 +191,61 @@ impl Debug for JavaClassInstance {
 impl Hash for JavaClassInstance {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.ptr_raw.hash(state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::format;
+
+    use super::*;
+    use crate::runtime::java::jvm_support::name::JavaFullName;
+
+    #[test]
+    fn field_reads_observe_guest_types_offsets_and_values() -> Result<()> {
+        let mut core = ArmCore::new(false, None)?;
+        core.map(0x1000, 0x1000)?;
+        write_generic(
+            &mut core,
+            0x1000,
+            RawJavaClassInstance {
+                ptr_fields: 0x1100,
+                ptr_class: 0,
+            },
+        )?;
+        let instance = JavaClassInstance::from_raw(0x1000, &core);
+        let field = JavaField::from_raw(0x1200, &core);
+        for (index, (descriptor, bits, expected)) in [
+            ("Z", 2, JavaValue::Boolean(true)),
+            ("B", 0xff, JavaValue::Byte(-1)),
+            ("C", 0xac00, JavaValue::Char(0xac00)),
+            ("S", 0xffff, JavaValue::Short(-1)),
+            ("I", 0xffff_ffff, JavaValue::Int(-1)),
+            ("F", u64::from(1.5f32.to_bits()), JavaValue::Float(1.5)),
+            ("J", 0x1234_5678_90ab_cdef, JavaValue::Long(0x1234_5678_90ab_cdef)),
+            ("D", (-1.5f64).to_bits(), JavaValue::Double(-1.5)),
+            ("Ljava/lang/Object;", 0, JavaValue::Object(None)),
+            ("[[I", 0, JavaValue::Object(None)),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let offset = index as u32 * 8;
+            write_generic(
+                &mut core,
+                field.ptr_raw,
+                RawJavaField {
+                    access_flags: 0,
+                    ptr_class: 0,
+                    ptr_name: 0x1300,
+                    offset_or_value: offset,
+                },
+            )?;
+            core.write_bytes(0x1300, &JavaFullName::new(0, "value", descriptor).as_bytes())?;
+            write_generic(&mut core, 0x1104 + offset, bits)?;
+            let actual = instance.get_field(&field).unwrap();
+            assert_eq!(format!("{actual:?}"), format!("{expected:?}"), "{descriptor}");
+        }
+        Ok(())
     }
 }

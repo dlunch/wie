@@ -1,9 +1,15 @@
 mod arm32_cpu;
 mod debugged_arm32_cpu;
+mod sampler;
 
+use alloc::{string::String, vec::Vec};
+
+use wie_arm_jit_types::{CompiledArtifact, PreparationFuture, PreparationState};
+use wie_backend::ProfileSample;
 use wie_util::{AsAny, Result};
 
 pub use arm32_cpu::Arm32CpuEngine;
+pub(crate) use arm32_cpu::EmulatedMemory;
 pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
@@ -26,6 +32,13 @@ pub trait ArmEngine: Send + AsAny {
     fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
+    fn set_profiling(&mut self, enabled: bool);
+    fn take_profile(&mut self, force: bool) -> Vec<ProfileSample>;
+    fn record_image(&mut self, address: u32, size: usize);
+    fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>>;
+    fn preparation_state(&self) -> PreparationState;
+    fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>);
+    fn shutdown(&mut self);
 }
 
 #[allow(clippy::enum_variant_names)]

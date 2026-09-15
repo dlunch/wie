@@ -1,0 +1,19 @@
+[package]
+name = "wie-core-arm-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+
+[dependencies]
+nom = { version = "^8", default-features = false, features = ["alloc"] }
+wasm-encoder = { version = "^0.257", default-features = false }
+wie-arm-jit-types = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures = { workspace = true }
+js-sys = { version = "^0.3", default-features = false }
+tracing = { workspace = true }
+wasm-bindgen = { version = "^0.2", default-features = false }
+wasm-bindgen-futures = { version = "^0.4", default-features = false }

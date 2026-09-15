@@ -62,6 +62,11 @@ impl System {
         self.executor.tick(move || platform.now())
     }
 
+    /// Cancels tasks shared by all clones. An active poll finishes before its future is dropped.
+    pub fn shutdown(&self) {
+        self.executor.shutdown();
+    }
+
     pub fn spawn<C>(&self, callable: C)
     where
         C: AsyncCallable<Result<()>> + 'static + Send,

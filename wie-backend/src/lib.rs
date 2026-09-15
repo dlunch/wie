@@ -39,6 +39,7 @@ use wie_util::{Result, WieError};
 pub trait Emulator {
     fn handle_event(&mut self, event: Event);
     fn tick(&mut self) -> Result<()>;
+    fn is_preparing(&self) -> bool;
 }
 
 pub struct ProfileSample {
