@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_allocator() -> Result<()> {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x8000000)?;
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_init_rejects_undersized_region() {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x1000000).unwrap();
 
         // 0x1000000 (16 MB) is far too small for the full bucket layout.
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_allocator_small_sizes() -> Result<()> {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x8000000)?;
 
         BucketAllocator::init(&mut core, 0x40000000, 0x8000000)?;

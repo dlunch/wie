@@ -47,7 +47,7 @@ export const runApp = (app: AppMetadata, archive: Uint8Array, fontData: Uint8Arr
   const abortController = new AbortController();
   playerStatus.hidden = false;
   playerView.setAttribute("aria-busy", "true");
-  const wieWeb = new WieWeb(app.filename, archive, canvas, fontData);
+  const wieWeb = new WieWeb(app.filename, archive, canvas, fontData, settings.enableWasmAot);
   const unsubscribePcmVolume = settings.onPcmVolumeChange((volume) => wieWeb.set_pcm_volume(volume));
   let running = true;
   let preparing = true;

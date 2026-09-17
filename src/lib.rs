@@ -143,6 +143,7 @@ pub fn run() -> anyhow::Result<()> {
     let options = Options {
         enable_gdbserver: args.debug,
         profile,
+        ..Default::default()
     };
     let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;
 

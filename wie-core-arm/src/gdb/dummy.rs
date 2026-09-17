@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn unavailable_transport_fails_before_any_guest_thread_exists() {
-        let core = ArmCore::new(false, None).unwrap();
+        let core = ArmCore::new(Default::default()).unwrap();
         core.inner.lock().engine = Box::new(DebuggedArm32CpuEngine::new());
         let result = start(core);
         assert!(matches!(result, Err(wie_util::WieError::FatalError(message)) if message.contains(UNAVAILABLE)));

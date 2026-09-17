@@ -578,6 +578,10 @@ svg {
   height: 18px;
 }
 
+.settings-fields label:has(input[type="checkbox"]) {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
 .settings-fields input[type="range"] {
   width: 100%;
   min-width: 0;

@@ -110,9 +110,9 @@ impl LgtEmulator {
         aid: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-        mut options: Options,
+        options: Options,
     ) -> Result<Self> {
-        let core = ArmCore::new(options.enable_gdbserver, options.profile.take())?;
+        let core = ArmCore::new(options)?;
         let system = System::new(platform, pid, aid, LgtTaskRunner { core: core.clone() });
         let mut emulator = Self { core, system };
 
@@ -247,7 +247,7 @@ mod tests {
             let platform = test_utils::TestPlatform::with_event_handler(move |_| {
                 let _ = &resource;
             });
-            let mut core = wie_core_arm::ArmCore::new(false, None).unwrap();
+            let mut core = wie_core_arm::ArmCore::new(Default::default()).unwrap();
             wie_core_arm::Allocator::init(&mut core).unwrap();
             let system = wie_backend::System::new(Box::new(platform), "", "", super::LgtTaskRunner { core: core.clone() });
             let task_system = system.clone();
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn dropping_emulator_stops_retained_core_clones() {
-        let mut core = wie_core_arm::ArmCore::new(false, None).unwrap();
+        let mut core = wie_core_arm::ArmCore::new(Default::default()).unwrap();
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
         let system = wie_backend::System::new(
             alloc::boxed::Box::new(test_utils::TestPlatform::new()),
@@ -287,7 +287,7 @@ mod tests {
     fn failed_tick_closes_the_core_and_stops_later_ticks() {
         use wie_backend::Emulator;
 
-        let mut core = wie_core_arm::ArmCore::new(false, None).unwrap();
+        let mut core = wie_core_arm::ArmCore::new(Default::default()).unwrap();
         wie_core_arm::Allocator::init(&mut core).unwrap();
         let system = wie_backend::System::new(
             alloc::boxed::Box::new(test_utils::TestPlatform::new()),

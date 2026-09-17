@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn memory_and_string_imports_preserve_guest_bytes_across_chunks() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(Default::default())?;
         core.map(0x10000, 0x10000)?;
         core.map(0x20000, 0x10000)?;
         let mut source = alloc::vec![0x61; 5000];
@@ -276,8 +276,8 @@ mod tests {
 
     #[test]
     fn random_state_is_shared_by_system_clones_and_process_local() -> Result<()> {
-        let mut first = ArmCore::new(false, None)?;
-        let mut second = ArmCore::new(false, None)?;
+        let mut first = ArmCore::new(Default::default())?;
+        let mut second = ArmCore::new(Default::default())?;
         let mut first_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let mut second_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);
         let mut first_system_clone = first_system.clone();

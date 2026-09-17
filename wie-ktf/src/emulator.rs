@@ -121,9 +121,9 @@ impl KtfEmulator {
         aid: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-        mut options: Options,
+        options: Options,
     ) -> Result<Self> {
-        let core = ArmCore::new(options.enable_gdbserver, options.profile.take())?;
+        let core = ArmCore::new(options)?;
         let system = System::new(platform, pid, aid, KtfTaskRunner { core: core.clone() });
         let mut emulator = Self { core, system };
 
@@ -240,7 +240,7 @@ mod tests {
             let platform = TestPlatform::with_event_handler(move |_| {
                 let _ = &resource;
             });
-            let mut core = ArmCore::new(false, None).unwrap();
+            let mut core = ArmCore::new(Default::default()).unwrap();
             Allocator::init(&mut core).unwrap();
             let system = System::new(Box::new(platform), "", "", KtfTaskRunner { core: core.clone() });
             let task_system = system.clone();
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn dropping_emulator_stops_retained_core_clones() {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
         let system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });
         let emulator = super::KtfEmulator { core: core.clone(), system };
@@ -275,7 +275,7 @@ mod tests {
     fn failed_tick_closes_the_core_and_stops_later_ticks() {
         use wie_backend::Emulator;
 
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         Allocator::init(&mut core).unwrap();
         let system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });
         system.spawn(|| async { Err(WieError::FatalError("Initialization failed".into())) });
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn switches_jvm_thread_context_between_tasks() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(Default::default())?;
         Allocator::init(&mut core)?;
 
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });

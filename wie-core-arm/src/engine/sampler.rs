@@ -215,14 +215,14 @@ mod tests {
         for switch_threads in [false, true] {
             let observed = Arc::new(Mutex::new(BTreeMap::new()));
             let output = observed.clone();
-            let mut core = ArmCore::new(
-                false,
-                Some(Box::new(move |batch| {
+            let mut core = ArmCore::new(wie_backend::Options {
+                profile: Some(Box::new(move |batch| {
                     for sample in batch {
                         *output.lock().entry(sample.stack).or_insert(0u64) += sample.count;
                     }
                 })),
-            )
+                ..Default::default()
+            })
             .unwrap();
             crate::Allocator::init(&mut core).unwrap();
             let threads = [

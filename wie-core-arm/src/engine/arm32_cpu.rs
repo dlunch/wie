@@ -40,15 +40,16 @@ impl Arm32CpuEngine {
         }
     }
 
-    pub fn with_backend() -> Self {
-        #[cfg(target_arch = "wasm32")]
-        {
-            let mut engine = Self::new();
-            engine.aot = Some(Aot::new(Box::new(wie_core_arm_wasm::WasmExecutor::default())));
-            engine
+    pub fn with_backend(enable_aot: bool) -> Self {
+        let mut engine = Self::new();
+        if !enable_aot {
+            engine.aot = None;
         }
-        #[cfg(not(target_arch = "wasm32"))]
-        Self::new()
+        #[cfg(target_arch = "wasm32")]
+        if enable_aot {
+            engine.aot = Some(Aot::new(Box::new(wie_core_arm_wasm::WasmExecutor::default())));
+        }
+        engine
     }
 
     fn is_svc_exception(&self) -> bool {
@@ -989,7 +990,7 @@ mod tests {
             let responses = Arc::new(Mutex::new(Responses::default()));
             let mut engine = Arm32CpuEngine::new();
             engine.aot = Some(Aot::new(Box::new(DeferredExecutor(responses.clone()))));
-            let mut core = crate::ArmCore::new(false, None).unwrap();
+            let mut core = crate::ArmCore::new(Default::default()).unwrap();
             core.inner.lock().engine = Box::new(engine);
             core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
             let controller = core.clone();
@@ -1045,7 +1046,11 @@ mod tests {
         assert!(compiled.regions.is_empty());
         assert_eq!(compiled.encoded_size, 0);
 
-        let mut core = crate::ArmCore::new(false, None).unwrap();
+        let mut core = crate::ArmCore::new(wie_backend::Options {
+            enable_aot: true,
+            ..Default::default()
+        })
+        .unwrap();
         assert!(core.is_preparing());
         core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         futures::executor::block_on(core.prepare_execution()).unwrap();

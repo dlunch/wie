@@ -286,7 +286,7 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let mut core = ArmCore::new(false, None)?;
+            let mut core = ArmCore::new(Default::default())?;
             Allocator::init(&mut core)?;
 
             let mut context = core.save_context();
@@ -404,7 +404,7 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let mut core = ArmCore::new(false, None)?;
+            let mut core = ArmCore::new(Default::default())?;
             Allocator::init(&mut core)?;
             let stack = Allocator::alloc(&mut core, 0x1000)?;
             let mut context = core.save_context();
@@ -482,7 +482,7 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let mut core = ArmCore::new(false, None)?;
+            let mut core = ArmCore::new(Default::default())?;
             Allocator::init(&mut core)?;
 
             let mut context = core.save_context();

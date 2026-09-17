@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn allocation_status_tracks_bucket_and_list_allocations() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(Default::default())?;
         Allocator::init(&mut core)?;
 
         let bucket = Allocator::alloc(&mut core, 12)?;
