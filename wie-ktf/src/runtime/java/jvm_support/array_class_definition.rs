@@ -1,4 +1,5 @@
 use alloc::{
+    borrow::Cow,
     boxed::Box,
     format,
     string::{String, ToString},
@@ -101,10 +102,10 @@ impl JavaArrayClassDefinition {
 
 #[async_trait::async_trait]
 impl ArrayClassDefinition for JavaArrayClassDefinition {
-    fn element_type_name(&self) -> String {
+    fn element_type_name(&self) -> Cow<'_, str> {
         let class_name = self.class.name().unwrap();
 
-        class_name[1..].into()
+        Cow::Owned(class_name[1..].into())
     }
 
     async fn instantiate_array(&self, jvm: &Jvm, length: usize) -> JvmResult<Box<dyn ClassInstance>> {

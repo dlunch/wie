@@ -1,4 +1,4 @@
-use alloc::{format, string::String};
+use alloc::{borrow::Cow, format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
 use jvm::Field;
@@ -60,12 +60,16 @@ impl JavaField {
 }
 
 impl Field for JavaField {
-    fn name(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
+    fn name(&self) -> Cow<'_, str> {
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap())
+            .unwrap()
+            .into()
     }
 
-    fn descriptor(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
+    fn descriptor(&self) -> Cow<'_, str> {
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap())
+            .unwrap()
+            .into()
     }
 
     fn access_flags(&self) -> FieldAccessFlags {
@@ -85,11 +89,11 @@ pub struct JavaReferenceField {
 }
 
 impl Field for JavaReferenceField {
-    fn name(&self) -> String {
-        format!("<reference-word-{}>", self.word_index)
+    fn name(&self) -> Cow<'_, str> {
+        format!("<reference-word-{}>", self.word_index).into()
     }
 
-    fn descriptor(&self) -> String {
+    fn descriptor(&self) -> Cow<'_, str> {
         "Ljava/lang/Object;".into()
     }
 
@@ -105,11 +109,11 @@ pub struct JavaStaticReferenceField {
 }
 
 impl Field for JavaStaticReferenceField {
-    fn name(&self) -> String {
-        format!("<static-reference-word-{}>", self.word_index)
+    fn name(&self) -> Cow<'_, str> {
+        format!("<static-reference-word-{}>", self.word_index).into()
     }
 
-    fn descriptor(&self) -> String {
+    fn descriptor(&self) -> Cow<'_, str> {
         "Ljava/lang/Object;".into()
     }
 

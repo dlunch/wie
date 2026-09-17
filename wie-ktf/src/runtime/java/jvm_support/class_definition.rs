@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, format, string::String, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -286,8 +286,8 @@ impl JavaClassDefinition {
 
 #[async_trait::async_trait]
 impl ClassDefinition for JavaClassDefinition {
-    fn name(&self) -> String {
-        self.name().unwrap()
+    fn name(&self) -> Cow<'_, str> {
+        self.name().unwrap().into()
     }
 
     fn super_class_name(&self) -> Option<String> {

@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{fmt, fmt::Debug, fmt::Formatter, mem::offset_of, mem::size_of, ops::Deref, ops::DerefMut};
 
 use jvm::{ClassDefinition, ClassInstance, Field, JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
@@ -555,7 +555,7 @@ impl JavaClassDefinition {
                             .vtable
                             .iter()
                             .find(|method| method.index == index)
-                            .map(|method| (method.name.clone(), method.descriptor.clone(), MethodAccessFlags::PUBLIC))
+                            .map(|method| (method.name.as_str().into(), method.descriptor.as_str().into(), MethodAccessFlags::PUBLIC))
                     })
                 };
                 let Some((name, method_descriptor, access_flags)) = method else {
@@ -739,7 +739,7 @@ impl JavaClassDefinition {
 
         let known_classes = hierarchy
             .into_iter()
-            .map(|class| Ok((ClassDefinition::name(&class), class.methods()?)))
+            .map(|class| Ok((ClassDefinition::name(&class).into_owned(), class.methods()?)))
             .collect::<Result<Vec<_>>>()?;
         JavaVtable::read(&self.core, self.ptr_vtable()?, self.descriptor()?.vtable_count as usize, &known_classes)
     }
@@ -779,8 +779,10 @@ impl EmulatedFunction<(), u32, ()> for JavaClassGetterProxy {
 
 #[async_trait::async_trait]
 impl ClassDefinition for JavaClassDefinition {
-    fn name(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.descriptor().unwrap().ptr_name).unwrap()).unwrap()
+    fn name(&self) -> Cow<'_, str> {
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.descriptor().unwrap().ptr_name).unwrap())
+            .unwrap()
+            .into()
     }
 
     fn super_class_name(&self) -> Option<String> {

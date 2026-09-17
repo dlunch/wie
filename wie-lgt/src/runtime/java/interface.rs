@@ -217,7 +217,7 @@ async fn java_pending_exception(core: &mut ArmCore, _: &mut ()) -> Result<u32> {
 async fn java_is_class_assignable(core: &mut ArmCore, jvm: &Jvm, ptr_class: u32, ptr_class_name: u32, _ptr_fields: u32) -> Result<u32> {
     let class_name = String::from_utf8(read_null_terminated_string_bytes(core, ptr_class_name)?)
         .map_err(|error| WieError::FatalError(format!("Invalid LGT class name: {error}")))?;
-    let source_class_name = LgtJvmSupport::class_from_raw(core, ptr_class).name();
+    let source_class_name = LgtJvmSupport::class_from_raw(core, ptr_class).name().into_owned();
 
     Ok(u32::from(jvm.is_type_assignable(
         &JavaType::from_class_name(&source_class_name),
@@ -322,7 +322,7 @@ async fn java_register_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32) 
 async fn java_resolve_class(core: &mut ArmCore, jvm: &mut Jvm, ptr_class: u32, _runtime_context: u32) -> Result<u32> {
     java_register_class(core, jvm, ptr_class).await?;
 
-    let name = ClassDefinition::name(&LgtJvmSupport::class_from_raw(core, ptr_class));
+    let name = ClassDefinition::name(&LgtJvmSupport::class_from_raw(core, ptr_class)).into_owned();
     let class = jvm
         .get_class(&name)
         .ok_or_else(|| WieError::FatalError(format!("LGT generated class not resolved: {name}")))?;
