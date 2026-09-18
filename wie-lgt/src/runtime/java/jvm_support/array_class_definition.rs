@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String};
+use alloc::{borrow::Cow, boxed::Box, format, string::String};
 use core::fmt::{self, Debug, Formatter};
 
 use jvm::{ArrayClassDefinition, ClassDefinition, ClassInstance, JavaType, Jvm, Result as JvmResult};
@@ -43,8 +43,8 @@ impl JavaArrayClassDefinition {
 
 #[async_trait::async_trait]
 impl ArrayClassDefinition for JavaArrayClassDefinition {
-    fn element_type_name(&self) -> String {
-        self.element_type_descriptor()
+    fn element_type_name(&self) -> Cow<'_, str> {
+        self.element_type_descriptor().into()
     }
 
     async fn instantiate_array(&self, jvm: &Jvm, length: usize) -> JvmResult<Box<dyn ClassInstance>> {

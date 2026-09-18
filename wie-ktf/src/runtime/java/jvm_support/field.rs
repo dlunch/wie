@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::borrow::Cow;
 use core::{
     fmt::{self, Debug, Formatter},
     mem::size_of,
@@ -68,16 +68,16 @@ impl JavaField {
 }
 
 impl Field for JavaField {
-    fn name(&self) -> String {
+    fn name(&self) -> Cow<'_, str> {
         let name = self.name().unwrap();
 
-        name.name().into()
+        Cow::Owned(name.name().into())
     }
 
-    fn descriptor(&self) -> String {
+    fn descriptor(&self) -> Cow<'_, str> {
         let name = self.name().unwrap();
 
-        name.descriptor().into()
+        Cow::Owned(name.descriptor().into())
     }
 
     fn access_flags(&self) -> FieldAccessFlags {

@@ -1,10 +1,4 @@
-use alloc::{
-    boxed::Box,
-    format,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{borrow::Cow, boxed::Box, format, string::ToString, vec, vec::Vec};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::{offset_of, size_of},
@@ -327,16 +321,16 @@ impl JavaMethod {
 
 #[async_trait::async_trait]
 impl Method for JavaMethod {
-    fn name(&self) -> String {
+    fn name(&self) -> Cow<'_, str> {
         let name = self.name().unwrap();
 
-        name.name().into()
+        Cow::Owned(name.name().into())
     }
 
-    fn descriptor(&self) -> String {
+    fn descriptor(&self) -> Cow<'_, str> {
         let name = self.name().unwrap();
 
-        name.descriptor().into()
+        Cow::Owned(name.descriptor().into())
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {
