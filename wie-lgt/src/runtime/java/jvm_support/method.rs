@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, format, string::String, sync::Arc, vec, vec::Vec};
 use core::{fmt, fmt::Debug, fmt::Formatter, ops::Deref, ops::DerefMut};
 
 use jvm::{JavaError, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
@@ -140,12 +140,16 @@ impl JavaMethod {
 
 #[async_trait::async_trait]
 impl Method for JavaMethod {
-    fn name(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap()).unwrap()
+    fn name(&self) -> Cow<'_, str> {
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_name).unwrap())
+            .unwrap()
+            .into()
     }
 
-    fn descriptor(&self) -> String {
-        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap()).unwrap()
+    fn descriptor(&self) -> Cow<'_, str> {
+        String::from_utf8(read_null_terminated_string_bytes(&self.core, self.raw().unwrap().ptr_descriptor).unwrap())
+            .unwrap()
+            .into()
     }
 
     async fn run(&self, jvm: &Jvm, args: Box<[JavaValue]>) -> JvmResult<JavaValue> {

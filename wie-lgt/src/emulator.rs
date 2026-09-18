@@ -128,7 +128,9 @@ impl LgtEmulator {
         let mut core_clone = emulator.core.clone();
         let mut system_clone = emulator.system.clone();
         let main_class_name_clone = main_class_name.clone();
-        let jar_filename = jar_filename.to_owned();
+        // The filesystem keys above drop the `P/` prefix, so the classpath name must drop it
+        // the same way, or an entrypoint stored as `P/<name>.jar` names an entry that does not exist.
+        let jar_filename = jar_filename.trim_start_matches("P/").to_owned();
 
         emulator
             .system

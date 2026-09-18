@@ -508,7 +508,7 @@ mod tests {
                 (28, "insertElementAt", "(Ljava/lang/Object;I)V"),
             ] {
                 let method = vector_methods[index].method.as_ref().unwrap();
-                assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
+                assert_eq!((method.name().as_ref(), method.descriptor().as_ref()), (name, descriptor));
                 let target: u32 = read_generic(&core, vector_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
             }
@@ -525,7 +525,7 @@ mod tests {
             let reader_methods = reader_definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [(11usize, "read", "([C)I"), (18, "close", "()V")] {
                 let method = reader_methods[index].method.as_ref().unwrap();
-                assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
+                assert_eq!((method.name().as_ref(), method.descriptor().as_ref()), (name, descriptor));
                 let target: u32 = read_generic(&core, reader_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
             }
@@ -542,7 +542,7 @@ mod tests {
             let input_stream_reader_methods = input_stream_reader_definition.vtable_entries(&jvm).await?;
             for (index, name, descriptor) in [(11usize, "read", "([C)I"), (18, "close", "()V")] {
                 let method = input_stream_reader_methods[index].method.as_ref().unwrap();
-                assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
+                assert_eq!((method.name().as_ref(), method.descriptor().as_ref()), (name, descriptor));
                 let target: u32 = read_generic(&core, input_stream_reader_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
             }
@@ -668,7 +668,7 @@ mod tests {
                 (18, "destroyApp", "(Z)V"),
             ] {
                 let method = direct_jlet_methods[index].method.as_ref().unwrap();
-                assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
+                assert_eq!((method.name().as_ref(), method.descriptor().as_ref()), (name, descriptor));
                 let target: u32 = read_generic(&core, direct_jlet_definition.ptr_vtable()? + ((index + 1) * 4) as u32)?;
                 assert_eq!(target, method.target()?);
             }
@@ -1007,7 +1007,7 @@ mod tests {
                 (18, "destroyApp", "(Z)V"),
             ] {
                 let method = methods[index].method.as_ref().unwrap();
-                assert_eq!((method.name().as_str(), method.descriptor().as_str()), (name, descriptor));
+                assert_eq!((method.name().as_ref(), method.descriptor().as_ref()), (name, descriptor));
                 assert_eq!(
                     read_generic::<u32, _>(&core, definition.ptr_vtable()? + ((index + 1) * size_of::<u32>()) as u32)?,
                     method.target()?
