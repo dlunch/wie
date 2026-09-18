@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "wie",
-  "version": "0.1.4",
   "identifier": "net.dlunch.wie",
   "build": {
     "frontendDist": "../wie-web/dist",
