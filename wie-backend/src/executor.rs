@@ -1,8 +1,9 @@
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, task::Wake};
 use core::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll, RawWaker, RawWakerVTable, Waker},
+    sync::atomic::{AtomicBool, Ordering},
+    task::{Context, Poll, Waker},
 };
 
 use hashbrown::HashMap;
@@ -13,6 +14,18 @@ use wie_util::{Result, WieError};
 use crate::time::Instant;
 
 type Task = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+
+struct TaskWake(AtomicBool);
+
+impl Wake for TaskWake {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.0.store(true, Ordering::Release);
+    }
+}
 
 pub struct ExecutorInner {
     current_task_id: Option<usize>,
@@ -62,6 +75,7 @@ impl AsyncCallableResult for () {
 #[derive(Clone)]
 pub struct Executor {
     inner: Arc<Mutex<ExecutorInner>>,
+    wake: Arc<TaskWake>,
 }
 
 impl Executor {
@@ -75,7 +89,10 @@ impl Executor {
             last_now: Instant::from_epoch_millis(0),
         }));
 
-        Self { inner }
+        Self {
+            inner,
+            wake: Arc::new(TaskWake(AtomicBool::new(false))),
+        }
     }
 
     pub fn spawn<C, R>(&self, callable: C) -> usize
@@ -99,6 +116,7 @@ impl Executor {
         };
 
         self.inner.lock().tasks.insert(task_id, Box::pin(fut));
+        self.wake.wake_by_ref();
 
         task_id
     }
@@ -127,7 +145,11 @@ impl Executor {
                 }
             }
 
+            self.wake.0.store(false, Ordering::Release);
             self.step(now)?;
+            if !self.wake.0.load(Ordering::Acquire) {
+                break;
+            }
         }
 
         Ok(())
@@ -145,6 +167,7 @@ impl Executor {
         let mut sleeping_tasks = self.inner.lock().sleeping_tasks.drain().collect::<HashMap<_, _>>();
 
         let mut first_error = None;
+        let waker = Waker::from(self.wake.clone());
 
         for (task_id, mut task) in tasks.into_iter() {
             let item = sleeping_tasks.get(&task_id);
@@ -157,7 +180,6 @@ impl Executor {
                 }
             }
 
-            let waker = self.create_waker();
             let mut context = Context::from_waker(&waker);
             self.inner.lock().current_task_id = Some(task_id);
 
@@ -187,22 +209,7 @@ impl Executor {
 
         let until = self.inner.lock().last_now + timeout;
         self.inner.lock().sleeping_tasks.insert(task_id, until);
-    }
-
-    fn create_waker(&self) -> Waker {
-        unsafe fn noop_clone(_data: *const ()) -> RawWaker {
-            noop_raw_waker()
-        }
-
-        unsafe fn noop(_data: *const ()) {}
-
-        const NOOP_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(noop_clone, noop, noop, noop);
-
-        const fn noop_raw_waker() -> RawWaker {
-            RawWaker::new(core::ptr::null(), &NOOP_WAKER_VTABLE)
-        }
-
-        unsafe { Waker::from_raw(noop_raw_waker()) }
+        self.wake.wake_by_ref();
     }
 }
 
@@ -211,9 +218,9 @@ mod tests {
     use alloc::sync::Arc;
     use core::{
         cell::Cell,
-        future::Future,
+        future::{Future, poll_fn},
         pin::Pin,
-        sync::atomic::{AtomicBool, Ordering},
+        sync::atomic::{AtomicBool, AtomicUsize, Ordering},
         task::{Context, Poll},
     };
 
@@ -227,11 +234,12 @@ mod tests {
     impl Future for YieldOnce {
         type Output = ();
 
-        fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
             if self.0 {
                 Poll::Ready(())
             } else {
                 self.0 = true;
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
         }
@@ -244,6 +252,44 @@ mod tests {
             time.set(now + 1);
             Instant::from_epoch_millis(now)
         }
+    }
+
+    #[test]
+    fn pending_tasks_only_repeat_within_a_tick_when_woken() {
+        for wakes in [0, 2] {
+            let mut executor = Executor::new();
+            let polls = Arc::new(AtomicUsize::new(0));
+            let observed = polls.clone();
+            executor.spawn(move || async move {
+                poll_fn(|cx| {
+                    if observed.fetch_add(1, Ordering::Relaxed) < wakes {
+                        cx.waker().wake_by_ref();
+                    }
+                    Poll::<()>::Pending
+                })
+                .await;
+            });
+            executor.tick(advancing_clock(0)).unwrap();
+            assert_eq!(polls.load(Ordering::Relaxed), wakes + 1);
+            executor.tick(advancing_clock(100)).unwrap();
+            assert_eq!(polls.load(Ordering::Relaxed), wakes + 2);
+        }
+    }
+
+    #[test]
+    fn zero_duration_sleeps_and_newly_spawned_tasks_resume_in_the_same_tick() {
+        let mut executor = Executor::new();
+        let completed = Arc::new(AtomicBool::new(false));
+        let observed = completed.clone();
+        let task_executor = executor.clone();
+        executor.spawn(move || async move {
+            crate::task::SleepFuture::new(0, &task_executor).await;
+            task_executor.spawn(move || async move {
+                observed.store(true, Ordering::Relaxed);
+            });
+        });
+        executor.tick(advancing_clock(0)).unwrap();
+        assert!(completed.load(Ordering::Relaxed));
     }
 
     #[test]
