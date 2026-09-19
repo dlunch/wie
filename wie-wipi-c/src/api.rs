@@ -1,5 +1,6 @@
 pub mod database;
 pub mod graphics;
+pub mod im;
 pub mod kernel;
 pub mod media;
 pub mod misc;

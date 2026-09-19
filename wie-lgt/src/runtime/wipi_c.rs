@@ -13,7 +13,7 @@ use wie_jvm_support::JvmSupport;
 use wie_util::{Result, read_generic, write_generic, write_null_terminated_string_bytes};
 use wie_wipi_c::{
     MethodImpl, WIPICContext, WIPICMethodBody, WIPICResult,
-    api::{database, graphics as shared_graphics, kernel, media, misc, net},
+    api::{database, graphics as shared_graphics, im, kernel, media, misc, net},
 };
 
 use context::LgtWIPICContext;
@@ -110,6 +110,7 @@ async fn handle_wipic_svc(core: &mut ArmCore, (system, jvm): &mut (System, Jvm),
         WIPICSvcId::Unk4 => unk4.into_body(),
         WIPICSvcId::Unk7 => unk7.into_body(),
         WIPICSvcId::Unk6 => unk6.into_body(),
+        WIPICSvcId::HandleInput => im::handle_input.into_body(),
         WIPICSvcId::TimeNow => time_now.into_body(),
         WIPICSvcId::TimeComponent => time_component.into_body(),
         WIPICSvcId::TimeConvert => time_convert.into_body(),
