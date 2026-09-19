@@ -39,6 +39,7 @@ use wie_util::{Result, WieError};
 pub trait Emulator {
     fn handle_event(&mut self, event: Event);
     fn tick(&mut self) -> Result<()>;
+    fn is_preparing(&self) -> bool;
 }
 
 pub struct ProfileSample {
@@ -52,8 +53,10 @@ pub struct ProfileSample {
 /// more when the runtime shuts down to drain anything still in the buffer.
 pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
 
+#[derive(Default)]
 pub struct Options {
     pub enable_gdbserver: bool,
+    pub enable_aot: bool,
     pub profile: Option<ProfileCallback>,
 }
 

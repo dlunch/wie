@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn field_reads_observe_guest_types_offsets_and_values() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(Default::default())?;
         core.map(0x1000, 0x1000)?;
         write_generic(
             &mut core,

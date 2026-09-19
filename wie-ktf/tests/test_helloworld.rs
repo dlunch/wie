@@ -31,14 +31,7 @@ pub fn test_helloworld() -> Result<()> {
 
     let archive = extract_zip(include_bytes!("data/helloworld_ktf.zip"))?;
     assert_eq!(KtfEmulator::archive_id(&archive).as_deref(), Some("PD000000"));
-    let mut emulator = KtfEmulator::from_archive(
-        platform,
-        archive,
-        Options {
-            enable_gdbserver: false,
-            profile: None,
-        },
-    )?;
+    let mut emulator = KtfEmulator::from_archive(platform, archive, Options::default())?;
 
     while !exited.load(Ordering::SeqCst) {
         emulator.tick()?;

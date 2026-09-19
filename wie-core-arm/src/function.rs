@@ -55,6 +55,7 @@ where
         let mut new_context = self.context.clone();
 
         let result = self.function.call(core, &mut new_context).await?;
+        core.check_running()?;
         result.write(core, lr)?;
 
         Ok(())

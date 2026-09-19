@@ -9,9 +9,11 @@ import CopyPlugin from "copy-webpack-plugin";
 
 class WasmPackPlugin {
   readonly crateDir: string;
+  readonly rustDir: string;
 
-  constructor(crateDir: string) {
+  constructor(crateDir: string, sourceDir: string) {
     this.crateDir = crateDir;
+    this.rustDir = path.join(crateDir, sourceDir);
   }
 
   apply(compiler: webpack.Compiler) {
@@ -20,7 +22,7 @@ class WasmPackPlugin {
     const cargoBin = path.join(os.homedir(), ".cargo", "bin");
     const env = { ...process.env, PATH: `${cargoBin}${path.delimiter}${process.env.PATH ?? ""}` };
 
-    const rustDir = path.join(this.crateDir, "src/rust");
+    const rustDir = this.rustDir;
     const cargoToml = path.join(this.crateDir, "Cargo.toml");
 
     let needsBuild = true;
@@ -117,7 +119,7 @@ const commonConfig = (mode: "development" | "production"): webpack.Configuration
         filename: "assets/css/[name].[contenthash:8].css",
       },
     }),
-    new WasmPackPlugin(import.meta.dirname),
+    new WasmPackPlugin(import.meta.dirname, "src/rust"),
     new CopyPlugin({
       patterns: [
         { from: path.resolve(import.meta.dirname, "public"), to: "." },

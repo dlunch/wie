@@ -229,7 +229,7 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
-    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>) -> Result<WieWeb, JsError> {
+    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>, enable_aot: bool) -> Result<WieWeb, JsError> {
         let audio_player = AudioPlayer::new();
         let result = (|| {
             let should_redraw = Arc::new(AtomicBool::new(true));
@@ -237,8 +237,8 @@ impl WieWeb {
             let font = Font::try_from_vec(font_data)?;
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
             let options = Options {
-                enable_gdbserver: false,
-                profile: None,
+                enable_aot,
+                ..Default::default()
             };
 
             let emulator: Box<dyn Emulator> = if filename.to_ascii_lowercase().ends_with(".zip") {
@@ -293,6 +293,10 @@ impl WieWeb {
             audio_player.dispose();
         }
         result.map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    pub fn is_preparing(&self) -> bool {
+        self.emulator.is_preparing()
     }
 
     pub fn update(&mut self) -> Result<(), JsError> {

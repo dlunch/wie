@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn exception_frame_restores_guest_context() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(Default::default())?;
         Allocator::init(&mut core)?;
         init(&mut core)?;
 

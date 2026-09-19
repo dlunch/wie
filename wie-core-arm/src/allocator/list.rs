@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_allocator() -> Result<()> {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x1000)?;
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_coalesce_adjacent_free_blocks() -> Result<()> {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x1000)?;
 
         ListAllocator::init(&mut core, 0x40000000, 0x400)?;
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_double_free_returns_error() -> Result<()> {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x1000)?;
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_corrupted_canary_returns_error() -> Result<()> {
-        let mut core = ArmCore::new(false, None).unwrap();
+        let mut core = ArmCore::new(Default::default()).unwrap();
         core.map(0x40000000, 0x1000)?;
 
         ListAllocator::init(&mut core, 0x40000000, 0x1000)?;
