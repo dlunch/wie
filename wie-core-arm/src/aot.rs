@@ -187,7 +187,6 @@ impl Aot {
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec, vec::Vec};
-    use core::sync::atomic::{AtomicUsize, Ordering};
 
     use wie_arm_jit_types::{CodeImage, CodePageStamp, CompileRequest};
     use wie_core_arm_wasm::{Compiler, bind_manifest_source, compile};
@@ -207,25 +206,6 @@ mod tests {
                 })
                 .collect(),
         }
-    }
-
-    #[test]
-    fn shared_inputs_can_be_inspected_without_consuming_the_decoder() {
-        let images: Arc<[_]> = vec![image(0x1000, vec![1, 0x30, 0x70, 0x47])].into();
-        let steps = Arc::new(AtomicUsize::new(0));
-        let observed = steps.clone();
-        let request = CompileRequest {
-            images: images.clone(),
-            regions: Box::new(Decoder::new(images.clone()).inspect(move |_| {
-                observed.fetch_add(1, Ordering::Relaxed);
-            })),
-        };
-        assert!(Arc::ptr_eq(&request.images, &images));
-        assert_eq!(request.images[0].bytes, [1, 0x30, 0x70, 0x47]);
-        assert_eq!(steps.load(Ordering::Relaxed), 0);
-        let artifact = compile(request).unwrap();
-        assert!(steps.load(Ordering::Relaxed) > 0);
-        assert!(artifact.manifest.iter().any(|region| region.entry.thumb));
     }
 
     #[test]

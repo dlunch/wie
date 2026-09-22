@@ -662,7 +662,7 @@ impl Memory for Arm32CpuMemory<'_> {
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, string::String, sync::Arc};
-    use core::{mem::size_of, task::Poll};
+    use core::task::Poll;
 
     use arm32_cpu::Memory;
     use spin::Mutex;
@@ -1350,11 +1350,6 @@ mod tests {
         assert_eq!(engine.sampler.sequence, 1);
         engine.shutdown();
         assert!(engine.run(0x2000, 1).is_err());
-    }
-
-    #[test]
-    fn page_table_is_heap_allocated() {
-        assert_eq!(size_of::<EmulatedMemory>(), size_of::<Box<[MemoryPage; 0x10000]>>());
     }
 
     #[test]

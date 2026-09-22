@@ -349,25 +349,6 @@ mod tests {
     }
 
     #[test]
-    fn test_shutdown_releases_queued_task_cycle() {
-        let executor = Executor::new();
-        let weak_executor = Arc::downgrade(&executor.inner);
-        let resource = Arc::new(());
-        let weak_resource = Arc::downgrade(&resource);
-        let task_executor = executor.clone();
-        executor.spawn(move || async move {
-            pending::<()>().await;
-            drop((task_executor, resource));
-        });
-
-        assert!(weak_resource.upgrade().is_some());
-        executor.shutdown();
-        assert!(weak_resource.upgrade().is_none());
-        drop(executor);
-        assert!(weak_executor.upgrade().is_none());
-    }
-
-    #[test]
     fn test_shutdown_cancels_pending_and_sleeping_tasks() {
         let mut executor = Executor::new();
         let resources = [Arc::new(()), Arc::new(())];

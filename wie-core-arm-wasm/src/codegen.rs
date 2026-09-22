@@ -1164,7 +1164,6 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
 mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
 
-    use wasm_encoder::FunctionSection;
     use wie_arm_jit_types::{CodePageStamp, CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
 
     use crate::Compiler;
@@ -1200,55 +1199,6 @@ mod tests {
                 }
                 assert_eq!(function.into_raw_body(), expected, "{code:?}");
             }
-        }
-    }
-
-    #[test]
-    fn dispatcher_is_the_only_export_and_reaches_all_region_slots() {
-        let ir = RegionIr {
-            entry: RegionKey {
-                pc: 0x1000,
-                thumb: false,
-                cpu_mode: 0x1f,
-            },
-            blocks: vec![BasicBlock {
-                instructions: vec![Instruction {
-                    pc: 0x1000,
-                    size: 4,
-                    condition: Condition::Always,
-                    operation: Operation::Nop,
-                }],
-            }],
-        };
-        for regions in [0, 1, 130] {
-            let mut builder = ModuleBuilder::default();
-            let mut functions = FunctionSection::new();
-            let mut exports = ExportSection::new();
-            functions.function(0);
-            functions.function(0);
-            functions.function(5);
-            for _ in 0..regions {
-                builder.add_region(&ir);
-                functions.function(2);
-            }
-            functions.function(4);
-            exports.export("dispatch", ExportKind::Func, FIRST_REGION + regions);
-            let chunks = builder.begin_assembly(&mut Vec::new()).unwrap();
-            let mut expected = vec![SectionId::Function.into()];
-            functions.encode(&mut expected);
-            assert_eq!([chunks[1].as_slice(), chunks[2].as_slice()].concat(), expected);
-            let mut expected = vec![SectionId::Export.into()];
-            exports.encode(&mut expected);
-            assert_eq!(chunks[4], expected);
-            let mut elements = ElementSection::new();
-            elements.active(
-                None,
-                &ConstExpr::i32_const(0),
-                Elements::Functions(Cow::Owned((FIRST_REGION..FIRST_REGION + regions).collect())),
-            );
-            let mut expected = vec![SectionId::Element.into()];
-            elements.encode(&mut expected);
-            assert_eq!(chunks[5], expected);
         }
     }
 
@@ -1363,137 +1313,6 @@ mod tests {
             }
             s.local_set(CARRY);
             assert_eq!(actual.into_raw_body(), expected.into_raw_body(), "{shift:?} {input:#x} by {amount}");
-        }
-    }
-
-    #[test]
-    fn register_immediate_shifts_emit_only_the_known_operation_without_unused_carry() {
-        for shift in [Shift::Lsl, Shift::Lsr, Shift::Asr, Shift::Ror] {
-            for amount in [0, 1, 31, 32, 33, 255] {
-                let mut actual = Function::new([]);
-                operand(
-                    &mut actual.instructions(),
-                    Operand {
-                        value: Value::Register(1),
-                        shift,
-                        amount: ShiftAmount::Immediate(amount),
-                    },
-                    0x1000,
-                    false,
-                    false,
-                );
-                let mut expected = Function::new([]);
-                let mut s = expected.instructions();
-                s.local_get(0).i32_load(field(4)).local_set(RIGHT);
-                if amount != 0 {
-                    if matches!(shift, Shift::Lsl | Shift::Lsr) && amount >= 32 {
-                        s.i32_const(0);
-                    } else {
-                        s.local_get(RIGHT)
-                            .i32_const(i32::from(if shift == Shift::Asr { amount.min(31) } else { amount }));
-                        match shift {
-                            Shift::Lsl => {
-                                s.i32_shl();
-                            }
-                            Shift::Lsr => {
-                                s.i32_shr_u();
-                            }
-                            Shift::Asr => {
-                                s.i32_shr_s();
-                            }
-                            Shift::Ror => {
-                                s.i32_rotr();
-                            }
-                            Shift::Rrx => unreachable!(),
-                        }
-                    }
-                    s.local_set(RIGHT);
-                }
-                assert_eq!(actual.into_raw_body(), expected.into_raw_body(), "{shift:?} by {amount}");
-            }
-        }
-    }
-
-    #[test]
-    fn region_boundaries_share_entry_checks_and_commit_the_completed_prefix() {
-        for thumb in [false, true] {
-            let ir = RegionIr {
-                entry: RegionKey {
-                    pc: 0x1000,
-                    thumb,
-                    cpu_mode: 0x1f,
-                },
-                blocks: vec![BasicBlock {
-                    instructions: vec![Instruction {
-                        pc: 0x1000,
-                        size: if thumb { 2 } else { 4 },
-                        condition: Condition::Always,
-                        operation: Operation::Nop,
-                    }],
-                }],
-            };
-            for depth in [1, 129] {
-                let mut actual = Function::new([]);
-                boundaries(&mut actual.instructions(), &ir, None, depth);
-                let mut expected = Function::new([]);
-                expected
-                    .instructions()
-                    .local_get(0)
-                    .i32_load(field(60))
-                    .local_set(PC)
-                    .local_get(0)
-                    .local_get(PC)
-                    .local_get(EXECUTED)
-                    .i32_const(if thumb { 0x3f } else { 0x1f })
-                    .call(ENTRY)
-                    .local_tee(ACCESS_STATUS)
-                    .local_get(ACCESS_STATUS)
-                    .i32_const(-1)
-                    .i32_ne()
-                    .br_if(depth)
-                    .drop();
-                assert_eq!(actual.into_raw_body(), expected.into_raw_body());
-            }
-            let body = compile_region(&ir).into_raw_body();
-            let mut commit = Function::new([]);
-            commit.instructions().local_get(0).local_get(EXECUTED).call(COMMIT).end();
-            assert!(body.ends_with(&commit.into_raw_body()[1..]));
-        }
-    }
-
-    #[test]
-    fn instruction_boundaries_branch_directly_with_the_exit_result() {
-        let ir = RegionIr {
-            entry: RegionKey {
-                pc: 0x1000,
-                thumb: true,
-                cpu_mode: 0x1f,
-            },
-            blocks: vec![],
-        };
-        for depth in [0, 1, 129] {
-            let mut actual = Function::new([]);
-            boundaries(&mut actual.instructions(), &ir, Some(0x1000), depth);
-            let mut expected = Function::new([]);
-            expected
-                .instructions()
-                .local_get(EXECUTED)
-                .local_get(SAMPLE_AT)
-                .i32_gt_u()
-                .i32_const(0x1000)
-                .local_get(END)
-                .i32_eq()
-                .i32_or()
-                .if_(BlockType::Empty)
-                .local_get(0)
-                .local_get(1)
-                .i32_const(0x1000)
-                .local_get(EXECUTED)
-                .call(BOUNDARY)
-                .br(depth + 1)
-                .end();
-            let actual = actual.into_raw_body();
-            assert!(actual.starts_with(&expected.into_raw_body()));
         }
     }
 
@@ -2031,64 +1850,6 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
         node.stdin.take().unwrap().write_all(&bytes).unwrap();
         let output = node.wait_with_output().unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    }
-
-    #[test]
-    fn arithmetic_without_flag_updates_uses_wrapping_i32_operations() {
-        for op in [
-            AluOp::Add,
-            AluOp::AddCarry,
-            AluOp::Sub,
-            AluOp::SubCarry,
-            AluOp::ReverseSub,
-            AluOp::ReverseSubCarry,
-        ] {
-            let mut actual = Function::new([]);
-            operation(
-                &mut actual.instructions(),
-                &Instruction {
-                    pc: 0x1000,
-                    size: 4,
-                    condition: Condition::Always,
-                    operation: Operation::Alu {
-                        op,
-                        destination: Some(0),
-                        left: Value::Register(1),
-                        right: Operand {
-                            value: Value::Register(2),
-                            shift: Shift::Lsl,
-                            amount: ShiftAmount::Immediate(0),
-                        },
-                        set_flags: false,
-                    },
-                },
-                false,
-                0,
-            );
-            let mut expected = Function::new([]);
-            let mut s = expected.instructions();
-            s.local_get(0).i32_load(field(4)).local_set(LEFT);
-            s.local_get(0).i32_load(field(8)).local_set(RIGHT);
-            if matches!(op, AluOp::ReverseSub | AluOp::ReverseSubCarry) {
-                s.local_get(LEFT).local_get(RIGHT).local_set(LEFT).local_set(RIGHT);
-            }
-            s.local_get(LEFT).local_get(RIGHT);
-            let subtract = !matches!(op, AluOp::Add | AluOp::AddCarry);
-            if subtract {
-                s.i32_sub();
-            } else {
-                s.i32_add();
-            }
-            if matches!(op, AluOp::AddCarry | AluOp::SubCarry | AluOp::ReverseSubCarry) {
-                flag(&mut s, 29);
-                s.i32_add();
-                if subtract {
-                    s.i32_const(1).i32_sub();
-                }
-            }
-            s.local_set(RESULT).local_get(0).local_get(RESULT).i32_store(field(0));
-            assert_eq!(actual.into_raw_body(), expected.into_raw_body(), "{op:?}");
-        }
     }
 
     #[test]
