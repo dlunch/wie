@@ -10,7 +10,7 @@ use wie_backend::ProfileSample;
 use wie_util::{Result, WieError};
 
 use crate::{
-    aot::{Aot, DummyExecutor},
+    aot::Aot,
     engine::{ArmEngine, ArmRegister, EngineRunResult, EngineStopReason, MemoryPermission},
 };
 
@@ -35,21 +35,20 @@ impl Arm32CpuEngine {
             cpu: Cpu::new(),
             mem: EmulatedMemory::new(),
             sampler: Sampler::new(),
-            aot: Some(Aot::new(Box::new(DummyExecutor))),
+            aot: None,
             closed: false,
         }
     }
 
-    pub fn with_backend(enable_aot: bool) -> Self {
-        let mut engine = Self::new();
-        if !enable_aot {
-            engine.aot = None;
-        }
+    pub fn with_backend(_enable_aot: bool) -> Self {
         #[cfg(target_arch = "wasm32")]
-        if enable_aot {
-            engine.aot = Some(Aot::new(Box::new(wie_core_arm_wasm::WasmExecutor::default())));
+        if _enable_aot {
+            return Self {
+                aot: Some(Aot::new(Box::new(wie_core_arm_wasm::WasmExecutor::default()))),
+                ..Self::new()
+            };
         }
-        engine
+        Self::new()
     }
 
     fn is_svc_exception(&self) -> bool {
@@ -690,7 +689,6 @@ mod tests {
     struct Responses {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
         ready: Option<futures::channel::oneshot::Sender<core::result::Result<CompiledArtifact, String>>>,
-        retired: Vec<CompiledHandle>,
     }
 
     struct DeferredExecutor(Arc<Mutex<Responses>>);
@@ -706,10 +704,6 @@ mod tests {
 
         fn execute(&mut self, _: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> core::result::Result<CompiledExit, String> {
             unreachable!("preparation tests do not execute compiled code")
-        }
-
-        fn retire(&mut self, handles: &[CompiledHandle]) {
-            self.0.lock().retired.extend_from_slice(handles);
         }
     }
 
@@ -817,11 +811,9 @@ mod tests {
             assert_eq!(resolve(RegionKey { cpu_mode: 0x13, ..key }, &memory), None);
             memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
             assert_eq!(resolve(key, &memory), None);
-            assert!(responses.lock().retired.is_empty());
         }
         assert_eq!(aot.lookup(key, &memory), None);
         assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory), None);
-        assert_eq!(responses.lock().retired, [CompiledHandle { slot: 0 }]);
         memory.write_range(0x1000, &[0, 0]).unwrap();
         aot.record_image(0x1000, 2);
         assert!(aot.begin(&memory, || 2.0).unwrap().is_none());
@@ -855,14 +847,12 @@ mod tests {
             let (_, resolve) = aot.execution_parts();
             assert_eq!(resolve(key, &memory), handle);
         }
-        assert!(responses.lock().retired.is_empty());
 
         memory.as_arm32cpu_memory().w16(0x1000, 0x3002);
         assert_eq!(aot.lookup(key, &memory), handle);
         memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
         assert_eq!(aot.lookup(key, &memory), None);
         assert_eq!(aot.lookup(key, &memory), None);
-        assert_eq!(responses.lock().retired, [CompiledHandle { slot: 0 }]);
         assert_eq!(responses.lock().requests.len(), 1);
     }
 
@@ -935,8 +925,6 @@ mod tests {
             }
             Ok(CompiledExit::InterpretOne)
         }
-
-        fn retire(&mut self, _: &[CompiledHandle]) {}
     }
 
     impl Drop for TestExecutor {
@@ -1039,36 +1027,6 @@ mod tests {
                 assert!(!controller.is_preparing());
             }
         }
-    }
-
-    #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn native_dummy_decodes_without_compilation_and_resumes_the_loader() {
-        let steps = Arc::new(core::sync::atomic::AtomicUsize::new(0));
-        let observed = steps.clone();
-        let request = CompileRequest {
-            images: Arc::from([]),
-            regions: Box::new((0..3).map(move |_| {
-                observed.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-                None
-            })),
-        };
-        let compiled = futures::executor::block_on(DummyExecutor.prepare(request, 0.0)).unwrap();
-        assert_eq!(steps.load(core::sync::atomic::Ordering::Relaxed), 3);
-        assert!(compiled.regions.is_empty());
-        assert_eq!(compiled.encoded_size, 0);
-
-        let mut core = crate::ArmCore::new(wie_backend::Options {
-            enable_gdbserver: false,
-            enable_aot: true,
-            profile: None,
-        })
-        .unwrap();
-        assert!(core.is_preparing());
-        core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
-        futures::executor::block_on(core.prepare_execution()).unwrap();
-        assert!(!core.is_preparing());
-        assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[])).unwrap(), 42);
     }
 
     #[test]
@@ -1314,7 +1272,6 @@ mod tests {
     #[test]
     fn run_reports_consumed_budget_at_yield_and_return_boundaries() {
         let mut engine = Arm32CpuEngine::new();
-        assert!(engine.aot.is_some());
         engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
         engine.mem_write(0x1000, &[0xc0, 0x46, 0xc0, 0x46, 0x70, 0x47]).unwrap(); // nop; nop; bx lr
         engine.reg_write(ArmRegister::Cpsr, 0x3f);

@@ -1,6 +1,5 @@
 mod analysis;
 mod decoder;
-mod dummy_executor;
 
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::{cell::RefCell, ops::Range};
@@ -13,12 +12,9 @@ use wie_util::Result;
 
 use crate::engine::EmulatedMemory;
 
-pub(crate) use dummy_executor::DummyExecutor;
-
 struct Translation {
     source: RefCell<Vec<CodePageStamp>>,
     source_bytes: Vec<(u32, Vec<u8>)>,
-    handle: CompiledHandle,
 }
 
 pub(crate) struct Aot {
@@ -31,6 +27,7 @@ pub(crate) struct Aot {
 }
 
 impl Aot {
+    #[cfg(any(target_arch = "wasm32", test))]
     pub fn new(executor: Box<dyn CompiledExecutor>) -> Self {
         Self {
             executor,
@@ -135,7 +132,6 @@ impl Aot {
             translations.push(Some(Translation {
                 source: RefCell::new(region.manifest.source),
                 source_bytes: region.manifest.source_bytes,
-                handle: region.handle,
             }));
         }
         // Installation shares the compiler's deadline, including index construction.
@@ -161,7 +157,6 @@ impl Aot {
         if memory.validate_code(&mut translation.source.borrow_mut(), &translation.source_bytes) {
             return Some(handle);
         }
-        self.executor.retire(core::slice::from_ref(&translation.handle));
         self.translations[handle.slot as usize] = None;
         None
     }

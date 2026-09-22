@@ -108,7 +108,7 @@ pub struct MemoryPage {
 }
 
 pub trait ExecutionAccess {
-    /// Looks up current code for a dispatcher transfer without retiring stale handles.
+    /// Looks up current code for a dispatcher transfer.
     fn resolve(&self, pc: u32, cpsr: u32) -> Option<CompiledHandle>;
     /// Borrows the complete guest page directory without reading or publishing code.
     /// Generated code may access mapped bytes until its next access method call or synchronous return.
@@ -132,7 +132,6 @@ pub trait CompiledExecutor: Send {
     /// On `Err`, discard this executor and resume in the interpreter without replaying completed writes.
     /// Fallible host calls must fail before guest side effects; arbitrary code or memory corruption is not resumable.
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String>;
-    fn retire(&mut self, handles: &[CompiledHandle]);
 }
 
 #[cfg(test)]

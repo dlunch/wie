@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, string::String, vec::Vec};
 use core::cell::RefCell;
 
 use futures::channel::oneshot;
@@ -49,14 +49,8 @@ extern "C" {
 }
 
 #[derive(Default)]
-struct State {
-    active: Vec<bool>,
-    dispatcher: Option<Function>,
-}
-
-#[derive(Default)]
 pub struct WasmExecutor {
-    state: Rc<RefCell<State>>,
+    dispatcher: Rc<RefCell<Option<Function>>>,
 }
 
 // The browser host is single-agent: JS handles and synchronous borrowed execution
@@ -65,7 +59,7 @@ unsafe impl Send for WasmExecutor {}
 
 impl CompiledExecutor for WasmExecutor {
     fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
-        let weak = Rc::downgrade(&self.state);
+        let weak = Rc::downgrade(&self.dispatcher);
         let (sender, receiver) = oneshot::channel();
         spawn_local(async move {
             let result = prepare_module(request, deadline_ms).await;
@@ -73,8 +67,7 @@ impl CompiledExecutor for WasmExecutor {
             let mut state = state.borrow_mut();
             let result = match result {
                 Ok((artifact, dispatcher)) if now() < deadline_ms => {
-                    state.active = vec![true; artifact.regions.len()];
-                    state.dispatcher = Some(dispatcher);
+                    *state = Some(dispatcher);
                     Ok(artifact)
                 }
                 Ok(_) => Err(String::from("ARM AOT preparation timed out")),
@@ -88,12 +81,8 @@ impl CompiledExecutor for WasmExecutor {
     }
 
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
-        let state = self.state.borrow();
-        let function = state
-            .dispatcher
-            .as_ref()
-            .filter(|_| state.active.get(handle.slot as usize) == Some(&true))
-            .ok_or_else(|| String::from("compiled handle is retired or dispatcher is unavailable"))?;
+        let state = self.dispatcher.borrow();
+        let function = state.as_ref().ok_or_else(|| String::from("compiled dispatcher is unavailable"))?;
         let mut context = ExecutionContext { access, frame };
         let result = execute_region(
             function,
@@ -112,15 +101,6 @@ impl CompiledExecutor for WasmExecutor {
                 _ => Err(format!("compiled ABI returned invalid exit: {value:?}")),
             },
             Err(error) => Err(format!("generated code trapped: {error:?}")),
-        }
-    }
-
-    fn retire(&mut self, handles: &[CompiledHandle]) {
-        let mut state = self.state.borrow_mut();
-        for handle in handles {
-            if let Some(active) = state.active.get_mut(handle.slot as usize) {
-                *active = false;
-            }
         }
     }
 }

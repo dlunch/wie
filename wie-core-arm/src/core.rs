@@ -718,18 +718,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn disabled_aot_executes_without_preparation() {
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            enable_aot: false,
-            profile: None,
-        })
-        .unwrap();
-        core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
-        assert!(!core.is_preparing());
-        assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
-        futures::executor::block_on(core.prepare_execution()).unwrap();
-        assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[])).unwrap(), 42);
+    fn interpreter_executes_without_preparation() {
+        for enable_aot in [
+            false,
+            #[cfg(not(target_arch = "wasm32"))]
+            true,
+        ] {
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                enable_aot,
+                profile: None,
+            })
+            .unwrap();
+            core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
+            assert!(!core.is_preparing());
+            assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
+            futures::executor::block_on(core.prepare_execution()).unwrap();
+            assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[])).unwrap(), 42);
+        }
     }
 
     #[test]
@@ -745,6 +751,7 @@ mod tests {
                 core.inner.lock().engine = Box::new(DebuggedArm32CpuEngine::new());
             }
             core.load(&[], 0x10000, 0x10000).unwrap();
+            assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
             core.write_bytes(0x1fffc, b"end\0").unwrap();
             let reader: &dyn ByteRead = &core;
             assert_eq!(read_null_terminated_string_bytes(reader, 0x1fffc).unwrap(), b"end");
