@@ -320,7 +320,7 @@ async fn prepare_dispatcher(
         deadline,
     )?;
     let result = JsFuture::from(promise).await;
-    // TS checks job settlement after every await, so timed-out continuations cannot reuse this frame.
+    // TS checks job settlement before warmup and after each yield, so timed-out continuations cannot reuse this frame.
     drop(warmup);
     result?.dyn_into::<Function>()
 }

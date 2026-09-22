@@ -1,8 +1,7 @@
 import { Cpu, Music2, Volume2, X, createIcons } from "lucide";
 
+import { configStore } from "./config_store";
 import { setMasterVolume } from "./midi";
-
-const AOT_STORAGE_KEY = "wie_wasm_aot_enabled";
 
 export interface SettingsController {
   readonly pcmVolume: number;
@@ -17,11 +16,18 @@ export const initializeSettings = (): SettingsController => {
   const pcmSlider = document.getElementById("volume-pcm") as HTMLInputElement;
   const aotCheckbox = document.getElementById("enable-wasm-aot") as HTMLInputElement;
 
-  aotCheckbox.checked = localStorage.getItem(AOT_STORAGE_KEY) === "true";
-  aotCheckbox.addEventListener("change", () => localStorage.setItem(AOT_STORAGE_KEY, String(aotCheckbox.checked)));
+  aotCheckbox.checked = configStore.get("enableWasmAot");
+  aotCheckbox.addEventListener("change", () => configStore.set("enableWasmAot", aotCheckbox.checked));
 
+  midiSlider.value = String(configStore.get("midiVolume") * 100);
+  pcmSlider.value = String(configStore.get("pcmVolume") * 100);
   setMasterVolume(Number(midiSlider.value) / 100);
-  midiSlider.addEventListener("input", () => setMasterVolume(Number(midiSlider.value) / 100));
+  midiSlider.addEventListener("input", () => {
+    const volume = Number(midiSlider.value) / 100;
+    setMasterVolume(volume);
+    configStore.set("midiVolume", volume);
+  });
+  pcmSlider.addEventListener("input", () => configStore.set("pcmVolume", Number(pcmSlider.value) / 100));
   createIcons({ icons: { Cpu, Music2, Volume2, X }, root: dialog });
 
   return {

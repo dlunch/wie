@@ -2,11 +2,10 @@ import { extractAppMetadata } from "@pkg";
 import { Check, CircleHelp, EllipsisVertical, Globe2, Plus, Settings, Trash2, Upload, X, createIcons } from "lucide";
 
 import { AppLibraryStore, AppMetadata } from "./app_library_store";
+import { configStore } from "./config_store";
 import { SettingsController } from "./settings";
 
 const APPS_PER_PAGE = 12;
-const WELCOME_STORAGE_KEY = "wie_welcome_seen";
-const HELP_STORAGE_KEY = "wie_help_dismissed";
 const icons = {
   Check,
   CircleHelp,
@@ -44,7 +43,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
   const welcomeDialog = document.getElementById("welcome-dialog") as HTMLDialogElement;
   const dismissWelcome = document.getElementById("dismiss-welcome") as HTMLButtonElement;
 
-  hideHelp.checked = localStorage.getItem(HELP_STORAGE_KEY) === "true";
+  hideHelp.checked = configStore.get("helpDismissed");
 
   let apps = await store.list();
   let manageMode = false;
@@ -325,7 +324,7 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     helpDialog.showModal();
   });
   helpDialog.addEventListener("close", () => {
-    localStorage.setItem(HELP_STORAGE_KEY, String(hideHelp.checked));
+    configStore.set("helpDismissed", hideHelp.checked);
   });
 
   const importFiles = async (files: File[]) => {
@@ -444,12 +443,12 @@ export const initializeLibrary = async (launchApp: (app: AppMetadata, archive: U
     }
   });
   dismissWelcome.addEventListener("click", () => {
-    localStorage.setItem(WELCOME_STORAGE_KEY, "true");
+    configStore.set("welcomeSeen", true);
     welcomeDialog.close();
   });
 
   renderLibrary();
-  if (!localStorage.getItem(WELCOME_STORAGE_KEY)) {
+  if (!configStore.get("welcomeSeen")) {
     welcomeDialog.showModal();
   }
 };
