@@ -21,7 +21,8 @@ pub enum EngineStopReason {
 
 pub struct EngineRunResult {
     pub stop_reason: EngineStopReason,
-    pub instructions_executed: u32,
+    /// Interpreted instructions on Wasm; all retired instructions on native targets.
+    pub budget_consumed: u32,
 }
 
 pub trait ArmEngine: Send + AsAny {

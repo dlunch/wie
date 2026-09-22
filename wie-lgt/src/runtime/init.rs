@@ -196,7 +196,11 @@ mod tests {
         let system_clone = system.clone();
 
         system.spawn(async move || {
-            let mut core = ArmCore::new(Default::default())?;
+            let mut core = ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                enable_aot: false,
+                profile: None,
+            })?;
             Allocator::init(&mut core)?;
             let mut context = core.save_context();
             let stack = Allocator::alloc(&mut core, 0x100)?;

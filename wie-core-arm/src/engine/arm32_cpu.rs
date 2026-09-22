@@ -126,7 +126,7 @@ impl ArmEngine for Arm32CpuEngine {
         if self.closed {
             return Err(WieError::FatalError("ARM core is shut down".into()));
         }
-        let mut instructions_executed = 0;
+        let mut budget_consumed = 0;
         let mut interpret_one = false;
         let mut lookup_entry = true;
         let stop_reason = loop {
@@ -144,7 +144,7 @@ impl ArmEngine for Arm32CpuEngine {
                 break EngineStopReason::End;
             }
 
-            if instructions_executed == count {
+            if budget_consumed == count {
                 break EngineStopReason::Yield;
             }
 
@@ -188,7 +188,10 @@ impl ArmEngine for Arm32CpuEngine {
                         self.cpu.reg_set(Mode::User, index as u8, value);
                     }
                     self.cpu.reg_set(Mode::User, reg::CPSR, frame.cpsr);
-                    instructions_executed += frame.executed;
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        budget_consumed += frame.executed;
+                    }
                     self.sampler.retire(frame.executed);
                     if exit == CompiledExit::GuestFault {
                         return Err(WieError::InvalidMemoryAccess(frame.fault_address));
@@ -216,7 +219,7 @@ impl ArmEngine for Arm32CpuEngine {
             if let Some(x) = arm32cpu_memory.memory_error {
                 return Err(WieError::InvalidMemoryAccess(x));
             }
-            instructions_executed += 1;
+            budget_consumed += 1;
             let next_pc = self.cpu.reg_get(Mode::User, reg::PC);
             let next_cpsr = self.cpu.reg_get(Mode::User, reg::CPSR);
             if next_pc != pc.wrapping_add(if cpsr & 0x20 != 0 { 2 } else { 4 }) || (next_cpsr ^ cpsr) & 0x0100_003f != 0 {
@@ -232,7 +235,7 @@ impl ArmEngine for Arm32CpuEngine {
 
         Ok(EngineRunResult {
             stop_reason,
-            instructions_executed,
+            budget_consumed,
         })
     }
 
@@ -964,19 +967,23 @@ mod tests {
             aot.finish(futures::executor::block_on(preparation), &engine.mem, || 1.0);
             engine.aot = Some(aot);
             let result = engine.run(0x2000, budget).unwrap();
-            assert_eq!(result.instructions_executed, budget.min(3));
-            assert_eq!(engine.sampler.remaining, 1024 - budget.min(3));
-            assert_eq!(engine.reg_read(ArmRegister::Cpsr), if budget == 2 { 0x3f } else { 0x1f });
+            let yielded = budget == 2 && !cfg!(target_arch = "wasm32");
+            let executed = if yielded { 2 } else { 3 };
+            let compiled = if cfg!(target_arch = "wasm32") { completed.unwrap_or(0) } else { 0 };
+            assert_eq!(result.budget_consumed, executed - compiled);
+            assert_eq!(engine.sampler.remaining, 1024 - executed);
+            assert_eq!(engine.reg_read(ArmRegister::Cpsr), if yielded { 0x3f } else { 0x1f });
+            assert_eq!(engine.aot.is_some(), completed.is_none());
             assert_eq!(calls.lock().0, if completed.is_some() { 1 } else { 2 });
             assert_eq!(engine.reg_read(ArmRegister::R0), 43);
             let mut value = [0; 4];
             engine.mem_read(0x20000, 4, &mut value).unwrap();
             assert_eq!(u32::from_le_bytes(value), 42);
             assert_eq!(calls.lock().1, completed.is_some());
-            if budget == 2 {
+            if yielded {
                 assert!(matches!(result.stop_reason, EngineStopReason::Yield));
                 assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
-                assert_eq!(engine.run(0x2000, 10).unwrap().instructions_executed, 1);
+                assert_eq!(engine.run(0x2000, 10).unwrap().budget_consumed, 1);
                 assert_eq!(calls.lock().0, 1);
             } else {
                 assert!(matches!(result.stop_reason, EngineStopReason::End));
@@ -990,7 +997,12 @@ mod tests {
             let responses = Arc::new(Mutex::new(Responses::default()));
             let mut engine = Arm32CpuEngine::new();
             engine.aot = Some(Aot::new(Box::new(DeferredExecutor(responses.clone()))));
-            let mut core = crate::ArmCore::new(Default::default()).unwrap();
+            let mut core = crate::ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                enable_aot: false,
+                profile: None,
+            })
+            .unwrap();
             core.inner.lock().engine = Box::new(engine);
             core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
             let controller = core.clone();
@@ -1047,8 +1059,9 @@ mod tests {
         assert_eq!(compiled.encoded_size, 0);
 
         let mut core = crate::ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
             enable_aot: true,
-            ..Default::default()
+            profile: None,
         })
         .unwrap();
         assert!(core.is_preparing());
@@ -1075,7 +1088,7 @@ mod tests {
             engine.aot = Some(aot);
             engine.reg_write(ArmRegister::Cpsr, cpsr);
             engine.reg_write(ArmRegister::PC, 0x1001);
-            assert_eq!(engine.run(0x1002, 1).unwrap().instructions_executed, 1);
+            assert_eq!(engine.run(0x1002, 1).unwrap().budget_consumed, 1);
             assert_eq!(engine.reg_read(ArmRegister::R0), 1);
             assert_eq!(calls.lock().0, u32::from(cpsr == 0x3f));
         }
@@ -1239,7 +1252,7 @@ mod tests {
             let code = engine.mem.code_image(0x1000, 1).unwrap().source[0];
             let data = engine.mem.code_image(0x20000, 1).unwrap().source[0];
             let result = engine.run(0x1004, 1).unwrap();
-            assert_eq!(result.instructions_executed, 1);
+            assert_eq!(result.budget_consumed, 1);
             assert!(matches!(result.stop_reason, EngineStopReason::End));
             assert_eq!(engine.mem.code_is_current(&[code]), code_current, "opcode={opcode:#x}");
             assert_eq!(engine.mem.code_is_current(&[data]), data_current, "opcode={opcode:#x}");
@@ -1291,7 +1304,7 @@ mod tests {
             let user_page = engine.mem.code_image(0x20000, 1).unwrap().source[0];
             let active_page = engine.mem.code_image(0x30000, 1).unwrap().source[0];
 
-            assert_eq!(engine.run(0x1004, 1).unwrap().instructions_executed, 1);
+            assert_eq!(engine.run(0x1004, 1).unwrap().budget_consumed, 1);
             assert!(engine.mem.code_is_current(&[user_page]), "mode={mode:?}");
             assert!(!engine.mem.code_is_current(&[active_page]), "mode={mode:?}");
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), cpsr);
@@ -1299,7 +1312,7 @@ mod tests {
     }
 
     #[test]
-    fn run_reports_executed_instructions_at_budget_and_return_boundaries() {
+    fn run_reports_consumed_budget_at_yield_and_return_boundaries() {
         let mut engine = Arm32CpuEngine::new();
         assert!(engine.aot.is_some());
         engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
@@ -1310,7 +1323,7 @@ mod tests {
 
         for (budget, expected_count, at_end) in [(0, 0, false), (2, 2, false), (10, 1, true), (10, 0, true)] {
             let result = engine.run(0x2000, budget).unwrap();
-            assert_eq!(result.instructions_executed, expected_count);
+            assert_eq!(result.budget_consumed, expected_count);
             assert!(matches!(
                 (result.stop_reason, at_end),
                 (EngineStopReason::End, true) | (EngineStopReason::Yield, false)
@@ -1329,7 +1342,7 @@ mod tests {
         engine.sampler.remaining = 1;
         let result = engine.run(0x2000, 1).unwrap();
         assert!(matches!(result.stop_reason, EngineStopReason::Svc { category: 1, .. }));
-        assert_eq!(result.instructions_executed, 1);
+        assert_eq!(result.budget_consumed, 1);
         let samples = engine.take_profile(true);
         assert_eq!(samples.len(), 1);
         assert_eq!(samples[0].stack, [0x1000]);

@@ -335,7 +335,11 @@ mod tests {
     }
 
     async fn init_jvm(system: &System) -> Result<(Jvm, ArmCore, LgtJvmImplementation)> {
-        let mut core = ArmCore::new(Default::default())?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })?;
         Allocator::init(&mut core)?;
 
         let mut context = core.save_context();

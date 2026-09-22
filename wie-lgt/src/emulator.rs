@@ -249,7 +249,12 @@ mod tests {
             let platform = test_utils::TestPlatform::with_event_handler(move |_| {
                 let _ = &resource;
             });
-            let mut core = wie_core_arm::ArmCore::new(Default::default()).unwrap();
+            let mut core = wie_core_arm::ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                enable_aot: false,
+                profile: None,
+            })
+            .unwrap();
             wie_core_arm::Allocator::init(&mut core).unwrap();
             let system = wie_backend::System::new(Box::new(platform), "", "", super::LgtTaskRunner { core: core.clone() });
             let task_system = system.clone();
@@ -268,7 +273,12 @@ mod tests {
 
     #[test]
     fn dropping_emulator_stops_retained_core_clones() {
-        let mut core = wie_core_arm::ArmCore::new(Default::default()).unwrap();
+        let mut core = wie_core_arm::ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
         let system = wie_backend::System::new(
             alloc::boxed::Box::new(test_utils::TestPlatform::new()),
@@ -289,7 +299,12 @@ mod tests {
     fn failed_tick_closes_the_core_and_stops_later_ticks() {
         use wie_backend::Emulator;
 
-        let mut core = wie_core_arm::ArmCore::new(Default::default()).unwrap();
+        let mut core = wie_core_arm::ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         wie_core_arm::Allocator::init(&mut core).unwrap();
         let system = wie_backend::System::new(
             alloc::boxed::Box::new(test_utils::TestPlatform::new()),

@@ -961,7 +961,11 @@ mod tests {
 
     #[test]
     fn process_state_initializes_once_for_the_clet_lifecycle() -> Result<()> {
-        let mut core = ArmCore::new(Default::default())?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })?;
         Allocator::init(&mut core)?;
 
         init_process_state(&mut core, 240, 320)?;
@@ -982,7 +986,11 @@ mod tests {
 
     #[test]
     fn display_properties_update_physical_display_state() -> Result<()> {
-        let mut core = ArmCore::new(Default::default())?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })?;
         Allocator::init(&mut core)?;
 
         set_display_property(&mut core, &mut (), 0, 0x64, 240, 0).now_or_never().unwrap()?;

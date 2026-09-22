@@ -23,12 +23,10 @@ const SVC_STUB_SIZE: u32 = 16;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
-#[cfg(not(target_arch = "wasm32"))]
 const INSTRUCTIONS_PER_YIELD: u32 = 10_000;
 
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
-    #[cfg(not(target_arch = "wasm32"))]
     instructions_remaining: u32,
     last_thread_id: ThreadId,
     svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
@@ -73,7 +71,6 @@ impl ArmCore {
 
         let inner = ArmCoreInner {
             engine,
-            #[cfg(not(target_arch = "wasm32"))]
             instructions_remaining: INSTRUCTIONS_PER_YIELD,
             last_thread_id: 0,
             svc_handlers: BTreeMap::new(),
@@ -280,10 +277,7 @@ impl ArmCore {
                 if inner.closed {
                     return Err(WieError::FatalError("ARM core is shut down".into()));
                 }
-                #[cfg(not(target_arch = "wasm32"))]
                 let budget = inner.instructions_remaining;
-                #[cfg(target_arch = "wasm32")]
-                let budget = u32::MAX;
                 let result = match inner.engine.run(RUN_FUNCTION_LR, budget) {
                     Ok(result) => result,
                     Err(error) => {
@@ -294,17 +288,11 @@ impl ArmCore {
                         return Err(error);
                     }
                 };
-                #[cfg(not(target_arch = "wasm32"))]
-                let exhausted = {
-                    inner.instructions_remaining -= result.instructions_executed;
-                    let exhausted = inner.instructions_remaining == 0;
-                    if exhausted {
-                        inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
-                    }
-                    exhausted
-                };
-                #[cfg(target_arch = "wasm32")]
-                let exhausted = false;
+                inner.instructions_remaining -= result.budget_consumed;
+                let exhausted = inner.instructions_remaining == 0;
+                if exhausted {
+                    inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
+                }
                 (result.stop_reason, exhausted)
             };
 
@@ -730,8 +718,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_options_execute_without_aot_preparation() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+    fn disabled_aot_executes_without_preparation() {
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         assert!(!core.is_preparing());
         assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
@@ -742,7 +735,12 @@ mod tests {
     #[test]
     fn terminated_string_reads_use_normal_and_debug_engines() {
         for debug in [false, true] {
-            let mut core = ArmCore::new(Default::default()).unwrap();
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                enable_aot: false,
+                profile: None,
+            })
+            .unwrap();
             if debug {
                 core.inner.lock().engine = Box::new(DebuggedArm32CpuEngine::new());
             }
@@ -785,7 +783,12 @@ mod tests {
             Ok(())
         }
 
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let weak = Arc::downgrade(&core.inner);
         let context = Arc::new(ContextOwner(core.clone()));
         let weak_context = Arc::downgrade(&context);
@@ -800,7 +803,12 @@ mod tests {
 
     #[test]
     fn shutdown_blocks_clones_before_call_setup() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         let mut remaining = core.clone();
         let previous = remaining.save_context();
@@ -816,10 +824,14 @@ mod tests {
         assert!(remaining.run_in_thread(|| async { Ok(()) }).is_err());
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn shutdown_stops_a_suspended_svc_before_its_handler() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let calls = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
         core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
@@ -852,7 +864,12 @@ mod tests {
 
     #[test]
     fn shutdown_does_not_resume_an_already_pending_svc_handler() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let entered = Arc::new(AtomicBool::new(false));
         let calls = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, pending_svc_handler, &(entered.clone(), calls.clone()))
@@ -875,7 +892,12 @@ mod tests {
 
     #[test]
     fn shutdown_does_not_resume_an_existing_host_thread() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let calls = Arc::new(AtomicU32::new(0));
         let observed = calls.clone();
@@ -905,7 +927,12 @@ mod tests {
 
     #[test]
     fn shutdown_preserves_fault_context_when_a_nested_thread_is_polled() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let completed = Arc::new(AtomicU32::new(0));
         let entered = Arc::new(AtomicBool::new(false));
@@ -943,7 +970,12 @@ mod tests {
             Ok(42)
         }
 
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.register_svc_handler(1, shutdown_handler, &()).unwrap();
         core.load(&[0x01, 0xdf, 0x70, 0x47], 0x1000, 4).unwrap();
         assert!(futures::executor::block_on(core.run_function::<()>(0x1001, &[17])).is_err());
@@ -953,7 +985,12 @@ mod tests {
 
     #[test]
     fn engine_errors_close_the_shared_core_without_restoring_fault_state() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap();
         let mut remaining = core.clone();
         assert!(futures::executor::block_on(core.run_function::<()>(1, &[42])).is_err());
@@ -969,8 +1006,9 @@ mod tests {
         let samples = Arc::new(Mutex::new(Vec::new()));
         let observed = samples.clone();
         let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
             profile: Some(Box::new(move |batch| samples.lock().extend(batch))),
-            ..Default::default()
         })
         .unwrap();
         let mut code = [0xc0, 0x46].repeat(2048); // nop
@@ -995,6 +1033,8 @@ mod tests {
             let callbacks = Arc::new(AtomicU32::new(0));
             let observed = callbacks.clone();
             let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                enable_aot: false,
                 profile: Some(Box::new(move |batch| {
                     assert!(!batch.is_empty());
                     let mut core = callback_core.lock().as_ref().unwrap().clone();
@@ -1010,7 +1050,6 @@ mod tests {
                         assert!(batch.iter().all(|sample| (0x10000..=0x11000).contains(&sample.stack[0])));
                     }
                 })),
-                ..Default::default()
             })
             .unwrap();
             if debug {
@@ -1032,7 +1071,7 @@ mod tests {
                 let count = 1152 * 1000;
                 let result = inner.engine.run(RUN_FUNCTION_LR, count).unwrap();
                 assert!(matches!(result.stop_reason, EngineStopReason::Yield));
-                assert_eq!(result.instructions_executed, count);
+                assert_eq!(result.budget_consumed, count);
                 inner.instructions_remaining = 0;
             }
             assert_eq!(observed.load(Ordering::Relaxed), 0);
@@ -1052,7 +1091,12 @@ mod tests {
     fn saved_thread_contexts_are_accessible_while_the_engine_is_locked() {
         extern crate std;
 
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         crate::Allocator::init(&mut core).unwrap();
         let _thread = core.run_in_thread(|| async { Ok(()) }).unwrap();
         let mut context = core.read_thread_context(1).unwrap();
@@ -1074,7 +1118,12 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn scheduler_locking_yields_without_resetting_the_instruction_budget() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
@@ -1097,7 +1146,12 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn scheduler_locking_keeps_other_thread_futures_stopped() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
@@ -1128,7 +1182,12 @@ mod tests {
     fn interrupt_stops_a_thread_waiting_in_host_code() {
         extern crate std;
 
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let engine = DebuggedArm32CpuEngine::new();
         let debug = engine.debug_inner();
         core.inner.lock().engine = Box::new(engine);
@@ -1193,7 +1252,12 @@ mod tests {
         use crate::engine::{DebugBreakpointKind, DebugStopReason};
 
         for breakpoint in [false, true] {
-            let mut core = ArmCore::new(Default::default()).unwrap();
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                enable_aot: false,
+                profile: None,
+            })
+            .unwrap();
             let engine = DebuggedArm32CpuEngine::new();
             let debug = engine.debug_inner();
             core.inner.lock().engine = Box::new(engine);
@@ -1247,33 +1311,43 @@ mod tests {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn yields_every_ten_thousand_instructions_across_svc() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
-        let calls = Arc::new(AtomicU32::new(0));
-        core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
-        let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
-        code.extend_from_slice(&[0x70, 0x47]); // bx lr
-        core.load(&code, 0x1000, code.len()).unwrap();
+        for enable_aot in [false, true] {
+            let mut core = ArmCore::new(Options {
+                enable_gdbserver: false,
+                enable_aot,
+                profile: None,
+            })
+            .unwrap();
+            let calls = Arc::new(AtomicU32::new(0));
+            core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
+            let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
+            code.extend_from_slice(&[0x70, 0x47]); // bx lr
+            core.load(&code, 0x1000, code.len()).unwrap();
 
-        let observer = core.clone();
-        let mut run = pin!(core.run_function::<u32>(0x1001, &[0]));
-        let mut cx = Context::from_waker(Waker::noop());
-        for completed in [5_000, 10_000] {
-            assert!(run.as_mut().poll(&mut cx).is_pending());
-            assert_eq!(observer.read_param(0).unwrap(), completed);
-            assert_eq!(calls.load(Ordering::Relaxed), completed - 1);
-            assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
+            let observer = core.clone();
+            let mut run = pin!(core.run_function::<u32>(0x1001, &[0]));
+            let mut cx = Context::from_waker(Waker::noop());
+            for completed in [5_000, 10_000] {
+                assert!(run.as_mut().poll(&mut cx).is_pending());
+                assert_eq!(observer.read_param(0).unwrap(), completed);
+                assert_eq!(calls.load(Ordering::Relaxed), completed - 1);
+                assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
+            }
+            assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(10_000))));
+            assert_eq!(calls.load(Ordering::Relaxed), 10_000);
         }
-        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(10_000))));
-        assert_eq!(calls.load(Ordering::Relaxed), 10_000);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn nested_arm_calls_share_the_instruction_budget() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         let result = Arc::new(AtomicU32::new(0));
         core.register_svc_handler(1, call_nested_arm, &result).unwrap();
         let mut outer = [0xc0, 0x46].repeat(5_000); // nop
@@ -1300,7 +1374,12 @@ mod tests {
             Err(WieError::JavaException(0x1234))
         }
 
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.map(0x2000, 0x1000).unwrap();
         core.register_svc_handler(1, throwing_handler, &()).unwrap();
         let target = core.make_svc_stub(1, 0u32).unwrap();
@@ -1324,10 +1403,14 @@ mod tests {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn returning_arm_calls_do_not_reset_the_instruction_budget() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.load(&[0x70, 0x47], 0x1000, 2).unwrap(); // bx lr
         let completed = Arc::new(AtomicU32::new(0));
         let observed = completed.clone();
@@ -1352,7 +1435,12 @@ mod tests {
 
         let clock = TestClock::new();
         let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "test", "test", DefaultTaskRunner);
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         crate::Allocator::init(&mut core).unwrap();
         core.load(&[0x01, 0x30, 0xfd, 0xe7], 0x1000, 4).unwrap(); // add r0, #1; b 0x1000
         let polls = Arc::new(AtomicU32::new(0));
@@ -1401,7 +1489,12 @@ mod tests {
 
     #[test]
     fn test_thumb_svc_stub_dispatch() {
-        let mut core = ArmCore::new(Default::default()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })
+        .unwrap();
         core.map(0x1000, 0x1000).unwrap();
 
         let mut context = core.save_context();
@@ -1422,7 +1515,7 @@ mod tests {
             inner.engine.run(RUN_FUNCTION_LR, 10).unwrap()
         };
 
-        assert_eq!(result.instructions_executed, 5);
+        assert_eq!(result.budget_consumed, 5);
         match result.stop_reason {
             EngineStopReason::Svc { category, lr, spsr } => {
                 assert_eq!(category, 1);

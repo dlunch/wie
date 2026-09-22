@@ -8,6 +8,11 @@ use bytemuck::{Pod, Zeroable};
 
 pub mod ir;
 
+// Bound synchronous analysis/code generation and Wasm selector nesting, including coalesced regions.
+// These are policy limits, not ISA limits; larger regions trade fewer dispatches for longer preparation steps.
+pub const MAX_REGION_INSTRUCTIONS: usize = 512;
+pub const MAX_REGION_BLOCKS: usize = 128;
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RegionKey {
     pub pc: u32,

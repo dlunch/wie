@@ -455,21 +455,21 @@ impl DebuggedArm32CpuEngine {
 
 impl ArmEngine for DebuggedArm32CpuEngine {
     fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
-        let mut instructions_executed = 0;
+        let mut budget_consumed = 0;
         loop {
             let thread_id = self.stop_thread_id();
             let resume_mode = self.debug.wait_for_resume_mode(thread_id);
             if !self.debug.is_thread_resumed(thread_id) {
                 return Ok(EngineRunResult {
                     stop_reason: EngineStopReason::Yield,
-                    instructions_executed,
+                    budget_consumed,
                 });
             }
             let stepping = matches!(resume_mode, ResumeMode::Step);
 
-            if instructions_executed == count {
+            if budget_consumed == count {
                 let mut result = self.debug.cpu.lock().run(end, 0)?;
-                result.instructions_executed += instructions_executed;
+                result.budget_consumed += budget_consumed;
                 return Ok(result);
             }
 
@@ -483,7 +483,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     self.debug.stop(DebugStopReason::Signal(DebugSignal::Abrt, self.stop_thread_id()));
                     return Err(error);
                 }
-                if result.as_ref().is_ok_and(|result| result.instructions_executed != 0) {
+                if result.as_ref().is_ok_and(|result| result.budget_consumed != 0) {
                     self.pending_breakpoint_step.remove(&thread_id);
                 }
                 result
@@ -497,7 +497,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 }
 
                 let run_count = if !stepping && !self.debug.has_breakpoints() {
-                    count - instructions_executed
+                    count - budget_consumed
                 } else {
                     1
                 };
@@ -506,13 +506,13 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
             match result {
                 Ok(mut result) => {
-                    let executed_instruction = result.instructions_executed != 0;
-                    instructions_executed += result.instructions_executed;
-                    result.instructions_executed = instructions_executed;
+                    let executed_instruction = result.budget_consumed != 0;
+                    budget_consumed += result.budget_consumed;
+                    result.budget_consumed = budget_consumed;
                     match result.stop_reason {
                         EngineStopReason::Svc { .. } => return Ok(result),
                         _ if stepping && executed_instruction => self.debug.stop(DebugStopReason::DoneStep(self.stop_thread_id())),
-                        EngineStopReason::Yield if instructions_executed < count => continue,
+                        EngineStopReason::Yield if budget_consumed < count => continue,
                         _ => return Ok(result),
                     }
                 }
@@ -597,7 +597,7 @@ mod tests {
         runner.join().unwrap();
         let result = result.unwrap().unwrap();
         assert!(matches!(result.stop_reason, EngineStopReason::End));
-        assert_eq!(result.instructions_executed, 0);
+        assert_eq!(result.budget_consumed, 0);
         assert!(debug.stop_event_rx.is_empty());
     }
 
@@ -730,7 +730,7 @@ mod tests {
             assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
             let result = result.unwrap();
             assert!(matches!(result.stop_reason, EngineStopReason::Yield));
-            assert_eq!(result.instructions_executed, 0);
+            assert_eq!(result.budget_consumed, 0);
             assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
 
             debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
@@ -745,7 +745,7 @@ mod tests {
             let (mut engine, result) = suspended.unwrap();
             let result = result.unwrap();
             assert!(matches!(result.stop_reason, EngineStopReason::Yield));
-            assert_eq!(result.instructions_executed, 0);
+            assert_eq!(result.budget_consumed, 0);
             assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
             assert_eq!(engine.reg_read(ArmRegister::R0), 0);
             assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
@@ -770,7 +770,7 @@ mod tests {
             let (mut engine, result) = resumed.unwrap();
             let result = result.unwrap();
             assert!(matches!(result.stop_reason, EngineStopReason::Yield));
-            assert_eq!(result.instructions_executed, 1);
+            assert_eq!(result.budget_consumed, 1);
             assert_eq!(engine.reg_read(ArmRegister::PC), 0x1002);
             assert_eq!(engine.reg_read(ArmRegister::R0), 1);
             assert!(!engine.pending_breakpoint_step.contains_key(&1));
@@ -804,7 +804,7 @@ mod tests {
         let (result, r0) = runner.join().unwrap();
         assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
         assert!(matches!(result.stop_reason, EngineStopReason::Svc { category: 1, lr: 0x1006, .. }));
-        assert_eq!(result.instructions_executed, 3);
+        assert_eq!(result.budget_consumed, 3);
         assert_eq!(r0, 2);
     }
 

@@ -115,7 +115,11 @@ mod tests {
 
     #[test]
     fn exception_frame_restores_guest_context() -> Result<()> {
-        let mut core = ArmCore::new(Default::default())?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })?;
         Allocator::init(&mut core)?;
         init(&mut core)?;
 

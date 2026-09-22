@@ -74,7 +74,11 @@ mod tests {
 
     #[test]
     fn full_names_borrow_parts_and_reread_guest_changes() -> Result<()> {
-        let mut core = ArmCore::new(Default::default())?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })?;
         core.map(0x1000, 0x1000)?;
 
         for (name, descriptor) in [("count", "I"), ("\u{ac00}", "(Ljava/lang/String;)V")] {

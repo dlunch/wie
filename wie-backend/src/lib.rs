@@ -53,7 +53,6 @@ pub struct ProfileSample {
 /// more when the runtime shuts down to drain anything still in the buffer.
 pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
 
-#[derive(Default)]
 pub struct Options {
     pub enable_gdbserver: bool,
     pub enable_aot: bool,

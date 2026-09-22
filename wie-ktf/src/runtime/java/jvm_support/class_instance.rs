@@ -203,7 +203,11 @@ mod tests {
 
     #[test]
     fn field_reads_observe_guest_types_offsets_and_values() -> Result<()> {
-        let mut core = ArmCore::new(Default::default())?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            enable_aot: false,
+            profile: None,
+        })?;
         core.map(0x1000, 0x1000)?;
         write_generic(
             &mut core,

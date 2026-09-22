@@ -3,28 +3,11 @@ use alloc::{
     vec::Vec,
 };
 
+use bytemuck::Contiguous;
 use hashbrown::HashMap;
 
-use wie_arm_jit_types::RegionKey;
 use wie_arm_jit_types::ir::{Address, AluOp, BasicBlock, Condition, Instruction, Operand, Operation, RegionIr, Shift, ShiftAmount, Value, Width};
-
-const CONDITIONS: [Condition; 15] = [
-    Condition::Eq,
-    Condition::Ne,
-    Condition::Cs,
-    Condition::Cc,
-    Condition::Mi,
-    Condition::Pl,
-    Condition::Vs,
-    Condition::Vc,
-    Condition::Hi,
-    Condition::Ls,
-    Condition::Ge,
-    Condition::Lt,
-    Condition::Gt,
-    Condition::Le,
-    Condition::Always,
-];
+use wie_arm_jit_types::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, RegionKey};
 
 pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64; 128]) -> Option<RegionIr> {
     let alignment = if entry.thumb { 2 } else { 4 };
@@ -33,7 +16,7 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64;
     let mut leaders = BTreeSet::from([entry.pc]);
     let mut instruction_limit_reached = false;
     while let Some(pc) = pending.pop_front() {
-        if decoded.len() == 512 {
+        if decoded.len() == MAX_REGION_INSTRUCTIONS {
             instruction_limit_reached = true;
             break;
         }
@@ -100,7 +83,7 @@ pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64;
     let mut block_limit_reached = false;
     for start in core::iter::once(entry.pc).chain(leaders.iter().copied().filter(|pc| *pc != entry.pc)) {
         // Omitted blocks are exact-PC dispatcher exits, not synthetic guest instructions.
-        if blocks.len() == 128 {
+        if blocks.len() == MAX_REGION_BLOCKS {
             block_limit_reached = !decoded.is_empty();
             break;
         }
@@ -149,28 +132,6 @@ fn shifted(value: Value, kind: u8, amount: ShiftAmount) -> Operand {
 // Encodings are derived from ARM DDI 0100I, chapters A6/A7 (Thumb) and A3/A4/A5 (ARM).
 fn decode_thumb(bytes: &[u8], pc: u32) -> Option<(u8, Condition, Operation)> {
     let raw = u16::from_le_bytes(*bytes.first_chunk()?);
-    if raw & 0xf800 == 0xf000 {
-        let suffix = u16::from_le_bytes(*bytes.get(2..)?.first_chunk()?);
-        let exchange = match suffix & 0xf800 {
-            0xf800 => false,
-            0xe800 if suffix & 1 == 0 => true,
-            _ => return None,
-        };
-        let high_offset = (i32::from(raw & 0x07ff) << 21) >> 9;
-        let target = pc
-            .wrapping_add(4)
-            .wrapping_add_signed(high_offset)
-            .wrapping_add(u32::from(suffix & 0x07ff) << 1);
-        return Some((
-            4,
-            Condition::Always,
-            Operation::Branch {
-                target: Value::Immediate(if exchange { target & !3 } else { target }),
-                link: Some(pc.wrapping_add(4) | 1),
-                exchange,
-            },
-        ));
-    }
     let rd = (raw & 7) as u8;
     let rm = ((raw >> 3) & 7) as u8;
     let mut op = AluOp::Move;
@@ -182,184 +143,230 @@ fn decode_thumb(bytes: &[u8], pc: u32) -> Option<(u8, Condition, Operation)> {
         amount: ShiftAmount::Immediate(0),
     };
     let mut set_flags = true;
-    if raw & 0xf800 == 0x1800 {
-        op = if raw & 0x0200 == 0 { AluOp::Add } else { AluOp::Sub };
-        left = Value::Register(rm);
-        right.value = if raw & 0x0400 == 0 {
-            Value::Register(((raw >> 6) & 7) as u8)
-        } else {
-            Value::Immediate(u32::from((raw >> 6) & 7))
-        };
-    } else if raw & 0xe000 == 0x2000 {
-        let register = ((raw >> 8) & 7) as u8;
-        let kind = (raw >> 11) & 3;
-        op = match kind {
-            0 => AluOp::Move,
-            2 => AluOp::Add,
-            _ => AluOp::Sub,
-        };
-        destination = if kind == 1 { None } else { Some(register) };
-        left = if kind == 0 { Value::Immediate(0) } else { Value::Register(register) };
-        right.value = Value::Immediate(u32::from(raw & 0xff));
-    } else if raw & 0xe000 == 0 {
-        right = shifted(
-            Value::Register(rm),
-            ((raw >> 11) & 3) as u8,
-            ShiftAmount::Immediate(((raw >> 6) & 31) as u8),
-        );
-    } else if raw & 0xfc00 == 0x4000 {
-        left = Value::Register(rd);
-        op = match (raw >> 6) & 15 {
-            0 | 8 => AluOp::And,
-            1 => AluOp::Xor,
-            10 => AluOp::Sub,
-            11 => AluOp::Add,
-            2 | 3 | 4 | 7 => AluOp::Move,
-            5 => AluOp::AddCarry,
-            6 => AluOp::SubCarry,
-            9 => AluOp::Sub,
-            12 => AluOp::Or,
-            13 => AluOp::Multiply,
-            14 => AluOp::BitClear,
-            15 => AluOp::Not,
-            _ => return None,
-        };
-        if matches!((raw >> 6) & 15, 8 | 10 | 11) {
-            destination = None;
+    match raw {
+        // BL/BLX (immediate), prefix and suffix decoded as one instruction.
+        raw if raw & 0xf800 == 0xf000 => {
+            let suffix = u16::from_le_bytes(*bytes.get(2..)?.first_chunk()?);
+            let exchange = match suffix & 0xf800 {
+                0xf800 => false,                   // BL
+                0xe800 if suffix & 1 == 0 => true, // BLX
+                _ => return None,
+            };
+            let high_offset = (i32::from(raw & 0x07ff) << 21) >> 9;
+            let target = pc
+                .wrapping_add(4)
+                .wrapping_add_signed(high_offset)
+                .wrapping_add(u32::from(suffix & 0x07ff) << 1);
+            return Some((
+                4,
+                Condition::Always,
+                Operation::Branch {
+                    target: Value::Immediate(if exchange { target & !3 } else { target }),
+                    link: Some(pc.wrapping_add(4) | 1),
+                    exchange,
+                },
+            ));
         }
-        match (raw >> 6) & 15 {
-            kind @ (2 | 3 | 4 | 7) => {
-                let shift = match kind {
-                    2 => 0,
-                    3 => 1,
-                    4 => 2,
-                    _ => 3,
-                };
-                right = shifted(Value::Register(rd), shift, ShiftAmount::Register(rm));
-                left = Value::Immediate(0);
+        // ADD/SUB (register or three-bit immediate), before the broader shift mask.
+        raw if raw & 0xf800 == 0x1800 => {
+            op = if raw & 0x0200 == 0 { AluOp::Add } else { AluOp::Sub };
+            left = Value::Register(rm);
+            right.value = if raw & 0x0400 == 0 {
+                Value::Register(((raw >> 6) & 7) as u8)
+            } else {
+                Value::Immediate(u32::from((raw >> 6) & 7))
+            };
+        }
+        // MOV/CMP/ADD/SUB (eight-bit immediate).
+        raw if raw & 0xe000 == 0x2000 => {
+            let register = ((raw >> 8) & 7) as u8;
+            let kind = (raw >> 11) & 3;
+            op = match kind {
+                0 => AluOp::Move, // MOV
+                2 => AluOp::Add,  // ADD
+                _ => AluOp::Sub,  // CMP/SUB
+            };
+            destination = if kind == 1 { None } else { Some(register) };
+            left = if kind == 0 { Value::Immediate(0) } else { Value::Register(register) };
+            right.value = Value::Immediate(u32::from(raw & 0xff));
+        }
+        // LSL/LSR/ASR (immediate).
+        raw if raw & 0xe000 == 0 => {
+            right = shifted(
+                Value::Register(rm),
+                ((raw >> 11) & 3) as u8,
+                ShiftAmount::Immediate(((raw >> 6) & 31) as u8),
+            );
+        }
+        // Register data processing.
+        raw if raw & 0xfc00 == 0x4000 => {
+            left = Value::Register(rd);
+            op = match (raw >> 6) & 15 {
+                0 | 8 => AluOp::And,          // AND/TST
+                1 => AluOp::Xor,              // EOR
+                10 => AluOp::Sub,             // CMP
+                11 => AluOp::Add,             // CMN
+                2 | 3 | 4 | 7 => AluOp::Move, // LSL/LSR/ASR/ROR
+                5 => AluOp::AddCarry,         // ADC
+                6 => AluOp::SubCarry,         // SBC
+                9 => AluOp::Sub,              // NEG
+                12 => AluOp::Or,              // ORR
+                13 => AluOp::Multiply,        // MUL
+                14 => AluOp::BitClear,        // BIC
+                15 => AluOp::Not,             // MVN
+                _ => return None,
+            };
+            if matches!((raw >> 6) & 15, 8 | 10 | 11) {
+                destination = None;
             }
-            9 | 15 => left = Value::Immediate(0),
-            _ => {}
+            match (raw >> 6) & 15 {
+                kind @ (2 | 3 | 4 | 7) => {
+                    let shift = match kind {
+                        2 => 0,
+                        3 => 1,
+                        4 => 2,
+                        _ => 3,
+                    };
+                    right = shifted(Value::Register(rd), shift, ShiftAmount::Register(rm));
+                    left = Value::Immediate(0);
+                }
+                9 | 15 => left = Value::Immediate(0),
+                _ => {}
+            }
         }
-    } else if raw & 0xfc00 == 0x4400 {
-        let source = ((raw >> 3) & 15) as u8;
-        let target = rd | ((raw >> 4) & 8) as u8;
-        right.value = if source == 15 {
-            Value::Immediate(pc.wrapping_add(4))
-        } else {
-            Value::Register(source)
-        };
-        let kind = (raw >> 8) & 3;
-        if kind == 3 {
-            let link = (raw & 0x0080 != 0).then_some(pc.wrapping_add(2) | 1);
-            if raw & 7 != 0 || (link.is_some() && source == 15) {
+        // ADD/CMP/MOV (high register), BX/BLX (register).
+        raw if raw & 0xfc00 == 0x4400 => {
+            let source = ((raw >> 3) & 15) as u8;
+            let target = rd | ((raw >> 4) & 8) as u8;
+            right.value = if source == 15 {
+                Value::Immediate(pc.wrapping_add(4))
+            } else {
+                Value::Register(source)
+            };
+            let kind = (raw >> 8) & 3;
+            if kind == 3 {
+                // BX/BLX
+                let link = (raw & 0x0080 != 0).then_some(pc.wrapping_add(2) | 1);
+                if raw & 7 != 0 || (link.is_some() && source == 15) {
+                    return None;
+                }
+                return Some((
+                    2,
+                    Condition::Always,
+                    Operation::Branch {
+                        target: right.value,
+                        link,
+                        exchange: true,
+                    },
+                ));
+            }
+            if raw & 0x00c0 == 0 || (kind == 1 && target == 15) {
+                return None;
+            }
+            op = match kind {
+                0 => AluOp::Add,  // ADD
+                1 => AluOp::Sub,  // CMP
+                _ => AluOp::Move, // MOV
+            };
+            destination = if kind == 1 { None } else { Some(target) };
+            left = if kind == 2 {
+                Value::Immediate(0)
+            } else if target == 15 {
+                Value::Immediate(pc.wrapping_add(4))
+            } else {
+                Value::Register(target)
+            };
+            set_flags = kind == 1;
+        }
+        // STMIA/LDMIA.
+        raw if raw & 0xf000 == 0xc000 => {
+            let base = ((raw >> 8) & 7) as u8;
+            let registers = raw & 0xff;
+            let load = raw & 0x0800 != 0;
+            let base_listed = registers & (1 << base) != 0;
+            if registers == 0 || (!load && base_listed && registers.trailing_zeros() != u32::from(base)) {
                 return None;
             }
             return Some((
                 2,
                 Condition::Always,
-                Operation::Branch {
-                    target: right.value,
-                    link,
-                    exchange: true,
+                Operation::MultipleTransfer {
+                    base,
+                    registers,
+                    increment: true,
+                    before: false,
+                    write_back: !load || !base_listed,
+                    load,
                 },
             ));
         }
-        if raw & 0x00c0 == 0 || (kind == 1 && target == 15) {
-            return None;
+        // PUSH/POP.
+        raw if raw & 0xf600 == 0xb400 => {
+            let load = raw & 0x0800 != 0;
+            let registers = (raw & 0xff) | ((raw & 0x100) << if load { 7 } else { 6 });
+            if registers == 0 {
+                return None;
+            }
+            return Some((
+                2,
+                Condition::Always,
+                Operation::MultipleTransfer {
+                    base: 13,
+                    registers,
+                    increment: load,
+                    before: !load,
+                    write_back: true,
+                    load,
+                },
+            ));
         }
-        op = match kind {
-            0 => AluOp::Add,
-            1 => AluOp::Sub,
-            _ => AluOp::Move,
-        };
-        destination = if kind == 1 { None } else { Some(target) };
-        left = if kind == 2 {
-            Value::Immediate(0)
-        } else if target == 15 {
-            Value::Immediate(pc.wrapping_add(4))
-        } else {
-            Value::Register(target)
-        };
-        set_flags = kind == 1;
-    } else if raw & 0xf000 == 0xc000 {
-        let base = ((raw >> 8) & 7) as u8;
-        let registers = raw & 0xff;
-        let load = raw & 0x0800 != 0;
-        let base_listed = registers & (1 << base) != 0;
-        if registers == 0 || (!load && base_listed && registers.trailing_zeros() != u32::from(base)) {
-            return None;
+        // ADD (PC/SP-relative), ADD/SUB SP (immediate).
+        raw if raw & 0xf000 == 0xa000 || raw & 0xff00 == 0xb000 => {
+            set_flags = false;
+            op = if raw & 0xf000 == 0xb000 && raw & 0x80 != 0 {
+                AluOp::Sub
+            } else {
+                AluOp::Add
+            };
+            destination = Some(if raw & 0xf000 == 0xb000 { 13 } else { ((raw >> 8) & 7) as u8 });
+            left = if raw & 0xf800 == 0xa000 {
+                Value::Immediate(pc.wrapping_add(4) & !3)
+            } else {
+                Value::Register(13)
+            };
+            right.value = Value::Immediate(u32::from(raw & if raw & 0xf000 == 0xb000 { 0x7f } else { 0xff }) * 4);
         }
-        return Some((
-            2,
-            Condition::Always,
-            Operation::MultipleTransfer {
-                base,
-                registers,
-                increment: true,
-                before: false,
-                write_back: !load || !base_listed,
-                load,
-            },
-        ));
-    } else if raw & 0xf600 == 0xb400 {
-        let load = raw & 0x0800 != 0;
-        let registers = (raw & 0xff) | ((raw & 0x100) << if load { 7 } else { 6 });
-        if registers == 0 {
-            return None;
+        // LDR/STR, LDRB/STRB, LDRH/STRH, LDRSB/LDRSH.
+        raw if raw & 0xf800 == 0x4800 || raw & 0xf000 == 0x5000 || raw & 0xe000 == 0x6000 || raw & 0xe000 == 0x8000 => {
+            return Some((2, Condition::Always, decode_thumb_memory(raw, pc)));
         }
-        return Some((
-            2,
-            Condition::Always,
-            Operation::MultipleTransfer {
-                base: 13,
-                registers,
-                increment: load,
-                before: !load,
-                write_back: true,
-                load,
-            },
-        ));
-    } else if raw & 0xf000 == 0xa000 || raw & 0xff00 == 0xb000 {
-        set_flags = false;
-        op = if raw & 0xf000 == 0xb000 && raw & 0x80 != 0 {
-            AluOp::Sub
-        } else {
-            AluOp::Add
-        };
-        destination = Some(if raw & 0xf000 == 0xb000 { 13 } else { ((raw >> 8) & 7) as u8 });
-        left = if raw & 0xf800 == 0xa000 {
-            Value::Immediate(pc.wrapping_add(4) & !3)
-        } else {
-            Value::Register(13)
-        };
-        right.value = Value::Immediate(u32::from(raw & if raw & 0xf000 == 0xb000 { 0x7f } else { 0xff }) * 4);
-    } else if raw & 0xf800 == 0x4800 || raw & 0xf000 == 0x5000 || raw & 0xe000 == 0x6000 || raw & 0xe000 == 0x8000 {
-        return Some((2, Condition::Always, decode_thumb_memory(raw, pc)));
-    } else if raw & 0xf000 == 0xd000 && (raw >> 8) & 15 < 14 {
-        let offset = i32::from(raw as u8 as i8) * 2;
-        return Some((
-            2,
-            CONDITIONS[((raw >> 8) & 15) as usize],
-            Operation::Branch {
-                target: Value::Immediate(pc.wrapping_add(4).wrapping_add_signed(offset)),
-                link: None,
-                exchange: false,
-            },
-        ));
-    } else if raw & 0xf800 == 0xe000 {
-        let offset = i32::from(((raw & 0x7ff) << 5) as i16) >> 4;
-        return Some((
-            2,
-            Condition::Always,
-            Operation::Branch {
-                target: Value::Immediate(pc.wrapping_add(4).wrapping_add_signed(offset)),
-                link: None,
-                exchange: false,
-            },
-        ));
-    } else {
-        return None;
+        // B<cond>; 0xde and 0xdf are undefined/SWI, not conditional branches.
+        raw if raw & 0xf000 == 0xd000 && (raw >> 8) & 15 < 14 => {
+            let offset = i32::from(raw as u8 as i8) * 2;
+            return Some((
+                2,
+                Condition::from_integer(((raw >> 8) & 15) as u8)?,
+                Operation::Branch {
+                    target: Value::Immediate(pc.wrapping_add(4).wrapping_add_signed(offset)),
+                    link: None,
+                    exchange: false,
+                },
+            ));
+        }
+        // B (unconditional).
+        raw if raw & 0xf800 == 0xe000 => {
+            let offset = i32::from(((raw & 0x7ff) << 5) as i16) >> 4;
+            return Some((
+                2,
+                Condition::Always,
+                Operation::Branch {
+                    target: Value::Immediate(pc.wrapping_add(4).wrapping_add_signed(offset)),
+                    link: None,
+                    exchange: false,
+                },
+            ));
+        }
+        _ => return None,
     }
     Some((
         2,
@@ -381,42 +388,49 @@ fn decode_thumb_memory(raw: u16, pc: u32) -> Operation {
     let width;
     let mut signed = false;
     let offset;
-    if raw & 0xf000 == 0x5000 {
-        let kind = (raw >> 9) & 7;
-        load = kind >= 3;
-        signed = matches!(kind, 3 | 7);
-        width = match kind {
-            0 | 4 => Width::Word,
-            1 | 5 | 7 => Width::Half,
-            _ => Width::Byte,
-        };
-        offset = Value::Register(((raw >> 6) & 7) as u8);
-    } else if raw & 0xe000 == 0x6000 || raw & 0xf000 == 0x8000 {
-        load = raw & 0x0800 != 0;
-        let scale = if raw & 0xf000 == 0x8000 {
-            2
-        } else if raw & 0x1000 != 0 {
-            1
-        } else {
-            4
-        };
-        width = match scale {
-            1 => Width::Byte,
-            2 => Width::Half,
-            _ => Width::Word,
-        };
-        offset = Value::Immediate(u32::from((raw >> 6) & 31) * scale);
-    } else {
-        let literal = raw & 0xf800 == 0x4800;
-        register = ((raw >> 8) & 7) as u8;
-        base = if literal {
-            Value::Immediate(pc.wrapping_add(4) & !3)
-        } else {
-            Value::Register(13)
-        };
-        load = literal || raw & 0x0800 != 0;
-        width = Width::Word;
-        offset = Value::Immediate(u32::from(raw & 0xff) * 4);
+    match raw {
+        // STR/STRH/STRB/LDRSB/LDR/LDRH/LDRB/LDRSH (register offset).
+        raw if raw & 0xf000 == 0x5000 => {
+            let kind = (raw >> 9) & 7;
+            load = kind >= 3;
+            signed = matches!(kind, 3 | 7);
+            width = match kind {
+                0 | 4 => Width::Word,
+                1 | 5 | 7 => Width::Half,
+                _ => Width::Byte,
+            };
+            offset = Value::Register(((raw >> 6) & 7) as u8);
+        }
+        // STR/LDR/STRB/LDRB/STRH/LDRH (immediate offset).
+        raw if raw & 0xe000 == 0x6000 || raw & 0xf000 == 0x8000 => {
+            load = raw & 0x0800 != 0;
+            let scale = if raw & 0xf000 == 0x8000 {
+                2
+            } else if raw & 0x1000 != 0 {
+                1
+            } else {
+                4
+            };
+            width = match scale {
+                1 => Width::Byte,
+                2 => Width::Half,
+                _ => Width::Word,
+            };
+            offset = Value::Immediate(u32::from((raw >> 6) & 31) * scale);
+        }
+        // LDR (PC-relative literal), STR/LDR (SP-relative).
+        _ => {
+            let literal = raw & 0xf800 == 0x4800;
+            register = ((raw >> 8) & 7) as u8;
+            base = if literal {
+                Value::Immediate(pc.wrapping_add(4) & !3)
+            } else {
+                Value::Register(13)
+            };
+            load = literal || raw & 0x0800 != 0;
+            width = Width::Word;
+            offset = Value::Immediate(u32::from(raw & 0xff) * 4);
+        }
     }
     let address = Address {
         base,
@@ -450,256 +464,269 @@ fn decode_arm(raw: u32, pc: u32, cpu_mode: u8) -> Option<(Condition, Operation)>
     let rn = ((raw >> 16) & 15) as u8;
     let rm = (raw & 15) as u8;
     if raw >> 28 == 15 {
-        if raw & 0x0e00_0000 == 0x0a00_0000 {
-            let offset = ((raw << 8) as i32) >> 6;
-            return Some((
-                Condition::Always,
+        return match raw {
+            // BLX (immediate).
+            raw if raw & 0x0e00_0000 == 0x0a00_0000 => {
+                let offset = ((raw << 8) as i32) >> 6;
+                Some((
+                    Condition::Always,
+                    Operation::Branch {
+                        target: Value::Immediate(pc.wrapping_add(8).wrapping_add_signed(offset).wrapping_add((raw >> 23) & 2) | 1),
+                        link: Some(pc.wrapping_add(4)),
+                        exchange: true,
+                    },
+                ))
+            }
+            // PLD (immediate or register offset).
+            raw if raw & 0xfd70_f000 == 0xf550_f000 && (raw & 0x0200_0000 == 0 || (raw & 0x10 == 0 && rm != 15)) => {
+                Some((Condition::Always, Operation::Nop))
+            }
+            _ => None,
+        };
+    }
+    let condition = Condition::from_integer((raw >> 28) as u8)?;
+    let immediate_status = raw & 0x0ff0_f000 == 0x0320_f000;
+    let extra_memory = raw & 0x0e00_0090 == 0x0000_0090 && raw & 0x60 != 0;
+    match raw {
+        // MRS (CPSR).
+        raw if raw & 0x0fff_0fff == 0x010f_0000 => (rd != 15).then_some((condition, Operation::ReadStatus { destination: rd })),
+        // MSR (CPSR, immediate or register).
+        raw if immediate_status || raw & 0x0ff0_fff0 == 0x0120_f000 => {
+            let fields = rn;
+            if fields == 0 || (cpu_mode == 0x1f && fields & 1 != 0) || (!immediate_status && rm == 15) {
+                return None;
+            }
+            let value = if immediate_status {
+                Value::Immediate((raw & 0xff).rotate_right(((raw >> 8) & 15) * 2))
+            } else {
+                Value::Register(rm)
+            };
+            Some((
+                condition,
+                Operation::WriteStatus {
+                    value,
+                    mask: if fields & 8 == 0 { 0 } else { 0xf000_0000 },
+                },
+            ))
+        }
+        // BX/BLX (register).
+        raw if matches!(raw & 0x0fff_fff0, 0x012f_ff10 | 0x012f_ff30) => {
+            let link = (raw & 0x20 != 0).then_some(pc.wrapping_add(4));
+            if link.is_some() && rm == 15 {
+                return None;
+            }
+            Some((
+                condition,
                 Operation::Branch {
-                    target: Value::Immediate(pc.wrapping_add(8).wrapping_add_signed(offset).wrapping_add((raw >> 23) & 2) | 1),
-                    link: Some(pc.wrapping_add(4)),
+                    target: if rm == 15 {
+                        Value::Immediate(pc.wrapping_add(8))
+                    } else {
+                        Value::Register(rm)
+                    },
+                    link,
                     exchange: true,
                 },
-            ));
+            ))
         }
-        if raw & 0xfd70_f000 == 0xf550_f000 && (raw & 0x0200_0000 == 0 || (raw & 0x10 == 0 && rm != 15)) {
-            return Some((Condition::Always, Operation::Nop));
+        // B/BL (immediate).
+        raw if raw & 0x0e00_0000 == 0x0a00_0000 => {
+            let offset = ((raw << 8) as i32) >> 6;
+            Some((
+                condition,
+                Operation::Branch {
+                    target: Value::Immediate(pc.wrapping_add(8).wrapping_add_signed(offset)),
+                    link: (raw & 0x0100_0000 != 0).then_some(pc.wrapping_add(4)),
+                    exchange: false,
+                },
+            ))
         }
-        return None;
-    }
-    let condition = CONDITIONS[(raw >> 28) as usize];
-    if raw & 0x0fff_0fff == 0x010f_0000 {
-        return (rd != 15).then_some((condition, Operation::ReadStatus { destination: rd }));
-    }
-    let immediate_status = raw & 0x0ff0_f000 == 0x0320_f000;
-    if immediate_status || raw & 0x0ff0_fff0 == 0x0120_f000 {
-        let fields = rn;
-        if fields == 0 || (cpu_mode == 0x1f && fields & 1 != 0) || (!immediate_status && rm == 15) {
-            return None;
+        // MUL/MLA.
+        raw if raw & 0x0fc0_00f0 == 0x0000_0090 => {
+            // MUL/MLA place the destination in bits 19:16; MLA uses bits 15:12 to accumulate.
+            let rs = ((raw >> 8) & 15) as u8;
+            if rn == 15 || rm == 15 || rs == 15 {
+                return None;
+            }
+            if raw & 0x0020_0000 != 0 {
+                if rd == 15 {
+                    return None;
+                }
+                return Some((
+                    condition,
+                    Operation::MultiplyAccumulate {
+                        destination: rn,
+                        left: rm,
+                        right: rs,
+                        accumulate: rd,
+                        set_flags: raw & 0x0010_0000 != 0,
+                    },
+                ));
+            }
+            if rd != 0 {
+                return None;
+            }
+            Some((
+                condition,
+                Operation::Alu {
+                    op: AluOp::Multiply,
+                    destination: Some(rn),
+                    left: Value::Register(rm),
+                    right: Operand {
+                        value: Value::Register(rs),
+                        shift: Shift::Lsl,
+                        amount: ShiftAmount::Immediate(0),
+                    },
+                    set_flags: raw & 0x0010_0000 != 0,
+                },
+            ))
         }
-        let value = if immediate_status {
-            Value::Immediate((raw & 0xff).rotate_right(((raw >> 8) & 15) * 2))
-        } else {
-            Value::Register(rm)
-        };
-        return Some((
-            condition,
-            Operation::WriteStatus {
-                value,
-                mask: if fields & 8 == 0 { 0 } else { 0xf000_0000 },
-            },
-        ));
-    }
-    if matches!(raw & 0x0fff_fff0, 0x012f_ff10 | 0x012f_ff30) {
-        let link = (raw & 0x20 != 0).then_some(pc.wrapping_add(4));
-        if link.is_some() && rm == 15 {
-            return None;
+        // UMULL/UMLAL/SMULL/SMLAL.
+        raw if raw & 0x0f80_00f0 == 0x0080_0090 => {
+            let rs = ((raw >> 8) & 15) as u8;
+            if rd == 15 || rn == 15 || rm == 15 || rs == 15 || rd == rn {
+                return None;
+            }
+            Some((
+                condition,
+                Operation::MultiplyLong {
+                    low: rd,
+                    high: rn,
+                    left: rm,
+                    right: rs,
+                    signed: raw & 0x0040_0000 != 0,
+                    accumulate: raw & 0x0020_0000 != 0,
+                    set_flags: raw & 0x0010_0000 != 0,
+                },
+            ))
         }
-        return Some((
-            condition,
-            Operation::Branch {
-                target: if rm == 15 {
+        // CLZ.
+        raw if raw & 0x0fff_0ff0 == 0x016f_0f10 => {
+            if rd == 15 || rm == 15 {
+                return None;
+            }
+            Some((
+                condition,
+                Operation::Alu {
+                    op: AluOp::CountLeadingZeros,
+                    destination: Some(rd),
+                    left: Value::Immediate(0),
+                    right: Operand {
+                        value: Value::Register(rm),
+                        shift: Shift::Lsl,
+                        amount: ShiftAmount::Immediate(0),
+                    },
+                    set_flags: false,
+                },
+            ))
+        }
+        // SWP/SWPB.
+        raw if raw & 0x0fb0_0ff0 == 0x0100_0090 => {
+            if rd == 15 || rn == 15 || rm == 15 || rn == rd || rn == rm {
+                return None;
+            }
+            Some((
+                condition,
+                Operation::Swap {
+                    destination: rd,
+                    address: rn,
+                    value: rm,
+                    width: if raw & 0x0040_0000 == 0 { Width::Word } else { Width::Byte },
+                },
+            ))
+        }
+        // LDM/STM (IA/IB/DA/DB).
+        raw if raw & 0x0e00_0000 == 0x0800_0000 => {
+            let registers = raw as u16;
+            let write_back = raw & 0x0020_0000 != 0;
+            let load = raw & 0x0010_0000 != 0;
+            if raw & 0x0040_0000 != 0
+                || rn == 15
+                || registers == 0
+                || (write_back && registers & (1 << rn) != 0 && (load || registers.trailing_zeros() != u32::from(rn)))
+            {
+                return None;
+            }
+            Some((
+                condition,
+                Operation::MultipleTransfer {
+                    base: rn,
+                    registers,
+                    increment: raw & 0x0080_0000 != 0,
+                    before: raw & 0x0100_0000 != 0,
+                    write_back,
+                    load,
+                },
+            ))
+        }
+        // LDR/STR, LDRB/STRB (including T forms), LDRH/STRH, LDRSB/LDRSH, LDRD/STRD.
+        raw if raw & 0x0c00_0000 == 0x0400_0000 || extra_memory => decode_arm_memory(raw, pc, extra_memory).map(|operation| (condition, operation)),
+        // Data processing, after the overlapping miscellaneous and memory encodings.
+        raw if raw & 0x0c00_0000 == 0 && (raw & 0x0200_0000 != 0 || raw & 0x90 != 0x90) => {
+            let kind = (raw >> 21) & 15;
+            let set_flags = raw & 0x0010_0000 != 0;
+            let compare = matches!(kind, 8..=11);
+            // S=0 test encodings belong to the miscellaneous instruction space, not the ALU.
+            if (compare && (!set_flags || rd != 0)) || (rd == 15 && set_flags) || (matches!(kind, 13 | 15) && rn != 0) {
+                return None;
+            }
+            let op = match kind {
+                0 | 8 => AluOp::And,         // AND/TST
+                1 | 9 => AluOp::Xor,         // EOR/TEQ
+                2 | 10 => AluOp::Sub,        // SUB/CMP
+                3 => AluOp::ReverseSub,      // RSB
+                4 | 11 => AluOp::Add,        // ADD/CMN
+                5 => AluOp::AddCarry,        // ADC
+                6 => AluOp::SubCarry,        // SBC
+                7 => AluOp::ReverseSubCarry, // RSC
+                12 => AluOp::Or,             // ORR
+                13 => AluOp::Move,           // MOV
+                14 => AluOp::BitClear,       // BIC
+                _ => AluOp::Not,             // MVN
+            };
+            let left = if matches!(kind, 13 | 15) {
+                Value::Immediate(0)
+            } else if rn == 15 {
+                Value::Immediate(pc.wrapping_add(8))
+            } else {
+                Value::Register(rn)
+            };
+            let right = if raw & 0x0200_0000 != 0 {
+                let rotate = ((raw >> 8) & 15) as u8 * 2;
+                Operand {
+                    value: Value::Immediate(raw & 0xff),
+                    shift: if rotate == 0 { Shift::Lsl } else { Shift::Ror },
+                    amount: ShiftAmount::Immediate(rotate),
+                }
+            } else {
+                let value = if rm == 15 {
                     Value::Immediate(pc.wrapping_add(8))
                 } else {
                     Value::Register(rm)
-                },
-                link,
-                exchange: true,
-            },
-        ));
-    }
-    if raw & 0x0e00_0000 == 0x0a00_0000 {
-        let offset = ((raw << 8) as i32) >> 6;
-        return Some((
-            condition,
-            Operation::Branch {
-                target: Value::Immediate(pc.wrapping_add(8).wrapping_add_signed(offset)),
-                link: (raw & 0x0100_0000 != 0).then_some(pc.wrapping_add(4)),
-                exchange: false,
-            },
-        ));
-    }
-    if raw & 0x0fc0_00f0 == 0x0000_0090 {
-        // MUL/MLA place the destination in bits 19:16; MLA uses bits 15:12 to accumulate.
-        let rs = ((raw >> 8) & 15) as u8;
-        if rn == 15 || rm == 15 || rs == 15 {
-            return None;
-        }
-        if raw & 0x0020_0000 != 0 {
-            if rd == 15 {
-                return None;
-            }
-            return Some((
+                };
+                let amount = if raw & 0x10 == 0 {
+                    ShiftAmount::Immediate(((raw >> 7) & 31) as u8)
+                } else {
+                    let rs = ((raw >> 8) & 15) as u8;
+                    if rd == 15 || rm == 15 || rn == 15 || rs == 15 {
+                        return None;
+                    }
+                    ShiftAmount::Register(rs)
+                };
+                shifted(value, ((raw >> 5) & 3) as u8, amount)
+            };
+            Some((
                 condition,
-                Operation::MultiplyAccumulate {
-                    destination: rn,
-                    left: rm,
-                    right: rs,
-                    accumulate: rd,
-                    set_flags: raw & 0x0010_0000 != 0,
+                Operation::Alu {
+                    op,
+                    destination: if compare { None } else { Some(rd) },
+                    left,
+                    right,
+                    set_flags,
                 },
-            ));
+            ))
         }
-        if rd != 0 {
-            return None;
-        }
-        return Some((
-            condition,
-            Operation::Alu {
-                op: AluOp::Multiply,
-                destination: Some(rn),
-                left: Value::Register(rm),
-                right: Operand {
-                    value: Value::Register(rs),
-                    shift: Shift::Lsl,
-                    amount: ShiftAmount::Immediate(0),
-                },
-                set_flags: raw & 0x0010_0000 != 0,
-            },
-        ));
+        _ => None,
     }
-    if raw & 0x0f80_00f0 == 0x0080_0090 {
-        let rs = ((raw >> 8) & 15) as u8;
-        if rd == 15 || rn == 15 || rm == 15 || rs == 15 || rd == rn {
-            return None;
-        }
-        return Some((
-            condition,
-            Operation::MultiplyLong {
-                low: rd,
-                high: rn,
-                left: rm,
-                right: rs,
-                signed: raw & 0x0040_0000 != 0,
-                accumulate: raw & 0x0020_0000 != 0,
-                set_flags: raw & 0x0010_0000 != 0,
-            },
-        ));
-    }
-    if raw & 0x0fff_0ff0 == 0x016f_0f10 {
-        if rd == 15 || rm == 15 {
-            return None;
-        }
-        return Some((
-            condition,
-            Operation::Alu {
-                op: AluOp::CountLeadingZeros,
-                destination: Some(rd),
-                left: Value::Immediate(0),
-                right: Operand {
-                    value: Value::Register(rm),
-                    shift: Shift::Lsl,
-                    amount: ShiftAmount::Immediate(0),
-                },
-                set_flags: false,
-            },
-        ));
-    }
-    if raw & 0x0fb0_0ff0 == 0x0100_0090 {
-        if rd == 15 || rn == 15 || rm == 15 || rn == rd || rn == rm {
-            return None;
-        }
-        return Some((
-            condition,
-            Operation::Swap {
-                destination: rd,
-                address: rn,
-                value: rm,
-                width: if raw & 0x0040_0000 == 0 { Width::Word } else { Width::Byte },
-            },
-        ));
-    }
-    if raw & 0x0e00_0000 == 0x0800_0000 {
-        let registers = raw as u16;
-        let write_back = raw & 0x0020_0000 != 0;
-        let load = raw & 0x0010_0000 != 0;
-        if raw & 0x0040_0000 != 0
-            || rn == 15
-            || registers == 0
-            || (write_back && registers & (1 << rn) != 0 && (load || registers.trailing_zeros() != u32::from(rn)))
-        {
-            return None;
-        }
-        return Some((
-            condition,
-            Operation::MultipleTransfer {
-                base: rn,
-                registers,
-                increment: raw & 0x0080_0000 != 0,
-                before: raw & 0x0100_0000 != 0,
-                write_back,
-                load,
-            },
-        ));
-    }
-    let extra_memory = raw & 0x0e00_0090 == 0x0000_0090 && raw & 0x60 != 0;
-    if raw & 0x0c00_0000 == 0x0400_0000 || extra_memory {
-        return decode_arm_memory(raw, pc, extra_memory).map(|operation| (condition, operation));
-    }
-    if raw & 0x0c00_0000 != 0 || (raw & 0x0200_0000 == 0 && raw & 0x90 == 0x90) {
-        return None;
-    }
-    let kind = (raw >> 21) & 15;
-    let set_flags = raw & 0x0010_0000 != 0;
-    let compare = matches!(kind, 8..=11);
-    // S=0 test encodings belong to the miscellaneous instruction space, not the ALU.
-    if (compare && (!set_flags || rd != 0)) || (rd == 15 && set_flags) || (matches!(kind, 13 | 15) && rn != 0) {
-        return None;
-    }
-    let op = match kind {
-        0 | 8 => AluOp::And,
-        1 | 9 => AluOp::Xor,
-        2 | 10 => AluOp::Sub,
-        3 => AluOp::ReverseSub,
-        4 | 11 => AluOp::Add,
-        5 => AluOp::AddCarry,
-        6 => AluOp::SubCarry,
-        7 => AluOp::ReverseSubCarry,
-        12 => AluOp::Or,
-        13 => AluOp::Move,
-        14 => AluOp::BitClear,
-        _ => AluOp::Not,
-    };
-    let left = if matches!(kind, 13 | 15) {
-        Value::Immediate(0)
-    } else if rn == 15 {
-        Value::Immediate(pc.wrapping_add(8))
-    } else {
-        Value::Register(rn)
-    };
-    let right = if raw & 0x0200_0000 != 0 {
-        let rotate = ((raw >> 8) & 15) as u8 * 2;
-        Operand {
-            value: Value::Immediate(raw & 0xff),
-            shift: if rotate == 0 { Shift::Lsl } else { Shift::Ror },
-            amount: ShiftAmount::Immediate(rotate),
-        }
-    } else {
-        let value = if rm == 15 {
-            Value::Immediate(pc.wrapping_add(8))
-        } else {
-            Value::Register(rm)
-        };
-        let amount = if raw & 0x10 == 0 {
-            ShiftAmount::Immediate(((raw >> 7) & 31) as u8)
-        } else {
-            let rs = ((raw >> 8) & 15) as u8;
-            if rd == 15 || rm == 15 || rn == 15 || rs == 15 {
-                return None;
-            }
-            ShiftAmount::Register(rs)
-        };
-        shifted(value, ((raw >> 5) & 3) as u8, amount)
-    };
-    Some((
-        condition,
-        Operation::Alu {
-            op,
-            destination: if compare { None } else { Some(rd) },
-            left,
-            right,
-            set_flags,
-        },
-    ))
 }
 
 fn decode_arm_memory(raw: u32, pc: u32, extra: bool) -> Option<Operation> {
@@ -803,7 +830,7 @@ mod tests {
 
     fn analyze(bytes: &[u8], base: u32, entry: RegionKey) -> Option<RegionIr> {
         let ir = super::analyze(bytes, base, entry, &[0; 128])?;
-        assert!(ir.blocks.len() <= 128);
+        assert!(ir.blocks.len() <= MAX_REGION_BLOCKS);
         let mut pcs = BTreeSet::new();
         let mut occupied = BTreeSet::new();
         let mut starts = BTreeSet::new();
@@ -837,7 +864,7 @@ mod tests {
                 }
             }
         }
-        assert!(pcs.len() <= 512 && pcs.contains(&entry.pc));
+        assert!(pcs.len() <= MAX_REGION_INSTRUCTIONS && pcs.contains(&entry.pc));
         for instruction in ir.blocks.iter().flat_map(|block| &block.instructions) {
             if let Operation::Branch {
                 target: Value::Immediate(target),
@@ -1429,12 +1456,15 @@ mod tests {
 
     #[test]
     fn instruction_and_block_limits_leave_dispatchable_boundaries() {
-        let ir = thumb(&[0x3001; 513], 0x1000).unwrap();
+        let ir = thumb(&[0x3001; MAX_REGION_INSTRUCTIONS + 1], 0x1000).unwrap();
         assert_eq!(ir.blocks.len(), 1);
-        assert_eq!(ir.blocks[0].instructions.len(), 512);
-        assert_eq!(ir.blocks[0].instructions[511].pc, 0x13fe);
+        assert_eq!(ir.blocks[0].instructions.len(), MAX_REGION_INSTRUCTIONS);
+        assert_eq!(
+            ir.blocks[0].instructions.last().unwrap().pc,
+            0x1000 + (MAX_REGION_INSTRUCTIONS as u32 - 1) * 2
+        );
         let ir = thumb(&[0xd1ff; 200], 0x1000).unwrap();
-        assert_eq!(ir.blocks.len(), 128);
+        assert_eq!(ir.blocks.len(), MAX_REGION_BLOCKS);
         for (index, block) in ir.blocks.iter().enumerate() {
             assert_eq!(block.instructions.len(), 1);
             assert_eq!(block.instructions[0].pc, 0x1000 + index as u32 * 2);
@@ -1443,7 +1473,7 @@ mod tests {
         let mut code = vec![0xd1ff; 200];
         code.push(0xe736); // b 0x1000 at 0x1190
         let ir = thumb(&code, 0x1190).unwrap();
-        assert_eq!(ir.blocks.len(), 128);
+        assert_eq!(ir.blocks.len(), MAX_REGION_BLOCKS);
         assert_eq!(ir.blocks[0].instructions[0].pc, 0x1190);
     }
 
@@ -1506,7 +1536,8 @@ mod tests {
 
     #[test]
     fn arm_multiply_preserves_conditions_operands_and_flag_selection() {
-        for (condition_bits, condition) in CONDITIONS.into_iter().enumerate() {
+        for condition_bits in Condition::MIN_VALUE..=Condition::MAX_VALUE {
+            let condition = Condition::from_integer(condition_bits).unwrap();
             for set_flags in [false, true] {
                 for (rd, rm, rs) in [(0, 0, 1), (2, 1, 2), (14, 13, 12), (0, 0, 0)] {
                     let opcode = ((condition_bits as u32) << 28)
@@ -1874,7 +1905,8 @@ mod tests {
 
     #[test]
     fn arm_multiple_transfers_preserve_modes_masks_and_base_alias_rules() {
-        for (bits, condition) in CONDITIONS.into_iter().enumerate() {
+        for bits in Condition::MIN_VALUE..=Condition::MAX_VALUE {
+            let condition = Condition::from_integer(bits).unwrap();
             for increment in [false, true] {
                 for before in [false, true] {
                     for write_back in [false, true] {

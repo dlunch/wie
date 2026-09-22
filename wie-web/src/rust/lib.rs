@@ -237,8 +237,9 @@ impl WieWeb {
             let font = Font::try_from_vec(font_data)?;
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
             let options = Options {
+                enable_gdbserver: false,
                 enable_aot,
-                ..Default::default()
+                profile: None,
             };
 
             let emulator: Box<dyn Emulator> = if filename.to_ascii_lowercase().ends_with(".zip") {

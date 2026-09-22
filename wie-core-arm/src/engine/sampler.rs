@@ -4,6 +4,8 @@ use wie_backend::ProfileSample;
 
 const PROFILE_MAX_STACK: usize = 32;
 const PROFILE_FLUSH_INTERVAL: u64 = 1000;
+const SAMPLE_INTERVAL: u32 = 1024;
+const SAMPLE_JITTER: u32 = 128;
 
 pub(super) struct Sampler {
     pub remaining: u32,
@@ -18,7 +20,7 @@ pub(super) struct Sampler {
 impl Sampler {
     pub fn new() -> Self {
         Self {
-            remaining: 1024,
+            remaining: SAMPLE_INTERVAL,
             profiling: false,
             sequence: 0,
             pending_stack: None,
@@ -59,10 +61,12 @@ impl Sampler {
             return false;
         }
         self.sequence += 1;
+        // Xorshift32 varies the interval so periodic guest loops do not always sample the same instruction.
         self.jitter ^= self.jitter << 13;
         self.jitter ^= self.jitter >> 17;
         self.jitter ^= self.jitter << 5;
-        self.remaining = 896 + self.jitter % 257;
+        // Spread samples over 1024 +/- 128 retired instructions (896..=1152).
+        self.remaining = SAMPLE_INTERVAL - SAMPLE_JITTER + self.jitter % (2 * SAMPLE_JITTER + 1);
 
         if let Some(stack) = self.pending_stack.take() {
             *self.profile.entry(stack).or_default() += 1;
@@ -216,12 +220,13 @@ mod tests {
             let observed = Arc::new(Mutex::new(BTreeMap::new()));
             let output = observed.clone();
             let mut core = ArmCore::new(wie_backend::Options {
+                enable_gdbserver: false,
+                enable_aot: false,
                 profile: Some(Box::new(move |batch| {
                     for sample in batch {
                         *output.lock().entry(sample.stack).or_insert(0u64) += sample.count;
                     }
                 })),
-                ..Default::default()
             })
             .unwrap();
             crate::Allocator::init(&mut core).unwrap();

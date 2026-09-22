@@ -1,5 +1,7 @@
 use alloc::vec::Vec;
 
+use bytemuck::Contiguous;
+
 use crate::RegionKey;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -21,7 +23,9 @@ pub struct Instruction {
     pub operation: Operation,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// ARM condition-field encodings; 0xf belongs to the unconditional instruction space.
+#[derive(Clone, Copy, Debug, PartialEq, Contiguous)]
+#[repr(u8)]
 pub enum Condition {
     Eq,
     Ne,
