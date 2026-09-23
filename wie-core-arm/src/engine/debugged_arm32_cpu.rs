@@ -242,7 +242,7 @@ impl DebugInner {
     }
 
     pub(crate) fn interrupt(&self) {
-        // ponytail: assumes a runnable thread; fully sleeping targets need an idle checkpoint.
+        // Assumes a runnable thread; fully sleeping targets need an idle checkpoint.
         let mut state = self.run_state.lock();
         if matches!(*state, RunState::Running { .. }) {
             *state = RunState::Interrupt;

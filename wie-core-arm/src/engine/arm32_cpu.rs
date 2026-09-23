@@ -74,7 +74,7 @@ impl Arm32CpuEngine {
         if instruction & 0x0fff_0f10 != 0x0e07_0f10 {
             return None;
         }
-        // ponytail: Ignore NZCV; check conditions only if over-invalidation proves costly.
+        // Matching cache-maintenance opcodes invalidate regardless of NZCV.
         match (instruction & 15, (instruction >> 5) & 7) {
             (5, 0 | 2) | (7, 0) => Some(InstructionCacheInvalidation::All),
             (5, 1) => Some(InstructionCacheInvalidation::Address(
