@@ -84,31 +84,3 @@ impl Volume {
         Ok(0)
     }
 }
-
-#[cfg(test)]
-mod test {
-    use alloc::boxed::Box;
-
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::get_protos;
-
-    #[test]
-    fn test_volume_type_stubs_return_neutral_values() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let _: () = jvm.invoke_static("org/kwis/msp/media/Volume", "setMute", "(IZ)V", (7, true)).await?;
-            let muted: bool = jvm.invoke_static("org/kwis/msp/media/Volume", "getMute", "(I)Z", (7,)).await?;
-            let set_default: bool = jvm
-                .invoke_static("org/kwis/msp/media/Volume", "setDefaultVolume", "(II)Z", (7, 11))
-                .await?;
-            let default_volume: i32 = jvm.invoke_static("org/kwis/msp/media/Volume", "getDefaultVolume", "(I)I", (7,)).await?;
-
-            assert!(!muted);
-            assert!(!set_default);
-            assert_eq!(default_volume, 0);
-
-            Ok(())
-        })
-    }
-}

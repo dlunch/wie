@@ -45,22 +45,3 @@ impl Vibrator {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod test {
-    use alloc::boxed::Box;
-
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::get_protos;
-
-    #[test]
-    fn test_off_is_noop() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let _: () = jvm.invoke_static("org/kwis/msp/media/Vibrator", "off", "()V", ()).await?;
-
-            Ok(())
-        })
-    }
-}

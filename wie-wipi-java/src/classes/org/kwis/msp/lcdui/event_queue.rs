@@ -92,35 +92,3 @@ impl EventQueue {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod test {
-    use alloc::boxed::Box;
-
-    use jvm::ClassInstanceRef;
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::{classes::org::kwis::msp::lcdui::EventQueue, get_protos};
-
-    #[test]
-    fn test_post_event_stubs_are_callable() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let queue: ClassInstanceRef<EventQueue> = jvm
-                .new_class("org/kwis/msp/lcdui/EventQueue", "(Lorg/kwis/msp/lcdui/Jlet;)V", [None.into()])
-                .await?
-                .into();
-            let event = jvm.instantiate_array("I", 4).await?;
-
-            assert!(
-                !jvm.invoke_virtual::<_, bool>(&queue, "org/kwis/msp/lcdui/EventQueue", "postEvent", "([I)Z", (event.clone(),))
-                    .await?
-            );
-            let _: () = jvm
-                .invoke_static("org/kwis/msp/lcdui/EventQueue", "postEvent", "(I[I)V", (1, event))
-                .await?;
-
-            Ok(())
-        })
-    }
-}

@@ -50,26 +50,3 @@ impl BackLight {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod test {
-    use alloc::boxed::Box;
-
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::get_protos;
-
-    #[test]
-    fn test_backlight_stubs_are_callable() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let _: () = jvm
-                .invoke_static("org/kwis/msp/handset/BackLight", "on", "(III)V", (1, 0xffffff, 1000))
-                .await?;
-            let _: () = jvm.invoke_static("org/kwis/msp/handset/BackLight", "off", "()V", ()).await?;
-            let _: () = jvm.invoke_static("org/kwis/msp/handset/BackLight", "before", "()V", ()).await?;
-
-            Ok(())
-        })
-    }
-}

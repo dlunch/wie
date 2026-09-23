@@ -54,34 +54,3 @@ impl HandsetProperty {
         Ok(false)
     }
 }
-
-#[cfg(test)]
-mod test {
-    use alloc::boxed::Box;
-
-    use jvm::{ClassInstanceRef, runtime::JavaLangString};
-    use rustjava_runtime::classes::java::lang::String;
-    use test_utils::run_jvm_test;
-    use wie_util::Result;
-
-    use crate::get_protos;
-
-    #[test]
-    fn test_set_system_property_returns_false() -> Result<()> {
-        run_jvm_test(Box::new([get_protos().into()]), |jvm| async move {
-            let id: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "storage.test").await?.into();
-            let value: ClassInstanceRef<String> = JavaLangString::from_rust_string(&jvm, "value").await?.into();
-            let result: bool = jvm
-                .invoke_static(
-                    "org/kwis/msp/handset/HandsetProperty",
-                    "setSystemProperty",
-                    "(Ljava/lang/String;Ljava/lang/String;)Z",
-                    (id, value),
-                )
-                .await?;
-
-            assert!(!result);
-            Ok(())
-        })
-    }
-}

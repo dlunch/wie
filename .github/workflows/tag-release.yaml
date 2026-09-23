@@ -1,0 +1,52 @@
+name: Tag release
+run-name: Tag v${{ inputs.version }} and start the next development version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (X.Y.Z, without v)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install required packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libasound2-dev
+
+      - name: Install cargo-edit
+        run: cargo install cargo-edit --locked --no-default-features --features set-version
+
+      - name: Tag release and prepare next version
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bash .github/scripts/release/tag-version.sh

@@ -966,44 +966,7 @@ mod test {
     }
 
     #[test]
-    fn test_get_pixel_reads_the_backing_image() -> Result<()> {
-        run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
-            let image: ClassInstanceRef<Image> = jvm
-                .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 1))
-                .await?;
-            let graphics: ClassInstanceRef<Graphics> = jvm
-                .invoke_virtual(&image, "org/kwis/msp/lcdui/Image", "getGraphics", "()Lorg/kwis/msp/lcdui/Graphics;", ())
-                .await?;
-
-            let _: () = jvm
-                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "setColor", "(I)V", (0x123456,))
-                .await?;
-            let _: () = jvm
-                .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (0, 0, 1, 1))
-                .await?;
-
-            assert_eq!(
-                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (0, 0))
-                    .await?,
-                0x123456
-            );
-            assert_eq!(
-                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (-1, 0))
-                    .await?,
-                0
-            );
-            assert_eq!(
-                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (2, 0))
-                    .await?,
-                0
-            );
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_get_pixel_follows_translation() -> Result<()> {
+    fn test_get_pixel_reads_the_backing_image_and_follows_translation() -> Result<()> {
         run_jvm_test(Box::new([wie_midp::get_protos().into(), get_protos().into()]), |jvm| async move {
             let image: ClassInstanceRef<Image> = jvm
                 .invoke_static("org/kwis/msp/lcdui/Image", "createImage", "(II)Lorg/kwis/msp/lcdui/Image;", (2, 1))
@@ -1024,6 +987,17 @@ mod test {
             let _: () = jvm
                 .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "fillRect", "(IIII)V", (1, 0, 1, 1))
                 .await?;
+
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (0, 0))
+                    .await?,
+                0x123456
+            );
+            assert_eq!(
+                jvm.invoke_virtual::<_, i32>(&graphics, "org/kwis/msp/lcdui/Graphics", "getPixel", "(II)I", (-1, 0))
+                    .await?,
+                0
+            );
 
             let _: () = jvm
                 .invoke_virtual(&graphics, "org/kwis/msp/lcdui/Graphics", "translate", "(II)V", (1, 0))

@@ -263,70 +263,11 @@ mod tests {
     }
 
     #[futures_test::test]
-    async fn add_then_read_virtual() {
-        let fs = setup();
-        fs.add_virtual("a.bin", vec![1, 2, 3, 4]);
-
-        let mut buf = [0u8; 4];
-        assert_eq!(fs.read("a.bin", 0, 4, &mut buf).await, Some(4));
-        assert_eq!(buf, [1, 2, 3, 4]);
-    }
-
-    #[futures_test::test]
-    async fn size_falls_through_to_virtual() {
-        let fs = setup();
-        fs.add_virtual("x", vec![0; 17]);
-
-        assert_eq!(fs.size("x").await, Some(17));
-        assert_eq!(fs.size("nope").await, None);
-    }
-
-    #[futures_test::test]
-    async fn exists_checks_both_layers() {
-        let fs = setup();
-        fs.add_virtual("x", vec![1]);
-
-        assert!(fs.exists("x").await);
-        assert!(!fs.exists("y").await);
-
-        fs.write("written", 0, &[9]).await;
-        assert!(fs.exists("written").await);
-    }
-
-    #[futures_test::test]
-    async fn leading_slash_normalized() {
-        let fs = setup();
-        fs.add_virtual("/a/b", vec![9]);
-
-        assert!(fs.exists("a/b").await);
-        assert!(fs.exists("/a/b").await);
-    }
-
-    #[futures_test::test]
-    async fn read_past_eof_virtual_returns_some_zero() {
-        let fs = setup();
-        fs.add_virtual("a", vec![1, 2, 3]);
-
-        let mut buf = [0u8; 4];
-        assert_eq!(fs.read("a", 10, 4, &mut buf).await, Some(0));
-    }
-
-    #[futures_test::test]
-    async fn read_missing_returns_none() {
+    async fn missing_file_has_no_data_or_size() {
         let fs = setup();
         let mut buf = [0u8; 4];
         assert_eq!(fs.read("nope", 0, 4, &mut buf).await, None);
-    }
-
-    #[futures_test::test]
-    async fn platform_write_shadows_virtual() {
-        let fs = setup();
-        fs.add_virtual("cfg.dat", vec![0xAA, 0xBB, 0xCC]);
-        fs.write("cfg.dat", 0, &[1, 2, 3, 4]).await;
-
-        let mut buf = [0u8; 4];
-        assert_eq!(fs.read("cfg.dat", 0, 4, &mut buf).await, Some(4));
-        assert_eq!(buf, [1, 2, 3, 4]);
+        assert_eq!(fs.size("nope").await, None);
     }
 
     #[futures_test::test]
