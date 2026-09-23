@@ -164,6 +164,10 @@ impl J2MEEmulator {
 }
 
 impl Emulator for J2MEEmulator {
+    fn is_preparing(&self) -> bool {
+        false
+    }
+
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
     }

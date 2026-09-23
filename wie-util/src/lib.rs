@@ -77,6 +77,8 @@ where
     Ok(unsafe { destination.assume_init() })
 }
 
+/// Reads a byte string excluding its first NUL. The starting address must be
+/// nonzero; subsequent guest addresses wrap at 32 bits.
 pub fn read_null_terminated_string_bytes<R>(reader: &R, address: u32) -> Result<Vec<u8>>
 where
     R: ?Sized + ByteRead,

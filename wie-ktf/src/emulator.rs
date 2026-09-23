@@ -121,9 +121,9 @@ impl KtfEmulator {
         aid: &str,
         main_class_name: Option<String>,
         files: &BTreeMap<String, Vec<u8>>,
-        mut options: Options,
+        options: Options,
     ) -> Result<Self> {
-        let mut core = ArmCore::new(options.enable_gdbserver, options.profile.take())?;
+        let mut core = ArmCore::new(options)?;
         let system = System::new(platform, pid, aid, KtfTaskRunner { core: core.clone() });
 
         for (path, data) in files {
@@ -187,6 +187,10 @@ impl KtfEmulator {
 }
 
 impl Emulator for KtfEmulator {
+    fn is_preparing(&self) -> bool {
+        self.core.is_preparing()
+    }
+
     fn handle_event(&mut self, event: Event) {
         self.system.event_queue().push(event)
     }
@@ -223,7 +227,11 @@ mod tests {
 
     #[test]
     fn switches_jvm_thread_context_between_tasks() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
         Allocator::init(&mut core)?;
 
         let mut system = System::new(Box::new(TestPlatform::new()), "", "", KtfTaskRunner { core: core.clone() });

@@ -20,6 +20,7 @@ smaf = { version = "^0.1.2" }
 smaf-player = { version = "^0.1.2" }
 zip = { version = "^8.6", features = ["deflate"], default-features = false }
 
+wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }
 
 [dev-dependencies]

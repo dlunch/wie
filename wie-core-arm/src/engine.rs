@@ -1,9 +1,11 @@
 mod arm32_cpu;
 mod debugged_arm32_cpu;
 
+use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
 use wie_util::{AsAny, Result};
 
 pub use arm32_cpu::Arm32CpuEngine;
+pub(crate) use arm32_cpu::EmulatedMemory;
 pub use debugged_arm32_cpu::DebuggedArm32CpuEngine;
 pub(crate) use debugged_arm32_cpu::{DebugBreakpointKind, DebugInner, DebugSignal, DebugStopReason};
 
@@ -15,7 +17,8 @@ pub enum EngineStopReason {
 
 pub struct EngineRunResult {
     pub stop_reason: EngineStopReason,
-    pub instructions_executed: u32,
+    /// Interpreted instructions on Wasm; all retired instructions on native targets.
+    pub budget_consumed: u32,
 }
 
 pub trait ArmEngine: Send + AsAny {
@@ -26,6 +29,10 @@ pub trait ArmEngine: Send + AsAny {
     fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
     fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
+    fn record_image(&mut self, address: u32, size: usize);
+    fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>>;
+    fn is_preparing(&self) -> bool;
+    fn finish_preparation(&mut self, result: Result<CompiledArtifact>);
 }
 
 #[allow(clippy::enum_variant_names)]

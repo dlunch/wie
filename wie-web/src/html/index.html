@@ -113,6 +113,10 @@
       <main class="player-main">
         <div class="canvas-wrapper">
           <canvas id="canvas" width="240" height="320"></canvas>
+          <div id="player-status" class="player-status" role="status" hidden>
+            <span id="player-status-label">실행 준비중</span>
+            <progress aria-labelledby="player-status-label"></progress>
+          </div>
         </div>
 
         <div class="button-container" aria-label="앱 키패드">
@@ -170,6 +174,11 @@
             <i data-lucide="volume-2"></i>
             <span>효과음</span>
             <input type="range" id="volume-pcm" min="0" max="100" value="50" />
+          </label>
+          <label>
+            <i data-lucide="cpu"></i>
+            <span>AOT 최적화(Experimental)</span>
+            <input type="checkbox" id="enable-wasm-aot" />
           </label>
         </div>
       </form>

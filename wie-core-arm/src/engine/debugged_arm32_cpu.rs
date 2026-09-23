@@ -7,7 +7,9 @@ use core::time::Duration;
 
 use crossbeam::channel;
 use spin::Mutex;
-use wie_util::WieError;
+
+use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
+use wie_util::{Result as WieResult, WieError};
 
 use crate::{ThreadId, context::ArmCoreContext};
 
@@ -196,7 +198,7 @@ impl DebugInner {
         cpu.reg_write(ArmRegister::Cpsr, regs.cpsr);
     }
 
-    pub(crate) fn read_memory(&self, start_addr: u32, data: &mut [u8]) -> wie_util::Result<usize> {
+    pub(crate) fn read_memory(&self, start_addr: u32, data: &mut [u8]) -> WieResult<usize> {
         let result = self.cpu.lock().mem_read(start_addr, data.len(), data)?;
         let breakpoints = self.breakpoints.lock();
         overlay_breakpoint_originals(&breakpoints, start_addr, data, true);
@@ -204,7 +206,7 @@ impl DebugInner {
         Ok(result)
     }
 
-    pub(crate) fn write_memory(&self, start_addr: u32, data: &[u8]) -> wie_util::Result<()> {
+    pub(crate) fn write_memory(&self, start_addr: u32, data: &[u8]) -> WieResult<()> {
         let mut breakpoints = self.breakpoints.lock();
         let write_end = start_addr + data.len() as u32;
 
@@ -239,7 +241,7 @@ impl DebugInner {
     }
 
     pub(crate) fn interrupt(&self) {
-        // ponytail: assumes a runnable thread; fully sleeping targets need an idle checkpoint.
+        // Assumes a runnable thread; fully sleeping targets need an idle checkpoint.
         let mut state = self.run_state.lock();
         if matches!(*state, RunState::Running { .. }) {
             *state = RunState::Interrupt;
@@ -283,7 +285,7 @@ impl DebugInner {
         }
     }
 
-    pub(crate) fn detach(&self) -> wie_util::Result<()> {
+    pub(crate) fn detach(&self) -> WieResult<()> {
         self.pause();
         let addresses: Vec<_> = self.breakpoints.lock().keys().copied().collect();
         for address in addresses {
@@ -293,7 +295,7 @@ impl DebugInner {
         Ok(())
     }
 
-    pub(crate) fn add_breakpoint(&self, addr: u32, kind: DebugBreakpointKind) -> wie_util::Result<()> {
+    pub(crate) fn add_breakpoint(&self, addr: u32, kind: DebugBreakpointKind) -> WieResult<()> {
         let addr = Self::normalize_addr(addr);
         if self.breakpoints.lock().contains_key(&addr) {
             return Ok(());
@@ -320,7 +322,7 @@ impl DebugInner {
         Ok(())
     }
 
-    pub(crate) fn remove_breakpoint(&self, addr: u32) -> wie_util::Result<()> {
+    pub(crate) fn remove_breakpoint(&self, addr: u32) -> WieResult<()> {
         let addr = Self::normalize_addr(addr);
         let breakpoint = self.breakpoints.lock().remove(&addr);
 
@@ -388,7 +390,7 @@ impl DebugInner {
         if addr & 1 == 1 { addr - 1 } else { addr }
     }
 
-    fn try_restore_breakpoint(&self, addr: u32) -> wie_util::Result<bool> {
+    fn try_restore_breakpoint(&self, addr: u32) -> WieResult<bool> {
         let mut cpu = self.cpu.lock();
         let mut breakpoints = self.breakpoints.lock();
 
@@ -403,7 +405,7 @@ impl DebugInner {
         }
     }
 
-    fn reinsert_breakpoint(&self, addr: u32) -> wie_util::Result<()> {
+    fn reinsert_breakpoint(&self, addr: u32) -> WieResult<()> {
         let mut cpu = self.cpu.lock();
         let mut breakpoints = self.breakpoints.lock();
 
@@ -454,27 +456,27 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
-        let mut instructions_executed = 0;
+    fn run(&mut self, end: u32, count: u32) -> WieResult<EngineRunResult> {
+        let mut budget_consumed = 0;
         loop {
             let thread_id = self.stop_thread_id();
             let resume_mode = self.debug.wait_for_resume_mode(thread_id);
             if !self.debug.is_thread_resumed(thread_id) {
                 return Ok(EngineRunResult {
                     stop_reason: EngineStopReason::Yield,
-                    instructions_executed,
+                    budget_consumed,
                 });
             }
             let stepping = matches!(resume_mode, ResumeMode::Step);
 
-            if instructions_executed == count {
+            if budget_consumed == count {
                 let mut result = self.debug.cpu.lock().run(end, 0)?;
-                result.instructions_executed += instructions_executed;
+                result.budget_consumed += budget_consumed;
                 return Ok(result);
             }
 
             let current_pc = DebugInner::normalize_addr(self.debug.cpu.lock().reg_read(ArmRegister::PC));
-            let result = if self.pending_breakpoint_step.remove(&thread_id) == Some(current_pc) {
+            let result = if self.pending_breakpoint_step.get(&thread_id) == Some(&current_pc) {
                 let result = self
                     .debug
                     .try_restore_breakpoint(current_pc)
@@ -483,8 +485,12 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                     self.debug.stop(DebugStopReason::Signal(DebugSignal::Abrt, self.stop_thread_id()));
                     return Err(error);
                 }
+                if result.as_ref().is_ok_and(|result| result.budget_consumed != 0) {
+                    self.pending_breakpoint_step.remove(&thread_id);
+                }
                 result
             } else {
+                self.pending_breakpoint_step.remove(&thread_id);
                 if self.debug.breakpoints.lock().contains_key(&current_pc) {
                     // Keep the trap installed while another thread may be resumed.
                     self.pending_breakpoint_step.insert(thread_id, current_pc);
@@ -493,7 +499,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
                 }
 
                 let run_count = if !stepping && !self.debug.has_breakpoints() {
-                    count - instructions_executed
+                    count - budget_consumed
                 } else {
                     1
                 };
@@ -502,13 +508,13 @@ impl ArmEngine for DebuggedArm32CpuEngine {
 
             match result {
                 Ok(mut result) => {
-                    let executed_instruction = result.instructions_executed != 0;
-                    instructions_executed += result.instructions_executed;
-                    result.instructions_executed = instructions_executed;
+                    let executed_instruction = result.budget_consumed != 0;
+                    budget_consumed += result.budget_consumed;
+                    result.budget_consumed = budget_consumed;
                     match result.stop_reason {
                         EngineStopReason::Svc { .. } => return Ok(result),
                         _ if stepping && executed_instruction => self.debug.stop(DebugStopReason::DoneStep(self.stop_thread_id())),
-                        EngineStopReason::Yield if instructions_executed < count => continue,
+                        EngineStopReason::Yield if budget_consumed < count => continue,
                         _ => return Ok(result),
                     }
                 }
@@ -529,16 +535,32 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().mem_map(address, size, permission)
     }
 
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> wie_util::Result<()> {
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> WieResult<()> {
         self.debug.cpu.lock().mem_write(address, data)
     }
 
-    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> wie_util::Result<usize> {
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize> {
         self.debug.cpu.lock().mem_read(address, size, result)
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.debug.cpu.lock().is_mapped(address, size)
+    }
+
+    fn record_image(&mut self, address: u32, size: usize) {
+        self.debug.cpu.lock().record_image(address, size);
+    }
+
+    fn begin_preparation(&mut self) -> WieResult<Option<PreparationFuture>> {
+        self.debug.cpu.lock().begin_preparation()
+    }
+
+    fn is_preparing(&self) -> bool {
+        self.debug.cpu.lock().is_preparing()
+    }
+
+    fn finish_preparation(&mut self, result: WieResult<CompiledArtifact>) {
+        self.debug.cpu.lock().finish_preparation(result);
     }
 }
 
@@ -565,7 +587,7 @@ mod tests {
         runner.join().unwrap();
         let result = result.unwrap().unwrap();
         assert!(matches!(result.stop_reason, EngineStopReason::End));
-        assert_eq!(result.instructions_executed, 0);
+        assert_eq!(result.budget_consumed, 0);
         assert!(debug.stop_event_rx.is_empty());
     }
 
@@ -675,6 +697,83 @@ mod tests {
     }
 
     #[test]
+    fn zero_budget_breakpoint_resumes_keep_the_pending_instruction_until_it_retires() {
+        extern crate std;
+
+        for stepping in [false, true] {
+            let mut engine = DebuggedArm32CpuEngine::new();
+            engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x1000, &[0x01, 0x30, 0x01, 0x30]).unwrap();
+            engine.reg_write(ArmRegister::Cpsr, 0x3f);
+            engine.reg_write(ArmRegister::PC, 0x1001);
+            engine.debug.on_thread_entered(1);
+            engine.debug.add_breakpoint(0x1000, DebugBreakpointKind::Thumb16).unwrap();
+            let debug = engine.debug.clone();
+            debug.resume(Vec::new(), None);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1);
+                (engine, result)
+            });
+            let stopped = debug.recv_stop_event_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), Some(vec![2]));
+            let (mut engine, result) = runner.join().unwrap();
+            assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.budget_consumed, 0);
+            assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
+
+            debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
+            let (tx, rx) = channel::bounded(1);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 0);
+                tx.send((engine, result)).unwrap();
+            });
+            let suspended = rx.recv_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            let (mut engine, result) = suspended.unwrap();
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.budget_consumed, 0);
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1000);
+            assert_eq!(engine.reg_read(ArmRegister::R0), 0);
+            assert_eq!(engine.pending_breakpoint_step.get(&1), Some(&0x1000));
+            let mut trap = [0; 2];
+            engine.mem_read(0x1000, 2, &mut trap).unwrap();
+            assert_eq!(trap, [0x00, 0xbe]);
+            assert!(debug.stop_event_rx.is_empty());
+
+            debug.resume(if stepping { vec![1] } else { Vec::new() }, None);
+            let (tx, rx) = channel::bounded(1);
+            let runner = std::thread::spawn(move || {
+                let result = engine.run(0x2000, 1);
+                tx.send((engine, result)).unwrap();
+            });
+            let stopped = stepping.then(|| debug.recv_stop_event_timeout(Duration::from_secs(1)));
+            if stepping {
+                debug.resume(Vec::new(), None);
+            }
+            let resumed = rx.recv_timeout(Duration::from_secs(1));
+            debug.resume(Vec::new(), None);
+            runner.join().unwrap();
+            let (mut engine, result) = resumed.unwrap();
+            let result = result.unwrap();
+            assert!(matches!(result.stop_reason, EngineStopReason::Yield));
+            assert_eq!(result.budget_consumed, 1);
+            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1002);
+            assert_eq!(engine.reg_read(ArmRegister::R0), 1);
+            assert!(!engine.pending_breakpoint_step.contains_key(&1));
+            engine.mem_read(0x1000, 2, &mut trap).unwrap();
+            assert_eq!(trap, [0x00, 0xbe]);
+            assert!(debug.stop_event_rx.is_empty());
+            if let Some(stopped) = stopped {
+                assert!(matches!(stopped, Ok(DebugStopReason::DoneStep(1))));
+            }
+        }
+    }
+
+    #[test]
     fn breakpoint_steps_count_toward_the_svc_instruction_budget() {
         extern crate std;
 
@@ -695,7 +794,7 @@ mod tests {
         let (result, r0) = runner.join().unwrap();
         assert!(matches!(stopped, Ok(DebugStopReason::SwBreak(1))));
         assert!(matches!(result.stop_reason, EngineStopReason::Svc { category: 1, lr: 0x1006, .. }));
-        assert_eq!(result.instructions_executed, 3);
+        assert_eq!(result.budget_consumed, 3);
         assert_eq!(r0, 2);
     }
 

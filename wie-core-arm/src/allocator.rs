@@ -58,7 +58,11 @@ mod tests {
 
     #[test]
     fn allocation_status_tracks_bucket_and_list_allocations() -> Result<()> {
-        let mut core = ArmCore::new(false, None)?;
+        let mut core = ArmCore::new(wie_backend::Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })?;
         Allocator::init(&mut core)?;
 
         let bucket = Allocator::alloc(&mut core, 12)?;

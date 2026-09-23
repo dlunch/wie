@@ -36,6 +36,7 @@ pub fn test_helloworld() -> Result<()> {
         archive,
         Options {
             enable_gdbserver: false,
+            aot: None,
             profile: None,
         },
     )?;

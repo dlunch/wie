@@ -1,0 +1,12 @@
+[package]
+name = "wie-core-arm-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+
+[dependencies]
+nom = { version = "^8", default-features = false, features = ["alloc"] }
+wasm-encoder = { version = "^0.257", default-features = false }
+wie-arm-jit-types = { workspace = true }

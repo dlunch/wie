@@ -1,6 +1,7 @@
 #![no_std]
 extern crate alloc;
 
+mod aot;
 mod audio_sink;
 mod database;
 mod filesystem;
@@ -229,7 +230,7 @@ pub fn extract_app_metadata(filename: &str, buf: &[u8]) -> Result<ImportedAppMet
 #[wasm_bindgen]
 impl WieWeb {
     #[wasm_bindgen(constructor)]
-    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>) -> Result<WieWeb, JsError> {
+    pub fn new(filename: &str, buf: &[u8], canvas: HtmlCanvasElement, font_data: Vec<u8>, enable_aot: bool) -> Result<WieWeb, JsError> {
         let audio_player = AudioPlayer::new();
         let result = (|| {
             let should_redraw = Arc::new(AtomicBool::new(true));
@@ -238,6 +239,7 @@ impl WieWeb {
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
             let options = Options {
                 enable_gdbserver: false,
+                aot: enable_aot.then(|| Box::new(aot::WasmExecutor::default()) as Box<dyn wie_arm_jit_types::CompiledExecutor>),
                 profile: None,
             };
 
@@ -293,6 +295,10 @@ impl WieWeb {
             audio_player.dispose();
         }
         result.map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    pub fn is_preparing(&self) -> bool {
+        self.emulator.is_preparing()
     }
 
     pub fn update(&mut self) -> Result<(), JsError> {
