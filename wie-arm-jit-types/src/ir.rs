@@ -4,18 +4,15 @@ use bytemuck::Contiguous;
 
 use crate::RegionKey;
 
-#[derive(Clone, Debug, PartialEq)]
 pub struct RegionIr {
     pub entry: RegionKey,
     pub blocks: Vec<BasicBlock>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 pub struct BasicBlock {
     pub instructions: Vec<Instruction>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 pub struct Instruction {
     pub pc: u32,
     pub size: u8,
@@ -24,7 +21,7 @@ pub struct Instruction {
 }
 
 /// ARM condition-field encodings; 0xf belongs to the unconditional instruction space.
-#[derive(Clone, Copy, Debug, PartialEq, Contiguous)]
+#[derive(Clone, Copy, PartialEq, Contiguous)]
 #[repr(u8)]
 pub enum Condition {
     Eq,
@@ -44,13 +41,13 @@ pub enum Condition {
     Always,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Value {
     Register(u8),
     Immediate(u32),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Shift {
     Lsl,
     Lsr,
@@ -59,20 +56,19 @@ pub enum Shift {
     Rrx,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ShiftAmount {
     Immediate(u8),
     Register(u8),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Operand {
     pub value: Value,
     pub shift: Shift,
     pub amount: ShiftAmount,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum AluOp {
     And,
     Xor,
@@ -90,14 +86,12 @@ pub enum AluOp {
     CountLeadingZeros,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Width {
     Byte,
     Half,
     Word,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Address {
     pub base: Value,
     pub offset: Operand,
@@ -106,7 +100,6 @@ pub struct Address {
     pub write_back: Option<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 pub enum Operation {
     Alu {
         op: AluOp,

@@ -446,7 +446,7 @@ fn value(s: &mut InstructionSink<'_>, value: Value, pc: u32, thumb: bool) {
     }
 }
 
-fn constant_operand(operand: Operand) -> Option<(u32, Option<u32>)> {
+fn constant_operand(operand: &Operand) -> Option<(u32, Option<u32>)> {
     let (Value::Immediate(value), ShiftAmount::Immediate(amount)) = (operand.value, operand.amount) else {
         return None;
     };
@@ -467,7 +467,7 @@ fn constant_operand(operand: Operand) -> Option<(u32, Option<u32>)> {
     Some((result, Some(carry)))
 }
 
-fn operand(s: &mut InstructionSink<'_>, operand: Operand, pc: u32, thumb: bool, set_carry: bool) {
+fn operand(s: &mut InstructionSink<'_>, operand: &Operand, pc: u32, thumb: bool, set_carry: bool) {
     if let Some((result, carry)) = constant_operand(operand) {
         s.i32_const(result as i32).local_set(RIGHT);
         if set_carry {
@@ -700,10 +700,10 @@ fn multiply_flags(s: &mut InstructionSink<'_>, wide: bool) {
 }
 
 // Capture both the effective address and final writeback before any destination changes.
-fn memory_address(s: &mut InstructionSink<'_>, address: Address, pc: u32, thumb: bool) {
+fn memory_address(s: &mut InstructionSink<'_>, address: &Address, pc: u32, thumb: bool) {
     value(s, address.base, pc, thumb);
     s.local_set(LEFT);
-    operand(s, address.offset, pc, thumb, false);
+    operand(s, &address.offset, pc, thumb, false);
     s.local_get(LEFT).local_get(RIGHT);
     if address.subtract {
         s.i32_sub();
@@ -739,7 +739,7 @@ fn word_range(s: &mut InstructionSink<'_>, words: u32, exit_depth: u32) {
     s.local_get(0).i32_load(field(84)).local_set(RANGE_LENGTH);
 }
 
-fn scalar_address(s: &mut InstructionSink<'_>, width: Width, exit_depth: u32) {
+fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32) {
     let alignment_mask = match width {
         Width::Byte => 0,
         Width::Half => 1,
@@ -806,7 +806,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             op,
             destination,
             left,
-            right,
+            ref right,
             set_flags,
         } => {
             if (!set_flags || matches!(op, AluOp::Move | AluOp::Not))
@@ -989,7 +989,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 s.local_get(0).i32_const(link as i32).i32_store(field(56));
             }
         }
-        Operation::Load { address, width, .. } | Operation::Store { address, width, .. } => {
+        Operation::Load { ref address, ref width, .. } | Operation::Store { ref address, ref width, .. } => {
             memory_address(s, address, instruction.pc, thumb);
             scalar_address(s, width, exit_depth);
             if let Operation::Store { value: source, .. } = instruction.operation {
@@ -1128,7 +1128,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
                 s.local_get(0).local_get(RESULT).i32_store(field(u64::from(base) * 4));
             }
         }
-        Operation::DoubleTransfer { register, address, load } => {
+        Operation::DoubleTransfer { register, ref address, load } => {
             memory_address(s, address, instruction.pc, thumb);
             transfer_words(s, 3 << register, load, instruction.pc, thumb, exit_depth);
             if let Some(base) = address.write_back {
@@ -1139,7 +1139,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             destination,
             address,
             value: source,
-            width,
+            ref width,
         } => {
             value(s, Value::Register(address), instruction.pc, thumb);
             s.local_set(LEFT);
@@ -1147,7 +1147,7 @@ fn operation(s: &mut InstructionSink<'_>, instruction: &Instruction, thumb: bool
             s.local_set(RIGHT);
             scalar_address(s, width, exit_depth);
             s.local_set(RANGE_FIRST);
-            if width == Width::Word {
+            if matches!(width, Width::Word) {
                 s.local_get(RANGE_FIRST).i32_load(field(0)).local_set(RESULT);
                 s.local_get(RANGE_FIRST).local_get(RIGHT).i32_store(field(0));
             } else {
@@ -1197,7 +1197,7 @@ mod tests {
                 if code == negative {
                     expected.push(0x45);
                 }
-                assert_eq!(function.into_raw_body(), expected, "{code:?}");
+                assert_eq!(function.into_raw_body(), expected, "condition {}", code as u8);
             }
         }
     }
@@ -1296,7 +1296,7 @@ mod tests {
             let mut actual = Function::new([]);
             operand(
                 &mut actual.instructions(),
-                Operand {
+                &Operand {
                     value: Value::Immediate(input),
                     shift,
                     amount: ShiftAmount::Immediate(amount),
@@ -1314,7 +1314,12 @@ mod tests {
                 s.local_get(CPSR).i32_const(29).i32_shr_u().i32_const(1).i32_and();
             }
             s.local_set(CARRY);
-            assert_eq!(actual.into_raw_body(), expected.into_raw_body(), "{shift:?} {input:#x} by {amount}");
+            assert_eq!(
+                actual.into_raw_body(),
+                expected.into_raw_body(),
+                "shift {}: {input:#x} by {amount}",
+                shift as u8
+            );
         }
     }
 
@@ -1328,8 +1333,8 @@ mod tests {
             process::{Command, Stdio},
         };
 
-        let address = Address {
-            base: Value::Register(1),
+        let address = |base| Address {
+            base: Value::Register(base),
             offset: Operand {
                 value: Value::Immediate(0),
                 shift: Shift::Lsl,
@@ -1341,7 +1346,7 @@ mod tests {
         };
         let operations = [
             Operation::Store {
-                address,
+                address: address(1),
                 width: Width::Word,
                 value: Value::Register(0),
             },
@@ -1357,16 +1362,13 @@ mod tests {
                 set_flags: true,
             },
             Operation::Store {
-                address: Address {
-                    base: Value::Register(2),
-                    ..address
-                },
+                address: address(2),
                 width: Width::Word,
                 value: Value::Register(0),
             },
             Operation::Nop,
         ];
-        let ir = RegionIr {
+        let mut ir = RegionIr {
             entry: RegionKey {
                 pc: 0x1000,
                 thumb: true,
@@ -1387,30 +1389,30 @@ mod tests {
         };
         let mut builder = ModuleBuilder::default();
         builder.add_region(&ir);
-        let mut accesses = ir.clone();
-        accesses.blocks[0].instructions.clear();
-        for (index, width) in [Width::Byte, Width::Half, Width::Word].into_iter().enumerate() {
-            for operation in [
-                Operation::Store {
-                    address,
-                    width,
-                    value: Value::Register(0),
-                },
-                Operation::Load {
-                    address,
-                    width,
-                    signed: false,
-                    destination: 2 + index as u8 * 2,
-                },
-                Operation::Load {
-                    address,
-                    width,
-                    signed: true,
-                    destination: 3 + index as u8 * 2,
-                },
-            ] {
-                let pc = 0x1000 + accesses.blocks[0].instructions.len() as u32 * 2;
-                accesses.blocks[0].instructions.push(Instruction {
+        ir.blocks[0].instructions.clear();
+        for index in 0..3 {
+            for access in 0..3 {
+                let width = match index {
+                    0 => Width::Byte,
+                    1 => Width::Half,
+                    _ => Width::Word,
+                };
+                let operation = if access == 0 {
+                    Operation::Store {
+                        address: address(1),
+                        width,
+                        value: Value::Register(0),
+                    }
+                } else {
+                    Operation::Load {
+                        address: address(1),
+                        width,
+                        signed: access == 2,
+                        destination: 1 + access + index * 2,
+                    }
+                };
+                let pc = 0x1000 + ir.blocks[0].instructions.len() as u32 * 2;
+                ir.blocks[0].instructions.push(Instruction {
                     pc,
                     size: 2,
                     condition: Condition::Always,
@@ -1418,7 +1420,7 @@ mod tests {
                 });
             }
         }
-        builder.add_region(&accesses);
+        builder.add_region(&ir);
         for (index, op) in [
             AluOp::Add,
             AluOp::Sub,
@@ -1495,7 +1497,7 @@ mod tests {
                         op: AluOp::Sub,
                         destination: None,
                         left: Value::Register(0),
-                        right: address.offset,
+                        right: address(1).offset,
                         set_flags: true,
                     },
                 ),
@@ -1515,7 +1517,7 @@ mod tests {
                     0x1008,
                     Condition::Always,
                     Operation::Store {
-                        address,
+                        address: address(1),
                         width: Width::Word,
                         value: Value::Register(0),
                     },
@@ -1529,7 +1531,7 @@ mod tests {
                         left: Value::Register(0),
                         right: Operand {
                             value: Value::Immediate(1),
-                            ..address.offset
+                            ..address(1).offset
                         },
                         set_flags: true,
                     },
@@ -1543,7 +1545,7 @@ mod tests {
                         left: Value::Register(1),
                         right: Operand {
                             value: Value::Immediate(4),
-                            ..address.offset
+                            ..address(1).offset
                         },
                         set_flags: false,
                     },
@@ -1573,7 +1575,7 @@ mod tests {
         }
         assert_eq!(small_loop_body(&loop_ir, &loop_ir.blocks[0]).unwrap().instructions[0].pc, 0x1008);
         builder.add_region(&loop_ir);
-        let mut low_body = loop_ir.clone();
+        let mut low_body = loop_ir;
         low_body.blocks[0].instructions[1].operation = Operation::Branch {
             target: Value::Immediate(0xffc),
             link: None,
@@ -1904,7 +1906,12 @@ for (const address of [0x3000, 0xfffc, 0xfffffffc, 0x3001, null]) {
                 s.local_get(0).local_get(CPSR).i32_const(mask).i32_and();
                 s.i32_const(flags as i32).i32_or().local_tee(CPSR).i32_store(field(64));
             }
-            assert_eq!(actual.into_raw_body(), expected.into_raw_body(), "{op:?} {left:#x}, {input:#x}");
+            assert_eq!(
+                actual.into_raw_body(),
+                expected.into_raw_body(),
+                "operation {}: {left:#x}, {input:#x}",
+                op as u8
+            );
         }
     }
 }
