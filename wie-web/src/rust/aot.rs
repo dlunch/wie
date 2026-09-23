@@ -2,6 +2,7 @@ use alloc::{boxed::Box, collections::BTreeSet, format, rc::Rc, string::String, v
 use core::cell::RefCell;
 
 use futures::channel::oneshot;
+use hashbrown::{HashMap, hash_map::Entry};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
@@ -10,7 +11,7 @@ use wie_arm_jit_types::{
     RunFrame,
 };
 
-use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact, bind_manifest_source, decode_manifest_region, encode_manifest_region};
+use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact, decode_manifest_region, encode_manifest_region, validate_manifest_region};
 
 #[wasm_bindgen(inline_js = r#"
 export { compileArm, compilerTask, loadArmCache } from "@ts/arm-compiler.ts";
@@ -50,7 +51,8 @@ extern "C" {
 
 #[derive(Default)]
 pub struct WasmExecutor {
-    dispatcher: Rc<RefCell<Option<Function>>>,
+    modules: Rc<RefCell<HashMap<u32, (Function, usize)>>>,
+    next_module: u32,
 }
 
 // The browser host is single-agent: JS handles and synchronous borrowed execution
@@ -63,30 +65,51 @@ impl CompiledExecutor for WasmExecutor {
     }
 
     fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
-        let weak = Rc::downgrade(&self.dispatcher);
+        let weak = Rc::downgrade(&self.modules);
+        let module = self.next_module;
+        self.next_module += 1;
         let (sender, receiver) = oneshot::channel();
         spawn_local(async move {
-            let result = prepare_module(request, deadline_ms).await;
+            let result = prepare_module(request, deadline_ms, module).await;
             let Some(state) = weak.upgrade() else { return };
             let mut state = state.borrow_mut();
             let result = match result {
                 Ok((artifact, dispatcher)) => {
-                    *state = Some(dispatcher);
+                    if !artifact.regions.is_empty() {
+                        state.insert(module, (dispatcher, artifact.regions.len()));
+                    }
                     Ok(artifact)
                 }
                 Err(error) => Err(format!("ARM AOT preparation: {error:?}")),
             };
-            drop(state);
-            let _ = sender.send(result);
+            if sender.send(result).is_err() {
+                state.remove(&module);
+            }
         });
         // Only the Send receiver crosses the host initialization future's await.
         Box::pin(async move { receiver.await.map_err(|_| String::from("ARM AOT owner was dropped"))? })
     }
 
+    fn release(&mut self, handle: CompiledHandle) {
+        let mut modules = self.modules.borrow_mut();
+        if let Entry::Occupied(mut entry) = modules.entry(handle.module) {
+            entry.get_mut().1 -= 1;
+            if entry.get().1 == 0 {
+                entry.remove();
+            }
+        }
+    }
+
     fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
-        let state = self.dispatcher.borrow();
-        let function = state.as_ref().ok_or_else(|| String::from("compiled dispatcher is unavailable"))?;
-        let mut context = ExecutionContext { access, frame };
+        let state = self.modules.borrow();
+        let (function, _) = state
+            .get(&handle.module)
+            .ok_or_else(|| String::from("compiled dispatcher is unavailable"))?;
+        let mut context = ExecutionContext {
+            access,
+            frame,
+            module: handle.module,
+        };
         let result = execute_region(
             function,
             context.frame as u32,
@@ -107,18 +130,23 @@ impl CompiledExecutor for WasmExecutor {
     }
 }
 
-async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(CompiledArtifact, Function), JsValue> {
+async fn prepare_module(request: CompileRequest, deadline: f64, module: u32) -> Result<(CompiledArtifact, Function), JsValue> {
     let mut group_started = now();
-    let mut input = Vec::new();
-    input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
-    for image in request.images.iter() {
-        preparation_checkpoint(&mut group_started, deadline).await?;
-        input.extend_from_slice(&image.address.to_le_bytes());
-        input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
-        input.extend_from_slice(&image.bytes);
-    }
-    let input_copy = Uint8Array::from(input.as_slice());
-    let lookup = JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?;
+    // Persist only the initial image; runtime replacements belong to this execution.
+    let lookup = if module == 0 {
+        let mut input = Vec::new();
+        input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
+        for image in request.images.iter() {
+            preparation_checkpoint(&mut group_started, deadline).await?;
+            input.extend_from_slice(&image.address.to_le_bytes());
+            input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
+            input.extend_from_slice(&image.bytes);
+        }
+        let input_copy = Uint8Array::from(input.as_slice());
+        JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?
+    } else {
+        Object::new().into()
+    };
     let key = Reflect::get(&lookup, &"key".into())?;
     let candidate = match Reflect::get(&lookup, &"artifact".into())? {
         candidate if candidate.is_undefined() => None,
@@ -132,15 +160,18 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
             let mut regions = Vec::new();
             while !manifest.is_empty() {
                 preparation_checkpoint(&mut group_started, deadline).await?;
-                let mut region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
-                bind_manifest_source(&mut region, &request.images).map_err(|error| JsValue::from_str(&error))?;
+                let region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
+                validate_manifest_region(&region, &request.images).map_err(|error| JsValue::from_str(&error))?;
                 for &pc in &region.instruction_pcs {
                     if !owned.insert(RegionKey { pc, ..region.entry }) {
                         return Err(JsValue::from_str("duplicate cached instruction ownership"));
                     }
                 }
                 regions.push(CompiledRegion {
-                    handle: CompiledHandle { slot: regions.len() as u32 },
+                    handle: CompiledHandle {
+                        module,
+                        slot: regions.len() as u32,
+                    },
                     manifest: region,
                 });
             }
@@ -172,7 +203,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
         encode_manifest_region(&manifest, &mut serialized);
         regions.push(CompiledRegion {
             manifest,
-            handle: CompiledHandle { slot: slot as u32 },
+            handle: CompiledHandle { module, slot: slot as u32 },
         });
     }
     let artifact = Object::new();
@@ -244,6 +275,7 @@ fn execution_imports() -> Result<Object, JsValue> {
 struct ExecutionContext<'a> {
     access: &'a mut dyn ExecutionAccess,
     frame: *mut RunFrame,
+    module: u32,
 }
 
 // Only generated code calls these raw exports, synchronously within execute().
@@ -256,14 +288,19 @@ unsafe extern "C" fn wie_aot_pages(access: u32) -> u32 {
 
 #[cfg(target_arch = "wasm32")]
 const _: () = {
-    assert!(core::mem::size_of::<wie_arm_jit_types::MemoryPage>() == 16);
+    assert!(core::mem::size_of::<wie_arm_jit_types::MemoryPage>() == 4);
     assert!(core::mem::offset_of!(wie_arm_jit_types::MemoryPage, bytes) == 0);
 };
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn wie_aot_resolve(access: u32, pc: u32, cpsr: u32) -> u32 {
     let context = unsafe { &*(access as *const ExecutionContext<'_>) };
-    context.access.resolve(pc, cpsr).map_or(u32::MAX, |handle| handle.slot)
+    // Other modules resume through the engine's entry map, never this module's local table.
+    context
+        .access
+        .resolve(pc, cpsr)
+        .filter(|handle| handle.module == context.module)
+        .map_or(u32::MAX, |handle| handle.slot)
 }
 
 #[unsafe(no_mangle)]

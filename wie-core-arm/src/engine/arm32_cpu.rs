@@ -1,10 +1,11 @@
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 
 use arm32_cpu::{Cpu, Memory, Mode, reg};
+use hashbrown::HashMap;
 
 use wie_arm_jit_types::{
-    CodeImage, CodePageStamp, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture,
-    PreparationState, RegionKey, RunFrame,
+    CodeImage, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture, PreparationState,
+    RegionKey, RunFrame,
 };
 use wie_util::{Result as WieResult, WieError};
 
@@ -87,6 +88,9 @@ impl Arm32CpuEngine {
 
 impl ArmEngine for Arm32CpuEngine {
     fn run(&mut self, end: u32, count: u32) -> WieResult<EngineRunResult> {
+        if let Some(aot) = &mut self.aot {
+            aot.poll_recompilations();
+        }
         let mut budget_consumed = 0;
         let mut interpret_one = false;
         let mut lookup_entry = true;
@@ -120,7 +124,7 @@ impl ArmEngine for Arm32CpuEngine {
                     thumb: cpsr & 0x20 != 0,
                     cpu_mode: (cpsr & 0x1f) as u8,
                 };
-                if let Some(handle) = aot.lookup(key, &self.mem) {
+                if let Some(handle) = aot.entries.get(&key).copied() {
                     let mut frame = RunFrame {
                         regs: core::array::from_fn(|index| self.cpu.reg_get(Mode::User, index as u8)),
                         cpsr,
@@ -128,12 +132,11 @@ impl ArmEngine for Arm32CpuEngine {
                         ..RunFrame::default()
                     };
                     let result = {
-                        let (executor, resolve) = aot.execution_parts();
                         let mut access = MemoryAccess {
                             memory: &mut self.mem,
-                            resolve: &resolve,
+                            resolve: &aot.entries,
                         };
-                        executor.execute(handle, &mut frame, &mut access)
+                        aot.executor.execute(handle, &mut frame, &mut access)
                     };
                     let exit = match result {
                         Ok(exit) => exit,
@@ -158,6 +161,7 @@ impl ArmEngine for Arm32CpuEngine {
                     lookup_entry = true;
                     continue;
                 }
+                aot.recompile(&key, &self.mem);
             }
             let recheck_after_step = interpret_one;
             interpret_one = false;
@@ -177,8 +181,18 @@ impl ArmEngine for Arm32CpuEngine {
             if next_pc != pc.wrapping_add(if cpsr & 0x20 != 0 { 2 } else { 4 }) || (next_cpsr ^ cpsr) & 0x0100_003f != 0 {
                 lookup_entry = true;
             }
-            if let Some(invalidation) = cache_invalidation {
-                self.mem.invalidate_instruction_cache(invalidation);
+            if let Some(invalidation) = cache_invalidation
+                && let Some(aot) = &mut self.aot
+            {
+                let range = match invalidation {
+                    InstructionCacheInvalidation::All => 0..TOTAL_MEMORY,
+                    InstructionCacheInvalidation::Address(address) => {
+                        // ARM926EJ-S cache lines contain 32 bytes.
+                        let start = u64::from(address & !31);
+                        start..start + 32
+                    }
+                };
+                aot.invalidate(range);
                 lookup_entry = true;
             }
             lookup_entry |= recheck_after_step;
@@ -241,7 +255,7 @@ impl ArmEngine for Arm32CpuEngine {
 
     fn finish_preparation(&mut self, result: Result<CompiledArtifact, String>) {
         if let Some(aot) = &mut self.aot
-            && !aot.finish(result, &self.mem)
+            && !aot.finish(result)
         {
             self.aot = None;
         }
@@ -250,7 +264,7 @@ impl ArmEngine for Arm32CpuEngine {
 
 struct MemoryAccess<'a> {
     memory: &'a mut EmulatedMemory,
-    resolve: &'a dyn Fn(RegionKey, &EmulatedMemory) -> Option<CompiledHandle>,
+    resolve: &'a HashMap<RegionKey, CompiledHandle>,
 }
 
 impl ExecutionAccess for MemoryAccess<'_> {
@@ -262,14 +276,13 @@ impl ExecutionAccess for MemoryAccess<'_> {
         if cpsr & 0x0100_0000 != 0 {
             return None;
         }
-        (self.resolve)(
-            RegionKey {
+        self.resolve
+            .get(&RegionKey {
                 pc,
                 thumb: cpsr & 0x20 != 0,
                 cpu_mode: (cpsr & 0x1f) as u8,
-            },
-            self.memory,
-        )
+            })
+            .copied()
     }
     fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])> {
         if !address.is_multiple_of(4) {
@@ -389,7 +402,6 @@ impl EmulatedMemory {
             let available_bytes = (PAGE_SIZE - offset).min(data.len() - data_index);
 
             bytes[offset..offset + available_bytes].copy_from_slice(&data[data_index..data_index + available_bytes]);
-            page_data.version = page_data.version.wrapping_add(1);
             data_index += available_bytes;
             current_address += available_bytes as u32;
         }
@@ -400,64 +412,7 @@ impl EmulatedMemory {
     pub(crate) fn code_image(&self, address: u32, size: usize) -> WieResult<CodeImage> {
         let mut bytes = alloc::vec![0; size];
         self.read_range(address, size, &mut bytes)?;
-        let source = (u64::from(address & !PAGE_MASK)..u64::from(address) + size as u64)
-            .step_by(PAGE_SIZE)
-            .map(|page| CodePageStamp {
-                page: page as u32,
-                version: self.pages[page as usize / PAGE_SIZE].version,
-            })
-            .collect();
-        Ok(CodeImage { address, bytes, source })
-    }
-
-    pub(crate) fn code_is_current(&self, source: &[CodePageStamp]) -> bool {
-        source.iter().all(|stamp| {
-            let page = &self.pages[stamp.page as usize / PAGE_SIZE];
-            page.bytes.is_some() && page.version == stamp.version
-        })
-    }
-
-    pub(crate) fn validate_code(&self, source: &mut [CodePageStamp], source_bytes: &[(u32, Vec<u8>)]) -> bool {
-        if self.code_is_current(source) {
-            return true;
-        }
-        // A cache flush publishes writes, but unchanged instructions still match their translation.
-        for (address, bytes) in source_bytes {
-            let mut address = *address;
-            let mut remaining = bytes.as_slice();
-            while !remaining.is_empty() {
-                let Some(page) = &self.pages[address as usize / PAGE_SIZE].bytes else {
-                    return false;
-                };
-                let offset = (address & PAGE_MASK) as usize;
-                let size = (PAGE_SIZE - offset).min(remaining.len());
-                if page[offset..offset + size] != remaining[..size] {
-                    return false;
-                }
-                remaining = &remaining[size..];
-                address = address.wrapping_add(size as u32);
-            }
-        }
-        for stamp in source {
-            stamp.version = self.pages[stamp.page as usize / PAGE_SIZE].version;
-        }
-        true
-    }
-
-    fn invalidate_instruction_cache(&mut self, invalidation: InstructionCacheInvalidation) {
-        match invalidation {
-            InstructionCacheInvalidation::All => {
-                for page in self.pages.iter_mut().filter(|page| page.bytes.is_some()) {
-                    page.version = page.version.wrapping_add(1);
-                }
-            }
-            InstructionCacheInvalidation::Address(address) => {
-                let page = &mut self.pages[address as usize / PAGE_SIZE];
-                if page.bytes.is_some() {
-                    page.version = page.version.wrapping_add(1);
-                }
-            }
-        }
+        Ok(CodeImage { address, bytes })
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
@@ -601,7 +556,6 @@ mod tests {
         let mut engine = Arm32CpuEngine::new();
         engine.mem.pages[0xffff] = MemoryPage {
             bytes: Some(Box::new([b'x'; PAGE_SIZE])),
-            version: 0,
         };
         engine.mem_map(0, PAGE_SIZE, MemoryPermission::ReadWrite);
         engine.mem_write(0, b"y").unwrap();
@@ -615,6 +569,8 @@ mod tests {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
         ready: Option<futures::channel::oneshot::Sender<Result<CompiledArtifact, String>>>,
         now: f64,
+        released: Vec<CompiledHandle>,
+        executed: Vec<u32>,
     }
 
     struct DeferredExecutor(Arc<Mutex<Responses>>);
@@ -632,17 +588,21 @@ mod tests {
             Box::pin(async move { receiver.await.unwrap_or_else(|_| Err("preparation cancelled".into())) })
         }
 
-        fn execute(&mut self, _: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
-            unreachable!("preparation tests do not execute compiled code")
+        fn release(&mut self, handle: CompiledHandle) {
+            self.0.lock().released.push(handle);
+        }
+
+        fn execute(&mut self, handle: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
+            self.0.lock().executed.push(handle.module);
+            Ok(CompiledExit::InterpretOne)
         }
     }
 
-    fn artifact(request: &[wie_arm_jit_types::CompileRegion]) -> CompiledArtifact {
+    fn artifact(request: &[wie_arm_jit_types::CompileRegion], module: u32) -> CompiledArtifact {
         CompiledArtifact {
             regions: request
                 .iter()
                 .filter(|region| region.ir.entry.thumb)
-                .take(1)
                 .enumerate()
                 .map(|(slot, region)| CompiledRegion {
                     manifest: ManifestRegion {
@@ -655,10 +615,17 @@ mod tests {
                             .take(2)
                             .map(|instruction| instruction.pc.get())
                             .collect(),
-                        source: region.source.clone(),
-                        source_bytes: region.source_bytes.clone(),
+                        code_ranges: region
+                            .ir
+                            .blocks
+                            .iter()
+                            .map(|block| {
+                                let last = block.instructions.last().unwrap();
+                                u64::from(block.instructions[0].pc.get())..u64::from(last.pc.get()) + u64::from(last.size)
+                            })
+                            .collect(),
                     },
-                    handle: CompiledHandle { slot: slot as u32 },
+                    handle: CompiledHandle { module, slot: slot as u32 },
                 })
                 .collect(),
         }
@@ -696,7 +663,6 @@ mod tests {
                 matches!(instruction.operation, wie_arm_jit_types::ir::Operation::Alu { right: wie_arm_jit_types::ir::Operand { value: wie_arm_jit_types::ir::Value::Immediate(value), .. }, .. } if value == immediate)
             );
         }
-        assert!(request.iter().all(|region| memory.code_is_current(&region.source)));
         assert!(aot.state == PreparationState::Preparing);
         drop(state);
         responses.lock().now = 300.0;
@@ -706,114 +672,107 @@ mod tests {
     }
 
     #[test]
-    fn installed_coverage_is_exact_and_published_writes_never_recompile() {
+    fn invalidated_regions_recompile_on_entry_without_blocking_other_code() {
         let responses = Arc::new(Mutex::new(Responses::default()));
-        let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
-        let mut memory = EmulatedMemory::new();
-        memory.map(0x1000, 0x10000);
-        memory.write_range(0x1000, &[1, 0x30, 0x70, 0x47, 0, 0]).unwrap();
-        aot.record_image(0x1000, 6);
-        let preparation = aot.begin(&memory).unwrap().unwrap();
-        let compiled = artifact(&responses.lock().requests[0].0);
+        let mut engine = Arm32CpuEngine::with_backend(Some(Box::new(DeferredExecutor(responses.clone()))));
+        engine.mem_map(0x1000, 0x1000, MemoryPermission::ReadWriteExecute);
+        for pc in [0x1000, 0x1040] {
+            engine.mem_write(pc, &[1, 0x30, 0x70, 0x47]).unwrap();
+            engine.record_image(pc, 4);
+        }
+        let preparation = engine.begin_preparation().unwrap().unwrap();
+        let compiled = artifact(&responses.lock().requests[0].0, 0);
         assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
-        responses.lock().now = 10_001.0;
-        assert!(aot.finish(futures::executor::block_on(preparation), &memory));
-        assert!(aot.state == PreparationState::Ready);
+        engine.finish_preparation(futures::executor::block_on(preparation));
         let key = RegionKey {
             pc: 0x1000,
             thumb: true,
             cpu_mode: 0x1f,
         };
-        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
-        assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory).map(|handle| handle.slot), Some(0));
         for wrong in [
             RegionKey { pc: 0x1001, ..key },
             RegionKey { pc: 0x1004, ..key },
             RegionKey { thumb: false, ..key },
-            RegionKey { cpu_mode: 0x10, ..key },
             RegionKey { cpu_mode: 0x13, ..key },
         ] {
-            assert!(aot.lookup(wrong, &memory).is_none());
+            assert!(!engine.aot.as_ref().unwrap().entries.contains_key(&wrong));
         }
-        memory.as_arm32cpu_memory().w16(0x1000, 0x4770);
-        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
-        {
-            let (_, resolve) = aot.execution_parts();
-            assert_eq!(resolve(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
-            assert!(resolve(RegionKey { cpu_mode: 0x13, ..key }, &memory).is_none());
-            memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
-            assert!(resolve(RegionKey { ..key }, &memory).is_none());
-        }
-        assert!(aot.lookup(RegionKey { ..key }, &memory).is_none());
-        assert!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory).is_none());
-        memory.write_range(0x1000, &[0, 0]).unwrap();
-        aot.record_image(0x1000, 2);
-        assert!(aot.begin(&memory).unwrap().is_none());
+        engine.mem_write(0x1000, &[2, 0x30]).unwrap();
+        engine.mem.as_arm32cpu_memory().w16(0x1000, 0x3003);
+        engine.aot.as_mut().unwrap().invalidate(0x1020..0x1040);
+        assert!(engine.aot.as_ref().unwrap().entries.contains_key(&key));
+
+        // MVA addresses any byte in the cache line, not only the region's entry PC.
+        engine.mem_write(0x1080, &0xee070f35u32.to_le_bytes()).unwrap();
+        engine.reg_write(ArmRegister::Cpsr, 0x1f);
+        engine.reg_write(ArmRegister::PC, 0x1080);
+        engine.reg_write(ArmRegister::R0, 0x101f);
+        engine.run(0x1084, 1).unwrap();
+        let aot = engine.aot.as_ref().unwrap();
+        assert!(!aot.entries.contains_key(&key));
+        assert!(!aot.entries.contains_key(&RegionKey { pc: 0x1002, ..key }));
+        assert!(aot.entries.contains_key(&RegionKey { pc: 0x1040, ..key }));
         assert_eq!(responses.lock().requests.len(), 1);
+
+        engine.reg_write(ArmRegister::Cpsr, 0x3f);
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.reg_write(ArmRegister::LR, 0x2000);
+        engine.reg_write(ArmRegister::R0, 0);
+        engine.run(0x2000, 10).unwrap();
+        assert_eq!(engine.reg_read(ArmRegister::R0), 3);
+        assert!(responses.lock().executed.is_empty());
+        assert_eq!(responses.lock().requests.len(), 2);
+        assert!(responses.lock().requests[1].0.iter().all(|region| region.ir.entry.thumb));
+        engine.reg_write(ArmRegister::PC, 0x1041);
+        engine.run(0x2000, 10).unwrap();
+        assert_eq!(responses.lock().executed.as_slice(), &[0, 0]);
+
+        // A second explicit flush supersedes a pending snapshot; no page versions are needed.
+        engine.mem.as_arm32cpu_memory().w16(0x1000, 0x3004);
+        engine.aot.as_mut().unwrap().invalidate(0x1000..0x1020);
+        let stale = artifact(&responses.lock().requests[1].0, 1);
+        assert!(responses.lock().ready.take().unwrap().send(Ok(stale)).is_ok());
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.reg_write(ArmRegister::R0, 0);
+        engine.run(0x2000, 10).unwrap();
+        assert_eq!(engine.reg_read(ArmRegister::R0), 4);
+        assert_eq!(responses.lock().requests.len(), 3);
+        assert!(!engine.aot.as_ref().unwrap().entries.contains_key(&key));
+        assert_eq!(responses.lock().released.iter().map(|handle| handle.module).collect::<Vec<_>>(), [0, 1]);
+
+        let fresh = artifact(&responses.lock().requests[2].0, 2);
+        assert!(responses.lock().ready.take().unwrap().send(Ok(fresh)).is_ok());
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.run(0x2000, 10).unwrap();
+        assert_eq!(engine.aot.as_ref().unwrap().entries.get(&key).unwrap().module, 2);
+        assert_eq!(responses.lock().executed.as_slice(), &[0, 0, 2, 2]);
+
+        engine.aot.as_mut().unwrap().invalidate(0..TOTAL_MEMORY);
+        assert!(engine.aot.as_ref().unwrap().entries.is_empty());
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.run(0x2000, 10).unwrap();
+        assert!(responses.lock().ready.take().unwrap().send(Err("compile failed".into())).is_ok());
+        engine.reg_write(ArmRegister::PC, 0x1001);
+        engine.run(0x2000, 10).unwrap();
+        assert!(!engine.aot.as_ref().unwrap().entries.contains_key(&key));
+        assert_eq!(responses.lock().requests.len(), 4);
     }
 
     #[test]
-    fn cache_flushes_preserve_unchanged_instructions_but_retire_modified_code() {
+    fn failed_preparation_does_not_install_late_results() {
         let responses = Arc::new(Mutex::new(Responses::default()));
         let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
         let mut memory = EmulatedMemory::new();
         memory.map(0x1000, 0x1000);
-        memory.write_range(0x1000, &[1, 0x30, 0x70, 0x47]).unwrap();
         aot.record_image(0x1000, 4);
         let preparation = aot.begin(&memory).unwrap().unwrap();
-        let compiled = artifact(&responses.lock().requests[0].0);
-        assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
-        aot.finish(futures::executor::block_on(preparation), &memory);
-        let key = RegionKey {
-            pc: 0x1000,
-            thumb: true,
-            cpu_mode: 0x1f,
-        };
-        memory.as_arm32cpu_memory().w16(0x1080, 42);
-        memory.invalidate_instruction_cache(InstructionCacheInvalidation::All);
-        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
-        memory.write_range(0x1082, &[7]).unwrap();
-        {
-            let (_, resolve) = aot.execution_parts();
-            assert_eq!(resolve(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
-        }
-
-        memory.as_arm32cpu_memory().w16(0x1000, 0x3002);
-        assert_eq!(aot.lookup(RegionKey { ..key }, &memory).map(|handle| handle.slot), Some(0));
-        memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x1000));
-        assert!(aot.lookup(RegionKey { ..key }, &memory).is_none());
-        assert!(aot.lookup(key, &memory).is_none());
+        assert!(responses.lock().ready.take().unwrap().send(Err("compile failed".into())).is_ok());
+        assert!(!aot.finish(futures::executor::block_on(preparation)));
+        assert!(aot.state == PreparationState::Ready);
+        let late = artifact(&responses.lock().requests[0].0, 0);
+        assert!(!aot.finish(Ok(late)));
+        assert!(aot.entries.is_empty());
         assert_eq!(responses.lock().requests.len(), 1);
-    }
-
-    #[test]
-    fn failed_and_stale_preparations_do_not_install_late_results() {
-        for cause in ["failed", "stale"] {
-            let responses = Arc::new(Mutex::new(Responses::default()));
-            let mut aot = Aot::new(Box::new(DeferredExecutor(responses.clone())));
-            let mut memory = EmulatedMemory::new();
-            memory.map(0x1000, 0x1000);
-            aot.record_image(0x1000, 4);
-            let preparation = aot.begin(&memory).unwrap().unwrap();
-            let compiled = artifact(&responses.lock().requests[0].0);
-            let result = if cause == "failed" { Err("compile failed".into()) } else { Ok(compiled) };
-            assert!(responses.lock().ready.take().unwrap().send(result).is_ok());
-            if cause == "stale" {
-                memory.write_range(0x1000, &[1]).unwrap();
-            }
-            assert!(!aot.finish(futures::executor::block_on(preparation), &memory));
-            assert!(aot.state == PreparationState::Ready, "{cause}");
-            let key = RegionKey {
-                pc: 0x1000,
-                thumb: true,
-                cpu_mode: 0x1f,
-            };
-            assert!(aot.lookup(RegionKey { ..key }, &memory).is_none(), "{cause}");
-            let late = artifact(&responses.lock().requests[0].0);
-            aot.finish(Ok(late), &memory);
-            assert!(aot.lookup(key, &memory).is_none(), "{cause}");
-            assert_eq!(responses.lock().requests.len(), 1);
-        }
     }
 
     struct TestExecutor {
@@ -827,9 +786,11 @@ mod tests {
         }
 
         fn prepare(&mut self, request: CompileRequest, _: f64) -> PreparationFuture {
-            let compiled = artifact(&request.regions.flatten().collect::<Vec<_>>());
+            let compiled = artifact(&request.regions.flatten().collect::<Vec<_>>(), 0);
             Box::pin(async move { Ok(compiled) })
         }
+
+        fn release(&mut self, _: CompiledHandle) {}
 
         fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
             self.calls.lock().0 += 1;
@@ -944,7 +905,7 @@ mod tests {
             }));
             aot.record_image(0x1000, 4);
             let preparation = aot.begin(&engine.mem).unwrap().unwrap();
-            aot.finish(futures::executor::block_on(preparation), &engine.mem);
+            aot.finish(futures::executor::block_on(preparation));
             engine.aot = Some(aot);
             engine.reg_write(ArmRegister::Cpsr, cpsr);
             engine.reg_write(ArmRegister::PC, 0x1001);
@@ -955,59 +916,16 @@ mod tests {
     }
 
     #[test]
-    fn published_code_validation_checks_cross_page_bytes_and_ignores_gaps() {
-        let mut memory = EmulatedMemory::new();
-        memory.map(0, 0x20000);
-        memory.write_range(0xfffe, &[1, 2, 3, 4]).unwrap();
-        memory.write_range(0x10010, &[5, 6]).unwrap();
-        let image = memory.code_image(0xfffe, 4).unwrap();
-        let mut source = image.source;
-        let bytes = [(image.address, image.bytes), (0x10010, alloc::vec![5, 6])];
-        memory.invalidate_instruction_cache(InstructionCacheInvalidation::All);
-        memory.write_range(0x10008, &[42]).unwrap();
-        assert!(memory.validate_code(&mut source, &bytes));
-        assert!(memory.code_is_current(&source));
-        memory.write_range(0x10001, &[7]).unwrap();
-        assert!(!memory.validate_code(&mut source, &bytes));
-        assert!(!memory.code_is_current(&source));
-    }
-
-    #[test]
-    fn code_versions_follow_host_publication_not_guest_stores() {
-        let mut memory = EmulatedMemory::new();
-        memory.map(0x10000, 0x10000);
-        let before = memory.code_image(0x10000, 1).unwrap().source;
-        memory.as_arm32cpu_memory().w8(0x10000, 42);
-        memory.as_arm32cpu_memory().w16(0x10000, 42);
-        memory.as_arm32cpu_memory().w32(0x10000, 42);
-        assert!(memory.code_is_current(&before));
-        assert!(memory.write_range(0x1ffff, &[1, 2]).is_err());
-        assert!(!memory.code_is_current(&before));
-        let before = memory.code_image(0x10000, 1).unwrap().source;
-        let mut access = MemoryAccess {
-            memory: &mut memory,
-            resolve: &|_, _| None,
-        };
-        assert!(access.pages()[2].bytes.is_none());
-        access.pages()[1].bytes.as_mut().unwrap()[..2].copy_from_slice(&42u16.to_le_bytes());
-        assert!(access.memory.code_is_current(&before));
-        access.memory.invalidate_instruction_cache(InstructionCacheInvalidation::Address(0x10000));
-        assert!(!access.memory.code_is_current(&before));
-    }
-
-    #[test]
-    fn word_range_admission_checks_mapping_without_reading_or_publishing() {
+    fn word_range_admission_checks_mapping_without_reading() {
         let mut memory = EmulatedMemory::new();
         memory.map(0x10000, PAGE_SIZE);
         memory.pages[0xffff] = MemoryPage {
             bytes: Some(Box::new([0; PAGE_SIZE])),
-            version: 7,
         };
         memory.write_range(0x10000, &42u32.to_le_bytes()).unwrap();
-        let before = memory.code_image(0x10000, 1).unwrap().source;
         let mut access = MemoryAccess {
             memory: &mut memory,
-            resolve: &|_, _| None,
+            resolve: &HashMap::new(),
         };
         for (address, words, admitted) in [
             (0x10000, 16, true),
@@ -1023,15 +941,10 @@ mod tests {
         ] {
             assert_eq!(access.word_range(address, words).is_some(), admitted, "{address:#x}, words={words}");
         }
-        assert!(access.memory.code_is_current(&before));
         assert_eq!(access.memory.as_arm32cpu_memory().r32(0x10000), 42);
         access.memory.map(0x20000, PAGE_SIZE);
         access.memory.map(0, PAGE_SIZE);
         assert!(access.word_range(0xffff_fffd, 1).is_none());
-        let before: Vec<_> = [0, 0x10000, 0x20000, 0xffff_0000]
-            .into_iter()
-            .flat_map(|address| access.memory.code_image(address, 1).unwrap().source)
-            .collect();
         for (address, words, first_len, second_len) in [
             (0x10000, 1, 4, 0),
             (0x1ffc0, 16, 64, 0),
@@ -1050,64 +963,49 @@ mod tests {
                 assert_eq!(access.memory.as_arm32cpu_memory().r32(address.wrapping_add(offset)), expected);
             }
         }
-        assert!(access.memory.code_is_current(&before));
     }
 
     #[test]
-    fn coprocessor_instruction_cache_maintenance_publishes_code() {
-        for (opcode, operand, code_current, data_current) in [
-            (0xee070f15u32, 0, false, false),
-            (0x0e070f15, 0, false, false), // EQ still invalidates when Z is clear.
-            (0xee070f17, 0, false, false),
-            (0xee070f55, 0, false, false),
-            (0xee070f35, 0x20020, true, false),
-            (0xee070f35, 0x30000, true, true),
-            (0xee070e15, 0, true, true),
-            (0xee270f15, 0, true, true),
-            (0xee170f15, 0, true, true),
-            (0xee070f16, 0, true, true),
-            (0xee070f95, 0, true, true),
+    fn coprocessor_cache_maintenance_targets_regions_in_the_active_register_bank() {
+        for (opcode, mode, cpsr, register, operand, invalidated) in [
+            (0xee070f15u32, Mode::System, 0x1f, 0, 0, true),
+            (0x0e070f15, Mode::System, 0x1f, 0, 0, true),
+            (0xee070f17, Mode::System, 0x1f, 0, 0, true),
+            (0xee070f55, Mode::System, 0x1f, 0, 0, true),
+            (0xee070f35, Mode::System, 0x1f, 0, 0x20020, true),
+            (0xee070f35, Mode::System, 0x1f, 0, 0x20040, false),
+            (0xee070f35, Mode::Supervisor, 0x13, 13, 0x20020, true),
+            (0xee070f35, Mode::Fiq, 0x11, 8, 0x20020, true),
+            (0xee070e15, Mode::System, 0x1f, 0, 0, false),
+            (0xee270f15, Mode::System, 0x1f, 0, 0, false),
+            (0xee170f15, Mode::System, 0x1f, 0, 0, false),
+            (0xee070f16, Mode::System, 0x1f, 0, 0, false),
+            (0xee070f95, Mode::System, 0x1f, 0, 0, false),
         ] {
-            let mut engine = Arm32CpuEngine::new();
+            let responses = Arc::new(Mutex::new(Responses::default()));
+            let mut engine = Arm32CpuEngine::with_backend(Some(Box::new(DeferredExecutor(responses.clone()))));
             engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
-            engine.mem_map(0x20000, 4, MemoryPermission::ReadWrite);
-            engine.mem_write(0x1000, &opcode.to_le_bytes()).unwrap();
-            engine.reg_write(ArmRegister::Cpsr, 0x1f);
+            engine.mem_map(0x20000, 0x10000, MemoryPermission::ReadWriteExecute);
+            engine.mem_write(0x1000, &(opcode | u32::from(register) << 12).to_le_bytes()).unwrap();
+            // A four-byte Thumb BL crosses the invalidated line at 0x20020.
+            engine.mem_write(0x2001e, &[0, 0xf0, 0, 0xf8, 0x70, 0x47]).unwrap();
+            engine.record_image(0x2001e, 6);
+            let preparation = engine.begin_preparation().unwrap().unwrap();
+            let compiled = artifact(&responses.lock().requests[0].0, 0);
+            assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
+            engine.finish_preparation(futures::executor::block_on(preparation));
+            engine.reg_write(ArmRegister::Cpsr, cpsr);
             engine.reg_write(ArmRegister::PC, 0x1000);
-            engine.reg_write(ArmRegister::R0, operand);
-            let code = engine.mem.code_image(0x1000, 1).unwrap().source;
-            let data = engine.mem.code_image(0x20000, 1).unwrap().source;
+            engine.cpu.reg_set(Mode::User, register, 0x30000);
+            engine.cpu.reg_set(mode, register, operand);
             let result = engine.run(0x1004, 1).unwrap();
             assert_eq!(result.budget_consumed, 1);
             assert!(matches!(result.stop_reason, EngineStopReason::End));
-            assert_eq!(engine.mem.code_is_current(&code), code_current, "opcode={opcode:#x}");
-            assert_eq!(engine.mem.code_is_current(&data), data_current, "opcode={opcode:#x}");
-            assert!(engine.mem.pages[3].bytes.is_none());
-            assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
-            assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
-        }
-    }
-
-    #[test]
-    fn cache_maintenance_reads_the_current_register_bank() {
-        for (mode, cpsr, register) in [(Mode::Supervisor, 0x13, 13), (Mode::Fiq, 0x11, 8)] {
-            let mut engine = Arm32CpuEngine::new();
-            engine.mem_map(0x1000, 4, MemoryPermission::ReadWriteExecute);
-            engine.mem_map(0x20000, 4, MemoryPermission::ReadWrite);
-            engine.mem_map(0x30000, 4, MemoryPermission::ReadWrite);
-            engine
-                .mem_write(0x1000, &(0xee070f35u32 | u32::from(register) << 12).to_le_bytes())
-                .unwrap();
-            engine.reg_write(ArmRegister::Cpsr, cpsr);
-            engine.reg_write(ArmRegister::PC, 0x1000);
-            engine.cpu.reg_set(Mode::User, register, 0x20000);
-            engine.cpu.reg_set(mode, register, 0x30000);
-            let user_page = engine.mem.code_image(0x20000, 1).unwrap().source;
-            let active_page = engine.mem.code_image(0x30000, 1).unwrap().source;
-
-            assert_eq!(engine.run(0x1004, 1).unwrap().budget_consumed, 1);
-            assert!(engine.mem.code_is_current(&user_page), "mode={mode:?}");
-            assert!(!engine.mem.code_is_current(&active_page), "mode={mode:?}");
+            assert_eq!(
+                engine.aot.as_ref().unwrap().entries.is_empty(),
+                invalidated,
+                "opcode={opcode:#x}, mode={mode:?}"
+            );
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), cpsr);
         }
     }

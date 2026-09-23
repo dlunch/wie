@@ -713,12 +713,12 @@ fn scalar_address(s: &mut InstructionSink<'_>, width: &Width, exit_depth: u32) {
     s.local_get(PAGE_TABLE).i32_eqz().if_(BlockType::Empty);
     commit_prefix(s);
     s.local_get(1).call(PAGES).local_set(PAGE_TABLE).end();
-    // Each repr(C) directory entry is 16 bytes; its first word is the nullable page pointer.
+    // Each directory entry is a four-byte nullable page pointer.
     s.local_get(PAGE_TABLE)
         .local_get(LEFT)
         .i32_const(16)
         .i32_shr_u()
-        .i32_const(4)
+        .i32_const(2)
         .i32_shl()
         .i32_add()
         .i32_load(field(0))
@@ -1143,7 +1143,7 @@ mod tests {
     use alloc::{boxed::Box, sync::Arc, vec};
     use wie_arm_jit_types::ir::MemoryAddress;
 
-    use wie_arm_jit_types::{CodePageStamp, CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
+    use wie_arm_jit_types::{CompileRegion, CompileRequest, RegionKey, ir::BasicBlock};
 
     use crate::Compiler;
 
@@ -1220,11 +1220,6 @@ mod tests {
                                 .collect(),
                         }],
                     },
-                    source: vec![CodePageStamp {
-                        page: pc & 0xffff0000,
-                        version: 1,
-                    }],
-                    source_bytes: vec![],
                 })
             })),
         };
@@ -1584,9 +1579,9 @@ const assert = require('node:assert/strict');
 const module = new WebAssembly.Module(require('node:fs').readFileSync(0));
 function directory(memory, entries) {
     const base = memory.buffer.byteLength;
-    memory.grow(16);
+    memory.grow(4);
     const view = new DataView(memory.buffer);
-    for (const [page, pointer] of entries) view.setUint32(base + page * 16, pointer, true);
+    for (const [page, pointer] of entries) view.setUint32(base + page * 4, pointer, true);
     return base;
 }
 {

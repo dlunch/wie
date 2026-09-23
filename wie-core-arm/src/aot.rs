@@ -2,11 +2,15 @@ mod analysis;
 mod decoder;
 
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
-use core::{cell::RefCell, ops::Range};
+use core::{
+    ops::Range,
+    task::{Context, Poll, Waker},
+};
 
 use hashbrown::HashMap;
 use wie_arm_jit_types::{
-    CodePageStamp, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, PreparationFuture, PreparationState, RegionKey,
+    CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, CompiledRegion, ManifestRegion, PreparationFuture, PreparationState,
+    RegionKey,
 };
 use wie_util::Result as WieResult;
 
@@ -18,17 +22,20 @@ const MAX_REGION_INSTRUCTIONS: usize = 4096;
 const MAX_REGION_BLOCKS: usize = 512;
 const PREPARATION_TIMEOUT_MS: f64 = 10_000.0;
 
-struct Translation {
-    source: RefCell<Vec<CodePageStamp>>,
-    source_bytes: Vec<(u32, Vec<u8>)>,
+struct Recompilation {
+    manifest: ManifestRegion,
+    future: PreparationFuture,
+    invalidated: bool,
 }
 
 pub(crate) struct Aot {
     pub executor: Box<dyn CompiledExecutor>,
     pub state: PreparationState,
+    pub entries: HashMap<RegionKey, CompiledHandle>,
     ranges: Vec<Range<u64>>,
-    translations: Vec<Option<Translation>>,
-    entries: HashMap<RegionKey, CompiledHandle>,
+    regions: Vec<CompiledRegion>,
+    invalidated: Vec<ManifestRegion>,
+    recompilations: Vec<Recompilation>,
 }
 
 impl Aot {
@@ -36,9 +43,11 @@ impl Aot {
         Self {
             executor,
             state: PreparationState::Loading,
-            ranges: Vec::new(),
-            translations: Vec::new(),
             entries: HashMap::new(),
+            ranges: Vec::new(),
+            regions: Vec::new(),
+            invalidated: Vec::new(),
+            recompilations: Vec::new(),
         }
     }
 
@@ -52,132 +61,156 @@ impl Aot {
         if self.state != PreparationState::Loading {
             return Ok(None);
         }
-        self.ranges.sort_unstable_by_key(|range| range.start);
-        let mut ranges: Vec<Range<u64>> = Vec::new();
-        for range in core::mem::take(&mut self.ranges) {
-            if let Some(previous) = ranges.last_mut()
-                && range.start <= previous.end
-            {
-                previous.end = previous.end.max(range.end);
-            } else {
-                ranges.push(range);
-            }
-        }
-        let mut images = Vec::new();
-        for range in ranges {
-            let mut address = range.start;
-            while address < range.end {
-                let size = (0x4000 - (address & 0x3fff)).min(range.end - address) as usize;
-                images.push(memory.code_image(address as u32, size)?);
-                address += size as u64;
-            }
-        }
-        if images.is_empty() {
+        let request = compile_request(memory, core::mem::take(&mut self.ranges), None)?;
+        if request.images.is_empty() {
             self.state = PreparationState::Ready;
             return Ok(None);
         }
         let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
         self.state = PreparationState::Preparing;
-        let images: Arc<[_]> = images.into();
-        let request = CompileRequest {
-            images: images.clone(),
-            max_region_instructions: MAX_REGION_INSTRUCTIONS,
-            max_region_blocks: MAX_REGION_BLOCKS,
-            regions: Box::new(decoder::Decoder::new(images)),
-        };
         Ok(Some(self.executor.prepare(request, deadline_ms)))
     }
 
-    pub fn finish(&mut self, result: Result<CompiledArtifact, String>, memory: &EmulatedMemory) -> bool {
+    pub fn finish(&mut self, result: Result<CompiledArtifact, String>) -> bool {
         if self.state != PreparationState::Preparing {
             return false;
         }
         self.state = PreparationState::Ready;
-        let mut artifact = match result {
-            Ok(artifact) => artifact,
+        match result {
+            Ok(artifact) => self.install(artifact),
             Err(error) => {
                 tracing::warn!(%error, "ARM AOT preparation failed; using interpreter");
                 return false;
             }
-        };
-        if artifact
-            .regions
-            .iter_mut()
-            .any(|region| !memory.validate_code(&mut region.manifest.source, &region.manifest.source_bytes))
-        {
-            return false;
         }
-        let mut entries = HashMap::with_capacity(artifact.regions.iter().map(|region| region.manifest.instruction_pcs.len()).sum());
-        let mut translations = Vec::with_capacity(artifact.regions.len());
-        for region in artifact.regions {
-            entries.extend(
-                region
-                    .manifest
-                    .instruction_pcs
-                    .into_iter()
-                    .map(|pc| (RegionKey { pc, ..region.manifest.entry }, region.handle)),
-            );
-            translations.push(Some(Translation {
-                source: RefCell::new(region.manifest.source),
-                source_bytes: region.manifest.source_bytes,
-            }));
-        }
-        self.entries = entries;
-        self.translations = translations;
         tracing::info!("ARM AOT installed");
         true
     }
 
-    pub fn lookup(&mut self, key: RegionKey, memory: &EmulatedMemory) -> Option<CompiledHandle> {
-        let handle = *self.entries.get(&key)?;
-        let translation = self.translations[handle.slot as usize].as_ref()?;
-        if memory.validate_code(&mut translation.source.borrow_mut(), &translation.source_bytes) {
-            return Some(handle);
+    fn install(&mut self, artifact: CompiledArtifact) {
+        for region in artifact.regions {
+            self.entries.extend(
+                region
+                    .manifest
+                    .instruction_pcs
+                    .iter()
+                    .map(|&pc| (RegionKey { pc, ..region.manifest.entry }, region.handle)),
+            );
+            self.regions.push(region);
         }
-        self.translations[handle.slot as usize] = None;
-        None
     }
 
-    pub fn execution_parts(
-        &mut self,
-    ) -> (
-        &mut dyn CompiledExecutor,
-        impl Fn(RegionKey, &EmulatedMemory) -> Option<CompiledHandle> + '_,
-    ) {
-        let entries = &self.entries;
-        let translations = &self.translations;
-        (&mut *self.executor, move |key, memory| {
-            let handle = *entries.get(&key)?;
-            let translation = translations[handle.slot as usize].as_ref()?;
-            memory
-                .validate_code(&mut translation.source.borrow_mut(), &translation.source_bytes)
-                .then_some(handle)
-        })
+    pub fn invalidate(&mut self, range: Range<u64>) {
+        let overlaps = |manifest: &ManifestRegion| manifest.code_ranges.iter().any(|code| code.start < range.end && range.start < code.end);
+        let mut index = 0;
+        while index < self.regions.len() {
+            if !overlaps(&self.regions[index].manifest) {
+                index += 1;
+                continue;
+            }
+            let region = self.regions.swap_remove(index);
+            for &pc in &region.manifest.instruction_pcs {
+                self.entries.remove(&RegionKey { pc, ..region.manifest.entry });
+            }
+            self.executor.release(region.handle);
+            self.invalidated.push(region.manifest);
+        }
+        for pending in &mut self.recompilations {
+            pending.invalidated |= overlaps(&pending.manifest);
+        }
     }
+
+    pub fn recompile(&mut self, key: &RegionKey, memory: &EmulatedMemory) {
+        let Some(index) = self.invalidated.iter().position(|region| {
+            region.entry.thumb == key.thumb
+                && region.entry.cpu_mode == key.cpu_mode
+                && region.code_ranges.iter().any(|range| range.contains(&u64::from(key.pc)))
+        }) else {
+            return;
+        };
+        let manifest = self.invalidated.swap_remove(index);
+        let request = match compile_request(memory, manifest.code_ranges.clone(), Some(manifest.entry.thumb)) {
+            Ok(request) => request,
+            Err(error) => {
+                tracing::warn!(%error, "ARM AOT recompilation failed; using interpreter");
+                return;
+            }
+        };
+        let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
+        self.recompilations.push(Recompilation {
+            manifest,
+            future: self.executor.prepare(request, deadline_ms),
+            invalidated: false,
+        });
+    }
+
+    pub fn poll_recompilations(&mut self) {
+        let mut index = 0;
+        while index < self.recompilations.len() {
+            let Poll::Ready(result) = self.recompilations[index].future.as_mut().poll(&mut Context::from_waker(Waker::noop())) else {
+                index += 1;
+                continue;
+            };
+            let pending = self.recompilations.swap_remove(index);
+            if pending.invalidated {
+                // Another explicit invalidation supersedes the in-flight snapshot.
+                if let Ok(artifact) = result {
+                    for region in artifact.regions {
+                        self.executor.release(region.handle);
+                    }
+                }
+                self.invalidated.push(pending.manifest);
+            } else {
+                match result {
+                    Ok(artifact) => self.install(artifact),
+                    Err(error) => tracing::warn!(%error, "ARM AOT recompilation failed; using interpreter"),
+                }
+            }
+        }
+    }
+}
+
+fn compile_request(memory: &EmulatedMemory, mut ranges: Vec<Range<u64>>, mode: Option<bool>) -> WieResult<CompileRequest> {
+    ranges.sort_unstable_by_key(|range| range.start);
+    let mut merged: Vec<Range<u64>> = Vec::new();
+    for range in ranges {
+        if let Some(previous) = merged.last_mut()
+            && range.start <= previous.end
+        {
+            previous.end = previous.end.max(range.end);
+        } else {
+            merged.push(range);
+        }
+    }
+    let mut images = Vec::new();
+    for range in merged {
+        let mut address = range.start;
+        while address < range.end {
+            let size = (0x4000 - (address & 0x3fff)).min(range.end - address) as usize;
+            images.push(memory.code_image(address as u32, size)?);
+            address += size as u64;
+        }
+    }
+    let images: Arc<[_]> = images.into();
+    Ok(CompileRequest {
+        images: images.clone(),
+        max_region_instructions: MAX_REGION_INSTRUCTIONS,
+        max_region_blocks: MAX_REGION_BLOCKS,
+        regions: Box::new(decoder::Decoder::new(images, mode)),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use alloc::{boxed::Box, collections::BTreeSet, sync::Arc, vec, vec::Vec};
 
-    use wie_arm_jit_types::{CodeImage, CodePageStamp, CompileRequest};
+    use wie_arm_jit_types::{CodeImage, CompileRequest};
     use wie_core_arm_wasm::compile;
 
     use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, decoder::Decoder};
 
     fn image(address: u32, bytes: Vec<u8>) -> CodeImage {
-        let end = u64::from(address) + bytes.len() as u64;
-        CodeImage {
-            address,
-            bytes,
-            source: (u64::from(address & !0xffff)..end)
-                .step_by(0x10000)
-                .map(|page| CodePageStamp {
-                    page: page as u32,
-                    version: 7,
-                })
-                .collect(),
-        }
+        CodeImage { address, bytes }
     }
 
     #[test]
@@ -199,7 +232,7 @@ mod tests {
                     .flat_map(u16::to_le_bytes)
                     .collect(),
             ),
-            // One region crosses a code-stamp page boundary.
+            // One region crosses a backing-memory page boundary.
             image(0xfffe, [0x3001_u16, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
             image(0x20000, [0xf000_u16, 0xf800, 0x4770].into_iter().flat_map(u16::to_le_bytes).collect()),
         ];
@@ -208,7 +241,7 @@ mod tests {
             images: images.clone(),
             max_region_instructions: MAX_REGION_INSTRUCTIONS,
             max_region_blocks: MAX_REGION_BLOCKS,
-            regions: Box::new(Decoder::new(images)),
+            regions: Box::new(Decoder::new(images, None)),
         })
         .unwrap();
         assert_eq!(&artifact.bytes[..8], b"\0asm\x01\0\0\0");
@@ -227,29 +260,17 @@ mod tests {
         }
         assert!(!owned.contains(&(true, 0x200e)));
         assert_eq!(
-            artifact
-                .manifest
-                .iter()
-                .find(|region| region.entry.pc == 0xfffe)
-                .unwrap()
-                .source
-                .iter()
-                .map(|stamp| (stamp.page, stamp.version))
-                .collect::<Vec<_>>(),
-            [(0, 7), (0x10000, 7)]
-        );
-        assert_eq!(
-            artifact.manifest.iter().find(|region| region.entry.pc == 0xfffe).unwrap().source_bytes,
-            [(0xfffe, vec![1, 0x30, 0x70, 0x47])]
+            artifact.manifest.iter().find(|region| region.entry.pc == 0xfffe).unwrap().code_ranges,
+            core::iter::once(0xfffe..0x10002).collect::<Vec<_>>()
         );
     }
 
     #[test]
     fn partial_instructions_remain_fallback_holes() {
         for bytes in [vec![], vec![1], vec![0, 0xf0], vec![0, 0xf0, 0]] {
-            assert!(Decoder::new(vec![image(0x1000, bytes)].into()).flatten().next().is_none());
+            assert!(Decoder::new(vec![image(0x1000, bytes)].into(), None).flatten().next().is_none());
         }
-        let regions: Vec<_> = Decoder::new(vec![image(0x1001, vec![0xff, 1, 0x20, 0])].into()).flatten().collect();
+        let regions: Vec<_> = Decoder::new(vec![image(0x1001, vec![0xff, 1, 0x20, 0])].into(), None).flatten().collect();
         assert_eq!(regions.len(), 1);
         assert_eq!(regions[0].ir.entry.pc, 0x1002);
         assert_eq!(regions[0].ir.blocks[0].instructions.len(), 1);
@@ -257,7 +278,7 @@ mod tests {
 
     #[test]
     fn unsupported_images_make_bounded_progress_without_ir() {
-        let mut decoder = Decoder::new(vec![image(0x1000, vec![0xff; 16 * 1024])].into());
+        let mut decoder = Decoder::new(vec![image(0x1000, vec![0xff; 16 * 1024])].into(), None);
         let mut steps = 0;
         for region in decoder.by_ref() {
             assert!(region.is_none());
@@ -275,7 +296,7 @@ mod tests {
                 images: images.clone(),
                 max_region_instructions: MAX_REGION_INSTRUCTIONS,
                 max_region_blocks: MAX_REGION_BLOCKS,
-                regions: Box::new(Decoder::new(images)),
+                regions: Box::new(Decoder::new(images, None)),
             })
             .unwrap();
             let mut pcs = BTreeSet::new();

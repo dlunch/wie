@@ -10,17 +10,19 @@ pub(crate) struct Decoder {
     image_ready: bool,
     cursor: usize,
     thumb: bool,
+    mode: Option<bool>,
     covered: [u64; 128],
 }
 
 impl Decoder {
-    pub(crate) fn new(images: Arc<[CodeImage]>) -> Self {
+    pub(crate) fn new(images: Arc<[CodeImage]>, mode: Option<bool>) -> Self {
         Self {
             images,
             image_index: 0,
             image_ready: false,
             cursor: 0,
             thumb: false,
+            mode,
             covered: [0; 128],
         }
     }
@@ -32,15 +34,16 @@ impl Iterator for Decoder {
     fn next(&mut self) -> Option<Self::Item> {
         let image = self.images.get(self.image_index)?;
         if !self.image_ready {
-            self.cursor = (4 - image.address as usize % 4) % 4;
-            self.thumb = false;
+            self.thumb = self.mode.unwrap_or(false);
+            let alignment = if self.thumb { 2 } else { 4 };
+            self.cursor = (alignment - image.address as usize % alignment) % alignment;
             self.covered.fill(0);
             self.image_ready = true;
             return Some(None);
         }
         for _ in 0..256 {
             if self.cursor >= image.bytes.len() {
-                if self.thumb {
+                if self.thumb || self.mode.is_some() {
                     self.image_index += 1;
                     self.image_ready = false;
                 } else {
@@ -67,29 +70,7 @@ impl Iterator for Decoder {
                 let offset = (instruction.pc.get() - image.address) as usize;
                 self.covered[offset / 128] |= 1 << ((offset / 2) % 64);
             }
-            let source = image
-                .source
-                .iter()
-                .filter(|stamp| {
-                    ir.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| {
-                        stamp.page >= (instruction.pc.get() & !0xffff)
-                            && u64::from(stamp.page) <= ((u64::from(instruction.pc.get()) + u64::from(instruction.size) - 1) & !0xffff)
-                    })
-                })
-                .cloned()
-                .collect();
-            let source_bytes = ir
-                .blocks
-                .iter()
-                .map(|block| {
-                    let first = block.instructions[0].pc.get();
-                    let last = block.instructions.last().unwrap();
-                    let start = (first - image.address) as usize;
-                    let end = (last.pc.get() - image.address) as usize + usize::from(last.size);
-                    (first, image.bytes[start..end].to_vec())
-                })
-                .collect();
-            return Some(Some(CompileRegion { ir, source, source_bytes }));
+            return Some(Some(CompileRegion { ir }));
         }
         Some(None)
     }

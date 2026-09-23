@@ -176,7 +176,7 @@ export async function compileArm(
                     groupStarted = performance.now();
                 }
             }
-            latestModule = key !== undefined && digest !== undefined ? { key, digest, module } : undefined;
+            if (key !== undefined && digest !== undefined) latestModule = { key, digest, module };
             if (key !== undefined && digest !== undefined && cachedDigest === undefined) {
                 void storeArmCache({ bytes: artifact.bytes, manifest: artifact.manifest, digest }, key, deadline);
             }
