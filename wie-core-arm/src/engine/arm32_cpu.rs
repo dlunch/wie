@@ -6,20 +6,16 @@ use wie_arm_jit_types::{
     CodeImage, CodePageStamp, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture,
     PreparationState, RegionKey, RunFrame,
 };
-use wie_backend::ProfileSample;
-use wie_util::{Result, WieError};
+use wie_util::{Result as WieResult, WieError};
 
 use crate::{
     aot::Aot,
     engine::{ArmEngine, ArmRegister, EngineRunResult, EngineStopReason, MemoryPermission},
 };
 
-use super::sampler::Sampler;
-
 pub struct Arm32CpuEngine {
     cpu: Cpu,
     mem: EmulatedMemory,
-    sampler: Sampler,
     aot: Option<Aot>,
 }
 
@@ -33,7 +29,6 @@ impl Arm32CpuEngine {
         Self {
             cpu: Cpu::new(),
             mem: EmulatedMemory::new(),
-            sampler: Sampler::new(),
             aot: None,
         }
     }
@@ -49,7 +44,7 @@ impl Arm32CpuEngine {
         self.cpu.reg_get(Mode::User, reg::PC) == 0x08 && (self.cpu.reg_get(Mode::User, reg::CPSR) & 0x1f) == 0x13
     }
 
-    fn read_svc_result(&mut self) -> Result<EngineStopReason> {
+    fn read_svc_result(&mut self) -> WieResult<EngineStopReason> {
         let lr = self.cpu.reg_get(Mode::Supervisor, reg::LR);
         let spsr = self.cpu.reg_get(Mode::Supervisor, reg::SPSR);
 
@@ -115,7 +110,7 @@ impl Arm32CpuEngine {
 }
 
 impl ArmEngine for Arm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32) -> WieResult<EngineRunResult> {
         let mut budget_consumed = 0;
         let mut interpret_one = false;
         let mut lookup_entry = true;
@@ -154,14 +149,12 @@ impl ArmEngine for Arm32CpuEngine {
                         regs: core::array::from_fn(|index| self.cpu.reg_get(Mode::User, index as u8)),
                         cpsr,
                         end,
-                        sample_remaining: self.sampler.remaining,
                         ..RunFrame::default()
                     };
                     let result = {
                         let (executor, resolve) = aot.execution_parts();
                         let mut access = MemoryAccess {
                             memory: &mut self.mem,
-                            sampler: &mut self.sampler,
                             resolve: &resolve,
                         };
                         executor.execute(handle, &mut frame, &mut access)
@@ -182,7 +175,6 @@ impl ArmEngine for Arm32CpuEngine {
                     {
                         budget_consumed += frame.executed;
                     }
-                    self.sampler.retire(frame.executed);
                     if exit == CompiledExit::GuestFault {
                         return Err(WieError::InvalidMemoryAccess(frame.fault_address));
                     }
@@ -194,12 +186,6 @@ impl ArmEngine for Arm32CpuEngine {
             let recheck_after_step = interpret_one;
             interpret_one = false;
             lookup_entry = false;
-
-            if self.sampler.remaining == 1 {
-                self.sampler.prepare(pc, self.cpu.reg_get(Mode::User, 7), |address, buffer| {
-                    self.mem.read_range(address, buffer.len(), buffer).is_ok()
-                });
-            }
 
             let cache_invalidation = self.instruction_cache_invalidation(pc, cpsr);
             let mut arm32cpu_memory = self.mem.as_arm32cpu_memory();
@@ -220,7 +206,6 @@ impl ArmEngine for Arm32CpuEngine {
                 lookup_entry = true;
             }
             lookup_entry |= recheck_after_step;
-            self.sampler.retire(1);
         };
 
         Ok(EngineRunResult {
@@ -249,24 +234,16 @@ impl ArmEngine for Arm32CpuEngine {
         self.mem.map(address, size);
     }
 
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()> {
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> WieResult<()> {
         self.mem.write_range(address, data)
     }
 
-    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize> {
         self.mem.read_range(address, size, result)
     }
 
     fn is_mapped(&self, address: u32, size: usize) -> bool {
         self.mem.is_mapped(address, size)
-    }
-
-    fn set_profiling(&mut self, enabled: bool) {
-        self.sampler.profiling = enabled;
-    }
-
-    fn take_profile(&mut self, force: bool) -> Vec<ProfileSample> {
-        self.sampler.take_profile(force)
     }
 
     fn record_image(&mut self, address: u32, size: usize) {
@@ -275,7 +252,7 @@ impl ArmEngine for Arm32CpuEngine {
         }
     }
 
-    fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>> {
+    fn begin_preparation(&mut self) -> WieResult<Option<PreparationFuture>> {
         if let Some(aot) = &mut self.aot {
             return aot.begin(&self.mem);
         }
@@ -286,7 +263,7 @@ impl ArmEngine for Arm32CpuEngine {
         self.aot.as_ref().is_some_and(|aot| aot.state != PreparationState::Ready)
     }
 
-    fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>) {
+    fn finish_preparation(&mut self, result: Result<CompiledArtifact, String>) {
         if let Some(aot) = &mut self.aot
             && !aot.finish(result, &self.mem)
         {
@@ -297,7 +274,6 @@ impl ArmEngine for Arm32CpuEngine {
 
 struct MemoryAccess<'a> {
     memory: &'a mut EmulatedMemory,
-    sampler: &'a mut Sampler,
     resolve: &'a dyn Fn(RegionKey, &EmulatedMemory) -> Option<CompiledHandle>,
 }
 
@@ -340,11 +316,6 @@ impl ExecutionAccess for MemoryAccess<'_> {
             (upper[0].bytes.as_mut()?, lower[end].bytes.as_mut()?)
         };
         Some((&mut first[offset..], &mut second[..len - first_len]))
-    }
-
-    fn sample_prepare(&mut self, pc: u32, r7: u32) {
-        self.sampler
-            .prepare(pc, r7, |address, buffer| self.memory.read_range(address, buffer.len(), buffer).is_ok());
     }
 }
 
@@ -409,7 +380,7 @@ impl EmulatedMemory {
         }
     }
 
-    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> Result<usize> {
+    fn read_range(&self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize> {
         let mut remaining_size = size;
         let mut current_address = address;
 
@@ -430,7 +401,7 @@ impl EmulatedMemory {
         Ok(size)
     }
 
-    fn write_range(&mut self, address: u32, data: &[u8]) -> Result<()> {
+    fn write_range(&mut self, address: u32, data: &[u8]) -> WieResult<()> {
         let mut current_address = address;
         let mut data_index = 0;
 
@@ -450,7 +421,7 @@ impl EmulatedMemory {
         Ok(())
     }
 
-    pub(crate) fn code_image(&self, address: u32, size: usize) -> Result<CodeImage> {
+    pub(crate) fn code_image(&self, address: u32, size: usize) -> WieResult<CodeImage> {
         let mut bytes = alloc::vec![0; size];
         self.read_range(address, size, &mut bytes)?;
         let source = (u64::from(address & !PAGE_MASK)..u64::from(address) + size as u64)
@@ -666,7 +637,7 @@ mod tests {
     #[derive(Default)]
     struct Responses {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
-        ready: Option<futures::channel::oneshot::Sender<core::result::Result<CompiledArtifact, String>>>,
+        ready: Option<futures::channel::oneshot::Sender<Result<CompiledArtifact, String>>>,
         now: f64,
     }
 
@@ -685,14 +656,13 @@ mod tests {
             Box::pin(async move { receiver.await.unwrap_or_else(|_| Err("preparation cancelled".into())) })
         }
 
-        fn execute(&mut self, _: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> core::result::Result<CompiledExit, String> {
+        fn execute(&mut self, _: CompiledHandle, _: &mut RunFrame, _: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
             unreachable!("preparation tests do not execute compiled code")
         }
     }
 
     fn artifact(request: &[wie_arm_jit_types::CompileRegion]) -> CompiledArtifact {
         CompiledArtifact {
-            encoded_size: 100,
             regions: request
                 .iter()
                 .filter(|region| region.ir.entry.thumb)
@@ -885,12 +855,7 @@ mod tests {
             Box::pin(async move { Ok(compiled) })
         }
 
-        fn execute(
-            &mut self,
-            handle: CompiledHandle,
-            frame: &mut RunFrame,
-            access: &mut dyn ExecutionAccess,
-        ) -> core::result::Result<CompiledExit, String> {
+        fn execute(&mut self, handle: CompiledHandle, frame: &mut RunFrame, access: &mut dyn ExecutionAccess) -> Result<CompiledExit, String> {
             self.calls.lock().0 += 1;
             assert_eq!(access.resolve(frame.regs[15], frame.cpsr).map(|handle| handle.slot), Some(handle.slot));
             assert!(access.resolve(frame.regs[15], frame.cpsr | 0x0100_0000).is_none());
@@ -900,7 +865,6 @@ mod tests {
                     frame.regs[0] = 43;
                     frame.regs[15] += completed * 2;
                     frame.executed = completed;
-                    frame.sample_remaining -= completed;
                 }
                 return Err("injected backend failure at an instruction boundary".into());
             }
@@ -938,7 +902,6 @@ mod tests {
             let executed = if yielded { 2 } else { 3 };
             let compiled = if cfg!(target_arch = "wasm32") { completed.unwrap_or(0) } else { 0 };
             assert_eq!(result.budget_consumed, executed - compiled);
-            assert_eq!(engine.sampler.remaining, 1024 - executed);
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), if yielded { 0x3f } else { 0x1f });
             assert_eq!(engine.aot.is_some(), completed.is_none());
             assert_eq!(calls.lock().0, if completed.is_some() { 1 } else { 2 });
@@ -969,7 +932,7 @@ mod tests {
         .unwrap();
         core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
         let controller = core.clone();
-        let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {
+        let mut execution: core::pin::Pin<Box<dyn Future<Output = WieResult<u32>> + Send>> = Box::pin(async move {
             core.prepare_execution().await?;
             core.run_function(0x1001, &[]).await
         });
@@ -984,10 +947,7 @@ mod tests {
                 .ready
                 .take()
                 .unwrap()
-                .send(Ok(CompiledArtifact {
-                    regions: Vec::new(),
-                    encoded_size: 0
-                }))
+                .send(Ok(CompiledArtifact { regions: Vec::new() }))
                 .is_ok()
         );
         assert!(controller.is_preparing());
@@ -1048,10 +1008,8 @@ mod tests {
         assert!(memory.write_range(0x1ffff, &[1, 2]).is_err());
         assert!(!memory.code_is_current(&before));
         let before = memory.code_image(0x10000, 1).unwrap().source;
-        let mut sampler = Sampler::new();
         let mut access = MemoryAccess {
             memory: &mut memory,
-            sampler: &mut sampler,
             resolve: &|_, _| None,
         };
         assert!(access.pages()[2].bytes.is_none());
@@ -1071,10 +1029,8 @@ mod tests {
         };
         memory.write_range(0x10000, &42u32.to_le_bytes()).unwrap();
         let before = memory.code_image(0x10000, 1).unwrap().source;
-        let mut sampler = Sampler::new();
         let mut access = MemoryAccess {
             memory: &mut memory,
-            sampler: &mut sampler,
             resolve: &|_, _| None,
         };
         for (address, words, admitted) in [
@@ -1093,8 +1049,6 @@ mod tests {
         }
         assert!(access.memory.code_is_current(&before));
         assert_eq!(access.memory.as_arm32cpu_memory().r32(0x10000), 42);
-        assert_eq!(access.sampler.remaining, 1024);
-        assert_eq!(access.sampler.sequence, 0);
         access.memory.map(0x20000, PAGE_SIZE);
         access.memory.map(0, PAGE_SIZE);
         assert!(access.word_range(0xffff_fffd, 1).is_none());
@@ -1121,8 +1075,6 @@ mod tests {
             }
         }
         assert!(access.memory.code_is_current(&before));
-        assert_eq!(access.sampler.remaining, 1024);
-        assert_eq!(access.sampler.sequence, 0);
     }
 
     #[test]
@@ -1146,8 +1098,6 @@ mod tests {
             engine.reg_write(ArmRegister::Cpsr, 0x1f);
             engine.reg_write(ArmRegister::PC, 0x1000);
             engine.reg_write(ArmRegister::R0, operand);
-            engine.sampler.remaining = 1;
-            engine.set_profiling(true);
             let code = engine.mem.code_image(0x1000, 1).unwrap().source;
             let data = engine.mem.code_image(0x20000, 1).unwrap().source;
             let result = engine.run(0x1004, 1).unwrap();
@@ -1158,10 +1108,6 @@ mod tests {
             assert!(engine.mem.pages[3].bytes.is_none());
             assert_eq!(engine.reg_read(ArmRegister::PC), 0x1004);
             assert_eq!(engine.reg_read(ArmRegister::Cpsr), 0x1f);
-            assert_eq!(engine.sampler.sequence, 1);
-            let samples = engine.take_profile(true);
-            assert_eq!(samples.len(), 1);
-            assert_eq!(samples[0].stack, [0x1000]);
         }
     }
 
@@ -1227,25 +1173,6 @@ mod tests {
                 (EngineStopReason::End, true) | (EngineStopReason::Yield, false)
             ));
         }
-    }
-
-    #[test]
-    fn svc_samples_capture_the_retired_instruction_before_exception_entry() {
-        let mut engine = Arm32CpuEngine::new();
-        engine.mem_map(0x1000, 2, MemoryPermission::ReadWriteExecute);
-        engine.mem_write(0x1000, &[0x01, 0xdf]).unwrap();
-        engine.reg_write(ArmRegister::Cpsr, 0x3f);
-        engine.reg_write(ArmRegister::PC, 0x1001);
-        engine.set_profiling(true);
-        engine.sampler.remaining = 1;
-        let result = engine.run(0x2000, 1).unwrap();
-        assert!(matches!(result.stop_reason, EngineStopReason::Svc { category: 1, .. }));
-        assert_eq!(result.budget_consumed, 1);
-        let samples = engine.take_profile(true);
-        assert_eq!(samples.len(), 1);
-        assert_eq!(samples[0].stack, [0x1000]);
-        assert_eq!(samples[0].count, 1);
-        assert_eq!(engine.sampler.sequence, 1);
     }
 
     #[test]

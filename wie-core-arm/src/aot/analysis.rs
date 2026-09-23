@@ -11,10 +11,7 @@ use wie_arm_jit_types::ir::{
     Value, Width,
 };
 
-// Bound synchronous analysis/code generation and Wasm selector nesting, including coalesced regions.
-// These are policy limits, not ISA limits; larger regions trade fewer dispatches for longer preparation steps.
-pub(super) const MAX_REGION_INSTRUCTIONS: usize = 4096;
-pub(super) const MAX_REGION_BLOCKS: usize = 512;
+use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS};
 
 pub(super) fn analyze(bytes: &[u8], base: u32, entry: RegionKey, covered: &[u64; 128]) -> Option<RegionIr> {
     let alignment = if entry.thumb { 2 } else { 4 };

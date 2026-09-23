@@ -1,5 +1,6 @@
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::String,
     sync::Arc,
     vec::Vec,
 };
@@ -7,7 +8,9 @@ use core::time::Duration;
 
 use crossbeam::channel;
 use spin::Mutex;
-use wie_util::WieError;
+
+use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
+use wie_util::{Result as WieResult, WieError};
 
 use crate::{ThreadId, context::ArmCoreContext};
 
@@ -196,7 +199,7 @@ impl DebugInner {
         cpu.reg_write(ArmRegister::Cpsr, regs.cpsr);
     }
 
-    pub(crate) fn read_memory(&self, start_addr: u32, data: &mut [u8]) -> wie_util::Result<usize> {
+    pub(crate) fn read_memory(&self, start_addr: u32, data: &mut [u8]) -> WieResult<usize> {
         let result = self.cpu.lock().mem_read(start_addr, data.len(), data)?;
         let breakpoints = self.breakpoints.lock();
         overlay_breakpoint_originals(&breakpoints, start_addr, data, true);
@@ -204,7 +207,7 @@ impl DebugInner {
         Ok(result)
     }
 
-    pub(crate) fn write_memory(&self, start_addr: u32, data: &[u8]) -> wie_util::Result<()> {
+    pub(crate) fn write_memory(&self, start_addr: u32, data: &[u8]) -> WieResult<()> {
         let mut breakpoints = self.breakpoints.lock();
         let write_end = start_addr + data.len() as u32;
 
@@ -283,7 +286,7 @@ impl DebugInner {
         }
     }
 
-    pub(crate) fn detach(&self) -> wie_util::Result<()> {
+    pub(crate) fn detach(&self) -> WieResult<()> {
         self.pause();
         let addresses: Vec<_> = self.breakpoints.lock().keys().copied().collect();
         for address in addresses {
@@ -293,7 +296,7 @@ impl DebugInner {
         Ok(())
     }
 
-    pub(crate) fn add_breakpoint(&self, addr: u32, kind: DebugBreakpointKind) -> wie_util::Result<()> {
+    pub(crate) fn add_breakpoint(&self, addr: u32, kind: DebugBreakpointKind) -> WieResult<()> {
         let addr = Self::normalize_addr(addr);
         if self.breakpoints.lock().contains_key(&addr) {
             return Ok(());
@@ -320,7 +323,7 @@ impl DebugInner {
         Ok(())
     }
 
-    pub(crate) fn remove_breakpoint(&self, addr: u32) -> wie_util::Result<()> {
+    pub(crate) fn remove_breakpoint(&self, addr: u32) -> WieResult<()> {
         let addr = Self::normalize_addr(addr);
         let breakpoint = self.breakpoints.lock().remove(&addr);
 
@@ -388,7 +391,7 @@ impl DebugInner {
         if addr & 1 == 1 { addr - 1 } else { addr }
     }
 
-    fn try_restore_breakpoint(&self, addr: u32) -> wie_util::Result<bool> {
+    fn try_restore_breakpoint(&self, addr: u32) -> WieResult<bool> {
         let mut cpu = self.cpu.lock();
         let mut breakpoints = self.breakpoints.lock();
 
@@ -403,7 +406,7 @@ impl DebugInner {
         }
     }
 
-    fn reinsert_breakpoint(&self, addr: u32) -> wie_util::Result<()> {
+    fn reinsert_breakpoint(&self, addr: u32) -> WieResult<()> {
         let mut cpu = self.cpu.lock();
         let mut breakpoints = self.breakpoints.lock();
 
@@ -454,7 +457,7 @@ impl DebuggedArm32CpuEngine {
 }
 
 impl ArmEngine for DebuggedArm32CpuEngine {
-    fn run(&mut self, end: u32, count: u32) -> wie_util::Result<EngineRunResult> {
+    fn run(&mut self, end: u32, count: u32) -> WieResult<EngineRunResult> {
         let mut budget_consumed = 0;
         loop {
             let thread_id = self.stop_thread_id();
@@ -533,11 +536,11 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().mem_map(address, size, permission)
     }
 
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> wie_util::Result<()> {
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> WieResult<()> {
         self.debug.cpu.lock().mem_write(address, data)
     }
 
-    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> wie_util::Result<usize> {
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize> {
         self.debug.cpu.lock().mem_read(address, size, result)
     }
 
@@ -545,19 +548,11 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().is_mapped(address, size)
     }
 
-    fn set_profiling(&mut self, enabled: bool) {
-        self.debug.cpu.lock().set_profiling(enabled);
-    }
-
-    fn take_profile(&mut self, force: bool) -> Vec<wie_backend::ProfileSample> {
-        self.debug.cpu.lock().take_profile(force)
-    }
-
     fn record_image(&mut self, address: u32, size: usize) {
         self.debug.cpu.lock().record_image(address, size);
     }
 
-    fn begin_preparation(&mut self) -> wie_util::Result<Option<wie_arm_jit_types::PreparationFuture>> {
+    fn begin_preparation(&mut self) -> WieResult<Option<PreparationFuture>> {
         self.debug.cpu.lock().begin_preparation()
     }
 
@@ -565,7 +560,7 @@ impl ArmEngine for DebuggedArm32CpuEngine {
         self.debug.cpu.lock().is_preparing()
     }
 
-    fn finish_preparation(&mut self, result: Result<wie_arm_jit_types::CompiledArtifact, alloc::string::String>) {
+    fn finish_preparation(&mut self, result: Result<CompiledArtifact, String>) {
         self.debug.cpu.lock().finish_preparation(result);
     }
 }

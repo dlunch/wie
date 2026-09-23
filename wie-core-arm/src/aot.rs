@@ -1,17 +1,21 @@
 mod analysis;
 mod decoder;
 
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use core::{cell::RefCell, ops::Range};
 
 use hashbrown::HashMap;
 use wie_arm_jit_types::{
     CodePageStamp, CompileRequest, CompiledArtifact, CompiledExecutor, CompiledHandle, PreparationFuture, PreparationState, RegionKey,
 };
-use wie_util::Result;
+use wie_util::Result as WieResult;
 
 use crate::engine::EmulatedMemory;
 
+// Bound synchronous analysis/code generation and Wasm selector nesting, including coalesced regions.
+// These are policy limits, not ISA limits; larger regions trade fewer dispatches for longer preparation steps.
+const MAX_REGION_INSTRUCTIONS: usize = 4096;
+const MAX_REGION_BLOCKS: usize = 512;
 const PREPARATION_TIMEOUT_MS: f64 = 10_000.0;
 
 struct Translation {
@@ -25,7 +29,6 @@ pub(crate) struct Aot {
     ranges: Vec<Range<u64>>,
     translations: Vec<Option<Translation>>,
     entries: HashMap<RegionKey, CompiledHandle>,
-    deadline_ms: f64,
 }
 
 impl Aot {
@@ -36,7 +39,6 @@ impl Aot {
             ranges: Vec::new(),
             translations: Vec::new(),
             entries: HashMap::new(),
-            deadline_ms: 0.0,
         }
     }
 
@@ -46,11 +48,10 @@ impl Aot {
         }
     }
 
-    pub fn begin(&mut self, memory: &EmulatedMemory) -> Result<Option<PreparationFuture>> {
+    pub fn begin(&mut self, memory: &EmulatedMemory) -> WieResult<Option<PreparationFuture>> {
         if self.state != PreparationState::Loading {
             return Ok(None);
         }
-        let snapshot_started = self.executor.now();
         self.ranges.sort_unstable_by_key(|range| range.start);
         let mut ranges: Vec<Range<u64>> = Vec::new();
         for range in core::mem::take(&mut self.ranges) {
@@ -75,26 +76,19 @@ impl Aot {
             self.state = PreparationState::Ready;
             return Ok(None);
         }
-        let started = self.executor.now();
-        self.deadline_ms = started + PREPARATION_TIMEOUT_MS;
-        tracing::info!(
-            bytes = images.iter().map(|image| image.bytes.len()).sum::<usize>(),
-            images = images.len(),
-            snapshot_ms = started - snapshot_started,
-            "ARM AOT input ready"
-        );
+        let deadline_ms = self.executor.now() + PREPARATION_TIMEOUT_MS;
         self.state = PreparationState::Preparing;
         let images: Arc<[_]> = images.into();
         let request = CompileRequest {
             images: images.clone(),
-            max_region_instructions: analysis::MAX_REGION_INSTRUCTIONS,
-            max_region_blocks: analysis::MAX_REGION_BLOCKS,
+            max_region_instructions: MAX_REGION_INSTRUCTIONS,
+            max_region_blocks: MAX_REGION_BLOCKS,
             regions: Box::new(decoder::Decoder::new(images)),
         };
-        Ok(Some(self.executor.prepare(request, self.deadline_ms)))
+        Ok(Some(self.executor.prepare(request, deadline_ms)))
     }
 
-    pub fn finish(&mut self, result: core::result::Result<CompiledArtifact, alloc::string::String>, memory: &EmulatedMemory) -> bool {
+    pub fn finish(&mut self, result: Result<CompiledArtifact, String>, memory: &EmulatedMemory) -> bool {
         if self.state != PreparationState::Preparing {
             return false;
         }
@@ -130,12 +124,7 @@ impl Aot {
         }
         self.entries = entries;
         self.translations = translations;
-        tracing::info!(
-            regions = self.translations.len(),
-            bytes = artifact.encoded_size,
-            elapsed_ms = self.executor.now() - (self.deadline_ms - PREPARATION_TIMEOUT_MS),
-            "ARM AOT installed"
-        );
+        tracing::info!("ARM AOT installed");
         true
     }
 
@@ -174,10 +163,7 @@ mod tests {
     use wie_arm_jit_types::{CodeImage, CodePageStamp, CompileRequest};
     use wie_core_arm_wasm::compile;
 
-    use super::{
-        analysis::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS},
-        decoder::Decoder,
-    };
+    use super::{MAX_REGION_BLOCKS, MAX_REGION_INSTRUCTIONS, decoder::Decoder};
 
     fn image(address: u32, bytes: Vec<u8>) -> CodeImage {
         let end = u64::from(address) + bytes.len() as u64;

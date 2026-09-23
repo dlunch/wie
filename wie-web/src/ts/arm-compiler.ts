@@ -81,19 +81,13 @@ async function accessArmCache(key: string, record: ArmCacheRecord | undefined): 
 }
 
 export async function loadArmCache(input: Uint8Array, version: number, deadline: number): Promise<ArmCacheLookup> {
-    const started = performance.now();
-    const timing: Record<string, number> = {};
     let outcome = "miss";
     let key: string | undefined;
     try {
         return await duringPreparation(deadline, async () => {
             try {
                 key = `${version}:${await sha256(input)}`;
-                timing.keying = performance.now() - started;
-                let phaseStarted = performance.now();
                 const record = await accessArmCache(key, undefined);
-                timing.read = performance.now() - phaseStarted;
-                phaseStarted = performance.now();
                 if (record === undefined) return { key };
                 outcome = "corrupt";
                 if (typeof record !== "object" || record === null ||
@@ -102,7 +96,6 @@ export async function loadArmCache(input: Uint8Array, version: number, deadline:
                     !("digest" in record) || typeof record.digest !== "string") return { key };
                 const artifact = { bytes: record.bytes, manifest: record.manifest, digest: record.digest };
                 const digest = await artifactDigest(artifact, key);
-                timing.integrity = performance.now() - phaseStarted;
                 if (digest !== artifact.digest) return { key };
                 outcome = "persistent-hit";
                 return { key, artifact };
@@ -115,20 +108,19 @@ export async function loadArmCache(input: Uint8Array, version: number, deadline:
         outcome = String(error);
         throw error;
     } finally {
-        console.info("ARM AOT cache lookup", { outcome, elapsedMs: performance.now() - started, phasesMs: timing });
+        console.info("ARM AOT cache lookup", outcome);
     }
 }
 
 // This detached task owns only cache data, never an instance, imports or a warmup frame.
 async function storeArmCache(record: ArmCacheRecord, key: string, deadline: number): Promise<void> {
-    const started = performance.now();
     let outcome = "stored";
     try {
         await duringPreparation(deadline, () => accessArmCache(key, record));
     } catch {
         outcome = performance.now() >= deadline ? "skipped" : "failed";
     }
-    console.info("ARM AOT cache store", { outcome, elapsedMs: performance.now() - started });
+    console.info("ARM AOT cache store", outcome);
 }
 
 export function compilerTask(): Promise<void> {
@@ -148,13 +140,7 @@ export async function compileArm(
     artifact: ArmArtifactBytes, key: string | undefined, cachedDigest: string | undefined, imports: WebAssembly.Imports,
     frame: number, regionCount: number, deadline: number,
 ): Promise<Function> {
-    let stopped: unknown;
-    let failed = false;
-    const started = performance.now();
-    const timing: Record<string, number> = {};
-    let cache = cachedDigest === undefined ? "miss" : "persistent-hit";
-    let memory: WebAssembly.Memory | undefined = imports.wie.memory as WebAssembly.Memory;
-    const memoryBefore = memory.buffer.byteLength;
+    let outcome = cachedDigest === undefined ? "miss" : "persistent-hit";
     try {
         return await duringPreparation(deadline, async check => {
             let digest = cachedDigest;
@@ -162,29 +148,23 @@ export async function compileArm(
                 try {
                     digest = await artifactDigest(artifact, key);
                 } catch {
-                    cache = "unavailable";
+                    outcome = "unavailable";
                 }
                 check();
-                timing.integrity = performance.now() - started;
             }
-            let phaseStarted = performance.now();
             let module: WebAssembly.Module;
             if (cachedDigest !== undefined && latestModule && latestModule.key === key && latestModule.digest === cachedDigest) {
                 module = latestModule.module;
-                cache = "module-hit";
+                outcome = "module-hit";
             } else {
                 // Rust supplies JS-owned arrays before freeing its source buffers.
                 module = await WebAssembly.compile(artifact.bytes as Uint8Array<ArrayBuffer>);
             }
             check();
-            timing.compile = performance.now() - phaseStarted;
-            phaseStarted = performance.now();
             const instance = await WebAssembly.instantiate(module, imports);
             // Promise.race does not cancel work: Rust may have freed the warmup frame after a timeout.
             check();
-            timing.instantiate = performance.now() - phaseStarted;
-            phaseStarted = performance.now();
-            let groupStarted = phaseStarted;
+            let groupStarted = performance.now();
             const dispatcher = instance.exports.dispatch;
             if (typeof dispatcher !== "function") throw new Error("missing compiled dispatcher");
             for (let slot = 0; slot < Math.max(regionCount, 1); slot++) {
@@ -196,7 +176,6 @@ export async function compileArm(
                     groupStarted = performance.now();
                 }
             }
-            timing.warmup = performance.now() - phaseStarted;
             latestModule = key !== undefined && digest !== undefined ? { key, digest, module } : undefined;
             if (key !== undefined && digest !== undefined && cachedDigest === undefined) {
                 void storeArmCache({ bytes: artifact.bytes, manifest: artifact.manifest, digest }, key, deadline);
@@ -204,17 +183,9 @@ export async function compileArm(
             return dispatcher;
         });
     } catch (error) {
-        failed = true;
-        stopped = error;
+        outcome = String(error);
         throw error;
     } finally {
-        const memoryRetained = memory.buffer.byteLength;
-        imports = {};
-        memory = undefined;
-        console.info("ARM AOT prepared", {
-            outcome: failed ? String(stopped) : "ready",
-            elapsedMs: performance.now() - started, phasesMs: timing, encodedSize: artifact.bytes.byteLength, regionCount, cache,
-            hostMemoryBefore: memoryBefore, hostMemoryPeak: memoryRetained, hostMemoryRetained: memoryRetained,
-        });
+        console.info("ARM AOT prepared", outcome);
     }
 }

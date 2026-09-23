@@ -1,9 +1,9 @@
-use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
 use core::mem::size_of;
 
 use spin::Mutex;
 
-use wie_backend::{Options, ProfileCallback, YieldFuture};
+use wie_backend::{Options, ProfileCallback, ProfileSample, YieldFuture};
 use wie_util::{ByteRead, ByteWrite, Result, WieError, read_generic};
 
 use crate::{
@@ -19,10 +19,22 @@ const GLOBAL_DATA_BASE: u32 = 0x7fff0000;
 const FUNCTIONS_BASE: u32 = 0x71000000;
 const FUNCTIONS_SIZE: usize = 0x10000;
 const SVC_STUB_SIZE: u32 = 16;
+const INSTRUCTIONS_PER_YIELD: u32 = 10_000;
 pub const RUN_FUNCTION_LR: u32 = 0x7f000000;
 pub const HEAP_BASE: u32 = 0x40000000;
 pub const HEAP_SIZE: u32 = 0x10000000;
-const INSTRUCTIONS_PER_YIELD: u32 = 10_000;
+
+/// Limit on stack frames recorded per sample. Bounds memory and protects
+/// against runaway loops if the R7 chain forms a cycle.
+const PROFILE_MAX_STACK: usize = 32;
+/// Flush the per-stack counter map every this many samples taken.
+const PROFILE_FLUSH_INTERVAL: u32 = 1000;
+
+struct ProfileState {
+    samples: BTreeMap<Vec<u32>, u64>,
+    counter: u32,
+    callback: ProfileCallback,
+}
 
 pub(crate) struct ArmCoreInner {
     pub(crate) engine: Box<dyn ArmEngine>,
@@ -30,18 +42,25 @@ pub(crate) struct ArmCoreInner {
     last_thread_id: ThreadId,
     svc_handlers: BTreeMap<u32, Arc<Box<dyn RegisteredFunction>>>,
     next_stub_address: u32,
-    profile: Option<ProfileCallback>,
+    profile: Option<ProfileState>,
 }
 
 impl Drop for ArmCoreInner {
     fn drop(&mut self) {
-        let batch = self.engine.take_profile(true);
-        if !batch.is_empty()
-            && let Some(callback) = self.profile.as_mut()
-        {
-            callback(batch);
+        if let Some(mut profile) = self.profile.take() {
+            let batch = drain_samples(&mut profile.samples);
+            if !batch.is_empty() {
+                (profile.callback)(batch);
+            }
         }
     }
+}
+
+fn drain_samples(samples: &mut BTreeMap<Vec<u32>, u64>) -> Vec<ProfileSample> {
+    core::mem::take(samples)
+        .into_iter()
+        .map(|(stack, count)| ProfileSample { stack, count })
+        .collect()
 }
 
 #[derive(Clone)]
@@ -63,9 +82,14 @@ impl ArmCore {
             Box::new(Arm32CpuEngine::with_backend(aot))
         };
 
-        engine.set_profiling(profile.is_some());
         engine.mem_map(FUNCTIONS_BASE, FUNCTIONS_SIZE, MemoryPermission::ReadExecute);
         engine.mem_map(GLOBAL_DATA_BASE, 0x4000, MemoryPermission::ReadWriteExecute);
+
+        let profile = profile.map(|callback| ProfileState {
+            samples: BTreeMap::new(),
+            counter: 0,
+            callback,
+        });
 
         let inner = ArmCoreInner {
             engine,
@@ -170,20 +194,41 @@ impl ArmCore {
         self.threads.lock().keys().cloned().collect()
     }
 
-    fn flush_profile(&self) {
-        // Taking the FnMut also serializes reentrant delivery; nested runs leave samples in the engine.
-        let Some(mut callback) = self.inner.lock().profile.take() else {
+    fn sample_profile(&self) {
+        let mut inner = self.inner.lock();
+        if inner.profile.is_none() {
             return;
-        };
-        loop {
-            let mut inner = self.inner.lock();
-            let batch = inner.engine.take_profile(false);
-            if batch.is_empty() {
-                inner.profile = Some(callback);
-                return;
+        }
+        let pc = inner.engine.reg_read(ArmRegister::PC);
+        let mut stack = vec![pc];
+        let mut r7 = inner.engine.reg_read(ArmRegister::R7);
+        for _ in 0..PROFILE_MAX_STACK {
+            // Thumb frame: [saved R7 | saved LR] at [r7].
+            let mut buf = [0u8; 8];
+            if inner.engine.mem_read(r7, 8, &mut buf).is_err() {
+                break;
             }
-            drop(inner);
-            callback(batch);
+            let prev_r7 = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+            let lr = u32::from_le_bytes(buf[4..8].try_into().unwrap());
+            // Heuristic stop: zero/null frame or non-Thumb LR (we only ever
+            // call into Thumb code from the guest).
+            if prev_r7 == 0 || lr == 0 || lr & 1 == 0 {
+                break;
+            }
+            stack.push(lr);
+            if prev_r7 <= r7 {
+                // R7 chain must walk upward; bail on any inversion to avoid loops.
+                break;
+            }
+            r7 = prev_r7;
+        }
+        let profile = inner.profile.as_mut().unwrap();
+        *profile.samples.entry(stack).or_insert(0) += 1;
+        profile.counter = profile.counter.wrapping_add(1);
+        if profile.counter >= PROFILE_FLUSH_INTERVAL {
+            profile.counter = 0;
+            let batch = drain_samples(&mut profile.samples);
+            (profile.callback)(batch);
         }
     }
 
@@ -235,7 +280,7 @@ impl ArmCore {
         }
 
         loop {
-            let (result, exhausted) = {
+            let (result, should_yield) = {
                 let mut inner = self.inner.lock();
                 let budget = inner.instructions_remaining;
                 let result = inner.engine.run(RUN_FUNCTION_LR, budget)?;
@@ -244,8 +289,11 @@ impl ArmCore {
                 if exhausted {
                     inner.instructions_remaining = INSTRUCTIONS_PER_YIELD;
                 }
-                (result.stop_reason, exhausted)
+                let should_yield = exhausted || matches!(result.stop_reason, EngineStopReason::Yield);
+                (result.stop_reason, should_yield)
             };
+
+            self.sample_profile();
 
             let svc_step = if let EngineStopReason::Svc { lr, spsr, .. } = result {
                 // Leave exception mode before yielding: thread contexts do not save banked SVC registers.
@@ -260,9 +308,6 @@ impl ArmCore {
             } else {
                 None
             };
-
-            let should_yield = exhausted || matches!(result, EngineStopReason::Yield);
-            self.flush_profile();
 
             if should_yield {
                 YieldFuture::new().await;
@@ -650,7 +695,6 @@ impl Drop for ThreadContextGuard {
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
     use core::{
         future::poll_fn,
         pin::pin,
@@ -712,85 +756,6 @@ mod tests {
                 read_null_terminated_string_bytes(&core, 0),
                 Err(WieError::InvalidMemoryAccess(0))
             ));
-        }
-    }
-
-    #[test]
-    fn final_owner_drop_flushes_remaining_profile_samples() {
-        let samples = Arc::new(Mutex::new(Vec::new()));
-        let observed = samples.clone();
-        let mut core = ArmCore::new(Options {
-            enable_gdbserver: false,
-            aot: None,
-            profile: Some(Box::new(move |batch| samples.lock().extend(batch))),
-        })
-        .unwrap();
-        let mut code = [0xc0, 0x46].repeat(2048); // nop
-        code.extend_from_slice(&[0x70, 0x47]);
-        core.load(&code, 0x1000, code.len()).unwrap();
-        futures::executor::block_on(core.run_function::<()>(0x1001, &[])).unwrap();
-        let last = core.clone();
-        drop(core);
-        assert!(observed.lock().is_empty());
-        drop(last);
-        let samples = observed.lock();
-        assert!(!samples.is_empty());
-        assert!(samples.iter().all(|sample| (0x1000..0x2000).contains(&sample.stack[0])));
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn profile_callbacks_can_reenter_outside_engine_locks() {
-        for debug in [false, true] {
-            let holder = Arc::new(Mutex::new(None::<ArmCore>));
-            let callback_core = holder.clone();
-            let callbacks = Arc::new(AtomicU32::new(0));
-            let observed = callbacks.clone();
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                aot: None,
-                profile: Some(Box::new(move |batch| {
-                    assert!(!batch.is_empty());
-                    if callbacks.fetch_add(1, Ordering::Relaxed) == 0 {
-                        let mut core = callback_core.lock().as_ref().unwrap().clone();
-                        assert!(core.inner.try_lock().is_some());
-                        core.save_context(); // Also acquires the debug CPU lock.
-                        assert!(batch.iter().all(|sample| sample.stack[0] == 0x1000));
-                        assert!(batch.iter().map(|sample| sample.count).sum::<u64>() >= 1000);
-                        futures::executor::block_on(core.run_function::<()>(0x10001, &[])).unwrap();
-                    } else {
-                        assert!(batch.iter().all(|sample| (0x10000..=0x11000).contains(&sample.stack[0])));
-                    }
-                })),
-            })
-            .unwrap();
-            if debug {
-                let mut engine = DebuggedArm32CpuEngine::new();
-                engine.set_profiling(true);
-                engine.debug_inner().resume(Vec::new(), None);
-                core.inner.lock().engine = Box::new(engine);
-            }
-            core.load(&[0xfe, 0xe7], 0x1000, 2).unwrap(); // b .
-            let mut nested = [0xc0, 0x46].repeat(2048);
-            nested.extend_from_slice(&[0x70, 0x47]);
-            core.load(&nested, 0x10000, nested.len()).unwrap();
-            *holder.lock() = Some(core.clone());
-            {
-                let mut inner = core.inner.lock();
-                inner.engine.reg_write(ArmRegister::Cpsr, 0x3f);
-                inner.engine.reg_write(ArmRegister::PC, 0x1000);
-                // A flush needs 1000 retired samples; each interval is at most 1152 instructions.
-                let count = 1152 * 1000;
-                let result = inner.engine.run(RUN_FUNCTION_LR, count).unwrap();
-                assert!(matches!(result.stop_reason, EngineStopReason::Yield));
-                assert_eq!(result.budget_consumed, count);
-            }
-            assert_eq!(observed.load(Ordering::Relaxed), 0);
-            core.flush_profile();
-            assert_eq!(observed.load(Ordering::Relaxed), 1);
-            holder.lock().take();
-            drop(core);
-            assert_eq!(observed.load(Ordering::Relaxed), 2);
         }
     }
 

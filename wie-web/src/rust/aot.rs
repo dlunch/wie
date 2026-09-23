@@ -97,7 +97,6 @@ impl CompiledExecutor for WasmExecutor {
         match result {
             Ok(value) => match value {
                 0.0 => Ok(CompiledExit::Dispatch),
-                1.0 => Ok(CompiledExit::Sample),
                 3.0 => Ok(CompiledExit::End),
                 4.0 => Ok(CompiledExit::InterpretOne),
                 6.0 => Ok(CompiledExit::GuestFault),
@@ -109,148 +108,81 @@ impl CompiledExecutor for WasmExecutor {
 }
 
 async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(CompiledArtifact, Function), JsValue> {
-    let started = now();
-    let memory = wasm_bindgen::memory().unchecked_into::<js_sys::WebAssembly::Memory>();
-    let memory_before = Uint8Array::new(&memory.buffer()).length();
-    let mut cache = "miss";
-    let mut input_ms = 0.0;
-    let mut lookup_ms = 0.0;
-    let mut compiler_ms = 0.0;
-    let mut manifest_ms = 0.0;
-    let mut output_setup_ms = 0.0;
-    let mut encoded_size = 0;
-    let mut region_count = 0;
-    let result = async {
-        let mut group_started = started;
-        let mut input = Vec::new();
-        input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
-        for image in request.images.iter() {
-            preparation_checkpoint(&mut group_started, deadline).await?;
-            input.extend_from_slice(&image.address.to_le_bytes());
-            input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
-            input.extend_from_slice(&image.bytes);
-        }
-        let input_copy = Uint8Array::from(input.as_slice());
-        drop(input);
-        input_ms = now() - started;
-        let lookup_started = now();
-        let lookup = JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?;
-        drop(input_copy);
-        lookup_ms = now() - lookup_started;
-        let key = Reflect::get(&lookup, &"key".into())?;
-        if key.is_undefined() {
-            cache = "unavailable";
-        }
-        let candidate = match Reflect::get(&lookup, &"artifact".into())? {
-            candidate if candidate.is_undefined() => None,
-            candidate => Some(candidate.dyn_into::<Object>()?),
-        };
-        drop(lookup);
-        if let Some(artifact) = candidate {
-            let restored = async {
-                let manifest_started = now();
-                let restored = async {
-                    let bytes = Reflect::get(&artifact, &"manifest".into())?.dyn_into::<Uint8Array>()?.to_vec();
-                    let mut manifest = bytes.as_slice();
-                    let mut owned = BTreeSet::new();
-                    let mut regions = Vec::new();
-                    while !manifest.is_empty() {
-                        preparation_checkpoint(&mut group_started, deadline).await?;
-                        let mut region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
-                        bind_manifest_source(&mut region, &request.images).map_err(|error| JsValue::from_str(&error))?;
-                        for &pc in &region.instruction_pcs {
-                            if !owned.insert(RegionKey { pc, ..region.entry }) {
-                                return Err(JsValue::from_str("duplicate cached instruction ownership"));
-                            }
-                        }
-                        regions.push(CompiledRegion {
-                            handle: CompiledHandle { slot: regions.len() as u32 },
-                            manifest: region,
-                        });
-                    }
-                    Ok(regions)
-                }
-                .await;
-                manifest_ms += now() - manifest_started;
-                let regions = restored?;
-                encoded_size = Reflect::get(&artifact, &"bytes".into())?.dyn_into::<Uint8Array>()?.length() as usize;
-                let digest = Reflect::get(&artifact, &"digest".into())?;
-                region_count = regions.len();
-                cache = "persistent-hit";
-                let dispatcher = prepare_dispatcher(&artifact, &key, &digest, region_count, deadline, &mut output_setup_ms).await?;
-                Ok::<_, JsValue>((CompiledArtifact { regions, encoded_size }, dispatcher))
-            }
-            .await;
-            match restored {
-                Ok(result) => return Ok(result),
-                Err(error) => {
-                    cache = "corrupt";
-                    tracing::warn!(?error, "ARM AOT cached artifact rejected; rebuilding");
-                }
-            }
-        }
-
-        let compiler_started = now();
-        let mut compiler = Compiler::new(request);
-        let compiled = async {
-            loop {
+    let mut group_started = now();
+    let mut input = Vec::new();
+    input.extend_from_slice(&(request.images.len() as u32).to_le_bytes());
+    for image in request.images.iter() {
+        preparation_checkpoint(&mut group_started, deadline).await?;
+        input.extend_from_slice(&image.address.to_le_bytes());
+        input.extend_from_slice(&(image.bytes.len() as u32).to_le_bytes());
+        input.extend_from_slice(&image.bytes);
+    }
+    let input_copy = Uint8Array::from(input.as_slice());
+    let lookup = JsFuture::from(load_arm_cache(&input_copy, AOT_CACHE_VERSION, deadline)?).await?;
+    let key = Reflect::get(&lookup, &"key".into())?;
+    let candidate = match Reflect::get(&lookup, &"artifact".into())? {
+        candidate if candidate.is_undefined() => None,
+        candidate => Some(candidate.dyn_into::<Object>()?),
+    };
+    if let Some(artifact) = candidate {
+        let restored = async {
+            let bytes = Reflect::get(&artifact, &"manifest".into())?.dyn_into::<Uint8Array>()?.to_vec();
+            let mut manifest = bytes.as_slice();
+            let mut owned = BTreeSet::new();
+            let mut regions = Vec::new();
+            while !manifest.is_empty() {
                 preparation_checkpoint(&mut group_started, deadline).await?;
-                if compiler.step().map_err(|error| JsValue::from_str(&error))? {
-                    break;
+                let mut region = decode_manifest_region(&mut manifest).ok_or_else(|| JsValue::from_str("invalid cached manifest"))?;
+                bind_manifest_source(&mut region, &request.images).map_err(|error| JsValue::from_str(&error))?;
+                for &pc in &region.instruction_pcs {
+                    if !owned.insert(RegionKey { pc, ..region.entry }) {
+                        return Err(JsValue::from_str("duplicate cached instruction ownership"));
+                    }
                 }
+                regions.push(CompiledRegion {
+                    handle: CompiledHandle { slot: regions.len() as u32 },
+                    manifest: region,
+                });
             }
-            Ok::<_, JsValue>(compiler.finish())
+            let digest = Reflect::get(&artifact, &"digest".into())?;
+            let dispatcher = prepare_dispatcher(&artifact, &key, &digest, regions.len(), deadline).await?;
+            Ok::<_, JsValue>((CompiledArtifact { regions }, dispatcher))
         }
         .await;
-        compiler_ms = now() - compiler_started;
-        let WasmArtifact { bytes, manifest } = compiled?;
-        encoded_size = bytes.len();
-        let manifest_started = now();
-        let mut serialized = Vec::new();
-        let mut regions = Vec::with_capacity(manifest.len());
-        for (slot, manifest) in manifest.into_iter().enumerate() {
-            preparation_checkpoint(&mut group_started, deadline).await?;
-            encode_manifest_region(&manifest, &mut serialized);
-            regions.push(CompiledRegion {
-                manifest,
-                handle: CompiledHandle { slot: slot as u32 },
-            });
+        match restored {
+            Ok(result) => return Ok(result),
+            Err(error) => {
+                tracing::warn!(?error, "ARM AOT cached artifact rejected; rebuilding");
+            }
         }
-        manifest_ms += now() - manifest_started;
-        let output_started = now();
-        let artifact = Object::new();
-        // Both arrays own their bytes before Rust allocations are freed or an await can grow memory.
-        let bytes_copy = Uint8Array::from(bytes.as_slice());
-        drop(bytes);
-        Reflect::set(&artifact, &"bytes".into(), &bytes_copy)?;
-        let manifest_copy = Uint8Array::from(serialized.as_slice());
-        drop(serialized);
-        Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
-        output_setup_ms += now() - output_started;
-        region_count = regions.len();
-        let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, region_count, deadline, &mut output_setup_ms).await?;
-        Ok((CompiledArtifact { regions, encoded_size }, dispatcher))
     }
-    .await;
-    let elapsed_ms = now() - started;
-    let memory_retained = Uint8Array::new(&memory.buffer()).length();
-    tracing::info!(
-        cache,
-        input_ms,
-        lookup_ms,
-        compiler_ms,
-        manifest_ms,
-        output_setup_ms,
-        elapsed_ms,
-        encoded_size,
-        region_count,
-        hostMemoryBefore = memory_before,
-        hostMemoryPeak = memory_retained,
-        hostMemoryRetained = memory_retained,
-        outcome = if result.is_ok() { "ready" } else { "failed" },
-        "ARM AOT compiled"
-    );
-    result
+
+    let mut compiler = Compiler::new(request);
+    loop {
+        preparation_checkpoint(&mut group_started, deadline).await?;
+        if compiler.step().map_err(|error| JsValue::from_str(&error))? {
+            break;
+        }
+    }
+    let WasmArtifact { bytes, manifest } = compiler.finish();
+    let mut serialized = Vec::new();
+    let mut regions = Vec::with_capacity(manifest.len());
+    for (slot, manifest) in manifest.into_iter().enumerate() {
+        preparation_checkpoint(&mut group_started, deadline).await?;
+        encode_manifest_region(&manifest, &mut serialized);
+        regions.push(CompiledRegion {
+            manifest,
+            handle: CompiledHandle { slot: slot as u32 },
+        });
+    }
+    let artifact = Object::new();
+    // Both arrays own their bytes before Rust allocations are freed or an await can grow memory.
+    let bytes_copy = Uint8Array::from(bytes.as_slice());
+    Reflect::set(&artifact, &"bytes".into(), &bytes_copy)?;
+    let manifest_copy = Uint8Array::from(serialized.as_slice());
+    Reflect::set(&artifact, &"manifest".into(), &manifest_copy)?;
+    let dispatcher = prepare_dispatcher(&artifact, &key, &JsValue::UNDEFINED, regions.len(), deadline).await?;
+    Ok((CompiledArtifact { regions }, dispatcher))
 }
 
 async fn preparation_checkpoint(group_started: &mut f64, deadline: f64) -> Result<(), JsValue> {
@@ -270,18 +202,14 @@ async fn prepare_dispatcher(
     cached_digest: &JsValue,
     region_count: usize,
     deadline: f64,
-    output_setup_ms: &mut f64,
 ) -> Result<Function, JsValue> {
-    let output_started = now();
     let mut warmup = Box::new(RunFrame {
         cpsr: 0x1f,
         end: 0x1000,
-        sample_remaining: 1,
         ..RunFrame::default()
     });
     warmup.regs[15] = 0x1000;
     let imports = execution_imports()?;
-    *output_setup_ms += now() - output_started;
     let promise = compile_arm(
         artifact,
         key,
@@ -303,7 +231,6 @@ fn execution_imports() -> Result<Object, JsValue> {
     Reflect::set(&wie, &"memory".into(), &wasm_bindgen::memory())?;
     for (import, export) in [
         ("pages", "wie_aot_pages"),
-        ("sample_prepare", "wie_aot_sample_prepare"),
         ("word_range", "wie_aot_word_range"),
         ("resolve", "wie_aot_resolve"),
     ] {
@@ -332,12 +259,6 @@ const _: () = {
     assert!(core::mem::size_of::<wie_arm_jit_types::MemoryPage>() == 16);
     assert!(core::mem::offset_of!(wie_arm_jit_types::MemoryPage, bytes) == 0);
 };
-
-#[unsafe(no_mangle)]
-unsafe extern "C" fn wie_aot_sample_prepare(access: u32, pc: u32, r7: u32) {
-    let context = unsafe { &mut *(access as *mut ExecutionContext<'_>) };
-    context.access.sample_prepare(pc, r7);
-}
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn wie_aot_resolve(access: u32, pc: u32, cpsr: u32) -> u32 {

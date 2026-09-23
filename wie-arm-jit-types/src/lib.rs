@@ -59,7 +59,6 @@ pub struct CompiledRegion {
 
 pub struct CompiledArtifact {
     pub regions: Vec<CompiledRegion>,
-    pub encoded_size: usize,
 }
 
 #[derive(PartialEq)]
@@ -73,7 +72,6 @@ pub enum PreparationState {
 #[repr(u32)]
 pub enum CompiledExit {
     Dispatch = 0,
-    Sample = 1,
     End = 3,
     InterpretOne = 4,
     GuestFault = 6,
@@ -85,7 +83,6 @@ pub struct RunFrame {
     pub regs: [u32; 16],
     pub cpsr: u32,
     pub end: u32,
-    pub sample_remaining: u32,
     pub executed: u32,
     pub fault_address: u32,
     pub scratch: u32,
@@ -111,12 +108,11 @@ pub trait ExecutionAccess {
     /// Returns `None` for unaligned or unmapped ranges. The guest-backed slices contain only
     /// requested bytes, split at a backing-memory boundary into a nonempty prefix and optional remainder;
     /// their lengths are multiples of four and total `words * 4` bytes.
-    /// Acquisition does not read or write data, publish code, or change sampling state. Writes
+    /// Acquisition does not read or write data or publish code. Writes
     /// through the slices are guest stores and do not publish code either.
     /// The exclusive borrow is for one synchronous guest instruction, without remapping memory
     /// or suspending execution while the slices are in use.
     fn word_range(&mut self, address: u32, words: u32) -> Option<(&mut [u8], &mut [u8])>;
-    fn sample_prepare(&mut self, pc: u32, r7: u32);
 }
 
 pub trait CompiledExecutor: Send {
@@ -137,14 +133,13 @@ mod tests {
 
     #[test]
     fn generated_code_frame_has_a_fixed_plain_data_layout() {
-        assert_eq!(size_of::<RunFrame>(), 88);
+        assert_eq!(size_of::<RunFrame>(), 84);
         assert_eq!(align_of::<RunFrame>(), 4);
         assert_eq!(offset_of!(RunFrame, regs), 0);
         assert_eq!(offset_of!(RunFrame, cpsr), 64);
         assert_eq!(offset_of!(RunFrame, end), 68);
-        assert_eq!(offset_of!(RunFrame, sample_remaining), 72);
-        assert_eq!(offset_of!(RunFrame, executed), 76);
-        assert_eq!(offset_of!(RunFrame, fault_address), 80);
-        assert_eq!(offset_of!(RunFrame, scratch), 84);
+        assert_eq!(offset_of!(RunFrame, executed), 72);
+        assert_eq!(offset_of!(RunFrame, fault_address), 76);
+        assert_eq!(offset_of!(RunFrame, scratch), 80);
     }
 }

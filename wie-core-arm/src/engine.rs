@@ -1,12 +1,10 @@
 mod arm32_cpu;
 mod debugged_arm32_cpu;
-mod sampler;
 
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 
 use wie_arm_jit_types::{CompiledArtifact, PreparationFuture};
-use wie_backend::ProfileSample;
-use wie_util::{AsAny, Result};
+use wie_util::{AsAny, Result as WieResult};
 
 pub use arm32_cpu::Arm32CpuEngine;
 pub(crate) use arm32_cpu::EmulatedMemory;
@@ -26,19 +24,17 @@ pub struct EngineRunResult {
 }
 
 pub trait ArmEngine: Send + AsAny {
-    fn run(&mut self, end: u32, count: u32) -> Result<EngineRunResult>;
+    fn run(&mut self, end: u32, count: u32) -> WieResult<EngineRunResult>;
     fn reg_write(&mut self, reg: ArmRegister, value: u32);
     fn reg_read(&self, reg: ArmRegister) -> u32;
     fn mem_map(&mut self, address: u32, size: usize, permission: MemoryPermission);
-    fn mem_write(&mut self, address: u32, data: &[u8]) -> Result<()>;
-    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> Result<usize>;
+    fn mem_write(&mut self, address: u32, data: &[u8]) -> WieResult<()>;
+    fn mem_read(&mut self, address: u32, size: usize, result: &mut [u8]) -> WieResult<usize>;
     fn is_mapped(&self, address: u32, size: usize) -> bool;
-    fn set_profiling(&mut self, enabled: bool);
-    fn take_profile(&mut self, force: bool) -> Vec<ProfileSample>;
     fn record_image(&mut self, address: u32, size: usize);
-    fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>>;
+    fn begin_preparation(&mut self) -> WieResult<Option<PreparationFuture>>;
     fn is_preparing(&self) -> bool;
-    fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>);
+    fn finish_preparation(&mut self, result: Result<CompiledArtifact, String>);
 }
 
 #[allow(clippy::enum_variant_names)]
