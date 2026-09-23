@@ -56,13 +56,13 @@ impl ArmCore {
     pub fn new(options: Options) -> Result<Self> {
         let Options {
             enable_gdbserver,
-            enable_aot,
+            aot,
             profile,
         } = options;
         let mut engine = if enable_gdbserver {
             Box::new(DebuggedArm32CpuEngine::new()) as Box<dyn ArmEngine>
         } else {
-            Box::new(Arm32CpuEngine::with_backend(enable_aot))
+            Box::new(Arm32CpuEngine::with_backend(aot))
         };
 
         engine.set_profiling(profile.is_some());
@@ -719,23 +719,17 @@ mod tests {
 
     #[test]
     fn interpreter_executes_without_preparation() {
-        for enable_aot in [
-            false,
-            #[cfg(not(target_arch = "wasm32"))]
-            true,
-        ] {
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                enable_aot,
-                profile: None,
-            })
-            .unwrap();
-            core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
-            assert!(!core.is_preparing());
-            assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
-            futures::executor::block_on(core.prepare_execution()).unwrap();
-            assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[])).unwrap(), 42);
-        }
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })
+        .unwrap();
+        core.load(&[42, 0x20, 0x70, 0x47], 0x1000, 0x1000).unwrap();
+        assert!(!core.is_preparing());
+        assert!(core.inner.lock().engine.begin_preparation().unwrap().is_none());
+        futures::executor::block_on(core.prepare_execution()).unwrap();
+        assert_eq!(futures::executor::block_on(core.run_function::<u32>(0x1001, &[])).unwrap(), 42);
     }
 
     #[test]
@@ -743,7 +737,7 @@ mod tests {
         for debug in [false, true] {
             let mut core = ArmCore::new(Options {
                 enable_gdbserver: false,
-                enable_aot: false,
+                aot: None,
                 profile: None,
             })
             .unwrap();
@@ -792,7 +786,7 @@ mod tests {
 
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -812,7 +806,7 @@ mod tests {
     fn shutdown_stops_a_suspended_svc_before_its_handler() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -850,7 +844,7 @@ mod tests {
     fn shutdown_does_not_resume_an_already_pending_svc_handler() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -878,7 +872,7 @@ mod tests {
     fn shutdown_preserves_fault_context_when_a_nested_thread_is_polled() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -924,7 +918,7 @@ mod tests {
 
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -941,7 +935,7 @@ mod tests {
         let observed = samples.clone();
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: Some(Box::new(move |batch| samples.lock().extend(batch))),
         })
         .unwrap();
@@ -968,7 +962,7 @@ mod tests {
             let observed = callbacks.clone();
             let mut core = ArmCore::new(Options {
                 enable_gdbserver: false,
-                enable_aot: false,
+                aot: None,
                 profile: Some(Box::new(move |batch| {
                     assert!(!batch.is_empty());
                     let mut core = callback_core.lock().as_ref().unwrap().clone();
@@ -1027,7 +1021,7 @@ mod tests {
 
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1054,7 +1048,7 @@ mod tests {
     fn scheduler_locking_yields_without_resetting_the_instruction_budget() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1082,7 +1076,7 @@ mod tests {
     fn scheduler_locking_keeps_other_thread_futures_stopped() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1118,7 +1112,7 @@ mod tests {
 
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1188,7 +1182,7 @@ mod tests {
         for breakpoint in [false, true] {
             let mut core = ArmCore::new(Options {
                 enable_gdbserver: false,
-                enable_aot: false,
+                aot: None,
                 profile: None,
             })
             .unwrap();
@@ -1247,38 +1241,36 @@ mod tests {
 
     #[test]
     fn yields_every_ten_thousand_instructions_across_svc() {
-        for enable_aot in [false, true] {
-            let mut core = ArmCore::new(Options {
-                enable_gdbserver: false,
-                enable_aot,
-                profile: None,
-            })
-            .unwrap();
-            let calls = Arc::new(AtomicU32::new(0));
-            core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
-            let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
-            code.extend_from_slice(&[0x70, 0x47]); // bx lr
-            core.load(&code, 0x1000, code.len()).unwrap();
+        let mut core = ArmCore::new(Options {
+            enable_gdbserver: false,
+            aot: None,
+            profile: None,
+        })
+        .unwrap();
+        let calls = Arc::new(AtomicU32::new(0));
+        core.register_svc_handler(1, count_inline_svc, &calls).unwrap();
+        let mut code = [0x01, 0x30, 0x01, 0xdf].repeat(10_000); // add r0, #1; svc #1
+        code.extend_from_slice(&[0x70, 0x47]); // bx lr
+        core.load(&code, 0x1000, code.len()).unwrap();
 
-            let observer = core.clone();
-            let mut run = pin!(core.run_function::<u32>(0x1001, &[0]));
-            let mut cx = Context::from_waker(Waker::noop());
-            for completed in [5_000, 10_000] {
-                assert!(run.as_mut().poll(&mut cx).is_pending());
-                assert_eq!(observer.read_param(0).unwrap(), completed);
-                assert_eq!(calls.load(Ordering::Relaxed), completed - 1);
-                assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
-            }
-            assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(10_000))));
-            assert_eq!(calls.load(Ordering::Relaxed), 10_000);
+        let observer = core.clone();
+        let mut run = pin!(core.run_function::<u32>(0x1001, &[0]));
+        let mut cx = Context::from_waker(Waker::noop());
+        for completed in [5_000, 10_000] {
+            assert!(run.as_mut().poll(&mut cx).is_pending());
+            assert_eq!(observer.read_param(0).unwrap(), completed);
+            assert_eq!(calls.load(Ordering::Relaxed), completed - 1);
+            assert_eq!(observer.save_context().cpsr & 0x3f, 0x3f);
         }
+        assert!(matches!(run.as_mut().poll(&mut cx), Poll::Ready(Ok(10_000))));
+        assert_eq!(calls.load(Ordering::Relaxed), 10_000);
     }
 
     #[test]
     fn nested_arm_calls_share_the_instruction_budget() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1310,7 +1302,7 @@ mod tests {
 
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1341,7 +1333,7 @@ mod tests {
     fn returning_arm_calls_do_not_reset_the_instruction_budget() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1371,7 +1363,7 @@ mod tests {
         let mut system = System::new(Box::new(TestPlatform::with_clock(clock.clone())), "test", "test", DefaultTaskRunner);
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -1425,7 +1417,7 @@ mod tests {
     fn test_thumb_svc_stub_dispatch() {
         let mut core = ArmCore::new(Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();

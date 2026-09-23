@@ -7036,6 +7036,7 @@ dependencies = [
  "smaf-player",
  "spin",
  "tracing",
+ "wie-arm-jit-types",
  "wie-util",
  "zip",
 ]
@@ -7066,12 +7067,7 @@ dependencies = [
 name = "wie-core-arm-wasm"
 version = "0.1.4"
 dependencies = [
- "futures",
- "js-sys",
  "nom 8.0.0",
- "tracing",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "wasm-encoder",
  "wie-arm-jit-types",
 ]
@@ -7261,7 +7257,9 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "wie-arm-jit-types",
  "wie-backend",
+ "wie-core-arm-wasm",
  "wie-j2me",
  "wie-ktf",
  "wie-lgt",

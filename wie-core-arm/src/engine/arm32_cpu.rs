@@ -3,8 +3,8 @@ use alloc::{boxed::Box, format, string::String, vec::Vec};
 use arm32_cpu::{Cpu, Memory, Mode, reg};
 
 use wie_arm_jit_types::{
-    CodeImage, CodePageStamp, CompiledArtifact, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture, PreparationState,
-    RegionKey, RunFrame,
+    CodeImage, CodePageStamp, CompiledArtifact, CompiledExecutor, CompiledExit, CompiledHandle, ExecutionAccess, MemoryPage, PreparationFuture,
+    PreparationState, RegionKey, RunFrame,
 };
 use wie_backend::ProfileSample;
 use wie_util::{Result, WieError};
@@ -40,15 +40,11 @@ impl Arm32CpuEngine {
         }
     }
 
-    pub fn with_backend(_enable_aot: bool) -> Self {
-        #[cfg(target_arch = "wasm32")]
-        if _enable_aot {
-            return Self {
-                aot: Some(Aot::new(Box::new(wie_core_arm_wasm::WasmExecutor::default()))),
-                ..Self::new()
-            };
+    pub fn with_backend(executor: Option<Box<dyn CompiledExecutor>>) -> Self {
+        Self {
+            aot: executor.map(Aot::new),
+            ..Self::new()
         }
-        Self::new()
     }
 
     fn is_svc_exception(&self) -> bool {
@@ -286,11 +282,7 @@ impl ArmEngine for Arm32CpuEngine {
 
     fn begin_preparation(&mut self) -> Result<Option<PreparationFuture>> {
         if let Some(aot) = &mut self.aot {
-            #[cfg(target_arch = "wasm32")]
-            let now = wie_core_arm_wasm::now;
-            #[cfg(not(target_arch = "wasm32"))]
-            let now = || 0.0;
-            return aot.begin(&self.mem, now);
+            return aot.begin(&self.mem);
         }
         Ok(None)
     }
@@ -300,14 +292,10 @@ impl ArmEngine for Arm32CpuEngine {
     }
 
     fn finish_preparation(&mut self, result: core::result::Result<CompiledArtifact, String>) {
-        if let Some(aot) = &mut self.aot {
-            #[cfg(target_arch = "wasm32")]
-            let now = wie_core_arm_wasm::now;
-            #[cfg(not(target_arch = "wasm32"))]
-            let now = || 0.0;
-            if !aot.finish(result, &self.mem, now) {
-                self.aot = None;
-            }
+        if let Some(aot) = &mut self.aot
+            && !aot.finish(result, &self.mem)
+        {
+            self.aot = None;
         }
     }
 
@@ -689,11 +677,20 @@ mod tests {
     struct Responses {
         requests: Vec<(Vec<wie_arm_jit_types::CompileRegion>, f64)>,
         ready: Option<futures::channel::oneshot::Sender<core::result::Result<CompiledArtifact, String>>>,
+        now: f64,
+        advance: f64,
     }
 
     struct DeferredExecutor(Arc<Mutex<Responses>>);
 
     impl CompiledExecutor for DeferredExecutor {
+        fn now(&self) -> f64 {
+            let mut state = self.0.lock();
+            let now = state.now;
+            state.now += state.advance;
+            now
+        }
+
         fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
             let (sender, receiver) = futures::channel::oneshot::channel();
             let mut state = self.0.lock();
@@ -745,7 +742,8 @@ mod tests {
         aot.record_image(0x3ffe, 6);
         aot.record_image(0x4000, 2);
         memory.write_range(0x4000, &[7, 0x21]).unwrap();
-        let _preparation = aot.begin(&memory, || 200.0).unwrap().unwrap();
+        responses.lock().now = 200.0;
+        let _preparation = aot.begin(&memory).unwrap().unwrap();
 
         let state = responses.lock();
         assert_eq!(state.requests.len(), 1);
@@ -769,7 +767,8 @@ mod tests {
         assert!(request.iter().all(|region| memory.code_is_current(&region.source)));
         assert_eq!(aot.state, PreparationState::Preparing);
         drop(state);
-        assert!(aot.begin(&memory, || 300.0).unwrap().is_none());
+        responses.lock().now = 300.0;
+        assert!(aot.begin(&memory).unwrap().is_none());
         assert_eq!(responses.lock().requests.len(), 1);
         assert_eq!(aot.state, PreparationState::Preparing);
     }
@@ -782,10 +781,10 @@ mod tests {
         memory.map(0x1000, 0x10000);
         memory.write_range(0x1000, &[1, 0x30, 0x70, 0x47, 0, 0]).unwrap();
         aot.record_image(0x1000, 6);
-        let preparation = aot.begin(&memory, || 0.0).unwrap().unwrap();
+        let preparation = aot.begin(&memory).unwrap().unwrap();
         let compiled = artifact(&responses.lock().requests[0].0);
         assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
-        aot.finish(futures::executor::block_on(preparation), &memory, || 1.0);
+        aot.finish(futures::executor::block_on(preparation), &memory);
         assert_eq!(aot.state, PreparationState::Ready);
         let key = RegionKey {
             pc: 0x1000,
@@ -816,7 +815,7 @@ mod tests {
         assert_eq!(aot.lookup(RegionKey { pc: 0x1002, ..key }, &memory), None);
         memory.write_range(0x1000, &[0, 0]).unwrap();
         aot.record_image(0x1000, 2);
-        assert!(aot.begin(&memory, || 2.0).unwrap().is_none());
+        assert!(aot.begin(&memory).unwrap().is_none());
         assert_eq!(responses.lock().requests.len(), 1);
     }
 
@@ -828,10 +827,10 @@ mod tests {
         memory.map(0x1000, 0x1000);
         memory.write_range(0x1000, &[1, 0x30, 0x70, 0x47]).unwrap();
         aot.record_image(0x1000, 4);
-        let preparation = aot.begin(&memory, || 0.0).unwrap().unwrap();
+        let preparation = aot.begin(&memory).unwrap().unwrap();
         let compiled = artifact(&responses.lock().requests[0].0);
         assert!(responses.lock().ready.take().unwrap().send(Ok(compiled)).is_ok());
-        aot.finish(futures::executor::block_on(preparation), &memory, || 1.0);
+        aot.finish(futures::executor::block_on(preparation), &memory);
         let key = RegionKey {
             pc: 0x1000,
             thumb: true,
@@ -864,21 +863,16 @@ mod tests {
             let mut memory = EmulatedMemory::new();
             memory.map(0x1000, 0x1000);
             aot.record_image(0x1000, 4);
-            let preparation = aot.begin(&memory, || 0.0).unwrap().unwrap();
+            let preparation = aot.begin(&memory).unwrap().unwrap();
             let compiled = artifact(&responses.lock().requests[0].0);
             let result = if cause == "failed" { Err("compile failed".into()) } else { Ok(compiled) };
             assert!(responses.lock().ready.take().unwrap().send(result).is_ok());
             if cause == "stale" {
                 memory.write_range(0x1000, &[1]).unwrap();
             }
-            let time = core::cell::Cell::new(if cause == "timeout" { 10_000.0 } else { 9_999.0 });
-            assert!(!aot.finish(futures::executor::block_on(preparation), &memory, || {
-                let value = time.get();
-                if cause == "installation-timeout" {
-                    time.set(10_000.0);
-                }
-                value
-            }));
+            responses.lock().now = if cause == "timeout" { 10_000.0 } else { 9_999.0 };
+            responses.lock().advance = if cause == "installation-timeout" { 1.0 } else { 0.0 };
+            assert!(!aot.finish(futures::executor::block_on(preparation), &memory));
             assert_eq!(aot.state, PreparationState::Ready, "{cause}");
             let key = RegionKey {
                 pc: 0x1000,
@@ -887,7 +881,8 @@ mod tests {
             };
             assert_eq!(aot.lookup(key, &memory), None, "{cause}");
             let late = artifact(&responses.lock().requests[0].0);
-            aot.finish(Ok(late), &memory, || 10_001.0);
+            responses.lock().now = 10_001.0;
+            aot.finish(Ok(late), &memory);
             assert_eq!(aot.lookup(key, &memory), None, "{cause}");
             assert_eq!(responses.lock().requests.len(), 1);
         }
@@ -899,6 +894,10 @@ mod tests {
     }
 
     impl CompiledExecutor for TestExecutor {
+        fn now(&self) -> f64 {
+            0.0
+        }
+
         fn prepare(&mut self, request: CompileRequest, _: f64) -> PreparationFuture {
             let compiled = artifact(&request.regions.flatten().collect::<Vec<_>>());
             Box::pin(async move { Ok(compiled) })
@@ -937,7 +936,10 @@ mod tests {
     fn interpreter_handoff_and_backend_failure_preserve_progress_and_budget() {
         for (completed, budget) in [(None, 10), (Some(0), 10), (Some(2), 10), (Some(2), 2)] {
             let calls = Arc::new(Mutex::new((0, false)));
-            let mut engine = Arm32CpuEngine::new();
+            let mut engine = Arm32CpuEngine::with_backend(Some(Box::new(TestExecutor {
+                calls: calls.clone(),
+                completed,
+            })));
             engine.mem_map(0x1000, 6, MemoryPermission::ReadWriteExecute);
             engine.mem_map(0x20000, 4, MemoryPermission::ReadWrite);
             engine.mem_write(0x1000, &[0x08, 0x60, 0x01, 0x30, 0x70, 0x47]).unwrap(); // str r0, [r1]; add r0, #1; bx lr
@@ -946,14 +948,9 @@ mod tests {
             engine.reg_write(ArmRegister::Cpsr, 0x3f);
             engine.reg_write(ArmRegister::PC, 0x1001);
             engine.reg_write(ArmRegister::LR, 0x2000);
-            let mut aot = Aot::new(Box::new(TestExecutor {
-                calls: calls.clone(),
-                completed,
-            }));
-            aot.record_image(0x1000, 6);
-            let preparation = aot.begin(&engine.mem, || 0.0).unwrap().unwrap();
-            aot.finish(futures::executor::block_on(preparation), &engine.mem, || 1.0);
-            engine.aot = Some(aot);
+            engine.record_image(0x1000, 6);
+            let preparation = engine.begin_preparation().unwrap().unwrap();
+            engine.finish_preparation(futures::executor::block_on(preparation));
             let result = engine.run(0x2000, budget).unwrap();
             let yielded = budget == 2 && !cfg!(target_arch = "wasm32");
             let executed = if yielded { 2 } else { 3 };
@@ -983,15 +980,12 @@ mod tests {
     fn preparation_waits_without_running_image_code_and_shutdown_does_not_resume_it() {
         for cancel in [false, true] {
             let responses = Arc::new(Mutex::new(Responses::default()));
-            let mut engine = Arm32CpuEngine::new();
-            engine.aot = Some(Aot::new(Box::new(DeferredExecutor(responses.clone()))));
             let mut core = crate::ArmCore::new(wie_backend::Options {
                 enable_gdbserver: false,
-                enable_aot: false,
+                aot: Some(Box::new(DeferredExecutor(responses.clone()))),
                 profile: None,
             })
             .unwrap();
-            core.inner.lock().engine = Box::new(engine);
             core.load(&[0x01, 0x30, 0x70, 0x47], 0x1000, 0x1000).unwrap();
             let controller = core.clone();
             let mut execution: core::pin::Pin<Box<dyn Future<Output = Result<u32>> + Send>> = Box::pin(async move {
@@ -1041,8 +1035,8 @@ mod tests {
                 completed: None,
             }));
             aot.record_image(0x1000, 4);
-            let preparation = aot.begin(&engine.mem, || 0.0).unwrap().unwrap();
-            aot.finish(futures::executor::block_on(preparation), &engine.mem, || 1.0);
+            let preparation = aot.begin(&engine.mem).unwrap().unwrap();
+            aot.finish(futures::executor::block_on(preparation), &engine.mem);
             engine.aot = Some(aot);
             engine.reg_write(ArmRegister::Cpsr, cpsr);
             engine.reg_write(ArmRegister::PC, 0x1001);

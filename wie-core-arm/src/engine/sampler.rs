@@ -221,7 +221,7 @@ mod tests {
             let output = observed.clone();
             let mut core = ArmCore::new(wie_backend::Options {
                 enable_gdbserver: false,
-                enable_aot: false,
+                aot: None,
                 profile: Some(Box::new(move |batch| {
                     for sample in batch {
                         *output.lock().entry(sample.stack).or_insert(0u64) += sample.count;

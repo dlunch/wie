@@ -198,7 +198,7 @@ mod tests {
     fn compiler_vtable_uses_parent_targets_for_empty_entries() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;

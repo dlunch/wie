@@ -34,6 +34,7 @@ use alloc::{
     vec::Vec,
 };
 
+use wie_arm_jit_types::CompiledExecutor;
 use wie_util::{Result, WieError};
 
 pub trait Emulator {
@@ -55,7 +56,7 @@ pub type ProfileCallback = Box<dyn FnMut(Vec<ProfileSample>) + Send + Sync>;
 
 pub struct Options {
     pub enable_gdbserver: bool,
-    pub enable_aot: bool,
+    pub aot: Option<Box<dyn CompiledExecutor>>,
     pub profile: Option<ProfileCallback>,
 }
 

@@ -10,7 +10,7 @@ use wie_arm_jit_types::{
     RunFrame,
 };
 
-use crate::{AOT_CACHE_VERSION, Compiler, WasmArtifact, bind_manifest_source, decode_manifest_region, encode_manifest_region};
+use wie_core_arm_wasm::{AOT_CACHE_VERSION, Compiler, WasmArtifact, bind_manifest_source, decode_manifest_region, encode_manifest_region};
 
 #[wasm_bindgen(inline_js = r#"
 export { compileArm, compilerTask, loadArmCache } from "@ts/arm-compiler.ts";
@@ -45,7 +45,7 @@ extern "C" {
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = performance)]
-    pub fn now() -> f64;
+    fn now() -> f64;
 }
 
 #[derive(Default)]
@@ -58,6 +58,10 @@ pub struct WasmExecutor {
 unsafe impl Send for WasmExecutor {}
 
 impl CompiledExecutor for WasmExecutor {
+    fn now(&self) -> f64 {
+        now()
+    }
+
     fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture {
         let weak = Rc::downgrade(&self.dispatcher);
         let (sender, receiver) = oneshot::channel();
@@ -107,7 +111,8 @@ impl CompiledExecutor for WasmExecutor {
 
 async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(CompiledArtifact, Function), JsValue> {
     let started = now();
-    let memory_before = core::arch::wasm32::memory_size::<0>() * 65536;
+    let memory = wasm_bindgen::memory().unchecked_into::<js_sys::WebAssembly::Memory>();
+    let memory_before = Uint8Array::new(&memory.buffer()).length();
     let mut cache = "miss";
     let mut input_ms = 0.0;
     let mut lookup_ms = 0.0;
@@ -237,7 +242,7 @@ async fn prepare_module(request: CompileRequest, deadline: f64) -> Result<(Compi
     }
     .await;
     let elapsed_ms = now() - started;
-    let memory_retained = core::arch::wasm32::memory_size::<0>() * 65536;
+    let memory_retained = Uint8Array::new(&memory.buffer()).length();
     tracing::info!(
         cache,
         input_ms,

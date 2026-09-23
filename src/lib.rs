@@ -142,7 +142,7 @@ pub fn run() -> anyhow::Result<()> {
     let profile = args.profile_out.as_ref().map(|path| profile_callback(path)).transpose()?;
     let options = Options {
         enable_gdbserver: args.debug,
-        enable_aot: false,
+        aot: None,
         profile,
     };
     let filename = args.filename.as_deref().ok_or_else(|| anyhow::anyhow!("filename is required"))?;

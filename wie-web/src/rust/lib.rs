@@ -1,6 +1,7 @@
 #![no_std]
 extern crate alloc;
 
+mod aot;
 mod audio_sink;
 mod database;
 mod filesystem;
@@ -238,7 +239,7 @@ impl WieWeb {
             let platform = Box::new(WieWebPlatform::new(window, font, audio_player.clone()));
             let options = Options {
                 enable_gdbserver: false,
-                enable_aot,
+                aot: enable_aot.then(|| Box::new(aot::WasmExecutor::default()) as Box<dyn wie_arm_jit_types::CompiledExecutor>),
                 profile: None,
             };
 

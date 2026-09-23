@@ -127,6 +127,8 @@ pub trait ExecutionAccess {
 }
 
 pub trait CompiledExecutor: Send {
+    /// Monotonic milliseconds in the same clock domain used for preparation deadlines.
+    fn now(&self) -> f64;
     fn prepare(&mut self, request: CompileRequest, deadline_ms: f64) -> PreparationFuture;
     /// Both `Ok` and `Err` leave the completed instruction prefix in `frame`, including its next PC and counters.
     /// On `Err`, discard this executor and resume in the interpreter without replaying completed writes.

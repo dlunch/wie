@@ -60,7 +60,7 @@ mod tests {
     fn unavailable_transport_fails_before_any_guest_thread_exists() {
         let core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();

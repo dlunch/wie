@@ -13,12 +13,6 @@ use wie_arm_jit_types::{CodeImage, CompileRegion, CompileRequest, MAX_REGION_BLO
 
 mod codegen;
 
-#[cfg(target_arch = "wasm32")]
-mod runtime;
-
-#[cfg(target_arch = "wasm32")]
-pub use runtime::{WasmExecutor, now};
-
 const COPY_SIZE: usize = 64 * 1024;
 
 /// Increment when analysis, generated code, execution ABI, or the cache format changes.

@@ -963,7 +963,7 @@ mod tests {
     fn process_state_initializes_once_for_the_clet_lifecycle() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;
@@ -988,7 +988,7 @@ mod tests {
     fn display_properties_update_physical_display_state() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;

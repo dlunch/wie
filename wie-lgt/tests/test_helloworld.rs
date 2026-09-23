@@ -38,7 +38,7 @@ pub fn test_helloworld() -> Result<()> {
         archive,
         Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         },
     )?;
@@ -82,7 +82,7 @@ pub fn test_helloworld_jar_under_p_prefix() -> Result<()> {
         archive,
         Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         },
     )?;

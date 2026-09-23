@@ -242,7 +242,7 @@ mod tests {
             });
             let mut core = ArmCore::new(wie_backend::Options {
                 enable_gdbserver: false,
-                enable_aot: false,
+                aot: None,
                 profile: None,
             })
             .unwrap();
@@ -280,7 +280,7 @@ mod tests {
 
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -304,7 +304,7 @@ mod tests {
     fn switches_jvm_thread_context_between_tasks() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;

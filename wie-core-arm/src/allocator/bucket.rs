@@ -161,7 +161,7 @@ mod tests {
     fn test_allocator() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -202,7 +202,7 @@ mod tests {
     fn test_init_rejects_undersized_region() {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -216,7 +216,7 @@ mod tests {
     fn test_allocator_small_sizes() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();

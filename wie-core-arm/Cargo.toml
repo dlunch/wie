@@ -22,9 +22,6 @@ wie-backend = { workspace = true }
 wie-arm-jit-types = { workspace = true }
 wie-util = { workspace = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wie-core-arm-wasm = { workspace = true }
-
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
 futures-test = { workspace = true }

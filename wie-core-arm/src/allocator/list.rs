@@ -152,7 +152,7 @@ mod tests {
     fn test_allocator() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -170,7 +170,7 @@ mod tests {
     fn test_coalesce_adjacent_free_blocks() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -194,7 +194,7 @@ mod tests {
     fn test_double_free_returns_error() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -215,7 +215,7 @@ mod tests {
     fn test_corrupted_canary_returns_error() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();

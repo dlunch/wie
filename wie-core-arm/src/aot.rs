@@ -27,7 +27,6 @@ pub(crate) struct Aot {
 }
 
 impl Aot {
-    #[cfg(any(target_arch = "wasm32", test))]
     pub fn new(executor: Box<dyn CompiledExecutor>) -> Self {
         Self {
             executor,
@@ -45,11 +44,11 @@ impl Aot {
         }
     }
 
-    pub fn begin(&mut self, memory: &EmulatedMemory, now: impl Fn() -> f64) -> Result<Option<PreparationFuture>> {
+    pub fn begin(&mut self, memory: &EmulatedMemory) -> Result<Option<PreparationFuture>> {
         if self.state != PreparationState::Loading {
             return Ok(None);
         }
-        let snapshot_started = now();
+        let snapshot_started = self.executor.now();
         self.ranges.sort_unstable_by_key(|range| range.start);
         let mut ranges: Vec<Range<u64>> = Vec::new();
         for range in core::mem::take(&mut self.ranges) {
@@ -74,7 +73,7 @@ impl Aot {
             self.state = PreparationState::Ready;
             return Ok(None);
         }
-        let started = now();
+        let started = self.executor.now();
         self.deadline_ms = started + 10_000.0;
         tracing::info!(
             bytes = images.iter().map(|image| image.bytes.len()).sum::<usize>(),
@@ -91,17 +90,12 @@ impl Aot {
         Ok(Some(self.executor.prepare(request, self.deadline_ms)))
     }
 
-    pub fn finish(
-        &mut self,
-        result: core::result::Result<CompiledArtifact, alloc::string::String>,
-        memory: &EmulatedMemory,
-        now: impl Fn() -> f64,
-    ) -> bool {
+    pub fn finish(&mut self, result: core::result::Result<CompiledArtifact, alloc::string::String>, memory: &EmulatedMemory) -> bool {
         if self.state != PreparationState::Preparing {
             return false;
         }
         self.state = PreparationState::Ready;
-        if now() >= self.deadline_ms {
+        if self.executor.now() >= self.deadline_ms {
             tracing::warn!("ARM AOT preparation timed out; using interpreter");
             return false;
         }
@@ -135,7 +129,7 @@ impl Aot {
             }));
         }
         // Installation shares the compiler's deadline, including index construction.
-        let finished = now();
+        let finished = self.executor.now();
         if finished >= self.deadline_ms {
             tracing::warn!("ARM AOT installation timed out; using interpreter");
             return false;

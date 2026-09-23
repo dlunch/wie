@@ -256,7 +256,7 @@ mod tests {
     fn memory_and_string_imports_preserve_guest_bytes_across_chunks() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         core.map(0x10000, 0x10000)?;
@@ -282,12 +282,12 @@ mod tests {
     fn random_state_is_shared_by_system_clones_and_process_local() -> Result<()> {
         let mut first = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         let mut second = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         let mut first_system = System::new(Box::new(TestPlatform::new()), "", "", DefaultTaskRunner);

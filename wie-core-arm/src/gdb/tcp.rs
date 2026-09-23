@@ -135,7 +135,7 @@ mod tests {
     fn remote_sessions_read_threads_step_interrupt_and_reattach() {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();
@@ -250,7 +250,7 @@ mod tests {
     fn remote_step_actions_remain_bound_to_their_threads() {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })
         .unwrap();

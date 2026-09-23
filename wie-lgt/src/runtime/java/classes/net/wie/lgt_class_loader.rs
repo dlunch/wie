@@ -127,7 +127,7 @@ mod tests {
     fn generated_class_lookup_includes_last_bucket() -> Result<()> {
         let mut core = ArmCore::new(wie_backend::Options {
             enable_gdbserver: false,
-            enable_aot: false,
+            aot: None,
             profile: None,
         })?;
         Allocator::init(&mut core)?;
